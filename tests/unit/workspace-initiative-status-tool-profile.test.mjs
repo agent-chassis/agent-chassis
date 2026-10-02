@@ -12,7 +12,7 @@ const prettyJsonBytes = value => Buffer.byteLength(JSON.stringify(value, null, 2
 
 test("WK-1132#SLICE-040 exposes initiative status to agent-safe but not worker profile", () => {
   const agentSafeProfile = parseToolProfile({
-    WIKI_MCP_TOOL_PROFILE: "agent-safe"
+    WIKI_MCP_TOOL_PROFILE: "orchestrator"
   });
   const workerProfile = parseToolProfile({
     WIKI_MCP_TOOL_PROFILE: "worker"

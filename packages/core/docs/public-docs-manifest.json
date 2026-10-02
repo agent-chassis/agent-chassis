@@ -2,10 +2,10 @@
   "schema_version": "public-docs-manifest.v1",
   "package": {
     "name": "@agent-chassis/core",
-    "version": "0.8.0"
+    "version": "0.8.1"
   },
-  "entry_count": 62,
-  "available_count": 54,
+  "entry_count": 102,
+  "available_count": 94,
   "entries": [
     {
       "logical_path": "docs/acceptance-coverage-mcp.md",
@@ -13,8 +13,8 @@
       "bundle_path": "docs/acceptance-coverage-mcp.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "641e93d09476612682133d347a1d10ebff36019472712dffffc5d6d2845c2248",
-      "bytes": 75221
+      "sha256": "6c78c1e016da0e895e8b9cb4713d57fc57df8b416e89d3ca36e3cdbfc5fc4b82",
+      "bytes": 95333
     },
     {
       "logical_path": "docs/adoption.md",
@@ -31,8 +31,8 @@
       "bundle_path": "docs/agent-faq.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "0430d8ea5be5e2db8cf3af5992d3a286223853c33d45b626cb6a7d05d8ac5c94",
-      "bytes": 8231
+      "sha256": "ac54bdeb06525e1c8bcf59e4bd76d8e3abe898c52abee7c85fd354eea3f0031e",
+      "bytes": 8251
     },
     {
       "logical_path": "docs/agent-launch-conduit-diagnostics.md",
@@ -49,8 +49,8 @@
       "bundle_path": "docs/agent-launch-confinement-mcp-conduit.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8778f3ae01edb4359eab9822171d488a87c98179e726bbd652c66bffc6e4b4f6",
-      "bytes": 76647
+      "sha256": "f80095c9a2a2c2a4c4fd7cd0cf3dc92003450116ab578dd04d1cfd5712386a88",
+      "bytes": 88427
     },
     {
       "logical_path": "docs/agent-launch-family-runtime-state.md",
@@ -67,8 +67,8 @@
       "bundle_path": "docs/agent-launch-local-config.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "f934ad19554e746f88f6495b2f7fae5c091d3c36239a041c8fe193303066ab68",
-      "bytes": 8526
+      "sha256": "7cd214aec0461a49d70ede5f972a2de325136a1483f21cfaead7248a6940d8a5",
+      "bytes": 8553
     },
     {
       "logical_path": "docs/agent-launch-operator-entrypoints.md",
@@ -76,8 +76,8 @@
       "bundle_path": "docs/agent-launch-operator-entrypoints.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "760fd7ee09c69cb25d621d88d6088b9e96a71a316324900ea7285a0f89f6068d",
-      "bytes": 5914
+      "sha256": "31df0486fdc9d66d3dc9f372ec92254afb7d2ae1c1a78e8089e4f3003255d7be",
+      "bytes": 6366
     },
     {
       "logical_path": "docs/agent-launch-policy-profiles.md",
@@ -94,8 +94,8 @@
       "bundle_path": "docs/agent-launch-quickstart.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "64d9765e0a7f039b4e91ebfadc59ef30fb407f4d41da97c6efd727de976faabc",
-      "bytes": 42343
+      "sha256": "3222ea6071958da215966d707348e0a01f36ad7e55d4f421688d28b9edeaf07a",
+      "bytes": 42756
     },
     {
       "logical_path": "docs/agent-launch-run-provenance.md",
@@ -112,8 +112,8 @@
       "bundle_path": "docs/agent-launch-write-scope-preparation.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "f290b67ca5544bf1e18459668b0da6a811d7f0908c3fa6de04908bd439bc1a5b",
-      "bytes": 10028
+      "sha256": "9aae76d8a269fe2882ea71f22557b95763d7de6a4400391f7d5d271a68a85b40",
+      "bytes": 12734
     },
     {
       "logical_path": "docs/agent-tool-compliance-and-surface-rationalization.md",
@@ -121,8 +121,8 @@
       "bundle_path": "docs/agent-tool-compliance-and-surface-rationalization.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "10c482b63fd4e2c1c889e6c0bd0322708416728f36d0ba908c9fe85cc04ad569",
-      "bytes": 19152
+      "sha256": "1c6a7b78a7e565f769cfa70abebce2cb710396e29d1d89a3a23a03baf6648b05",
+      "bytes": 19351
     },
     {
       "logical_path": "docs/areas.md",
@@ -139,8 +139,8 @@
       "bundle_path": "docs/claude-native-permission-probe.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "0e5a5df57367cd9754a1b6370dee10c641e075714fc0ede6d9a4cf3ef2f3a46c",
-      "bytes": 4520
+      "sha256": "77fc11ad9e614f5e07d0b464b0b61dfb370f29efda91bada67c6b93c3d71a9a8",
+      "bytes": 4570
     },
     {
       "logical_path": "docs/consumer-owned-docs.md",
@@ -157,8 +157,8 @@
       "bundle_path": "docs/enforcement-model.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "bc540699a130511bd912a8f5ffbccf7c57c896e71a42ea775da40018de3965d3",
-      "bytes": 81258
+      "sha256": "92b38c1e878f17b14a5f8852ff08e8e4e1a7648c028999496aa42949771156b3",
+      "bytes": 84991
     },
     {
       "logical_path": "docs/env-reference.md",
@@ -166,8 +166,8 @@
       "bundle_path": "docs/env-reference.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "e6b984ba8c7256b967b06a2687e0a5f94d918d77fd3ab99349738f2dc097bc64",
-      "bytes": 9745
+      "sha256": "2c5428b4e65e2793dd335a59a7e2f78a3d38461474c7f4f9493a5b9c0fb166de",
+      "bytes": 14996
     },
     {
       "logical_path": "docs/index.md",
@@ -202,8 +202,8 @@
       "bundle_path": "docs/local-test-runtime-setup.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "7eb0d5cfe5e504de4c89c8547724dbbebdfecbf0090a7bcd722ff8b3dd47d22b",
-      "bytes": 26309
+      "sha256": "82bb8e1fb4f26f59c37aa72d13348ecb92b421b526d8a0b03603d3b5bb13cd58",
+      "bytes": 34842
     },
     {
       "logical_path": "docs/mcp-controlled-contract-operations.md",
@@ -211,8 +211,8 @@
       "bundle_path": "docs/mcp-controlled-contract-operations.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "0ac84d8ed72ba5bd401f3fab2b824fe047d6e7e1e3f4d0f374ea3e5d98f8f1f3",
-      "bytes": 22867
+      "sha256": "727ec55b86caa67bf217b325a0dad4049c028f48088158fd82c8399321402fb4",
+      "bytes": 24554
     },
     {
       "logical_path": "docs/mcp-dispatch-launch-and-admission.md",
@@ -220,8 +220,8 @@
       "bundle_path": "docs/mcp-dispatch-launch-and-admission.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "226b8983888397dac76cde4d57920fc55a435d9284d67754f6ea9091a732d316",
-      "bytes": 74884
+      "sha256": "e4e3afb8d41acf8edb959f23006204e36cd35c9f73e137ff086925b7535fd63d",
+      "bytes": 84088
     },
     {
       "logical_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
@@ -229,8 +229,8 @@
       "bundle_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "1293b4c7e343d21a0f022b4dc8d6d892ef3b8f8e44801ccc0b4299986345bbff",
-      "bytes": 91573
+      "sha256": "ae47d2a0099869cd0b70ed4cfe0debedfeedd524ad00f213d03bfa46ae659ea8",
+      "bytes": 109962
     },
     {
       "logical_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
@@ -238,8 +238,8 @@
       "bundle_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "1b934458e59352d5905bbe70ab245dcf94f56552b8dfb4d8d045fc70d85f7676",
-      "bytes": 77880
+      "sha256": "e2d5462b89d33035209e93fb13835b66d03531a44ccade977ecf5096c660327b",
+      "bytes": 90584
     },
     {
       "logical_path": "docs/mcp-dispatch-runtime-contract.md",
@@ -247,8 +247,8 @@
       "bundle_path": "docs/mcp-dispatch-runtime-contract.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "1140d5f91a25694f3d1fcfcc5348a876a3e3fb62e8bf7561f1922e7db1021242",
-      "bytes": 156467
+      "sha256": "2112fe4eb4fd4e292505ab9809b4d06407aa059f7545889c11690985d06b5481",
+      "bytes": 164367
     },
     {
       "logical_path": "docs/mcp-dispatch-slice-integration.md",
@@ -256,8 +256,8 @@
       "bundle_path": "docs/mcp-dispatch-slice-integration.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "7c66ad2626607251a0dc39234791715dabbe048ec8bf33302b3a47008af60a3b",
-      "bytes": 47352
+      "sha256": "abc39a5967423317a1af30bea579833aacfe1e6cfe9d6adb7b02b8dfbbf923f4",
+      "bytes": 54981
     },
     {
       "logical_path": "docs/mcp-dispatch-terminal-review.md",
@@ -265,8 +265,17 @@
       "bundle_path": "docs/mcp-dispatch-terminal-review.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "97d64efeec1cccad4e849e1a8798b78aad88312cbcbe4572b87311dc747cc15b",
-      "bytes": 66053
+      "sha256": "393f3a293139c64295525879f0b56233b3a3adbc79a8093d618126e137ec2749",
+      "bytes": 93905
+    },
+    {
+      "logical_path": "docs/mcp-editor-response-projections.md",
+      "source_path": "docs/mcp-editor-response-projections.md",
+      "bundle_path": "docs/mcp-editor-response-projections.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "48b2d95d2588e9e9bae5e12c69bcee594c1c0762ef4b13259037bd4d7dd5ea8a",
+      "bytes": 5843
     },
     {
       "logical_path": "docs/mcp-integration.md",
@@ -274,8 +283,8 @@
       "bundle_path": "docs/mcp-integration.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "45236d2af559127f56dd4aee0ede3a7aefdd328cefb23cc7910818b78a37bbb4",
-      "bytes": 97082
+      "sha256": "585dc0f3ad3d94a6ac00f6e354d740b54e7d98a3202ee54e3fce1f2fa64a6c8e",
+      "bytes": 102800
     },
     {
       "logical_path": "docs/mcp-operation-reference.md",
@@ -283,8 +292,8 @@
       "bundle_path": "docs/mcp-operation-reference.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "72448f1e4b22f876675fa6656edf429040ba3e80293f7106a856ee9ecd2da298",
-      "bytes": 104080
+      "sha256": "596e10494b0e7ed7dcd308aa7304189a1ccf8802673df10f60aaf285274bb283",
+      "bytes": 137468
     },
     {
       "logical_path": "docs/mcp-repository-model.md",
@@ -292,17 +301,17 @@
       "bundle_path": "docs/mcp-repository-model.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "3feeb70eeb4fd93c1a8d2732724650b11aeb97125701a489d4b7196ce3fc4340",
-      "bytes": 36451
+      "sha256": "079d198ecec923fd8632a0fbebde3d917fe7fdbfa64b86efb9e124b97e5a53b9",
+      "bytes": 40824
     },
     {
       "logical_path": "docs/mcp-selected-response-details.md",
       "source_path": "docs/mcp-selected-response-details.md",
       "bundle_path": "docs/mcp-selected-response-details.md",
-      "advertised_by_built_in_descriptor": false,
+      "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "487f5d14734b2172d21e1724b9bb93456ad9317211e5b9578e983174a7cfa21f",
-      "bytes": 8514
+      "sha256": "82f68548100230f70e44948ecfac0090f975480549469cbdf250dcfd094dfc21",
+      "bytes": 23198
     },
     {
       "logical_path": "docs/mcp-telemetry.md",
@@ -310,8 +319,8 @@
       "bundle_path": "docs/mcp-telemetry.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "e35d4985b8bb5597868eca38152aa8f599b97fe78a5f082f144e525c5941d298",
-      "bytes": 7984
+      "sha256": "97d65d81fb7ac2b415ac768d33b4b0eca5fda71060b77f88adb1b2cb4f7e5835",
+      "bytes": 9312
     },
     {
       "logical_path": "docs/mcp-tool-registry-reference.md",
@@ -319,8 +328,8 @@
       "bundle_path": "docs/mcp-tool-registry-reference.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "724330c213bc502c3e48b003e809251707773ae8e864975877a9dafa0afabccb",
-      "bytes": 4294
+      "sha256": "0137f03804b5bb04822f54b8213beb429d70be9e73623c3aaa4e46199d765d91",
+      "bytes": 4281
     },
     {
       "logical_path": "docs/operating-model.md",
@@ -328,8 +337,8 @@
       "bundle_path": "docs/operating-model.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "a6f0463f622b9cbc85d6db9f391d363bbb8520d7ef5ff001330882088128d855",
-      "bytes": 26206
+      "sha256": "3f4eda3c7f904b6e63569cce3164192764685d46663d6840489603f29f8aa404",
+      "bytes": 27414
     },
     {
       "logical_path": "docs/package-install.md",
@@ -337,8 +346,359 @@
       "bundle_path": "docs/package-install.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "46224a68d143e23e7c48359fb21e1ceff7085775a57b1956c6975712f6afd398",
-      "bytes": 5630
+      "sha256": "c46fa7ff3f0dc15c52bc746021cd4b1f50a8ddc26331eb5aac871c1d2f8627e0",
+      "bytes": 5662
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters.md",
+      "source_path": "docs/proof-pack-parameters.md",
+      "bundle_path": "docs/proof-pack-parameters.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "84ac18aab478fbe21ec8482af14aeb9d22d93cd6fbc124e709112354c5c79fe8",
+      "bytes": 13699
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/index.md",
+      "source_path": "docs/proof-pack-parameters/index.md",
+      "bundle_path": "docs/proof-pack-parameters/index.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "b50efad455dd75d260f84a3ed1f4ecf8800796f9792e4b16d14c0636ca5b666b",
+      "bytes": 4408
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.atomicity.failure-boundary@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.atomicity.failure-boundary@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.atomicity.failure-boundary@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "b8978108ecdf06533982525d15302ac5159ca87519cb855453d524f52822302a",
+      "bytes": 122513
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.authentication.direct-source-provenance@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.authentication.direct-source-provenance@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.authentication.direct-source-provenance@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "a19a3e6e0c58e15619c08e5d257f6fe9963ec4c791e1046c807c8560e5aacdfb",
+      "bytes": 74732
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.authorization.failed-attempt-nonconsumption@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.authorization.failed-attempt-nonconsumption@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.authorization.failed-attempt-nonconsumption@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "f52e4de1fdfcba66f9c02b0349933fc3ba50a1fb5af544fc75a7f1ddbfb267c1",
+      "bytes": 106635
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.authorization.refusal-before-effects@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.authorization.refusal-before-effects@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.authorization.refusal-before-effects@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "bc45cf097619ac8aa781dcb745c0ddf710611f50cc03da421f0eb972e0bcd1f9",
+      "bytes": 61741
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.authorization.revocation-propagation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.authorization.revocation-propagation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.authorization.revocation-propagation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "b69182ac084f65e5e7bb8bfff2a0b569ece1d7e6818842073973f6396b847f36",
+      "bytes": 133394
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.cancellation.isolation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.cancellation.isolation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.cancellation.isolation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "9a4d7341d73a0b891d22211442d66d74b066baa42f1178d61862434c1600fde8",
+      "bytes": 187964
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.compatibility.behavioral-preservation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.compatibility.behavioral-preservation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.compatibility.behavioral-preservation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "b8e3a2d535e5dc8ee6bfc5a248e69e7dba7f442f2532da648419183a40945565",
+      "bytes": 102423
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "c98c03a6927cf6e1a75d0710831e5ce15a00e5e22191be828c3e40e238d75647",
+      "bytes": 173003
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.concurrency.single-winner-effect@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.concurrency.single-winner-effect@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.concurrency.single-winner-effect@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "3e81c753c0b3cb6893ca8dde28a02956bf8d949812fb09210611ecb9cd8a1106",
+      "bytes": 130607
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.design.implementation-readiness@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.design.implementation-readiness@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.design.implementation-readiness@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "4ce78cebd0cbd362d27e5745bb08de25aac3a78476ea6aa4c9befadd9d3dc2b7",
+      "bytes": 96975
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.dormancy.nonactivation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.dormancy.nonactivation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.dormancy.nonactivation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "97b83e93572b6c11e37e00f4ad75b5e8bc3e675054d4b0cd2cb54cef6609377b",
+      "bytes": 65264
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.failure.cleanup-noninterference@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.failure.cleanup-noninterference@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.failure.cleanup-noninterference@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "985960e2ab88bdbec8dd073b0a5621de0fc78bcedfb4cb04b1c05a6443af3b43",
+      "bytes": 162193
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.failure.retry-convergence@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.failure.retry-convergence@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.failure.retry-convergence@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "d954ebf038f802c7a5768e34e21c78ef02e95e740b7705cc2aa6f7a45e46e05b",
+      "bytes": 156301
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.failure.settlement-and-cleanup@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.failure.settlement-and-cleanup@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.failure.settlement-and-cleanup@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "07fc1eefa16970c4304255fac7c6602458bbe4424ba58c7721d5dea933cbe6c5",
+      "bytes": 100811
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.failure.supplementary-isolation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.failure.supplementary-isolation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.failure.supplementary-isolation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "e3ea0f4be4b5c6da9a6781f8236173e5fe397970c9b9ef2848317e6599c97d3f",
+      "bytes": 229876
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.idempotency.effect-nonduplication@5.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.idempotency.effect-nonduplication@5.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.idempotency.effect-nonduplication@5.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "21ea51b00fa169b8fefe4e18bac060890c20fb203ae4f2cbea4a0091a781b9ec",
+      "bytes": 79956
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.input.caller-authority-confinement@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.input.caller-authority-confinement@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.input.caller-authority-confinement@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "13c78be5ad0630bed43c70cd98b9b1555112b5c238e40497301a9cc8374fca8b",
+      "bytes": 280303
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.integration.prefix-safety@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.integration.prefix-safety@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.integration.prefix-safety@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "27dd038a5f60f2a7e5a01c1e5ac5b52a99803d8d2f65509a32c9dfc71c6c19cd",
+      "bytes": 19903
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.lifecycle.bounded-state-stability@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.lifecycle.bounded-state-stability@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.lifecycle.bounded-state-stability@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "25c0462bf4fcd8eff87cb4aa369133d004dd37f107e2c0b29f2a1151c6d6ba06",
+      "bytes": 62648
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.lifecycle.bounded-terminal-stability@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.lifecycle.bounded-terminal-stability@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.lifecycle.bounded-terminal-stability@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "43f3736c4ea3ba670fd46b89490e2b06255a2f855ee298ad97f092b9166f3dd3",
+      "bytes": 74492
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.observation.sound-negative@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.observation.sound-negative@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.observation.sound-negative@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "9a6e1bee018998ccf62906c9a5f034da290df1c1b5bed63b385eb2e21918e35d",
+      "bytes": 250643
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.operation.forbidden-noninvocation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.operation.forbidden-noninvocation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.operation.forbidden-noninvocation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "3551a61f73d1f782259be9a657dad386909652e89f1aaacfec98e6642d40eaab",
+      "bytes": 34824
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.ordering.lexicographic-conformance@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.ordering.lexicographic-conformance@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.ordering.lexicographic-conformance@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "d903dd7420437417dfd78307610f7cf951d2ad05ec5f562860f5cc960c893653",
+      "bytes": 120542
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.ordering.visibility-after-durable-settlement@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.ordering.visibility-after-durable-settlement@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.ordering.visibility-after-durable-settlement@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "7e3a47dc7c703b3ef15a390b000d03391f92acb8ad13dc02b7ca7ea983918b14",
+      "bytes": 150839
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.ownership.exact-isolation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.ownership.exact-isolation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.ownership.exact-isolation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "12fb133b8babb22a82a2202a2b51a47519476ba46462c031f04436fe55f0e031",
+      "bytes": 162073
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.ownership.fenced-handoff@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.ownership.fenced-handoff@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.ownership.fenced-handoff@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "25662f69e5509e98ee1e8253026b6264f16a1105099bc43ba6b96741cd5d720c",
+      "bytes": 231755
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.pagination.complete-traversal@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.pagination.complete-traversal@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.pagination.complete-traversal@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "4856521e725beb271fa09951bc45480a3c1aeb38b12fc2da521b8bf7d1f03604",
+      "bytes": 123097
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.pagination.snapshot-consistency@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.pagination.snapshot-consistency@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.pagination.snapshot-consistency@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "5b6918ea105d7805bb9d59f0952e9b5f46bc0886e3d4787a3f73e5e7cce3161a",
+      "bytes": 117088
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.pagination.versioned-cursor-refusal@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.pagination.versioned-cursor-refusal@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.pagination.versioned-cursor-refusal@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "92cec189221771980c66edb59ee3fbfd414778a5919166e8c86a668ca7fa0e56",
+      "bytes": 246320
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.policy.declared-boundary-record-consistency@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.policy.declared-boundary-record-consistency@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.policy.declared-boundary-record-consistency@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "55d001bb6c5e57d9ce8bc265485fc65659de4ff86a38744f518ad4efde1300e2",
+      "bytes": 63136
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.policy.declared-limit-propagation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.policy.declared-limit-propagation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.policy.declared-limit-propagation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "127d35572a7909683717d28b4710684101af82601384aef2ff272f8493691328",
+      "bytes": 67727
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.readiness.before-success@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.readiness.before-success@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.readiness.before-success@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "ebc3ee64733caac683d3510305a22249970ad4618014cef6d466a7efa560e0fe",
+      "bytes": 88399
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.result-shape.conformance@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.result-shape.conformance@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.result-shape.conformance@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "3a6e7e6c934ff8aa5d6c74abadb2832c35aaee7e9287d41c479d712d0284a3d8",
+      "bytes": 145618
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "0a6d35700d67f1e8e128db32e0026b647afd61ae65d0a6ea13845f3f6bdeb292",
+      "bytes": 101910
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.single-use.replay-refusal@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.single-use.replay-refusal@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.single-use.replay-refusal@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "f0aef7ef81613c04c7d4702585f1a3fe0aaf1d240c928c466456ff7fc6c65e93",
+      "bytes": 198319
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.state.bounded-interval-nonmutation@4.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.state.bounded-interval-nonmutation@4.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.state.bounded-interval-nonmutation@4.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "82fa9e88e735c10996e760057242b2f0cda3f4ccac2b4129577d5292b3df2c01",
+      "bytes": 53637
+    },
+    {
+      "logical_path": "docs/proof-pack-parameters/proof.verification.test-validity@11.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.verification.test-validity@11.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.verification.test-validity@11.0.0.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "1863cbeeadfa4da243dbb2713d3291950869b42de67e10dbfb629a49cb4a9b61",
+      "bytes": 15199
     },
     {
       "logical_path": "docs/quickstart.md",
@@ -364,8 +724,8 @@
       "bundle_path": "docs/test-proof-runtime-identity.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "fedbbe7af14ce3875b57d706bfdfcc0e9fa24ab251d6fca00048996c9fe6b0c9",
-      "bytes": 68971
+      "sha256": "9d332f48b7b21d905a04e3c253aa27350eff02494f659e653d9aaae24219dbd7",
+      "bytes": 100037
     },
     {
       "logical_path": "docs/tool-discovery-dispatch-runtime.md",
@@ -373,8 +733,8 @@
       "bundle_path": "docs/tool-discovery-dispatch-runtime.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "b857b07c03775082623dcc33c1308b7f1b1e1fb8fe36e997230b60abf8da4558",
-      "bytes": 23445
+      "sha256": "84dba6aed0ab77938366451bee884d9a06960c41840e8f88e4398def036b76af",
+      "bytes": 23523
     },
     {
       "logical_path": "docs/tool-discovery-fragment-registry.md",
@@ -400,8 +760,8 @@
       "bundle_path": "docs/tool-discovery-surfaces.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "7a1d73e84d9ff4e38be92a572de26b5196b20f8e3375b3f5b128769e13921eac",
-      "bytes": 47739
+      "sha256": "eb644298a80db9026fe5d230907fa576391aaad9503731a6f39e49cf2b7e6f7d",
+      "bytes": 49728
     },
     {
       "logical_path": "docs/tool-discovery-tiers.md",
@@ -409,8 +769,8 @@
       "bundle_path": "docs/tool-discovery-tiers.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "9fe5f2ab23498b005a810251ded36dfcaeb23956b25653e64091fc0c3e885054",
-      "bytes": 7112
+      "sha256": "8f28739451cd79e07a50f7fb8d8ee33382c700b9e9215f47a5602a2155b6bcc8",
+      "bytes": 7241
     },
     {
       "logical_path": "docs/tool-discovery.md",
@@ -418,8 +778,8 @@
       "bundle_path": "docs/tool-discovery.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "29083c969cafc56818b2b51eef05d9c6dfe7325d2b6f7cdb72c87ccdcb4ef045",
-      "bytes": 51476
+      "sha256": "cba74befd96ec9887a2ede7115c3ea414b2a2947d349f389bf731a0cb7e848ea",
+      "bytes": 51494
     },
     {
       "logical_path": "docs/versioning.md",
@@ -427,8 +787,8 @@
       "bundle_path": "docs/versioning.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "e55be1fd38366fa47370c314b8097636bc26b2a84704598abe7bf41d922882b6",
-      "bytes": 22820
+      "sha256": "4a8edab9a838ffd57f60d6ad6b0c4ca4d3b5311b2b738355262673b87244cc6a",
+      "bytes": 22842
     },
     {
       "logical_path": "docs/wiki-contract-metadata.md",
@@ -445,8 +805,8 @@
       "bundle_path": "docs/work-record-ontology.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "d72deea6fe2ce790406e2b2a41933d484ae049fea8944350a0d3d5480e6133ef",
-      "bytes": 10039
+      "sha256": "93bb657acd9290ed42ab1a1b78fa5f6dece9845cd8ca7ef0773b72c14f089592",
+      "bytes": 10057
     },
     {
       "logical_path": "docs/work-record-persistence.md",
@@ -463,8 +823,8 @@
       "bundle_path": "docs/work-record-schema.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "119d5ee293b4a80597c528eb4ebbbe44355592dc5a9cda33e4bc064bdfcafd74",
-      "bytes": 18771
+      "sha256": "8080323f0c39d3636d255910cef5648cf77671480d0311648311e16b99cc15e8",
+      "bytes": 20114
     },
     {
       "logical_path": "internal/docs/branch-worktree-dispatch.md",
@@ -501,8 +861,8 @@
       "bundle_path": "docs/_refs/packages/wiki-core/contract/schema.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "e8f9f00b88fbb3f241cf7038bbb61752739a5839f396847410e456bffe64efb9",
-      "bytes": 7917
+      "sha256": "e92737071a9bc559e5596abcfbca6e33242b22740c30877890008bc0e2213486",
+      "bytes": 8159
     },
     {
       "logical_path": "packages/wiki-core/templates/AGENTS.md.boilerplate.md",
@@ -510,8 +870,8 @@
       "bundle_path": "docs/_refs/packages/wiki-core/templates/AGENTS.md.boilerplate.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "f2355cd0614d1e85425a7e33f60f78c41a19a424cf07cc1036b32644c6bc8558",
-      "bytes": 2093
+      "sha256": "b41622c13343b2c22da9a6c1ee8d07f3d4d2770e68b3932427a32fd01292d33f",
+      "bytes": 2006
     },
     {
       "logical_path": "wiki/decisions/DEC-0134.md",

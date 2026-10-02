@@ -9,6 +9,7 @@ import { validateWorkRecordMaterialRefs } from "./work-record-entry-material.mjs
 import { planAcceptanceNarrativeValidation } from "./work-record-contract-edit-acceptance.mjs";
 import { normalizeAcceptanceCriteria } from "./work-record-ready-slice-contract.mjs";
 import {
+  ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
   INITIATIVE_ID_PATTERN,
   cloneJson,
   createDiagnostic,
@@ -28,12 +29,22 @@ import {
   selectScopedTarget
 } from "./work-record-contract-edit-shared.mjs";
 import { isCanonicalWorkRecordBaseBranch } from "./work-record-base-branch.mjs";
+import {
+  REPOSITORY_SCOPE_FIELDS,
+  UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
+  findUnsupportedRepositoryScopeSelector,
+  repositoryScopeSelectorRefusalMessage
+} from "./work-record-repository-path.mjs";
 
 const STRING_SCHEMA = Object.freeze({ type: "string" });
 const CONTENT_STRING_SCHEMA = Object.freeze({ type: "string", entry_content: true });
 const NONEMPTY_STRING_SCHEMA = Object.freeze({ type: "string", trim: true, min_length: 1 });
 const CONTENT_NONEMPTY_STRING_SCHEMA = Object.freeze({
   type: "string", trim: true, min_length: 1, entry_content: true
+});
+
+const CONTENT_TRIMMED_STRING_SCHEMA = Object.freeze({
+  type: "string", trim: true, entry_content: true
 });
 const CONTENT_BOUNDED_NOTES_SCHEMA = Object.freeze({
   type: "string", max_utf8_bytes: WORK_RECORD_AGENT_NOTES_MAX_UTF8_BYTES,
@@ -75,6 +86,7 @@ export const WORK_RECORD_EDIT_FIELD_REGISTRY = Object.freeze([
   fieldEntry({ id: "priority.record", field: "priority", kind: "scalar", canonical_address: ["priority"], applicability: ["record"], value_schema: { type: "string", enum: Object.freeze(["critical", "high", "medium", "low"]) }, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "owner.record", field: "owner", kind: "scalar", canonical_address: ["owner"], applicability: ["record"], value_schema: NONEMPTY_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "summary.record_slice", field: "sections.summary", kind: "scalar", canonical_address: ["sections", "summary"], applicability: ["record", "slice"], value_schema: CONTENT_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
+  fieldEntry({ id: "user_requirements.record", field: "sections.user_requirements", kind: "scalar", canonical_address: ["sections", "user_requirements"], applicability: ["record"], value_schema: CONTENT_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "why_it_matters.record_slice", field: "sections.why_it_matters", kind: "scalar", canonical_address: ["sections", "why_it_matters"], applicability: ["record", "slice"], value_schema: CONTENT_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "agent_notes.record_slice", field: "sections.agent_notes", kind: "scalar", canonical_address: ["sections", "agent_notes"], applicability: ["record", "slice"], value_schema: CONTENT_BOUNDED_NOTES_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "tags.record", field: "tags", kind: "list", canonical_address: ["tags"], applicability: ["record"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "editWorkRecordByUnit", facade: true }),
@@ -87,7 +99,7 @@ export const WORK_RECORD_EDIT_FIELD_REGISTRY = Object.freeze([
   ...["related", "blocks"].map((field) => fieldEntry({ id: `${field}.record`, field, kind: "list", canonical_address: [field], applicability: ["record"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "setListField", facade: true })),
   fieldEntry({ id: "acceptance_criteria.record_slice", field: "acceptance.criteria", kind: "list", canonical_address: ["acceptance", "criteria"], applicability: ["record", "slice"], value_schema: ACCEPTANCE_CRITERIA_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "acceptance_validation.record_slice", field: "acceptance.validation", kind: "list", canonical_address: ["acceptance", "validation"], applicability: ["record", "slice"], value_schema: ACCEPTANCE_NOTE_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "planAcceptanceNarrativeValidation", facade: true }),
-  fieldEntry({ id: "tasks.record_slice", field: "sections.tasks", kind: "task", canonical_address: ["sections", "tasks"], applicability: ["record", "slice"], value_schema: { mark_done: null, replace_text: CONTENT_NONEMPTY_STRING_SCHEMA, append_todo: CONTENT_NONEMPTY_STRING_SCHEMA }, actions: ["mark_done", "replace_text", "append_todo"], owner: "setWorkRecordTaskByUnit", facade: true })
+  fieldEntry({ id: "tasks.record_slice", field: "sections.tasks", kind: "task", canonical_address: ["sections", "tasks"], applicability: ["record", "slice"], value_schema: { mark_done: null, replace_text: CONTENT_TRIMMED_STRING_SCHEMA, append_todo: CONTENT_NONEMPTY_STRING_SCHEMA }, actions: ["mark_done", "replace_text", "append_todo"], owner: "setWorkRecordTaskByUnit", facade: true })
 ]);
 
 export const WORK_RECORD_CONTRACT_LIST_FIELDS = Object.freeze(WORK_RECORD_EDIT_FIELD_REGISTRY
@@ -133,6 +145,16 @@ function resolveListFieldContainer(target, address) {
     container = container[step];
   }
   return container;
+}
+
+function unsupportedScopeSelectorRefusal(field, values, pathOf) {
+  if (!REPOSITORY_SCOPE_FIELDS.includes(field)) return null;
+  const unsupported = findUnsupportedRepositoryScopeSelector(values);
+  return unsupported === null ? null : refusal(createDiagnostic(
+    UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
+    repositoryScopeSelectorRefusalMessage(field, unsupported.entry),
+    { path: pathOf(unsupported.index) }
+  ));
 }
 
 function normalizeListFieldEntry(entry, field, repository) {
@@ -199,6 +221,11 @@ export function upsertSlice(record, { slice } = {}) {
         path: "slice.id"
       })
     );
+  }
+  for (const field of REPOSITORY_SCOPE_FIELDS) {
+    const unsupportedScope = unsupportedScopeSelectorRefusal(field, slice[field],
+      (index) => `slice.${field}[${index}]`);
+    if (unsupportedScope !== null) return unsupportedScope;
   }
   if (isObject(slice.sections)) {
     for (const entry of workRecordProseRegistryEntries("slice")) {
@@ -391,6 +418,8 @@ export function setListField(record, { sliceId = null, field, values, mode = "re
       )
     );
   }
+  const unsupportedScope = unsupportedScopeSelectorRefusal(field, values, (index) => `values[${index}]`);
+  if (unsupportedScope !== null) return unsupportedScope;
   const nextValues = [];
   for (const [index, entry] of values.entries()) {
     const normalized = normalizeListFieldEntry(entry, field, repository);
@@ -455,7 +484,8 @@ export const WORK_RECORD_EDIT_SPECIALIZED_FIELD_OWNERS = Object.freeze([
   { prefixes: ["status"], owner: "workspace_work_record_set_status" },
   { prefixes: ["acceptance"], owner: "the acceptance.criteria or acceptance.validation list field; executable validation bindings belong to controlled-contract semantic operations" },
   { prefixes: ["sections.closure", "closure"], owner: "workspace_work_record_set_closure" },
-  { prefixes: ["initiative"], owner: "assign_work_record_to_initiative" },
+
+  { prefixes: ["initiative"], get owner() { return ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION; } },
   { prefixes: ["dispatch_intent"], owner: "workspace_work_record_ready_slice or workspace_work_record_upsert_slice" },
   { prefixes: ["controlled_contract", "proof", "proof_posture"], owner: "controlled-contract semantic operations" },
   { prefixes: ["controlled_acceptance_state"], owner: "no writer; derived from canonical proof_posture and current controlled-contract state" },

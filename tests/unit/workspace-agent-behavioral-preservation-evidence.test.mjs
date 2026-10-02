@@ -93,8 +93,10 @@ test("binds two authenticated sides into one ordered content-addressed pair", as
   }
 
   const [baselineSide, candidateSide] = pair.pair_evidence.sides;
-  assert.equal(baselineSide.run_id, "run-baseline");
-  assert.equal(candidateSide.run_id, "run-candidate");
+
+  assert.equal(baselineSide.run_id, baseline.context.evidence_identity.run_id);
+  assert.equal(candidateSide.run_id, candidate.context.evidence_identity.run_id);
+  assert.notEqual(baselineSide.run_id, candidateSide.run_id);
   assert.notEqual(baselineSide.source_snapshot_digest, candidateSide.source_snapshot_digest);
   for (const [side, bundle] of [[baselineSide, baseline], [candidateSide, candidate]]) {
     assert.equal(side.source_snapshot_digest,
@@ -208,6 +210,20 @@ test("requires the attempt identity the bound context minted, field for field", 
         selected_test_id: value, declared_test_ids: [value],
         discovered_test_ids: [value], executed_test_ids: [value]
       };
+
+      const renamed = new Map();
+      clone.evidence.artifacts = clone.evidence.artifacts.map((artifact) => {
+        if (!Object.hasOwn(artifact.payload, "target_test_id")) return artifact;
+        const payload = { ...artifact.payload, target_test_id: value };
+        const digest = digestTestProofEvidence(payload);
+        renamed.set(artifact.artifact_id, `artifact-${digest.slice(7)}`);
+        return { ...artifact, artifact_id: renamed.get(artifact.artifact_id), digest, payload };
+      }).sort((left, right) => left.artifact_id.localeCompare(right.artifact_id));
+      for (const row of [clone.evidence.execution_result, ...clone.evidence.boundary_traversals,
+        ...clone.evidence.falsifier_executions]) {
+        row.evidence_artifact_ids = row.evidence_artifact_ids.map((id) => renamed.get(id) ?? id)
+          .sort();
+      }
     },
     wk_id: (clone, value) => {
       clone.evidence.evidence_identity.selected_unit = `${value}#SLICE-006`;
@@ -377,7 +393,7 @@ test("ordering and any changed side stay distinguishable in the body digest", as
   assert.notEqual(reversed.body_digest, forward.body_digest);
   assert.notEqual(reversed.pair_id, forward.pair_id);
   assert.deepEqual(reversed.pair_evidence.sides.map(({ run_id: runId }) => runId),
-    ["run-candidate", "run-baseline"]);
+    [candidate.context.evidence_identity.run_id, baseline.context.evidence_identity.run_id]);
   const changed = await mintBehavioralPreservationSide(root, { name: "candidate-changed", runId: "run-candidate-2" });
   const altered = buildBehavioralPreservationEvidencePair({ baseline, candidate: changed });
   assert.notEqual(altered.body_digest, forward.body_digest);

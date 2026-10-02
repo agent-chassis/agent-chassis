@@ -23,6 +23,20 @@ import {
 } from "./sidecar-store-queries.mjs";
 import { SIDECAR_STORE_STRING_REFERENCES } from "./sidecar-store-schema.mjs";
 
+export const SIDECAR_PREPARED_DELTA_REFUSAL_CODES = Object.freeze({
+  TRANSACTION_OPEN: "sidecar_publication_transaction_open",
+  PREDECESSOR_STALE: "sidecar_prepared_delta_predecessor_stale",
+  SEQUENCE_INVALID: "sidecar_publication_sequence_invalid"
+});
+
+export class SidecarPreparedDeltaRefusalError extends Error {
+  constructor(message, { code }) {
+    super(message);
+    this.name = "SidecarPreparedDeltaRefusalError";
+    this.code = code;
+  }
+}
+
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError(`${label} must be an object`);
@@ -694,7 +708,9 @@ export function publishPreparedDeltaInDatabase(db, delta) {
     throw new TypeError("publication.repository_commit must be a concrete lowercase commit id");
   }
   if (db.isTransaction) {
-    throw new Error("sidecar publication owns its transaction; the connection already has one open");
+    throw new SidecarPreparedDeltaRefusalError(
+      "sidecar publication owns its transaction; the connection already has one open",
+      { code: SIDECAR_PREPARED_DELTA_REFUSAL_CODES.TRANSACTION_OPEN });
   }
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -702,10 +718,14 @@ export function publishPreparedDeltaInDatabase(db, delta) {
     if (
       current.store_incarnation !== expected.store_incarnation ||
       current.sequence !== String(expected.sequence)
-    ) throw new Error("sidecar prepared delta predecessor is stale");
+    ) {
+      throw new SidecarPreparedDeltaRefusalError("sidecar prepared delta predecessor is stale",
+        { code: SIDECAR_PREPARED_DELTA_REFUSAL_CODES.PREDECESSOR_STALE });
+    }
     const nextSequence = BigInt(current.sequence) + 1n;
     if (BigInt(publication.sequence) !== nextSequence) {
-      throw new Error("sidecar publication sequence must advance exactly once");
+      throw new SidecarPreparedDeltaRefusalError("sidecar publication sequence must advance exactly once",
+        { code: SIDECAR_PREPARED_DELTA_REFUSAL_CODES.SEQUENCE_INVALID });
     }
 
     const writer = createStoreWriter(db);

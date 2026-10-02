@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { computeSidecarGeneratorIdentity } from "./sidecar-generator-identity.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
 import { classifySidecarPreparation } from "./sidecar-incremental.mjs";
+import { sidecarProviderInputsChangedAtCommit } from "./sidecar-scip-projects.mjs";
 import { normalizeSidecarRepoPath } from "./sidecar-paths.mjs";
 import { resolveSidecarRepositoryIdentity } from "./sidecar-repository-identity.mjs";
 import { createSidecarDirtyDetails, createSidecarResultEnvelope } from "./sidecar-schema.mjs";
@@ -226,7 +227,9 @@ function projectClassification(store, classification) {
       available: true, graphAvailable: false };
   }
   const { action, reason } = classification;
-  if (action === "reuse" || (action === "incremental" && reason === "provider_coverage_incomplete")) {
+
+  if (action === "reuse" || (action === "incremental" &&
+      (reason === "provider_coverage_incomplete" || reason === "provider_inputs_changed"))) {
     return { staleness: "fresh", action: "use", reason: "source_identity_match",
       available: true, graphAvailable: true };
   }
@@ -267,7 +270,10 @@ export function createSidecarIndexStatusEnvelope({ gitState, artifactPaths, stor
   const publication = store.publication ?? null;
   const provider = publication?.provider_coverage ?? null;
   const baseUsable = classified.action === "use";
-  const scipState = baseUsable && provider?.state === "complete"
+  const providerInputsChanged = classification?.reason === "provider_inputs_changed";
+  const scipState = providerInputsChanged
+    ? unavailableScipState("scip_provider_inputs_changed", "stale")
+    : baseUsable && provider?.state === "complete"
     ? { scip_available: provider.scip_available === true,
         graph_available: provider.graph_available === true, staleness: "fresh",
         index_action: "use", status_reason: provider.status_reason ?? "scip_not_prepared",
@@ -327,7 +333,9 @@ export async function getSidecarIndexStatus({
         publication: store.publication,
         requestedCommit: gitState.index_head,
         generatorIdentity: async () =>
-          (await resolveSidecarGeneratorIdentity(gitState)).generator_identity
+          (await resolveSidecarGeneratorIdentity(gitState)).generator_identity,
+        providerInputsChanged: async () =>
+          sidecarProviderInputsChangedAtCommit(store.publication, process.env)
       });
     } catch (error) {
       generatorIdentityError = error instanceof Error ? error.message : String(error);

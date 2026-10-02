@@ -8,6 +8,7 @@ import {
   LAUNCHER_READINESS_PROTOCOL_GENERATION,
   LAUNCHER_READINESS_SCHEMA_VERSIONS
 } from "./lib/launcher-readiness-observer.mjs";
+import { createToolNameAliasTransport } from "./lib/tool-name-alias-transport.mjs";
 import { z } from "zod";
 import { writeFileSync } from "node:fs";
 import {
@@ -168,7 +169,9 @@ async function registerTools(server, {
     mcpToolTierRegistrationPolicy,
     toolUsageAuditBoundary,
     registeredToolNames,
-    structuredLog
+    structuredLog,
+
+    responseEnv: process.env
   });
 
   registerMcpContentReferenceTools({ registerTool, z, jsonContent, errorContent });
@@ -223,7 +226,9 @@ async function registerTools(server, {
 
     wkLandingStatusAdapter,
 
-    registeredTier
+    registeredTier,
+
+    responseEnv: process.env
   });
 
   registerWikiCoreTools({
@@ -461,7 +466,8 @@ export async function startWikiMcpServer({
   const writeLauncherEvent = (event) => { launcherEventWriter.emit(event); };
 
   const transport = createLauncherObservingTransport(
-    new StdioServerTransport(process.stdin, process.stdout),
+    createToolNameAliasTransport(new StdioServerTransport(process.stdin, process.stdout),
+      { registeredToolNames: registration.tools }),
     { emit: writeLauncherEvent }
   );
 

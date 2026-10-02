@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { runWorkRecordReadWithCompactGate } from "../../packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs";
+import { collectSelectedMember } from "../helpers/selected-member-reads.mjs";
 const WORKSPACE_REPO = "agent-chassis/agent-chassis";
 const WORKSPACE_DIR = "/repo";
 const SOURCE_DIGEST = `sha256:${"b".repeat(64)}`;
+
+const FRESHNESS = "b".repeat(16);
 function initiativeRecord() {
   return {
     id: "IN-9001",
@@ -101,32 +104,18 @@ function gateHarness({ record, toolFamily }) {
 }
 
 async function reassemble(run, callArguments) {
-  let args = callArguments;
-  let container = null;
-  let text = null;
-  let scalar;
-  while (args) {
-    const page = await run(args);
-    assert.equal(page.ok, true, JSON.stringify(page));
-    assert.equal(page.source_digest, SOURCE_DIGEST);
-    const { member } = page;
-    if (member.kind === "object" || member.kind === "array") {
-      container ??= member.kind === "array" ? [] : {};
-      for (const row of member.members) {
-        assert.equal(Object.hasOwn(row, "value"), false, "a container page carries no descendant values");
-        container[member.kind === "array" ? row.index : row.key] = await reassemble(run, row.next_call.arguments);
-      }
-    } else if (member.kind === "string") {
-      text = (text ?? "") + member.value;
-    } else {
-      scalar = member.value;
+  const { value, pages } = await collectSelectedMember((_tool, args) => run(args),
+    { tool: "member-route", arguments: callArguments });
+  for (const page of pages) {
+    assert.equal(page.source_digest, FRESHNESS);
+    const fragments = page.member ? [page.member] : page.members;
+    const calls = [...page.next_calls, ...fragments.flatMap((fragment) => fragment.child_calls ?? [])];
+    for (const call of calls) {
+      assert.equal(call.arguments.member?.expected_source_digest ?? call.arguments.expected_source_digest, FRESHNESS,
+        "every emitted call pins the freshness value");
     }
-    for (const call of page.next_calls) {
-      assert.equal(call.arguments.member.expected_source_digest, SOURCE_DIGEST, "every continuation pins the digest");
-    }
-    args = page.next_calls[0]?.arguments ?? null;
   }
-  return container ?? text ?? scalar;
+  return value;
 }
 function completeRecordMembers(record) {
   const topLevelMembers = Object.keys(record);
@@ -219,7 +208,7 @@ for (const record of [initiativeRecord(), decisionRecord()]) {
       assert.equal(compact.record_id, record.id);
       assert.equal(compact.record_kind, record.record_kind);
       assert.equal(compact.source_classification, "canonical");
-      assert.equal(compact.source_digest, SOURCE_DIGEST);
+      assert.equal(compact.source_digest, FRESHNESS);
       assert.equal(compact.valid, true);
       assert.deepEqual(compact.diagnostics, []);
       assert.deepEqual(ledger.source_members, sourceMembers);
@@ -291,7 +280,7 @@ test("mismatched kind-record compact routes bind disclosure and member recovery 
     const identityMismatch = [{ code: "record_identity_mismatch", severity: "error", path: "id",
       message: "Loaded canonical record identity or kind does not match the requested identity" }];
     const readResult = {
-      ...kindReadResult(fixture.record, "sha256:mismatched-kind-source"),
+      ...kindReadResult(fixture.record, `sha256:${"c".repeat(64)}`),
       relativePath: requestedPath,
       id: fixture.requestedId,
       record_id: fixture.requestedId,
@@ -300,7 +289,7 @@ test("mismatched kind-record compact routes bind disclosure and member recovery 
       classification: "invalid_record",
       diagnostics: identityMismatch
     };
-    const loaders = kindLoaders({ valid: false, record_id: fixture.requestedId, source_digest: "sha256:mismatched-kind-source",
+    const loaders = kindLoaders({ valid: false, record_id: fixture.requestedId, source_digest: `sha256:${"c".repeat(64)}`,
       record: fixture.record, diagnostics: identityMismatch });
     for (const toolFamily of ["workspace_get_record", "workspace_read_page"]) {
       const primary = toolFamily === "workspace_read_page"
@@ -326,7 +315,7 @@ test("mismatched kind-record compact routes bind disclosure and member recovery 
       assert.equal(compact.diagnostics[0].code, "record_identity_mismatch");
       assert.equal(compact.canonical_record_path, requestedPath);
       assert.equal(compact.source_classification, "canonical");
-      assert.equal(compact.source_digest, "sha256:mismatched-kind-source");
+      assert.equal(compact.source_digest, "c".repeat(16));
       assert.equal(compact.compact_read.selected_resources.id, fixture.requestedId);
       assert.deepEqual(compact.compact_read.next_calls[0].arguments,
         { repo: WORKSPACE_REPO, ...primary, member: { path: [] } });

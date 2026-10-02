@@ -17,6 +17,7 @@ import {
 import {
   EVALUATION_INPUT_VALIDATOR_GROUP,
   loadControlledContractPackage,
+  loadControlledContractSharedContract,
   loadEvaluationInputSchema,
   loadEvaluationInputSchemaValue,
   loadProofPlanRequestSchema
@@ -142,7 +143,7 @@ const EVALUATION_INPUT_SCHEMA_PATH = path.join(
   "controlled-contract-verification-profile-input.v2.schema.json"
 );
 
-test("a failed group resolution is evicted and the next attempt re-resolves", async (t) => {
+test("a failed group resolution re-resolves; a retired group identity is refused", async (t) => {
   const cacheRoot = await isolatedRoot(t, "group");
   const schema = JSON.parse(await readFile(EVALUATION_INPUT_SCHEMA_PATH, "utf8"));
 
@@ -169,9 +170,15 @@ test("a failed group resolution is evicted and the next attempt re-resolves", as
   );
   assert.equal(again.validateEvaluationInput, validateEvaluationInput,
     "a fulfilled group resolution stays memoized");
+
+  const retired = await rejectionOf(generating.compiledValidators(
+    "wiki-core.controlled-contract-tool-shared.evaluation-input.v1",
+    { validators: { validateEvaluationInput: schema } }
+  ));
+  assert.equal(retired.code, "validator_cache_group_undeclared");
 });
 
-test("a failed population status is evicted and the next attempt re-runs the pass", async (t) => {
+test("a failed population status re-runs; the population declares each group once", async (t) => {
   const cacheRoot = await isolatedRoot(t, "population");
 
   const refusing = createIsolatedCompiledValidatorCache(cacheRoot, { allowGeneration: false });
@@ -187,12 +194,6 @@ test("a failed population status is evicted and the next attempt re-runs the pas
   assert.equal(status.group_count > 0, true);
 
   assert.equal(await generating.load(), status);
-});
-
-test("the whole declared population compiles each schema under one group identity", async (t) => {
-  const cacheRoot = await isolatedRoot(t, "identity");
-  const cache = createIsolatedCompiledValidatorCache(cacheRoot);
-  const status = await cache.load();
 
   const ids = status.groups.map(({ group_id: id }) => id);
   assert.equal(new Set(ids).size, ids.length, "no group identity is declared twice");
@@ -208,33 +209,26 @@ test("the whole declared population compiles each schema under one group identit
   );
 });
 
-test("the retired tool-shared group identity is a typed refusal, not a second compilation",
-  async (t) => {
-    const cacheRoot = await isolatedRoot(t, "retired");
-    const cache = createIsolatedCompiledValidatorCache(cacheRoot);
-    const schema = JSON.parse(await readFile(EVALUATION_INPUT_SCHEMA_PATH, "utf8"));
-
-    const failure = await rejectionOf(cache.compiledValidators(
-      "wiki-core.controlled-contract-tool-shared.evaluation-input.v1",
-      { validators: { validateEvaluationInput: schema } }
-    ));
-    assert.equal(failure.code, "validator_cache_group_undeclared");
-  });
-
 test("each named package-runtime loader resolves and stays memoized", async () => {
-  const [packageApi, requestSchema, inputSchema, validator] = await Promise.all([
+  const [packageApi, sharedContract, requestSchema, inputSchema, validator] = await Promise.all([
     loadControlledContractPackage(),
+    loadControlledContractSharedContract(),
     loadProofPlanRequestSchema(),
     loadEvaluationInputSchemaValue(),
     loadEvaluationInputSchema()
   ]);
 
   assert.equal(typeof packageApi.buildProofPlan, "function");
+  for (const name of ["validateNativeTestProofAuthoringContract", "buildStableTestProofBindingTemplate",
+    "deriveAuthoredTestCases"]) {
+    assert.equal(typeof sharedContract[name], "function", `shared contract exposes ${name}`);
+  }
   assert.equal(typeof requestSchema, "object");
   assert.equal(typeof inputSchema, "object");
   assert.equal(typeof validator, "function");
 
   assert.equal(await loadControlledContractPackage(), packageApi);
+  assert.equal(await loadControlledContractSharedContract(), sharedContract);
   assert.equal(await loadProofPlanRequestSchema(), requestSchema);
   assert.equal(await loadEvaluationInputSchemaValue(), inputSchema);
   assert.equal(await loadEvaluationInputSchema(), validator);
@@ -283,6 +277,7 @@ test("no in-scope loader retains a rejection through a bare ??= memo", async () 
   const runtimeSource = sources["packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs"];
   for (const loader of [
     "loadControlledContractPackage",
+    "loadControlledContractSharedContract",
     "loadProofPlanRequestSchema",
     "loadEvaluationInputSchemaValue",
     "loadEvaluationInputSchema"
@@ -293,7 +288,7 @@ test("no in-scope loader retains a rejection through a bare ??= memo", async () 
 
   const accepted = new Map([
     ["packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
-      ["controlledContractTestProofPromise", "carrierSetToolsPromise"]]
+      ["controlledContractTestProofPromise", "carrierSetToolsPromise", "carrierSetResolutionPromise"]]
   ]);
   for (const [rel, source] of Object.entries(sources)) {
     const memos = [...source.matchAll(/^\s*(?:let\s+)?(\w*[Pp]romise\w*)\s*\?\?=/gmu)]
@@ -313,8 +308,15 @@ test("the accepted static-module-map loaders keep their original settlement shap
       /controlledContractTestProofPromise \?\?= import\(CONTROLLED_CONTRACT_TEST_PROOF_SPECIFIER\)/u);
     assert.match(source,
       /carrierSetToolsPromise \?\?= import\("\.\/controlled-contract-carrier-set-tools\.mjs"\)/u);
+
+    assert.match(source,
+      /carrierSetResolutionPromise \?\?= import\("\.\/controlled-contract-carrier-set-resolution\.mjs"\)/u);
     assert.equal(source.includes("createEvictOnRejectionMemo"), false,
       "the accepted sites must not consume the eviction owner");
 
     assert.equal(typeof (await toolShared.loadControlledContractTestProofPackage()), "object");
+    const resolution = await import(
+      "../../packages/wiki-core/src/lib/controlled-contract-carrier-set-resolution.mjs");
+    assert.equal(typeof resolution.authenticatedControlledContractRuntimeMembers, "function",
+      "the deferred specifier resolves to the export its loader consumes");
   });

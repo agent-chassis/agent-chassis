@@ -1,6 +1,5 @@
 
 
-import { Buffer } from "node:buffer";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -18,6 +17,7 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
 
 import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
+import { measureMcpInlineResultBytes } from "./mcp-response.mjs";
 import {
   buildDispatchContinuation,
   recordOwnerRegisteredRequestSchema,
@@ -255,7 +255,7 @@ export function registerToolDiscoveryTools({
   }
 
   function measureToolDiscoveryListResultBytes(candidate) {
-    return Buffer.byteLength(JSON.stringify(jsonContent(candidate)), "utf8");
+    return measureMcpInlineResultBytes(candidate);
   }
 
   async function loadWorkspaceToolDiscoveryListEnvelope(options = {}) {

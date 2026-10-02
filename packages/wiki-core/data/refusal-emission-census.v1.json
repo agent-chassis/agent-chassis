@@ -34,7 +34,151 @@
       "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
       "packages/wiki-mcp/src/lib/mcp-response.mjs",
       "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "packages/wiki-mcp/src/lib/work-record-read-tools.mjs"
+      "packages/wiki-mcp/src/lib/work-record-read-tools.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-launch-route.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-refusal-projection.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-cce-admission.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-worker-readiness.mjs"
+    ],
+    "site_maintenance": [
+      {
+        "source_id": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-routing.mjs#review_transport_runtime_failure",
+        "outcome": "retired",
+        "commit": "6734fdd94520d1d861dc6af49edaa43425cff512",
+        "evidence": "the module was deleted when the registered advisory review pipeline replaced it; no current production source carries its findings-route translators or review_transport_runtime_failure emission"
+      },
+      {
+        "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#operator_recovery_needed",
+        "outcome": "retired",
+        "commit": "0f76fa1859cad01d33599f55b8fbb21b9ef5eac0",
+        "evidence": "every modeled failure received its own registered identity; operator_recovery_needed survives only at the shared classifier's authenticated-external limb"
+      },
+      {
+        "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#operator_recovery_needed",
+        "outcome": "retired",
+        "commit": "0f76fa1859cad01d33599f55b8fbb21b9ef5eac0",
+        "evidence": "every modeled failure received its own registered identity; operator_recovery_needed survives only at the shared classifier's authenticated-external limb"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#caller_supplied_identity",
+        "outcome": "retired",
+        "commit": "6090ddead56bcf17b59b4426b1adc41b24aa7108",
+        "evidence": "subject-addressed run observation removed the caller-identity carrier refusal from run status and wait"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#operator_recovery_needed",
+        "outcome": "retired",
+        "commit": "0f76fa1859cad01d33599f55b8fbb21b9ef5eac0",
+        "evidence": "every modeled failure received its own registered identity; operator_recovery_needed survives only at the shared classifier's authenticated-external limb"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#backend_unavailable",
+        "outcome": "relocated",
+        "relocated_to": [
+          "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-launch-route.mjs#backend_unavailable"
+        ],
+        "commit": "00139b99b2fec94b9f4acb9a691c4227f641768c",
+        "evidence": "dispatch registration was decomposed into the dispatch-tools route modules; behavior moved unchanged"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#caller_supplied_identity",
+        "outcome": "relocated",
+        "relocated_to": [
+          "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-refusal-projection.mjs#caller_supplied_identity",
+          "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs#caller_supplied_identity"
+        ],
+        "commit": "00139b99b2fec94b9f4acb9a691c4227f641768c",
+        "evidence": "dispatch registration was decomposed into the dispatch-tools route modules; behavior moved unchanged"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#launcher_transition.cce_policy_refused.v1",
+        "outcome": "relocated",
+        "relocated_to": [
+          "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-cce-admission.mjs#launcher_transition.cce_policy_refused.v1"
+        ],
+        "commit": "00139b99b2fec94b9f4acb9a691c4227f641768c",
+        "evidence": "dispatch registration was decomposed into the dispatch-tools route modules; behavior moved unchanged"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#operator_recovery_needed",
+        "outcome": "retired",
+        "commit": "0f76fa1859cad01d33599f55b8fbb21b9ef5eac0",
+        "evidence": "every modeled failure received its own registered identity; operator_recovery_needed survives only at the shared classifier's authenticated-external limb"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#role_policy_violation",
+        "outcome": "relocated",
+        "relocated_to": [
+          "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-refusal-projection.mjs#role_policy_violation",
+          "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs#role_policy_violation"
+        ],
+        "commit": "00139b99b2fec94b9f4acb9a691c4227f641768c",
+        "evidence": "dispatch registration was decomposed into the dispatch-tools route modules; behavior moved unchanged"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#worker_admission_carrier_invalid",
+        "outcome": "relocated",
+        "relocated_to": [
+          "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-worker-readiness.mjs#worker_admission_carrier_invalid"
+        ],
+        "commit": "00139b99b2fec94b9f4acb9a691c4227f641768c",
+        "evidence": "dispatch registration was decomposed into the dispatch-tools route modules; behavior moved unchanged"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_selected_detail_required",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_expired",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_malformed",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_missing",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_stale_source_digest",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_schema",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_scope",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_selector",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      },
+      {
+        "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_tool_family",
+        "outcome": "retired",
+        "commit": "385a467490955fd7122187306f5e82bb92171243",
+        "evidence": "acknowledgement-token recovery was retired from the ordinary read routes; the compact-read gate no longer decodes, validates or refuses a compact_read_token"
+      }
     ]
   },
   "semantic_categories": [
@@ -47,18 +191,8 @@
     "exact_returned_policy"
   ],
   "disclosed_omissions": [],
-  "entry_count": 61,
+  "entry_count": 48,
   "entries": [
-    {
-      "source_id": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-routing.mjs#review_transport_runtime_failure",
-      "source_file": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-routing.mjs",
-      "emitted_code": "review_transport_runtime_failure",
-      "registry_category": "review_transport",
-      "semantic_category": "integrity",
-      "failed_operation": "MCP reviewer dispatch route exists but the runtime launch/monitor channel failed.",
-      "unsafe_continuation_effect": "the review transport failed at runtime, so review provenance would be lost",
-      "procedure_only": false
-    },
     {
       "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#backend_unavailable",
       "source_file": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
@@ -97,16 +231,6 @@
       "semantic_category": "identity",
       "failed_operation": "Dispatch monitor handle is unknown to the runtime; the handle does not correspond to a tracked role-run.",
       "unsafe_continuation_effect": "the monitor handle names no live run, so status would be reported for nothing",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#operator_recovery_needed",
-      "source_file": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
-      "emitted_code": "operator_recovery_needed",
-      "registry_category": "operator_recovery",
-      "semantic_category": "integrity",
-      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
-      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
       "procedure_only": false
     },
     {
@@ -160,16 +284,6 @@
       "procedure_only": false
     },
     {
-      "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#operator_recovery_needed",
-      "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
-      "emitted_code": "operator_recovery_needed",
-      "registry_category": "operator_recovery",
-      "semantic_category": "integrity",
-      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
-      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
-      "procedure_only": false
-    },
-    {
       "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#read_only_mount",
       "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
       "emitted_code": "read_only_mount",
@@ -180,8 +294,8 @@
       "procedure_only": false
     },
     {
-      "source_id": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs#stdio_mcp_lifecycle_protocol_incompatible",
-      "source_file": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+      "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#stdio_mcp_lifecycle_protocol_incompatible",
+      "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
       "emitted_code": "stdio_mcp_lifecycle_protocol_incompatible",
       "registry_category": "operator_recovery",
       "semantic_category": "integrity",
@@ -240,16 +354,6 @@
       "procedure_only": false
     },
     {
-      "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#caller_supplied_identity",
-      "source_file": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
-      "emitted_code": "caller_supplied_identity",
-      "registry_category": "caller_identity",
-      "semantic_category": "identity",
-      "failed_operation": "Identity was supplied through a non-authoritative carrier (request payload, prompt text, ambient env, argv, claimed_identity.role, docs inference).",
-      "unsafe_continuation_effect": "the caller supplied its own identity, so the operation would act under an unverified actor",
-      "procedure_only": false
-    },
-    {
       "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#monitor_handle_unknown",
       "source_file": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
       "emitted_code": "monitor_handle_unknown",
@@ -257,16 +361,6 @@
       "semantic_category": "identity",
       "failed_operation": "Dispatch monitor handle is unknown to the runtime; the handle does not correspond to a tracked role-run.",
       "unsafe_continuation_effect": "the monitor handle names no live run, so status would be reported for nothing",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#operator_recovery_needed",
-      "source_file": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
-      "emitted_code": "operator_recovery_needed",
-      "registry_category": "operator_recovery",
-      "semantic_category": "integrity",
-      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
-      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
       "procedure_only": false
     },
     {
@@ -510,8 +604,8 @@
       "procedure_only": false
     },
     {
-      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#backend_unavailable",
-      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-launch-route.mjs#backend_unavailable",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-launch-route.mjs",
       "emitted_code": "backend_unavailable",
       "registry_category": "backend",
       "semantic_category": "integrity",
@@ -520,8 +614,8 @@
       "procedure_only": false
     },
     {
-      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#caller_supplied_identity",
-      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-refusal-projection.mjs#caller_supplied_identity",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-refusal-projection.mjs",
       "emitted_code": "caller_supplied_identity",
       "registry_category": "caller_identity",
       "semantic_category": "identity",
@@ -530,8 +624,18 @@
       "procedure_only": false
     },
     {
-      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#launcher_transition.cce_policy_refused.v1",
-      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs#caller_supplied_identity",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+      "emitted_code": "caller_supplied_identity",
+      "registry_category": "caller_identity",
+      "semantic_category": "identity",
+      "failed_operation": "Identity was supplied through a non-authoritative carrier (request payload, prompt text, ambient env, argv, claimed_identity.role, docs inference).",
+      "unsafe_continuation_effect": "the caller supplied its own identity, so the operation would act under an unverified actor",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-cce-admission.mjs#launcher_transition.cce_policy_refused.v1",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-cce-admission.mjs",
       "emitted_code": "launcher_transition.cce_policy_refused.v1",
       "registry_category": "role_policy",
       "semantic_category": "exact_returned_policy",
@@ -540,18 +644,8 @@
       "procedure_only": false
     },
     {
-      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#operator_recovery_needed",
-      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
-      "emitted_code": "operator_recovery_needed",
-      "registry_category": "operator_recovery",
-      "semantic_category": "integrity",
-      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
-      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#role_policy_violation",
-      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-refusal-projection.mjs#role_policy_violation",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-refusal-projection.mjs",
       "emitted_code": "role_policy_violation",
       "registry_category": "role_policy",
       "semantic_category": "confinement",
@@ -560,103 +654,23 @@
       "procedure_only": false
     },
     {
-      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#worker_admission_carrier_invalid",
-      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs#role_policy_violation",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+      "emitted_code": "role_policy_violation",
+      "registry_category": "role_policy",
+      "semantic_category": "confinement",
+      "failed_operation": "Caller role is forbidden from this action by the orchestrator/worker role policy.",
+      "unsafe_continuation_effect": "the requested action lies outside the role's declared capability boundary",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-worker-readiness.mjs#worker_admission_carrier_invalid",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-worker-readiness.mjs",
       "emitted_code": "worker_admission_carrier_invalid",
       "registry_category": "work_record_readiness",
       "semantic_category": "authenticity",
       "failed_operation": "The restored managed-admission carrier does not match the current attempt, so managed dispatch fails closed before the worker spawns.",
       "unsafe_continuation_effect": "the admission carrier is not authentic, so admission would rest on unverified evidence",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_selected_detail_required",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_selected_detail_required",
-      "registry_category": "read_disclosure",
-      "semantic_category": "integrity",
-      "failed_operation": "A valid compact_read_token was presented but the large unscoped expensive read stays bounded; re-call scoped to a specific selected_slice/selected_record instead of requesting the whole record.",
-      "unsafe_continuation_effect": "an unbounded expensive read would exceed transport bounds and lose data irrecoverably",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_expired",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_token_expired",
-      "registry_category": "read_disclosure",
-      "semantic_category": "replay",
-      "failed_operation": "The compact_read_token TTL has elapsed; re-run the compact read to mint a fresh token and re-call with it.",
-      "unsafe_continuation_effect": "the token has expired, so an old disclosure grant would be replayed",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_malformed",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_token_malformed",
-      "registry_category": "read_disclosure",
-      "semantic_category": "authenticity",
-      "failed_operation": "The supplied compact_read_token was not a well-formed bounded acknowledgment (undecodable, wrong shape or scalar types, wrong fixed lifetime, future-issued, or overlong); re-run the compact read to mint a fresh acknowledgment and re-call with it.",
-      "unsafe_continuation_effect": "the token is malformed, so its bearer cannot be established",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_missing",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_token_missing",
-      "registry_category": "read_disclosure",
-      "semantic_category": "authenticity",
-      "failed_operation": "No compact_read_token was supplied on a large unscoped expensive work-record read; obtain one from a prior compact read and re-call with it.",
-      "unsafe_continuation_effect": "no continuation token was presented, so disclosure would be unauthenticated",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_stale_source_digest",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_token_stale_source_digest",
-      "registry_category": "read_disclosure",
-      "semantic_category": "integrity",
-      "failed_operation": "The record changed since the compact_read_token was minted (source_digest mismatch); re-run the compact read to refresh the token against the current record and re-call.",
-      "unsafe_continuation_effect": "the source changed after the token was minted, so disclosure would describe stale content",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_schema",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_token_wrong_schema",
-      "registry_category": "read_disclosure",
-      "semantic_category": "authenticity",
-      "failed_operation": "The compact_read_token schema_version does not match the expected compact-read token schema; mint a fresh token from a current compact read and re-call.",
-      "unsafe_continuation_effect": "the token schema is wrong, so its claims cannot be interpreted",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_scope",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_token_wrong_scope",
-      "registry_category": "read_disclosure",
-      "semantic_category": "identity",
-      "failed_operation": "The compact_read_token was issued for a different workspace repo or record id; re-run the compact read for the correct record and re-call with the corrected token.",
-      "unsafe_continuation_effect": "the token was minted for a different scope",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_selector",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_token_wrong_selector",
-      "registry_category": "read_disclosure",
-      "semantic_category": "identity",
-      "failed_operation": "The compact_read_token selector does not match the requested selector; re-run the compact read with the intended selector and re-call with the corrected token.",
-      "unsafe_continuation_effect": "the token was minted for a different selector",
-      "procedure_only": false
-    },
-    {
-      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_tool_family",
-      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-      "emitted_code": "compact_read_token_wrong_tool_family",
-      "registry_category": "read_disclosure",
-      "semantic_category": "identity",
-      "failed_operation": "The compact_read_token was issued for a different tool family than the one being called; re-run the compact read for THIS tool to mint a matching token and re-call.",
-      "unsafe_continuation_effect": "the token was minted for a different tool family",
       "procedure_only": false
     }
   ]

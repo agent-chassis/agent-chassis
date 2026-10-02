@@ -228,12 +228,13 @@
         "packages/wiki-mcp/src/lib/mcp-response.mjs",
         "packages/wiki-mcp/src/lib/tool-profile.mjs"
       ],
-      "notes": "Reads one byte range of the content reference an oversized tool result returns with a bounded preview and ref_id. Request offset and a length within max_length, base64-decode each data_base64 range, and follow next_offset until eof to reassemble the complete payload; sha256 identifies the complete bytes.",
+      "notes": "Reads one byte range of the content reference an oversized tool result returns with a bounded preview and ref_id. Request offset and a length within max_length, base64-decode each data_base64 range, and follow next_offset until eof to reassemble the complete payload; sha256 identifies the complete bytes. A selected task result (a workspace_verify_proof result, a closeout receipt or a code-index answer) is never served here: the read refuses with that result's exact owner call. Operator-retained evidence is refused with no route.",
       "use_when": [
         "A tool result returned a content reference ref_id instead of its complete inline payload."
       ],
       "do_not_use_when": [
-        "The complete payload was already returned inline; no content-reference read is needed."
+        "The complete payload was already returned inline; no content-reference read is needed.",
+        "The reference is a selected task result; follow its owner call (workspace_verify_proof with result, workspace_work_record_summary with receipt, or the code-index route with detail)."
       ],
       "authoritative_for": [
         "byte-range reads of returned MCP response content references"
@@ -1050,7 +1051,7 @@
         "packages/wiki-mcp/src/lib/work-record-entry-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "The ordinary selected canonical reader. Addresses one page by repo-relative path, or a canonical record by id, or a record and its slice by unit; exactly one of path, id and unit selects the read. Reads Markdown, canonical WK JSON and registered IN/DEC JSON. A work record (optionally selected_slice, or a unit that names the slice) returns the lean {ok, unit, status, summary, next_calls} read, and every emitted call repeats the identity form the caller used. No whole-record or arbitrary JSON read: member:{path} pages one WK, slice, IN or DEC member or exact string range, pinned by source_digest. entry:{...} delegates one exact entry of that unit to the entry owner, whose emitted calls come back addressed to this reader; content_reference:{ref_id,offset,length} delegates one retained spill to its owner and takes no other selector. include_body reads Markdown page bodies only. Conflicting, missing or foreign selections return a precise selector correction.",
+      "notes": "The ordinary selected canonical reader. Addresses one page by repo-relative path, or a canonical record by id, or a record and its slice by unit; exactly one of path, id and unit selects the read. Reads Markdown and canonical WK, IN and DEC JSON. A work record (optionally selected_slice, or a unit naming the slice) returns the lean {ok, unit, status, summary, next_calls} read; emitted calls repeat the caller's identity form. No whole-record or arbitrary JSON read: member:{path} pages one WK, slice, IN or DEC member or string range; members:[...] reads 1-16 in one bounded call; both pin the 16-hex source_digest. entry:{...} delegates one exact entry of that unit to the entry owner, whose emitted calls come back addressed to this reader; content_reference:{ref_id,offset,length} delegates one retained spill to its owner and takes no other selector. include_body reads Markdown page bodies only. A managed worker reads only its launcher-published frozen assignment with {assignment:true} and the continuations it returns; any other worker selector, and assignment from another session, refuses before any source is read. Conflicting, missing or foreign selections return a precise correction.",
       "use_when": [
         "docs_lookup with known repo path",
         "canonical record read by durable id or unit without reconstructing a storage path",
@@ -1081,23 +1082,7 @@
       "requires_prior_state": [
         "known repo-relative Markdown path, exact registered canonical record path, or known WK plus selected_slice selector"
       ],
-      "replacement_for_misuse": [
-        {
-          "misuse_code": "full_read_without_selected_resource",
-          "routing_intent": "selected_work_record_context",
-          "use_instead": "workspace_work_record_summary"
-        },
-        {
-          "misuse_code": "high_output_option_without_compact_first",
-          "routing_intent": "selected_slice_detail",
-          "use_instead": "workspace_work_record_summary"
-        },
-        {
-          "misuse_code": "bulk_sampling_without_lens",
-          "routing_intent": "initiative_status",
-          "use_instead": "workspace_initiative_status"
-        }
-      ]
+      "replacement_for_misuse": []
     },
     {
       "tool_name": "workspace_read_tool_doc",
@@ -1210,7 +1195,7 @@
         "packages/wiki-mcp/src/server.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP canonical-record read surface for durable WK and registered IN/DEC IDs. No whole-record mode: compact IN/DEC results recover each omitted member through member:{path}, a bounded page of immediate members or one exact string range with pinned source_digest calls. No arbitrary JSON or filesystem reads. Tracker WK selectors give bounded slice detail.",
+      "notes": "Preferred MCP canonical-record read surface for durable WK and registered IN/DEC IDs. No whole-record mode: compact IN/DEC results recover omitted members through member:{path} or members:[...] (1-16): immediate-member pages or exact string ranges pinned to the 16-hex source_digest. No arbitrary JSON or filesystem reads. Tracker WK selectors give bounded slice detail.",
       "use_when": [
         "selected canonical initiative or decision member is needed by durable id",
         "selected_work_record_context after compact summary needs one canonical member",

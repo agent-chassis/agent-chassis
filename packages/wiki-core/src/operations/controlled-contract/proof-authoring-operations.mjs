@@ -1,5 +1,5 @@
 import { bindProofAuthoringRevision } from './proof-authoring-revision.mjs';
-import { compileProofAuthoringCases, projectProofAuthoringCase } from './proof-authoring-case.mjs';
+import { compileProofAuthoringCases } from './proof-authoring-case.mjs';
 import { planProofAuthoringRequirementRebinding } from './proof-authoring-requirement-rebinding.mjs';
 import { planProofAuthoringRequirementRetirement } from './proof-authoring-requirement-retirement.mjs';
 import { settleProofAuthoringCases } from './proof-authoring-targets.mjs';
@@ -9,10 +9,11 @@ import { assertPackageValidContract, loadControlledContractPackage,
   packageValidationDiagnostics } from './package-runtime.mjs';
 import { controlledContractOperation } from './refusal.mjs';
 import { resolveProofAuthoringSource, resolveProofAuthoringContext, assessProspectiveProofUses } from './proof-authoring-source.mjs';
-import { persistObligationCoverageCarrier, obligationCoverageResolutionInput,
-  encodeObligationCoverageOperationCursor, decodeObligationCoverageOperationCursor,
-  obligationCoverageProjectionCursor } from './proof-authoring-persistence.mjs';
-import { projectProofAuthoringDiagnosticGroups } from
+import { persistObligationCoverageCarrier, obligationCoverageResolutionInput } from './proof-authoring-persistence.mjs';
+import { addressedCorrectionCall, PROOF_VALIDATION_EXECUTION,
+  PROOF_VALIDATION_SELECTED_DIAGNOSIS_SCHEMA_VERSION, proofAuthoringGroupDiagnosis,
+  proofValidationAssessment, proofValidationIssues, projectProofAuthoringDiagnosticGroups,
+  semanticCauseGroupDiagnosis, usedCorrectionDefinitions } from
   './proof-authoring-diagnostic-projection.mjs';
 import { compileProofAuthoringContractInputs,
   projectProofAuthoringContractInputs } from
@@ -21,13 +22,14 @@ import { attributeControlledContractRequirementDiagnostics } from
   './contract-requirement-authoring.mjs';
 import { coverageSelectorRecovery, coverageUnitArguments, proofCatalogDiscoveryRecovery } from './coverage-recovery-guidance.mjs';
 import { CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE } from '../../lib/work-record-proof-posture.mjs';
+import { acceptanceCriterionAssociationOwner, acceptanceCriterionInventory,
+  assessAcceptanceCriterionCoverage } from './acceptance-criterion-coverage.mjs';
 import { inspectControlledContractDesignWorkbenchOperation } from
   './design-workbench-operations.mjs';
-import { classifyControlledContractTerminalGaps,
-  projectControlledContractTerminalGapDetails } from
+import { projectControlledContractTerminalGapDetails, semanticCauseCorrection,
+  semanticCauseMeaning, semanticCauseSubject } from
   './terminal-gap-classification.mjs';
 
-const PAGE_SIZE = 25;
 const unitAddress = value => value.selectedUnit === null ? value.wkId : `${value.wkId}#${value.selectedUnit}`;
 const own = (value, key) => Object.hasOwn(value, key);
 const caseReferenceIds = (cases, obligations = []) => [...new Set([
@@ -175,7 +177,9 @@ async function mutation(input, remove, options) {
           ? pkg.removeProofAuthoringSelection(source, input.obligationId)
           : removeProofAuthoringObligation(pkg, source, input.obligationId)
         : await pkg.upsertProofAuthoringSelection(source,
-          obligations.map(({ case: ignored, ...changes }) => changes)).catch(error => {
+          obligations.map(({ case: ignored, ...changes }) => changes), {
+            criteria: acceptanceCriterionAssociationOwner(
+              acceptanceCriterionInventory(pkg, initial.unit), initial) }).catch(error => {
           if (error?.code === 'obligation_coverage_proof_name_unknown') error.details = {
             ...error.details, next_calls: proofCatalogDiscoveryRecovery() };
           throw error;
@@ -285,6 +289,16 @@ async function mutation(input, remove, options) {
             contractInputs.requirementCompilation);
         }
       }
+
+      const optOutCases = (candidate.content?.obligations ?? []).filter(row =>
+        row.proof_opt_out === true && (row.case_id !== undefined || row.selection !== undefined));
+      if (optOutCases.length > 0) throw new ControlledContractToolError(
+        'obligation_coverage_proof_opt_out_conflict',
+        'An obligation cannot both decline proof and keep a proof selection or case', {
+          changed: false, phase: 'request', unit: unitAddress(initial),
+          obligation_ids: optOutCases.map(row => row.obligation_id),
+          correction: 'Omit the case and proof selection for an opted-out obligation, or supply ' +
+            'proof_opt_out false with them.' });
 
       const validatedSources = new Map();
       for (const entry of candidate.sourceChanges) {
@@ -401,59 +415,26 @@ async function mutation(input, remove, options) {
 export const upsertControlledContractObligationCoverageOperation = (input, options = {}) => mutation(input, false, options);
 export const removeControlledContractObligationCoverageOperation = (input, options = {}) => mutation(input, true, options);
 
-function pageResult({ resolved, selector, cursor, identity, items, tool, extra = {} }) {
-  const continued = decodeObligationCoverageOperationCursor(cursor, identity);
-  if (continued && selector !== undefined && JSON.stringify(selector) !== JSON.stringify(continued.selector)) throw new ControlledContractToolError(
-    'obligation_coverage_cursor_invalid', 'Cursor selection differs from request', { changed: false });
-  const offset = continued?.offset ?? 0;
-  if (offset > items.length || continued && offset === items.length) throw new ControlledContractToolError(
-    'obligation_coverage_cursor_stale', 'Cursor offset is outside the selected population', { changed: false });
-  const page = items.slice(offset, offset + PAGE_SIZE), next = offset + page.length;
-  const continuation = next === items.length ? null : encodeObligationCoverageOperationCursor(
-    obligationCoverageProjectionCursor(selector ?? continued?.selector ?? null, next), identity);
-  const args = { unit: unitAddress(resolved), ...(resolved.focus === null ? {} : { focus: resolved.focus }),
-    ...(selector?.obligation_id ? { obligationId: selector.obligation_id } : {}) };
-  return { unit: unitAddress(resolved), content_digest: resolved.revision,
-    source_identity: resolved.prospectiveIdentity, ...extra,
-    total: items.length, returned: page.length, remaining: items.length - next,
-    page: { offset, items: page, continuation, complete: continuation === null },
-    next_calls: continuation === null ? [] : [{ tool, arguments: {
-      unit: args.unit, ...(args.focus ? { focus: args.focus } : {}), cursor: continuation } }] };
-}
-
-const OBLIGATION_INVENTORY_STATEMENT_MAX_SCALARS = 1024;
-
-function inventoryStatement(statement) {
-  if (typeof statement !== 'string') return { statement: null };
-  const scalars = [...statement];
-  if (scalars.length <= OBLIGATION_INVENTORY_STATEMENT_MAX_SCALARS) return { statement };
-  return { statement_preview: scalars.slice(0, OBLIGATION_INVENTORY_STATEMENT_MAX_SCALARS).join(''),
-    statement_complete: false, statement_scalars: scalars.length };
-}
-
-function inventoryRow(row) {
-  return { obligation_id: row.obligation_id, ...inventoryStatement(row.statement),
-    proof_name: row.selection?.proof_name ?? null,
-    case_count: (row.cases ?? []).length };
-}
-
-function inventoryDetailRead(resolved) {
-  return { tool: 'workspace_controlled_contract_obligation_coverage_query',
-    incomplete_arguments: coverageUnitArguments(resolved),
-    required_argument: 'obligation_id', accepted_values: 'page.items[].obligation_id',
-    returns: 'the complete saved obligation with its mechanism, pinned selection and ' +
-      'linked cases, plus the contract requirements and references associated with it',
-    complete_population_read: 'Omit obligation_id and inventory to read every obligation and the ' +
-      'complete requirement meaning in one response.',
-    note: 'Declaration, not an executable next_call: add required_argument to incomplete_arguments.' };
-}
 function validationCall(resolved, fields = {}) {
   return { tool: 'workspace_validate_proof', arguments: {
     unit: unitAddress(resolved), ...(resolved.focus === null ? {} : { focus: resolved.focus }), ...fields
   } };
 }
 
-function validationContractInputsSummary(resolved, contractInputs) {
+function wholeUnitCriterionCoverage(pkg, resolved, validObligationIds) {
+  return assessAcceptanceCriterionCoverage({
+    inventory: acceptanceCriterionInventory(pkg, resolved.unit),
+    obligations: resolved.source?.content?.obligations ?? [],
+    validObligationIds, wkId: resolved.wkId, selectedUnit: resolved.selectedUnit,
+    focus: resolved.focus });
+}
+function selectedObligationCoverageScope(resolved) {
+  return Object.freeze({ scope: 'selected_obligation', whole_unit_assessed: false,
+    reason: 'A selected obligation\'s validation does not assess the unit\'s acceptance-criterion coverage.',
+    supported_next_call: validationCall(resolved) });
+}
+
+export function validationContractInputsSummary(resolved, contractInputs) {
   const { requirements, controlled_acceptance: acceptance } = contractInputs;
   return {
     contract_content_digest: contractInputs.contract_content_digest,
@@ -469,89 +450,30 @@ function validationContractInputsSummary(resolved, contractInputs) {
       arguments: coverageUnitArguments(resolved) }
   };
 }
-function validationFacts(resolved, result, grouped) {
+
+function validationAssessment(resolved, result) {
   const rows = result.rows ?? [];
   const assessedRows = rows.filter(row => row.selected_proof_assessment !== null &&
     row.selected_proof_assessment !== undefined);
   const stageCount = (stage, status) => assessedRows.filter(row =>
     row.selected_proof_assessment?.stages?.[stage]?.status === status).length;
-  const selectedRoutes = [...new Set(assessedRows.map(row =>
-    row.selected_proof_assessment.execution_family))].sort()
-    .map(route => {
-      const selected = assessedRows.filter(row =>
-        row.selected_proof_assessment.execution_family === route);
-      const prerequisite = name => Object.fromEntries([...new Set(selected.map(row =>
-        row.selected_proof_assessment?.[name]?.status ?? 'unresolved'))].sort().map(status =>
-        [status, selected.filter(row =>
-          (row.selected_proof_assessment?.[name]?.status ?? 'unresolved') === status).length]));
-      return { route, obligation_count: selected.length,
-        requirements: selected[0]?.selected_proof_assessment?.requirements ?? null,
-        prerequisites: {
-          authored_case: prerequisite('authored_case'),
-          native_test_binding: prerequisite('native_test_binding'),
-          declared_test_target: prerequisite('declared_test_target')
-        },
-        prevents_route_count: selected.filter(row =>
-          row.selected_proof_assessment?.prevents_selected_route !== false).length };
-    });
-  const dispatchCall = {
-    tool: 'workspace_validate_dispatch',
-    arguments: { unit: unitAddress(resolved) }
-  };
   const authoredValid = rows.filter(row => row.status === 'valid').length;
-  const authoredCounts = { obligations: result.counts.obligations,
-    valid: authoredValid, invalid: rows.length - authoredValid,
-    explicit_gaps: result.counts.explicit_gaps,
-    unselected: result.counts.unselected };
   const routeDiagnostics = assessedRows.flatMap(row => row.diagnostics).filter(diagnostic =>
     diagnostic.problem?.route_assessment !== undefined);
   const routeEffectCount = effect => routeDiagnostics.filter(diagnostic =>
     diagnostic.problem.route_assessment.effect === effect).length;
-  const authoredBlockingRows = rows.filter(row => row.authoring_status !== 'complete');
+  const prevents = assessedRows.filter(row =>
+    row.selected_proof_assessment.prevents_selected_route === true).length;
   return {
-    status: rows.length > 0 && authoredValid === rows.length ? 'valid' : 'invalid',
-    saved_source: resolved.source === null
-      ? { status: 'source_absent', obligation_count: 0, content_digest: null }
-      : { status: 'source_present', obligation_count: resolved.rows.length,
-        content_digest: resolved.source.content_digest },
-    counts: authoredCounts,
-    diagnostic_counts: grouped.counts,
-    diagnostic_categories: grouped.categories,
-    diagnostic_scope: 'combined_observations_not_validity_or_blocker_denominator',
-    blocker_counts: {
-      authored_meaning: {
-        obligation_count: authoredBlockingRows.length,
-        diagnostic_occurrence_count: authoredBlockingRows.reduce((total, row) =>
-          total + (row.authoring_diagnostic_codes?.length ?? 0), 0)
-      },
-      selected_routes: {
-        obligation_count: assessedRows.filter(row =>
-          row.selected_proof_assessment?.prevents_selected_route === true).length,
-        blocking_diagnostic_occurrence_count: routeEffectCount('blocking'),
-        nonblocking_diagnostic_occurrence_count: routeEffectCount('nonblocking'),
-        unresolved_diagnostic_occurrence_count: routeEffectCount('unresolved')
-      }
-    },
-    source_digest: result.source_digest,
-    context_digest: result.context_digest,
-    input_status: rows.every(row => row.authoring_status === 'complete') ? 'valid' : 'invalid',
-    selected_route_assessment: {
-      schema_version: 'proof-authoring-selected-route-summary.v1',
+    authored: { status: rows.length > 0 && authoredValid === rows.length ? 'valid' : 'invalid',
+      obligations: result.counts.obligations, valid: authoredValid, invalid: rows.length - authoredValid,
+      explicit_gaps: result.counts.explicit_gaps, unselected: result.counts.unselected },
+    route: {
       status: assessedRows.length === 0 ? 'not_assessed' : assessedRows.every(row =>
         row.selected_proof_assessment.prevents_selected_route === false)
         ? 'clear' : routeEffectCount('unresolved') > 0 ? 'unresolved' : 'blocked',
-      assessed_route_count: assessedRows.length,
-      no_selected_route_count: rows.length - assessedRows.length,
-      prevents_route_count: assessedRows.filter(row =>
-        row.selected_proof_assessment.prevents_selected_route === true).length,
-      executable_map: {
-        status: result.status,
-        counts: result.counts,
-        construction_status: rows.length > 0 && rows.every(row => row.construction_status === 'complete')
-          ? 'complete' : 'unresolved',
-        construction_status_scope: 'generic_definition_metadata'
-      },
-      routes: selectedRoutes,
+      assessed: assessedRows.length,
+      prevents,
       stages: {
         authored_inputs: { complete: stageCount('authored_inputs', 'complete'),
           incomplete: stageCount('authored_inputs', 'incomplete') },
@@ -561,28 +483,46 @@ function validationFacts(resolved, result, grouped) {
           unavailable: stageCount('system_capability', 'unavailable') },
         execution_evidence: { not_started: stageCount('execution_evidence', 'not_started'),
           credit_granted: 0 }
-      },
-      diagnostic_effects: {
-        scope: 'selected_routes_only',
-        blocking: routeEffectCount('blocking'),
-        nonblocking: routeEffectCount('nonblocking'),
-        unresolved: routeEffectCount('unresolved')
-      },
-      execution_assessment: {
-        status: 'not_started',
-        proofs_executed: 0,
-        credit_granted: 0,
-        reason: 'workspace_validate_proof assesses saved design prerequisites only; it does not execute proofs or decide proof success.'
-      },
-      dispatch_assessment: {
-        status: 'not_assessed',
-        owner: 'workspace_validate_dispatch',
-        grants: [],
-        reason: 'Proof validation does not assess or grant dispatch; workspace_validate_dispatch is the independent structural assessment and remains available regardless of executable-map readiness.',
-        supported_next_call: dispatchCall
       }
-    }
+    },
+    authoring_occurrence_effects: { scope: 'selected_routes_only', blocking: routeEffectCount('blocking'),
+      nonblocking: routeEffectCount('nonblocking'), unresolved: routeEffectCount('unresolved') }
   };
+}
+
+const USER_REQUIREMENTS_COMPARISON_TARGETS = Object.freeze({
+  whole_unit: 'the authored contract and obligations',
+  selected_obligation: 'this obligation (whole-unit validity and coverage unassessed)',
+  authored_scope: 'the authored scope'
+});
+function userRequirementsComparison(resolved, scope, deps) {
+  if (deps.presentation?.orchestrator !== true) return {};
+  const recorded = resolved.record?.sections?.user_requirements;
+  const state = typeof recorded !== 'string' ? 'not_recorded' : recorded.length === 0 ? 'empty' : 'recorded';
+  return { user_requirements_comparison: {
+    scope,
+    advisory: `Before dispatch, compare the current user requirements with ${USER_REQUIREMENTS_COMPARISON_TARGETS[scope]} ` +
+      'for omissions, unjustified narrowing and unrequested scope; authored validity does not establish coverage of ' +
+      'the user request.' + (state === 'recorded' ? '' : ' None are recorded, so coverage is unestablished.'),
+    requirements: state,
+    read_call: state === 'not_recorded' ? null : { tool: 'workspace_work_record_summary',
+      arguments: { unit: resolved.wkId, ordinary_field: { field: 'sections.user_requirements' } } }
+  } };
+}
+
+const dispatchNotAssessed = resolved => ({ status: 'not_assessed',
+  call: { tool: 'workspace_validate_dispatch', arguments: { unit: unitAddress(resolved) } } });
+
+function compactCriterionCoverage(coverage) {
+  return { status: coverage.status, criteria: coverage.criterion_count, covered: coverage.covered_count,
+    uncovered: coverage.uncovered_count, stale: coverage.stale_association_count,
+    correction: coverage.correction };
+}
+
+function validationEnvelope(resolved, { sourceDigest, contextDigest }) {
+  return { unit: unitAddress(resolved), content_digest: resolved.revision,
+    source: { status: resolved.source === null ? 'source_absent' : 'source_present',
+      source_digest: sourceDigest, context_digest: contextDigest } };
 }
 
 const INDEPENDENT_OWNER_PASSTHROUGH_CODES = new Set([
@@ -673,137 +613,131 @@ function semanticValidationResult(resolved, semantic, context, failure) {
     }
   });
 }
-export async function queryControlledContractObligationCoverageOperation(input) {
-  return proofAuthoringOperation(async () => {
-    assertControlledContractOperationInput(input, ['repoRoot', 'wkId', 'focus', 'selectedUnit', 'obligationId', 'parameterDetail', 'inventory', 'cursor']);
 
-    if (input.inventory === true && (input.obligationId !== undefined || input.parameterDetail === true)) {
-      throw new ControlledContractToolError('obligation_coverage_request_invalid',
-        'inventory lists the obligation population; obligation_id and parameter_detail read one obligation in full',
-        { changed: false, phase: 'request',
-          rejected_arguments: ['inventory', ...(input.obligationId === undefined ? [] : ['obligation_id']),
-            ...(input.parameterDetail === true ? ['parameter_detail'] : [])],
-          next_calls: [{ tool: 'workspace_controlled_contract_obligation_coverage_query',
-            arguments: { ...coverageUnitArguments(obligationCoverageResolutionInput(input)), inventory: true } }] });
-    }
-    const resolved = await bindProofAuthoringRevision(await resolveProofAuthoringSource(obligationCoverageResolutionInput(input)));
-    const continued = decodeObligationCoverageOperationCursor(input.cursor);
-    const selector = own(input, 'obligationId') || own(input, 'parameterDetail') || input.inventory === true
-      ? { ...(input.obligationId ? { obligation_id: input.obligationId } : {}),
-        ...(input.inventory === true ? { inventory: true } : {}),
-        parameter_detail: input.parameterDetail === true } : continued?.selector;
-
-    const inventory = selector?.inventory === true;
-    if (resolved.source === null && continued) throw new ControlledContractToolError(
-      'obligation_coverage_cursor_stale', 'The cursor source is absent', { changed: false });
-    let items = resolved.source === null ? [] : selector?.obligation_id
-      ? [findObligation(resolved, selector.obligation_id)] : [...resolved.rows];
-    const pkg = resolved.source === null ? null : await loadControlledContractPackage();
-    const selectedCase = selector?.obligation_id && items[0].case_id
-      ? resolved.cases.find(definition => definition.case_id === items[0].case_id)
-      : null;
-    const selectedNodeIds = selector?.obligation_id ? [...new Set([
-      ...(items[0].controlled_contract_node_ids ?? []),
-      ...(selectedCase === null ? [] : [pkg.authoredCaseVerificationId(selectedCase)])
-    ].filter(Boolean))] : null;
-    const contractInputs = projectProofAuthoringContractInputs(resolved, {
-      controlledContractNodeIds: selectedNodeIds
-    });
-
-    const contractInputChannel = inventory
-      ? { view: 'inventory', contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs),
-        obligation_detail_read: inventoryDetailRead(resolved),
-        inventory_limits: { statement_scalars: OBLIGATION_INVENTORY_STATEMENT_MAX_SCALARS } }
-      : { contract_inputs: contractInputs };
-    if (resolved.source === null) return { unit: unitAddress(resolved), status: 'source_absent', content_digest: resolved.revision,
-      source_identity: resolved.prospectiveIdentity, ...contractInputChannel,
-      total: 0, returned: 0, remaining: 0, page: { items: [], continuation: null }, next_calls: [] };
-    items.sort((a, b) => a.obligation_id < b.obligation_id ? -1 : a.obligation_id > b.obligation_id ? 1 : 0);
-    items = items.map(row => ({ ...row, cases: projectProofAuthoringCase(pkg, resolved, row) }));
-    if (selector?.parameter_detail) {
-      const pkg = await loadControlledContractPackage();
-      const { loadPackParameterContract, describePackParameters } = await import('@agent-chassis/controlled-contract/pack-parameters');
-      items = await Promise.all(items.map(async row => ({ ...row,
-        parameter_contract: describePackParameters(loadPackParameterContract(await pkg.loadPinnedProofSelection(row.selection))) })));
-    }
-    const identity = controlledContractContentDigest({ source: resolved.source?.content_digest ?? null,
-      unit: resolved.authoringIdentity, ...(selector?.parameter_detail ? {
-        parameter_contracts: items.map(row => row.parameter_contract) } : {}) });
-    return pageResult({ resolved, selector, cursor: input.cursor, identity,
-      items: inventory ? items.map(inventoryRow) : items,
-      tool: 'workspace_controlled_contract_obligation_coverage_query', extra: { status: 'source_present',
-        ...contractInputChannel,
-        totals: { obligations: resolved.rows.length, explicit_gaps: resolved.rows.filter(row => row.gap).length } } });
-  });
+function publicOwnerFailure(failure) {
+  return { code: failure.code, ownership: failure.ownership, responsible_owner: failure.responsible_owner,
+    message: failure.message, cause: { code: failure.cause.code, class: failure.cause.class },
+    details: failure.details === null ? null : structuredClone(failure.details),
+    recovery: { actor_recovery: 'system_owner',
+      explanation: 'An independent validation owner failed; this is not an authored-input defect, and changing ' +
+        'authored proof inputs is not an established correction.' } };
 }
+
+function refuseOversizedValidationAnswer({ scope, bytes, limit, reason, nextCalls = [] }) {
+  throw new ControlledContractToolError('proof_validation_answer_exceeds_compact_class',
+    `The validation answer for ${JSON.stringify(scope)} measures ${bytes} bytes, above the ${limit}-byte compact class`, {
+      changed: false, phase: 'delivery', scope, measured_bytes: bytes, limit, reason,
+      next_calls: nextCalls });
+}
+
+function validationDelivery(deps) {
+  const delivery = deps.delivery ?? null;
+  return delivery === null
+    ? { fits: () => true, measure: () => 0, limit: null }
+    : { fits: value => delivery.measure(value) <= delivery.limit, measure: delivery.measure,
+      limit: delivery.limit };
+}
+
+function publicDiagnosis(diagnosis, subjects, { resolved, clauses }) {
+  const call = addressedCorrectionCall(diagnosis.correction_route, subjects, { unit: unitAddress(resolved),
+    focus: resolved.focus, contentDigest: resolved.revision });
+  return { ...diagnosis.selected, recovery: diagnosis.recovery, subjects,
+    corrections: usedCorrectionDefinitions(subjects, clauses),
+    correction_call: call,
+    ...(call !== null && call.tool === UPSERT_TOOL_NAME ? { requires_authored_values: true } : {}) };
+}
+
+const UPSERT_TOOL_NAME = 'workspace_controlled_contract_obligation_coverage_upsert';
+
+function selectedGroupAnswer({ envelope, diagnosis, resolved, clauses, delivery }) {
+  const { subjects } = diagnosis;
+  const build = (included, extra = {}) => {
+    const body = publicDiagnosis(diagnosis, included, { resolved, clauses });
+    const { subjects: listed, corrections, correction_call: call, requires_authored_values: values,
+      recovery, ...selected } = body;
+    return { schema_version: PROOF_VALIDATION_SELECTED_DIAGNOSIS_SCHEMA_VERSION, ...envelope, selected,
+      recovery, subjects: listed, corrections, correction_call: call,
+      ...(values === undefined ? {} : { requires_authored_values: values }),
+      subjects_total: subjects.length, subjects_omitted: subjects.length - included.length, ...extra,
+      complete: included.length === subjects.length && extra.subject_index === undefined,
+      execution: { ...PROOF_VALIDATION_EXECUTION } };
+  };
+  const complete = build(subjects);
+  if (delivery.fits(complete)) return complete;
+  const identified = subjects.every(subject => typeof subject.obligation_id === 'string');
+  const ids = [...new Set(subjects.map(subject => subject.obligation_id))];
+  const index = build([], { subject_index: { obligation_ids: ids, selector: 'obligation_id',
+    call: validationCall(resolved) } });
+  if (identified && ids.length > 0 && delivery.fits(index)) return index;
+  let admitted = [];
+  for (const subject of subjects) {
+    const candidate = [...admitted, subject];
+    if (!delivery.fits(build(candidate))) break;
+    admitted = candidate;
+  }
+  if (admitted.length > 0) return build(admitted);
+  const empty = build([]);
+  if (delivery.fits(empty)) return empty;
+  return refuseOversizedValidationAnswer({ scope: { unit: envelope.unit,
+    diagnostic_group_id: diagnosis.selected.diagnostic_group_id }, bytes: delivery.measure(empty),
+  limit: delivery.limit, reason: 'the selected group\'s shared cause and recovery alone exceed the compact class' });
+}
+
+function selectedObligationAnswer({ envelope, obligationId, row, route, diagnoses, ownerFailures,
+  resolved, clauses, delivery, comparison }) {
+
+  const build = (admitted) => ({ schema_version: PROOF_VALIDATION_SELECTED_DIAGNOSIS_SCHEMA_VERSION, ...envelope,
+    selected: { obligation_id: obligationId, authored: row?.status ?? 'invalid',
+      route: route === null ? 'not_assessed' : route.prevents_selected_route === false ? 'clear' : 'blocked' },
+    owner_failures: ownerFailures,
+    diagnoses: admitted.map(({ entry }) => entry),
+    corrections: Object.assign({}, ...admitted.map(({ corrections }) => corrections)),
+    diagnoses_total: diagnoses.length, diagnoses_returned: admitted.length,
+    diagnoses_omitted: diagnoses.length - admitted.length,
+    complete: admitted.length === diagnoses.length,
+    acceptance_coverage: selectedObligationCoverageScope(resolved),
+    ...(row?.status === 'valid' ? comparison : {}),
+    execution: { ...PROOF_VALIDATION_EXECUTION } });
+  const entries = diagnoses.map(({ diagnosis, subjects }) => {
+    const { corrections, ...entry } = publicDiagnosis(diagnosis, subjects, { resolved, clauses });
+    return { entry, corrections };
+  });
+  let admitted = [];
+  for (const entry of entries) {
+    const candidate = [...admitted, entry];
+    if (!delivery.fits(build(candidate))) break;
+    admitted = candidate;
+  }
+  if (admitted.length === 0 && entries.length > 0) {
+    return refuseOversizedValidationAnswer({ scope: { unit: envelope.unit, obligation_id: obligationId },
+      bytes: delivery.measure(build(entries.slice(0, 1))), limit: delivery.limit,
+      reason: 'the selected obligation\'s first indivisible diagnosis exceeds the compact class; ' +
+        'no narrower existing selection states it' });
+  }
+  return build(admitted);
+}
+
 export async function validateProofOperation(input, deps = Object.freeze({})) {
   return proofAuthoringOperation(async () => {
     assertControlledContractOperationInput(input, ['repoRoot', 'wkId', 'focus', 'selectedUnit',
-      'obligationId', 'diagnosticGroupId', 'cursor']);
+      'obligationId', 'diagnosticGroupId']);
     if (input.obligationId !== undefined && input.diagnosticGroupId !== undefined) throw new ControlledContractToolError(
       'obligation_coverage_request_invalid', 'Select either one obligation or one diagnostic group', {
         changed: false, phase: 'request'
       });
+    const delivery = validationDelivery(deps);
     const resolved = await bindProofAuthoringRevision(await resolveProofAuthoringSource(
       obligationCoverageResolutionInput(input), { requireSource: false }));
-    const contractInputs = projectProofAuthoringContractInputs(resolved);
-    if (resolved.source === null) {
-      const diagnostics = [];
-      if (contractInputs.controlled_acceptance.status === 'unset') diagnostics.push({
-        category: 'author_input', code: 'controlled_acceptance_disposition_missing',
-        cause: 'Controlled-acceptance applicability has not been authored',
-        responsible_owner: 'work-record-proof-posture', affected_obligations: []
-      });
-      if (contractInputs.controlled_acceptance.status === 'invalid') diagnostics.push({
-        category: 'canonical_source', code: 'controlled_acceptance_proof_posture_invalid',
-        cause: contractInputs.controlled_acceptance.problem,
-        responsible_owner: 'work-record-proof-posture', affected_obligations: []
-      });
-      if (contractInputs.controlled_acceptance.disposition === 'required' &&
-          contractInputs.requirements.requirements.length === 0) diagnostics.push({
-        category: 'author_input', code: 'controlled_contract_requirements_missing',
-        cause: 'Controlled acceptance applies but no contract requirements are saved',
-        responsible_owner: 'contract-requirement-authoring', affected_obligations: []
-      });
-      if (contractInputs.controlled_acceptance.disposition === 'required') diagnostics.push({
-        category: 'author_input', code: 'obligation_coverage_source_not_found',
-        cause: 'No proof-authoring obligations are saved',
-        responsible_owner: 'proof-authoring-source', affected_obligations: []
-      });
-      const identity = controlledContractContentDigest({ contract_inputs: contractInputs,
-        diagnostics });
-      const selectedRouteAssessment = validationFacts(resolved, {
-        rows: [], status: 'invalid', source_digest: null, context_digest: identity,
-        counts: { obligations: 0, resolved_selections: 0, valid: 0, invalid: 0,
-          explicit_gaps: 0, unselected: 0, dependency_nodes: 0 }
-      }, { counts: { total: diagnostics.length },
-        categories: Object.freeze([...new Set(diagnostics.map(row => row.category))]) })
-        .selected_route_assessment;
-      return pageResult({ resolved, selector: { contract_inputs: true },
-        cursor: input.cursor, identity, items: diagnostics,
-        tool: 'workspace_validate_proof', extra: {
-          status: diagnostics.length === 0 ? 'valid' : 'invalid',
-          counts: { total: 0, valid: 0, invalid: 0 },
-          diagnostic_counts: { total: diagnostics.length },
-          diagnostic_categories: Object.freeze([...new Set(diagnostics.map(row => row.category))]),
-          source_digest: null, context_digest: identity,
-          input_status: diagnostics.length === 0 ? 'valid' : 'invalid',
-          construction_status: 'unresolved',
-          selected_route_assessment: selectedRouteAssessment,
-          contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs)
-        } });
-    }
+    if (resolved.source === null) return sourceAbsentValidation(resolved, input, delivery, deps);
     const pkg = await loadControlledContractPackage();
+    const obligationId = input.obligationId;
+    if (obligationId !== undefined) findObligation(resolved, obligationId);
 
-    const requested = decodeObligationCoverageOperationCursor(input.cursor);
-    const explicitSelector = input.obligationId !== undefined ? { obligation_id: input.obligationId } :
-      input.diagnosticGroupId !== undefined ? { diagnostic_group_id: input.diagnosticGroupId } : undefined;
-    const selector = explicitSelector ?? requested?.selector ?? { diagnostic_groups: true };
-    const obligationId = selector.obligation_id;
-    if (obligationId) findObligation(resolved, obligationId);
-    const context = await resolveProofAuthoringContext(resolved, { obligationId });
+    const context = await resolveProofAuthoringContext(resolved, {});
     const { assessProofAuthoringSemantics } =
       await import('@agent-chassis/controlled-contract/proof-contract');
+    const { occurrenceRecoveryFacts, occurrencePublicRecovery, OCCURRENCE_CORRECTION_CLAUSES } =
+      await import('@agent-chassis/controlled-contract/executable-map');
     const semanticAssessment = assessProofAuthoringSemantics(resolved.source.content, context);
     let executableMapFailure = null;
     let result;
@@ -819,18 +753,6 @@ export async function validateProofOperation(input, deps = Object.freeze({})) {
         executableMapFailure);
     }
     const grouped = pkg.groupProofAuthoringDiagnostics(result);
-    if (obligationId) {
-      const diagnostics = [...result.diagnostics, ...result.rows.flatMap(row => row.diagnostics.map(
-        diagnostic => ({ obligation_id: row.obligation_id, ...diagnostic })))];
-      return pageResult({ resolved, selector, cursor: input.cursor, identity: result.identity_digest,
-        items: diagnostics, tool: 'workspace_validate_proof', extra: {
-          ...validationFacts(resolved, result, grouped),
-          independent_owner_failures: [executableMapFailure].filter(Boolean),
-          definition_identities: result.definition_identities,
-          rows: result.rows.map(({ diagnostics: ignored, ...row }) => row),
-          contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs)
-        } });
-    }
     const diagnosticProjection = projectProofAuthoringDiagnosticGroups({
       grouped,
       resultIdentity: result.identity_digest,
@@ -838,112 +760,161 @@ export async function validateProofOperation(input, deps = Object.freeze({})) {
       focus: resolved.focus,
       selectedUnit: resolved.selectedUnit
     });
+    const inspectDesignWorkbench = deps.inspectControlledContractDesignWorkbench ??
+      inspectControlledContractDesignWorkbenchOperation;
+    let workbenchFailure = null;
+    let workbench = null;
     try {
-      const inspectDesignWorkbench = deps.inspectControlledContractDesignWorkbench ??
-        inspectControlledContractDesignWorkbenchOperation;
-      let workbenchFailure = null;
-      let workbench = null;
-      try {
-        workbench = await inspectDesignWorkbench({
-          repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null,
-          selectedUnit: input.selectedUnit ?? null
-        });
-      } catch (error) {
-        workbenchFailure = independentOwnerFailure(error,
-          'controlled-contract-design-workbench');
-        if (workbenchFailure === null) throw error;
-      }
-      const semanticSummary = workbench === null ? null :
-        classifyControlledContractTerminalGaps({ workbench });
-      const semanticDetails = workbench === null ? null :
-        projectControlledContractTerminalGapDetails({ workbench });
-      const semanticExtra = { semantic_causes: {
-        schema_version: semanticDetails?.schema_version ??
-          'controlled-contract-semantic-cause-detail.v1',
-        ...(workbenchFailure === null ? {} : { status: 'system_owner_failure' }),
-        total_occurrence_count: semanticDetails?.total_occurrence_count ?? 0,
-        observation_count: semanticDetails?.observation_count ?? 0,
-        group_count: semanticDetails?.group_count ?? 0,
-        logical_cause_count: semanticDetails?.logical_cause_count ?? 0,
-        recovery_status_counts: semanticDetails?.recovery_status_counts ?? {
-          authored_correction_available: 0,
-          system_owner_failure: workbenchFailure === null ? 0 : 1,
-          inspection_only: 0
-        },
-        preview_group_count: semanticSummary?.gap_groups.length ?? 0,
-        preview_groups_omitted: semanticSummary?.gap_groups_omitted ?? 0,
-        preview_groups: semanticSummary?.gap_groups ?? [],
-        detail_call: semanticSummary?.detail_call ?? null
-      } };
-      const semanticGroups = (semanticDetails?.groups ?? []).map(
-        ({ occurrences: _occurrences, ...group }) => group);
-      const groups = [...diagnosticProjection.groups, ...semanticGroups];
-      const independentOwnerFailures = [executableMapFailure, workbenchFailure].filter(Boolean);
-      const identity = controlledContractContentDigest({
-        result_identity: result.identity_digest,
-        projection_version: grouped.version,
-        semantic_source: semanticDetails?.source ?? null,
-        semantic_groups: semanticGroups.map(({ semantic_cause_id: id,
-          occurrence_count: count }) => ({ id, count })),
-        independent_owner_failures: independentOwnerFailures
+      workbench = await inspectDesignWorkbench({
+        repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null,
+        selectedUnit: input.selectedUnit ?? null
       });
-      decodeObligationCoverageOperationCursor(input.cursor, identity);
-      if (selector.diagnostic_group_id) {
-        const proofIndex = diagnosticProjection.groups.findIndex(group =>
-          group.diagnostic_group_id === selector.diagnostic_group_id);
-        const semanticGroup = semanticDetails?.groups.find(({ semantic_cause_id: id }) =>
-          id === selector.diagnostic_group_id);
-        if (proofIndex === -1 && semanticGroup === undefined) {
-          if (workbenchFailure !== null) {
-            const authored = validationFacts(resolved, result, grouped);
-            throw new ControlledContractToolError(
-              'obligation_coverage_semantic_diagnostic_detail_unavailable',
-              'Semantic diagnostic detail is unavailable because its system owner failed', {
-                changed: false,
-                diagnostic_group_id: selector.diagnostic_group_id,
-                ownership: 'system',
-                responsible_owner: workbenchFailure.responsible_owner,
-                cause: workbenchFailure.cause,
-                independent_owner_failure: workbenchFailure,
-                authored_assessment: {
-                  status: authored.status,
-                  input_status: authored.input_status,
-                  counts: authored.counts,
-                  source_digest: authored.source_digest,
-                  context_digest: authored.context_digest
-                },
-                next_calls: [validationCall(resolved)]
-              });
-          }
+    } catch (error) {
+      workbenchFailure = independentOwnerFailure(error,
+        'controlled-contract-design-workbench');
+      if (workbenchFailure === null) throw error;
+    }
+    const semanticDetails = workbench === null ? null :
+      projectControlledContractTerminalGapDetails({ workbench });
+    const semanticGroups = semanticDetails?.groups ?? [];
+    const ownerFailures = [executableMapFailure, workbenchFailure].filter(Boolean).map(publicOwnerFailure);
+    const assessment = validationAssessment(resolved, result);
+    const envelope = validationEnvelope(resolved, { sourceDigest: result.source_digest,
+      contextDigest: result.context_digest });
+    const clauses = OCCURRENCE_CORRECTION_CLAUSES;
+    const authoringDiagnosis = (index) => proofAuthoringGroupDiagnosis({
+      projected: diagnosticProjection.groups[index], raw: grouped.groups[index],
+      recoveryFacts: occurrenceRecoveryFacts, publicRecovery: occurrencePublicRecovery });
+    const semanticDiagnosis = group => semanticCauseGroupDiagnosis({ group,
+      semanticMeaning: semanticCauseMeaning, semanticSubject: semanticCauseSubject,
+      semanticCorrection: semanticCauseCorrection });
+
+    if (input.diagnosticGroupId !== undefined) {
+      const proofIndex = diagnosticProjection.groups.findIndex(group =>
+        group.diagnostic_group_id === input.diagnosticGroupId);
+      const semanticGroup = semanticGroups.find(group =>
+        group.semantic_cause_id === input.diagnosticGroupId);
+      if (proofIndex === -1 && semanticGroup === undefined) {
+        if (workbenchFailure !== null) {
           throw new ControlledContractToolError(
-            'obligation_coverage_diagnostic_group_not_found',
-            'The diagnostic group is unknown or belongs to a different resolved snapshot', {
-              changed: false, diagnostic_group_id: selector.diagnostic_group_id,
+            'obligation_coverage_semantic_diagnostic_detail_unavailable',
+            'Semantic diagnostic detail is unavailable because its system owner failed', {
+              changed: false,
+              diagnostic_group_id: input.diagnosticGroupId,
+              ownership: 'system',
+              responsible_owner: workbenchFailure.responsible_owner,
+              cause: workbenchFailure.cause,
+              independent_owner_failure: workbenchFailure,
+              authored_assessment: { ...assessment.authored, source: envelope.source },
               next_calls: [validationCall(resolved)]
             });
         }
-        return pageResult({ resolved, selector, cursor: input.cursor, identity,
-          items: proofIndex === -1 ? semanticGroup.occurrences
-            : grouped.groups[proofIndex].occurrences,
-          tool: 'workspace_validate_proof',
-          extra: { ...validationFacts(resolved, result, grouped), ...semanticExtra,
-            independent_owner_failures: independentOwnerFailures,
-            group: proofIndex === -1
-              ? semanticGroups.find(({ semantic_cause_id: id }) =>
-                id === selector.diagnostic_group_id)
-              : diagnosticProjection.groups[proofIndex],
-            contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs) } });
+        throw new ControlledContractToolError(
+          'obligation_coverage_diagnostic_group_not_found',
+          'The diagnostic group is unknown or belongs to a different resolved snapshot', {
+            changed: false, diagnostic_group_id: input.diagnosticGroupId,
+            next_calls: [validationCall(resolved)]
+          });
       }
-      return pageResult({ resolved, selector, cursor: input.cursor, identity,
-        items: groups, tool: 'workspace_validate_proof',
-        extra: { ...validationFacts(resolved, result, grouped), ...semanticExtra,
-          independent_owner_failures: independentOwnerFailures,
-          contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs) } });
-    } catch (error) {
-      if (error?.code === 'obligation_coverage_cursor_stale') error.details = {
-        ...error.details, next_calls: [validationCall(resolved)]
-      };
-      throw error;
+      const diagnosis = proofIndex === -1 ? semanticDiagnosis(semanticGroup) : authoringDiagnosis(proofIndex);
+      return selectedGroupAnswer({ envelope, diagnosis, resolved, clauses, delivery });
     }
+
+    if (obligationId !== undefined) {
+      const row = result.rows.find(entry => entry.obligation_id === obligationId) ?? null;
+      const named = subject => subject.obligation_id === obligationId;
+      const authoring = grouped.groups.map((raw, index) => ({ raw, index }))
+        .filter(({ raw }) => raw.occurrences.some(occurrence => occurrence.obligation_id === obligationId))
+        .map(({ index }) => {
+          const diagnosis = authoringDiagnosis(index);
+          return { diagnosis, subjects: diagnosis.subjects.filter(named),
+            priority: ISSUE_PRIORITY.authoring(diagnosis.selected.effect) };
+        });
+      const semantic = semanticGroups.filter(group => group.occurrences.some(occurrence =>
+        occurrence.semantic_identity?.obligation_id === obligationId)).map(group => {
+        const diagnosis = semanticDiagnosis(group);
+        return { diagnosis, subjects: diagnosis.subjects.filter(named),
+          priority: ISSUE_PRIORITY.semantic(group.recovery.status) };
+      });
+      const diagnoses = [...authoring, ...semantic].map((entry, order) => ({ ...entry, order }))
+        .sort((left, right) => left.priority - right.priority || left.order - right.order);
+      return selectedObligationAnswer({ envelope, obligationId, row,
+        route: row?.selected_proof_assessment ?? null, diagnoses, ownerFailures, resolved, clauses, delivery,
+        comparison: userRequirementsComparison(resolved, 'selected_obligation', deps) });
+    }
+
+    const coverage = wholeUnitCriterionCoverage(pkg, resolved,
+      result.rows.filter(row => row.status === 'valid').map(row => row.obligation_id));
+    const issues = proofValidationIssues({ authoringGroups: diagnosticProjection.groups,
+      rawGroups: grouped.groups, semanticGroups, semanticMeaning: semanticCauseMeaning });
+    const answer = proofValidationAssessment({
+      envelope: { ...envelope, authored: assessment.authored, route: assessment.route,
+        owner_failures: ownerFailures, execution: { ...PROOF_VALIDATION_EXECUTION },
+        dispatch: dispatchNotAssessed(resolved), acceptance_coverage: compactCriterionCoverage(coverage),
+        ...(assessment.authored.status === 'valid'
+          ? userRequirementsComparison(resolved, 'whole_unit', deps) : {}) },
+      diagnostics: { authoring_groups: grouped.groups.length, semantic_groups: semanticDetails?.group_count ?? 0,
+        authoring_occurrence_effects: assessment.authoring_occurrence_effects,
+        semantic_logical_cause_recovery: semanticDetails?.recovery_status_counts ?? {
+          authored_correction_available: 0, system_owner_failure: workbenchFailure === null ? 0 : 1,
+          inspection_only: 0 } },
+      issues, fits: delivery.fits });
+    if (!delivery.fits(answer)) {
+      refuseOversizedValidationAnswer({ scope: { unit: envelope.unit }, bytes: delivery.measure(answer),
+        limit: delivery.limit, reason: 'the whole-unit assessment envelope alone exceeds the compact class',
+        nextCalls: [] });
+    }
+    return answer;
   });
+}
+
+const ISSUE_PRIORITY = Object.freeze({
+  authoring: effect => effect === 'blocking' || effect === 'unresolved' ? 0 : 2,
+  semantic: status => status === 'authored_correction_available' || status === 'system_owner_failure' ? 1 : 3
+});
+
+async function sourceAbsentValidation(resolved, input, delivery, deps) {
+  if (input.obligationId !== undefined) findObligation(resolved, input.obligationId);
+  if (input.diagnosticGroupId !== undefined) throw new ControlledContractToolError(
+    'obligation_coverage_diagnostic_group_not_found',
+    'The diagnostic group is unknown or belongs to a different resolved snapshot', {
+      changed: false, diagnostic_group_id: input.diagnosticGroupId, next_calls: [validationCall(resolved)] });
+  const contractInputs = projectProofAuthoringContractInputs(resolved);
+  const coveragePkg = await loadControlledContractPackage();
+  const findings = [];
+  if (contractInputs.controlled_acceptance.status === 'unset') findings.push({
+    category: 'author_input', code: 'controlled_acceptance_disposition_missing',
+    reason: 'Controlled-acceptance applicability has not been authored',
+    owner: 'work-record-proof-posture' });
+  if (contractInputs.controlled_acceptance.status === 'invalid') findings.push({
+    category: 'canonical_source', code: 'controlled_acceptance_proof_posture_invalid',
+    reason: contractInputs.controlled_acceptance.problem, owner: 'work-record-proof-posture' });
+  if (contractInputs.controlled_acceptance.disposition === 'required' &&
+      contractInputs.requirements.requirements.length === 0) findings.push({
+    category: 'author_input', code: 'controlled_contract_requirements_missing',
+    reason: 'Controlled acceptance applies but no contract requirements are saved',
+    owner: 'contract-requirement-authoring' });
+  if (contractInputs.controlled_acceptance.disposition === 'required') findings.push({
+    category: 'author_input', code: 'obligation_coverage_source_not_found',
+    reason: 'No proof-authoring obligations are saved', owner: 'proof-authoring-source' });
+  const identity = controlledContractContentDigest({ contract_inputs: contractInputs, diagnostics: findings });
+  const issues = findings.map(finding => ({ meaning: { owner: finding.owner, code: finding.code,
+    category: finding.category, reason: finding.reason }, subjects: 0, occurrences: 1, call: null,
+  obligation_ids: [], obligations_omitted: 0 }));
+  const zero = { obligations: 0, valid: 0, invalid: 0, explicit_gaps: 0, unselected: 0 };
+  return proofValidationAssessment({
+    envelope: { ...validationEnvelope(resolved, { sourceDigest: null, contextDigest: identity }),
+      authored: { status: findings.length === 0 ? 'valid' : 'invalid', ...zero },
+      route: { status: 'not_assessed', assessed: 0, prevents: 0, stages: {
+        authored_inputs: { complete: 0, incomplete: 0 }, canonical_sources: { current: 0, unresolved: 0 },
+        system_capability: { available: 0, unavailable: 0 },
+        execution_evidence: { not_started: 0, credit_granted: 0 } } },
+      owner_failures: [], execution: { ...PROOF_VALIDATION_EXECUTION }, dispatch: dispatchNotAssessed(resolved),
+      acceptance_coverage: compactCriterionCoverage(wholeUnitCriterionCoverage(coveragePkg, resolved, [])),
+      ...(findings.length === 0 ? userRequirementsComparison(resolved, 'authored_scope', deps) : {}) },
+    diagnostics: { authoring_groups: findings.length, semantic_groups: 0,
+      authoring_occurrence_effects: { scope: 'selected_routes_only', blocking: 0, nonblocking: 0, unresolved: 0 },
+      semantic_logical_cause_recovery: { authored_correction_available: 0, system_owner_failure: 0,
+        inspection_only: 0 } },
+    issues, fits: delivery.fits });
 }

@@ -1,90 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { z } from "zod";
+
 import { registerWorkRecordReadTools } from "../../packages/wiki-mcp/src/lib/work-record-read-tools.mjs";
-
-class TestSchema {
-  constructor(validate = () => null) {
-    this.validate = validate;
-  }
-
-  optional() {
-    return new TestSchema((value) => value === undefined ? null : this.validate(value));
-  }
-
-  describe() {
-    return this;
-  }
-
-  int() {
-    return this;
-  }
-
-  min() {
-    return this;
-  }
-
-  regex() {
-    return this;
-  }
-
-  refine() {
-    return this;
-  }
-
-  strict() {
-    return this;
-  }
-
-  passthrough() {
-    return this;
-  }
-
-  superRefine() {
-    return this;
-  }
-
-  safeParse(value) {
-    const issue = this.validate(value);
-    return issue === null
-      ? { success: true, data: value }
-      : { success: false, error: { issues: [issue] } };
-  }
-}
-
-function makeTestZ() {
-  const schema = (validate) => new TestSchema(validate);
-  return {
-    ZodIssueCode: { custom: "custom" },
-    string: () => schema((value) => typeof value === "string" ? null : { code: "invalid_type" }),
-    boolean: () => schema((value) => typeof value === "boolean" ? null : { code: "invalid_type" }),
-    number: () => schema((value) => typeof value === "number" ? null : { code: "invalid_type" }),
-    literal: (expected) => schema((value) => value === expected ? null : { code: "invalid_literal" }),
-    enum: (values) => schema((value) => values.includes(value) ? null : { code: "invalid_enum_value" }),
-    array: () => schema((value) => Array.isArray(value) ? null : { code: "invalid_type" }),
-    union: (schemas) => schema((value) =>
-      schemas.some((entry) => entry.validate(value) === null) ? null : { code: "invalid_union" }
-    ),
-    object: (shape) => schema((value) => {
-      if (value === null || typeof value !== "object" || Array.isArray(value)) {
-        return { code: "invalid_type" };
-      }
-      for (const [key, field] of Object.entries(shape)) {
-        const issue = field.validate(value[key]);
-        if (issue !== null && value[key] !== undefined) return { ...issue, path: [key] };
-        if (issue !== null && !field.optionalField) return { ...issue, path: [key] };
-      }
-      return null;
-    })
-  };
-}
 
 function registerPreflightTool({ preflightDispatch = async () => ({}) } = {}) {
   const tools = new Map();
   registerWorkRecordReadTools({
     registerTool: (name, descriptor, handler) => tools.set(name, { descriptor, handler }),
     workspaceRepos: {},
-    z: makeTestZ(),
+    z,
     jsonContent: (value) => ({ content: [], structuredContent: value, value }),
     errorContent: (error) => ({ isError: true, error }),
     resolveWorkspaceRepo: () => ({ repo: "workspace-repo", dir: "/workspace/project" }),
@@ -136,7 +62,7 @@ test("routes a thrown operation error through errorContent", async () => {
 test("input schema rejects a call with no proposed_record", () => {
   const tool = registerPreflightTool();
 
-  const inputSchema = makeTestZ().object(tool.descriptor.inputSchema);
+  const inputSchema = z.object(tool.descriptor.inputSchema);
 
   assert.equal(inputSchema.safeParse({}).success, false);
   assert.equal(inputSchema.safeParse({ proposed_record: { id: "WK-1729" } }).success, true);

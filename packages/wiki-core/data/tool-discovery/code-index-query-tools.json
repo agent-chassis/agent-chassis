@@ -49,7 +49,7 @@
         "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "One committed code question whose documented selectors choose the answer. A change subject (exactly one of paths, patchText, diffRecords or liveGit:true) asks impact: affected files with graph, inferred, canonical and suggested bases, a truthful impact_state with denominators, and diff diagnostics; a compatible path or symbol narrows that subject to what it names. symbol, or path with line and optional character, asks the definition, references, callers and callees owners, and relationship narrows that to one of definition, references, callers or callees. path alone asks that file's committed context. An empty subject is no-change; conflicting, empty or undeclared selectors return the reachable alternatives rather than a guess. Impact is bounded compact and detail reads the retained answer; file-context and symbol answers keep their complete original at full_result. verbose:true re-evaluates. CLI fallback: `npm run wiki -- code-index impact --json --paths <path>`.",
+      "notes": "One committed code question whose documented selectors choose the answer. A change subject (exactly one of paths, patchText, diffRecords or liveGit:true) asks impact: affected files with graph, inferred, canonical and suggested bases, a truthful impact_state with denominators, and diff diagnostics; a compatible path or symbol narrows that subject to what it names. symbol, or path with line and optional character, asks the definition, references, callers and callees owners, and relationship narrows that to one of definition, references, callers or callees. path alone asks that file's committed context. An empty subject is no-change; conflicting, empty or undeclared selectors return the reachable alternatives rather than a guess. Every answer is bounded compact; its complete original is retained once. Follow next_calls or detail to select a collection by selector.id, path, symbol or relationship, affected-file relationships by input_path, ambiguity candidates by symbol/path, or absolute source lines within one retained region or file, without evaluating again. No cursor, byte range or field path exists. CLI fallback: `npm run wiki -- code-index impact --json --paths <path>`.",
       "use_when": [
         "Find affected files, relationships, tests and canonical records for known paths or a diff.",
         "Read one file's committed context, or one symbol's definition and use/call relationships, without choosing which underlying query runs."
@@ -111,9 +111,9 @@
         "packages/wiki-mcp/src/lib/code-index-query-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Committed context for one repo-relative path. Default returns code-graph paths with exact path and relationship totals; source, related code, tests and canonical records are in full_result; verbose:true re-evaluates. Out-of-corpus paths report indexed_corpus_excluded. CLI fallback: `npm run wiki -- code-index context-for-path --json --path <path>`.",
+      "notes": "Committed context for one repo-relative path. Default returns code-graph paths with exact path and relationship totals; source, related code, tests and canonical records stay in the retained original. Follow next_calls or detail to select a collection by selector.id, path, symbol or relationship, affected-file relationships by input_path, or absolute lines within one retained source region or file, without evaluating again. Out-of-corpus paths report indexed_corpus_excluded. CLI fallback: `npm run wiki -- code-index context-for-path --json --path <path>`.",
       "use_when": [
-        "List code-graph paths for one repo-relative file, then read its source, tests and canonical records from full_result."
+        "List code-graph paths for one repo-relative file, then select its affected files, tests or canonical records by path or id through next_calls."
       ],
       "do_not_use_when": [
         "The task covers a diff or a symbol, or you want one question to select the right query; use workspace_code_index_impact."

@@ -2,7 +2,16 @@
 
 import { createHash } from "node:crypto";
 
-import { retainSelectedResponseSource } from "./selected-response-snapshot.mjs";
+import { dispatchRequestSchemaAuthority } from "./dispatch-tool-helpers.mjs";
+import {
+  authoredDocumentCall,
+  RUN_STATUS_AUTHORED_DOCUMENTS
+} from "./dispatch-run-status-retained-document-retrieval.mjs";
+import {
+  readSelectedResponseSource,
+  retainSelectedResponseSource,
+  selectedResponseQueryInvalidError
+} from "./selected-response-snapshot.mjs";
 import {
   readTerminalCandidateAuthoredContracts,
   readTerminalCandidateControlledGeneration,
@@ -14,6 +23,20 @@ import {
 } from "./dispatch-run-status-integration-receipt-projection.mjs";
 
 export const AUTHORED_CONTRACT_RETENTION_ROUTE = "workspace_agent_run_status";
+
+export const AUTHORED_DOCUMENTS_QUERY_IDENTITY = "authored_documents";
+
+export function readRunStatusRetainedSource({ source, repository, subject, attemptId, queryIdentity,
+  env = process.env }) {
+  const envelope = readSelectedResponseSource(source, { env, expected: {
+    route: AUTHORED_CONTRACT_RETENTION_ROUTE, repository, unit: subject, query_identity: queryIdentity } });
+  const retainedAttempt = envelope.binding.observation_identity?.attempt_id ?? null;
+  if (retainedAttempt !== attemptId) {
+    throw selectedResponseQueryInvalidError(AUTHORED_CONTRACT_RETENTION_ROUTE, "source_binding_mismatch",
+      { binding_field: "observation_identity.attempt_id" });
+  }
+  return envelope;
+}
 
 const DEFAULT_MEMO_CAPACITY = 64;
 
@@ -79,15 +102,29 @@ export function createAuthoredContractRetention({
 
       let retained;
       try {
+        const requestSchema = dispatchRequestSchemaAuthority(AUTHORED_CONTRACT_RETENTION_ROUTE);
+        if (requestSchema === undefined) {
+          throw new TypeError("the run-status request schema is not registered");
+        }
+        const [firstMember] = present.map(({ member }) => member)
+          .filter((member) => Object.hasOwn(RUN_STATUS_AUTHORED_DOCUMENTS, member));
         retained = retainSelectedResponseSource({
           binding: {
             route: AUTHORED_CONTRACT_RETENTION_ROUTE,
             repository,
             unit,
-            query_identity: null,
+            query_identity: AUTHORED_DOCUMENTS_QUERY_IDENTITY,
             observation_identity: identity
           },
-          carrier
+          carrier,
+
+          ownerCall: (locator) => {
+            const call = authoredDocumentCall({ repository, subject: unit,
+              attemptId: identity.attempt_id, source: locator, document: firstMember });
+            if (call === null) throw new TypeError("the authored-document read is not a checkable call");
+            return { tool: call.tool, arguments: call.arguments };
+          },
+          ownerRequestSchema: requestSchema
         }, { env });
       } catch (error) {
 

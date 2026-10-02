@@ -3,15 +3,15 @@ import { createHash } from "node:crypto";
 import {
   compareCriterionIdentitySets,
   deriveCriterionIdentitySet
-} from "../../../controlled-contract/lib/acceptance-coverage-identity.mjs";
+} from "@agent-chassis/controlled-contract";
 import {
   ACCEPTANCE_COVERAGE_STATES,
   evaluateAcceptanceCoverage
-} from "../../../controlled-contract/lib/acceptance-coverage.mjs";
+} from "@agent-chassis/controlled-contract";
 import {
   ACCEPTANCE_COVERAGE_AXES,
   projectAcceptanceCoverage
-} from "../../../controlled-contract/lib/acceptance-coverage-projection.mjs";
+} from "@agent-chassis/controlled-contract";
 
 const CURSOR_VERSION = "wiki-core-acceptance-coverage-cursor.v1";
 const MAX_NEXT_CALL_BYTES = 4096;

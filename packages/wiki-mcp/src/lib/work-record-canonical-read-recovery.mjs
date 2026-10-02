@@ -5,6 +5,7 @@ import {
   loadKindRecordByPath as loadCanonicalKindRecordByPath
 } from "@agent-chassis/wiki-core/src/lib/kind-record-store.mjs";
 import { buildSelectedRecordMemberCall } from "@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs";
+import { projectWorkRecordFreshness } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 
 const RECOVERABLE_SELECTORS = new Set(["include_body", "member"]);
 const PATH_UNSUPPORTED = "selector_path_unsupported";
@@ -39,7 +40,7 @@ async function verifiedCanonicalMemberCall({
     identity: { path: source.canonical_record_path },
     member: Object.hasOwn(selection, "expected_source_digest")
       ? selection
-      : { ...selection, expected_source_digest: loaded.source_digest },
+      : { ...selection, expected_source_digest: projectWorkRecordFreshness(loaded.source_digest) },
     recommended: true
   });
 }

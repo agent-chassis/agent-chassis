@@ -4,14 +4,97 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import integration from "../runner-integrations/deno.mjs";
-import { JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH, instrumentJavaScriptAttempt,
-  javascriptLayout } from "./javascript-support.mjs";
+import { nativeRecordFailureDiagnostic } from "../../workspace-agent-test-proof-error-diagnostic.mjs";
+import { DIAGNOSTIC_GRAPH_ASSET, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
+  instrumentJavaScriptAttempt, javascriptLayout } from "./javascript-support.mjs";
 import { nativeProviderImplementation } from "./native-lifecycle.mjs";
 
 const SPEC_ASSET = fileURLToPath(import.meta.url);
 
+const MAX_CHECK_ERRORS = 16;
+
+const SGR_RE = /\u001b\[[0-9;]*m/gu;
+const CHECK_HEADER_RE = /^(TS\d+) \[ERROR\]: (.+)$/u;
+const CHECK_LOCATION_RE = /^ {4}at (file:\S+):(\d+):(\d+)$/u;
+const CHECK_COUNT_RE = /^Found (\d+) errors\.$/u;
+const CHECK_FAILED = "error: Type checking failed.";
+const CARET_RE = /^\s*[~^][~^\s]*$/u;
+
+function continues(lines) {
+  const body = lines.filter((line) => line.trim() !== "");
+  return (body.length >= 2 && CARET_RE.test(body.at(-1)) ? body.slice(0, -2) : body).length > 0;
+}
+
+function checkLocation(specifier, line, column, { workRoot, instrumented }) {
+  let file;
+  try { file = fileURLToPath(specifier); } catch { return undefined; }
+  const relative = path.relative(workRoot, file);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
+  const repositoryPath = relative.split(path.sep).join("/");
+  return { file: repositoryPath, line: Number(line),
+    ...(repositoryPath === instrumented ? {} : { column: Number(column) }) };
+}
+
+export function denoTestReport({ workRoot, instrumented = null }) {
+  const records = [];
+  const issues = [];
+  let pending = null;
+  let seen = 0;
+  let found = null;
+  let failed = false;
+  let output = false;
+  const close = () => {
+    if (pending === null) return;
+    const { lines, ...record } = pending;
+    if (continues(lines)) {
+      issues.push({ path: `/native_report/${seen - 1}/message`, reason: "native_report_unreadable" });
+    }
+    if (records.length < MAX_CHECK_ERRORS) records.push(record);
+    pending = null;
+  };
+  return {
+    stream: "stderr",
+    line(raw) {
+      if (failed) return;
+      const text = raw.replace(SGR_RE, "");
+      if (text.trim() !== "") output = true;
+      const header = CHECK_HEADER_RE.exec(text);
+      if (header !== null) {
+        close();
+        seen += 1;
+        pending = { name: "error", code: header[1], message: header[2], lines: [] };
+        return;
+      }
+      const at = pending === null || pending.location !== undefined ? null : CHECK_LOCATION_RE.exec(text);
+      if (at !== null) {
+        const location = checkLocation(at[1], at[2], at[3], { workRoot, instrumented });
+        pending = { ...pending, location: location ?? null };
+        return;
+      }
+      const count = CHECK_COUNT_RE.exec(text);
+      if (count !== null) found = Number(count[1]);
+      else if (text === CHECK_FAILED) {
+        close();
+        failed = true;
+      } else if (pending !== null && pending.location === undefined) pending.lines.push(text);
+    },
+    finish() {
+      close();
+      if (!failed && seen === 0 && !output) return { build_failure: null };
+
+      if (!failed || seen === 0 || (found !== null && found > seen)) {
+        issues.push({ path: "/native_report", reason: "native_report_unreadable" });
+      }
+      if (seen > records.length) issues.push({ path: "/native_report", reason: "capture_budget_exceeded" });
+      return { build_failure: nativeRecordFailureDiagnostic({ issues,
+        records: records.map(({ location, ...record }) => (location ? { ...record, location } : record)) }) };
+    }
+  };
+}
+
 function observerSource(config) {
   return `// Launcher Deno test-proof observer (generated per attempt).
+import diagnosticGraph from ${JSON.stringify(pathToFileURL(DIAGNOSTIC_GRAPH_ASSET).href)};
 const CONFIG = ${JSON.stringify(config)};
 const encoder = new TextEncoder();
 const channel = Deno.openSync(CONFIG.channel, { write: true, append: true });
@@ -24,14 +107,33 @@ function emit(kind, fields = {}) {
   while (offset < bytes.length) offset += channel.writeSync(bytes.subarray(offset));
   sequence += 1;
 }
-function facts(error, assertion) {
-  const out = { assertion };
-  for (const field of ["name", "message", "stack"]) {
-    try {
-      if (typeof error?.[field] === "string") out[field] = error[field].slice(0, 65536);
-    } catch {}
+function captured(error, origin) {
+  try {
+    return diagnosticGraph.captureTestFailureDiagnostic(error, { origin });
+  } catch {
+    return diagnosticGraph.unavailableTestFailureDiagnostic(
+      [{ path: "/error", reason: "source_value_unreadable" }], { origin });
   }
-  return out;
+}
+// One failure: the thrown error, with the failed step that raised it or that
+// Deno failed without an exception (then no error was supplied).
+function diagnostic(failure) {
+  const origin = failure.step === null ? undefined
+    : { kind: "step", ...(typeof failure.step === "string" && failure.step.length > 0
+      ? { name: failure.step } : {}) };
+  return failure.threw ? captured(failure.error, origin)
+    : diagnosticGraph.unavailableTestFailureDiagnostic(undefined, { origin });
+}
+// The selected test module, loaded by the entry. A module that cannot be
+// imported or evaluated ends the session with its original error as the one
+// runner-level error, and Deno still fails the run with it.
+export async function loadSelectedModule(load) {
+  try {
+    return await load();
+  } catch (caught) {
+    emit("session_end", { runner_errors: [captured(caught, undefined)], runner_error_count: 1 });
+    throw caught;
+  }
 }
 Object.defineProperty(globalThis, Symbol.for("launcher.test-proof.reach"), {
   configurable: true,
@@ -71,13 +173,15 @@ function observeSteps(context, failures) {
         return await fn.call(this, observeSteps(child, failures));
       } catch (caught) {
         threw = true;
-        failures.push(caught);
+        failures.push({ step: def.name ?? null, threw: true, error: caught });
         throw caught;
       }
     } };
     const passed = await step.call(context, observed);
     // An ignored step also resolves false and does not fail its test.
-    if (passed === false && def.ignore !== true && !threw) failures.push(null);
+    if (passed === false && def.ignore !== true && !threw) {
+      failures.push({ step: def.name ?? null, threw: false, error: undefined });
+    }
     return passed;
   };
   return context;
@@ -87,8 +191,7 @@ function observedTest(...args) {
   emit("collected", { file, test: [typeof def.name === "string" ? def.name : ""] });
   if (def.name !== selectedName) return register({ ...def, ignore: true });
   if (def.ignore === true) {
-    emit("test_result", { file, test: [selectedName], outcome: "skipped", assertion_failure: false,
-      error: null });
+    emit("test_result", { file, test: [selectedName], outcome: "skipped", assertion_failure: false });
     return register(def);
   }
   const body = def.fn;
@@ -99,16 +202,15 @@ function observedTest(...args) {
     try {
       return await body.call(this, observeSteps(t, failures));
     } catch (caught) {
-      thrown = caught;
+      thrown = { step: null, threw: true, error: caught };
       throw caught;
     } finally {
       emit("window_end", { file, test: [selectedName] });
-      const failed = thrown !== null || failures.length > 0;
-      const error = thrown ?? failures.find((entry) => entry !== null) ?? null;
-      const assertion = error?.name === "AssertionError";
-      emit("test_result", { file, test: [selectedName], outcome: failed ? "failed" : "passed",
-        assertion_failure: failed && assertion,
-        error: failed ? facts(error, assertion) : null });
+      const failure = thrown ?? failures.find((entry) => entry.threw) ?? failures[0] ?? null;
+      const assertion = failure?.threw === true && failure.error?.name === "AssertionError";
+      emit("test_result", { file, test: [selectedName], outcome: failure !== null ? "failed" : "passed",
+        assertion_failure: failure !== null && assertion,
+        ...(failure !== null ? { failure_diagnostic: diagnostic(failure) } : {}) });
     }
   } });
 }
@@ -128,8 +230,8 @@ async function instrument(attempt) {
     ...module,
     writes: [...module.writes,
       { path: observer, content: observerSource(config) },
-      { path: entry, content: `import "./deno-observer.js";\nimport ${JSON.stringify(
-        pathToFileURL(attempt.testFileWork).href)};\n` }]
+      { path: entry, content: `import { loadSelectedModule } from "./deno-observer.js";\n` +
+        `await loadSelectedModule(() => import(${JSON.stringify(pathToFileURL(attempt.testFileWork).href)}));\n` }]
   };
 }
 
@@ -139,10 +241,11 @@ export default nativeProviderImplementation({
   runtime_runner: "deno",
   identity_format: JSON_TITLE_PATH,
   completion: "selected_result",
-  assets: [SPEC_ASSET, JAVASCRIPT_INSTRUMENTATION_ASSET],
+  assets: [SPEC_ASSET, JAVASCRIPT_INSTRUMENTATION_ASSET, DIAGNOSTIC_GRAPH_ASSET],
   layout: javascriptLayout,
   instrument,
   invocation: (attempt) => integration.invocation({ runtime: attempt.runtime,
     hostProjectDir: attempt.projectHost, projectDir: attempt.workProject, entry: path.join(attempt.privateRoot, "deno-entry.js"),
-    writablePaths: [attempt.channelPath] })
+    writablePaths: [attempt.channelPath] }),
+  report: (attempt) => denoTestReport({ workRoot: attempt.workRoot, instrumented: attempt.module })
 });

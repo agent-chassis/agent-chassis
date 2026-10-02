@@ -25,17 +25,23 @@ The current registered family contains these operations:
   one or more obligation changes. The same ordinary mutation can save
   contract-level requirements and the controlled-acceptance disposition.
 - `workspace_controlled_contract_obligation_coverage_query` reads the
-  canonical saved obligation map and contract inputs. It supports selected
-  obligation reads and bounded continuation, and an `inventory` selection that
-  lists each obligation with its authored statement and factual indicators for a
-  caller that does not yet know which obligation to read.
+  saved obligation map and complete requirement meaning, every linked
+  verification included, from the caller's authenticated source. It returns a
+  whole result that fits one frame, otherwise a compact summary (default) or the
+  first page of complete retrieval (`view: "complete"`), with retained `detail`
+  pages. It supports direct `obligation_id` reads, exact `parameter_detail`, and an
+  `inventory` view that lists each obligation with its complete statement for a
+  caller that does not yet know which obligation to read. A managed worker reads
+  its assigned unit's contract through it.
 - `workspace_controlled_contract_obligation_coverage_remove` requires an
   explicit `removal_scope`: `selection` removes only the saved proof selection
   while preserving the obligation for reselection, and `obligation` deletes
   the complete obligation row. Both modes preserve contract requirements,
   shared case definitions, sibling uses, and historical evidence.
 - `workspace_validate_proof` diagnoses saved authoring without executing a
-  proof provider.
+  proof provider. Its compact default assesses authored validity and the
+  selected route and indexes the actionable issues; `diagnostic_group_id` or
+  `obligation_id` returns one selection's typed diagnosis.
 - `workspace_verify_proof` resolves and executes the saved proof map against
   the exact selected candidate.
 
@@ -142,10 +148,13 @@ Start by reading the selected unit:
 }
 ```
 
-The query returns the current content digest, saved obligations, and
-`contract_inputs`. Requirement selectors resolve against the response's canonical
-`contract_inputs.requirements.references` population; each needed definition is
-returned once. Use that digest in the next mutation. An upsert may contain
+The query returns the current content digest, saved obligations, requirements
+and their deduplicated `references`, or, when the result exceeds one frame, a
+compact summary whose `next_calls` retrieve it. Requirement selectors resolve
+against the response's `references` population; each needed definition is
+returned once. Each requirement's `meaning.verifications` lists every linked
+verification; an upsert restates one of them as `verification`. Use that digest
+in the next mutation. An upsert may contain
 any supported combination of nonempty obligation edits, contract requirements,
 and a controlled-acceptance disposition. The server compiles typed requirements
 and applies the disposition through their existing owners before one atomic
@@ -310,8 +319,21 @@ instead of retrying with a derived value.
 
 ## Validation and correction
 
-`workspace_validate_proof` reads the current saved meaning and returns grouped
-diagnostics. It does not run tests or other proof providers. Contract-input
+`workspace_validate_proof` reads the current saved meaning and returns a compact
+assessment (`proof-validation-assessment.v2`): authored validity counts, the
+separate selected-route prerequisite stages, independent owner failures,
+execution `not_started` with zero proofs and credit, dispatch `not_assessed` with
+the `workspace_validate_dispatch` call, acceptance-coverage counts, named
+diagnostic totals and a bounded issue index. Each issue names its owner meaning
+(stored once when equal), subject and occurrence counts, bounded affected
+obligations with exact omissions, and its exact `diagnostic_group_id` call. That
+call, or an `obligation_id` selection, returns a
+`proof-validation-selected-diagnosis.v1` answer with the selection's subjects,
+typed failed fields, correction clauses and any addressed correction call at the
+current revision. Every answer fits the complete-frame compact class; none is
+paged, spilled or continued, and omissions are counted exactly. The
+[acceptance-coverage protocol](acceptance-coverage-mcp.md) owns the complete
+response contract. Validation does not run tests or other proof providers. Contract-input
 problems, missing obligation sources, incomplete cases, unknown proof names,
 invalid parameters, and association conflicts retain distinct codes and
 responsible owners.

@@ -30,13 +30,18 @@ import {
   managedRefusal,
   MANAGED_LIFECYCLE_REQUIRED
 } from "./backend-provisioning-state.mjs";
+import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
+import { projectDispatchFailureDetail } from
+  "@agent-chassis/wiki-mcp/src/lib/dispatch-tool-helpers.mjs";
 import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
 } from "./terminal-review-materialization.mjs";
 import {
   assertTerminalWkCandidateVersionDecision,
+  closedTerminalWkCandidateGitDiagnosis,
   inspectTerminalWkCandidateVersion,
+  projectTerminalWkCandidateRefDisagreements,
   TERMINAL_WK_CANDIDATE_CODES,
   observeExactDirectCommitRef,
   readTerminalCandidateCurrentRef,
@@ -78,10 +83,13 @@ const TERMINAL_CANDIDATE_FAILURE_PROJECTION_KEYS = Object.freeze([
   "message",
   "detail"
 ]);
-const TERMINAL_CANDIDATE_GIT_DETAIL_KEYS = Object.freeze([
+
+const TERMINAL_CANDIDATE_DETAIL_KEYS = Object.freeze(new Set([
   "git_operation",
-  "git_status"
-]);
+  "git_status",
+  "git_diagnosis",
+  "ref_disagreements"
+]));
 const TERMINAL_CANDIDATE_GIT_OPERATIONS = Object.freeze(new Set([
   "rev-parse",
   "rev-list",
@@ -102,15 +110,15 @@ const UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION = Object.freeze({
   detail: null
 });
 
-function exactEnumerableDataProperties(value, expectedKeys) {
+function enumerableDataProperties(value, allowedKeys, requiredKeys = allowedKeys) {
   try {
     if (typeof value !== "object" || value === null || Array.isArray(value) ||
         Object.getPrototypeOf(value) !== Object.prototype) return null;
     const keys = Reflect.ownKeys(value);
-    if (keys.length !== expectedKeys.length ||
-        keys.some((key) => typeof key !== "string" || !expectedKeys.includes(key))) return null;
+    if (keys.some((key) => typeof key !== "string" || !allowedKeys.includes(key)) ||
+        requiredKeys.some((key) => !keys.includes(key))) return null;
     const properties = Object.create(null);
-    for (const key of expectedKeys) {
+    for (const key of keys) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (descriptor === undefined || descriptor.enumerable !== true ||
           !Object.prototype.hasOwnProperty.call(descriptor, "value")) return null;
@@ -122,23 +130,42 @@ function exactEnumerableDataProperties(value, expectedKeys) {
   }
 }
 
-function closedTerminalCandidateGitDetail(value, code) {
+function closedTerminalCandidateTypedDetail(value, code) {
+  const gitCode = code === TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED ||
+    code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID;
+  const disagreementCode = code === TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES;
   if (value === null) return null;
-  const detail = exactEnumerableDataProperties(value, TERMINAL_CANDIDATE_GIT_DETAIL_KEYS);
-  if (detail === null ||
-      !TERMINAL_CANDIDATE_GIT_OPERATIONS.has(detail.git_operation) ||
-      !(detail.git_status === null ||
-        (Number.isInteger(detail.git_status) && detail.git_status >= 0 && detail.git_status <= 255)) ||
-      (code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID &&
-        detail.git_operation !== "merge-base")) return undefined;
-  return Object.freeze({
-    git_operation: detail.git_operation,
-    git_status: detail.git_status
-  });
+  if (!gitCode && !disagreementCode) return undefined;
+  const detail = enumerableDataProperties(value, [...TERMINAL_CANDIDATE_DETAIL_KEYS],
+    disagreementCode ? ["ref_disagreements"] : ["git_operation", "git_status"]);
+  if (detail === null) return undefined;
+  const hasGit = "git_operation" in detail || "git_status" in detail || "git_diagnosis" in detail;
+  if (gitCode && "ref_disagreements" in detail) return undefined;
+  const projected = {};
+  if (hasGit) {
+    if (!TERMINAL_CANDIDATE_GIT_OPERATIONS.has(detail.git_operation) ||
+        !(detail.git_status === null ||
+          (Number.isInteger(detail.git_status) && detail.git_status >= 0 && detail.git_status <= 255)) ||
+        (code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID &&
+          detail.git_operation !== "merge-base")) return undefined;
+    projected.git_operation = detail.git_operation;
+    projected.git_status = detail.git_status;
+    if ("git_diagnosis" in detail) {
+      const diagnosis = closedTerminalWkCandidateGitDiagnosis(detail.git_diagnosis);
+      if (diagnosis === null) return undefined;
+      projected.git_diagnosis = diagnosis;
+    }
+  }
+  if (disagreementCode) {
+    const disagreements = projectTerminalWkCandidateRefDisagreements(detail.ref_disagreements);
+    if (disagreements === null) return undefined;
+    projected.ref_disagreements = disagreements;
+  }
+  return Object.freeze(projected);
 }
 
 function closedTerminalCandidateFailureProjection(value) {
-  const projection = exactEnumerableDataProperties(
+  const projection = enumerableDataProperties(
     value,
     TERMINAL_CANDIDATE_FAILURE_PROJECTION_KEYS
   );
@@ -154,14 +181,7 @@ function closedTerminalCandidateFailureProjection(value) {
       projection.message !== TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE) {
     return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
   }
-  const detailAllowed = projection.code === TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED ||
-    projection.code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID;
-  if (!detailAllowed && projection.detail !== null) {
-    return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
-  }
-  const detail = detailAllowed
-    ? closedTerminalCandidateGitDetail(projection.detail, projection.code)
-    : null;
+  const detail = closedTerminalCandidateTypedDetail(projection.detail, projection.code);
   if (detail === undefined) return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
   return Object.freeze({
     schema_version: TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
@@ -170,6 +190,10 @@ function closedTerminalCandidateFailureProjection(value) {
     message: TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE,
     detail
   });
+}
+
+function terminalCandidateFailureEvidence(error) {
+  return projectDispatchFailureDetail({ evidence: captureDiagnosticEvidence(error) });
 }
 
 function terminalCandidateFailureFromThrown(error) {
@@ -213,7 +237,7 @@ function closedLifecycleFactList(value) {
 
 function closedTerminalCandidateRecoveryDiagnostic(value) {
   if (value === null || value === undefined) return null;
-  const diagnostic = exactEnumerableDataProperties(
+  const diagnostic = enumerableDataProperties(
     value,
     TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_KEYS
   );
@@ -1081,7 +1105,8 @@ export function createBackendTerminalCandidateCoordination(ctx) {
           subject: reviewAddress.subject,
           message: recoveryFailure.message,
           recovery_detail: recoveryFailure,
-          recovery_diagnostic: recoveryDiagnostic
+          recovery_diagnostic: recoveryDiagnostic,
+          ...terminalCandidateFailureEvidence(error)
         })
       };
     } finally {
@@ -1110,7 +1135,8 @@ export function createBackendTerminalCandidateCoordination(ctx) {
       });
     } catch (error) {
       return refuse("terminal_candidate_current_ref_unreadable", {
-        recovery_code: error?.code ?? null
+        recovery_code: error?.code ?? null,
+        ...terminalCandidateFailureEvidence(error)
       });
     }
     if (published === null) return refuse("terminal_candidate_unpublished");

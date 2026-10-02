@@ -160,3 +160,72 @@ test("a raced acquisition cleanup failure remains loud and is retried during fin
   });
   assert.equal(calls, 2);
 });
+
+test("resource disposal retains falsy and non-Error thrown values across final, early and raced cleanup", async (t) => {
+  const thrownValues = [
+    ["undefined", undefined], ["null", null], ["zero", 0], ["string", "string failure"]
+  ];
+  const modes = {
+    final: { failFirst: "throw", early: null, calls: ["after", "target", "before"] },
+    "sync early": { failFirst: "throw", early: "sync", calls: ["target", "after", "target", "before"] },
+    "async early": { failFirst: "reject", early: "async", calls: ["target", "after", "target", "before"] },
+    raced: { failFirst: "throw", early: null, raced: true, calls: ["target", "after", "target", "before"] }
+  };
+
+  for (const [modeName, mode] of Object.entries(modes)) {
+    for (const [valueName, thrown] of thrownValues) {
+      await t.test(`${modeName} cleanup retains ${valueName}`, async () => {
+        const scope = createTestResourceScope();
+        const calls = [];
+        let targetCalls = 0;
+        const target = () => {
+          calls.push("target");
+          targetCalls += 1;
+          if (targetCalls > 1) return undefined;
+          if (mode.failFirst === "reject") return Promise.reject(thrown);
+          throw thrown;
+        };
+        scope.add("before", () => { calls.push("before"); });
+        const acquired = deferred();
+        const acquisition = mode.raced
+          ? scope.acquire("target", () => acquired.promise, target)
+          : (scope.add("target", target), null);
+        scope.add("after", () => { calls.push("after"); });
+
+        if (mode.early === "sync") {
+          assert.throws(() => scope.disposeOne("target"), (error) => Object.is(error, thrown));
+        } else if (mode.early === "async") {
+          const early = scope.disposeOne("target");
+          assert.equal(scope.disposeOne("target"), early);
+          await assert.rejects(early, (error) => Object.is(error, thrown));
+        }
+
+        const disposal = scope.dispose();
+        if (mode.raced) {
+          acquired.resolve("resource");
+          await assert.rejects(acquisition, (error) => {
+            assert.equal(error instanceof AggregateError, true);
+            assert.equal(error.errors[0].code,
+              TEST_RESOURCE_SCOPE_ERROR_CODES.ACQUISITION_DISPOSAL_RACE);
+            assert.equal(error.errors[1].label, "target");
+            assert.equal("cause" in error.errors[1], true);
+            assert.equal(Object.is(error.errors[1].cause, thrown), true);
+            return true;
+          });
+        }
+        await assert.rejects(disposal, (error) => {
+          assert.equal(error instanceof AggregateError, true);
+          assert.deepEqual(error.errors.map((item) => item.label), ["target"]);
+          assert.equal(error.errors[0].code, TEST_RESOURCE_SCOPE_ERROR_CODES.CLEANUP_FAILED);
+          assert.equal("cause" in error.errors[0], true);
+          assert.equal(Object.is(error.errors[0].cause, thrown), true);
+          return true;
+        });
+        assert.deepEqual(calls, mode.calls);
+        assert.equal(scope.dispose(), disposal, "disposal verdict must be memoized");
+        assert.equal(scope.disposeOne("target"), undefined);
+        assert.deepEqual(calls, mode.calls, "settled disposal must not retry again");
+      });
+    }
+  }
+});

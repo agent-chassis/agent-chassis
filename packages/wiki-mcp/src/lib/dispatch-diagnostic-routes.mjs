@@ -457,7 +457,7 @@ export function registerDiagnosticRoutes(ctx) {
     "workspace_coordination_preflight",
     {
       description:
-        "Read coordinator capabilities, freshness, blockers and next actions. Results cover reported families only, not full launch readiness. verbose:true adds complete diagnostics. Worker-dispatch preflight grants no worker identity.",
+        "Read coordinator capabilities, freshness, blockers and next actions. Results cover reported fact families only (evaluated_locally, projected or not_evaluated; CCE owns policy), not full launch readiness. verbose:true adds complete diagnostics. Worker-dispatch preflight grants no worker identity.",
       inputSchema: {
         verbose: z.boolean().optional(),
         repo: z.string().optional(),

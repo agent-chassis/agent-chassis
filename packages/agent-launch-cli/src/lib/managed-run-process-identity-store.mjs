@@ -269,17 +269,8 @@ export function recordManagedLifecycleFailure({
   });
 }
 
-export function recordManagedProofVerification({
-  mainRepo,
-  subject,
-  sliceBinding,
-  invocationId,
-  verification
-}) {
-  const repository = mainRepo;
-  const read = readAttemptJournalEvents({ mainRepo, repository, subject });
-  if (read.refusal !== null) return { ok: false, refusal: read.refusal };
-  const projected = projectManagedAttemptObservations({ repository, subject, events: read.events });
+function selectProofVerificationAttempt({ repository, subject, events, sliceBinding }) {
+  const projected = projectManagedAttemptObservations({ repository, subject, events });
   if (!projected.ok) return { ok: false, refusal: projected.refusal };
   const matches = projected.attempts.filter((item) =>
     item.dispatch_tuple?.assigned_unit === subject &&
@@ -301,6 +292,22 @@ export function recordManagedProofVerification({
   } catch (error) {
     return { ok: false, code: "attempt_binding_mismatch", cause_code: error?.code ?? null };
   }
+  return { ok: true, retained, derived };
+}
+
+export function recordManagedProofVerification({
+  mainRepo,
+  subject,
+  sliceBinding,
+  invocationId,
+  verification
+}) {
+  const repository = mainRepo;
+  const read = readAttemptJournalEvents({ mainRepo, repository, subject });
+  if (read.refusal !== null) return { ok: false, refusal: read.refusal };
+  const selected = selectProofVerificationAttempt({ repository, subject, events: read.events, sliceBinding });
+  if (!selected.ok) return selected;
+  const { retained, derived } = selected;
   return appendManagedRunObservation({
     mainRepo,
     subject,
@@ -309,6 +316,25 @@ export function recordManagedProofVerification({
     payload: (current) => (sameTuple(current, derived)
       ? { dispatch_tuple: current, invocation_id: invocationId, verification }
       : null)
+  });
+}
+
+export function readManagedProofVerification({ mainRepo, subject, sliceBinding, invocationId }) {
+  const read = readValidatedAttemptJournal(mainRepo, subject);
+  if (!read.ok) return read;
+  const selected = selectProofVerificationAttempt({ repository: read.repository, subject,
+    events: read.events, sliceBinding });
+  if (!selected.ok) return selected;
+  if (!sameTuple(selected.retained, selected.derived)) return { ok: false, code: "attempt_binding_mismatch" };
+  return pageManagedAttemptDetail({
+    repository: read.repository,
+    subject,
+    events: read.events,
+    attemptId: selected.retained.run_id,
+    kind: "proof_verification",
+    cursor: null,
+    limit: 1,
+    invocationId
   });
 }
 

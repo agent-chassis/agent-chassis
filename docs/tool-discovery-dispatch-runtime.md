@@ -191,14 +191,19 @@ The taxonomy categories are: `role_policy`, `caller_identity`,
 `work_record_readiness`, `transport`, `backend`, `filesystem`, `validation`,
 `route`, `review_transport`, `bootstrap`, `graph_impact`,
 `graph_impact_persistence`, and `operator_recovery`. The descriptor's
-`graph_impact_state_map` field documents the deterministic graph-impact
-degraded-state outcomes. Under the work record current-HEAD ruling the baseline is
-rebuilt at the current committed HEAD, so staleness alone is never a blocking
-refusal: `graph_state` `unavailable` or `error` blocks with
-`graph_impact_unavailable`, `query_error` blocks with
-`graph_impact_query_error`, an active dirty-worktree overlay produces the
-non-blocking `graph_impact_degraded_overlay`, and every other combination is a
-clean proceed.
+`graph_impact_state_map` field names the graph-impact state codes.
+
+Graph-impact evidence is supplementary to dispatch. Dispatch still prepares
+the committed-HEAD graph automatically, once per request, and reuses that one
+outcome for every later readiness, launch-intent and CCE phase. A successful
+preparation threads its trusted envelope as evidence. A typed host graph
+failure (an unbuildable committed index) or a preparation that yields no
+envelope is carried only as bounded evidence (its code and status reason), and
+dispatch continues. No graph state, and no graph preparation or persistence
+outcome, is a dispatch refusal. Any other exception raised during preparation is
+an unexpected error and propagates instead of launching. Explicit graph-impact
+queries still return their concrete typed failure when no result can be
+produced; they never report fabricated impact or success.
 
 Taxonomy loading fails closed. Allowed keys are explicit and closed at the
 top-level descriptor, the `graph_impact_state_map` object, each graph rule, and
@@ -228,12 +233,6 @@ refuses a policy-result-shaped input outright rather than reclassifying it.
 | Producer fact | Public code | Actor |
 | --- | --- | --- |
 | Authored or structural WK/slice contract defect, with a named check, status, and path | `work_record_readiness_failure` | coordinator |
-| Graph state unavailable / error | `graph_impact_unavailable` | operator |
-| Graph query failure, or an unbuildable current-HEAD baseline | `graph_impact_query_error` | operator |
-| Missing graph artifact | `graph_impact_artifact_missing` | operator |
-| Graph rebuild required | `graph_impact_rebuild_required` | operator |
-| Unrecognised graph state | `graph_impact_unknown_state` | operator |
-| Graph produced but no trusted envelope persisted | `graph_impact_persistence_unavailable` | operator |
 | Carrier/evidence integrity, revalidation, digest drift, private-handoff, or malformed evidence | `worker_admission_carrier_invalid` | coordinator |
 | Retained slice delivery not reconciled to the review surface | `managed_slice_tip_reconcile_required` | coordinator |
 | Committed review target unresolved or moved | `review_target_unresolved` | coordinator |
@@ -247,6 +246,10 @@ refuses a policy-result-shaped input outright rather than reclassifying it.
 | Unratified authority binding | `authority_binding_unratified` | operator |
 | Malformed, unknown, contradictory, or unauthenticated decision envelope | Exact `decision_envelope_*` identity | none |
 | Runtime materialization failure | `runtime_materialization_failed` | operator |
+
+The table has no graph-impact row because graph-impact evidence never refuses
+dispatch (see above). An unrelated refusal, such as an authored readiness
+defect, is unchanged by the graph state beside it.
 
 `workspace_agent_dispatch` accepts `reviewed_sha` and `diff_base_sha` together as
 an ordinary reviewer/redteam locator. Discovery advertises no bind-target,

@@ -16,6 +16,7 @@ import {
   prepareWorkerAssignmentPresentation
 } from "@agent-chassis/agent-launch-core";
 import {
+  LAUNCH_ASSIGNMENT_DELIVERY_MODES,
   resolveTerminalStructuredRoleResultMode
 } from "@agent-chassis/agent-launch-core/src/lib/work-record-launch-prompt.mjs";
 import {
@@ -225,7 +226,9 @@ export function maybeWrapExecutorWithWorktreeProvisioning(
         terminalStructuredRoleResultMode: terminalResultMode,
         scopeMode: "managed_resolved",
         resolvedScope: frozenScopeAuthority.resolved_scope,
-        scopeExclusions: frozenScopeAuthority.scope_exclusions ?? []
+        scopeExclusions: frozenScopeAuthority.scope_exclusions ?? [],
+
+        assignmentDelivery: LAUNCH_ASSIGNMENT_DELIVERY_MODES.READ_PAGE
       });
       workerAssignment = mintManagedWorkerAssignment({
         presentation,

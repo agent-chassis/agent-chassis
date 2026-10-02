@@ -3,8 +3,8 @@
 import {
   authoredDocumentDigest,
   buildRetainedDocumentRetrieval,
+  INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER,
   isObjectRecord,
-  objectCarrierStep,
   serializeRetainedObject
 } from "./dispatch-run-status-retained-document-retrieval.mjs";
 
@@ -12,7 +12,7 @@ export const RUN_STATUS_INTEGRATION_RECEIPT_PROJECTION_SCHEMA_VERSION =
   "workspace-agent-run-status-integration-receipt-projection.v1";
 
 export const INTEGRATION_TRANSITION_AUTHORED_RECORD_MEMBER = "record";
-export const INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER = "integration_transition_record";
+export { INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER };
 
 export function readIntegrationTransitionAuthoredRecord(lifecycle) {
   if (!isObjectRecord(lifecycle)) return null;
@@ -45,7 +45,7 @@ function omittedRecordIdentity({ record, text }) {
 
 function integrationReceiptProjection({ record, text, retention }) {
   const retrieval = buildRetainedDocumentRetrieval(retention, {
-    carrierStep: objectCarrierStep(INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER, "the written record")
+    members: [INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER]
   });
   return Object.freeze({
     schema_version: RUN_STATUS_INTEGRATION_RECEIPT_PROJECTION_SCHEMA_VERSION,

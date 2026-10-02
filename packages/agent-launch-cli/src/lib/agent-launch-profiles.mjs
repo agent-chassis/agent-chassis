@@ -2,12 +2,20 @@ import { readNonSecretWorkspaceEnvValue } from "@agent-chassis/wiki-core/src/lib
 
 import {
   MODEL_NAME_SET,
+  MODEL_REGISTRY_BY_NAME,
   resolveModel
 } from "./agent-launch-model-registry.mjs";
 import {
+  readAgentLaunchConfigSnapshot,
   readRoleDefaultModel,
-  readRoleEffort
+  readRoleEffort,
+  roleDefaultModelFromSnapshot,
+  roleEffortFromSnapshot
 } from "./agent-launch-role-config.mjs";
+import {
+  resolveModelRoute,
+  validateModelRouting
+} from "./agent-launch-model-route.mjs";
 
 export const AGENT_LAUNCH_PROFILE_SCHEMA_VERSION = "agent-launch-profile.v1";
 
@@ -365,9 +373,12 @@ export function resolveEffectiveRoleEffort({
   effortOverride,
   selectedModel,
   dir,
+  snapshot = null,
   readRoleEffortValue = readRoleEffort
 }) {
-  const configEffort = readRoleEffortValue(role, { dir });
+  const configEffort = snapshot !== null
+    ? roleEffortFromSnapshot(role, snapshot)
+    : readRoleEffortValue(role, { dir });
   const override = typeof effortOverride === "string" && effortOverride.trim().length > 0
     ? effortOverride.trim()
     : null;
@@ -420,10 +431,72 @@ export function resolveEffectiveRoleEffort({
   };
 }
 
+export function resolveRoleModelSelection({
+  role,
+  model,
+  modelSource = null,
+  effortOverride = null,
+  snapshot,
+  registry = MODEL_REGISTRY_BY_NAME
+} = {}) {
+  const routing = validateModelRouting(snapshot, registry);
+  if (!routing.ok) return routing;
+  const runtime = resolveModel(model, registry);
+  if (!runtime) return unknownRoleModelRefusal({ role, model, source: modelSource });
+  const effort = resolveEffectiveRoleEffort({ role, effortOverride, selectedModel: model, snapshot });
+  if (!effort.ok) return effort;
+  return {
+    ok: true,
+    value: Object.freeze({
+      model,
+      model_source: modelSource,
+      app: runtime.app,
+      effort: effort.effort,
+      effort_source: effort.effort_source,
+      config_effort: effort.config_effort,
+      route: resolveModelRoute({ model, snapshot, registry })
+    })
+  };
+}
+
+export function resolveCarriedModelSelection({
+  role,
+  model,
+  modelSource = null,
+  carried = null,
+  dir = null,
+  readConfigSnapshot = readAgentLaunchConfigSnapshot,
+  registry = MODEL_REGISTRY_BY_NAME
+} = {}) {
+  if (carried !== null && carried !== undefined) {
+    if (carried.model !== model) {
+      return {
+        ok: false,
+        reason: "model_selection_model_mismatch",
+        detail: {
+          role: typeof role === "string" ? role : null,
+          selected_model: carried.model ?? null,
+          launch_model: model ?? null,
+          message: `model_selection_model_mismatch: the frozen launch selection is for ${JSON.stringify(carried.model ?? null)} but the launch resolved ${JSON.stringify(model ?? null)}`
+        }
+      };
+    }
+    return { ok: true, value: carried };
+  }
+  return resolveRoleModelSelection({
+    role,
+    model,
+    modelSource,
+    snapshot: readConfigSnapshot({ dir }),
+    registry
+  });
+}
+
 export function resolveDispatchedRoleModel({
   role,
   resolvedProfile = null,
   dir = null,
+  snapshot = null,
   readRoleDefaultModelValue = readRoleDefaultModel
 } = {}) {
   const envKey = roleModelEnvKey(role);
@@ -466,7 +539,9 @@ export function resolveDispatchedRoleModel({
     };
   }
 
-  const roleDefaultModel = readRoleDefaultModelValue(role, { dir });
+  const roleDefaultModel = snapshot !== null
+    ? roleDefaultModelFromSnapshot(role, snapshot)
+    : readRoleDefaultModelValue(role, { dir });
   if (typeof roleDefaultModel === "string" && roleDefaultModel.length > 0) {
     const resolvedModel = resolveKnownModel({
       role,
@@ -936,8 +1011,8 @@ export function resolveLauncherProfile({
   env,
   dir,
   readWorkspaceEnvValue = readNonSecretWorkspaceEnvValue,
-  readRoleDefaultModelValue = readRoleDefaultModel,
-  readRoleEffortValue = readRoleEffort
+  readConfigSnapshot = readAgentLaunchConfigSnapshot,
+  modelRegistry = MODEL_REGISTRY_BY_NAME
 } = {}) {
   const envSource = env && typeof env === "object" ? env : null;
   const envProfile = envSource ? envSource.CODEX_WORKER_PROFILE : undefined;
@@ -986,12 +1061,13 @@ export function resolveLauncherProfile({
     );
   }
 
+  const snapshot = readConfigSnapshot({ dir });
   let roleConfigSelection = null;
   const resolveRoleConfigSelection = (selectionRole) => {
     if (roleConfigSelection !== null) {
       return roleConfigSelection;
     }
-    const roleDefault = readRoleDefaultModelValue(selectionRole, { dir });
+    const roleDefault = roleDefaultModelFromSnapshot(selectionRole, snapshot);
     if (typeof roleDefault !== "string" || roleDefault.length === 0) {
       roleConfigSelection = false;
       return null;
@@ -1148,20 +1224,23 @@ export function resolveLauncherProfile({
     );
   }
 
-  const effortResolution = resolveEffectiveRoleEffort({
+  const selectionResolution = resolveRoleModelSelection({
     role: effectiveRole,
+    model: modelFields.model,
+    modelSource: modelFields.model_source,
     effortOverride: effort,
-    selectedModel: modelFields.model,
-    dir,
-    readRoleEffortValue
+    snapshot,
+    registry: modelRegistry
   });
-  if (!effortResolution.ok) {
+  if (!selectionResolution.ok) {
     return refusal(
-      effortResolution.reason,
-      effortResolution.detail?.message ?? "unknown launcher effort",
-      "effort"
+      selectionResolution.reason,
+      selectionResolution.detail?.message ?? "unknown launcher effort",
+      selectionResolution.reason.startsWith("model_route_") ? "agent-launch.toml" : "effort"
     );
   }
+  const launchSelection = selectionResolution.value;
+  const effortResolution = launchSelection;
 
   const deprecatedEffortProbe = probeDeprecatedRoleEffort({
     role: effectiveRole,
@@ -1195,7 +1274,8 @@ export function resolveLauncherProfile({
 
     model_override_allowed: binding.model_override_allowed !== false,
     prompt_policy_id: profile.prompt_policy_id,
-    permission_policy_id: profile.permission_policy_id
+    permission_policy_id: profile.permission_policy_id,
+    model_selection: launchSelection
   };
   const diagnostics = [deprecatedAppProbe.diagnostic, deprecatedEffortProbe.diagnostic].filter(Boolean);
   if (diagnostics.length > 0) {

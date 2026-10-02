@@ -66,25 +66,36 @@ export function projectProofDiscoveryScope(pack) {
   });
 }
 
-export async function loadProofDiscoveryPopulation(catalog, rawCatalogDigest) {
-  const admittedCatalog = await readProofPackCatalog();
+function packAssociations(catalog) {
   const associations = new Map();
   for (const intent of catalog.intents) for (const identity of intent.capable_packs) {
     const key = `${identity.profile_id}@${identity.profile_version}`;
     if (!associations.has(key)) associations.set(key, { identity, intents: [] });
     associations.get(key).intents.push(intent);
   }
-  const population = [];
+  return associations;
+}
+
+export function discoverySourceIdentity(catalog, admittedCatalog) {
   const sourcePaths = ['proof-intents/catalog.json', 'profiles/catalog.json',
     'vocabulary/controlled-contract-vocabulary.v1.mjs'];
-  for (const { identity } of associations.values()) {
+  for (const { identity } of packAssociations(catalog).values()) {
     const entry = admittedCatalog.packs.find(x => x.profile_id === identity.profile_id);
     if (!entry) throw new ProofDiscoveryScopeError('intent/admission membership mismatch', { identity });
     sourcePaths.push(...['profile.json', 'admission.json', 'parameter-contract.json'].map(x => `${entry.path}/${x}`));
   }
   const urls = sourcePaths.map(path => new URL(`../${path}`, import.meta.url));
-  const currentSourceIdentity = () => ({ discovery: canonicalDigest(
+  return () => ({ discovery: canonicalDigest(
     urls.map(url => readFileSync(url).toString('base64'))) });
+}
+
+export async function loadProofDiscoveryPopulation(catalog, rawCatalogDigest) {
+  const admittedCatalog = await readProofPackCatalog();
+  const associations = packAssociations(catalog);
+  const population = [];
+  const urls = ['proof-intents/catalog.json', 'profiles/catalog.json']
+    .map(path => new URL(`../${path}`, import.meta.url));
+  const currentSourceIdentity = discoverySourceIdentity(catalog, admittedCatalog);
   const sourceIdentity = currentSourceIdentity();
 
   if (canonicalDigest(JSON.parse(readFileSync(urls[0], 'utf8'))) !== rawCatalogDigest ||

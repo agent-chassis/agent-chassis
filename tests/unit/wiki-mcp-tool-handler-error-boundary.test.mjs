@@ -20,6 +20,7 @@ import {
 import {
   registerMcpContentReferenceTools
 } from "../../packages/wiki-mcp/src/lib/mcp-content-reference-tools.mjs";
+import { assertStructuredCarrier } from "../helpers/mcp-journey-accounting.mjs";
 
 async function withSpillEnv(fn) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "wiki-mcp-response-spill-"));
@@ -76,7 +77,7 @@ test("guardToolHandler converts a synchronous throw into an MCP error result and
     result = await wrapped({ some: "args" });
   });
   assert.equal(result.isError, true);
-  assert.deepEqual(result.content, []);
+  assertStructuredCarrier(result);
   assert.match(result.structuredContent.diagnostic, /boom from handler/);
 });
 
@@ -87,7 +88,7 @@ test("guardToolHandler converts a rejected async handler into an MCP error resul
 
   const result = await wrapped({});
   assert.equal(result.isError, true);
-  assert.deepEqual(result.content, []);
+  assertStructuredCarrier(result);
   assert.match(result.structuredContent.diagnostic, /async boom/);
 });
 
@@ -120,7 +121,7 @@ test("guardToolHandler keeps an MCP connection usable after an async rejection",
       arguments: {}
     });
     assert.equal(rejected.isError, true);
-    assert.deepEqual(rejected.content, []);
+    assertStructuredCarrier(rejected);
     assert.match(rejected.structuredContent.diagnostic, /async transport-boundary boom/);
     assert.equal(server.isConnected(), true, "server must remain connected after rejected handler");
 
@@ -279,7 +280,7 @@ test("the registered content-reference route propagates the ranged-read unavaila
         limb: "ranged_read",
         reason: "content_reference_not_found"
       });
-      assert.deepEqual(result.content, []);
+      assertStructuredCarrier(result);
       assert.equal(result.structuredContent.content_reference, undefined);
       assert.equal(result.structuredContent.next_action, undefined);
 

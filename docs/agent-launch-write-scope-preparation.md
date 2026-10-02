@@ -55,6 +55,20 @@ exact-SHA integration decisions. An already-running orchestrator must be
 restarted to receive this mount. Operator direct mode has no bwrap namespace and
 therefore receives no additional bind.
 
+The headless Claude orchestrator's native permission settings carry the same
+launcher-derived root, in both the plan projection and the settings minted for
+launch, as one rule: `Read(//<managed-worktree-root>/**)`. Native `Read` rules
+are the rules Claude applies to its Read, Grep and Glob tools, so the
+orchestrator can inspect source, tests and docs in every worker, WK and
+terminal-candidate checkout of its own repository, including checkouts created
+after launch. A carried root that disagrees with the derived one refuses the
+launch. The secret and private paths masked in confined checkouts stay excluded
+in every nested checkout through `Read` deny rules for `**/.env`,
+`**/.agent-launch/**` and `**/wiki/contracts/**` beneath that root. No `Edit`
+rule names the root, the mount stays read-only and the headless `Bash` denial is
+unchanged. Sibling repositories' roots and the parent `.agent-worktrees`
+directory receive no rule.
+
 For a user-local Ubuntu amd64 install without changing system packages, the
 operator bootstrap recipe is:
 
@@ -117,29 +131,44 @@ pre-created. The repo root remains read-only unless the WK explicitly declares
 it as a write scope.
 
 The filename classification above applies only to unmanaged launches. A
-managed worker's writable roots and files come from its frozen
-`resolved_scope`, which already records whether each member is a directory or a
-file. A glob contributes only the matching regular files that exist at the scope
-base, so zero matches contribute nothing and no literal glob name or
-hypothetical matching file is created. Only an explicitly named missing writable
-leaf keeps missing-leaf preparation.
+managed worker's `read_scope`, `repo_paths`, and `write_scope` name individual
+files only: globs, slash-named directories, the repository root, and a literal
+entry that names a directory at the scope base all refuse before any worker
+starts, with guidance to enumerate each required repository-relative file,
+including intended new write files (see
+[Enforcement Model](enforcement-model.md)). Its writable files come from its
+frozen `resolved_scope`, whose directory members are always empty. Only an
+explicitly named missing writable file is prepared. That file may sit beneath
+parents that are absent at the authenticated base, for example
+`testdata/projects/action_pinning/workflow.yml`. Those parents are frozen in the
+authority's `scope_preparation.directories` as preparation facts. They are not
+scope members and grant nothing.
 
-For a managed worker, Codex and Claude prepare missing directory members through
-one shared step in the bubblewrap planner, immediately before namespace
-inspection. The step creates only the exact missing leaf of each
-`resolved_scope.writable.directories` member, and only under an existing,
-non-symlinked parent. A slash-named leaf such as `.changeset/` stays a
-directory. A missing extensionless file such as `bin/new-tool` stays a file
-target and is precreated as an empty file, never as a directory. A missing,
-replaced, or symlinked parent, or a member inside an excluded family, is refused
-without creating anything. The launcher never grants the parent instead, so
-`testdata/projects/action_pinning/` never becomes `testdata/projects/`.
-Directories created for a plan that later refuses are rolled back.
+For a managed worker, Codex and Claude prepare missing files through one shared
+step in the bubblewrap planner, before namespace inspection. The step first
+creates the frozen parents in the allocated worker checkout, one component at a
+time and shallowest first. It then precreates each missing exact file as an
+empty file. A missing extensionless file such as `bin/new-tool` stays a file
+target, never a directory. The step never creates anything in the main checkout.
+It never recreates a parent that existed at the base but has disappeared from
+the checkout; that refuses as a launcher preparation failure. A planned parent
+that is already present as a real directory is used but not owned. A missing,
+replaced, or symlinked ancestor, or a member inside an excluded family, refuses.
+The launcher never grants the parent or a sibling instead: in the namespace the
+parents are read-only skeleton, so the worker can write only the exact file and
+cannot create siblings or change the parents. Parents and files created for a
+plan that later refuses are released through one owner. A release failure is
+reported as secondary evidence and never replaces the refusal.
 
 Once planning succeeds, the launching attempt owns what the planner created,
-bound to its run, unit, and scope source digest. A plan that does not match
-the attempt refuses before any child is created and is released. For managed
-Claude, the attempt settles its resources exactly once:
+bound to its run, unit, and scope source digest. Both managed families use the
+same attempt owner. Codex composes its sandbox plan twice. The owner adopts the
+first, resource-creating plan as soon as it is returned, and keeps it through
+the conduit, the model route, the second composition and the spawn. The second
+composition must find everything already prepared and own nothing. If it would
+create a resource, the launch refuses and releases everything. A plan that
+does not match the attempt refuses before any child is created and is released.
+The attempt settles its resources exactly once:
 
 - A refusal before a child exists, including a failed or refused spawn,
   releases every created file and directory that keeps its recorded identity.
@@ -147,30 +176,38 @@ Claude, the attempt settles its resources exactly once:
   After that, each created directory is removed only if it still has its
   recorded identity and is empty. Populated, replaced, or symlinked entries
   are preserved. Created files are always preserved after a child has run,
-  because an untouched empty file may be committed worker content.
+  because an untouched empty file may be committed worker content. A prepared
+  parent therefore stays while it contains output. A confined worker cannot
+  unlink its exact bind-mounted output, so emptying a parent is not ordinary
+  worker behavior.
 - A timeout can report a terminal run before the child is gone. The terminal
   `exit` then carries `precreation_cleanup_deferred`, and release happens when
   the child actually terminates.
 
-Release never recurses and never touches a parent, a sibling, a pre-existing
-entry, or another attempt's resources. An owned directory that still qualifies
-but could not be removed is a cleanup failure, not preservation. It is reported
-as bounded `precreation_cleanup_failure` evidence with its repository-relative
-path, beside the primary refusal or on the terminal `exit`, and never replaces
-the primary outcome. Managed Codex
-does not run the unmanaged preparer. Its `--add-dir` roots are the resolved
-directory members plus the parents of resolved file members, while the
-bubblewrap namespace stays the exact write boundary.
+Release never recurses and never touches a pre-existing entry, a replaced or
+populated entry, or another attempt's resources. Every eligible entry is
+attempted even after one removal fails. An owned file or directory that still
+qualifies but could not be removed is a cleanup failure, not preservation. It
+is reported as bounded `precreation_cleanup_failure` evidence with its
+repository-relative path, beside the primary refusal or on the terminal `exit`,
+and never replaces the primary outcome. This applies equally to a refusal during
+planning, before any attempt adopted the plan. Managed Codex does not run the
+unmanaged preparer. Its `--add-dir` roots are the parents of resolved file
+members, while the bubblewrap namespace stays the exact write boundary.
 
-The dry-run plan exposes the prepared write roots in
-`prepared_new_write_roots`, so operators can confirm which subtrees would be
-created before launch:
+The Codex dry-run plan reports pending preparation in
+`prepared_new_write_roots`, so operators can confirm what would be created
+before launch:
 
 ```bash
 npm run agent-launch -- worker --app codex <WK-ID#slice> --dry-run-json
 ```
 
-The output includes one entry per authorized missing directory, with the
-declared `scope_entry` and the resolved `directory` that the launcher would
-create. For a managed worker both fields name the resolved directory member.
-Dry-run planning never writes to disk.
+For an unmanaged launch the output lists each authorized missing directory,
+with the declared `scope_entry` and the resolved `directory`. For a managed
+worker it lists each frozen structural parent, paired with the first exact
+writable file that needs it. It is derived from the frozen authority, not the
+live checkout. These parents are not writable roots. Dry-run planning never
+writes to disk and moves no ref. Claude has no equivalent dry-run surface. That
+is an existing limitation, and both families' real launch planners consume the
+same preparation.

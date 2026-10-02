@@ -22,7 +22,10 @@ import {
   isNonEmptyString,
   isWithinRepo
 } from "./launch-isolation-errors.mjs";
-import { rollbackPreparedWorkerDirectories } from "./launch-isolation-worker-scope.mjs";
+import {
+  rollbackPreparedWorkerDirectories,
+  withPreparationRollback
+} from "./launch-isolation-worker-scope.mjs";
 
 export function assertExistingDirectory(p, label, code) {
   let st;
@@ -159,6 +162,14 @@ function sameFileIdentity(real, expected) {
   return Object.keys(expected).every((key) => actual[key] === expected[key]);
 }
 
+function inspectOwnedFile(entry) {
+  try {
+    return { same: sameFileIdentity(entry.real, entry.identity), errno: null };
+  } catch (err) {
+    return { same: null, errno: err?.code ?? null };
+  }
+}
+
 function buildWritableFilePrecreationCleanup(createdEntries, attemptBinding = null) {
   const attemptId = randomUUID();
 
@@ -171,34 +182,39 @@ function buildWritableFilePrecreationCleanup(createdEntries, attemptBinding = nu
     if (completed) return result;
     const removed = [];
     const preserved = [];
+    const failed = [];
     for (let i = owned.length - 1; i >= 0; i -= 1) {
       const entry = owned[i];
       if (entry.kind === "directory") {
         const outcome = rollbackPreparedWorkerDirectories([entry]);
         removed.push(...outcome.removed);
         preserved.push(...outcome.preserved);
+        failed.push(...outcome.failed);
         continue;
       }
-      if (!sameFileIdentity(entry.real, entry.identity)) {
+      const inspected = inspectOwnedFile(entry);
+      if (inspected.same === false) {
         preserved.push(entry.real);
+        continue;
+      }
+      if (inspected.same === null) {
+        failed.push(Object.freeze({ real: entry.real, kind: "file", errno: inspected.errno }));
         continue;
       }
       try {
         unlinkSync(entry.real);
         removed.push(entry.real);
       } catch (err) {
-        if (err?.code === "ENOENT") {
-          preserved.push(entry.real);
-          continue;
-        }
-        throw err;
+        if (err?.code === "ENOENT") preserved.push(entry.real);
+        else failed.push(Object.freeze({ real: entry.real, kind: "file", errno: err?.code ?? null }));
       }
     }
     completed = true;
     result = Object.freeze({
       attempt_id: attemptId,
       removed: Object.freeze(removed),
-      preserved: Object.freeze(preserved)
+      preserved: Object.freeze(preserved),
+      failed: Object.freeze(failed)
     });
     return result;
   };
@@ -437,8 +453,9 @@ export function prepareWritableFiles(writableFiles, repoReal, {
       if (entry.precreated) created.push(entry);
     }
   } catch (error) {
-    buildWritableFilePrecreationCleanup(created, attemptBinding).cleanup();
-    throw error;
+
+    throw withPreparationRollback(error, buildWritableFilePrecreationCleanup(created, attemptBinding).cleanup(),
+      { directories: created.filter((entry) => entry.kind === "directory"), repo: repoReal });
   }
   return Object.freeze({
     entries: Object.freeze(out),

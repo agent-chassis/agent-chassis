@@ -1,7 +1,9 @@
 
 
-import { shapeWriteResponse } from "./write-response-boundary.mjs";
+import { projectOrdinaryWriteFreshness, shapeWriteResponse } from "./write-response-boundary.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
+import { isDeepStrictEqual } from "node:util";
+
 import { jsonContent } from "./mcp-response.mjs";
 import { REGISTERED_TIER_FREE_LOCAL } from "./tool-profile.mjs";
 import { getRuntimeBlockerEntry, RUNTIME_BLOCKER_CODES } from
@@ -12,7 +14,15 @@ import {
 import {
   refreshWorkRecordAdmissionDerivedEvidenceById
 } from "@agent-chassis/wiki-core/src/operations/work-records-admission-evidence.mjs";
-import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
+  isWorkRecordFreshness,
+  projectWorkRecordFreshness,
+  SHA256_PATTERN,
+  SLICE_ID_PATTERN,
+  workRecordFreshnessMatches
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import { readWorkRecordById } from "@agent-chassis/wiki-core/src/operations/work-records-store-io.mjs";
+import { loadKindRecordById } from "@agent-chassis/wiki-core/src/lib/kind-record-store.mjs";
 import { projectNextActionScalar, validateNextCalls } from
   "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { validateWorkerAdmissionRecoveryResult } from
@@ -93,7 +103,7 @@ export function createCompactWorkRecordEditResponse(workspaceRepo, result) {
     response.current_source_digest = result.current_source_digest ?? null;
   }
 
-  return attachStaleSourceDigestRetry(response, result);
+  return projectOrdinaryWriteFreshness(attachStaleSourceDigestRetry(response, result));
 }
 
 const WRITE_ROUTE_VERBOSE_NEXT_ACTION = "Re-call this tool with verbose:true to inspect suppressed write detail";
@@ -199,7 +209,11 @@ export function nextActionForControlledAcceptanceRecovery(readiness, fallback) {
   if (!hasSelectedUnitAuthoringRecovery(recovery)) {
     return fallback;
   }
-  return `Agent correction for selected unit ${recovery.selected_unit}: ` +
+
+  const narrative = (recovery.deciding_causes ?? [])
+    .filter((cause) => typeof cause.summary === "string")
+    .map(({ summary }) => `${summary} `).join("");
+  return `${narrative}Agent correction for selected unit ${recovery.selected_unit}: ` +
     `${recovery.tool}(${jsonArgument(recovery.arguments)}), then ` +
     `${recovery.follow_up_tool} on the same unit with fresh ${recovery.fresh_cas.source} ` +
     `as ${recovery.fresh_cas.argument}. No operator action or executable inspection route ` +
@@ -372,6 +386,20 @@ function projectControlledAcceptanceReadiness(value, unit) {
       semantic.ordinary_authoring_readiness, unit);
   return { ...selectFields(value, CONTROLLED_ACCEPTANCE_FIELDS), semantic };
 }
+
+export const CONTROLLED_ACCEPTANCE_TERMINAL_GAP_GROUPS_LOCATION =
+  "controlled_acceptance_state.semantic.terminal_gaps.groups";
+
+export function presentControlledAcceptanceState(state) {
+  const presented = state?.definition_readiness?.terminal_gaps;
+  const semantic = state?.semantic?.terminal_gaps;
+  if (!Array.isArray(presented?.groups) || !isDeepStrictEqual(presented.groups, semantic?.groups)) return state;
+  const { groups, ...facts } = presented;
+  return { ...state, definition_readiness: { ...state.definition_readiness,
+    terminal_gaps: { ...facts, groups_published_at: CONTROLLED_ACCEPTANCE_TERMINAL_GAP_GROUPS_LOCATION,
+      groups_returned: groups.length } } };
+}
+
 function projectValidatedAdmissionRecovery(admissibility) {
   const projected = { ...admissibility }; delete projected.recovery;
   if (!Object.hasOwn(admissibility, "recovery_validation")) return projected;
@@ -423,10 +451,10 @@ export function createCompactContractEditResponse(workspaceRepo, result) {
     response.current_source_digest = result.current_source_digest ?? null;
   }
 
-  return attachStaleSourceDigestRetry(response, result);
+  return projectOrdinaryWriteFreshness(attachStaleSourceDigestRetry(response, result));
 }
 
-function parseWorkRecordUnitAddress(unitAddress) {
+export function parseWorkRecordUnitAddress(unitAddress) {
   const normalizedAddress = typeof unitAddress === "string" ? unitAddress.trim() : "";
   if (!normalizedAddress) {
     return null;
@@ -516,8 +544,6 @@ function createWorkRecordAdmissionMetricCompleteness(metricSummary) {
   };
 }
 
-const EXPECTED_SOURCE_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
-
 function createDiagnostic(code, message, { path = null, severity = "error" } = {}) {
   return {
     code,
@@ -527,23 +553,87 @@ function createDiagnostic(code, message, { path = null, severity = "error" } = {
   };
 }
 
+export const INVALID_EXPECTED_SOURCE_DIGEST_NEXT_ACTION =
+  "supply the 16-hex source_digest a current read returned as expected_source_digest, or omit the field";
+
 export function validateOptionalExpectedSourceDigest(expectedSourceDigest, { path = "expected_source_digest" } = {}) {
   if (expectedSourceDigest === null || expectedSourceDigest === undefined) {
     return { ok: true, value: null };
   }
 
-  if (typeof expectedSourceDigest !== "string" || !EXPECTED_SOURCE_DIGEST_PATTERN.test(expectedSourceDigest)) {
+  if (!isWorkRecordFreshness(expectedSourceDigest)) {
     return {
       ok: false,
       diagnostic: createDiagnostic(
         "invalid_expected_source_digest",
-        `expected_source_digest must be sha256:<64 lowercase hex>`,
+        "expected_source_digest must be the 16 lowercase hex source_digest a read returned",
         { path }
-      )
+      ),
+      next_action: INVALID_EXPECTED_SOURCE_DIGEST_NEXT_ACTION
     };
   }
 
   return { ok: true, value: expectedSourceDigest };
+}
+
+export async function resolveExpectedSourceDigest(expectedSourceDigest, {
+  path = "expected_source_digest",
+  load
+} = {}) {
+  const format = validateOptionalExpectedSourceDigest(expectedSourceDigest, { path });
+  if (!format.ok || format.value === null) return format;
+  const loaded = typeof load === "function" ? await load() : null;
+  if (loaded?.refusal) return { ok: false, diagnostic: loaded.refusal };
+  const current = typeof loaded?.source_digest === "string" && SHA256_PATTERN.test(loaded.source_digest)
+    ? loaded.source_digest
+    : null;
+  if (current === null) {
+    const cause = Array.isArray(loaded?.diagnostics) ? loaded.diagnostics[0] : null;
+    return {
+      ok: false,
+      diagnostic: cause ?? createDiagnostic("expected_source_digest_source_unavailable",
+        "the addressed canonical record could not be loaded to compare expected_source_digest", { path })
+    };
+  }
+  if (!workRecordFreshnessMatches(format.value, current)) {
+    return {
+      ok: false,
+      stale: true,
+      diagnostic: createDiagnostic("stale_source_digest",
+        "source digest does not match the current canonical record", { path }),
+      current_source_digest: projectWorkRecordFreshness(current),
+
+      record: loaded.record ?? null,
+      next_action: STALE_SOURCE_DIGEST_RETRY_NEXT_ACTION
+    };
+  }
+  return { ok: true, value: current };
+}
+
+const WORK_RECORD_UNIT_RECORD_ID = /^(WK-[0-9]{4,})(?:#[^#]+)?$/u;
+
+export function workRecordUnitStatus(record, unitAddress) {
+  const unit = parseWorkRecordUnitAddress(unitAddress);
+  if (!unit || record?.id !== unit.record_id) return null;
+  const target = unit.slice_id === null
+    ? record
+    : (Array.isArray(record.slices) ? record.slices.find((slice) => slice?.id === unit.slice_id) : null);
+  return typeof target?.status === "string" ? target.status : null;
+}
+
+export function workRecordFreshnessSource(dir, unitAddress) {
+  return async () => {
+    const recordId = WORK_RECORD_UNIT_RECORD_ID.exec(typeof unitAddress === "string" ? unitAddress.trim() : "")?.[1];
+    if (!recordId) {
+      return { refusal: createDiagnostic("invalid_record",
+        "unit must be a canonical WK-0000 or WK-0000#slice-id address", { path: "unit" }) };
+    }
+    return readWorkRecordById({ dir, id: recordId });
+  };
+}
+
+export function kindRecordFreshnessSource(dir, id) {
+  return () => loadKindRecordById({ repoRoot: dir, id });
 }
 
 function createCompactWorkRecordAdmissionRemediation(remediation) {
@@ -651,6 +741,28 @@ function createReadOnlyFilesystemRefreshDiagnostic({ toolName, selectedUnit, err
   };
 }
 
+function readOnlyFilesystemRefreshResult({ toolName, selectedUnit, error }) {
+  return {
+    valid: false,
+    written: false,
+    diagnostics: [createReadOnlyFilesystemRefreshDiagnostic({ toolName, selectedUnit, error })],
+    source_digest: null,
+    current_source_digest: null,
+    canonical_record_path: null
+  };
+}
+
+export function classifyReadOnlyAdmissionRefreshResult({ toolName, selectedUnit, result }) {
+  if (result?.written === true) return result;
+  const primary = Array.isArray(result?.diagnostics)
+    ? result.diagnostics.find((diagnostic) => diagnostic?.severity === "error")
+    : null;
+  if (primary?.code !== "work_record_write_failed" || !isReadOnlyFilesystemRefreshError(primary.cause)) {
+    return result;
+  }
+  return readOnlyFilesystemRefreshResult({ toolName, selectedUnit, error: primary.cause });
+}
+
 function hasAdmissionRefreshVerboseDetail(result, admission) {
   return Boolean(
     result?.derived_evidence ||
@@ -684,7 +796,11 @@ function attachSelectedUnitToSpillDescriptor(response, selectedUnit) {
   return response;
 }
 
-export function createWorkspaceWorkRecordAdmissionMetricsToolResult({
+export function createWorkspaceWorkRecordAdmissionMetricsToolResult(options = {}) {
+  return projectOrdinaryWriteFreshness(buildWorkspaceWorkRecordAdmissionMetricsToolResult(options));
+}
+
+function buildWorkspaceWorkRecordAdmissionMetricsToolResult({
   workspaceRepo,
   selectedUnit = null,
   result = null,
@@ -888,8 +1004,9 @@ export async function runWorkspaceWorkRecordAdmissionRefreshRoute({
 
   const selector = selectedInput || selectedId;
   const selectedUnit = parseWorkRecordUnitAddress(selector);
-  const expectedSourceDigest = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null, {
-    path: "expected_source_digest"
+  const expectedSourceDigest = await resolveExpectedSourceDigest(args.expected_source_digest ?? null, {
+    path: "expected_source_digest",
+    load: workRecordFreshnessSource(workspace.dir, selector)
   });
   if (!expectedSourceDigest.ok) {
     return jsonContent(
@@ -903,7 +1020,7 @@ export async function runWorkspaceWorkRecordAdmissionRefreshRoute({
           written: false,
           diagnostics: [expectedSourceDigest.diagnostic],
           source_digest: null,
-          current_source_digest: null,
+          current_source_digest: expectedSourceDigest.current_source_digest ?? null,
           canonical_record_path: null,
           expected_source_digest: args.expected_source_digest ?? null
         },
@@ -914,24 +1031,21 @@ export async function runWorkspaceWorkRecordAdmissionRefreshRoute({
 
   let result;
   try {
-    result = await refreshWorkRecordAdmissionDerivedEvidenceById({
-      dir: workspace.dir,
-      id: selectedUnit?.record_id ?? selector,
-      unitAddress: selector,
-      expected_source_digest: expectedSourceDigest.value
+    result = classifyReadOnlyAdmissionRefreshResult({
+      toolName,
+      selectedUnit,
+      result: await refreshWorkRecordAdmissionDerivedEvidenceById({
+        dir: workspace.dir,
+        id: selectedUnit?.record_id ?? selector,
+        unitAddress: selector,
+        expected_source_digest: expectedSourceDigest.value
+      })
     });
   } catch (error) {
     if (!isReadOnlyFilesystemRefreshError(error)) {
       throw error;
     }
-    result = {
-      valid: false,
-      written: false,
-      diagnostics: [createReadOnlyFilesystemRefreshDiagnostic({ toolName, selectedUnit, error })],
-      source_digest: null,
-      current_source_digest: null,
-      canonical_record_path: null
-    };
+    result = readOnlyFilesystemRefreshResult({ toolName, selectedUnit, error });
   }
 
   const response = jsonContent(

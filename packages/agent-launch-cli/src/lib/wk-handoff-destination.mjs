@@ -164,10 +164,13 @@ export function readLocalRef({ repo, ref, runGit }) {
   }
 }
 
-export function createLocalRefIfAbsent({ repo, ref, commit, message, runGit }) {
+export function updateLocalRef({ repo, ref, commit, expected, message, runGit }) {
+  if (expected !== null && !OBJECT_ID_RE.test(expected ?? "")) {
+    return { kind: "failed", evidence: captureDiagnosticEvidence({ ref, reason: "expected_old_value_invalid" }) };
+  }
   try {
-    git(runGit, repo, ["update-ref", "-m", message, ref, commit, ""]);
-    return { kind: "created" };
+    git(runGit, repo, ["update-ref", "-m", message, ref, commit, expected ?? ""]);
+    return { kind: "updated" };
   } catch (error) {
     return { kind: "failed", evidence: captureDiagnosticEvidence(error) };
   }
@@ -188,12 +191,15 @@ export function observeRemoteRef({ repo, remote, ref, runGit }) {
   return { kind: "present", sha: matches[0][0] };
 }
 
-export function publishRemoteRefIfAbsent({ repo, remote, ref, commit, runGit }) {
+export function publishRemoteRef({ repo, remote, ref, commit, expected, runGit }) {
+  if (expected !== null && !OBJECT_ID_RE.test(expected ?? "")) {
+    return { kind: "failed", evidence: captureDiagnosticEvidence({ ref, reason: "expected_old_value_invalid" }) };
+  }
   try {
     git(runGit, repo, [
       "-c", "core.hooksPath=/dev/null",
       "push", "--no-verify", "--porcelain",
-      `--force-with-lease=${ref}:`,
+      `--force-with-lease=${ref}:${expected ?? ""}`,
       remote,
       `${commit}:${ref}`
     ], transportEnv());

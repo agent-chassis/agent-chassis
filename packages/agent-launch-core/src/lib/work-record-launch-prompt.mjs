@@ -1,4 +1,6 @@
-import { readAgentRoleGuide } from "./agent-role-guides.mjs";
+import { renderEntryMaterial } from
+  "@agent-chassis/wiki-core/src/lib/work-record-brief-renderer.mjs";
+import { renderAgentRoleGuideReadReference } from "./agent-role-guides.mjs";
 import { DEFAULT_AGENT_ROLE_RESULT_LIMITS } from "./agent-role-result.mjs";
 
 function isObject(value) {
@@ -145,10 +147,8 @@ export function renderTerminalStructuredRoleResultContract({
     } else {
       return [
         "## Review findings",
-        "Report the actual review in prose for the coordinator with a short title, severity, and affected paths; if there are no blocking or medium findings, say so explicitly.",
-        "Your complete response is usable advisory evidence whether or not it matches the optional structured schema. Parser diagnostics annotate only optional formal review attestation; they do not invalidate or hide this review.",
-        "The coordinator will read and disposition your actual response. Do not use worker-only outcomes such as `partial`.",
-        "For ordinary advisory review, a terminal `agent-role-result.v1` object is optional convenience metadata, not an acceptance or usability condition."
+        "Write titled findings as prose. Your complete response is usable advisory evidence; the coordinator will read and disposition your actual response.",
+        "A structured `agent-role-result.v1` object is optional; parser diagnostics annotate only optional formal review attestation, never the review itself. Do not use worker-only outcomes such as `partial`."
       ].join("\n");
     }
   }
@@ -294,12 +294,6 @@ function renderOperativeInstructions(canonicalSummary) {
   return lines;
 }
 
-export const IMPLEMENTATION_WORKER_INSTRUCTION =
-  "Implement the assigned task. Read only the listed readable paths and modify only the listed writable paths. Use the tools available in this session. Run workspace_verify_proof, report the result, then commit. If required implementation work falls outside scope, report the blocker.";
-
-export const DECLARED_VALIDATION_NOTE =
-  "The declared validation below and any full-suite validation named in the task text are acceptance validation outside this assignment; they are not a separate worker step before commit.";
-
 function readablePaths(selectedUnitContext) {
   const paths = [
     ...selectedUnitContext.docs,
@@ -309,30 +303,20 @@ function readablePaths(selectedUnitContext) {
   return [...new Set(paths)];
 }
 
-export function buildLaunchPrompt({
-  role,
-  unit,
-  canonicalSummary,
-  readiness,
-  agentBrief,
-  launchTimestamp,
-  terminalStructuredRoleResultMode = TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FENCED,
-  supplementalInstructions = []
-}) {
+export const LAUNCH_ASSIGNMENT_DELIVERY_MODES = Object.freeze({
+  INLINE: "inline",
+  READ_PAGE: "read_page"
+});
+
+export const MANAGED_ASSIGNMENT_RETRIEVAL_INSTRUCTION =
+  "Your assignment is not included in this startup text. First call workspace_read_page with arguments " +
+  "{\"assignment\":true} and follow every returned next_calls continuation until the guidance is complete " +
+  "before doing any assigned work. If that read is refused, stop and report its refusal code and recovery " +
+  "action as a blocker; do not substitute any other source for the assignment.";
+
+function renderAssignmentGuidanceLines({ canonicalSummary, readiness, agentBrief }) {
   const selectedUnitContext = resolveSelectedUnitContext(canonicalSummary);
-  const lines = [
-
-    `Requested wrapper role: ${role}.`,
-    `Role: implementation worker for ${unit.address}.`,
-    `Launch timestamp: ${launchTimestamp}`,
-    "",
-    IMPLEMENTATION_WORKER_INSTRUCTION,
-    "",
-    "Use the canonical JSON record and generated agent brief below. Do not rely on hidden coordinator chat context.",
-    "",
-
-    readAgentRoleGuide("managed-worker"),
-    "",
+  return [
     "## Canonical Record",
     "",
     formatKeyValueList([
@@ -355,8 +339,6 @@ export function buildLaunchPrompt({
     formatInlineList(selectedUnitContext.write_scope),
     "",
     "### Declared Validation",
-    "",
-    DECLARED_VALIDATION_NOTE,
     "",
     formatInlineList(selectedUnitContext.validation_commands),
     "",
@@ -414,6 +396,65 @@ export function buildLaunchPrompt({
     "",
     agentBrief.brief
   ];
+}
+
+function renderManagedAssignmentGuidanceLines({ canonicalSummary, agentBrief }) {
+  const selectedUnitContext = resolveSelectedUnitContext(canonicalSummary);
+  const summary = isNonEmptyString(canonicalSummary.operative_summary)
+    ? ["### Summary", "", canonicalSummary.operative_summary.trim(), ""]
+    : [];
+  return [
+    "## Canonical Record",
+    "",
+    formatKeyValueList([
+      ["record_id", canonicalSummary.record_id],
+      ["repo", canonicalSummary.repo],
+      ["title", canonicalSummary.title]
+    ]),
+    "",
+    ...summary,
+    ...renderOperativeInstructions(canonicalSummary),
+    "### Acceptance Criteria",
+    "",
+    formatAcceptanceCriteriaList(selectedUnitContext.acceptance_criteria),
+    "",
+    "### Declared Validation",
+    "",
+    formatInlineList(selectedUnitContext.validation_commands),
+    ...renderEntryMaterial(agentBrief.projection?.entry_material ?? null)
+  ];
+}
+
+function joinPromptLines(lines) {
+  return lines.filter((entry, index, array) => !(entry === "" && array[index - 1] === "")).join("\n");
+}
+
+export function buildLaunchPromptSections({
+  role,
+  unit,
+  canonicalSummary,
+  readiness,
+  agentBrief,
+  launchTimestamp,
+  terminalStructuredRoleResultMode = TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FENCED,
+  supplementalInstructions = [],
+  assignmentDelivery = LAUNCH_ASSIGNMENT_DELIVERY_MODES.INLINE
+}) {
+  const retrieval = assignmentDelivery === LAUNCH_ASSIGNMENT_DELIVERY_MODES.READ_PAGE;
+  const guidanceLines = retrieval
+    ? renderManagedAssignmentGuidanceLines({ canonicalSummary, agentBrief })
+    : renderAssignmentGuidanceLines({ canonicalSummary, readiness, agentBrief });
+  const lines = [
+
+    `Requested wrapper role: ${role}.`,
+    `Role: implementation worker for ${unit.address}.`,
+    `Launch timestamp: ${launchTimestamp}`,
+    "",
+    ...(retrieval ? [MANAGED_ASSIGNMENT_RETRIEVAL_INSTRUCTION, ""] : []),
+    renderAgentRoleGuideReadReference("managed-worker"),
+    "",
+    ...(retrieval ? [] : guidanceLines)
+  ];
 
   if (supplementalInstructions.length > 0) {
     lines.push(
@@ -433,5 +474,15 @@ export function buildLaunchPrompt({
     })
   );
 
-  return lines.filter((entry, index, array) => !(entry === "" && array[index - 1] === "")).join("\n");
+  return Object.freeze({
+    assignment_delivery: retrieval
+      ? LAUNCH_ASSIGNMENT_DELIVERY_MODES.READ_PAGE
+      : LAUNCH_ASSIGNMENT_DELIVERY_MODES.INLINE,
+    guidance: joinPromptLines(guidanceLines),
+    prompt: joinPromptLines(lines)
+  });
+}
+
+export function buildLaunchPrompt(options) {
+  return buildLaunchPromptSections(options).prompt;
 }

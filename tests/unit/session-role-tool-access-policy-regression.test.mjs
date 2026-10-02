@@ -15,7 +15,8 @@ import test from "node:test";
 
 import {
   SESSION_ROLE_VALUES,
-  shouldExposeTool
+  shouldExposeTool,
+  shouldExposeToolFromPolicy
 } from "../../packages/wiki-mcp/src/lib/tool-profile.mjs";
 import {
   KNOWN_SESSION_ROLE_VALUES,
@@ -50,9 +51,9 @@ import {
 const AGENT_ROLES = Object.freeze(["orchestrator", "reviewer", "worker", "redteam"]);
 
 const SLICE_008_POLICY_SHA256 =
-  "d8e0d6dc86f4f878625c4e66e2f4898de08557fe3cb5fd5afbadab10ae56e2ad";
+  "5b9bef63f4287b79f8bdba42d9a294a3196701a5f397709737b2e7b5a69d6a5b";
 const SLICE_008_NORMALIZED_ACCESS_GRANT_SHA256 =
-  "38afd07ac573def02a6bbf58f61feeff1e19c680ecd172682b350b9fb96f89c2";
+  "729c97c879815a8fa9dcd076c59ab5a23cec5baeaf8256c45121dd73e1866979";
 const SLICE_008_PROTECTED_ROLE_GRANTS = Object.freeze({
   commit: Object.freeze(["operator"]),
   workspace_verify_proof: Object.freeze(["orchestrator"]),
@@ -649,13 +650,13 @@ test("SLICE-008 retain-only evidence inventories every orchestrator/operator gra
     candidates.filter(({ evidence_classification: value }) => value === classification).length
   ]));
 
-  assert.deepEqual(byRole, { orchestrator: 66, operator: 85 });
+  assert.deepEqual(byRole, { orchestrator: 63, operator: 81 });
   assert.deepEqual(byEvidence, {
     retained_protected_decision_required: 3,
-    retained_unproven_authenticated_client: 4,
-    retained_unproven_non_read_only_or_non_descriptor_authority: 144
+    retained_unproven_authenticated_client: 2,
+    retained_unproven_non_read_only_or_non_descriptor_authority: 139
   });
-  assert.equal(candidates.length, 151);
+  assert.equal(candidates.length, 144);
   assert.equal(candidates.every(({ disposition }) => disposition === "retain"), true);
   assert.deepEqual(
     candidates.filter(({ evidence_classification }) =>
@@ -684,11 +685,11 @@ test("proof-tool retirement preserves the exact remaining role populations", () 
     role,
     Object.values(policy.access).filter((grants) => grants.includes(role)).length
   ])), {
-    orchestrator: 66,
-    reviewer: 30,
-    worker: 2,
-    redteam: 29,
-    operator: 85
+    orchestrator: 63,
+    reviewer: 29,
+    worker: 5,
+    redteam: 28,
+    operator: 81
   });
 });
 
@@ -722,8 +723,9 @@ test("the descriptor-derived retained proof surface is classified once",
       assert.deepEqual(policy.dispositions[name],
         [SESSION_ROLE_TOOL_DISPOSITIONS.DIRECT], name);
     }
+
     assert.deepEqual(policy.access.workspace_controlled_contract_obligation_coverage_query,
-      ["orchestrator", "reviewer", "redteam", "operator"]);
+      ["orchestrator", "reviewer", "worker", "redteam", "operator"]);
     assert.deepEqual(policy.dispositions.workspace_controlled_contract_obligation_coverage_query,
       [SESSION_ROLE_TOOL_DISPOSITIONS.DIRECT]);
   });
@@ -780,23 +782,50 @@ test("WK-2653 the ordinary reader grants exactly what its delegated read routes 
   const reader = "workspace_read_page";
   const delegated = ["workspace_work_record_entry_read", "workspace_read_mcp_content_reference",
     "workspace_get_record"];
-  const expected = policy.access[reader];
-  assert.deepEqual([...expected].sort(), ["operator", "orchestrator", "redteam", "reviewer"].sort());
+
+  const assignmentOnly = ["worker"];
+
+  const directlyGranted = { workspace_read_mcp_content_reference: ["worker"] };
+  assert.deepEqual([...policy.access[reader]].sort(),
+    ["operator", "orchestrator", "redteam", "reviewer", "worker"].sort());
+  const expected = policy.access[reader].filter((role) => !assignmentOnly.includes(role));
+  const routeGrants = (route) => [...expected, ...(directlyGranted[route] ?? [])];
   for (const route of delegated) {
-    assert.deepEqual([...policy.access[route]].sort(), [...expected].sort(),
+    assert.deepEqual([...policy.access[route]].sort(), [...routeGrants(route)].sort(),
       `${route} must grant exactly what ${reader} grants`);
   }
   const grants = resolveRoleToolGrantsFromPolicy(policy);
   for (const role of AGENT_ROLES) {
     const granted = expected.includes(role);
-    for (const route of [reader, ...delegated]) {
-      assert.equal(shouldExposeTool(role, route), granted, `${role} -> ${route}`);
-      assert.equal(grants.get(role)?.has(route) ?? false, granted, `${role} grant -> ${route}`);
+    for (const route of delegated) {
+      const routeGranted = routeGrants(route).includes(role);
+      assert.equal(shouldExposeTool(role, route), routeGranted, `${role} -> ${route}`);
+      assert.equal(grants.get(role)?.has(route) ?? false, routeGranted, `${role} grant -> ${route}`);
     }
+    const readerGranted = granted || assignmentOnly.includes(role);
+    assert.equal(shouldExposeTool(role, reader), readerGranted, `${role} -> ${reader}`);
+    assert.equal(grants.get(role)?.has(reader) ?? false, readerGranted, `${role} grant -> ${reader}`);
   }
 
   for (const route of [reader, ...delegated]) {
     assert.ok(Object.hasOwn(policy.access, route), `${route} has an explicit policy entry`);
     assert.ok(Object.hasOwn(policy.dispositions, route), `${route} has an explicit disposition`);
   }
+});
+
+test("a managed worker holds the content-reference reader its responses name", () => {
+  const policy = loadPolicy();
+  const reader = "workspace_read_mcp_content_reference";
+  assert.deepEqual(policy.access[reader], ["orchestrator", "reviewer", "worker", "redteam", "operator"]);
+  assert.deepEqual(policy.dispositions[reader], [SESSION_ROLE_TOOL_DISPOSITIONS.DIRECT]);
+  assert.equal(shouldExposeTool("worker", reader), true);
+  assert.equal(shouldExposeToolFromPolicy("worker", reader, policy), true);
+  for (const withheld of ["workspace_work_record_entry_read", "workspace_get_record",
+    "workspace_search_repo"]) {
+    assert.equal(shouldExposeTool("worker", withheld), false, withheld);
+  }
+  const withoutGrant = structuredClone(policy);
+  withoutGrant.access[reader] = withoutGrant.access[reader].filter((role) => role !== "worker");
+  assert.equal(shouldExposeToolFromPolicy("worker", reader, withoutGrant), false,
+    "test-composition control: without the grant the worker cannot reach the reader");
 });

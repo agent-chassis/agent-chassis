@@ -51,6 +51,8 @@ export function buildFamilyExecutorBwrapPlan({
 
   workerTestRuntime = null,
   stdioMcpConduit = null,
+
+  launchRole = null,
   envPolicy = null,
   familyRuntimeReadOnlyRoots = [],
   familySystemReadOnlyRoots = null,
@@ -133,6 +135,7 @@ export function buildFamilyExecutorBwrapPlan({
       : {}),
     ...(workerTestRuntime !== null ? { workerTestRuntime } : {}),
     ...(stdioMcpConduit !== null ? { stdioMcpConduit } : {}),
+    ...(launchRole !== null ? { launchRole } : {}),
     familyRuntimeReadOnlyRoots: mergedFamilyRuntimeReadOnlyRoots,
     familySystemReadOnlyRoots,
     familyRuntimeWritableRoots,
@@ -205,7 +208,10 @@ export function buildValidationConfinementPlan({
   envAllowlist = DEFAULT_VALIDATION_ENV_ALLOWLIST,
   ephemeralTmpdir = VALIDATION_EPHEMERAL_TMPDIR,
 
-  useSystemTmp = false,
+  executionTmpSource = null,
+  executionScratchSource = null,
+
+  namespaceOnlyMountpoints = false,
   agentLaunchDirName = DEFAULT_AGENT_LAUNCH_DIR_NAME,
   envFileName = DEFAULT_REPO_ENV_FILE_NAME,
   envFileExists = existsSync,
@@ -240,7 +246,7 @@ export function buildValidationConfinementPlan({
       mintedEnv[name] = envValues[name];
     }
   }
-  const effectiveTmpdir = useSystemTmp ? "/tmp" : ephemeralTmpdir;
+  const effectiveTmpdir = executionTmpSource !== null ? "/tmp" : ephemeralTmpdir;
   mintedEnv.TMPDIR = effectiveTmpdir;
   const allowWithTmpdir = allowlist.includes("TMPDIR")
     ? allowlist
@@ -264,8 +270,10 @@ export function buildValidationConfinementPlan({
 
     maskTmpfsDirs: agentLaunchDirExists(agentLaunchPath) ? [agentLaunchPath] : [],
 
-    tmpfsDirs: useSystemTmp ? [] : [ephemeralTmpdir],
-    useSystemTmp,
+    tmpfsDirs: executionTmpSource !== null ? [] : [ephemeralTmpdir],
+    executionTmpSource,
+    executionScratchSource,
+    namespaceOnlyMountpoints,
 
     shareNet: false,
 

@@ -375,8 +375,21 @@ test("no hand-authored receipt-store finally/release copy survives", async () =>
     "a call site still acquires the lock directly instead of using the owner");
   assert.equal(source.includes("await release();"), false,
     "a hand-authored finally { await release(); } copy survives");
-  assert.equal(source.split("withStoreLock(").length - 1, 17,
-    "every previous lock call site routes through the single owner");
+
+  const storeObject = source.match(/const store = Object\.freeze\(\{([^}]*)\}\);/u);
+  assert.ok(storeObject, "the receipt store exposes one frozen operation object");
+  const operations = storeObject[1].split(",").map((entry) => entry.trim()).filter(Boolean)
+    .map((entry) => entry.split(":").pop().trim());
+  assert.ok(operations.length > 0, "the receipt store exposes at least one operation");
+  const bodies = source.split(/\n  async function /u).slice(1);
+  for (const operation of operations) {
+    const body = bodies.find((candidate) => candidate.startsWith(`${operation}(`));
+    assert.ok(body, `store operation ${operation} is defined in the store factory`);
+    assert.equal(body.split("withStoreLock(").length - 1, 1,
+      `store operation ${operation} routes its lock through the single owner exactly once`);
+  }
+  assert.equal(source.split("withStoreLock(").length - 1, operations.length,
+    "no lock call site exists outside an exposed store operation");
 });
 
 test("the allocator keeps one scoped-run owner and no per-call-site wrapper", async () => {

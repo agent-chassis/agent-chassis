@@ -7,6 +7,9 @@ export const RECORD_ID_PATTERN = /^WK-[0-9]{4}$/;
 export const INITIATIVE_ID_PATTERN = /^IN-[0-9]{4}$/;
 export const ORDINAL_SLICE_ID_PATTERN = /^SLICE-[0-9]{3}$/;
 
+export const ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION =
+  "workspace_assign_work_record_to_initiative";
+
 export function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

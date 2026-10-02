@@ -1,11 +1,9 @@
 const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
-import { VERIFY_PROOF_SUMMARY_SCHEMA_VERSION, isVerifyProofEvidenceReference } from "./mcp-response.mjs";
-import { mcpContentReferenceFirstCall, mcpContentReferenceReassembly } from
-  "./mcp-content-reference-tools.mjs";
-import { PUBLIC_PROOF_STATUS_VALUES, projectProofEvidencePresentation } from
-  "./verify-proof-result-detail.mjs";
+import { VERIFY_PROOF_SUMMARY_SCHEMA_VERSION } from "./mcp-response.mjs";
+import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { PUBLIC_PROOF_STATUS_VALUES, isVerifyProofPopulationSubject, projectProofEvidencePresentation,
+  projectVerifyProofSelectedDetail, selectVerifyProofRows } from "./verify-proof-result-detail.mjs";
 const SUMMARY_DIAGNOSTIC_CODE_LIMIT = 8;
-const SUMMARY_STATUSES = PUBLIC_PROOF_STATUS_VALUES;
 
 export const RETAINED_OUTCOME_SUMMARY_BYTE_BUDGET = 4096;
 export const VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION = "workspace-verify-proof-outcome-summary.v1";
@@ -39,7 +37,8 @@ function summaryRepair(repair) {
 
 function summaryRecovery(recovery, proof = null) {
   if (recovery === null || typeof recovery !== "object") return undefined;
-  const { repair: rawRepair, subject, follow_up_call: call, ...rest } = structuredClone(recovery);
+  const { repair: rawRepair, subject, follow_up_call: call,
+    recovery_call: _recoveryCall, ...rest } = structuredClone(recovery);
   const repair = summaryRepair(rawRepair);
   const ownSubject = proof !== null && subject?.test_proof_id === proof.test_proof_id &&
     subject?.verification_id === proof.verification_id;
@@ -53,6 +52,31 @@ function summaryRecovery(recovery, proof = null) {
     } }),
     ...(repair === undefined ? {} : { repair })
   };
+}
+
+function publicSelectedDetail(detail) {
+  if (detail === null) return null;
+  return {
+    ...detail,
+    proofs: detail.proofs.map((proof) => proof.failure?.recovery === undefined ? proof : {
+      ...proof,
+      failure: { ...proof.failure, recovery: summaryRecovery(proof.failure.recovery) }
+    })
+  };
+}
+
+function authoringCorrectionCalls(evidence) {
+  const supplied = [evidence.recovery,
+    ...evidence.proof_results.map((proof) => proof.recovery)]
+    .map((recovery) => recovery?.recovery_call)
+    .filter((call) => call !== undefined);
+  const seen = new Set();
+  return supplied.filter((call) => {
+    const key = JSON.stringify(call);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((call, index) => buildNextCall({ ...call, recommended: index === 0 }));
 }
 
 function proofReason(proof) {
@@ -96,11 +120,21 @@ function summarySelectedTest(selected) {
   };
 }
 
-function summaryRow(proof) {
+function summaryTiming(timing) {
+  if (timing === null || typeof timing !== "object") return undefined;
+  return {
+    state: timing.state,
+    ...(timing.execution_index === undefined ? {} : { execution_index: timing.execution_index }),
+    ...(timing.elapsed_ms === undefined ? {} : { elapsed_ms: timing.elapsed_ms })
+  };
+}
+
+export function projectVerifyProofSummaryRow(proof) {
   const limitations = summaryLimitations(proof);
   const presentation = projectProofEvidencePresentation(proof);
   const mutation = summaryMutation(presentation.mutation_evidence);
   const selectedTest = summarySelectedTest(proof.selected_test);
+  const timing = summaryTiming(proof.timing);
   return {
     test_proof_id: proof.test_proof_id,
     verification_id: proof.verification_id,
@@ -117,6 +151,7 @@ function summaryRow(proof) {
     ...(typeof proof.runtime_environment?.environment === "string"
       ? { environment: proof.runtime_environment.environment } : {}),
     ...(limitations === undefined ? {} : { capability_limitations: limitations }),
+    ...(timing === undefined ? {} : { timing }),
     reason: proofReason(proof),
     obligations: (proof.relationship_results ?? []).map((relationship) => ({
       obligation_id: relationship.obligation_id,
@@ -127,7 +162,7 @@ function summaryRow(proof) {
 }
 
 function statusCounts(rows) {
-  return Object.fromEntries(SUMMARY_STATUSES.map((status) =>
+  return Object.fromEntries(PUBLIC_PROOF_STATUS_VALUES.map((status) =>
     [status, rows.filter((row) => row.status === status).length]));
 }
 
@@ -159,21 +194,9 @@ function materializeRows(rows) {
   return { proofs, reasons };
 }
 
-export function verifyProofEvidenceRetrieval(reference) {
-  const { content_reference: contentReference } = reference;
-  return Object.freeze({
-    first_call: mcpContentReferenceFirstCall(contentReference),
-    reassembly: mcpContentReferenceReassembly("decode the verified bytes as UTF-8 and parse JSON"),
-    expected: Object.freeze({ byte_count: contentReference.byte_count,
-      sha256: contentReference.sha256,
-      schema_version: reference.evidence_schema_version,
-      result_digest: reference.item_identity })
-  });
-}
-
 export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
-  decorate = (summary) => summary } = {}) {
-  const rows = evidence.proof_results.map(summaryRow);
+  decorate = (summary) => summary, invocationTiming = true } = {}) {
+  const rows = evidence.proof_results.map(projectVerifyProofSummaryRow);
   const relationshipRows = evidence.proof_results.flatMap((proof) => proof.relationship_results ?? []);
   const counts = Object.freeze({
     proofs: Object.freeze({ total: evidence.counts.proofs, ...structuredClone(
@@ -212,13 +235,20 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
       ...aggregateFacts,
       diagnostic_redaction_count: Array.isArray(evidence.diagnostic_redactions)
         ? evidence.diagnostic_redactions.length : 0,
+
+      ...(evidence.timing === undefined || !invocationTiming ? {}
+        : { timing: structuredClone(evidence.timing) }),
       result_digest: evidence.result_digest
-    }));
+    }, kept));
   };
-  const complete = build(rows.length);
+  return fitWholePrefix(rows.length, build, fits);
+}
+
+export function fitWholePrefix(total, build, fits) {
+  const complete = build(total);
   if (fits(complete)) return complete;
   let low = 0;
-  let high = rows.length - 1;
+  let high = total - 1;
   let best = build(0);
   while (low <= high) {
     const middle = Math.floor((low + high) / 2);
@@ -228,24 +258,48 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
   return best;
 }
 
-export function projectVerifyProofSummary(evidence, { evidenceReference, fits = () => true }) {
-  if (!isVerifyProofEvidenceReference(evidenceReference) ||
-      evidenceReference.item_identity !== evidence.result_digest) {
-    throw new TypeError("verify-proof summary requires the evidence reference of the same result");
-  }
-  return projectVerifyProofOutcomeCore(evidence, {
-    fits,
-    decorate: (core) => ({
+export function selectableSubject(row) {
+  if (typeof row.test_proof_id === "string" && row.test_proof_id.length > 0) return row.test_proof_id;
+  const obligation = (row.obligations ?? []).find(({ obligation_id: id }) => typeof id === "string");
+  return obligation?.obligation_id ?? null;
+}
+
+function selectedFailureDetail(evidence, subject, admission) {
+  if (subject === null || isVerifyProofPopulationSubject(subject) ||
+      !selectVerifyProofRows(evidence, subject).some(({ status }) => status !== "proven")) return null;
+  return publicSelectedDetail(projectVerifyProofSelectedDetail(evidence, subject, {
+    fits: (detail) => admission.fits(publicSelectedDetail(detail))
+  }));
+}
+
+export function projectVerifyProofSummary(evidence, { fits = () => true, selectedFits = fits,
+  detailCall = null, selectedSubject = null } = {}) {
+  const correctionCalls = authoringCorrectionCalls(evidence);
+  const decorate = (selectedDetail) => (core, kept) => {
+
+    const readCalls = detailCall === null ? [] : kept.filter((row) => row.status !== "proven")
+      .map(selectableSubject).filter((subject) => subject !== null)
+      .map((subject, index) => detailCall(subject, {
+        recommended: correctionCalls.length === 0 && index === 0
+      }));
+    return {
       schema_version: VERIFY_PROOF_SUMMARY_SCHEMA_VERSION,
       ...core,
-      evidence: structuredClone(evidenceReference),
-      evidence_retrieval: verifyProofEvidenceRetrieval(evidenceReference)
-    })
-  });
+      ...(selectedDetail === null ? {} : { selected_detail: selectedDetail }),
+      next_calls: [...correctionCalls, ...readCalls]
+    };
+  };
+
+  const rowFree = (selectedDetail) => projectVerifyProofOutcomeCore(evidence, {
+    fits: () => false, decorate: decorate(selectedDetail) });
+  const selectedDetail = selectedFailureDetail(evidence, selectedSubject, {
+    fits: (detail) => selectedFits(rowFree(detail)) });
+  return projectVerifyProofOutcomeCore(evidence, { fits: selectedDetail === null ? fits : selectedFits,
+    decorate: decorate(selectedDetail) });
 }
 
 export function projectRetainedVerifyProofOutcomeSummary(evidence) {
-  return projectVerifyProofOutcomeCore(evidence, {
+  return projectVerifyProofOutcomeCore(evidence, { invocationTiming: false,
     fits: (candidate) => retainedOutcomeSummaryBytes(candidate) <=
       RETAINED_OUTCOME_SUMMARY_BYTE_BUDGET,
     decorate: (core) => ({ schema_version: VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION, ...core })

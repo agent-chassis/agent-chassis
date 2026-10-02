@@ -73,9 +73,11 @@ export function providerEvidence(resolved, capability) {
 }
 
 export function mintProviderExecution(provider, nodeArguments, observationExpectation, native = null,
-  nodeRuntime = null) {
+  nodeRuntime = null, nodeAssetBinds = []) {
   const execution = Object.freeze({ provider,
     node_arguments: Object.freeze([...nodeArguments]),
+    node_asset_binds: Object.freeze(nodeAssetBinds.map((bind) =>
+      Object.freeze({ src: bind.src, dst: bind.dst }))),
     node_runtime: nodeRuntime === null ? null : Object.freeze({ executable: nodeRuntime.executable,
       binds: Object.freeze(nodeRuntime.binds.map((bind) => Object.freeze({ src: bind.src, dst: bind.dst }))),
       mountpoints: Object.freeze([...nodeRuntime.mountpoints]) }),
@@ -87,7 +89,8 @@ export function mintProviderExecution(provider, nodeArguments, observationExpect
       invocation: Object.freeze(native.invocation),
       target_extensions: Object.freeze([...native.target_extensions]),
       timeout_ms: native.timeout_ms,
-      observe: native.observe
+      observe: native.observe,
+      native_report: native.native_report ?? null
     }) });
   PROVIDER_EXECUTIONS.add(execution);
   return execution;

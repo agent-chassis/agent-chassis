@@ -1,14 +1,9 @@
-import { createHash } from "node:crypto";
-import {
-  closeSync,
-  constants as fsConstants,
-  fstatSync,
-  lstatSync,
-  openSync,
-  readFileSync,
-  realpathSync
-} from "node:fs";
 import path from "node:path";
+
+import {
+  PRIVATE_IMMUTABLE_ARTIFACT_MAX_BYTES,
+  readPrivateImmutableArtifact
+} from "../../../agent-launch-cli/src/lib/managed-assignment-read-artifact.mjs";
 
 import {
   MANAGED_RUN_PROCESS_IDENTITY_STATES,
@@ -25,12 +20,10 @@ import {
   FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION
 } from "../../../agent-launch-cli/src/lib/workspace-agent-findings-role-context.mjs";
 import {
-  LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES
-} from "../../../agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
-import {
+  LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES,
   WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR,
   authenticateLauncherAgentSessionContract
-} from "../../../agent-launch-cli/src/lib/stdio-mcp-conduit-core.mjs";
+} from "../../../agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
 
 export { WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR };
 
@@ -42,7 +35,7 @@ export const WIKI_MCP_TOOL_PROFILE_ENV_VAR = "WIKI_MCP_TOOL_PROFILE";
 export const WIKI_MCP_WORKSPACE_DIR_ENV_VAR = "WIKI_MCP_WORKSPACE_DIR";
 export const WIKI_MCP_AGENT_SESSION_CONTRACT_ENV_VAR =
   "WIKI_MCP_AGENT_SESSION_CONTRACT";
-export const FROZEN_REVIEW_CONTRACT_ARTIFACT_MAX_BYTES = 16 * 1024 * 1024;
+export const FROZEN_REVIEW_CONTRACT_ARTIFACT_MAX_BYTES = PRIVATE_IMMUTABLE_ARTIFACT_MAX_BYTES;
 const AUTHENTICATED_MANAGED_FINDINGS_RUN_BINDINGS = new WeakMap();
 const MANAGED_FINDINGS_ROLES = Object.freeze(new Set(["reviewer", "redteam"]));
 const NON_STANDALONE_FROZEN_ARTIFACT_ROLES = Object.freeze(new Set(["reviewer"]));
@@ -258,29 +251,6 @@ function authenticateArtifactFindingsIdentity({ contract, parent, reviewUnit, st
   return Object.freeze({ role: artifactRole, purpose: artifactPurpose });
 }
 
-function launcherOwnedArtifactPath(artifactPath) {
-  if (typeof artifactPath !== "string" || !path.isAbsolute(artifactPath)) return null;
-  const basename = path.basename(artifactPath);
-  const digestHex = basename.match(new RegExp(
-    `^${FROZEN_REVIEW_CONTRACT_ARTIFACT_FILENAME_PREFIX}([0-9a-f]{64})\\.json$`,
-    "u"
-  ))?.[1] ?? null;
-  if (digestHex === null) return null;
-  const directory = path.dirname(artifactPath);
-  const uid = typeof process.getuid === "function" ? process.getuid() : null;
-  if (uid === null || realpathSync(directory) !== directory) return null;
-  const directoryStats = lstatSync(directory);
-  const fileStats = lstatSync(artifactPath);
-  if (!directoryStats.isDirectory() || directoryStats.isSymbolicLink() ||
-      directoryStats.uid !== uid || (directoryStats.mode & 0o777) !== 0o700 ||
-      !fileStats.isFile() || fileStats.isSymbolicLink() || fileStats.uid !== uid ||
-      (fileStats.mode & 0o777) !== 0o400 || fileStats.size <= 0 ||
-      fileStats.size > FROZEN_REVIEW_CONTRACT_ARTIFACT_MAX_BYTES) {
-    return null;
-  }
-  return { digest: `sha256:${digestHex}`, fileStats };
-}
-
 export function resolveFrozenReviewContractArtifact({
   state = resolveLauncherRunState()
 } = {}) {
@@ -290,30 +260,13 @@ export function resolveFrozenReviewContractArtifact({
         !hasAuthenticatedManagedFindingsRunBinding(state)) {
       return refusedFrozenArtifact();
     }
-    const resolvedPath = launcherOwnedArtifactPath(state.frozenReviewContractPath);
-    if (resolvedPath === null) return refusedFrozenArtifact();
-    const fd = openSync(
-      state.frozenReviewContractPath,
-      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW
-    );
-    let bytes;
-    try {
-      const opened = fstatSync(fd);
-      if (opened.dev !== resolvedPath.fileStats.dev || opened.ino !== resolvedPath.fileStats.ino ||
-          opened.size !== resolvedPath.fileStats.size || (opened.mode & 0o777) !== 0o400) {
-        return refusedFrozenArtifact();
-      }
-      bytes = readFileSync(fd);
-      const after = fstatSync(fd);
-      if (after.dev !== opened.dev || after.ino !== opened.ino || after.size !== opened.size ||
-          (after.mode & 0o777) !== 0o400 || bytes.byteLength !== opened.size) {
-        return refusedFrozenArtifact();
-      }
-    } finally {
-      closeSync(fd);
-    }
-    const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-    if (digest !== resolvedPath.digest) return refusedFrozenArtifact();
+    const artifact = readPrivateImmutableArtifact({
+      artifactPath: state.frozenReviewContractPath,
+      prefix: FROZEN_REVIEW_CONTRACT_ARTIFACT_FILENAME_PREFIX,
+      maxBytes: FROZEN_REVIEW_CONTRACT_ARTIFACT_MAX_BYTES
+    });
+    if (artifact === null) return refusedFrozenArtifact();
+    const { digest, bytes } = artifact;
     const contract = JSON.parse(bytes.toString("utf8"));
     const fields = [
       "canonical_parent_wk_contract",

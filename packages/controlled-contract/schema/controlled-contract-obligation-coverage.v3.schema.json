@@ -497,6 +497,35 @@
         "case_id": {
           "type": "string",
           "pattern": "^case-[a-zA-Z0-9][a-zA-Z0-9._:-]*$"
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/acceptance_criterion_association"
+          },
+          "description": "Author-declared acceptance criteria of the selected unit this obligation covers. Each entry binds the criterion identity to the criterion text it was declared against."
+        },
+        "proof_opt_out": {
+          "const": true,
+          "description": "The author explicitly declines proof for this obligation. It keeps its statement and criterion coverage, grants no execution or verification credit, and excludes a proof selection or case."
+        }
+      }
+    },
+    "acceptance_criterion_association": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "text_sha256"
+      ],
+      "properties": {
+        "identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text_sha256": {
+          "$ref": "#/$defs/sha256"
         }
       }
     },

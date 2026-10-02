@@ -4,6 +4,11 @@ import {
 } from "./work-record-ordinary-field-read.mjs";
 import { selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
 import {
+  CLOSEOUT_RECEIPT_READ_ROUTE,
+  closeoutReceiptSelectorSchema,
+  readCloseoutReceipt
+} from "./work-record-closeout-response.mjs";
+import {
   createValidateDispatchResponseSelection,
   VALIDATE_DISPATCH_ROUTE,
   validateDispatchDetailRequestShape
@@ -18,7 +23,12 @@ import {
 } from "@agent-chassis/wiki-core";
 
 import { RECORD_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-shared.mjs";
-import { SHA256_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
+  isWorkRecordFreshness,
+  projectWorkRecordFreshness,
+  WORK_RECORD_FRESHNESS_PATTERN,
+  workRecordFreshnessMatches
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import { preflightWorkerScope } from "@agent-chassis/agent-launch-cli/src/lib/worker-scope-preflight.mjs";
 import {
   getSummarySelectorValidationIssues,
@@ -55,11 +65,11 @@ function classifyRecordStalenessEntry(entry, loaded) {
     return { ...base, state: "unreadable", diagnostic_codes: diagnosticCodes };
   }
 
-  if (currentSourceDigest === entry.observed_source_digest) {
+  if (workRecordFreshnessMatches(entry.observed_source_digest, currentSourceDigest)) {
     return { ...base, state: "unchanged" };
   }
 
-  return { ...base, state: "changed", current_source_digest: currentSourceDigest };
+  return { ...base, state: "changed", current_source_digest: projectWorkRecordFreshness(currentSourceDigest) };
 }
 
 function assertRecordStalenessCheckEntries(entries) {
@@ -86,13 +96,10 @@ function assertRecordStalenessCheckEntries(entries) {
           `WK-#### work-record id; got: ${JSON.stringify(entry.id)}`
       );
     }
-    if (
-      typeof entry.observed_source_digest !== "string" ||
-      !SHA256_PATTERN.test(entry.observed_source_digest)
-    ) {
+    if (!isWorkRecordFreshness(entry.observed_source_digest)) {
       throw new Error(
         `workspace_record_staleness_check entries[${index}].observed_source_digest must be ` +
-          "the raw sha256:<hex> source_digest a read returned, not a compact_read_token; got: " +
+          "the 16 lowercase hex source_digest a read returned; got: " +
           JSON.stringify(entry.observed_source_digest)
       );
     }
@@ -139,7 +146,7 @@ export function registerWorkRecordReadTools({
     message: "Expected a non-empty string"
   });
 
-  const workRecordSummaryShape = (ordinaryField) => ({
+  const workRecordSummaryShape = (ordinaryField, receipt) => ({
     ordinary_field: ordinaryField.optional(),
     repo: z.string().optional(),
     id: nonEmptyString.optional(),
@@ -150,22 +157,29 @@ export function registerWorkRecordReadTools({
       offset: z.number().int().min(0).optional(),
       limit: z.number().int().min(1).max(WORK_RECORD_DETAILS_MAX_LIMIT).optional()
     }).strict().optional(),
-    ...workRecordDetailSelectorSchemaShape(z, "workspace_work_record_summary")
+    ...workRecordDetailSelectorSchemaShape(z, "workspace_work_record_summary"),
+
+    receipt: receipt.optional()
   });
+
+  const advertisedReceiptSchema = z.object({}).passthrough().describe(
+    "{ref_id,sha256,finding_id?} of a unit's closeout receipt; reruns nothing.");
 
   const resolveSummaryWorkspace = createWorkspaceReadRepoResolver({
     workspaceRepos,
     resolveWorkspaceRepo
   });
   const workRecordSummaryAdvertisedInputSchema = z.object(
-    workRecordSummaryShape(ordinaryFieldReadAdvertisedSchema(z))
+    workRecordSummaryShape(ordinaryFieldReadAdvertisedSchema(z), advertisedReceiptSchema)
   ).strict().describe(
     "Compact declaration; the complete enforced ordinary_field union is served by " +
     "workspace_tools_describe({tool_name:\"workspace_work_record_summary\",verbose:true})."
   );
   const workRecordSummaryInputSchema = z.object(
-    workRecordSummaryShape(ordinaryFieldReadSchema(z))
+    workRecordSummaryShape(ordinaryFieldReadSchema(z), closeoutReceiptSelectorSchema(z))
   ).strict().superRefine((args, context) => {
+
+    if (args.receipt !== undefined) return;
     const issues = getSummarySelectorValidationIssues(args);
     const ownerProjection = projectMcpCallableOwnerIssues({
       ownerId: "work-record-compact-read-gate",
@@ -213,15 +227,29 @@ export function registerWorkRecordReadTools({
     "workspace_work_record_summary",
     {
       description:
-        "Read a WK/slice by id, unit or path. Default returns status, title and up to 3 next calls; details:{offset,limit} lists selected routes. ordinary_field selects root summary, notes, task pages or task text; reference_only omits bodies. member:{path} pages one field. Pin index reads, selected occurrences and noninitial pages/ranges with source_digest. Read-only.",
+        "Read a WK/slice by id, unit or path. Default returns status, title and up to 3 next calls; details:{offset,limit} lists selected routes. ordinary_field selects root summary, notes, task pages or task text; reference_only omits bodies. member:{path} pages one field; members:[...] reads 1-16 selections in one bounded call. Pin index reads, selected occurrences and noninitial pages/ranges with the 16-hex source_digest. Read-only.",
       inputSchema: workRecordSummaryInputSchema,
       advertisedInputSchema: workRecordSummaryAdvertisedInputSchema
     },
     async (args) => {
       try {
         const workspace = resolveSummaryWorkspace(args);
+        if (args.receipt !== undefined) {
+          const conflicting = Object.keys(args)
+            .filter((key) => !["repo", "unit", "receipt"].includes(key) && args[key] !== undefined);
+          if (typeof args.unit !== "string") {
+            throw selectedResponseQueryInvalidError(CLOSEOUT_RECEIPT_READ_ROUTE, "receipt_requires_unit");
+          }
+          if (conflicting.length > 0) {
+            throw selectedResponseQueryInvalidError(CLOSEOUT_RECEIPT_READ_ROUTE,
+              "receipt_excludes_other_selectors", { arguments: conflicting.sort() });
+          }
+          return jsonContent({ workspaceRepo: workspace.repo, ...readCloseoutReceipt({
+            receipt: args.receipt, repository: workspace.repo, unit: args.unit }) });
+        }
         const result = await runWorkRecordSummaryWithCompactGate({
           workspaceRepo: workspace.repo,
+          callRepository: workspace.call_repository,
           workspaceDir: workspace.dir,
           args,
           readWorkRecordById,
@@ -256,7 +284,7 @@ export function registerWorkRecordReadTools({
           workspaceRepo: workspace.repo,
           record_id: result.record_id,
           source_path_relative: result.source_path_relative,
-          source_digest: result.source_digest,
+          source_digest: projectWorkRecordFreshness(result.source_digest),
           valid: result.valid,
           diagnostics: result.diagnostics,
           policy_facts: projectWorkRecordPrivateScopePolicyFacts(result.record)
@@ -279,7 +307,7 @@ export function registerWorkRecordReadTools({
             z
               .object({
                 id: z.string().regex(RECORD_ID_PATTERN),
-                observed_source_digest: z.string().regex(SHA256_PATTERN)
+                observed_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN)
               })
               .strict()
           )

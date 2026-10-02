@@ -28,20 +28,11 @@ import {
   importFactResolutionDependencies,
   resolveImportFacts
 } from "./sidecar-graph-import-resolution.mjs";
+import { SIDECAR_CODE_EXTENSIONS } from "./sidecar-language-descriptions.mjs";
 import { filterSidecarSourcePaths, isSidecarRepoPath, normalizeSidecarRepoPath } from
   "./sidecar-paths.mjs";
 
-const CODE_EXTENSIONS = new Set([
-  ".cjs",
-  ".cts",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".mts",
-  ".py",
-  ".ts",
-  ".tsx"
-]);
+const CODE_EXTENSIONS = new Set(SIDECAR_CODE_EXTENSIONS);
 const TEXT_EXTENSIONS = new Set([...CODE_EXTENSIONS, ".json", ".md"]);
 const WORK_ITEM_PATH_PATTERN = /^wiki\/(?:issues|initiatives)\/(?:WK|IN)-\d{4}\.md$/;
 const DOCS_CONTRACT_PATH_PATTERN = /^docs\/.+\.md$/;
@@ -340,6 +331,12 @@ function confidenceForImportFact(fact) {
     if (fact.resolutionBasis === "extension_guess") {
       return { value: 0.85, basis: "literal_ast_specifier_resolved_by_extension_guess" };
     }
+    if (fact.resolutionBasis === "go_package_directory") {
+      return { value: 0.9, basis: "literal_ast_import_path_resolved_by_committed_go_module" };
+    }
+    if (fact.resolutionBasis === "rust_module_file") {
+      return { value: 0.9, basis: "literal_ast_module_path_resolved_by_committed_rust_module_file" };
+    }
     return { value: 0.95, basis: "literal_ast_specifier_resolved_exact_path" };
   }
   return { value: 0.25, basis: "literal_ast_specifier_unresolved" };
@@ -397,25 +394,26 @@ function addImports(builder, { moduleNodeId, relativePath, text, importFacts }) 
       provenance: provenance({ path: relativePath, line })
     });
 
-    if (fact.resolutionState !== "resolved" || !fact.targetPath) {
-      return;
-    }
+    if (fact.resolutionState !== "resolved") return;
 
-    const targetModuleNodeId = builder.addNode("module", fact.moduleKey, {
-      path: fact.targetPath,
-      specifier: fact.specifier,
-      external: fact.external,
-      ...metadata
-    });
-    builder.addEdge("imports_module", moduleNodeId, targetModuleNodeId, {
-      path: relativePath,
-      specifier: fact.specifier,
-      target_path: fact.targetPath,
-      external: fact.external,
-      line,
-      discriminator: `${specifier}:${importIndex}`,
-      ...metadata
-    });
+    const targets = fact.targetPaths ?? (fact.targetPath ? [fact.targetPath] : []);
+    for (const targetPath of targets) {
+      const targetModuleNodeId = builder.addNode("module", fact.targetPaths ? targetPath : fact.moduleKey, {
+        path: targetPath,
+        specifier: fact.specifier,
+        external: fact.external,
+        ...metadata
+      });
+      builder.addEdge("imports_module", moduleNodeId, targetModuleNodeId, {
+        path: relativePath,
+        specifier: fact.specifier,
+        target_path: targetPath,
+        external: fact.external,
+        line,
+        discriminator: fact.targetPaths ? `${specifier}:${importIndex}:${targetPath}` : `${specifier}:${importIndex}`,
+        ...metadata
+      });
+    }
   });
 }
 
@@ -461,7 +459,7 @@ function addMcpTools(builder, { moduleNodeId, relativePath, text }) {
   }
 }
 
-function addCodeGraph(builder, source, sourcePathSet, parserProvider) {
+function addCodeGraph(builder, source, sourcePathSet, parserProvider, goModules, rustCrates) {
   addCodeLocalGraph(builder, source);
   const parsedImports = parseImportFacts({
     provider: parserProvider,
@@ -471,7 +469,9 @@ function addCodeGraph(builder, source, sourcePathSet, parserProvider) {
   const importFacts = resolveImportFacts({
     facts: parsedImports.facts,
     relativePath: source.path,
-    sourcePathSet
+    sourcePathSet,
+    goModules,
+    rustCrates
   });
   addImports(builder, {
     moduleNodeId: `module:${source.path}`,
@@ -717,7 +717,7 @@ export async function collectSidecarGraphFileFacts({ source, parserProvider = nu
   };
 }
 
-export function materializeSidecarGraphUnit({ facts, sourcePaths }) {
+export function materializeSidecarGraphUnit({ facts, sourcePaths, goModules = [], rustCrates = [] }) {
   if (!facts || typeof facts !== "object" || Array.isArray(facts)) {
     throw new TypeError("stored graph facts must be an object");
   }
@@ -730,7 +730,9 @@ export function materializeSidecarGraphUnit({ facts, sourcePaths }) {
     const resolved = resolveImportFacts({
       facts: facts.import_facts ?? [],
       relativePath: facts.source_path,
-      sourcePathSet
+      sourcePathSet,
+      goModules,
+      rustCrates
     });
     const moduleNodeId = `module:${facts.source_path}`;
     addImports(builder, {
@@ -746,7 +748,9 @@ export function materializeSidecarGraphUnit({ facts, sourcePaths }) {
     dependencies.push(...importFactResolutionDependencies({
       facts: facts.import_facts ?? [],
       relativePath: facts.source_path,
-      sourcePathSet
+      sourcePathSet,
+      goModules,
+      rustCrates
     }));
   } else if (facts.source_kind === "docs_contract") {
     const docsNodeId = `docs_contract:${facts.source_path}`;
@@ -795,7 +799,9 @@ export async function extractSidecarGraph({
   sources = [],
   edgeSource = "base_index",
   dirtyGraphMode = "base_index_only",
-  parserProvider = null
+  parserProvider = null,
+  goModules = [],
+  rustCrates = []
 } = {}) {
   if (!SIDECAR_GRAPH_EDGE_SOURCE_VALUES.includes(edgeSource)) {
     throw new Error(`unsupported sidecar graph edge source: ${edgeSource}`);
@@ -821,7 +827,8 @@ export async function extractSidecarGraph({
 
   for (const source of normalized.sources) {
     if (isCodePath(source.path)) {
-      const unavailablePath = addCodeGraph(builder, source, sourcePathSet, treeSitterProvider);
+      const unavailablePath = addCodeGraph(builder, source, sourcePathSet, treeSitterProvider, goModules,
+        rustCrates);
       if (unavailablePath) {
         unavailablePaths.push(unavailablePath);
       }

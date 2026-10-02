@@ -22,6 +22,7 @@ import { registerDiagnosticRoutes } from "../dispatch-diagnostic-routes.mjs";
 import { REGISTERED_TIER_FREE_LOCAL, REGISTERED_TIER_PAID_CCE } from
   "../tool-profile.mjs";
 import { withRecordedRequestSchemas } from "../dispatch-tool-helpers.mjs";
+import { registeredToolRequestContracts } from "../registered-tool-request-contracts.mjs";
 import { registerCommittedSliceIntegrationRoute } from
   "./committed-slice-integration-route.mjs";
 import { registerForgeHandoffRoute } from "./forge-handoff-route.mjs";
@@ -58,7 +59,9 @@ export function registerDispatchTools({
   registeredTier = REGISTERED_TIER_FREE_LOCAL,
   runStatusCallBudgetMs = undefined,
 
-  responseEnv = undefined
+  responseEnv = process.env,
+
+  requestContracts = registeredToolRequestContracts(registerTool)
 }) {
   registerTool = withRecordedRequestSchemas(registerTool);
   const isPaidTier = registeredTier === REGISTERED_TIER_PAID_CCE;
@@ -79,7 +82,8 @@ export function registerDispatchTools({
     workspaceRepos,
     resolveWorkspaceRepo,
     dispatchBackend,
-    dispatchSessionIdentity
+    dispatchSessionIdentity,
+    responseEnv
   });
   registerAgentDispatchRoute({
     registerTool,
@@ -96,7 +100,9 @@ export function registerDispatchTools({
     revalidatePrivateHandoff,
     generateGraphImpactEvidence,
     refreshAdmissionEvidence,
-    isPaidTier
+    isPaidTier,
+    responseEnv,
+    requestContracts
   });
 
   registerCommittedSliceIntegrationRoute({
@@ -109,7 +115,8 @@ export function registerDispatchTools({
     committedSliceIntegrationToolName: COMMITTED_SLICE_INTEGRATION_TOOL_NAME,
     callerNodeEngineAuthorityFields: CALLER_NODE_ENGINE_AUTHORITY_FIELDS,
     callerCommittedSliceAuthorityFields: CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS,
-    callerCcePolicyAuthorityFields: CALLER_CCE_POLICY_AUTHORITY_FIELDS
+    callerCcePolicyAuthorityFields: CALLER_CCE_POLICY_AUTHORITY_FIELDS,
+    responseEnv
   });
   registerForgeHandoffRoute({
     registerTool,
@@ -119,7 +126,8 @@ export function registerDispatchTools({
     resolveWorkspaceRepo,
     invokeWkForgeHandoffAdapter: typeof wkForgeHandoffAdapter === "function"
       ? async (assignedUnit) => await wkForgeHandoffAdapter({ assigned_unit: assignedUnit })
-      : null
+      : null,
+    responseEnv
   });
   registerLandingStatusRoute({
     registerTool,
@@ -129,7 +137,8 @@ export function registerDispatchTools({
     resolveWorkspaceRepo,
     invokeWkLandingStatusAdapter: typeof wkLandingStatusAdapter === "function"
       ? async (assignedUnit) => await wkLandingStatusAdapter({ assigned_unit: assignedUnit })
-      : null
+      : null,
+    responseEnv
   });
 
   const ctx = {
@@ -146,7 +155,8 @@ export function registerDispatchTools({
     dispatchReviewerAvailable,
     isPaidTier,
     ...(runStatusCallBudgetMs === undefined ? {} : { runStatusCallBudgetMs }),
-    ...(responseEnv === undefined ? {} : { responseEnv })
+    responseEnv,
+    requestContracts
   };
   registerRunMonitorRoutes(ctx);
   registerDiagnosticRoutes(ctx);

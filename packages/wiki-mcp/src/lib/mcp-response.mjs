@@ -39,6 +39,7 @@ export {
   pickDoThisNext,
   projectNextActionScalar
 } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import {
   isRuntimeBlockerCode
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
@@ -84,14 +85,7 @@ const CONTENT_REFERENCE_FIELDS = Object.freeze([
 const CONTENT_REFERENCE_READ_TOOL = "workspace_read_mcp_content_reference";
 
 export const VERIFY_PROOF_SUMMARY_SCHEMA_VERSION = "workspace-verify-proof-summary.v1";
-export const VERIFY_PROOF_EVIDENCE_REFERENCE_SCHEMA_VERSION =
-  "workspace-verify-proof-evidence-reference.v1";
 export const VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION = "workspace-verify-proof-aggregate.v1";
-const VERIFY_PROOF_EVIDENCE_RESOURCE_KIND = "verify_proof_evidence";
-const VERIFY_PROOF_EVIDENCE_REFERENCE_FIELDS = Object.freeze([
-  "schema_version", "resource_kind", "item_identity", "evidence_schema_version",
-  "byte_count", "content_reference"
-]);
 const RESULT_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/u;
 
 const SPILL_MEASUREMENT_SCHEMA_VERSION = "mcp-response-spill-measurement.v1";
@@ -283,7 +277,7 @@ export function isLosslessMcpSpillDelivery(result) {
   if (result === null || typeof result !== "object" || Array.isArray(result)) return false;
   const envelope = result.structuredContent;
   if (!isSpilledEnvelope(envelope) || !hasExactKeys(envelope, SPILLED_ENVELOPE_FIELDS) ||
-      !hasNoContentCarrier(result)) {
+      !hasOnlyGeneratedTextCarrier(result)) {
     return false;
   }
   const { preview, content_reference: reference } = envelope;
@@ -332,34 +326,14 @@ function isMintedContentReference(reference, totalBytes) {
     reference.range.length <= totalBytes;
 }
 
-export function isVerifyProofEvidenceReference(value) {
-  return hasExactKeys(value, VERIFY_PROOF_EVIDENCE_REFERENCE_FIELDS) &&
-    value.schema_version === VERIFY_PROOF_EVIDENCE_REFERENCE_SCHEMA_VERSION &&
-    value.resource_kind === VERIFY_PROOF_EVIDENCE_RESOURCE_KIND &&
-    typeof value.item_identity === "string" && RESULT_DIGEST_PATTERN.test(value.item_identity) &&
-    value.evidence_schema_version === VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION &&
-    isMintedContentReference(value.content_reference, value.byte_count);
-}
-
 export function assertNoControlledContractRawResponse(
   value,
   { toolName = null, losslessDelivery = false } = {}
 ) {
   if (losslessDelivery === true && isLosslessMcpSpillDelivery(value)) return value;
   const seen = new Set();
-  const visit = (candidate, parent = null, key = null) => {
+  const visit = (candidate) => {
     if (candidate === null || typeof candidate !== "object") return;
-
-    if (candidate.schema_version === VERIFY_PROOF_EVIDENCE_REFERENCE_SCHEMA_VERSION) {
-      if (losslessDelivery !== true || key !== "evidence" ||
-          parent?.schema_version !== VERIFY_PROOF_SUMMARY_SCHEMA_VERSION) {
-        throw new Error(`${toolName ?? "controlled-contract route"} produced a forbidden content-reference envelope`);
-      }
-      if (!isVerifyProofEvidenceReference(candidate)) {
-        throw new Error(`${toolName ?? "controlled-contract route"} produced a malformed verify-proof evidence reference`);
-      }
-      return;
-    }
     if (seen.has(candidate)) return;
     seen.add(candidate);
     assertAssessmentSemanticShape(candidate, toolName);
@@ -379,7 +353,7 @@ export function assertNoControlledContractRawResponse(
       if (CONTROLLED_CONTRACT_FORBIDDEN_RESPONSE_KEYS.has(nestedKey)) {
         throw new Error(`${toolName ?? "controlled-contract route"} produced forbidden raw response field ${nestedKey}`);
       }
-      visit(nested, candidate, nestedKey);
+      visit(nested);
     }
   };
   visit(value);
@@ -434,9 +408,7 @@ function authenticatedExternalCondition(value) {
 function untypedFailureEnvelope(error) {
   const { identity, platform } = preservedCauseIdentity(error);
   const preservableIdentity = identity === "operator_recovery_needed" ? null : identity;
-  const diagnostic = projectDiagnostic(error, {
-    fieldPrefix: "mcp_response.thrown_diagnostic"
-  });
+  const diagnostic = projectDiagnostic(error);
   const decidingFacts = [
     { field: "mcp_response.handler_completed", value: false }
   ];
@@ -571,6 +543,153 @@ function contentReferenceReadUnavailable(reason) {
   return error;
 }
 
+function selectedAccessMarker(access) {
+
+  if (access?.operator_only === true) return { operator_only: true };
+  const call = access?.owner_call;
+  if (call === null || typeof call !== "object" || typeof call.tool !== "string" ||
+      call.arguments === null || typeof call.arguments !== "object" ||
+      access.request_schema === null || typeof access.request_schema !== "object") {
+    throw new TypeError("a selected-access marker requires the owner call and its request schema");
+  }
+  return { owner_call: { tool: call.tool, arguments: structuredClone(call.arguments) },
+    request_schema: structuredClone(access.request_schema) };
+}
+
+function selectedAccessRequired(refId, access) {
+  const owner = access?.owner_call;
+  const facts = [
+    { field: "content_reference.readable", value: false },
+    { field: "content_reference.failed_limb", value: "selected_access" },
+    { field: "content_reference.failed_step", value: "content_reference_selected_owner_required" },
+    { field: "content_reference.selected_owner_read", value: false }
+  ];
+  const observed = Object.fromEntries(facts.map(({ field, value }) => [field, value]));
+  let refusal;
+  if (owner === null || typeof owner !== "object" || typeof owner.tool !== "string") {
+
+    const unowned = [...facts.slice(0, 3),
+      { field: "content_reference.operator_only", value: access?.operator_only === true }];
+    refusal = buildResponseMechanicalRefusal({
+      code: CONTENT_REFERENCE_RANGED_READ_UNAVAILABLE_CODE,
+      decidingFacts: unowned,
+      observedFacts: Object.fromEntries(unowned.map(({ field, value }) => [field, value]))
+    });
+  } else {
+    const predicate = { fact: "content_reference.selected_owner_read", operator: "is_true" };
+    refusal = buildPublicMechanicalRefusal({
+      code: CONTENT_REFERENCE_RANGED_READ_UNAVAILABLE_CODE,
+      deciding_facts: facts,
+      next_calls: [buildNextCall({ tool: owner.tool, arguments: owner.arguments, recommended: true,
+        success_predicate: predicate })],
+      recovery: {
+        state: "callable",
+        prerequisite: "this retained artifact is a selected task result; only its owner route reads it",
+        operation: owner.tool,
+        success_condition: "the owner route returns the selected original result without re-executing it",
+        success_predicate: predicate,
+        selected_from: ["content_reference.selected_owner_read"]
+      },
+      route: RESPONSE_BOUNDARY_ROUTE,
+      observed_facts: observed,
+      request_schemas: { [owner.tool]: access.request_schema }
+    });
+  }
+  const envelope = Object.freeze({
+    schema_version: CONTENT_REFERENCE_READ_REFUSAL_SCHEMA_VERSION,
+    accepted: false,
+    complete: false,
+    recoverable: refusal.next_calls !== undefined,
+    code: CONTENT_REFERENCE_RANGED_READ_UNAVAILABLE_CODE,
+    limb: "selected_access",
+    reason: "content_reference_selected_owner_required",
+    ref_id: refId,
+    refusal
+  });
+  const error = new Error(
+    `MCP content reference ${refId} is a selected task result; read it through ${owner?.tool ?? "its owner route"}`);
+  error.envelope = envelope;
+  return error;
+}
+
+export function retainOperatorOnlyEvidence(value, { env = process.env } = {}) {
+  const canonical = canonicalizeStructuredPayload(value);
+  if (canonical === null) throw new TypeError("operator evidence must be JSON");
+  const persisted = persistSpilledPayload(JSON.stringify(canonical.value, null, 2), {
+    env, selectedAccess: () => ({ operator_only: true }) });
+  return Object.freeze({ ref_id: persisted.content_reference.ref_id,
+    sha256: persisted.content_reference.sha256, byte_count: persisted.total_bytes });
+}
+
+export function describeRetentionFailure(error, { operation, subject = null }) {
+  const code = safeReadProperty(error, "code");
+  let cause;
+  let serializationFailure = null;
+  try {
+    cause = serializeWorkRecordDiagnosticValue(error, { path: "retention_failure.cause" });
+  } catch (serializationError) {
+
+    cause = projectDiagnostic(error).value;
+    serializationFailure = projectDiagnostic(serializationError).value;
+  }
+  return {
+    retained: false,
+    failed_operation: operation,
+    subject,
+    cause_code: typeof code === "string" ? code : null,
+    cause,
+    ...(serializationFailure === null ? {} : { cause_serialization_failure: serializationFailure })
+  };
+}
+
+export function readOperatorOnlyEvidence(reference, { env = process.env } = {}) {
+  return JSON.parse(readRetainedArtifactBytes(reference, { stateDir: resolveStateDir(env) }).toString("utf8"));
+}
+
+export const RETAINED_ARTIFACT_READ_FAILURES = Object.freeze({
+  INVALID_REFERENCE: "invalid_reference",
+  NOT_READABLE: "not_readable",
+  BYTES_MISMATCH: "bytes_mismatch"
+});
+
+export function readRetainedArtifactBytes({ ref_id: refId, sha256, byte_count: byteCount = null },
+  { stateDir }) {
+  const fail = (reason) => Object.assign(new Error(`retained artifact read failed: ${reason}`), { reason });
+  let absolutePath;
+  try {
+    absolutePath = referencePathForId(stateDir, refId);
+  } catch {
+    throw fail(RETAINED_ARTIFACT_READ_FAILURES.INVALID_REFERENCE);
+  }
+  let bytes;
+  try {
+    bytes = readFileSync(absolutePath);
+  } catch {
+    throw fail(RETAINED_ARTIFACT_READ_FAILURES.NOT_READABLE);
+  }
+  if ((byteCount !== null && bytes.byteLength !== byteCount) ||
+      createHash("sha256").update(bytes).digest("hex") !== sha256) {
+    throw fail(RETAINED_ARTIFACT_READ_FAILURES.BYTES_MISMATCH);
+  }
+  return bytes;
+}
+
+export function describeRetainedArtifactFile(reference, { env = process.env } = {}) {
+  const stateDir = resolveStateDir(env);
+  const bytes = readRetainedArtifactBytes(reference, { stateDir });
+  return Object.freeze({
+    path: referencePathForId(stateDir, reference.ref_id),
+    media_type: "application/json",
+    encoding: "utf8",
+    byte_count: bytes.byteLength,
+    sha256: reference.sha256
+  });
+}
+
+export function retainedArtifactNotFoundError() {
+  return contentReferenceReadUnavailable("content_reference_not_found");
+}
+
 function readReferenceStep(reason, operation) {
   try {
     return operation();
@@ -657,16 +776,23 @@ function canonicalizeStructuredPayload(payload) {
   return { jsonText, value: JSON.parse(jsonText) };
 }
 
+function generatedTextBlock(value) {
+  return { type: "text", text: JSON.stringify(value) };
+}
+
 export function structuredToolResult(value, { isError = false } = {}) {
-  const result = { content: [], structuredContent: value };
+  const result = { content: [generatedTextBlock(value)], structuredContent: value };
   if (isError) {
     result.isError = true;
   }
   return result;
 }
 
-function hasNoContentCarrier(result) {
-  return Array.isArray(result?.content) && result.content.length === 0;
+function hasOnlyGeneratedTextCarrier(result) {
+  return Array.isArray(result?.content) && result.content.length === 1 &&
+    hasExactKeys(result.content[0], ["type", "text"]) &&
+    result.content[0].type === "text" &&
+    result.content[0].text === JSON.stringify(result.structuredContent);
 }
 
 function withoutTextCarriers(content) {
@@ -773,7 +899,7 @@ function buildPreview(buffer, previewByteLimit) {
 
 function persistSpilledPayload(
   jsonText,
-  { env = process.env, config = null, completeFrameBytes = null } = {}
+  { env = process.env, config = null, completeFrameBytes = null, selectedAccess = null } = {}
 ) {
   const resolvedConfig = config ?? getResponseSpillConfig(env);
   const bytes = Buffer.from(jsonText, "utf8");
@@ -783,6 +909,8 @@ function persistSpilledPayload(
   const refId = `${SPILLED_REF_ID_PREFIX}${Date.now()}-${process.pid}-${randomUUID()}`;
   const absolutePath = referencePathForId(resolvedConfig.stateDir, refId);
   const metadataPath = metadataPathForId(resolvedConfig.stateDir, refId);
+
+  const access = selectedAccess === null ? null : selectedAccessMarker(selectedAccess({ ref_id: refId, sha256 }));
   writeFileSync(absolutePath, bytes, { mode: 0o600 });
   writeFileSync(
     metadataPath,
@@ -793,7 +921,8 @@ function persistSpilledPayload(
       encoding: "utf8",
       byte_count: bytes.byteLength,
       sha256,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      ...(access === null ? {} : { selected_access: access })
     }, null, 2)}\n`,
     { mode: 0o600 }
   );
@@ -810,7 +939,9 @@ function persistSpilledPayload(
       inlineByteLimit: resolvedConfig.inlineByteLimit,
       retainedPayloadBytes: bytes.byteLength
     }),
-    preview: buildPreview(bytes, resolvedConfig.previewByteLimit),
+
+    preview: access === null ? buildPreview(bytes, resolvedConfig.previewByteLimit)
+      : { text: "", bytes: 0 },
     content_reference: {
       kind: CONTENT_REFERENCE_KIND,
       ref_id: refId,
@@ -845,46 +976,6 @@ export function persistControlledContractRefactorItemReference({
     item_identity: itemIdentity,
     byte_count: persisted.total_bytes,
     content_reference: Object.freeze(persisted.content_reference)
-  });
-}
-
-export function persistVerifyProofEvidenceReference({ evidence, evidenceIdentity },
-  { env = process.env } = {}) {
-  if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence) ||
-      evidence.schema_version !== VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION ||
-      typeof evidenceIdentity !== "string" || !RESULT_DIGEST_PATTERN.test(evidenceIdentity) ||
-      evidence.result_digest !== evidenceIdentity) {
-    throw new TypeError("verify-proof evidence persistence requires one digest-bound aggregate");
-  }
-  const canonical = canonicalizeStructuredPayload(evidence);
-  if (canonical === null) throw new TypeError("verify-proof evidence must be JSON");
-  const config = getResponseSpillConfig(env);
-  let persisted;
-  try {
-    persisted = persistSpilledPayload(canonical.jsonText, { env, config });
-  } catch (cause) {
-    const refusal = buildSpillPersistenceRefusal({
-      totalBytes: Buffer.byteLength(canonical.jsonText, "utf8"),
-      cause,
-      config,
-      core: canonical.value,
-      isError: false
-    });
-    return Object.freeze({
-      status: "refused",
-      result: boundTerminalEnvelopeResult(refusal, { isError: true, config })
-    });
-  }
-  return Object.freeze({
-    status: "persisted",
-    reference: Object.freeze({
-      schema_version: VERIFY_PROOF_EVIDENCE_REFERENCE_SCHEMA_VERSION,
-      resource_kind: VERIFY_PROOF_EVIDENCE_RESOURCE_KIND,
-      item_identity: evidenceIdentity,
-      evidence_schema_version: VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION,
-      byte_count: persisted.total_bytes,
-      content_reference: Object.freeze(persisted.content_reference)
-    })
   });
 }
 
@@ -929,20 +1020,16 @@ export function persistVerifyProofCachedRecord({ kind, record, recordIdentity },
 
 export function readVerifyProofCachedRecord({ ref_id: refId, sha256, byte_count: byteCount,
   kind, record_identity: recordIdentity }, { stateDir }) {
-  let absolutePath;
-  try {
-    absolutePath = referencePathForId(stateDir, refId);
-  } catch {
-    throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.CORRUPT, "addressed by an invalid reference");
-  }
   let bytes;
   try {
-    bytes = readFileSync(absolutePath);
-  } catch {
-    throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.UNAVAILABLE, "not readable");
-  }
-  if (bytes.byteLength !== byteCount ||
-      createHash("sha256").update(bytes).digest("hex") !== sha256) {
+    bytes = readRetainedArtifactBytes({ ref_id: refId, sha256, byte_count: byteCount }, { stateDir });
+  } catch (error) {
+    if (error.reason === RETAINED_ARTIFACT_READ_FAILURES.INVALID_REFERENCE) {
+      throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.CORRUPT, "addressed by an invalid reference");
+    }
+    if (error.reason === RETAINED_ARTIFACT_READ_FAILURES.NOT_READABLE) {
+      throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.UNAVAILABLE, "not readable");
+    }
     throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.CORRUPT, "not the recorded bytes");
   }
   let envelope;
@@ -1096,13 +1183,13 @@ function buildSpillPersistenceRefusal({ totalBytes, cause, config, core = null, 
 
 function spillOrRefuse(
   canonicalValue,
-  { isError = false, env = process.env, config, completeFrameBytes = null }
+  { isError = false, env = process.env, config, completeFrameBytes = null, selectedAccess = null }
 ) {
   const jsonText = JSON.stringify(canonicalValue, null, 2);
   let envelope;
 
   try {
-    envelope = persistSpilledPayload(jsonText, { env, config, completeFrameBytes });
+    envelope = persistSpilledPayload(jsonText, { env, config, completeFrameBytes, selectedAccess });
   } catch (cause) {
     const refusal = buildSpillPersistenceRefusal({
       totalBytes: Buffer.byteLength(jsonText, "utf8"),
@@ -1125,7 +1212,8 @@ function shapeStructuredResult(
     env = process.env,
     config = null,
     forceSpill = false,
-    comparedCompleteFrameBytes = null
+    comparedCompleteFrameBytes = null,
+    selectedAccess = null
   } = {}
 ) {
   const resolvedConfig = config ?? getResponseSpillConfig(env);
@@ -1146,7 +1234,7 @@ function shapeStructuredResult(
     }
   }
   return spillOrRefuse(canonical.value, {
-    isError, env, config: resolvedConfig, completeFrameBytes
+    isError, env, config: resolvedConfig, completeFrameBytes, selectedAccess
   });
 }
 
@@ -1193,6 +1281,9 @@ export function readSpilledMcpContentReference({ ref_id, offset = 0, length = nu
   if (metadata.byte_count !== stats.size) {
     throw contentReferenceReadUnavailable("content_reference_metadata_byte_count_mismatch");
   }
+  if (metadata.selected_access !== undefined) {
+    throw selectedAccessRequired(ref_id, metadata.selected_access);
+  }
   const bytesToRead = Math.min(requestedLength, Math.max(0, stats.size - offset));
   const chunk = Buffer.alloc(bytesToRead);
   const fd = readReferenceStep("content_reference_open_failed", () => openSync(absolutePath, "r"));
@@ -1236,9 +1327,12 @@ export function readSpilledMcpContentReference({ ref_id, offset = 0, length = nu
   };
 }
 
-export function jsonContent(data, { env = process.env, forceSpill = false } = {}) {
+export function jsonContent(data, { env = process.env, forceSpill = false, selectedAccess = null } = {}) {
+  if (selectedAccess !== null && (forceSpill !== true || typeof selectedAccess !== "function")) {
+    throw new TypeError("a selected-access artifact is a forced retention with an owner-call derivation");
+  }
   const config = getResponseSpillConfig(env);
-  const shaped = shapeStructuredResult(data, { isError: false, env, config, forceSpill });
+  const shaped = shapeStructuredResult(data, { isError: false, env, config, forceSpill, selectedAccess });
   if (shaped) {
     return shaped;
   }
@@ -1266,7 +1360,7 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
 
   const retainedContent = withoutTextCarriers(result.content);
   const inline = structuredToolResult(canonical.value, { isError });
-  const completeInline = { ...result, ...inline, content: retainedContent };
+  const completeInline = { ...result, ...inline, content: [...inline.content, ...retainedContent] };
   if (isDeepStrictEqual(completeInline, result) &&
       serializedResultFits(result, config.inlineByteLimit)) {
     return result;
@@ -1294,7 +1388,7 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   if (!shaped) {
     return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
   }
-  const completeSpill = { ...result, ...shaped, content: retainedContent };
+  const completeSpill = { ...result, ...shaped, content: [...shaped.content, ...retainedContent] };
 
   return serializedResultFits(completeSpill, config.inlineByteLimit)
     ? completeSpill
@@ -1313,7 +1407,8 @@ export function guardToolHandler(
           name,
           outputSchema
         });
-        if (requiredFailure !== null) return requiredFailure;
+
+        if (requiredFailure !== null) return normalizeMcpToolResult(requiredFailure, { env });
       }
       return normalizeMcpToolResult(result, { env });
     } catch (error) {
@@ -1537,10 +1632,6 @@ export function createStdioShutdownController({
   };
 }
 
-export function redactAbsolutePaths(text) {
-  return text;
-}
-
 export function errorContent(error, { env = process.env } = {}) {
 
   const declaredEnvelope =
@@ -1573,9 +1664,7 @@ export function errorContent(error, { env = process.env } = {}) {
     content: [
       {
         type: "text",
-        text: projectDiagnostic(error, {
-          fieldPrefix: "mcp_response.thrown_diagnostic"
-        }).value
+        text: projectDiagnostic(error).value
       }
     ],
     isError: true

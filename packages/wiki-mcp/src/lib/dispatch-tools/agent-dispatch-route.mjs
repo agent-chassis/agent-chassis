@@ -12,6 +12,7 @@ import {
   buildBlockedDispatchResult,
   buildDispatchMechanicalRefusal,
   buildDispatchToolExceptionDetail,
+  dispatchRepoResolutionRefusal,
   loadReviewerSubjectAdmissionContext,
   NO_SUPPORTED_ROUTE_RECOVERY,
   bindActiveRegisteredToolNames,
@@ -146,7 +147,11 @@ export function registerAgentDispatchRoute({
   revalidatePrivateHandoff,
   generateGraphImpactEvidence,
   refreshAdmissionEvidence,
-  isPaidTier
+  isPaidTier,
+
+  responseEnv = process.env,
+
+  requestContracts = null
 }) {
   const requestSchemaAuthority = requestSchemaAuthorityForRegistration(registerTool);
   bindActiveRegisteredToolNames(registerTool, registeredToolNames);
@@ -183,7 +188,8 @@ export function registerAgentDispatchRoute({
         dispatchModel,
         dispatchBackend,
         dispatchSessionIdentity,
-        jsonContent
+        jsonContent,
+        requestContracts
       });
     }
 
@@ -212,7 +218,8 @@ export function registerAgentDispatchRoute({
       buildTransitionRefusal: projectTransitionRefusal,
       readinessFailure: classifyReadinessFailure,
       launcherTransitionFailures: LAUNCHER_TRANSITION_FAILURES,
-      jsonContent
+      jsonContent,
+      requestSchemaAuthority
     });
     if (readinessResult.response) return readinessResult.response;
 
@@ -230,7 +237,8 @@ export function registerAgentDispatchRoute({
       projectPublicReadiness,
       jsonContent,
       requestSchemaAuthority,
-      reassessmentAvailable
+      reassessmentAvailable,
+      responseEnv
     });
   }
 
@@ -307,10 +315,14 @@ export function registerAgentDispatchRoute({
             })
           }));
         }
+
+        const repoRefusal = dispatchRepoResolutionRefusal(AGENT_DISPATCH_TOOL_NAME, error);
+        if (repoRefusal !== null) return jsonContent(buildBlockedDispatchResult(repoRefusal));
         return jsonContent(buildBlockedDispatchResult({
           blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
           reason: "dispatch_tool_exception",
-          detail: buildDispatchToolExceptionDetail(AGENT_DISPATCH_TOOL_NAME, error),
+          detail: buildDispatchToolExceptionDetail(AGENT_DISPATCH_TOOL_NAME, error,
+            { env: responseEnv }),
           refusal: routeExceptionRefusal(AGENT_DISPATCH_TOOL_NAME)
         }));
       }

@@ -111,6 +111,27 @@ array of `{review_run_id, finding_id, disposition}` entries. There is no
 `comment_dispositions` argument. The request carries no target, ref, receipt,
 review verdict, policy decision, or integration authority.
 
+A refused request returns `accepted: false` with the blocker and the canonical
+`refusal` carrier. For a backend refusal, `blocker.detail` is the producer's
+complete refusal (its code, reason, detail, CCE `diagnostic_kind` and schema, and
+the cause chain of any captured evidence) projected once through the shared
+dispatch failure projection. The public code comes from the integration owner:
+`agent_launch.slice_integration.cce_policy_refused.v1` only when the owner itself
+classified that exact result as a returned CCE decision (by identity, never from
+a caller-shaped field), a registered pass-through classification otherwise, and
+`agent_launch.slice_integration.classification_unavailable.v1` when neither
+exists. The carrier holds the producer refusal identity, the owner's
+classification and any producer correction condition unchanged, and its
+`no_supported_route` recovery names who must act: the operator for the serving
+runtime's Git `merge-tree --merge-base` capability, the coordinator for a
+delivery outside the canonical write scope, the registered classification's actor
+otherwise, and `responsible_actor: null` with an explanation when no owner
+established a correction. No call is offered: an unchanged request refuses
+identically, and a correction condition grants no integration authority. Caller
+authority fields, a malformed subject and an absent backend refuse the same way
+(caller, caller and operator respectively), and an unresolvable `repo` is the
+repository-resolution owner's `workspace_repo_resolution_invalid` refusal.
+
 These roles are selected by explicit structured fields and bound function
 contracts, never by substring matching over a reason, code, subject, or prose.
 The normative CCE-policy versus local-mechanical boundary is owned by
@@ -345,9 +366,14 @@ remaining-delta detection, and immutable delivery replay — share one result
 interpreter. Exit status 1 without a process fault is a content conflict. A
 positively identified rejection of the required `--merge-base` option is instead
 a typed serving-runtime prerequisite failure; other nonzero, signalled, or faulted
-results remain execution failures rather than conflicts. Public diagnostic
+results remain execution failures rather than conflicts. The diagnostic
 evidence retains bounded operation/argument, repository, base/current/incoming
-object, status, signal, process-error, stdout, and stderr facts. Bounded text is
+object, status, signal, process-error, stdout, and stderr facts. The public
+refusal detail publishes those facts and the cause chain except the process
+output: `stdout` and `stderr` stay in the operator-retained original named by
+`retained_evidence`
+([Dispatch-family failure detail](mcp-operation-reference.md#dispatch-family-failure-detail)).
+Bounded text is
 an exact prefix of what Git emitted, cut on a character boundary. The trusted Git
 runners keep the first 2,048 UTF-16 code units of stderr and report
 `stderr_truncated` and the emitted `stderr_bytes`; the diagnostic's own
@@ -488,9 +514,8 @@ observation before accepting a winner. Recovery and later fresh integration use
 separate observations. Every record-CAS retry, new integration transaction,
 WK-ref movement, fixed-fork identity change, complete-generation change, or
 record-digest change discards every cached commit, marker conclusion, and
-zero-delta projection and starts again. Provisioning may share one observation
-among same-WK dependency checks only inside its one exact dependency-resolution
-phase.
+zero-delta projection and starts again. Each same-WK dependency observation in
+provisioning constructs its own observation for the resolver's one captured tip.
 
 The live consumer dispositions remain specific:
 
@@ -503,10 +528,21 @@ The live consumer dispositions remain specific:
   siblings; an indeterminate completeness projection remains incomplete/`false`
   and cannot authorize the terminal transition. Failure to construct the
   operation's observation remains a typed mechanical refusal before a write.
-- `replayEquivalentDependencyEvidence` in backend provisioning performs no
-  history walk or marker classification of its own. Indeterminate observation or
-  projection returns exactly `admitted: false` with
-  `replay_marker_indeterminate`.
+- `reconcileIntegratedSliceRecord` (the first step of every integrated-delivery
+  observation, and so of every managed monitor observation and post-worker
+  lifecycle attempt) reads the WK-tip slice marker from the region, projected to
+  exactly one candidate. When replay gave the integrated marker a different SHA,
+  the retained slice tip is authenticated from its own post-fork region, which
+  ends at the same fork; the tip must be one of that region's canonical markers.
+  Neither read walks to the repository root. The region owner's refusals cross
+  unchanged: a failed fork-ref read stays `GIT_FAILED` with its Git status and
+  stderr, and a missing or malformed fork binding stays `BINDING_MISMATCH`.
+  Neither is reported as "not integrated".
+- The same-WK dependency observation in backend provisioning
+  ([captured-tip dependency observation](#captured-tip-dependency-observation))
+  performs no history walk or marker classification of its own. An
+  indeterminate observation or projection is the distinct
+  `dependency_observation_indeterminate` refusal, never an unmet dependency.
 
 These are decision mechanical outcomes, not policy judgments. Missing or stale
 obligation coverage, proof carriers, or other non-authorizing evidence can inform
@@ -520,6 +556,82 @@ Successful cost is `O(post-fork commits + relevant candidates)`, independent of
 pre-fork age and completed-sibling count. The executable scale fixture has 500
 pre-fork commits and five post-fork commits; the successful observation reads
 only those five commits plus the exact floor and reads none of the preceding 499.
+
+### Captured-tip dependency observation
+
+Given a launcher-captured WK tip, `observeIntegratedSliceDelivery` answers the
+dependency question for one same-WK implementation slice: is the exact retained
+delivery on that slice's ref integrated into THAT tip? It is maybe-asynchronous
+over the injected Git runner, so a synchronous runner keeps a synchronous
+resolver and an asynchronous one is awaited inside the resolver's own loop. It
+returns one of three facts and decides no ordering policy:
+
+- `present` — authenticated inclusion, with `delivery_kind` (`direct`, `replay`
+  or `zero_delta`), `inclusion` and the record's bookkeeping reported beside it
+  as `record_reconciliation`: `reconciled`, `pending`
+  (`canonical_record_not_reconciled`) or `blocked` (a cancelled slice, or a
+  terminal parent over a non-done slice). Bookkeeping never changes the fact and
+  nothing is backfilled.
+- `absent` — a completed permitted observation proves the exact delivery is not
+  in the captured tip's fixed-fork region.
+- `indeterminate` — a named required fact was unavailable, malformed,
+  mismatched or moved, with the distilled read cause (operation, object or ref,
+  exit status, signal, spawn error, timeout and overflow flags, at most the
+  first stderr line).
+
+**Selection.** A present `integrated_delivery_sha` is an exact candidate
+selector, never authority. It must authenticate against the retained delivery
+through `authenticateIntegratedDeliveryCandidate`: the retained delivery is one
+canonical launcher delivery (one literal parent, exact minted message bytes),
+and the candidate is that delivery (`direct`), a single-parent commit with the
+same message bytes and an equal normalized parent-relative structural delta
+(`replay`; whole trees are never compared), or authenticated zero-delta evidence
+bound to that delivery and base (`zero_delta`). A required read the
+authentication cannot complete — including the zero-delta evidence's WK parent
+or its explicit-base merge-tree run — is `zero_delta_evidence_unreadable` (or
+the corresponding unreadable reason) with its distilled cause, never a
+mismatch; only a completed read that disagrees is a mismatch. A malformed
+selector, or one that does not authenticate, is indeterminate and never falls
+back to marker discovery. A canonical record that cannot be reread during the
+final identity recheck is `canonical_record_unreadable` with its cause, distinct
+from a reread record whose digest changed (`canonical_record_changed`). The authenticated selector's inclusion is then answered by the
+targeted literal walk over the same post-fork traversal: equality reads no
+history, a direct parent reads only the tip, and a deeper inclusion stops at the
+first commit that names the selector as a parent. Only a completed walk of the
+permitted region answers `absent`. The targeted walk proves inclusion of one
+recorded delivery; it enumerates no marker, claims no uniqueness, and is never
+reused as a complete-region observation.
+
+With no selector — a reconciled record the already-consistent write left without
+one, or an interrupted write — the complete fixed-fork observation and
+`classifySliceMarkerEvidenceFromRegion` select: exactly one marker that
+authenticates as this delivery is `present`, none is `absent`, and more than one
+is `indeterminate` (`integrated_delivery_marker_ambiguous`). Complete-region
+clients keep their complete traversal and plural-marker semantics.
+
+**Pinned identities.** Repository, captured WK tip and ref, retained delivery
+ref, canonical record source digest, fixed fork and complete contract generation
+are pinned before selection and rechecked through their existing owners before
+the answer is returned; any movement or read failure is `indeterminate`
+(`captured_wk_tip_moved`, `retained_delivery_ref_moved`,
+`canonical_record_changed`, `fixed_fork_moved`, `contract_generation_changed`,
+`pinned_ref_unobservable`, and so on).
+
+The dependency resolver consumes `present` as met, `absent` as
+`dependency_not_present_on_wk_branch` with evidence `integrated_delivery_absent`,
+and `indeterminate` as `dependency_observation_indeterminate`, which maps to the
+`launcher_transition.dependency_observation_indeterminate.v1` transition failure:
+restore the named read, then retry the identical dispatch. No worker starts while
+required authentication is indeterminate, and a restored read needs no
+reintegration or record edit.
+
+**Terminal delivery authentication** delegates the same common checks — literal
+commit parsing and message bytes, parent-relative structural-delta equivalence,
+zero-delta authenticity — to `authenticateIntegratedDeliveryCandidate`, and
+literal inclusion in the exact current WK tip to the same targeted walk bounded
+by the literal roots. Replacement refs and grafts cannot fabricate that
+inclusion. Terminal keeps its own absent/null-to-exact record transition,
+subject, ref and record rechecks and branded proof minting.
 
 ### Zero-delta lifecycle recovery
 

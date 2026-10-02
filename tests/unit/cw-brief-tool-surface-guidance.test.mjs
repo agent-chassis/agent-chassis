@@ -17,9 +17,8 @@ import {
   evaluateWorkRecordWrapperGate
 } from "../../packages/agent-launch-core/src/index.mjs";
 import {
-  LAUNCHER_FAMILY_ROLE_CONTRACT_SHAPES,
-  classifyLauncherRoleContractShape
-} from "../../packages/agent-launch-cli/src/lib/codex-role-prompts.mjs";
+  renderAgentRoleGuideReadReference
+} from "../../packages/agent-launch-core/src/lib/agent-role-guides.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const tempRoot = path.join(os.tmpdir(), "agent-chassis-cw-brief-tool-surface-guidance");
@@ -176,22 +175,16 @@ test("WK-0764 CW launch packet prompt carries implementation tool-surface guidan
 
     const prompt = gate.launch_packet.prompt;
     assert.equal(
-      classifyLauncherRoleContractShape(prompt),
-      LAUNCHER_FAMILY_ROLE_CONTRACT_SHAPES.worker,
-      "launch packet prompt must remain implementation-shaped"
+      prompt.split(renderAgentRoleGuideReadReference("managed-worker")).length - 1,
+      1,
+      "launch packet prompt references the managed-worker guide once"
     );
-    assert.equal(
-      prompt.includes("Findings only. Do not modify files."),
-      false,
-      "launch packet prompt must not collapse into the findings-only contract"
-    );
-    assert.ok(
-      prompt.includes(
-        "Implement the assigned task. Read only the listed readable paths and modify only the listed writable paths. " +
-          "Use the tools available in this session. Run workspace_verify_proof, report the result, then commit. " +
-          "If required implementation work falls outside scope, report the blocker."
-      ),
-      "launch packet prompt must carry the shared implementation-worker instruction"
+    assert.equal(prompt.includes("guide before acting:"), true);
+    assert.equal(prompt.split("guide before acting:").length - 1, 1, "only the managed-worker guide is referenced");
+
+    assert.doesNotMatch(
+      prompt,
+      /Implement the assigned task|Findings only\. Do not modify files|acceptance validation outside this assignment|Do not rely on hidden coordinator chat context/u
     );
     assert.match(prompt, /### Readable Paths/);
     assert.match(prompt, /### Writable Paths/);

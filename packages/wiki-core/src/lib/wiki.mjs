@@ -122,11 +122,9 @@ function buildCreatedIssueWorkRecord({ id, title, date, repo }) {
       requires_graph_impact: false,
       requires_escalation: false
     },
+
     acceptance: {
-      criteria: [
-        "intended behavior or invariant is explicit",
-        "verification plan or regression coverage is identified"
-      ],
+      criteria: [],
       validation: []
     },
     sections: {

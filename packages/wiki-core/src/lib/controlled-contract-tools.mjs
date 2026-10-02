@@ -280,8 +280,21 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
   overview: "Author a unit's contract requirements, controlled-acceptance disposition and " +
     "obligations. First call workspace_controlled_contract_obligation_coverage_query for the " +
     "unit and focus: it returns the combined content_digest this upsert takes as " +
-    "expected_content_digest, and the existing claim, verification, obligation and case " +
-    "identities. Save at least one of contract_requirements, controlled_acceptance or " +
+    "expected_content_digest, the existing claim, verification, obligation and case " +
+    "identities, and the selected unit's acceptance_criteria[].identity values. " +
+    "obligations[].acceptance_criteria takes those exact identities, never criterion text, " +
+    "positions or invented labels; omission preserves, [] clears and an unknown identity " +
+    "refuses. expected_content_digest is the current combined content_digest for the same " +
+    "unit and focus, from that query or a successful save receipt that no later work-record " +
+    "or coverage mutation has superseded; it is never a work-record or tool-guidance source_digest, and null " +
+    "only asserts that no combined state exists. A digest already held and still current " +
+    "needs no re-query. A slice may reuse a parent case as case:{case_id} where that case's " +
+    "meaning applies. Parent coverage never transfers: the slice needs its own obligations " +
+    "bound to its own criterion identities, never matched by AC label, position or similar " +
+    "wording. Each queried requirement lists every linked verification in " +
+    "meaning.verifications, ordered by claim_id; an upsert requirement restates ONE " +
+    "verification, so copy the method, verifier, observes, fails_when and runtime_test of the " +
+    "entry being restated into its verification. Save at least one of contract_requirements, controlled_acceptance or " +
     "obligations; supplied items replace those items and omission preserves the others. " +
     "contract_requirements carries requirements, retire_claim_ids or both: " +
     `${CONTROLLED_CONTRACT_REQUIREMENT_LIMITS.requirements_per_answer} entries at most across ` +
@@ -599,12 +612,16 @@ const controlledAcceptanceInput = { oneOf: [
     properties: { disposition: { const: 'opted_out' }, rationale: {
       type: 'string', minLength: 1, maxLength: 8192, pattern: '^\\S(?:[\\s\\S]*\\S)?$' } } }
 ] };
-const queryFields = { obligation_id: obligationId, parameter_detail: { type: "boolean" },
-  inventory: { type: "boolean", description: "Compact obligation inventory: one row per obligation " +
-    "with its authored statement and factual gap/selection/case indicators, and one shared detail-read " +
-    "declaration instead of requirement and reference bodies. Refused with obligation_id or " +
-    "parameter_detail, which read one obligation in full." },
-  cursor: { type: "string", minLength: 1, maxLength: 8192 } };
+const queryFields = { obligation_id: obligationId,
+  parameter_detail: { type: "boolean", description: "Add each returned obligation's exact saved " +
+    "proof-pin parameter contract, or its factual unselected, unpinned or stale state; never refreshes a pin." },
+  inventory: { type: "boolean", description: "Obligation inventory view: one row per obligation " +
+    "with its complete authored statement and proof, case and gap indicators, plus a contract-input " +
+    "summary instead of requirement and reference bodies. Refused with obligation_id, " +
+    "parameter_detail or view:\"complete\"." },
+  view: { type: "string", enum: ["compact", "complete"], description: "compact (default) returns the " +
+    "whole result when it fits one frame, otherwise identity, authorized counts and the call that starts " +
+    "complete retrieval; complete starts that retrieval at once. Neither needs an inventory first." } };
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA = draftRequest({
   expected_content_digest: sourceCAS,
   contract_requirements: contractRequirements,
@@ -621,15 +638,14 @@ export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_INPUT_SCHEMA = draft
 }, ["obligation_id", "removal_scope", "expected_content_digest"]);
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA = draftRequest(queryFields);
 export const VALIDATE_PROOF_INPUT_SCHEMA = draftRequest({ obligation_id: obligationId,
-  diagnostic_group_id: { type: 'string', pattern: '^diagnostic-group-[0-9a-f]{64}$' },
-  cursor: queryFields.cursor });
+  diagnostic_group_id: { type: 'string', pattern: '^diagnostic-group-[0-9a-f]{64}$' } });
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_RESULT_SCHEMA_POPULATIONS = Object.freeze([
   "saved", "deleted", "no_op", "source_absent", "source_present", "valid", "invalid", "post_commit_failure", "mechanical_failure"
 ]);
 const proofTool = (name, description, inputSchema) => Object.freeze({ name, description, inputSchema });
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL = proofTool(
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL_NAME,
-  "Save contract requirements, controlled-acceptance applicability, obligation meaning, proof selections and shared authored cases under one combined revision CAS; omission preserves. In case.falsification, null clears only fields listed by verbose discovery. Quiet receipt; query returns saved meaning.",
+  "Save contract requirements, controlled-acceptance applicability, obligation meaning, proof selections and shared authored cases under one combined revision CAS; omission preserves. obligations[].acceptance_criteria takes exact query acceptance_criteria[].identity values, never criterion text, positions or invented labels. expected_content_digest is the current combined content_digest for the same unit/focus from query or a still-current save receipt, never a work-record or tool-guidance source_digest. In case.falsification, null clears only fields listed by verbose discovery. Quiet receipt; query returns saved meaning.",
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA);
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_TOOL = proofTool(
   "workspace_controlled_contract_obligation_coverage_remove",
@@ -637,10 +653,10 @@ export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_TOOL = proofTool(
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_INPUT_SCHEMA);
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_TOOL = proofTool(
   "workspace_controlled_contract_obligation_coverage_query",
-  "Saved requirements, deduplicated references, parent controlled-acceptance applicability, draft obligations, shared cases, exact pins at one revision. obligation_id reads one obligation; parameter_detail pins; inventory IDs with statements. Large values spill losslessly.",
+  "Saved requirements with every linked verification, deduplicated references, applicability, obligations, shared cases, notes and exact pins at one revision. Compact by default; view:\"complete\" or detail retrieves the whole result in bounded pages. obligation_id reads one obligation directly; parameter_detail reports pins; inventory lists statements.",
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA);
 export const VALIDATE_PROOF_TOOL = proofTool("workspace_validate_proof",
-  "Explicitly validate saved design inputs against the exact selected proof route. Results distinguish blocking, nonblocking and unresolved diagnostics, explain route stages and recovery, and group only equivalent meanings; diagnostic_group_id returns lossless occurrence detail. Does not execute providers, assess dispatch, change authored values or grant readiness.", VALIDATE_PROOF_INPUT_SCHEMA);
+  "Explicitly validate saved design inputs against the exact selected proof route. The compact default assesses authored validity, route stages and zero execution credit, and indexes the blocking and actionable issues with each one's diagnostic_group_id call; diagnostic_group_id or obligation_id returns that selection's subjects, typed failed fields, corrections and addressed correction call. Does not execute providers, assess dispatch, change authored values or grant readiness.", VALIDATE_PROOF_INPUT_SCHEMA);
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_TOOL_DEFINITIONS = Object.freeze([
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL,
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_TOOL,

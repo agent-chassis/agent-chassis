@@ -1,8 +1,12 @@
 
 
 import {
+  REPOSITORY_SCOPE_FIELDS,
+  UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
+  findUnsupportedRepositoryScopeSelector,
   isRepositoryRelativePath,
-  normalizeRepositoryRelativePath
+  normalizeRepositoryRelativePath,
+  repositoryScopeSelectorRefusalMessage
 } from "./work-record-repository-path.mjs";
 import { canonicalizeWorkRecordReadScope } from "./work-record-schema.mjs";
 import {
@@ -190,6 +194,14 @@ function repoPath(value, path) {
 function stringList(value, path, { paths = false } = {}) {
   if (!Array.isArray(value)) {
     readyInputError("ready_slice_invalid_field", `${path} must be an array`, path);
+  }
+
+  const unsupported = REPOSITORY_SCOPE_FIELDS.includes(path)
+    ? findUnsupportedRepositoryScopeSelector(value)
+    : null;
+  if (unsupported !== null) {
+    readyInputError(UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
+      repositoryScopeSelectorRefusalMessage(path, unsupported.entry), `${path}[${unsupported.index}]`);
   }
   return value.map((entry, index) => paths
     ? repoPath(entry, `${path}[${index}]`)

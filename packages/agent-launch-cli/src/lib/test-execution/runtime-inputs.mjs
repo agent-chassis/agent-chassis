@@ -1,5 +1,8 @@
 
 
+import { spawnSync } from "node:child_process";
+import { appendFileSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync }
+  from "node:fs";
 import path from "node:path";
 
 import { TEST_RUNTIME_RUNNER_CATALOG, testProofProviderFamily } from
@@ -23,6 +26,141 @@ export function workingCopyProjectDir(scratchRoot, project) {
   return project === "." ? path.join(scratchRoot, "work") : path.join(scratchRoot, "work", project);
 }
 
+export const NATIVE_COMPILER_CACHE_RELATIVE_PATH = ".cache/test-proof-native";
+
+export const NATIVE_COMPILER_CACHE_EXCLUDE_PATTERN = `/${NATIVE_COMPILER_CACHE_RELATIVE_PATH}/`;
+const CACHE_NAME_RE = /^[a-z0-9][a-z0-9-]*$/u;
+
+function runGitIn(repository, args) {
+  const result = spawnSync("git", ["-C", repository, ...args], { encoding: "utf8", env: process.env,
+    maxBuffer: 16 * 1024 * 1024 });
+  return { ok: result.status === 0, status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "",
+    error: result.error ?? null };
+}
+
+function exclusionRefusal(code, message, detail) {
+  return Object.assign(new Error(message), { code, detail });
+}
+
+export function ensureNativeCompilerCacheExcluded({ repositoryRoot, runGit = runGitIn }) {
+  const code = "test_runtime_native_cache_exclusion_failed";
+  const repository = realpathSync(repositoryRoot);
+  const git = (args) => {
+    const result = runGit(repository, args);
+    if (!result.ok) {
+      throw exclusionRefusal(code, `git ${args.join(" ")} failed in ${repository}`,
+        { repository, args, status: result.status, stderr: result.stderr.trim().slice(-4096),
+          errno: result.error?.code ?? null });
+    }
+    return result.stdout;
+  };
+  const top = git(["rev-parse", "--show-toplevel"]).trim();
+  if (realpathSync(top) !== repository) {
+    throw exclusionRefusal(code, `${repository} is not the top level of its Git work tree`,
+      { repository, top_level: top });
+  }
+  const tracked = git(["ls-files", "-z", "--", NATIVE_COMPILER_CACHE_RELATIVE_PATH]).split("\0").filter(Boolean);
+  if (tracked.length > 0) {
+    throw exclusionRefusal(code, `Git tracks files below ${NATIVE_COMPILER_CACHE_RELATIVE_PATH}; ` +
+      "native compiler caches never hold tracked content", { repository, tracked: tracked.slice(0, 16),
+      tracked_count: tracked.length, correction: `remove ${NATIVE_COMPILER_CACHE_RELATIVE_PATH} from the index ` +
+        "(it holds disposable compiler state), then rerun setup" });
+  }
+  const file = git(["rev-parse", "--path-format=absolute", "--git-path", "info/exclude"]).trim();
+  let text = "";
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      throw exclusionRefusal(code, `${file} cannot be read`, { path: file, errno: error?.code ?? null });
+    }
+  }
+  if (text.split("\n").some((line) => line.trim() === NATIVE_COMPILER_CACHE_EXCLUDE_PATTERN)) {
+    return Object.freeze({ status: "present", path: file });
+  }
+  try {
+    mkdirSync(path.dirname(file), { recursive: true });
+    const separator = text === "" || text.endsWith("\n") ? "" : "\n";
+    appendFileSync(file, `${separator}${NATIVE_COMPILER_CACHE_EXCLUDE_PATTERN}\n`);
+  } catch (error) {
+    throw exclusionRefusal(code, `${file} cannot be written`, { path: file, errno: error?.code ?? null });
+  }
+  return Object.freeze({ status: "added", path: file });
+}
+
+export function nativeCompilerCachePath(repositoryRoot, name) {
+  if (typeof name !== "string" || !CACHE_NAME_RE.test(name)) {
+    throw new Error(`invalid native compiler cache name ${JSON.stringify(name)}`);
+  }
+  return path.join(realpathSync(repositoryRoot), NATIVE_COMPILER_CACHE_RELATIVE_PATH, name);
+}
+
+function cacheRefusal(message, detail) {
+  return Object.assign(new Error(message), { code: "test_proof_native_compiler_cache_unavailable", detail });
+}
+
+export function openNativeCompilerCache({ repositoryRoot, directory, links = [], runGit = runGitIn }) {
+  const repository = realpathSync(repositoryRoot);
+  const relative = path.relative(repository, directory);
+  const segments = relative.split(path.sep);
+  if (path.isAbsolute(relative) || segments.length !== 3 ||
+      segments.slice(0, 2).join("/") !== NATIVE_COMPILER_CACHE_RELATIVE_PATH || !CACHE_NAME_RE.test(segments[2])) {
+    throw cacheRefusal("native compiler cache path escapes its launcher-owned root", { path: directory });
+  }
+
+  const assertRealDirectory = (component) => {
+    const stat = lstatSync(component);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw cacheRefusal("native compiler cache location is redirected or not a directory", { path: component });
+    }
+  };
+  let existing = repository;
+  for (const segment of segments) {
+    existing = path.join(existing, segment);
+    try {
+      assertRealDirectory(existing);
+    } catch (error) {
+      if (error?.code === "ENOENT") break;
+      throw error;
+    }
+  }
+
+  const ignored = runGit(repository, ["check-ignore", "-q", "--", `${relative}/`]);
+  if (ignored.status !== 0) {
+    throw Object.assign(new Error(`Git does not ignore the native compiler cache ${relative}`), {
+      code: "test_proof_native_compiler_cache_not_excluded",
+      detail: { path: directory, check_ignore_status: ignored.status,
+        recovery: "rerun local test-runtime setup, which adds the exact " +
+          `${NATIVE_COMPILER_CACHE_EXCLUDE_PATTERN} exclusion to the repository's Git info/exclude` } });
+  }
+  let current = repository;
+  for (const segment of segments) {
+    current = path.join(current, segment);
+    try {
+      mkdirSync(current, { mode: 0o700 });
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw cacheRefusal("native compiler cache directory cannot be created",
+        { path: current, errno: error?.code ?? null });
+    }
+    assertRealDirectory(current);
+  }
+  const linked = (link) => {
+    try { return readlinkSync(link.path) === link.target; } catch { return false; }
+  };
+  for (const link of links) {
+    if (linked(link)) continue;
+    rmSync(link.path, { recursive: true, force: true });
+    try {
+      symlinkSync(link.target, link.path);
+    } catch (error) {
+
+      if (error?.code !== "EEXIST" || !linked(link)) throw cacheRefusal("native compiler cache link cannot be made",
+        { path: link.path, errno: error?.code ?? null });
+    }
+  }
+  return current;
+}
+
 export function isUnderSystemRoot(absolute) {
   return DEFAULT_SYSTEM_READ_ONLY_ROOTS.some((root) =>
     absolute === root || absolute.startsWith(`${root}/`));
@@ -38,7 +176,7 @@ function uniqueBinds(binds) {
   });
 }
 
-function composeRuntimeInputs(ready, { workProjectDir, scratchRoot }) {
+function composeRuntimeInputs(ready, { repositoryRoot = null, workProjectDir, scratchRoot, compilerCache = false }) {
   const toolchainBinds = [];
   const binDirs = [];
   const executables = {};
@@ -55,10 +193,14 @@ function composeRuntimeInputs(ready, { workProjectDir, scratchRoot }) {
       content_digest: toolchain.content_digest };
   }
   const ecosystem = DEPENDENCY_ECOSYSTEMS[ready.preparation.ecosystem];
+
+  const cacheDirectory = compilerCache && typeof ecosystem.compilerCacheEnv === "string"
+    ? nativeCompilerCachePath(repositoryRoot, ecosystem.compilerCacheName(ready.preparation)) : null;
   const binding = workProjectDir !== null && ready.preparation.status === "present" &&
     typeof ecosystem.workingCopyBinding === "function"
     ? ecosystem.workingCopyBinding({ dependency: ready.preparation, workProjectDir, scratchRoot })
-    : ecosystem.runtimeBinding({ dependency: ready.preparation, projectHostDir: ready.projectDir, scratchRoot });
+    : ecosystem.runtimeBinding({ dependency: ready.preparation, projectHostDir: ready.projectDir, scratchRoot,
+      compilerCache: cacheDirectory });
   const binds = [...toolchainBinds.map(({ src, dst }) => ({ src, dst })), ...binding.binds];
   if (binding.values.python) {
     executables.python = binding.values.python;
@@ -69,7 +211,8 @@ function composeRuntimeInputs(ready, { workProjectDir, scratchRoot }) {
     HOME: `${scratchRoot}/home`,
     LANG: "C.UTF-8",
     CI: "true",
-    ...binding.env
+    ...binding.env,
+    ...(cacheDirectory === null ? {} : { [ecosystem.compilerCacheEnv]: cacheDirectory })
   };
   return Object.freeze({
     ok: true,
@@ -82,6 +225,9 @@ function composeRuntimeInputs(ready, { workProjectDir, scratchRoot }) {
     mountpoints: binding.mountpoints,
     directories: Object.freeze([...(binding.directories ?? [])]),
     links: binding.links ?? [],
+
+    compilerCache: cacheDirectory === null ? null
+      : Object.freeze({ directory: cacheDirectory, links: Object.freeze([...(binding.cacheLinks ?? [])]) }),
     env,
     executables,
     values: binding.values,
@@ -105,11 +251,11 @@ function composeRuntimeInputs(ready, { workProjectDir, scratchRoot }) {
 }
 
 export function resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot, descriptor, project,
-  candidateRecord = null, workProjectDir = null, scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
+  candidateRecord = null, workProjectDir = null, scratchRoot = ATTEMPT_SCRATCH_ROOT, compilerCache = false }) {
   const ready = resolveReadyRunnerInputs({ repositoryRoot, checkoutRoot, descriptor, project,
     candidateRecord });
   if (!ready.ok) return ready;
-  return composeRuntimeInputs(ready, { workProjectDir, scratchRoot });
+  return composeRuntimeInputs(ready, { repositoryRoot, workProjectDir, scratchRoot, compilerCache });
 }
 
 export function resolveEnvironmentRuntimeInputs({ repositoryRoot, checkoutRoot, ecosystem, project,

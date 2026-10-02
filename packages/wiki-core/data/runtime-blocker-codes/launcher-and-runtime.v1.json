@@ -221,6 +221,15 @@
       "consumer_notes": "This is a mechanical dependency/readiness refusal, not runtime backend unavailability."
     },
     {
+      "code": "launcher_transition.dependency_observation_indeterminate.v1",
+      "category": "work_record_readiness",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A required authentication read for an exact dependency's integrated delivery failed, was malformed, or moved while the launcher observed it.",
+      "detail": "The launcher could neither prove nor refute that the dependency's integrated delivery is in the captured WK tip, so no worker starts. The refusal names the dependency, the captured WK tip, the failed operation and object or ref, and the distilled process cause. The bounded recovery is to restore that read, then retry the identical workspace agent dispatch; integrating again is not the recovery.",
+      "consumer_notes": "This is a mechanical observation failure, distinct from an unmet dependency (launcher_transition.dependency_identity_unresolved.v1) and from runtime backend unavailability."
+    },
+    {
       "code": "launcher_transition.publication_identity_unresolved.v1",
       "category": "work_record_readiness",
       "actor_recovery": "coordinator",
@@ -571,8 +580,17 @@
       "actor_recovery": "operator",
       "blocking": true,
       "summary": "A dispatch whose role requires the launcher-owned wiki-MCP conduit could not obtain a usable bubblewrap namespace.",
-      "detail": "The conduit and host wiki-MCP server were established, then the bwrap child failed to spawn or reported an unusable-backend diagnostic. The conduit's two FIFO nodes exist only inside a bwrap namespace, so no unconfined launch can reach the required MCP surface.",
-      "consumer_notes": "Terminal for both supported families. A launch holding a required conduit never enters the unenforced plain-spawn fallback; the host server, FIFO directory, and all descriptors are torn down before the refusal is returned. Only a typed bubblewrap backend diagnostic (unavailable, not executable, probe failed, or spawn failed) selects this code. A modeled launch path failure is agent_launch.confined_launch.path_unprepared.v1, and any other failure is reported as an authenticated-unclassified refusal whose cause is stated as unknown, never this code."
+      "detail": "The conduit and host wiki-MCP server were established, then the bwrap backend was reported unavailable, not executable, or its version probe failed. The conduit's two FIFO nodes exist only inside a bwrap namespace, so no unconfined launch can reach the required MCP surface.",
+      "consumer_notes": "Terminal for both supported families. A launch holding a required conduit never enters the unenforced plain-spawn fallback; the host server, FIFO directory, and all descriptors are torn down before the refusal is returned. Only a typed bubblewrap backend diagnostic (unavailable, not executable, or probe failed) selects this code. An identified spawn failure is agent_launch.isolation.bwrap_spawn_failed.v1, a modeled launch path failure is agent_launch.confined_launch.path_unprepared.v1, and any other failure is reported as an authenticated-unclassified refusal whose cause is stated as unknown, never this code."
+    },
+    {
+      "code": "agent_launch.isolation.bwrap_spawn_failed.v1",
+      "category": "sandbox",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The operating system refused to start the bwrap process for a confined launch that holds a required conduit.",
+      "detail": "Spawning the bwrap executable itself failed, either for its version probe or for the actual confined child. The refusal names the failing operation (bwrap_version_probe or bwrap_confined_child_spawn), the native errno, and a bounded, host-path-redacted native message. A spawn refusal such as E2BIG does not establish that bubblewrap is missing or unusable, and the refusal does not identify which argument or environment entry exceeded a limit. The conduit is torn down first; confinement stays mandatory and no unconfined launch is attempted.",
+      "consumer_notes": "Preserve this identity, the operation, and the errno through both family catches, cleanup, backend classification, and public projection; a conduit cleanup failure stays secondary evidence. Never project it as stdio_mcp_conduit_requires_bubblewrap or an unclassified launch failure. No supported corrective operation exists: do not recommend reinstalling bubblewrap or an automatic retry."
     },
     {
       "code": "agent_launch.confined_launch.path_unprepared.v1",
@@ -580,7 +598,7 @@
       "actor_recovery": "operator",
       "blocking": true,
       "summary": "A path the confined launch must project is absent or unusable in the launcher-prepared checkout.",
-      "detail": "Worker scope membership was already resolved against the authenticated base, so a launch-time path failure on an admitted scope member (for example an admitted new writable directory that was not created) or on a launcher-owned mount source is a launcher preparation or projection defect. The refusal names the isolation diagnostic, errno, and the repository-relative path and scope member when one applies. Confinement stays mandatory; no unconfined launch is attempted.",
+      "detail": "Worker scope membership was already resolved against the authenticated base, so a launch-time path failure on an admitted scope member (for example a frozen structural parent of an admitted new output file that could not be created, or a base-existing ancestor that disappeared from the allocated checkout and is never recreated) or on a launcher-owned mount source is a launcher preparation or projection defect. The refusal names the isolation diagnostic, errno, and the repository-relative path and scope member when one applies; resources the launcher created and could not release are secondary precreation_cleanup_failure evidence. Confinement stays mandatory; no unconfined launch is attempted.",
       "recovery": {
         "kind": "operator_launcher_preparation_repair",
         "target": "the launcher preparation or projection of the repository-relative path named by the refusal",
@@ -610,7 +628,7 @@
       "actor_recovery": "coordinator",
       "blocking": true,
       "summary": "A path declared in the selected slice's read_scope, repo_paths, or write_scope does not resolve at the authenticated scope base.",
-      "detail": "The launcher resolves declared scope membership against the commit the slice worktree is cut from before any worker exists. This code is an authored-scope verdict: the refusal names the declared field, the declared path, the first failing component, and a cause (missing_leaf, missing_intermediate, symlink, gitlink, type_conflict, non_canonical_path, git_metadata_path, or escapes_repository). It is not a launcher preparation failure; those are agent_launch.confined_launch.path_unprepared.v1.",
+      "detail": "The launcher resolves declared scope membership against the commit the slice worktree is cut from before any worker exists. This code is an authored-scope verdict: the refusal names the declared field, the declared path, the first failing component, and a cause (missing_leaf, missing_intermediate, symlink, gitlink, type_conflict, non_canonical_path, git_metadata_path, escapes_repository, glob_selector, or directory_scope). An intended new write file may lie beneath parents absent at the base; the launcher prepares those parents, so missing_leaf and missing_intermediate apply to missing read entries, and type_conflict also names two write files where one would need the other as a directory. glob_selector and directory_scope mean the entry is not one individual file: globs and directory scopes are unsupported, so the author enumerates each required repository-relative file, including intended new write files. It is not a launcher preparation failure; those are agent_launch.confined_launch.path_unprepared.v1.",
       "recovery": {
         "kind": "exact_declared_scope_path_correction",
         "target": "the declared scope field and path named by the refusal in the canonical slice contract",
@@ -994,6 +1012,58 @@
       "summary": "A local or Git WK handoff could not observe or deliver through its selected Git transport.",
       "detail": "The launcher-owned forge-handoff executor refused with its git_failed category on the selected local or Git destination: the product handoff ref or the destination branch could not be observed, delivery to the selected destination failed, or the delivered head was not observable afterwards. The producer stage and reason identify the case (for example destination_branch_unobservable or destination_publication_failed), and detail.evidence carries the complete original Git failure. No other destination was selected. A failed delivery leaves no handoff ref; the only possible residue is unreferenced closeout objects in the main repository. No merge, base movement or WK transition occurred.",
       "consumer_notes": "Publish this identity directly with category git_failed and the producer stage, reason and evidence intact. It is a modeled transport failure of the selected destination, never operator_recovery_needed, and it grants no retry, publication, fallback-destination or continuation authority. Re-issuing the handoff against unchanged facts reproduces the same refusal."
+    },
+    {
+      "code": "agent_launch.wk_forge_handoff.request_invalid.v1",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The WK forge handoff executor refused its request as invalid before any publication.",
+      "detail": "The launcher-owned forge-handoff executor refused with its request_invalid category: the request it was given could not be executed as composed (for example main_repo_missing when the executor was not composed with the launcher-frozen main repository). The producer reason identifies the case, and any correction owner the producer established crosses in the carried detail. No branch, proposal, merge, or WK transition occurred.",
+      "consumer_notes": "Publish this identity directly with category request_invalid and the producer reason and detail intact. The category alone does not establish whether the caller or the launcher owns the correction; only a correction owner the producer itself established says so. It is a modeled refusal, never operator_recovery_needed, and it grants no retry, publication, or continuation authority. Re-issuing the handoff against unchanged facts reproduces the same refusal."
+    },
+    {
+      "code": "agent_launch.wk_forge_handoff.policy_boundary_refused.v1",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The WK forge handoff stopped at its CCE policy boundary before any publication.",
+      "detail": "The launcher-owned forge-handoff executor refused with its cce_policy category before any forge effect. The category covers every native outcome of that boundary: malformed policy configuration, a missing, unavailable or malformed decision, a decision whose target does not match, an unratified decision or invalid attestation, and a decision that denied the handoff. The producer reason identifies which (for example cce_policy_configuration_malformed, cce_policy_decision_unavailable, cce_policy_target_mismatch or cce_policy_decision_denied), and a denial carries its decision_id. No branch, proposal, merge, or WK transition occurred.",
+      "consumer_notes": "Publish this identity directly with category cce_policy and the producer reason and detail intact. It does not assert an authenticated CCE deny: only the reason cce_policy_decision_denied reports one, and the other reasons report that no admissible decision was obtained. This identity carries no returned policy decision, changes no policy evaluation, and grants no CCE authority; a category or a copied policy object is never a decision. It is a modeled refusal, never operator_recovery_needed, and it grants no retry, publication, or continuation authority."
+    },
+    {
+      "code": "agent_launch.wk_forge_handoff.publication_disagreement.v1",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The WK forge handoff observed a publication that disagrees with the authenticated candidate or captured base.",
+      "detail": "The launcher-owned forge-handoff executor refused with its publication_disagreement category: an existing handoff ref, destination branch, pull request, landing base or authored base branch disagreed with the authenticated candidate or the captured allocation base. The producer stage and reason identify the case (for example multiple_exact_pull_requests, pull_request_head_sha_disagrees, handoff_branch_update_not_observed or authored_base_branch_disagrees_with_captured_allocation), with the expected and observed identities, and detail.effects names any effect that already occurred.",
+      "consumer_notes": "Publish this identity directly with category publication_disagreement and the producer stage, reason, identities and effects intact. It reports an observed disagreement only: it never authorizes overwriting, deleting or force-moving a ref, branch or pull request, and the effects in the detail are the only effects claimed. It is a modeled refusal, never operator_recovery_needed, and it grants no retry, publication, or continuation authority."
+    },
+    {
+      "code": "agent_launch.wk_forge_handoff.publication_indeterminate.v1",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The WK forge handoff could not establish the outcome of a publication step.",
+      "detail": "The launcher-owned forge-handoff executor refused with its indeterminate category: a publication step threw or its result could not be observed exactly (for example terminal_candidate_publication_threw, candidate_not_observable_after_publication, pull_request_not_exactly_observable_after_create, or a work-record write lock that could not be acquired). The producer stage and reason identify the case, detail.effects names the effects that are known, detail.uncertain_effect names the one whose outcome is unknown when there is one, and detail.evidence carries the complete original failure.",
+      "consumer_notes": "Publish this identity directly with category indeterminate and the producer stage, reason, effects, uncertainty and evidence intact. Indeterminate does not mean that nothing changed: an effect may have occurred, and only the effects the detail names are known. An undeclared producer category is never published as this identity. It is a modeled refusal, never operator_recovery_needed, and it grants no retry, publication, or continuation authority."
+    },
+    {
+      "code": "proof_execution_test_executor_unavailable",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The orchestrator proof executor is deliberately unavailable in a closed, branded proof-execution test composition.",
+      "consumer_notes": "Produced only by a direct-code test composition that a test-owned server passes to startWikiMcpServer; production startup never constructs it and no MCP argument, environment value, PATH entry or CLI flag selects it. No proof ran and no credit was granted. There is no agent recovery: the unavailability is the composition's fixed purpose."
+    },
+    {
+      "code": "proof_execution_test_provider_unavailable",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The launcher proof provider is deliberately unavailable in a closed, branded proof-execution test composition.",
+      "consumer_notes": "Produced only by a direct-code test composition that a test-owned server passes to startWikiMcpServer; production startup never constructs it and no MCP argument, environment value, PATH entry or CLI flag selects it. The provider was not run, so no proof executed and no credit was granted. There is no agent recovery: the unavailability is the composition's fixed purpose."
     }
   ]
 }

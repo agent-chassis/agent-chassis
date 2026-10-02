@@ -23,31 +23,37 @@ export function createNativeVerificationIndex(contract) {
 }
 
 function resolveBehaviorAndVerificationPopulation(row, contract, indexes = createNativeVerificationIndex(contract)) {
-  if (row.case_id) row = { ...row, controlled_contract_node_ids: [...new Set([
-    ...(row.controlled_contract_node_ids ?? []), ...linkedNativeTestProofs(contract, row).map(proof => proof.verification_claim_id)])] };
   const { claims, relations } = indexes;
-  const explicitClaims = explicitlyNamedIds(row, "claim", indexes);
-  const explicitRelations = explicitlyNamedIds(row, "relation", indexes);
-  const explicitBehaviors = explicitClaims.filter((id) => claims.get(id)?.kind === "behavior");
-  const explicitVerifications = explicitClaims.filter((id) =>
+  const explicitVerifications = explicitlyNamedIds(row, "claim", indexes).filter((id) =>
     claims.get(id)?.kind === "verification");
-  const candidateRelations = [...new Map([...explicitRelations, ...explicitBehaviors, ...explicitVerifications]
+  const selected = row.case_id ? [...new Set(linkedNativeTestProofs(contract, row)
+    .map(proof => proof.verification_claim_id))].sort(compare) : null;
+  const linked = selected === null ? row : { ...row, controlled_contract_node_ids: [...new Set([
+    ...(row.controlled_contract_node_ids ?? []), ...selected])] };
+  const explicitClaims = explicitlyNamedIds(linked, "claim", indexes);
+  const explicitRelations = explicitlyNamedIds(linked, "relation", indexes);
+  const explicitBehaviors = explicitClaims.filter((id) => claims.get(id)?.kind === "behavior");
+  const linkedVerifications = explicitClaims.filter((id) => claims.get(id)?.kind === "verification");
+  const candidateRelations = [...new Map([...explicitRelations, ...explicitBehaviors, ...linkedVerifications]
     .flatMap(id => indexes.adjacent.get(id) ?? []).map(relation => [relation.relation_id, relation])).values()];
   const behaviorIds = [...new Set([
     ...explicitBehaviors,
     ...candidateRelations.map(({ target_claim_id: id }) => id).filter((id) =>
       claims.get(id)?.kind === "behavior")
   ])].sort(compare);
-  const qualifying = [...new Set(candidateRelations.filter((relation) =>
+  const eligible = [...new Set(candidateRelations.filter((relation) =>
     behaviorIds.includes(relation.target_claim_id) &&
     claims.get(relation.source_claim_id)?.kind === "verification" &&
     claims.get(relation.source_claim_id)?.verification_method === "test_execution"
   ).map(({ source_claim_id: id }) => id))].sort(compare);
-  const relationIds = candidateRelations.filter((relation) =>
+  const eligibleRelationIds = candidateRelations.filter((relation) =>
     behaviorIds.includes(relation.target_claim_id) &&
-    qualifying.includes(relation.source_claim_id)
+    eligible.includes(relation.source_claim_id)
   ).map(({ relation_id: id }) => id).sort(compare);
-  return { claims, explicitRelations, explicitVerifications, behaviorIds, qualifying, relationIds };
+  const qualifying = selected === null ? eligible : eligible.filter(id => selected.includes(id));
+  const relationIds = eligibleRelationIds.filter(id => qualifying.includes(relations.get(id).source_claim_id));
+  return { claims, explicitRelations, explicitVerifications, selected, eligible, eligibleRelationIds,
+    behaviorIds, qualifying, relationIds };
 }
 
 function applicableMandatoryBehaviors(row, contract, claims) {

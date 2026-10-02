@@ -4,8 +4,8 @@ import {
   authoredDocumentDigest,
   buildRetainedDocumentRetrieval,
   isObjectRecord,
-  objectCarrierStep,
-  serializeRetainedObject
+  serializeRetainedObject,
+  TERMINAL_CANDIDATE_CONTROLLED_GENERATION_CARRIER_MEMBER
 } from "./dispatch-run-status-retained-document-retrieval.mjs";
 import { buildDispatchContinuation } from "./dispatch-tool-helpers.mjs";
 
@@ -58,7 +58,7 @@ function currentCandidateStatusObservation({ recordId, repository }) {
 
 function authoredContractProjection({ reviewUnit, omitted, retention }) {
   const retrieval = buildRetainedDocumentRetrieval(retention, {
-    carrierStep: "JSON.parse the verified bytes as UTF-8 and take carrier.<member> verbatim"
+    members: omitted.map(({ member }) => member)
   });
   const repository = retention?.state === "retained" ? retention.repository : null;
   const currentObservation = currentCandidateStatusObservation({
@@ -119,8 +119,7 @@ export function projectPublishedSliceLifecycle(lifecycle, { retention = null } =
 export const RUN_STATUS_CONTROLLED_GENERATION_PROJECTION_SCHEMA_VERSION =
   "workspace-agent-run-status-controlled-generation-projection.v1";
 export const TERMINAL_CANDIDATE_CONTROLLED_GENERATION_MEMBER = "controlled_generation";
-export const TERMINAL_CANDIDATE_CONTROLLED_GENERATION_CARRIER_MEMBER =
-  "terminal_candidate_controlled_generation";
+export { TERMINAL_CANDIDATE_CONTROLLED_GENERATION_CARRIER_MEMBER };
 const CONTROLLED_GENERATION_IDENTITY_SOURCE =
   "terminal_candidate.binding.version_decision.controlled_generation";
 
@@ -147,10 +146,7 @@ function observedLength(value) {
 
 function controlledGenerationSummary({ binding, generation, text, retention }) {
   const retrieval = buildRetainedDocumentRetrieval(retention, {
-    carrierStep: objectCarrierStep(
-      TERMINAL_CANDIDATE_CONTROLLED_GENERATION_CARRIER_MEMBER,
-      "the exact observed controlled generation"
-    )
+    members: [TERMINAL_CANDIDATE_CONTROLLED_GENERATION_CARRIER_MEMBER]
   });
   return Object.freeze({
     schema_version: RUN_STATUS_CONTROLLED_GENERATION_PROJECTION_SCHEMA_VERSION,
@@ -204,8 +200,9 @@ export const RUN_STATUS_COMPACT_LIFECYCLE_SCHEMA_VERSION =
   "workspace-agent-run-status-compact-lifecycle.v1";
 
 const LIFECYCLE_STATE_OBJECTS = Object.freeze(["cleanup", "failure_cause"]);
+
 const INTEGRATION_SCALAR_OBJECTS = Object.freeze([
-  "review_target", "transition", "record_reconciliation", "cleanup"
+  "transition", "record_reconciliation", "cleanup"
 ]);
 const CANDIDATE_BINDING_IDENTITY = Object.freeze([
   "canonical_wk_id", "base_ref", "base", "wk_ref", "wk_tip", "candidate", "candidate_tree",
@@ -240,10 +237,11 @@ function compactIntegration(integration, omitted) {
   return view;
 }
 
-function compactTerminalCandidate(candidate, omitted) {
+function compactTerminalCandidate(candidate, omitted, { integrationWkRef = null } = {}) {
   const binding = isObjectRecord(candidate.binding) ? candidate.binding : {};
-  for (const key of Object.keys(candidate)) omitted.push(`terminal_candidate.${key}`);
+  omitted.push("terminal_candidate");
   const view = pickMembers(binding, CANDIDATE_BINDING_IDENTITY);
+  if (view.wk_ref !== undefined && view.wk_ref === integrationWkRef) delete view.wk_ref;
   if (isObjectRecord(candidate.materialization) &&
       typeof candidate.materialization.verified === "boolean") {
     view.materialization_verified = candidate.materialization.verified;
@@ -252,6 +250,8 @@ function compactTerminalCandidate(candidate, omitted) {
     view.review_unit = isObjectRecord(candidate.review_unit)
       ? pickMembers(candidate.review_unit, CANDIDATE_REVIEW_UNIT_IDENTITY)
       : candidate.review_unit;
+    const unit = view.review_unit;
+    if (isObjectRecord(unit) && unit.subject === `${unit.record_id}#${unit.slice_id}`) delete unit.subject;
   }
   return view;
 }
@@ -262,6 +262,8 @@ function completeLifecycleCall({ subject, attemptId }) {
       tool: "workspace_agent_run_status",
       arguments: { subject, ...(attemptId === null ? {} : { attempt_id: attemptId }),
         include_final_result: true },
+
+      recommended: false,
       successPredicate: { fact: "monitor.complete_slice_lifecycle_read", operator: "is_true" }
     });
   } catch {
@@ -279,15 +281,12 @@ export function projectCompactSliceLifecycle(lifecycle, { subject, attemptId = n
     else if (key === "integration" && isObjectRecord(member)) {
       view.integration = compactIntegration(member, omitted);
     } else if (key === "terminal_candidate" && isObjectRecord(member)) {
-      view.terminal_candidate = compactTerminalCandidate(member, omitted);
+      view.terminal_candidate = compactTerminalCandidate(member, omitted,
+        { integrationWkRef: lifecycle.integration?.wk_ref ?? null });
     } else omitted.push(key);
   }
   view.omitted_members = omitted;
   const call = completeLifecycleCall({ subject, attemptId });
-  view.complete = Object.freeze({
-    complete_mode: Object.freeze({ include_final_result: true }),
-    meaning: "the same observation's complete lifecycle envelope, including every omitted member",
-    ...(call === null ? {} : { call })
-  });
+  view.complete = Object.freeze(call === null ? {} : { call });
   return Object.freeze(view);
 }

@@ -4,7 +4,9 @@ import {
   BACKEND_REFUSAL_CODES
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { spawnIsolated } from
   "@agent-chassis/agent-launch-cli/src/lib/launch-isolation.mjs";
 import {
@@ -19,8 +21,18 @@ import {
   WIKI_MCP_WORKSPACE_DIR_ENV_VAR
 } from "@agent-chassis/agent-launch-cli/src/lib/codex-role-mcp-env.mjs";
 import {
+  MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX,
+  MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES,
+  createManagedAssignmentReadSnapshot,
+  readPrivateImmutableArtifact
+} from "@agent-chassis/agent-launch-cli/src/lib/managed-assignment-read-artifact.mjs";
+import {
+  STDIO_MCP_LOCAL_ENDPOINT_PATH,
+  deriveStdioMcpConduitLocalBacking,
+  projectStdioMcpChannelLocalBacking
+} from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit-channel.mjs";
+import {
   FIXED_PROBE_CONNECTED_DIRECTIVES_SOURCE,
-  FIXED_PROBE_DELIVERED_SCOPE_SOURCE,
   FIXED_PROBE_PHYSICAL_ACCESS_SOURCE,
   FIXED_PROBE_PROMPT_SECTION_SOURCE,
   substituteFixedProbeCommand
@@ -142,12 +154,14 @@ export function buildAcceptSucceedCodexExecutorTestSeams({ releaseSignalPath = n
   return seams;
 }
 
-const CONFINED_WORKER_PROBE_SOURCE = `${FIXED_PROBE_PHYSICAL_ACCESS_SOURCE}
-${FIXED_PROBE_DELIVERED_SCOPE_SOURCE}` + String.raw`
+const CONFINED_WORKER_PROBE_SOURCE = `${FIXED_PROBE_PHYSICAL_ACCESS_SOURCE}` + String.raw`
 const { createHash } = require("node:crypto");
 const { writeFileSync } = require("node:fs");
 const finalPath = process.argv[1];
 const prompt = Buffer.from(process.argv[2], "base64").toString("utf8");
+// WK-2570: the startup prompt plus the assignment the worker's read returns.
+let delivered = prompt;
+let assignmentRead = null;
 const processConnection = JSON.parse(Buffer.from(process.argv[3], "base64").toString("utf8"));
 const scopeAuthority = JSON.parse(Buffer.from(process.argv[4], "base64").toString("utf8"));
 let settled = false;
@@ -168,23 +182,23 @@ function finish(extra) {
     pid: process.pid,
     cwd: process.cwd(),
     process_connection: processConnection,
-    delivered_scope: parseDeliveredScope(prompt),
     authenticated_scope: scopeAuthority,
     assignment_sha256: "sha256:" + createHash("sha256").update(prompt).digest("hex"),
+    assignment_read: assignmentRead,
     assignment: {
-      selected_unit: (prompt.match(/WK-\d{4,}#SLICE-\d{3}/u) || [null])[0],
-      has_acceptance_marker: prompt.includes("WITNESS-ACCEPTANCE-MARKER"),
-      has_sibling_marker: prompt.includes("WITNESS-SIBLING-MARKER"),
-      has_parent_marker: prompt.includes("WITNESS-PARENT-MARKER"),
-      has_validation_marker: prompt.includes("WITNESS-VALIDATION-MARKER"),
-      has_parent_validation_marker: prompt.includes("WITNESS-PARENT-VALIDATION-MARKER"),
-      has_parent_dependency_marker: prompt.includes("WK-8998"),
-      has_material_marker: prompt.includes("WITNESS-IMMUTABLE-MATERIAL-MARKER"),
-      has_selected_material_marker: prompt.includes("WITNESS-SELECTED-MATERIAL-MARKER"),
-      has_later_material_marker: prompt.includes("WITNESS-LATER-MATERIAL-MARKER"),
-      parent_material_index: prompt.indexOf("WITNESS-IMMUTABLE-MATERIAL-MARKER"),
-      selected_material_index: prompt.indexOf("WITNESS-SELECTED-MATERIAL-MARKER"),
-      parent_material_occurrences: prompt.split("WITNESS-IMMUTABLE-MATERIAL-MARKER").length - 1
+      selected_unit: (delivered.match(/WK-\d{4,}#SLICE-\d{3}/u) || [null])[0],
+      has_acceptance_marker: delivered.includes("WITNESS-ACCEPTANCE-MARKER"),
+      has_sibling_marker: delivered.includes("WITNESS-SIBLING-MARKER"),
+      has_parent_marker: delivered.includes("WITNESS-PARENT-MARKER"),
+      has_validation_marker: delivered.includes("WITNESS-VALIDATION-MARKER"),
+      has_parent_validation_marker: delivered.includes("WITNESS-PARENT-VALIDATION-MARKER"),
+      has_parent_dependency_marker: delivered.includes("WK-8998"),
+      has_material_marker: delivered.includes("WITNESS-IMMUTABLE-MATERIAL-MARKER"),
+      has_selected_material_marker: delivered.includes("WITNESS-SELECTED-MATERIAL-MARKER"),
+      has_later_material_marker: delivered.includes("WITNESS-LATER-MATERIAL-MARKER"),
+      parent_material_index: delivered.indexOf("WITNESS-IMMUTABLE-MATERIAL-MARKER"),
+      selected_material_index: delivered.indexOf("WITNESS-SELECTED-MATERIAL-MARKER"),
+      parent_material_occurrences: delivered.split("WITNESS-IMMUTABLE-MATERIAL-MARKER").length - 1
     },
     ...probeAssignedPhysicalAccess()
   };
@@ -194,11 +208,83 @@ function finish(extra) {
 (async () => {
   const mcp = await connectFixedProbeMcp({ clientName: "confined-worker-probe",
     onSocketError: error => finish({ ok: false, stage: "mcp_socket", error: error.message }) });
+  let assignment;
+  try {
+    assignment = await readFixedProbeAssignment(mcp);
+  } catch (error) {
+    finish({ ok: false, stage: "assignment_read", error: error.message });
+    return;
+  }
+  delivered = fixedProbeDeliveredText(prompt, assignment);
+  // The complete guidance this read actually retrieved, continuations included.
+  assignmentRead = { reads: assignment.reads, source_digest: assignment.source_digest,
+    identity: assignment.identity,
+    guidance_sha256: "sha256:" + createHash("sha256").update(assignment.guidance).digest("hex") };
   finish({ ok: true, mcp: { protocol_version: mcp.initialized.protocolVersion || null, tool_count: mcp.tools === null ? null : mcp.tools.length, tools_sha256: "sha256:" + createHash("sha256").update(JSON.stringify(mcp.tools || [])).digest("hex") } });
 })().catch(error => finish({ ok: false, stage: "mcp_handshake", error: error.message }));
 `;
 
-export function buildConfinedWorkerProbeCodexExecutorTestSeams() {
+export const CONFINED_WORKER_PROBE_ASSIGNMENT_OBSERVATION_SCHEMA =
+  "confined-worker-probe-assignment-observation.v1";
+
+const sha256Text = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
+
+function observePublishedAssignment(bwrapArgs) {
+  const at = bwrapArgs.findIndex((value, index) => index >= 2 &&
+    value === STDIO_MCP_LOCAL_ENDPOINT_PATH && /^--(?:ro-)?bind$/u.test(bwrapArgs[index - 2]));
+  if (at < 0) throw new Error("confined worker probe plan projects no conduit endpoint");
+  const endpointSource = bwrapArgs[at - 1];
+  const localRoot = path.dirname(endpointSource);
+  const directory = localRoot.endsWith("-local") ? localRoot.slice(0, -"-local".length) : null;
+  if (directory === null || projectStdioMcpChannelLocalBacking(
+    deriveStdioMcpConduitLocalBacking(directory)).endpointSource !== endpointSource) {
+    throw new Error("confined worker probe cannot recover the conduit directory from its endpoint");
+  }
+  const names = readdirSync(directory).filter((name) =>
+    name.startsWith(MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX) && name.endsWith(".json"));
+  if (names.length !== 1) {
+    throw new Error(`confined worker probe expected one published assignment, found ${names.length}`);
+  }
+  const artifact = readPrivateImmutableArtifact({ artifactPath: path.join(directory, names[0]),
+    prefix: MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX,
+    maxBytes: MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES });
+  if (artifact === null) throw new Error("the published assignment failed its identity checks");
+  const { identity, guidance } = JSON.parse(artifact.bytes.toString("utf8"));
+  const snapshot = createManagedAssignmentReadSnapshot({ unit_address: identity.assigned_unit,
+    role: identity.role, source_digest: identity.canonical_source_digest, run_id: identity.run_id,
+    assignment_guidance: guidance });
+  if (snapshot.digest !== artifact.digest) {
+    throw new Error("the published assignment is not the snapshot owner's serialization");
+  }
+  return Object.freeze({
+    schema_version: CONFINED_WORKER_PROBE_ASSIGNMENT_OBSERVATION_SCHEMA,
+    assigned_unit: snapshot.assigned_unit,
+    role: snapshot.role,
+    run_id: identity.run_id,
+    canonical_source_digest: identity.canonical_source_digest,
+    artifact_digest: artifact.digest,
+    guidance_sha256: sha256Text(guidance)
+  });
+}
+
+function writeAssignmentObservation(directory, record) {
+  const name = `${Date.now()}-${randomBytes(6).toString("hex")}.json`;
+  const staged = path.join(directory, `.${name}.tmp`);
+  writeFileSync(staged, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+  renameSync(staged, path.join(directory, name));
+}
+
+export function buildConfinedWorkerProbeCodexExecutorTestSeams({
+  assignmentObservationDirectory = null
+} = {}) {
+  if (assignmentObservationDirectory !== null &&
+      (typeof assignmentObservationDirectory !== "string" ||
+        !path.isAbsolute(assignmentObservationDirectory) || !existsSync(assignmentObservationDirectory) ||
+        !statSync(assignmentObservationDirectory).isDirectory() ||
+        realpathSync(assignmentObservationDirectory) !== assignmentObservationDirectory)) {
+    throw new TypeError(
+      "confined worker probe assignmentObservationDirectory must be an existing canonical absolute directory");
+  }
   const seams = Object.freeze({
     spawn: (plan, stdioOptions = {}) => {
       const authority = plan.workerScopeAuthority;
@@ -230,6 +316,13 @@ export function buildConfinedWorkerProbeCodexExecutorTestSeams() {
         ]
       });
       const wikiChildEnv = captureDispatchCodexTestWikiChildEnv(childArgs);
+      if (assignmentObservationDirectory !== null) {
+        writeAssignmentObservation(assignmentObservationDirectory, {
+          ...observePublishedAssignment(bwrapArgs),
+          agent_subject: plan.env?.AGENT_SUBJECT ?? null,
+          cwd: plan.cwd ?? null
+        });
+      }
       dispatchCodexTestSeamEvidence.push(Object.freeze({
         kind: "confined_worker_probe",
         repo: plan.repo,
@@ -317,10 +410,12 @@ export function buildAdvisoryReviewMaterialProbeCodexExecutorTestSeams() {
 const CONNECTED_DELIVERY_WITNESS_SOURCE = FIXED_PROBE_PROMPT_SECTION_SOURCE +
   FIXED_PROBE_CONNECTED_DIRECTIVES_SOURCE + String.raw`
 const { createHash } = require("node:crypto");
-const { writeFileSync } = require("node:fs");
+const { readFileSync, writeFileSync } = require("node:fs");
 const finalPath = process.argv[1];
 const prompt = Buffer.from(process.argv[2], "base64").toString("utf8");
 const scenario = process.argv[3];
+// WK-2570: the startup prompt plus the assignment the worker's read returns.
+let delivered = prompt;
 let mcp = null;
 function finish(value, exitCode = 0) {
   writeFileSync(finalPath, JSON.stringify(value) + "\n", "utf8");
@@ -334,30 +429,37 @@ function summary(result) {
     content: result && result.content || null
   };
 }
-// The managed-worker guide as delivered: its heading through the canonical
-// record, reconstructed and trimmed as the package reader trims it.
+// The role guide as delivered: the startup text names the package guide file
+// in one read instruction, and the child reads that file through its own
+// namespace, trimmed as the package reader trims it. No guide body is inlined.
 function observeManagedGuide() {
-  const heading = "# Managed implementation worker";
-  const body = promptSectionAfter(prompt, "\n" + heading + "\n", "\n## Canonical Record\n");
-  const text = body === null ? null : (heading + "\n" + body).trim();
+  const instruction = /^Read your ([a-z-]+) guide before acting: (\/\S+)$/gmu;
+  const lines = [...delivered.matchAll(instruction)];
+  const path = lines.length === 1 ? lines[0][2] : null;
+  let text = null;
+  if (path !== null) {
+    try { text = readFileSync(path, "utf8").trim(); } catch { text = null; }
+  }
   return {
+    label: lines.length === 1 ? lines[0][1] : null,
+    path,
     text,
-    occurrences: text === null ? 0 : prompt.split(text).length - 1,
-    heading_occurrences: prompt.split(heading).length - 1,
-    other_guide_headings: ["# Direct implementation worker", "# Reviewer", "# Orchestrator"]
-      .filter(other => prompt.includes(other)),
+    read_instructions: lines.length,
+    embedded_guide_headings: ["# Managed implementation worker", "# Reviewer", "# Orchestrator"]
+      .filter(heading => delivered.includes("\n" + heading + "\n")),
     order: {
-      role_header: prompt.indexOf("\nRole: implementation worker for "),
-      guide: text === null ? -1 : prompt.indexOf(text),
-      canonical_record: prompt.indexOf("\n## Canonical Record\n"),
-      operative_notes: prompt.indexOf("\n### Operative Notes\n"),
-      acceptance_criteria: prompt.indexOf("\n### Acceptance Criteria\n")
+      role_header: delivered.indexOf("\nRole: implementation worker for "),
+      guide: lines.length === 1 ? lines[0].index : -1,
+      canonical_record: delivered.indexOf("\n## Canonical Record\n"),
+      operative_notes: delivered.indexOf("\n### Operative Notes\n"),
+      acceptance_criteria: delivered.indexOf("\n### Acceptance Criteria\n")
     }
   };
 }
 (async () => {
   mcp = await connectFixedProbeMcp({ clientName: "connected-delivery-witness", requestTimeoutMs: 30000 });
   const callTool = (name, args) => mcp.callTool(name, args);
+  delivered = fixedProbeDeliveredText(prompt, await readFixedProbeAssignment(mcp));
   const selectedUnit = (prompt.match(/^Role: implementation worker for (WK-\d{4,}#SLICE-\d{3})\.$/mu) ||
     [null, null])[1];
   if (!selectedUnit) throw new Error("assignment carries no selected slice");
@@ -365,7 +467,7 @@ function observeManagedGuide() {
   let instruction = null;
   let parentControl = null;
   if (scenario === "selected") {
-    instruction = decodeConnectedDirectives(prompt);
+    instruction = decodeConnectedDirectives(delivered);
     instruction.guide = observeManagedGuide();
     parentControl = summary(await callTool("workspace_verify_proof", instruction.requests.parent_control));
     writeFileSync("dependency.mjs", "export function value() { return 42; }\n", "utf8");
@@ -383,11 +485,18 @@ function observeManagedGuide() {
       { subject: selectedUnit, timeout: { seconds: 12 } })));
   } else if (scenario === "observation_delivery") {
     writeFileSync("src/canary.txt", "WK-2671 observation delivery\n", "utf8");
+  } else if (scenario === "observation_delivery_pair") {
+    // Two disjoint deliveries of one WK: the target slice's canary and its
+    // sibling's own file. Any other selected unit has no delivery here.
+    const paired = { "SLICE-001": ["src/canary.txt", "WK-2671 observation delivery\n"],
+      "SLICE-002": ["src/sibling.txt", "WK-2671 sibling delivery\n"] }[selectedUnit.split("#")[1]];
+    if (!paired) throw new Error("observation_delivery_pair has no delivery for " + selectedUnit);
+    writeFileSync(paired[0], paired[1], "utf8");
   } else {
     throw new Error("unknown fixed connected witness scenario");
   }
   const commit = summary(await callTool("commit", {}));
-  if (scenario === "observation_delivery" &&
+  if ((scenario === "observation_delivery" || scenario === "observation_delivery_pair") &&
       (commit.is_error || !commit.structured || commit.structured.committed !== true)) {
     throw new Error("observation delivery commit was not reported: " + JSON.stringify(commit));
   }
@@ -773,12 +882,12 @@ const FIXED_PROGRAM_PLANS = Object.freeze({
 });
 
 const CONNECTED_DELIVERY_WITNESS_SCENARIOS = new Set(["selected", "unselected", "timeout", "matrix",
-  "multilingual", "observation_delivery"]);
+  "multilingual", "observation_delivery", "observation_delivery_pair"]);
 
 export function buildConnectedDeliveryWitnessCodexExecutorTestSeams({ scenario }) {
   if (!CONNECTED_DELIVERY_WITNESS_SCENARIOS.has(scenario) && !Object.hasOwn(FIXED_PROGRAM_PLANS, scenario)) {
     throw new TypeError("connected delivery witness scenario must be selected, unselected, " +
-      "timeout, matrix, multilingual or observation_delivery");
+      "timeout, matrix, multilingual, observation_delivery or observation_delivery_pair");
   }
   const seams = Object.freeze({
     spawn: (plan, stdioOptions = {}) => {

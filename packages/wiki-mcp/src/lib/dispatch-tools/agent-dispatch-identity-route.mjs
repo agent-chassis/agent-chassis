@@ -16,6 +16,7 @@ import {
   buildBlockedDispatchResult,
   buildDispatchToolExceptionDetail,
   classifyAgentDispatchSubject,
+  dispatchRepoResolutionRefusal,
   isAcceptedSubjectForRole
 } from "../dispatch-tool-helpers.mjs";
 import { routeExceptionRefusal } from "./agent-dispatch-refusal-projection.mjs";
@@ -156,7 +157,9 @@ export function registerAgentDispatchIdentityRoute({
   workspaceRepos,
   resolveWorkspaceRepo,
   dispatchBackend,
-  dispatchSessionIdentity
+  dispatchSessionIdentity,
+
+  responseEnv = process.env
 }) {
   registerTool(
     AGENT_DISPATCH_IDENTITY_CONTRACT_TOOL_NAME,
@@ -225,10 +228,14 @@ export function registerAgentDispatchIdentityRoute({
         }
         return jsonContent(contract);
       } catch (error) {
+        const repoRefusal = dispatchRepoResolutionRefusal(
+          AGENT_DISPATCH_IDENTITY_CONTRACT_TOOL_NAME, error);
+        if (repoRefusal !== null) return jsonContent(buildBlockedDispatchResult(repoRefusal));
         return jsonContent(buildBlockedDispatchResult({
           blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
           reason: "dispatch_tool_exception",
-          detail: buildDispatchToolExceptionDetail(AGENT_DISPATCH_TOOL_NAME, error),
+          detail: buildDispatchToolExceptionDetail(AGENT_DISPATCH_TOOL_NAME, error,
+            { env: responseEnv }),
           refusal: routeExceptionRefusal(AGENT_DISPATCH_IDENTITY_CONTRACT_TOOL_NAME)
         }));
       }

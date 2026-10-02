@@ -5,7 +5,6 @@ import {
   chmodSync,
   closeSync,
   constants as fsConstants,
-  fchmodSync,
   fsyncSync,
   openSync,
   rmdirSync,
@@ -16,6 +15,15 @@ import {
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 
+import {
+  MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX,
+  MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES,
+  MANAGED_ASSIGNMENT_READ_ARTIFACT_PATH_ENV_VAR,
+  MANAGED_ASSIGNMENT_READ_REFUSAL_CODES,
+  PRIVATE_IMMUTABLE_ARTIFACT_MAX_BYTES,
+  PrivateImmutableArtifactPublicationError,
+  publishPrivateImmutableArtifact
+} from "./managed-assignment-read-artifact.mjs";
 import {
   FROZEN_REVIEW_CONTRACT_ARTIFACT_FILENAME_PREFIX,
   FROZEN_REVIEW_CONTRACT_ARTIFACT_PATH_ENV_VAR
@@ -47,19 +55,18 @@ import {
 } from "./stdio-mcp-transcript-capture.mjs";
 import { mcpMetricsServerEnv } from "./mcp-metrics-config.mjs";
 import {
-  LAUNCHER_AGENT_SESSION_CONTRACT_FIELDS,
-  LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES,
   LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION,
+  WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR,
   assertTrustedStdioMcpConduitAuthority,
+  authenticateLauncherAgentSessionContract,
   canonicalSerializeLauncherAgentSessionContract,
-  digestLauncherAgentSessionContract,
+  isTrustedStdioMcpConduitAuthority,
   mintLauncherAgentSessionContract,
   resolveLauncherAgentSessionContractFacts,
-  resolveTrustedStdioMcpFrozenReviewContractSnapshot
+  resolveTrustedStdioMcpFrozenReviewContractSnapshot,
+  resolveTrustedStdioMcpWorkerAssignmentSnapshot
 } from "./stdio-mcp-conduit-authority.mjs";
 
-export const WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR =
-  "WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT";
 import {
   compareToolSurfaces,
   createChildTerminationLatch,
@@ -71,17 +78,6 @@ import {
 
 export const STDIO_MCP_COMPLETION_CREDENTIAL_SCHEMA_VERSION =
   LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION;
-
-function sessionContractRefusal(refusalCode, message, detail = null) {
-  fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID, message, {
-    session_contract_refusal: Object.freeze({
-      schema_version: "launcher-agent-session-contract-refusal.v1",
-      code: refusalCode
-    }),
-    refusal_code: refusalCode,
-    ...(detail === null ? {} : { detail })
-  });
-}
 
 function spawnMeasuredServerGeneration(spawnServer, ...spawnArgs) {
   const readinessMeasurements = {
@@ -327,9 +323,13 @@ function transcriptCaptureServerEnv() {
 
 function buildServerEnv(input, role, {
   frozenReviewContractArtifactPath = null,
-  reviewerCredential = null,
-  reviewMaterializationDir = null
+  managedAssignmentArtifactPath = null,
+  reviewerCredential = null
 } = {}) {
+
+  const reviewMaterializationDir = isTrustedStdioMcpConduitAuthority(input.authority)
+    ? input.authority.reviewMaterializationDir
+    : null;
   const env = {
     ...transcriptCaptureServerEnv(),
 
@@ -369,227 +369,66 @@ function buildServerEnv(input, role, {
   if (reviewMaterializationDir !== null) {
     env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR = reviewMaterializationDir;
   }
+  if (managedAssignmentArtifactPath !== null) {
+    env[MANAGED_ASSIGNMENT_READ_ARTIFACT_PATH_ENV_VAR] = managedAssignmentArtifactPath;
+  }
   return env;
 }
 
 function publishFrozenReviewContractArtifact({ scope, directory, snapshot }) {
   if (snapshot === null) return null;
-  const digestHex = typeof snapshot.digest === "string"
-    ? snapshot.digest.match(/^sha256:([0-9a-f]{64})$/u)?.[1] ?? null
-    : null;
-  if (digestHex === null || !(snapshot.bytes instanceof Uint8Array) ||
-      snapshot.bytes.byteLength !== snapshot.byte_length) {
-    fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
-      "trusted frozen review contract snapshot is incomplete before publication");
-  }
-  const artifactPath = path.join(
-    directory,
-    `${FROZEN_REVIEW_CONTRACT_ARTIFACT_FILENAME_PREFIX}${digestHex}.json`
-  );
-  const bytes = snapshot.bytes;
-  let fd = null;
   try {
-    fd = openSync(
-      artifactPath,
-      fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY |
-        fsConstants.O_NOFOLLOW,
-      0o600
-    );
-    let offset = 0;
-    while (offset < bytes.byteLength) {
-      const written = writeSync(fd, bytes, offset, bytes.byteLength - offset);
-      if (written <= 0) throw new Error("frozen review contract artifact write made no progress");
-      offset += written;
-    }
-    fsyncSync(fd);
-    fchmodSync(fd, 0o400);
-    fsyncSync(fd);
+    return publishPrivateImmutableArtifact({
+      scope,
+      directory,
+      prefix: FROZEN_REVIEW_CONTRACT_ARTIFACT_FILENAME_PREFIX,
+      resourceLabel: "frozen-review-contract-artifact",
+      maxBytes: PRIVATE_IMMUTABLE_ARTIFACT_MAX_BYTES,
+      snapshot
+    });
   } catch (error) {
-    if (fd !== null) {
-      try { closeSync(fd); } catch {   }
-      fd = null;
+    if (!(error instanceof PrivateImmutableArtifactPublicationError)) throw error;
+    if (error.cause === null) {
+      fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
+        "trusted frozen review contract snapshot failed publication or its immutable identity check",
+        error.cleanupFailures.length > 0 ? { publication_cleanup_failures: error.cleanupFailures } : null);
     }
-    try { unlinkSync(artifactPath); } catch (unlinkError) {
-      if (unlinkError?.code !== "ENOENT") {
-        Object.defineProperty(error, "frozenReviewArtifactCleanupFailure", {
-          value: Object.freeze({
-            code: unlinkError?.code ?? null,
-            message: unlinkError?.message ?? String(unlinkError)
-          }),
-          enumerable: false
-        });
-      }
+    if (error.cleanupFailures.length > 0) {
+      Object.defineProperty(error.cause, "frozenReviewArtifactCleanupFailures", {
+        value: error.cleanupFailures,
+        enumerable: false
+      });
     }
-    throw error;
-  } finally {
-    if (fd !== null) closeSync(fd);
+    throw error.cause;
   }
-  const stats = statSync(artifactPath);
-  const expectedUid = typeof process.getuid === "function" ? process.getuid() : stats.uid;
-  if (!stats.isFile() || stats.uid !== expectedUid ||
-      (stats.mode & 0o777) !== 0o400 || stats.size !== snapshot.byte_length) {
-    try { unlinkSync(artifactPath); } catch {   }
-    fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
-      "published frozen review contract artifact failed its immutable identity check");
+}
+
+function publishManagedWorkerAssignmentArtifact({ scope, directory, snapshot }) {
+  if (snapshot === null) return null;
+  try {
+    return publishPrivateImmutableArtifact({
+      scope,
+      directory,
+      prefix: MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX,
+      resourceLabel: "managed-assignment-read-artifact",
+      maxBytes: MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES,
+      snapshot
+    });
+  } catch (error) {
+    fail(MANAGED_ASSIGNMENT_READ_REFUSAL_CODES.PUBLICATION_FAILED,
+      "managed worker assignment could not be published before MCP readiness", {
+        assigned_unit: snapshot.assigned_unit,
+        effects: "no client spawned; an artifact this publication created was removed unless publication_cleanup_failures reports otherwise",
+        recovery_actor: "coordinator_or_operator",
+        recovery_action: "correct the reported publication condition and dispatch a fresh attempt",
+        ...(error?.cleanupFailures?.length > 0 ? { publication_cleanup_failures: error.cleanupFailures } : {})
+      });
   }
-  scope.adopt("frozen-review-contract-artifact", () => {
-    try { unlinkSync(artifactPath); } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
-  });
-  return artifactPath;
 }
 
 export function mintStdioMcpCompletionCredential(input = {}) {
   if (!input.authority) return null;
   return mintLauncherAgentSessionContract(input);
-}
-
-function plainObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value) &&
-    (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
-}
-
-function sameCanonicalBytes(left, right) {
-  return canonicalSerializeLauncherAgentSessionContract(left).equals(
-    canonicalSerializeLauncherAgentSessionContract(right)
-  );
-}
-
-export function authenticateLauncherAgentSessionContract({
-  contract,
-  expectedFacts = null,
-  expectedContract = null,
-  consumerVersion = LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION
-} = {}) {
-  if (consumerVersion !== LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.CONSUMER_VERSION_MISMATCH,
-      "session contract consumer version is incompatible"
-    );
-  }
-  if (contract === null || contract === undefined) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.MISSING,
-      "launcher agent session contract is absent"
-    );
-  }
-  if (!plainObject(contract)) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.SHAPE_INVALID,
-      "launcher agent session contract is not a closed object"
-    );
-  }
-  if (typeof contract.schema_version !== "string" ||
-      contract.schema_version !== LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.SCHEMA_UNSUPPORTED,
-      "launcher agent session contract schema is unsupported"
-    );
-  }
-  const fields = Object.keys(contract).sort();
-  const expectedFields = [...LAUNCHER_AGENT_SESSION_CONTRACT_FIELDS].sort();
-  if (fields.length !== expectedFields.length ||
-      fields.some((field, index) => field !== expectedFields[index])) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.SHAPE_INVALID,
-      "launcher agent session contract field closure is invalid"
-    );
-  }
-  if (typeof contract.contract_digest !== "string" ||
-      digestLauncherAgentSessionContract(contract) !== contract.contract_digest) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.DIGEST_MISMATCH,
-      "launcher agent session contract digest does not match canonical bytes"
-    );
-  }
-  if ((expectedFacts === null || expectedFacts === undefined) && expectedContract !== null) {
-    if (!plainObject(expectedContract) ||
-        expectedContract.schema_version !== LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION ||
-        Object.keys(expectedContract).sort().join("\0") !== expectedFields.join("\0") ||
-        typeof expectedContract.contract_digest !== "string" ||
-        digestLauncherAgentSessionContract(expectedContract) !== expectedContract.contract_digest) {
-      sessionContractRefusal(
-        LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED,
-        "launcher-expected session contract is invalid"
-      );
-    }
-    if (!sameCanonicalBytes(contract, expectedContract)) {
-      const operatorMismatch = JSON.stringify(contract.minting_provenance?.operator_action_binding) !==
-        JSON.stringify(expectedContract.minting_provenance?.operator_action_binding);
-      const authorityMismatch = contract.minting_provenance?.authority_schema_version !==
-          expectedContract.minting_provenance?.authority_schema_version ||
-        contract.minting_provenance?.authority_digest !==
-          expectedContract.minting_provenance?.authority_digest;
-      const capabilityMismatch = JSON.stringify(contract.capabilities) !==
-        JSON.stringify(expectedContract.capabilities);
-      const transportMismatch = contract.completion_transport?.transport_id !==
-        expectedContract.completion_transport?.transport_id;
-      sessionContractRefusal(
-        operatorMismatch
-          ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.OPERATOR_ACTION_BINDING_INVALID
-          : authorityMismatch
-            ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED
-            : capabilityMismatch
-              ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.CAPABILITY_UNKNOWN
-              : transportMismatch
-                ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.COMPLETION_TRANSPORT_MISMATCH
-                : LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.FACT_MISMATCH,
-        "session contract facts do not match launcher-expected facts"
-      );
-    }
-    return Object.freeze(structuredClone(contract));
-  }
-  if (!plainObject(expectedFacts) || !expectedFacts.authority) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED,
-      "session contract consumer has no launcher-minted authority"
-    );
-  }
-  const availableCapabilities = new Set(expectedFacts.capabilities ?? []);
-  if (!Array.isArray(contract.capabilities) ||
-      contract.capabilities.some((capability) => !availableCapabilities.has(capability))) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.CAPABILITY_UNKNOWN,
-      "session contract names a capability absent from the registry snapshot"
-    );
-  }
-  if (contract.completion_transport?.transport_id !== expectedFacts.completionTransport) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.COMPLETION_TRANSPORT_MISMATCH,
-      "session contract completion transport contradicts launcher facts"
-    );
-  }
-  let expected;
-  try {
-    expected = mintLauncherAgentSessionContract(expectedFacts);
-  } catch (error) {
-    const code = error?.detail?.refusal_code ===
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.OPERATOR_ACTION_BINDING_INVALID
-      ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.OPERATOR_ACTION_BINDING_INVALID
-      : LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED;
-    sessionContractRefusal(code, "session contract expected authority facts are invalid");
-  }
-  if (contract.minting_provenance?.authority_schema_version !==
-      expected.minting_provenance.authority_schema_version ||
-      contract.minting_provenance?.authority_digest !==
-      expected.minting_provenance.authority_digest) {
-    sessionContractRefusal(
-      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED,
-      "session contract authority provenance is untrusted"
-    );
-  }
-  if (!sameCanonicalBytes(contract, expected)) {
-    const operatorMismatch = JSON.stringify(contract.minting_provenance?.operator_action_binding) !==
-      JSON.stringify(expected.minting_provenance.operator_action_binding);
-    sessionContractRefusal(
-      operatorMismatch
-        ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.OPERATOR_ACTION_BINDING_INVALID
-        : LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.FACT_MISMATCH,
-      "session contract facts do not match launcher-resolved facts"
-    );
-  }
-  return Object.freeze(structuredClone(contract));
 }
 
 export function authenticateStdioMcpCompletionCredential({
@@ -712,6 +551,8 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
   let readinessEvent = null;
 
   let unboundLifecycleFailure = null;
+
+  let generationStartFailure = null;
   let clientReadinessRequested = false;
   let clientReadinessStartedAt = null;
   let clientReadinessTimer = null;
@@ -739,7 +580,7 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
   };
 
   const settleUnboundLifecycleProjections = () => {
-    if (lifecycle !== null) return;
+    if (lifecycle !== null || generationStartFailure !== null) return;
     const unbound = new StdioMcpConduitError(
       STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
       "stdio MCP conduit was torn down before a confined client authenticated");
@@ -751,6 +592,15 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       code: null, signal: null, expected: false, spawnFailed: false
     }));
     clientReadyRelay.reject(unbound);
+  };
+
+  const settleUnfinishedBoundReadiness = () => {
+    if (lifecycle === null || clientReadyRelay.settled || lifecycle.isClientReady()) return;
+    const phase = lifecycle.currentPhase?.() ?? null;
+    recordFacadeFailure(lifecycle.currentFailure() ?? new StdioMcpConduitError(
+      STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
+      "stdio MCP conduit was torn down before the confined client completed readiness",
+      { reason: "cleanup_before_client_readiness", lifecycle_phase: phase, phase }));
   };
 
   let cleanupSettlement = null;
@@ -769,6 +619,7 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
         } finally {
           clearClientReadinessTimer();
           settleUnboundLifecycleProjections();
+          settleUnfinishedBoundReadiness();
 
           deregisterProcessLocal();
         }
@@ -902,6 +753,12 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       snapshot: frozenSnapshot
     });
 
+    const managedAssignmentArtifactPath = publishManagedWorkerAssignmentArtifact({
+      scope,
+      directory,
+      snapshot: resolveTrustedStdioMcpWorkerAssignmentSnapshot(authority)
+    });
+
     const serverPath = trusted.serverPath;
     if (typeof serverPath !== "string" || !path.isAbsolute(serverPath)) {
       fail(STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_UNAVAILABLE,
@@ -916,8 +773,8 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
         };
     const serverEnv = buildServerEnv(input, role, {
       frozenReviewContractArtifactPath,
-      reviewerCredential,
-      reviewMaterializationDir: authority.reviewMaterializationDir
+      managedAssignmentArtifactPath,
+      reviewerCredential
     });
 
     serverEnv.WIKI_MCP_AGENT_SESSION_CONTRACT =
@@ -977,29 +834,56 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       }
     });
 
+    const recordGenerationStartFailure = (phase, thrown) => {
+      const error = new StdioMcpConduitError(
+        STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_START_FAILED,
+        "host wiki-MCP server generation failed to start",
+        { phase, code: boundedCauseCode(thrown?.code) });
+      Object.defineProperty(error, "cause",
+        { value: thrown, writable: true, enumerable: false, configurable: true });
+      if (lifecycle === null && generationStartFailure === null && !clientReadyRelay.settled) {
+        generationStartFailure = error;
+        recordFacadeFailure(error);
+        serverExitRelay.resolve(Object.freeze({
+          code: null, signal: null, expected: false, spawnFailed: true
+        }));
+      }
+      return error;
+    };
+    let generationSequence = 0;
     const createGeneration = ({ initialBytes }) => {
+      generationSequence += 1;
       const generationEnv = { ...serverEnv };
-
-      const launcherNoCceAuthorityDeclaration =
-        serializeLauncherNoCceAuthorityDeclaration(
-          trusted.bootstrapNodeEngineEnv(generationEnv, input.workspaceDir)
-        );
-      const termination = createChildTerminationLatch();
-      const authorityFd = openLauncherNoCceAuthorityDescriptor(
-        directory,
-        launcherNoCceAuthorityDeclaration
-      );
+      let phase = "generation_bootstrap";
+      let termination;
       let spawned;
       try {
-        spawned = spawnMeasuredServerGeneration(
-          trusted.spawnServer, trusted.execPath, [serverPath], {
-          cwd: input.workspaceDir, env: generationEnv,
-          stdio: ["pipe", "pipe", "pipe", "pipe",
-            authorityFd === null ? "ignore" : authorityFd],
-          detached: false
-          });
-      } finally {
-        if (authorityFd !== null) closeSync(authorityFd);
+
+        const launcherNoCceAuthorityDeclaration =
+          serializeLauncherNoCceAuthorityDeclaration(
+            trusted.bootstrapNodeEngineEnv(generationEnv, input.workspaceDir)
+          );
+        termination = createChildTerminationLatch();
+        phase = "generation_authority_descriptor";
+
+        const authorityLabel = `generation-authority-descriptor-${generationSequence}`;
+        const authorityFd = scope.acquire(authorityLabel,
+          () => openLauncherNoCceAuthorityDescriptor(directory, launcherNoCceAuthorityDeclaration),
+          (fd) => { if (fd !== null) closeSync(fd); });
+        phase = "generation_spawn";
+        try {
+          spawned = spawnMeasuredServerGeneration(
+            trusted.spawnServer, trusted.execPath, [serverPath], {
+            cwd: input.workspaceDir, env: generationEnv,
+            stdio: ["pipe", "pipe", "pipe", "pipe",
+              authorityFd === null ? "ignore" : authorityFd],
+            detached: false
+            });
+        } finally {
+          scope.release(authorityLabel);
+        }
+      } catch (thrown) {
+        throw recordGenerationStartFailure(phase, thrown);
       }
       const { child, readinessMeasurements } = spawned;
       let stderr = "";
@@ -1057,6 +941,7 @@ export const __testing = Object.freeze({
   createChildTerminationLatch,
   observeConduitLifecycle,
   publishFrozenReviewContractArtifact,
+  publishManagedWorkerAssignmentArtifact,
   reapChild,
   spawnMeasuredServerGeneration
 });

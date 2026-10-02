@@ -154,3 +154,164 @@ export function projectProofAuthoringDiagnosticGroups({
     groups: Object.freeze(groups)
   });
 }
+
+export const PROOF_VALIDATION_ASSESSMENT_SCHEMA_VERSION = "proof-validation-assessment.v2";
+export const PROOF_VALIDATION_SELECTED_DIAGNOSIS_SCHEMA_VERSION =
+  "proof-validation-selected-diagnosis.v1";
+export const PROOF_VALIDATION_ALLOWED_SELECTORS = Object.freeze(["diagnostic_group_id", "obligation_id"]);
+export const PROOF_VALIDATION_EXECUTION = Object.freeze({
+  status: "not_started", proofs_executed: 0, credit_granted: 0 });
+
+const ISSUE_EFFECTS = new Set(["blocking", "unresolved"]);
+const ISSUE_SEMANTIC_RECOVERIES = new Set(["authored_correction_available", "system_owner_failure"]);
+
+const SUBJECT_NON_FACTS = new Set(["code", "reason", "owner", "severity", "problem", "kind", "obligation_id",
+  "actor_recovery", "owner_details", "route_assessment", "definition_sensitive"]);
+
+export function proofAuthoringGroupMeaning(group, raw) {
+  const route = group.route_assessment;
+  const first = raw.occurrences[0]?.diagnostic ?? null;
+  const assessed = first?.problem?.route_assessment !== undefined;
+  return Object.freeze({
+    owner: group.owner,
+    code: group.code,
+    category: group.category,
+    effect: route.effect,
+    stage: route.stage,
+    route: route.selected_route,
+    ...(route.responsible_owner !== null && route.responsible_owner !== group.owner
+      ? { responsible_owner: route.responsible_owner } : {}),
+    reason: assessed || typeof first?.reason !== "string" ? route.reason : first.reason
+  });
+}
+
+export function proofValidationIssues({ authoringGroups, rawGroups, semanticGroups, semanticMeaning }) {
+  const authoring = authoringGroups.map((group, index) => ({ group, raw: rawGroups[index] }))
+    .filter(({ group }) => ISSUE_EFFECTS.has(group.route_assessment.effect))
+    .map(({ group, raw }) => ({ meaning: proofAuthoringGroupMeaning(group, raw), subjects: group.affected_obligation_count,
+      occurrences: group.occurrence_count, call: group.detail_call,
+      obligation_ids: [...group.affected_obligation_ids],
+      obligations_omitted: group.affected_obligation_count - group.affected_obligation_ids.length }));
+  const semantic = semanticGroups.filter(group => ISSUE_SEMANTIC_RECOVERIES.has(group.recovery.status))
+    .map(group => ({ meaning: semanticMeaning(group), subjects: group.affected_obligation_count,
+      occurrences: group.occurrence_count, call: group.detail_call,
+      obligation_ids: [...group.affected_obligation_ids],
+      obligations_omitted: group.affected_obligation_ids_omitted }));
+  return [...authoring, ...semantic];
+}
+
+function indexedIssues(issues) {
+  const meanings = [];
+  const index = new Map();
+  const rows = issues.map(({ meaning, ...issue }) => {
+    const key = JSON.stringify(meaning);
+    if (!index.has(key)) { index.set(key, meanings.length); meanings.push(meaning); }
+    return { meaning: index.get(key), ...issue };
+  });
+  return { meanings, issues: rows };
+}
+
+export function proofValidationAssessment({ envelope, diagnostics, issues, fits = () => true }) {
+  const build = (admitted) => {
+    const { meanings, issues: rows } = indexedIssues(admitted);
+    return {
+      schema_version: PROOF_VALIDATION_ASSESSMENT_SCHEMA_VERSION,
+      ...envelope,
+      diagnostics: {
+        authoring_groups: diagnostics.authoring_groups,
+        semantic_groups: diagnostics.semantic_groups,
+        meanings,
+        issues: rows,
+        issues_returned: rows.length,
+        issues_omitted: issues.length - rows.length,
+        subjects_included: false,
+        authoring_occurrence_effects: diagnostics.authoring_occurrence_effects,
+        semantic_logical_cause_recovery: diagnostics.semantic_logical_cause_recovery,
+        issue_selection_basis: "group_recovery"
+      },
+      allowed_selectors: [...PROOF_VALIDATION_ALLOWED_SELECTORS]
+    };
+  };
+  let admitted = [];
+  for (const issue of issues) {
+    const candidate = [...admitted, issue];
+    if (!fits(build(candidate))) break;
+    admitted = candidate;
+  }
+  return build(admitted);
+}
+
+const isTypedFact = value => value === null || ["string", "number", "boolean"].includes(typeof value) ||
+  (Array.isArray(value) && value.length <= 16 && value.every(item => ["string", "number"].includes(typeof item)));
+
+function authoringSubject(occurrence, recoveryFacts) {
+  const { diagnostic } = occurrence;
+  const cause = diagnostic.problem?.cause ?? {};
+  const facts = {};
+  for (const [name, value] of [...Object.entries(diagnostic), ...Object.entries(cause)]) {
+    if (SUBJECT_NON_FACTS.has(name) || Object.hasOwn(facts, name) || value === null ||
+        value === undefined || !isTypedFact(value)) continue;
+
+    if (name === "owner_code" && value === diagnostic.code) continue;
+    facts[name] = value;
+  }
+  const typed = recoveryFacts(diagnostic);
+  return { obligation_id: occurrence.obligation_id, ...facts,
+    ...(typed === null ? {} : { failed_fields: typed.failed_fields.map(field => ({ ...field })),
+      corrections: [...typed.corrections] }) };
+}
+
+export function proofAuthoringGroupDiagnosis({ projected, raw, recoveryFacts, publicRecovery }) {
+  const meaning = proofAuthoringGroupMeaning(projected, raw);
+  const route = projected.route_assessment;
+  const first = raw.occurrences[0]?.diagnostic ?? null;
+  const recovery = (first === null ? null : publicRecovery(first)) ??
+    { explanation: route.recovery?.explanation ?? null, instructions: null };
+  const supported = route.recovery?.supported_next_call ?? null;
+  return {
+    selected: { diagnostic_group_id: projected.diagnostic_group_id, owner: meaning.owner, code: meaning.code,
+      category: meaning.category, effect: meaning.effect, stage: meaning.stage, route: meaning.route,
+      ...(meaning.responsible_owner === undefined ? {} : { responsible_owner: meaning.responsible_owner }),
+      ...(projected.cause.kind === "owner_diagnostic" ? {} : { cause_kind: projected.cause.kind }),
+      ...(route.unavailable_operation === null ? {} : { unavailable_operation: route.unavailable_operation }),
+      meaning: meaning.reason },
+
+    recovery: { ...(typeof first?.problem?.cause?.actor_recovery === "string"
+      ? { actor_recovery: first.problem.cause.actor_recovery } : {}),
+    explanation: recovery.explanation, instructions: recovery.instructions },
+    subjects: raw.occurrences.map(occurrence => authoringSubject(occurrence, recoveryFacts)),
+    correction_route: supported === null ? null : { tool: supported.tool, kind: supported.kind ?? null,
+      arguments: supported.arguments ?? {} }
+  };
+}
+
+export function semanticCauseGroupDiagnosis({ group, semanticMeaning, semanticSubject, semanticCorrection }) {
+  const meaning = semanticMeaning(group);
+  const correction = semanticCorrection(group);
+  return {
+    selected: { diagnostic_group_id: group.diagnostic_group_id, owner: meaning.owner,
+      gap_class: meaning.gap_class, reason_codes: meaning.reason_codes, recovery_status: meaning.recovery,
+      meaning: meaning.reason },
+
+    recovery: { route: correction },
+    subjects: group.occurrences.map(semanticSubject),
+    correction_route: correction === null ? null
+      : { tool: correction.write_tool, kind: "structured_route", arguments: group.recovery.correction.arguments }
+  };
+}
+
+export function addressedCorrectionCall(route, subjects, { unit, focus, contentDigest }) {
+  if (route === null || typeof route.tool !== "string") return null;
+  if (route.tool !== OBLIGATION_COVERAGE_UPSERT_TOOL) return { tool: route.tool, kind: route.kind, arguments: route.arguments };
+  const addressed = [...new Map(subjects.filter(subject => typeof subject.obligation_id === "string")
+    .map(subject => [subject.obligation_id, { obligation_id: subject.obligation_id,
+      ...(typeof subject.case_id === "string" ? { case: { case_id: subject.case_id } } : {}) }])).values()];
+  if (addressed.length === 0) return null;
+  return { tool: route.tool, kind: route.kind ?? "structured_route", arguments: {
+    unit, ...(focus === null ? {} : { focus }), obligations: addressed, expected_content_digest: contentDigest } };
+}
+
+export function usedCorrectionDefinitions(subjects, clauses) {
+  const used = [...new Set(subjects.flatMap(subject => subject.corrections ?? []))];
+  return Object.fromEntries(used.map(clause => [clause, { ...clauses[clause] }]));
+}

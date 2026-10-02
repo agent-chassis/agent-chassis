@@ -255,7 +255,17 @@ function renderWorkRecordMarkdownBody(record, metadata) {
   const validation = validationProjection.status === "valid"
     ? validationProjection.validation_entries
     : [];
+
+  const userRequirements = typeof record.sections?.user_requirements === "string"
+    ? [
+        renderSectionHeading("User Requirements"),
+        "",
+        renderParagraph(record.sections.user_requirements),
+        ""
+      ]
+    : [];
   const sections = [
+    ...userRequirements,
     renderSectionHeading("Summary"),
     "",
     renderParagraph(record.sections?.summary),

@@ -7,11 +7,9 @@ import {
   digestLauncherAgentSessionContract,
   mintTrustedStdioMcpConduitAuthority,
   resolveLauncherAgentSessionContract,
-  resolveLauncherAgentSessionContractFacts
-} from "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
-import {
+  resolveLauncherAgentSessionContractFacts,
   authenticateLauncherAgentSessionContract
-} from "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-core.mjs";
+} from "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
 
 function reviewerAuthority() {
   return mintTrustedStdioMcpConduitAuthority({

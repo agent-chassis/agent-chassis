@@ -59,6 +59,25 @@ Call records have exactly these fields, in this order:
 | `token_status` | `not_instrumented` |
 | `representation` | `handler_compact_json` |
 
+After each call record, a registered call also produces one trajectory record
+with exactly `schema_version`, `kind: "trajectory"`, `hour_utc`,
+`clock_status`, `tool`, `correlation` and `trajectory`. `correlation` names what
+the previous completed call on the same connection offered:
+`router_recommendation`, `emitted_next_calls`, `refusal_replacement` or `none`.
+Modeled proof refusals can publish replacements at root `next_calls`; the
+recorder treats those as `refusal_replacement` too. An authoring query without
+a published success fact remains unassessed, even when the exact call is followed.
+`trajectory` is one of `followed`, `allowed_alternative`, `wrong_first_tool`,
+`ignored_recommendation`, `refusal_recovered`, `refusal_not_recovered`,
+`refusal_recovery_unassessed`, `concurrent_unknown` or `unobserved`. The
+recorder holds only the previous result's offered calls, compares the next
+call's tool and arguments as inert data, and decides refusal recovery with that
+replacement's declared success predicate (`evaluateSuccessPredicate`) against
+facts the follow-up result itself published. Overlapping calls are
+`concurrent_unknown`; a follow-up that publishes no facts is
+`refusal_recovery_unassessed`; a call with nothing offered before it is
+`unobserved`. No intent is inferred and no argument or result is kept.
+
 Health records have exactly `schema_version`, `kind: "health"`, `hour_utc`,
 `clock_status`, `reason`, and a positive `count`. Reasons are `invalid_config`,
 `invalid_record`, `queue_full`, `measurement_failed`, `compression_failed`,

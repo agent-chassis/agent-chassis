@@ -247,7 +247,9 @@ cannot prove is the runner's own unchanged root.
 - **Recovery leaves live and unproven roots alone.** It opens a handle before proving
   ownership and holds it through both proofs and the removal. It removes a root
   only when the marker's owner process or boot is gone. Roots whose markers use
-  another schema are not recovered.
+  another schema are not recovered. Every runner on the host recovers at
+  startup, so a test that plants an abandoned root for its own runner to recover
+  runs that scenario in a private `/tmp` mount namespace where one is available.
 - Every handle is released on every path, and a cleanup failure is reported per
   root and makes the run non-clean without changing the child's exit or signal.
 
@@ -371,7 +373,9 @@ failures are handled:
   failure, and the runner exits 1.
 - **A TTY or pipe that is never read:** deadlines, settlement and artifacts
   still complete. The final drain is bounded, and the process exits 1 even if
-  the terminal is never read again.
+  the terminal is never read again. That bound depends on the nonblocking
+  transports above: under `fs-blocking-device` a write blocked on the terminal
+  can still hold the process exit open.
 
 **Recording failures.** `tests/helpers/test-timing-diagnostics.mjs` owns
 these codes:

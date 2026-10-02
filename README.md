@@ -77,6 +77,9 @@ You need a Git repository, Node.js 24.20.0 or newer, and a local Codex or Claude
 installation. Begin with the **[quickstart](docs/quickstart.md)** for package
 installation, repository setup, and your first orchestrator session.
 
+To run Codex with an Anthropic model served by Vertex AI, follow the
+[Vertex AI inference how-to](docs/vertex-ai-inference.md).
+
 Interfaces are still evolving. The documented setup path assumes no existing
 root agent guidance or AgentChassis adoption state; adoption of repositories
 with that existing state is deferred. macOS filesystem containment and explicit

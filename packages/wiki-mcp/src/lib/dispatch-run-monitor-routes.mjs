@@ -2,7 +2,9 @@
 
 import path from "node:path";
 import { realpathSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { proofAuthoringFocusInputSchema, proofAuthoringUnitInputSchema }
+  from "./proof-authoring-input-schema.mjs";
 
 import {
   ATTEMPT_LINEAGE_CONFLICT_CLASSES,
@@ -18,6 +20,7 @@ import { buildCloseoutWorkflowContinuation } from "./dispatch-closeout-continuat
 import {
   buildLifecycleFailure,
   publishableLifecycleFailure,
+  publishableLifecycleResolution,
   RecordedLifecycleFailure
 } from "./dispatch-lifecycle-failure-disclosure.mjs";
 import { captureLifecycleFailureEvidence } from "./dispatch-lifecycle-failure-projection.mjs";
@@ -30,6 +33,7 @@ import {
   settleWithinDeadline
 } from "./dispatch-monitor-call-deadline.mjs";
 import { projectRunFinalResultPublication } from "./dispatch-final-result-publication.mjs";
+import { buildFindingsMaterialContinuation } from "./dispatch-findings-material-continuation.mjs";
 import {
   projectPublishedControlledGeneration,
   projectCompactSliceLifecycle,
@@ -37,11 +41,33 @@ import {
 } from "./dispatch-run-status-authored-contract-projection.mjs";
 import { projectPublishedIntegrationReceipt } from
   "./dispatch-run-status-integration-receipt-projection.mjs";
-import { createAuthoredContractRetention } from
-  "./dispatch-run-status-authored-contract-retention.mjs";
+import {
+  AUTHORED_DOCUMENTS_QUERY_IDENTITY,
+  createAuthoredContractRetention,
+  readRunStatusRetainedSource
+} from "./dispatch-run-status-authored-contract-retention.mjs";
+import {
+  authoredDocumentCall,
+  authoredDocumentDetailSchema,
+  presentAuthoredDocument,
+  RUN_STATUS_AUTHORED_DOCUMENT_DETAIL_KIND
+} from "./dispatch-run-status-retained-document-retrieval.mjs";
+import {
+  activeMcpInlineByteLimit,
+  describeRetentionFailure,
+  measureMcpInlineResultBytes
+} from "./mcp-response.mjs";
+import {
+  retainSelectedResponseSource,
+  SELECTED_RESPONSE_QUERY_INVALID_CODE,
+  selectedResponseDeliveryBound,
+  selectedResponseQueryInvalidError
+} from "./selected-response-snapshot.mjs";
 import { observeRunProofVerification, projectCompactRunProofVerification,
-  projectRunProofVerificationDetail } from
+  projectRunProofVerificationDetail, RUN_PROOF_VERIFICATION_SELECTION_UNKNOWN_CODE } from
   "./dispatch-run-proof-verification.mjs";
+import { terminalCandidateVerifyProofCall } from "./verify-proof-candidate-call.mjs";
+import { parseToolProfile } from "./tool-profile.mjs";
 import { AUTHENTICATED_INTEGRATION_CONTINUATION } from
   "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
 import {
@@ -57,6 +83,7 @@ import {
   projectLifecycleResolution,
   recordLifecycleFailure,
   retryAssessmentNextAction,
+  retryAssessmentRequiredCorrection,
   WORKER_SLICE_SUBJECT_RE
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
@@ -73,8 +100,13 @@ import {
   buildDispatchToolExceptionDetail,
   classifyAgentDispatchSubject,
   compactRunStatusReviewResult,
+  DISPATCH_FAILURE_ORIGINALS,
+  dispatchRepoResolutionRefusal,
+  dispatchRequestSchemaAuthority,
   mapBackendRefusalToDispatchCode,
   omitNullFields,
+  projectDispatchFailureDetail,
+  projectRecordedFailureDetail,
   resolveMonitorHandleAlwaysUnknown
 } from "./dispatch-tool-helpers.mjs";
 
@@ -95,6 +127,13 @@ export {
 export { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
 
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+const RETRY_ASSESSMENT_DETAIL_KIND = "retry_assessment";
+const RETRY_ASSESSMENT_QUERY_IDENTITY = "retry_assessment";
+const RETRY_ASSESSMENT_DETAIL_SCHEMA_VERSION = "workspace-agent-run-status-retry-assessment-detail.v1";
+
+const COMPACT_RETRY_ASSESSMENT_FACTS = new Set(["decision", "failure_class", "reason", "code",
+  "boundary", "attempt_withheld", "attempt_permitted_by", "grants_authority"]);
 
 const HOT_PRODUCER_DECISIONS = new Set([
   LIFECYCLE_RETRY_DECISIONS.UNCHANGED,
@@ -229,7 +268,7 @@ export {
   CLOSEOUT_WORKFLOW_CONTINUATION_SCHEMA_VERSION
 } from "./dispatch-closeout-continuation.mjs";
 
-function compactLifecycleResolution(resolution, status) {
+function compactLifecycleResolution(resolution, status, { assessmentSource = null } = {}) {
   if (!Array.isArray(resolution?.retained_failures)) return resolution;
   const { retained_failures: retained, required_correction: mirrored, ...facts } = resolution;
   const omitted = ["retained_failures"];
@@ -237,8 +276,19 @@ function compactLifecycleResolution(resolution, status) {
   if (facts.retry_assessment !== null && typeof facts.retry_assessment === "object" &&
       Object.hasOwn(facts.retry_assessment, "assessment_evidence")) {
     const { assessment_evidence: _evidence, ...assessment } = facts.retry_assessment;
-    facts.retry_assessment = Object.freeze(assessment);
     omitted.push("retry_assessment.assessment_evidence");
+    if (assessmentSource?.state === "retained") {
+
+      const kept = {};
+      for (const [member, value] of Object.entries(assessment)) {
+        if (COMPACT_RETRY_ASSESSMENT_FACTS.has(member)) kept[member] = value;
+        else omitted.push(`retry_assessment.${member}`);
+      }
+      facts.retry_assessment = Object.freeze(kept);
+    } else {
+      facts.retry_assessment = Object.freeze(assessment);
+      if (assessmentSource !== null) facts.retry_assessment_detail = assessmentSource;
+    }
   }
   let historyCall = null;
   try {
@@ -271,12 +321,22 @@ export function registerRunMonitorRoutes(ctx) {
     dispatchSessionIdentity,
     responseEnv = process.env,
 
-    runStatusCallBudgetMs = RUN_STATUS_CALL_BUDGET_MS
+    runStatusCallBudgetMs = RUN_STATUS_CALL_BUDGET_MS,
+
+    requestContracts = null
   } = ctx;
 
   const registerTool = withRecordedRequestSchemas(registerToolInput);
 
   const authoredContractRetention = createAuthoredContractRetention({ env: responseEnv });
+
+  const sessionRole = (() => {
+    try {
+      return parseToolProfile(responseEnv);
+    } catch {
+      return null;
+    }
+  })();
 
   const monitorRefusal = ({ code, decidingFacts, observedFacts, continuation = null, carried = null, route }) => {
     const common = { code, decidingFacts, observedFacts, route, carried };
@@ -352,6 +412,15 @@ export function registerRunMonitorRoutes(ctx) {
     code: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
     decidingFacts: [{ field: "monitor.call_completed", value: false }],
     observedFacts: { "monitor.call_completed": false },
+    continuation: null,
+    route
+  });
+
+  const runDetailUnavailableRefusal = (route, code, causeCode) => monitorRefusal({
+    code,
+    decidingFacts: [{ field: "monitor.run_detail_available", value: false }],
+    observedFacts: { "monitor.run_detail_available": false },
+    carried: { cause: { code: typeof causeCode === "string" ? causeCode : null } },
     continuation: null,
     route
   });
@@ -522,7 +591,9 @@ export function registerRunMonitorRoutes(ctx) {
       return {
         blockerCode: code,
         reason: refusal.reason ?? fallbackReason,
-        detail: refusal.detail ?? null,
+
+        detail: projectRecordedFailureDetail(refusal.detail ?? null,
+          { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION }),
 
         refusal: unknownHandleRefusal(code, route ?? null)
       };
@@ -542,7 +613,8 @@ export function registerRunMonitorRoutes(ctx) {
         ? failure.reason
         : "post_worker_lifecycle_recovery_failed",
       detail: {
-        recovery_failure: failure,
+
+        recovery_failure: projectDispatchFailureDetail(failure, { env: responseEnv, nested: true }),
 
         backend_refusal: { code: refusal.code ?? null, reason: refusal.reason ?? null }
       }
@@ -565,6 +637,194 @@ export function registerRunMonitorRoutes(ctx) {
     grants_authority: false,
     ...fields
   });
+
+  const retryAssessmentSources = new WeakMap();
+  const retryAssessmentSourceMemo = new Map();
+  const RETRY_ASSESSMENT_SOURCE_MEMO_CAPACITY = 64;
+
+  const retryAssessmentCall = ({ repository, subject, attemptId, source }) => {
+    try {
+      return buildDispatchContinuation({
+        tool: "workspace_agent_run_status",
+        arguments: { repo: repository, subject, attempt_id: attemptId,
+          detail: { kind: RETRY_ASSESSMENT_DETAIL_KIND,
+            source: { ref_id: source.ref_id, sha256: source.sha256 } } },
+        successPredicate: { fact: "monitor.retry_assessment_detail_read", operator: "is_true" }
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  function retainRetryAssessment({ assessment, workspace, status, checkpoint }) {
+    if (!Object.hasOwn(assessment, "assessment_evidence")) return;
+    const failure = checkpoint.retained_failure;
+    const carrier = {
+      retry_assessment: assessment,
+
+      retained_failure: failure === null || typeof failure !== "object" ? null : {
+        phase: failure.phase ?? null,
+        error_code: failure.error_code ?? null,
+        failure_cause: failure.failure_cause ?? null
+      },
+      next_action: retryAssessmentNextAction(assessment),
+      required_correction: retryAssessmentRequiredCorrection(assessment)
+    };
+    const identity = { attempt_id: status.run_id ?? null, monitor_handle: status.monitor_handle ?? null,
+      subject: status.subject ?? null };
+    let memoKey = null;
+    try {
+      memoKey = createHash("sha256").update(JSON.stringify({ repository: workspace.repo, identity,
+        carrier })).digest("hex");
+    } catch {
+      memoKey = null;
+    }
+    const memoized = memoKey === null ? undefined : retryAssessmentSourceMemo.get(memoKey);
+    if (memoized !== undefined) {
+      retryAssessmentSources.set(assessment, memoized);
+      return;
+    }
+    let fact;
+    try {
+      const requestSchema = dispatchRequestSchemaAuthority("workspace_agent_run_status");
+      if (requestSchema === undefined) throw new TypeError("the run-status request schema is not registered");
+      const locator = retainSelectedResponseSource({
+        binding: { route: "workspace_agent_run_status", repository: workspace.repo, unit: status.subject,
+          query_identity: RETRY_ASSESSMENT_QUERY_IDENTITY, observation_identity: identity },
+        carrier,
+        ownerCall: (source) => {
+          const call = retryAssessmentCall({ repository: workspace.repo, subject: status.subject,
+            attemptId: status.run_id, source });
+          if (call === null) throw new TypeError("the retry-assessment read is not a checkable call");
+          return { tool: call.tool, arguments: call.arguments };
+        },
+        ownerRequestSchema: requestSchema
+      }, { env: responseEnv });
+      fact = Object.freeze({ state: "retained", repository: workspace.repo, subject: status.subject,
+        attempt_id: status.run_id, locator });
+      if (memoKey !== null) {
+        if (retryAssessmentSourceMemo.size >= RETRY_ASSESSMENT_SOURCE_MEMO_CAPACITY) {
+          retryAssessmentSourceMemo.delete(retryAssessmentSourceMemo.keys().next().value);
+        }
+        retryAssessmentSourceMemo.set(memoKey, fact);
+      }
+    } catch (error) {
+      fact = Object.freeze({
+        state: "unavailable",
+        code: typeof error?.envelope?.code === "string" ? error.envelope.code
+          : "retry_assessment_source_not_retained",
+        retention_failure: describeRetentionFailure(error, {
+          operation: "retain_retry_assessment_source",
+          subject: { subject: status.subject, attempt_id: status.run_id }
+        })
+      });
+    }
+    retryAssessmentSources.set(assessment, fact);
+  }
+
+  const retryAssessmentDetailCall = (assessment) => {
+    const fact = assessment !== null && typeof assessment === "object"
+      ? retryAssessmentSources.get(assessment) : undefined;
+    if (fact?.state !== "retained") return null;
+    return retryAssessmentCall({ repository: fact.repository, subject: fact.subject,
+      attemptId: fact.attempt_id, source: fact.locator });
+  };
+
+  function presentRetryAssessment(envelope, detail, fits) {
+    const { carrier } = envelope;
+    const assessment = carrier?.retry_assessment;
+    if (assessment === null || typeof assessment !== "object" || Array.isArray(assessment)) {
+      throw selectedResponseQueryInvalidError("workspace_agent_run_status", "source_not_retry_assessment",
+        { carrier_members: Object.keys(carrier ?? {}) });
+    }
+    const projected = Object.hasOwn(assessment, "assessment_evidence") &&
+        assessment.assessment_evidence !== null && typeof assessment.assessment_evidence === "object"
+      ? { ...assessment, assessment_evidence: projectRecordedFailureDetail(assessment.assessment_evidence, {
+        original: DISPATCH_FAILURE_ORIGINALS.RUN_STATUS_RETAINED_SOURCE,
+        at: "retry_assessment.assessment_evidence", nested: true }) }
+      : assessment;
+    const frame = { detail: {
+      schema_version: RETRY_ASSESSMENT_DETAIL_SCHEMA_VERSION,
+      kind: RETRY_ASSESSMENT_DETAIL_KIND,
+      grants_authority: false,
+      source: { ref_id: detail.source.ref_id, sha256: detail.source.sha256 },
+      retained_source: {
+        route: envelope.binding.route,
+        repository: envelope.binding.repository,
+        unit: envelope.binding.unit,
+        observation_identity: envelope.binding.observation_identity
+      },
+      retry_assessment: projected,
+      retained_failure: carrier.retained_failure ?? null,
+      next_action: carrier.next_action ?? null,
+      ...(carrier.required_correction === null || carrier.required_correction === undefined
+        ? {} : { required_correction: carrier.required_correction })
+    } };
+    if (!fits(frame)) {
+      throw selectedResponseQueryInvalidError("workspace_agent_run_status",
+        "selected_value_exceeds_delivery_bound", { kind: RETRY_ASSESSMENT_DETAIL_KIND,
+          utf8_bytes: Buffer.byteLength(JSON.stringify(projected), "utf8") });
+    }
+    return frame;
+  }
+
+  function readRetainedStatusDetail(workspace, args) {
+    const route = "workspace_agent_run_status";
+    const { detail } = args;
+    if (typeof args.attempt_id !== "string") {
+      return buildBlockedRunStatusResult({
+        blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+        reason: "retained_detail_requires_attempt_id",
+        detail: null,
+        refusal: invalidArgumentRefusal(route, "request.retained_detail_attempt_id_present", false)
+      });
+    }
+    const bound = selectedResponseDeliveryBound(responseEnv);
+    const answer = (frame) => ({
+      schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION,
+      accepted: true,
+      subject: args.subject,
+      attempt_id: args.attempt_id,
+      ...frame
+    });
+    const fits = (frame) => measureMcpInlineResultBytes(answer(frame)) <= bound;
+    try {
+      const envelope = readRunStatusRetainedSource({
+        source: detail.source,
+        repository: workspace.repo,
+        subject: args.subject,
+        attemptId: args.attempt_id,
+        queryIdentity: detail.kind === RETRY_ASSESSMENT_DETAIL_KIND
+          ? RETRY_ASSESSMENT_QUERY_IDENTITY : AUTHORED_DOCUMENTS_QUERY_IDENTITY,
+        env: responseEnv
+      });
+      if (detail.kind === RETRY_ASSESSMENT_DETAIL_KIND) {
+        return answer(presentRetryAssessment(envelope, detail, fits));
+      }
+      return answer(presentAuthoredDocument({
+        envelope,
+        detail,
+        fits,
+        call: (selection, recommended) => authoredDocumentCall({ repository: workspace.repo,
+          subject: args.subject, attemptId: args.attempt_id, source: detail.source,
+          document: detail.document, selection, recommended })
+      }));
+    } catch (error) {
+      const refusal = error?.envelope;
+      if (refusal === null || typeof refusal !== "object" || typeof refusal.code !== "string") throw error;
+      const observed = refusal.observed_facts ?? {};
+      return buildBlockedRunStatusResult({
+        blockerCode: refusal.code === SELECTED_RESPONSE_QUERY_INVALID_CODE
+          ? DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE
+          : DISPATCH_BLOCKER_CODES.MONITOR_RUN_DETAIL_UNAVAILABLE,
+        reason: observed["selected_response.invalid_reason"] ??
+          observed["content_reference.failed_step"] ?? refusal.code,
+        detail: { kind: detail.kind, source: detail.source,
+          ...(detail.document === undefined ? {} : { document: detail.document }) },
+        refusal
+      });
+    }
+  }
 
   async function advanceManagedSliceLifecycle(workspace, status, deadline, request) {
     if (status?.role !== "worker" || status?.terminal !== true || !WORKER_SLICE_SUBJECT_RE.test(status?.subject ?? "")) {
@@ -629,10 +889,14 @@ export function registerRunMonitorRoutes(ctx) {
     await retryPendingFailurePublications();
 
     if (status.final_result_durability === "unavailable") {
+      const failure = status.final_result_publication_failure ?? null;
+      const repair = failure?.repair_required?.retryable === false ? failure.repair_required : null;
       return settledAdvance({
         phase: checkpoint.phase,
-        publication_retry_required: true,
-        publication_failure: status.final_result_publication_failure ?? null
+        ...(repair === null
+          ? { publication_retry_required: true }
+          : { publication_repair_required: repair }),
+        publication_failure: failure
       });
     }
     if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.FINALIZED) {
@@ -652,9 +916,15 @@ export function registerRunMonitorRoutes(ctx) {
             correction_condition: checkpoint.retry_facts.producer_facts.correction_condition }
         : { failure_class: LIFECYCLE_RETRY_FACT_KINDS.NO_CORRECTION_CONDITION,
             correction_condition: "none_supplied" };
+
+    const assess = (fields) => {
+      const assessment = retryAssessment(fields);
+      retainRetryAssessment({ assessment, workspace, status, checkpoint });
+      return assessment;
+    };
     const withhold = (fields) => {
       checkpoint.retry_decision = null;
-      checkpoint.retry_assessment = retryAssessment({
+      checkpoint.retry_assessment = assess({
         ...retainedClass(),
         ...fields,
         attempt_withheld: true,
@@ -879,7 +1149,7 @@ export function registerRunMonitorRoutes(ctx) {
             : null;
           const permitted = checkpoint.retry_decision ?? null;
           checkpoint.retry_decision = null;
-          checkpoint.retry_assessment = retryAssessment({
+          checkpoint.retry_assessment = assess({
             ...(checkpoint.phase !== POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION
               ? {
                   failure_class: LIFECYCLE_RETRY_FACT_KINDS.POST_INTEGRATION,
@@ -973,7 +1243,7 @@ export function registerRunMonitorRoutes(ctx) {
         } else if (unavailable !== null) {
 
           checkpoint.retry_decision = null;
-          checkpoint.retry_assessment = retryAssessment({
+          checkpoint.retry_assessment = assess({
             failure_class: LIFECYCLE_RETRY_FACT_KINDS.RETAINED_BEFORE_RESTART,
             correction_condition: "not_observable",
             decision: LIFECYCLE_RETRY_DECISIONS.FAILURE_HISTORY_UNAVAILABLE,
@@ -1059,11 +1329,69 @@ export function registerRunMonitorRoutes(ctx) {
     };
   }
 
+  function boundCompleteStatus(published, { status, assessmentSource, assessmentCall,
+    omitsAssessmentEvidence }) {
+    const limit = activeMcpInlineByteLimit(responseEnv);
+    if (measureMcpInlineResultBytes(published) <= limit) return published;
+    const bounded = { ...published };
+    const omitted = [];
+    const calls = [];
+
+    const frame = (fits) => {
+      const rootCalls = [...calls, ...(published.next_calls ?? [])];
+      return {
+        ...bounded,
+        bounded_complete: {
+          inline_byte_limit: limit,
+          fits,
+          omitted_members: [...omitted],
+          meaning: "the complete result exceeds the inline limit; each omitted member is " +
+            "published by the read its `read_by` names"
+        },
+        ...(rootCalls.length === 0 ? {} : { next_calls: rootCalls })
+      };
+    };
+    const fitting = () => {
+      const candidate = frame(true);
+      return measureMcpInlineResultBytes(candidate) <= limit ? candidate : null;
+    };
+
+    const READ_BY = Object.freeze({
+      retained_failures: "lifecycle_resolution.failure_history_call",
+      required_correction: "required_correction",
+      "retry_assessment.assessment_evidence": "next_calls"
+    });
+    const resolution = bounded.lifecycle_resolution;
+    if (Array.isArray(resolution?.retained_failures)) {
+      const compact = compactLifecycleResolution(resolution, status, { assessmentSource });
+      bounded.lifecycle_resolution = compact;
+      omitted.push(...compact.omitted_members.map((member) => ({
+        member: `lifecycle_resolution.${member}`,
+        read_by: READ_BY[member] ?? (member.startsWith("retry_assessment.") ? "next_calls" : null) })));
+      if (assessmentCall !== null && omitsAssessmentEvidence(compact)) calls.push(assessmentCall);
+      const fitted = fitting();
+      if (fitted !== null) return fitted;
+    }
+    const lifecycle = bounded.slice_lifecycle;
+    if (lifecycle !== null && typeof lifecycle === "object" && Object.hasOwn(lifecycle, "evidence") &&
+        typeof lifecycle.error_code === "string" &&
+        bounded.lifecycle_resolution?.latest_failure?.error_code === lifecycle.error_code &&
+        bounded.lifecycle_resolution?.failure_history_call !== undefined) {
+      const { evidence: _evidence, ...rest } = lifecycle;
+      bounded.slice_lifecycle = rest;
+      omitted.push({ member: "slice_lifecycle.evidence",
+        read_by: "lifecycle_resolution.failure_history_call" });
+      const fitted = fitting();
+      if (fitted !== null) return fitted;
+    }
+    return frame(false);
+  }
+
   registerTool(
     "workspace_agent_run_status",
     {
       description:
-        "Observe one canonical dispatch subject immediately or for a bounded timeout. attempt_id only disambiguates retained runs; detail pages are read-only. Managed-worker observation advances lifecycle; terminal means finalized, child_terminal does not. Follow next_action. Retained review text is usable advisory evidence; required formal attestation settles in the same result. A managed worker's proof_verification reports its recorded workspace_verify_proof calls apart from lifecycle, with the last call's compact recorded outcome and an exact detail call returning that call's outcome and complete evidence; reads never re-run a proof. Default status is a compact answer that names what it omits; include_final_result:true returns the complete result.",
+        "Observe one canonical dispatch subject immediately or for a bounded timeout. attempt_id only disambiguates retained runs; detail pages are read-only. Managed-worker observation advances lifecycle; terminal means finalized, child_terminal does not. Follow next_action. Retained review text is usable advisory evidence; required formal attestation settles in the same result. A managed worker's proof_verification reports its recorded workspace_verify_proof calls apart from lifecycle, with the last call's compact recorded outcome and a detail call listing each call with its exact outcome read; adding proof_subject (a test_proof_id or obligation_id) returns that proof's recorded error, location and call trace; adding source {unit, focus?} with invocation_id instead inspects one exact tuple of a retained source ambiguity and returns its original execution call without executing it. Default status is a compact answer that names what it omits; include_final_result:true returns the complete result, naming in bounded_complete any member it serves through a selected read. detail.kind retry_assessment reads the captured retry assessment from the source compact status publishes in next_calls; detail.kind authored_document reads a retained authored document by unit, section, criterion, entry, carrier, focus or obligation through its published document_calls.",
       inputSchema: z.object({
         repo: z.string().optional(),
         subject: z.string().refine(
@@ -1078,7 +1406,14 @@ export function registerRunMonitorRoutes(ctx) {
           z.object({ kind: z.literal("failure_history"), cursor: z.string().min(1).optional(), limit: z.number().int().min(1).max(100).optional() }).strict(),
           z.object({ kind: z.literal("attempts"), cursor: z.string().min(1).optional(), limit: z.number().int().min(1).max(100).optional() }).strict(),
           z.object({ kind: z.literal("proof_verification"), cursor: z.string().min(1).optional(), limit: z.number().int().min(1).max(100).optional(),
-            invocation_id: z.string().min(1).max(128).optional() }).strict()
+            invocation_id: z.string().min(1).max(128).optional(),
+            proof_subject: z.string().min(1).max(512).optional(),
+            source: z.object({ unit: proofAuthoringUnitInputSchema(z),
+              focus: proofAuthoringFocusInputSchema(z).optional() }).strict().optional() }).strict(),
+          z.object({ kind: z.literal(RETRY_ASSESSMENT_DETAIL_KIND),
+            source: z.object({ ref_id: z.string().regex(/^[A-Za-z0-9._-]{1,200}$/u),
+              sha256: z.string().regex(/^[a-f0-9]{64}$/u) }).strict() }).strict(),
+          authoredDocumentDetailSchema(z)
         ]).optional()
       }).strict()
     },
@@ -1121,6 +1456,10 @@ export function registerRunMonitorRoutes(ctx) {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args?.repo);
 
         if (args.detail !== undefined) {
+          if (args.detail.kind === RETRY_ASSESSMENT_DETAIL_KIND ||
+              args.detail.kind === RUN_STATUS_AUTHORED_DOCUMENT_DETAIL_KIND) {
+            return jsonContent(readRetainedStatusDetail(workspace, args));
+          }
           if (args.detail.invocation_id !== undefined &&
               (args.detail.cursor !== undefined || args.detail.limit !== undefined)) {
             return jsonContent(buildBlockedRunStatusResult({
@@ -1134,6 +1473,28 @@ export function registerRunMonitorRoutes(ctx) {
               )
             }));
           }
+          if (args.detail.proof_subject !== undefined && args.detail.invocation_id === undefined) {
+            return jsonContent(buildBlockedRunStatusResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+              reason: "detail_proof_subject_requires_invocation",
+              detail: null,
+              refusal: invalidArgumentRefusal(
+                "workspace_agent_run_status",
+                "request.detail_proof_subject_without_invocation",
+                true
+              )
+            }));
+          }
+          if (args.detail.source !== undefined &&
+              (args.detail.invocation_id === undefined || args.detail.proof_subject !== undefined)) {
+            return jsonContent(buildBlockedRunStatusResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+              reason: "detail_source_requires_invocation_without_proof_subject",
+              detail: null,
+              refusal: invalidArgumentRefusal("workspace_agent_run_status",
+                "request.detail_source_binding_invalid", true)
+            }));
+          }
           if (typeof dispatchBackend?.readManagedRunObservation !== "function") {
             return jsonContent(buildBlockedRunStatusResult({
               blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
@@ -1142,11 +1503,14 @@ export function registerRunMonitorRoutes(ctx) {
               refusal: backendAbsentRefusal("workspace_agent_run_status", "workspace_agent_dispatch_backend.readManagedRunObservation")
             }));
           }
+
+          const { proof_subject: proofSubject = null, source: selectedSource = null,
+            ...observedDetail } = args.detail;
           const detail = await dispatchBackend.readManagedRunObservation({
             caller_session_id: dispatchSessionIdentity,
             subject: args.subject,
             attemptId: args.attempt_id ?? null,
-            detail: args.detail
+            detail: observedDetail
           });
           if (detail?.ok !== true) {
             const ambiguityAttempts = detail?.candidates ?? detail?.attempts;
@@ -1172,41 +1536,80 @@ export function registerRunMonitorRoutes(ctx) {
                 refusal: invalidArgumentRefusal("workspace_agent_run_status", `request.${detail.code}`, true)
               }));
             }
+            const unavailableReason = detail?.code ?? detail?.refusal?.reason ?? "run_detail_unavailable";
             return jsonContent(buildBlockedRunStatusResult({
               blockerCode: DISPATCH_BLOCKER_CODES.MONITOR_RUN_DETAIL_UNAVAILABLE,
-              reason: detail?.code ?? detail?.refusal?.reason ?? "run_detail_unavailable",
-              detail: detail?.refusal ?? null,
-              refusal: routeExceptionRefusal("workspace_agent_run_status")
+              reason: unavailableReason,
+              detail: projectRecordedFailureDetail(detail?.refusal ?? null,
+                { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION }),
+              refusal: runDetailUnavailableRefusal("workspace_agent_run_status",
+                DISPATCH_BLOCKER_CODES.MONITOR_RUN_DETAIL_UNAVAILABLE, unavailableReason)
             }));
           }
           let projectedDetail = detail;
+          if (args.detail.kind === "failure_history" && Array.isArray(detail.items)) {
+
+            projectedDetail = Object.freeze({
+              ...detail,
+              items: Object.freeze(detail.items.map((item) => Object.freeze({
+                ...item,
+                failure: publishableLifecycleFailure(item.failure,
+                  { original: DISPATCH_FAILURE_ORIGINALS.ATTEMPT_JOURNAL })
+              })))
+            });
+          }
           if (args.detail.kind === "proof_verification") {
             try {
               projectedDetail = projectRunProofVerificationDetail({
                 subject: args.subject,
                 detail,
+                proofSubject,
+                source: selectedSource,
                 workspaceDir: realpathSync(path.resolve(workspace.dir)),
                 responseEnv
               });
             } catch (error) {
+              if (error?.code === RUN_PROOF_VERIFICATION_SELECTION_UNKNOWN_CODE) {
 
+                return jsonContent(buildBlockedRunStatusResult({
+                  blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+                  reason: error.code,
+                  detail: error.details,
+                  refusal: invalidArgumentRefusal(
+                    "workspace_agent_run_status",
+                    "request.detail_proof_subject_in_invocation",
+                    false
+                  )
+                }));
+              }
+
+              const blockerCode = projectProofVerificationDetailFailure(error);
+              const unavailableReason = typeof error?.code === "string" ? error.code
+                : "proof_verification_evidence_unavailable";
               return jsonContent(buildBlockedRunStatusResult({
-                blockerCode: projectProofVerificationDetailFailure(error),
-                reason: typeof error?.code === "string" ? error.code : "proof_verification_evidence_unavailable",
+                blockerCode,
+                reason: unavailableReason,
                 detail: {
                   invocation_id: args.detail.invocation_id ?? null,
-                  ...buildDispatchToolExceptionDetail("workspace_agent_run_status", error)
+
+                  ...buildDispatchToolExceptionDetail("workspace_agent_run_status", error,
+                    { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION })
                 },
-                refusal: routeExceptionRefusal("workspace_agent_run_status")
+                refusal: runDetailUnavailableRefusal("workspace_agent_run_status", blockerCode,
+                  unavailableReason)
               }));
             }
           }
+          const { next_calls: nextCalls, ...responseDetail } =
+            args.detail.kind === "proof_verification" && Array.isArray(projectedDetail.next_calls)
+              ? projectedDetail : { ...projectedDetail, next_calls: null };
           return jsonContent({
             schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION,
             accepted: true,
             subject: args.subject,
             attempt_id: projectedDetail.attempt_id ?? null,
-            detail: projectedDetail
+            detail: responseDetail,
+            ...(nextCalls === null ? {} : { next_calls: nextCalls })
           });
         }
 
@@ -1321,6 +1724,7 @@ export function registerRunMonitorRoutes(ctx) {
 
         while (args.timeout_ms !== undefined && !boundedObservationExpired &&
                advance.attempt_failed !== true &&
+               lifecycle?.publication_repair_required === undefined &&
                !terminality.terminal && terminality.lifecycle_resolution !== null) {
           const remainingMs = deadline.remainingMs();
           if (remainingMs <= 0) {
@@ -1378,14 +1782,22 @@ export function registerRunMonitorRoutes(ctx) {
         if (attemptLineageResolution !== null) {
           accepted.attempt_lineage_resolution = attemptLineageResolution;
         }
+
+        const publishedAssessment = terminality.lifecycle_resolution?.retry_assessment ?? null;
+        const assessmentSource = publishedAssessment === null
+          ? null : retryAssessmentSources.get(publishedAssessment) ?? null;
+        const assessmentCall = retryAssessmentDetailCall(publishedAssessment);
         if (terminality.lifecycle_resolution) {
+          const resolution = publishableLifecycleResolution(terminality.lifecycle_resolution);
           accepted.lifecycle_resolution = includeFullFinalResult
-            ? terminality.lifecycle_resolution
-            : compactLifecycleResolution(terminality.lifecycle_resolution, status);
+            ? resolution
+            : compactLifecycleResolution(resolution, status, { assessmentSource });
         }
         if (!terminality.terminal) {
 
-          accepted.next_action = retryAssessmentNextAction(
+          const repairRequired = terminality.lifecycle_resolution?.next_action ===
+            LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RESULT_PUBLICATION_IDENTITY;
+          accepted.next_action = !repairRequired && retryAssessmentNextAction(
             terminality.lifecycle_resolution?.retry_assessment
           ) === null
             ? LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY
@@ -1417,8 +1829,14 @@ export function registerRunMonitorRoutes(ctx) {
               : projectCompactRunProofVerification(proofOutcome.value);
         }
 
+        let candidateVerifyCall = null;
+
         if (lifecycle) {
           const published = publishableLifecycleFailure(lifecycle);
+          if (terminality.terminal) {
+            candidateVerifyCall = terminalCandidateVerifyProofCall({ sessionRole,
+              repository: workspace.repo, subject: status.subject, lifecycle: published });
+          }
 
           const retention = authoredContractRetention.retain({
             repository: workspace.repo,
@@ -1444,19 +1862,45 @@ export function registerRunMonitorRoutes(ctx) {
           finalResult,
           { includeFullFinalResult }
         ));
-        return jsonContent(omitNullFields(accepted));
+        const omitsAssessmentEvidence = (resolution) =>
+          Array.isArray(resolution?.omitted_members) &&
+          resolution.omitted_members.includes("retry_assessment.assessment_evidence");
+        const rootCalls = [];
+        if (!includeFullFinalResult && assessmentCall !== null &&
+            omitsAssessmentEvidence(accepted.lifecycle_resolution)) {
+          rootCalls.push(assessmentCall);
+        }
+        if (candidateVerifyCall !== null) rootCalls.push(candidateVerifyCall);
+
+        const findingsCapture = await buildFindingsMaterialContinuation({
+          status,
+          workspace,
+          resolveFindingsSource: dispatchBackend.resolveRetainedFindingsSource?.bind(dispatchBackend),
+          callerSessionId: dispatchSessionIdentity,
+          requestContracts,
+          deadline
+        });
+        if (findingsCapture !== null) {
+          accepted.findings_capture = findingsCapture.fact;
+          if (findingsCapture.call !== null) rootCalls.push(findingsCapture.call);
+        }
+        if (rootCalls.length > 0) accepted.next_calls = rootCalls;
+        const published = omitNullFields(accepted);
+        return jsonContent(includeFullFinalResult
+          ? boundCompleteStatus(published, { status, assessmentSource, assessmentCall,
+            omitsAssessmentEvidence })
+          : published);
       } catch (error) {
+
+        const repoRefusal = dispatchRepoResolutionRefusal("workspace_agent_run_status", error);
+        if (repoRefusal !== null) return jsonContent(buildBlockedRunStatusResult(repoRefusal));
         return jsonContent(
           buildBlockedRunStatusResult({
             blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
             reason: "run_status_tool_exception",
 
-            detail: {
-              ...buildDispatchToolExceptionDetail("workspace_agent_run_status", error),
-              evidence: captureLifecycleFailureEvidence(error, {
-                operation: "workspace_agent_run_status"
-              })
-            },
+            detail: buildDispatchToolExceptionDetail("workspace_agent_run_status", error,
+              { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION }),
 
             refusal: routeExceptionRefusal("workspace_agent_run_status")
           })

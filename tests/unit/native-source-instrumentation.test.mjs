@@ -99,8 +99,14 @@ test("Go modules and test files are instrumented without changing lines", async 
   assert.deepEqual(wrapped.tests, ["TestAnswer"]);
   assert.match(wrapped.source, /defer zzLauncherTestProofEnter\(t, "TestAnswer"\)\(\)/u);
   assert.equal(lines(wrapped.source), lines(tests));
-  await assert.rejects(instrumentGoTestFile({ source: tests, selected: "TestGeneric" }),
-    refusedWith("selected_test_not_observable"));
+
+  const unsupportedShape = `${tests}\nfunc TestUnnamed(_ *t2.T) {\n}\n`;
+  for (const [selected, reason] of [["TestGeneric", "selected_test_shape_unsupported"],
+    ["TestUnnamed", "selected_test_shape_unsupported"], ["TestAbsent", "selected_test_not_observable"],
+    ["helper", "selected_test_not_observable"]]) {
+    await assert.rejects(instrumentGoTestFile({ source: unsupportedShape, selected }), (error) =>
+      refusedWith(reason)(error) && error.detail.test === selected, selected);
+  }
 
   const composed = "package calc_test\n\nimport \"testing\"\n\nfunc TestAnswer(t *testing.T) {\n" +
     "\tTestPreserves(t)\n\tt.Run(\"preserves\", TestPreserves)\n}\n\nfunc TestPreserves(t *testing.T) {\n}\n";
@@ -120,6 +126,11 @@ test("Go modules and test files are instrumented without changing lines", async 
   const deferred = observer.slice(observer.lastIndexOf("return func() {"));
   assert.doesNotMatch(deferred, /window_end|test_result/u, "function return closes nothing");
   assert.match(deferred, /panic\(recovered\)/u, "a recorded panic is re-raised");
+
+  assert.match(cleanup, /"errors": \[\]any\{map\[string\]any\{"id": "error-0", "name": "panic", "message": panicMessage\}\}/u);
+  assert.match(cleanup, /"status": "unavailable"[^\n]*\n[^\n]*"issues": \[\]any\{map\[string\]any\{"path": "\/error", "reason": "error_not_supplied"\}\}/u);
+  assert.match(cleanup, /"assertion_failure": failed && !panicked/u, "assertion attribution is unchanged");
+  assert.doesNotMatch(observer, /"error":/u, "the removed lossy error record is gone");
 });
 
 test("Rust crates receive guards, probes and the observer module", async () => {
@@ -151,6 +162,16 @@ test("Rust crates receive guards, probes and the observer module", async () => {
 
   assert.match(finished, /if ENTERED\.swap\(true, std::sync::atomic::Ordering::SeqCst\) \{\n\s+return Guard \{ file, path, active: false \};/u);
   assert.match(finished, /fn drop\(&mut self\) \{\n\s+if !self\.active \{\n\s+return;/u);
+
+  assert.match(finished, /let location = info\.location\(\)\.map\(\|at\| \(at\.file\(\)\.to_string\(\), at\.line\(\)\)\);/u);
+  assert.match(finished, /let assertion = message\.as_deref\(\)\.is_some_and\(\|text\| text\.starts_with\("assertion"\)\);/u);
+
+  assert.match(finished, /\\"location\\":\{\{\\"file\\":\{\},\\"line\\":\{\}\}\}/u);
+  assert.doesNotMatch(finished, /at\.column\(\)/u);
+  assert.match(finished, /if panic\.message\.is_none\(\) \{\n\s+"\{\\"path\\":\\"\/error\/message\\",\\"reason\\":\\"unsupported_value_type\\"\}"/u);
+  assert.match(finished, /let failed = std::thread::panicking\(\);/u);
+  assert.match(finished, /failed && assertion, diagnostic\)\);/u);
+  assert.doesNotMatch(finished, /\\"error\\":/u, "the removed lossy error record is gone");
   await assert.rejects(instrumentRustTestFile({ source: tests, selected: ["returns"], file: "t.rs" }),
     refusedWith("selected_test_shape_unsupported"));
   await assert.rejects(instrumentRustTestFile({ source: tests, selected: ["absent"], file: "t.rs" }),

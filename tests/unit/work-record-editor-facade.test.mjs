@@ -26,7 +26,8 @@ test("Stage A enrolled registry values share one closed exact-content contract",
   const enrolled = WORK_RECORD_EDIT_FIELD_REGISTRY.filter(entry =>
     entry.facade && entry.actions.some(action => workRecordEditUsesEntryContent(entry, action)));
   assert.deepEqual([...new Set(enrolled.map(entry => entry.field))].sort(),
-    ["sections.agent_notes", "sections.summary", "sections.tasks", "sections.why_it_matters"]);
+    ["sections.agent_notes", "sections.summary", "sections.tasks", "sections.user_requirements",
+      "sections.why_it_matters"]);
   for (const accepted of [
     { text: "" },
     { ref: "opaque" },

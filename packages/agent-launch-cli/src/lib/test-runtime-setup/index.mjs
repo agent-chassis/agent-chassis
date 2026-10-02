@@ -4,6 +4,8 @@ import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/test-proof";
+import { fingerprintPopulation, measurePopulationContent } from
+  "@agent-chassis/wiki-core/src/lib/runtime-inputs/population-identity.mjs";
 
 import { DEPENDENCY_ECOSYSTEMS } from "./ecosystems.mjs";
 import {
@@ -16,7 +18,8 @@ import {
 } from "./readiness.mjs";
 import { TOOLCHAIN_NAMES, TOOLCHAIN_RECIPES, currentPlatformKey } from "./recipes.mjs";
 import { TestRuntimeSetupError, findOnPath, resolveToolchain } from "./toolchains.mjs";
-import { fingerprintPopulation, measurePopulationContent } from "./tree-identity.mjs";
+import { resolveInstalledRunnerIntegration } from "../test-execution/runner-integrations.mjs";
+import { ensureNativeCompilerCacheExcluded } from "../test-execution/runtime-inputs.mjs";
 import { verifyCandidateReadiness } from "../test-execution/setup-verification.mjs";
 
 export { TestRuntimeSetupError, findOnPath };
@@ -38,6 +41,11 @@ export function testRuntimeToolchainCommands() {
 
 function setupFailure(code, message, detail = {}) {
   return { code, message, detail };
+}
+
+function usesNativeCompilerCache({ ecosystem, descriptors }) {
+  return typeof DEPENDENCY_ECOSYSTEMS[ecosystem].compilerCacheEnv === "string" ||
+    descriptors.some((descriptor) => typeof resolveInstalledRunnerIntegration(descriptor).compilerCache === "string");
 }
 
 function componentFromError(base, error) {
@@ -281,13 +289,17 @@ export async function runTestRuntimeSetup({
   const { attempt } = begun;
   let outcome;
   try {
+
+    if (planned.some(usesNativeCompilerCache)) ensureNativeCompilerCacheExcluded({ repositoryRoot: root });
     outcome = await detectAndVerify({ root, planned, facts, environmentFacts, selectionFacts, result,
       toolchainVersions, toolchainExecutables, environmentSelections, platformKey, env, dryRun, progress });
   } catch (error) {
     outcome = result("failed", { ...facts,
-      failure: setupFailure("test_runtime_setup_unexpected_error",
-        `test-runtime detection stopped unexpectedly: ${error?.message ?? String(error)}`,
-        { error_code: error?.code ?? null, error_name: error?.name ?? null, stack: error?.stack ?? null }) });
+      failure: error?.code === "test_runtime_native_cache_exclusion_failed"
+        ? setupFailure(error.code, error.message, error.detail)
+        : setupFailure("test_runtime_setup_unexpected_error",
+          `test-runtime detection stopped unexpectedly: ${error?.message ?? String(error)}`,
+          { error_code: error?.code ?? null, error_name: error?.name ?? null, stack: error?.stack ?? null }) });
   }
   const preparation = { id: attempt.preparation.id };
   if (outcome.publish === undefined) {

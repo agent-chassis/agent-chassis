@@ -1,3 +1,5 @@
+import { DISPATCH_FAILURE_ORIGINALS, projectRecordedFailureDetail } from "./dispatch-tool-helpers.mjs";
+
 const PUBLIC_FINAL_RESULT_SCHEMA_VERSION = "workspace-agent-public-final-result.v1";
 
 const CAPTURED_TEXT_SLOTS = Object.freeze([
@@ -68,6 +70,20 @@ function replaceTextWithReference(projected, path, retainedMember) {
   };
 }
 
+function projectMissingResult(missingResult) {
+  return isObjectRecord(missingResult)
+    ? projectRecordedFailureDetail(missingResult, {
+        original: DISPATCH_FAILURE_ORIGINALS.RUN_FINAL_RESULT, at: "missing_result" })
+    : missingResult;
+}
+
+function withoutFindingsSourceReference(advisoryReview) {
+  const output = advisoryReview?.advisory_output;
+  if (!isObjectRecord(output) || !Object.hasOwn(output, "source_reference")) return advisoryReview;
+  const { source_reference: _sourceReference, ...published } = output;
+  return { ...advisoryReview, advisory_output: published };
+}
+
 export function projectPublicFinalResult(finalResult) {
   if (!isObjectRecord(finalResult)) return finalResult;
 
@@ -82,7 +98,11 @@ export function projectPublicFinalResult(finalResult) {
       source_text_count: analysis.sourceTextCount,
       distinct_text_count: analysis.distinctTextCount,
       omitted_text_count: analysis.sourceTextCount - analysis.distinctTextCount
-    }
+    },
+    ...(Object.hasOwn(finalResult, "missing_result")
+      ? { missing_result: projectMissingResult(finalResult.missing_result) } : {}),
+    ...(isObjectRecord(finalResult.advisory_review)
+      ? { advisory_review: withoutFindingsSourceReference(finalResult.advisory_review) } : {})
   };
 
   for (const slot of analysis.slots) {

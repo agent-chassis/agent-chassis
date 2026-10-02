@@ -22,7 +22,11 @@ import { registerWikiCoreTools } from "../../packages/wiki-mcp/src/lib/wiki-core
 const WORKSPACE_REPO = "agent-chassis/agent-chassis";
 const WORKSPACE_DIR = "/repo";
 const RECORD_ID = "WK-9000";
-const SOURCE_DIGEST = "sha256:source-a";
+const SOURCE_DIGEST = `sha256:${"a".repeat(64)}`;
+const MOVED_SOURCE_DIGEST = `sha256:${"b".repeat(64)}`;
+
+const SOURCE_FRESHNESS = "a".repeat(16);
+const MOVED_FRESHNESS = "b".repeat(16);
 
 function sliceId(index) {
   return `SLICE-${String(index + 1).padStart(3, "0")}`;
@@ -130,7 +134,7 @@ test("all 43 slices are reachable within the declared call budget, each exactly 
     guard += 1;
     const page = await driver.run(request);
     assert.equal(page.accepted, true);
-    assert.equal(page.source_digest, SOURCE_DIGEST);
+    assert.equal(page.source_digest, SOURCE_FRESHNESS);
 
     assert.notEqual(page.response_size.class, "large");
     if (pageSize === null) pageSize = page.slice_page.applied_limit;
@@ -140,7 +144,7 @@ test("all 43 slices are reachable within the declared call budget, each exactly 
     request = page.next_calls[0].arguments;
     assert.equal(page.next_calls[0].tool, "workspace_work_record_summary");
 
-    assert.equal(request.expected_source_digest, SOURCE_DIGEST);
+    assert.equal(request.expected_source_digest, SOURCE_FRESHNESS);
   }
 
   assert.equal(lastPage.final, true, "the final page is unambiguously final");
@@ -178,10 +182,10 @@ test("a page whose digest differs reports the mismatch instead of continuing sil
   const first = await driver.run({ id: RECORD_ID, slice_offset: 0, slice_limit: 3, slice_status: "todo" });
   assert.equal(first.accepted, true);
 
-  const moved = summaryDriver({ sourceDigest: "sha256:source-b" });
+  const moved = summaryDriver({ sourceDigest: MOVED_SOURCE_DIGEST });
   const second = await moved.run({
     ...first.next_calls[0].arguments,
-    expected_source_digest: SOURCE_DIGEST
+    expected_source_digest: SOURCE_FRESHNESS
   });
 
   assert.equal(second.accepted, false);
@@ -189,8 +193,8 @@ test("a page whose digest differs reports the mismatch instead of continuing sil
   const entry = getRuntimeBlockerEntry(second.reason_code);
   assert.deepEqual([entry.category, entry.actor_recovery, entry.blocking], ["read_disclosure", "caller_retry", false]);
   assert.equal(second.source_digest_matches, false);
-  assert.equal(second.expected_source_digest, SOURCE_DIGEST);
-  assert.equal(second.source_digest, "sha256:source-b");
+  assert.equal(second.expected_source_digest, SOURCE_FRESHNESS);
+  assert.equal(second.source_digest, MOVED_FRESHNESS);
   assert.equal(second.slice_page, null, "a mismatched page returns no slices");
   assert.equal(JSON.stringify(second).includes("token"), false, "the refusal gives no token advice");
 
@@ -199,7 +203,7 @@ test("a page whose digest differs reports the mismatch instead of continuing sil
   assert.deepEqual(second.next_calls[0].arguments, {
     id: RECORD_ID,
     slice_offset: 0,
-    expected_source_digest: "sha256:source-b",
+    expected_source_digest: MOVED_FRESHNESS,
     slice_limit: 3,
     slice_status: ["todo"]
   });
@@ -218,7 +222,7 @@ test("a matching digest continues without complaint", async () => {
   const page = await driver.run({
     id: RECORD_ID,
     slice_offset: 0,
-    expected_source_digest: SOURCE_DIGEST
+    expected_source_digest: SOURCE_FRESHNESS
   });
   assert.equal(page.accepted, true);
   assert.equal(page.source_digest_matches, true);
@@ -362,12 +366,12 @@ test("the enumeration parameters are declared in the published schemas, not mere
       slice_offset: 0,
       slice_limit: 10,
       slice_status: ["todo", "active"],
-      expected_source_digest: SOURCE_DIGEST
+      expected_source_digest: SOURCE_FRESHNESS
     });
     assert.equal(parsed.slice_offset, 0);
     assert.equal(parsed.slice_limit, 10);
     assert.deepEqual(parsed.slice_status, ["todo", "active"]);
-    assert.equal(parsed.expected_source_digest, SOURCE_DIGEST);
+    assert.equal(parsed.expected_source_digest, SOURCE_FRESHNESS);
 
     assert.throws(() => schema.parse({ id: RECORD_ID, slice_offset: -1 }));
     assert.throws(() => schema.parse({ id: RECORD_ID, slice_limit: 0 }));

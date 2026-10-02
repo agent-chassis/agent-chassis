@@ -1,6 +1,6 @@
 
 
-import { buildLaunchPrompt } from "./work-record-launch-prompt.mjs";
+import { buildLaunchPromptSections } from "./work-record-launch-prompt.mjs";
 
 import { evaluateRemoteWorkerAdmissionWrapperGate } from "./worker-admission-remote-gate.mjs";
 
@@ -294,6 +294,9 @@ function normalizeCanonicalSummary(canonicalSummary) {
       ? canonicalSummary.validation_commands.filter(isNonEmptyString)
       : [],
 
+    operative_summary: isNonEmptyString(canonicalSummary.operative_summary)
+      ? canonicalSummary.operative_summary
+      : null,
     operative_tasks: Array.isArray(canonicalSummary.operative_tasks)
       ? canonicalSummary.operative_tasks
           .filter((entry) => isObject(entry) && isNonEmptyString(entry.text))
@@ -668,7 +671,9 @@ export function buildWorkRecordLaunchPacket({
   launchTimestamp = new Date().toISOString(),
   supplementalInstructions = [],
 
-  terminalStructuredRoleResultMode = undefined
+  terminalStructuredRoleResultMode = undefined,
+
+  assignmentDelivery = undefined
 } = {}) {
   const parsedUnit = parseWorkRecordUnitAddress(unitAddress);
   const normalizedReadiness = normalizeReadinessEnvelope(readiness);
@@ -864,7 +869,7 @@ export function buildWorkRecordLaunchPacket({
     canonical_summary: summary,
     readiness: normalizedReadiness.value,
     agent_brief: normalizedBrief.value,
-    prompt: buildLaunchPrompt({
+    ...launchPacketSections(buildLaunchPromptSections({
       role,
       unit,
       canonicalSummary: summary,
@@ -873,7 +878,16 @@ export function buildWorkRecordLaunchPacket({
       launchTimestamp,
       supplementalInstructions: launchSupplementalInstructions,
 
-      terminalStructuredRoleResultMode
-    })
+      terminalStructuredRoleResultMode,
+      assignmentDelivery
+    }))
+  };
+}
+
+function launchPacketSections(sections) {
+  return {
+    assignment_delivery: sections.assignment_delivery,
+    assignment_guidance: sections.guidance,
+    prompt: sections.prompt
   };
 }

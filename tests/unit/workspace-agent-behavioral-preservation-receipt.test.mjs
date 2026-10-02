@@ -1,9 +1,6 @@
 
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import test from "node:test";
 
 import {
@@ -34,12 +31,6 @@ import {
   digestTrustedExactReviewEvidence,
   projectStableDeliveryEquivalence
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-validation.mjs";
-import {
-  reviseExactSliceReviewReceipt
-} from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-transitions.mjs";
-import {
-  buildWorkspaceAgentResultModeEnvelope
-} from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-result-mode.mjs";
 
 function nextProductionInstant(previous) {
   const deadline = Date.now() + 250;
@@ -261,85 +252,6 @@ test("parent-WK generation and sibling bookkeeping movement moves the digest, no
   assert.equal(JSON.stringify(projection).includes(settled.committed_target_digest), false);
   assert.equal(JSON.stringify(projection).includes(`sha256:${"4".repeat(64)}`), false,
     "the parent source digest is bookkeeping, not delivery");
-});
-
-test("equivalent delivery reuses the one settled result instead of electing a second reviewer", async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "wk2356-delivery-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const store = createExactSliceReviewReceiptStore({
-    ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
-  });
-  const original = deliveryReceipt();
-  await store.persist(original);
-
-  const afterSibling = deliveryReceipt({
-    wkSha: "c".repeat(40), runId: "delivery-run-2", monitorHandle: "delivery-monitor-2"
-  });
-  const decision = await store.assessDeliveryEquivalence({
-    prior_receipt: original, replacement_receipt: afterSibling
-  });
-  assert.equal(decision.kind, "supersedable",
-    "an unused pre-spawn context whose bytes are unchanged may be superseded");
-  assert.deepEqual(decision.moved_fields, []);
-  assert.equal(decision.supported_continuation, "consume_selected_result");
-});
-
-test("genuine delivery movement returns a closed refusal naming the moved field", async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "wk2356-delivery-moved-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const store = createExactSliceReviewReceiptStore({
-    ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
-  });
-  const original = deliveryReceipt();
-  await store.persist(original);
-
-  const moved = {
-    reviewed_sha: deliveryReceipt({
-      reviewedSha: "d".repeat(40), runId: "moved-run", monitorHandle: "moved-monitor"
-    }),
-    changed_paths: deliveryReceipt({
-      changedPaths: ["packages/agent-launch-cli/src/lib/backend-constants.mjs",
-        "packages/agent-launch-cli/src/lib/backend-routing.mjs"],
-      runId: "moved-run-2", monitorHandle: "moved-monitor-2"
-    }),
-    commit_chain: deliveryReceipt({
-      commitChain: [DELIVERY_REVIEWED, "e".repeat(40)],
-      runId: "moved-run-3", monitorHandle: "moved-monitor-3"
-    })
-  };
-  for (const [field, replacement] of Object.entries(moved)) {
-    const decision = await store.assessDeliveryEquivalence({
-      prior_receipt: original, replacement_receipt: replacement
-    });
-    assert.equal(decision.kind, "refused", field);
-    assert.equal(decision.code, "review_delivery_moved", field);
-    assert.equal(decision.moved_fields.includes(field), true,
-      `${field} must be named: got ${JSON.stringify(decision.moved_fields)}`);
-    assert.equal(decision.supported_continuation, "elect_replacement_for_moved_delivery", field);
-  }
-});
-
-test("a used pre-spawn context is never superseded, however equivalent the delivery", async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "wk2356-delivery-used-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const store = createExactSliceReviewReceiptStore({
-    ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
-  });
-  const original = deliveryReceipt();
-  await store.persist(original);
-  await store.persist(reviseExactSliceReviewReceipt(original, {
-    terminal_run_status: "failed",
-    verdict_evidence: "no_verdict_child_terminal",
-    result_mode: buildWorkspaceAgentResultModeEnvelope({ mode: "runtime_failure" })
-  }));
-  const decision = await store.assessDeliveryEquivalence({
-    prior_receipt: original,
-    replacement_receipt: deliveryReceipt({
-      wkSha: "c".repeat(40), runId: "used-run", monitorHandle: "used-monitor"
-    })
-  });
-  assert.equal(decision.kind, "equivalent_delivery",
-    "the bytes match, but a context that already ran is not a pre-spawn context");
 });
 
 test("mutation witness: folding the versioned digest into the projection reports false movement", () => {

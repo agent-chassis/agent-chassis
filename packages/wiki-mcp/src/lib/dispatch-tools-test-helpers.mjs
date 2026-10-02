@@ -6,6 +6,7 @@ import { registerDispatchTools } from "./dispatch-tools.mjs";
 import { runPostWorkerSliceLifecycle } from "./dispatch-run-monitor-routes.mjs";
 import { resolveLauncherOwnedLifecycleDeps } from "./dispatch-launch-runtime.mjs";
 import { errorContent, jsonContent } from "./mcp-response.mjs";
+import { assertStructuredCarrier } from "../../../../tests/helpers/mcp-journey-accounting.mjs";
 
 export function createDispatchToolRegistry({
   backend = {},
@@ -56,10 +57,7 @@ export function createDispatchToolRegistry({
 
 export function readStructuredResult(result) {
   assert.equal(result.isError, undefined);
-  assert.deepEqual(result.content, []);
-  assert.ok(result.structuredContent !== null && typeof result.structuredContent === "object",
-    "structured result must carry structuredContent");
-  return result.structuredContent;
+  return assertStructuredCarrier(result);
 }
 
 export const RETIRED_POST_WORKER_REVIEW_SEAMS = Object.freeze([

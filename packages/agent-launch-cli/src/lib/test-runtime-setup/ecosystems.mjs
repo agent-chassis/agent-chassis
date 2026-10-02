@@ -1,9 +1,15 @@
 
 
+import { createHash } from "node:crypto";
 import { mkdtempSync, existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync,
   rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+
+import { CARGO_OFFLINE_ENV, cargoConfigFiles, cargoHomeFromEnvironment, cargoToolchainEnv } from
+  "@agent-chassis/wiki-core/src/lib/runtime-inputs/ecosystem-inputs-cargo.mjs";
+import { GO_OFFLINE_MODULE_ENV, goModuleCachePopulation } from
+  "@agent-chassis/wiki-core/src/lib/runtime-inputs/ecosystem-inputs-go.mjs";
 
 import { selectWorkingCopySource } from "../test-execution/source-selection.mjs";
 import { processDiagnostic, runSetupProcess } from "./process.mjs";
@@ -160,13 +166,6 @@ function selectedVirtualEnvironment(selected, project) {
   return selected;
 }
 
-function parseGoModuleLines(text) {
-  return text.split("\n").filter((line) => line.trim() !== "").map((line) => {
-    const [modulePath, version, dir, goMod] = line.split("\t");
-    return { path: modulePath, version, dir, goMod };
-  });
-}
-
 function cargoLockPackages(lockFile) {
   const packages = [];
   for (const block of readFileSync(lockFile, "utf8").split(/^\[\[package\]\]\s*$/mu).slice(1)) {
@@ -216,21 +215,6 @@ function readCargoSourceConfig(file) {
     }
   }
   return values;
-}
-
-function cargoConfigFiles(projectDir, cargoHome) {
-  const files = [];
-  for (let directory = projectDir; ; directory = path.dirname(directory)) {
-    const found = ["config", "config.toml"].map((name) => path.join(directory, ".cargo", name)).find(existsSync);
-    if (found !== undefined) files.push({ file: found, base: directory, scope: directory === projectDir
-      ? "project" : "ancestor" });
-    if (path.dirname(directory) === directory) break;
-  }
-  const home = ["config", "config.toml"].map((name) => path.join(cargoHome, name)).find(existsSync);
-  if (home !== undefined && !files.some(({ file }) => file === home)) {
-    files.push({ file: home, base: path.dirname(cargoHome), scope: "cargo_home" });
-  }
-  return files;
 }
 
 function effectiveCargoSources(projectDir, cargoHome) {
@@ -475,11 +459,27 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
       }
       return { source: "deno_dir", dir: denoDir, population, exclude: [] };
     },
-    runtimeBinding({ dependency, scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
+
+    compilerCacheEnv: "DENO_DIR",
+    compilerCacheName: (dependency) => dependency.status === "present"
+      ? `deno-dir-${createHash("sha256").update(dependency.dir).digest("hex").slice(0, 16)}` : "deno-dir",
+
+    runtimeBinding({ dependency, scratchRoot = ATTEMPT_SCRATCH_ROOT, compilerCache = null }) {
       const common = { DENO_NO_UPDATE_CHECK: "1", NO_COLOR: "1" };
+      const denoDir = compilerCache ?? `${scratchRoot}/deno-dir`;
       if (dependency.status !== "present") {
-        return { binds: [], mountpoints: [], links: [],
-          env: { DENO_DIR: `${scratchRoot}/deno-dir`, ...common }, values: {} };
+        return { binds: [], mountpoints: [], links: [], env: { DENO_DIR: denoDir, ...common }, values: {} };
+      }
+      if (compilerCache !== null) {
+        return {
+          binds: dependency.population.map((store) => ({ src: store, dst: store })),
+          cacheLinks: dependency.population.map((store) => ({ path: path.join(denoDir, path.basename(store)),
+            target: store })),
+          mountpoints: [],
+          links: [],
+          env: { DENO_DIR: denoDir, ...common },
+          values: {}
+        };
       }
       return {
         binds: [{ src: dependency.dir, dst: dependency.dir }],
@@ -570,6 +570,9 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
     name: "go_modules",
     toolchains: Object.freeze(["go"]),
 
+    compilerCacheEnv: "GOCACHE",
+    compilerCacheName: () => "go-build",
+
     projectCommands: Object.freeze({ go: Object.freeze({}) }),
     manifests(projectDir) {
       const mod = path.join(projectDir, "go.mod");
@@ -599,17 +602,13 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         const listed = await runSetupProcess(go, ["list", "-m", "-f",
           "{{if not .Main}}{{.Path}}\t{{.Version}}\t{{.Dir}}\t{{.GoMod}}{{end}}", "all"], { cwd: projectDir,
           env: { PATH: pathWith(path.dirname(go)), HOME: path.join(scratch, "home"), GOMODCACHE: cache,
-            GOPROXY: "off", GOFLAGS: "-mod=readonly", GOWORK: "off", GOTOOLCHAIN: "local", GOTELEMETRY: "off",
-            GOENV: "off", GOSUMDB: "off", GOCACHE: path.join(scratch, "gocache"),
+            ...GO_OFFLINE_MODULE_ENV, GOWORK: "off", GOCACHE: path.join(scratch, "gocache"),
             GOPATH: path.join(scratch, "gopath") }, timeoutMs: 120000 });
         if (!listed.ok) {
           dependenciesMissing(`the module graph of project ${project} does not resolve from ${cache}`,
             { module_cache: cache, diagnostic: processDiagnostic(listed), correction });
         }
-        const within = (candidate) => typeof candidate === "string" && candidate.startsWith(`${cache}${path.sep}`);
-        const population = [...new Set(parseGoModuleLines(listed.stdout).flatMap(({ dir, goMod }) =>
-          [within(dir) && existsSync(dir) ? dir : null, within(goMod) ? path.dirname(goMod) : null])
-          .filter(Boolean))].sort();
+        const population = goModuleCachePopulation(listed.stdout, cache, existsSync);
         if (population.length === 0) return { none: true };
         return { source: "module_cache", dir: cache, population, exclude: [] };
       } finally {
@@ -623,8 +622,7 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         binds: present ? [{ src: dependency.dir, dst: dependency.dir }] : [],
         mountpoints: [],
         links: [],
-        env: { GOMODCACHE: present ? dependency.dir : `${scratchRoot}/gomodcache`, GOPROXY: "off",
-          GOFLAGS: "-mod=readonly", GOTOOLCHAIN: "local", GOTELEMETRY: "off", GOENV: "off", GOSUMDB: "off",
+        env: { GOMODCACHE: present ? dependency.dir : `${scratchRoot}/gomodcache`, ...GO_OFFLINE_MODULE_ENV,
           GOWORK: "off", GOCACHE: `${scratchRoot}/go-build`, GOPATH: `${scratchRoot}/gopath` },
         values: {}
       };
@@ -634,10 +632,12 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
     name: "cargo",
     toolchains: Object.freeze(["rust"]),
 
+    compilerCacheEnv: "CARGO_TARGET_DIR",
+    compilerCacheName: () => "cargo-target",
+
     projectCommands: Object.freeze({ cargo: Object.freeze({}) }),
 
-    toolchainEnv: (toolchains) => ({ RUSTC: toolchains.rust.executables.rustc,
-      RUSTDOC: path.join(path.dirname(toolchains.rust.executables.rustc), "rustdoc") }),
+    toolchainEnv: (toolchains) => cargoToolchainEnv(toolchains.rust.executables.rustc),
 
     manifests(projectDir, { members = [] } = {}) {
       const manifest = path.join(projectDir, "Cargo.toml");
@@ -651,7 +651,7 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
     },
 
     async detect({ project, projectDir, inputs, env }) {
-      const cargoHome = absoluteOrNull(env.CARGO_HOME) ?? path.join(homeOf(env), ".cargo");
+      const cargoHome = cargoHomeFromEnvironment(env);
       const locked = cargoLockPackages(inputs.files["Cargo.lock"]);
       if (cargoLockedCrates(locked).length === 0) return { none: true };
       const { replacement } = effectiveCargoSources(projectDir, cargoHome);
@@ -660,8 +660,7 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
     },
     runtimeBinding({ dependency, scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
       const present = dependency.status === "present";
-      const offline = { CARGO_TARGET_DIR: `${scratchRoot}/cargo-target`, CARGO_NET_OFFLINE: "true",
-        CARGO_TERM_COLOR: "never" };
+      const offline = { CARGO_TARGET_DIR: `${scratchRoot}/cargo-target`, ...CARGO_OFFLINE_ENV };
       if (!present) {
         return { binds: [], mountpoints: [], links: [], env: { CARGO_HOME: `${scratchRoot}/cargo-home`, ...offline },
           values: {} };

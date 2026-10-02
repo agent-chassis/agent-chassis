@@ -199,15 +199,11 @@ export function resolveExpectedEnvelope(binding) {
 
 export function resolveCommitWriteScopeMatcher(reader, writeScope, exclusions) {
   const coverage = resolveWritableScopeCoverage(reader, writeScope, { exclusions });
-  const files = new Set(coverage.files);
-  const directories = new Set(coverage.directories);
   return Object.freeze({
     matches(relPath) {
       const parsed = parseRepositoryScopePath(relPath);
       if (!parsed.ok || parsed.value.directory_hint) return false;
-      const candidate = parsed.value.canonical_path;
-      if (directories.has(candidate) && !files.has(candidate)) return false;
-      return coverage.covers(candidate);
+      return coverage.covers(parsed.value.canonical_path);
     }
   });
 }

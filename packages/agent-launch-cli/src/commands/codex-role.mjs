@@ -139,6 +139,10 @@ export {
   attachOperatorOrchestratorIsolation,
   runInteractiveOrchestratorChild
 } from "../lib/codex-role-orchestrator-runtime.mjs";
+import {
+  attachCodexModelRoute,
+  liteLlmRouteFailureDetail
+} from "../lib/litellm-gateway-launch.mjs";
 
 const CODEX_ROLE_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -404,7 +408,28 @@ async function executePlan(plan, io) {
   }
 }
 
+async function attachModelRouteForSpawn(plan, io) {
+  try {
+    return await attachCodexModelRoute(plan);
+  } catch (error) {
+    const failure = liteLlmRouteFailureDetail(error);
+    writeStderr(io.stderr, `codex-${plan.role}: ${failure.message}` +
+      `${failure.correction ? `; ${failure.correction}` : ""}\n`);
+    process.exitCode = 1;
+    return null;
+  }
+}
+
 async function runPlannedChild(plan, io) {
+  const route = { attachment: null };
+  try {
+    await runPlannedChildWithRoute(plan, io, route);
+  } finally {
+    route.attachment?.release();
+  }
+}
+
+async function runPlannedChildWithRoute(plan, io, route) {
   const supervisedOrchestratorPlan = isSupervisedOrchestratorPlan(plan);
 
   if (plan.operatorIsolation?.refusal) {
@@ -430,6 +455,8 @@ async function runPlannedChild(plan, io) {
         `${formatOrchestratorResumePlainSpawnProvenance(plan)}\n`
       );
     }
+    route.attachment = await attachModelRouteForSpawn(plan, io);
+    if (route.attachment === null) return;
     const status = await spawnDirectAndWait(plan.command, plan.args, {
       cwd: plan.repo,
       env: plan.env,
@@ -472,6 +499,29 @@ async function runPlannedChild(plan, io) {
       plainSpawnDecision = prepared.decision;
     } else {
       bwrapPlan = prepared.bwrapPlan;
+    }
+  }
+
+  route.attachment = await attachModelRouteForSpawn(plan, io);
+  if (route.attachment === null) return;
+  if (route.attachment.attached) {
+
+    if (plan.operatorIsolation || supervisedOrchestratorPlan) {
+      bwrapPlan = buildCodexRoleBubblewrapPlan(plan, {
+        stdioMcpConduit: plan.stdioMcpConduit ?? null
+      });
+    } else {
+      const prepared = prepareCodexRoleSandboxLaunch(plan);
+      if (prepared.outcome === "refused") {
+        writeStderr(
+          io.stderr,
+          `${formatCodexRoleSandboxFailOpenRefusal(plan, prepared.decision, prepared.error)}\n`
+        );
+        process.exitCode = 1;
+        return;
+      }
+      plainSpawnDecision = prepared.outcome === "plain" ? prepared.decision : null;
+      bwrapPlan = prepared.outcome === "plain" ? null : prepared.bwrapPlan;
     }
   }
 
@@ -718,6 +768,8 @@ function publicPlan(plan) {
     log_path: plan.logPath,
     headless: plan.headless === true,
     headless_log_target: plan.headlessLogTarget ?? null,
+
+    model_route: plan.model_selection?.route ?? null,
     env: {
       AGENT_ROLE: plan.env.AGENT_ROLE,
       AGENT_IN: plan.env.AGENT_IN,

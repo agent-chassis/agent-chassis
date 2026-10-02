@@ -6,8 +6,7 @@ compatibility posture.
 
 Generic orchestrator, worker, and reviewer guidance ships with
 `@agent-chassis/agent-launch-core` under `data/role-guides/`. Launcher startup
-prompts deliver the applicable guide; a hand-written direct-worker prompt should
-name the installed `direct-worker.md` path.
+prompts deliver the applicable guide.
 
 ## Core Rule
 

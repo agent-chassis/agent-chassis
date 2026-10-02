@@ -42,36 +42,68 @@ export function parseRepositoryScopePath(input) {
   });
 }
 
-export function compileRepositoryScopePath(input) {
-  const parsed = parseRepositoryScopePath(input);
-  if (!parsed.ok) return parsed;
+export const UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR = "unsupported_repository_scope_selector";
+export const REPOSITORY_SCOPE_SELECTOR_KINDS = Object.freeze({
+  GLOB: "glob_selector",
+  DIRECTORY: "directory_scope"
+});
+export const REPOSITORY_SCOPE_ENUMERATION_GUIDANCE =
+  "Globs and directory scopes are unsupported. Enumerate each required repository-relative file, " +
+  "including intended new write files, then retry.";
 
-  const selector = parsed.value;
+const REPOSITORY_ROOT_SELECTORS = new Set([".", "./"]);
+const GLOB_SYNTAX_RE = /[*?[\]{}]/u;
+
+export function repositoryScopeSelectorRefusalMessage(field, entry) {
+  return `${field} entry ${JSON.stringify(entry)} is not an individual file path. ` +
+    REPOSITORY_SCOPE_ENUMERATION_GUIDANCE;
+}
+
+function unsupportedRepositoryScopeSelector(input, selectorKind) {
   return Object.freeze({
-    ok: true,
-    value: Object.freeze({
-      ...selector,
-      matches(candidate) {
-        const parsedCandidate = parseRepositoryScopePath(candidate);
-        if (!parsedCandidate.ok) return false;
-        const candidatePath = parsedCandidate.value.canonical_path;
-        if (pathPosix.matchesGlob(candidatePath, selector.canonical_path)) return true;
-        return selector.directory_hint && pathPosix.matchesGlob(
-          candidatePath,
-          `${selector.canonical_path}${pathPosix.sep}**`
-        );
-      }
+    ok: false,
+    diagnostic: Object.freeze({
+      code: UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
+      input,
+      selector_kind: selectorKind
     })
   });
 }
 
-export function repositoryScopeGlobIndex(selector) {
-  return selector.components.findIndex((component) => /[*?[\]{}]/u.test(component));
+export function parseRepositoryScopeFileSelector(input) {
+  if (REPOSITORY_ROOT_SELECTORS.has(input)) {
+    return unsupportedRepositoryScopeSelector(input, REPOSITORY_SCOPE_SELECTOR_KINDS.DIRECTORY);
+  }
+  const parsed = parseRepositoryScopePath(input);
+  if (!parsed.ok) return parsed;
+  if (parsed.value.components.some((component) => GLOB_SYNTAX_RE.test(component))) {
+    return unsupportedRepositoryScopeSelector(input, REPOSITORY_SCOPE_SELECTOR_KINDS.GLOB);
+  }
+  if (parsed.value.directory_hint) {
+    return unsupportedRepositoryScopeSelector(input, REPOSITORY_SCOPE_SELECTOR_KINDS.DIRECTORY);
+  }
+  const { original, canonical_path: canonicalPath, components } = parsed.value;
+  return Object.freeze({
+    ok: true,
+    value: Object.freeze({ original, canonical_path: canonicalPath, components })
+  });
 }
 
-export function repositoryScopePathMatches(input, candidate) {
-  const compiled = compileRepositoryScopePath(input);
-  return compiled.ok && compiled.value.matches(candidate);
+export const REPOSITORY_SCOPE_FIELDS = Object.freeze(["read_scope", "repo_paths", "write_scope"]);
+
+export function findUnsupportedRepositoryScopeSelector(values) {
+  if (!Array.isArray(values)) return null;
+  for (const [index, entry] of values.entries()) {
+    if (typeof entry !== "string") continue;
+
+    for (const candidate of new Set([entry.trim(), normalizeRepositoryRelativePath(entry)])) {
+      const parsed = parseRepositoryScopeFileSelector(candidate);
+      if (!parsed.ok && parsed.diagnostic.code === UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR) {
+        return Object.freeze({ index, entry, selector_kind: parsed.diagnostic.selector_kind });
+      }
+    }
+  }
+  return null;
 }
 
 export function normalizeRepositoryRelativePath(value) {

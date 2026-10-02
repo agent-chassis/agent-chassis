@@ -6,7 +6,8 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 
 import {
   resolveWorkspaceRepo,
-  parseWorkspaceRepos
+  parseWorkspaceRepos,
+  workspaceRepoResolutionRefusalOf
 } from "../../packages/wiki-mcp/src/lib/workspace-repo-resolution.mjs";
 import {
   WORKSPACE_DECLARATION_RELATIVE_PATH,
@@ -240,4 +241,36 @@ test("WK-0748 basename-derived alias collision with WIKI_MCP_REPOS entry fails c
       assert.equal(error.envelope.refusal.reason, "conflict");
     });
   });
+});
+
+test("a malformed requested alias is the resolver's typed invalid request", () => {
+  const workspaces = { repos: new Map([["current", "/repo/current"], ["foreign", "/repo/foreign"]]),
+    currentAlias: "current" };
+  for (const [alias, rule] of [["bad/alias!", "pattern /^[A-Za-z0-9._-]+$/"], ["   ", "non_empty"]]) {
+    let thrown;
+    assert.throws(() => resolveWorkspaceRepo(workspaces, alias), (error) => { thrown = error; return true; });
+    const envelope = workspaceRepoResolutionRefusalOf(thrown);
+    assert.ok(envelope, `${JSON.stringify(alias)} is an owner-minted refusal`);
+    assert.deepEqual([envelope.refusal.category, envelope.refusal.reason], ["invalid_request", "invalid_alias"]);
+    assert.equal(envelope.refusal.detail.requested_alias, alias);
+    assert.equal(envelope.refusal.detail.violated_rule, rule);
+    assert.equal(envelope.refusal.detail.current_workspace_repo, "current");
+    assert.deepEqual(envelope.refusal.detail.configured_workspace_repos, ["current", "foreign"]);
+    assert.equal(envelope.refusal.detail.diagnostics[0].code, "workspace_repo_alias_invalid");
+
+    const lookalike = Object.assign(new Error(thrown.message), { envelope: structuredClone(thrown.envelope) });
+    assert.equal(workspaceRepoResolutionRefusalOf(lookalike), null);
+  }
+
+  assert.deepEqual(resolveWorkspaceRepo(workspaces), { repo: "current", dir: "/repo/current" });
+  assert.deepEqual(resolveWorkspaceRepo(workspaces, ""), { repo: "current", dir: "/repo/current" });
+  assert.deepEqual(resolveWorkspaceRepo(workspaces, " foreign "), { repo: "foreign", dir: "/repo/foreign" });
+  assert.throws(() => resolveWorkspaceRepo(workspaces, "unknown"),
+    (error) => workspaceRepoResolutionRefusalOf(error)?.refusal.reason === "wrong_session");
+});
+
+test("a malformed configured alias keeps its configuration error", async () => {
+  await assert.rejects(parseWorkspaceRepos({ WIKI_MCP_REPOS: JSON.stringify({ "bad alias": "/tmp/x" }) }),
+    (error) => /alias must match/u.test(error.message) &&
+      workspaceRepoResolutionRefusalOf(error) === null);
 });

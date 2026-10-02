@@ -434,6 +434,7 @@ export const SUBPROCESS_HELPER_ENROLLED = Object.freeze([
   "tests/helpers/proof-authoring-fixture.mjs",
   "tests/integration/scope-refusal-diagnostics.test.mjs",
   "tests/integration/sync-owned-git-runner.test.mjs",
+  "tests/integration/wk-forge-review-history-landing.test.mjs",
 ]);
 
 export const SUBPROCESS_MIGRATION_BACKLOG = Object.freeze([]);

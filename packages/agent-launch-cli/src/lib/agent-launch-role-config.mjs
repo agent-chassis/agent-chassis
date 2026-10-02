@@ -17,8 +17,13 @@ const ROLE_MODEL_ENV_KEYS = Object.freeze({
 
 const KNOWN_ROLE_SET = new Set(Object.keys(ROLE_MODEL_ENV_KEYS));
 const ROLE_CONFIG_EFFORT_SET = new Set(["low", "medium", "high", "xhigh", "max"]);
-const SECTION_PATTERN = /^\[([A-Za-z0-9_.-]+)\]$/;
+const SECTION_PATTERN = /^\[\s*([^\[\]]+?)\s*\]$/;
 const ASSIGNMENT_PATTERN = /^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.+)$/;
+
+const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const MODEL_TABLE_PATTERN = /^models\.(?:"([^"\\]*)"|([A-Za-z0-9_-]+))$/;
+const MODEL_TABLE_KEYS = new Set(["use_litellm"]);
+const VERTEXAI_TABLE_KEYS = new Set(["credentials_file", "project", "location", "port"]);
 
 export class AgentLaunchRoleConfigError extends Error {
   constructor(message, { code, detail } = {}) {
@@ -90,9 +95,25 @@ function parseTomlBasicString(value, { lineNumber, key }) {
   });
 }
 
-function parseRoleTableSection(sectionName, { lineNumber, source }) {
-  if (sectionName === "roles") {
-    return { kind: "roles_root" };
+function configError(message, code, detail) {
+  return new AgentLaunchRoleConfigError(`agent-launch-role-config: ${message}`, { code, detail });
+}
+
+function parseSection(sectionName, { lineNumber, source }) {
+  if (sectionName === "roles") return { kind: "roles_root" };
+  if (sectionName === "models") return { kind: "models_root" };
+  if (sectionName === "vertexai") return { kind: "vertexai", key: "vertexai" };
+  if (sectionName.startsWith("models.")) {
+    const match = MODEL_TABLE_PATTERN.exec(sectionName);
+    const model = match ? (match[1] ?? match[2]) : null;
+    if (model === null || !MODEL_ID_PATTERN.test(model)) {
+      throw configError(
+        `[${sectionName}] on line ${lineNumber} is not a model table; use [models."<registered-model-id>"]`,
+        "role_config.invalid_model_table",
+        { line_number: lineNumber, section: sectionName, source }
+      );
+    }
+    return { kind: "model", key: `models.${model}`, model };
   }
   if (!sectionName.startsWith("roles.")) {
     return { kind: "other" };
@@ -100,182 +121,245 @@ function parseRoleTableSection(sectionName, { lineNumber, source }) {
 
   const role = sectionName.slice("roles.".length);
   if (!KNOWN_ROLE_SET.has(role)) {
-    throw new AgentLaunchRoleConfigError(
-      `agent-launch-role-config: unknown role ${role} in [${sectionName}] on line ${lineNumber}`,
-      {
-        code: "role_config.unknown_role",
-        detail: { line_number: lineNumber, role, source }
-      }
+    throw configError(
+      `unknown role ${role} in [${sectionName}] on line ${lineNumber}`,
+      "role_config.unknown_role",
+      { line_number: lineNumber, role, source }
     );
   }
-  return { kind: "role", role };
+  return { kind: "role", key: `roles.${role}`, role };
+}
+
+function parseTomlBoolean(value, { lineNumber, key }) {
+  const trimmed = value.trim();
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  throw configError(
+    `${key} on line ${lineNumber} must be a TOML boolean (true or false)`,
+    "role_config.value_not_boolean",
+    { line_number: lineNumber, key }
+  );
+}
+
+function parseTomlPort(value, { lineNumber, key }) {
+  const trimmed = value.trim();
+  const port = /^[0-9]{1,5}$/.test(trimmed) ? Number(trimmed) : NaN;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw configError(
+      `${key} on line ${lineNumber} must be a TOML integer between 1 and 65535`,
+      "role_config.value_not_port",
+      { line_number: lineNumber, key }
+    );
+  }
+  return port;
+}
+
+function unsupportedKey(section, key, lineNumber, source, expected) {
+  const table = section.kind === "role" ? `role ${section.role}` : `[${section.key}]`;
+  return configError(
+    `unsupported key ${key} for ${table} on line ${lineNumber}; expected ${expected.join(" or ")}`,
+    "role_config.unsupported_key",
+    { role: section.role ?? null, table: section.key, key, line_number: lineNumber, source }
+  );
+}
+
+function parseTableValue(section, key, rawValue, { lineNumber, source }) {
+  if (section.kind === "role") {
+    if (key !== "model" && key !== "effort") {
+      throw unsupportedKey(section, key, lineNumber, source, ["model", "effort"]);
+    }
+    const trimmed = parseTomlBasicString(rawValue, { lineNumber, key }).trim();
+    if (key === "model" && trimmed === "") {
+      throw configError(
+        `role ${section.role} model must be non-empty`,
+        "role_config.empty_model",
+        { line_number: lineNumber, role: section.role, source }
+      );
+    }
+    if (key === "effort" && !ROLE_CONFIG_EFFORT_SET.has(trimmed)) {
+      throw configError(
+        `role ${section.role} effort ${trimmed} is not in low|medium|high|xhigh|max`,
+        "role_config.unknown_effort",
+        { line_number: lineNumber, role: section.role, effort: trimmed, source }
+      );
+    }
+    return trimmed;
+  }
+  if (section.kind === "model") {
+    if (!MODEL_TABLE_KEYS.has(key)) {
+      throw unsupportedKey(section, key, lineNumber, source, [...MODEL_TABLE_KEYS]);
+    }
+    return parseTomlBoolean(rawValue, { lineNumber, key });
+  }
+  if (!VERTEXAI_TABLE_KEYS.has(key)) {
+    throw unsupportedKey(section, key, lineNumber, source, [...VERTEXAI_TABLE_KEYS]);
+  }
+  if (key === "port") return parseTomlPort(rawValue, { lineNumber, key });
+  const text = parseTomlBasicString(rawValue, { lineNumber, key }).trim();
+  if (text === "") {
+    throw configError(
+      `[vertexai] ${key} on line ${lineNumber} must be non-empty; omit it to use the default`,
+      "role_config.empty_value",
+      { line_number: lineNumber, key, source }
+    );
+  }
+  return text;
 }
 
 export function parseAgentLaunchRoleConfigSource(input, { source = null } = {}) {
-  const roleTables = new Map();
+  const tables = new Map();
   let section = { kind: "other" };
   const lines = String(input ?? "").split(/\r?\n/);
 
   for (let index = 0; index < lines.length; index += 1) {
     const lineNumber = index + 1;
-    const rawLine = lines[index];
-    const line = stripInlineTomlComment(rawLine).trim();
+    const line = stripInlineTomlComment(lines[index]).trim();
 
     if (line === "") continue;
 
     const sectionMatch = SECTION_PATTERN.exec(line);
     if (sectionMatch) {
-      section = parseRoleTableSection(sectionMatch[1], { lineNumber, source });
-      if (section.kind === "role") {
-        if (roleTables.has(section.role)) {
-          throw new AgentLaunchRoleConfigError(
-            `agent-launch-role-config: duplicate [roles.${section.role}] table on line ${lineNumber}; first declared on line ${roleTables.get(section.role).lineNumber}`,
+      section = parseSection(sectionMatch[1], { lineNumber, source });
+      if (section.key !== undefined) {
+        const existing = tables.get(section.key);
+        if (existing) {
+          const duplicateLabel = section.kind === "role" ? `[roles.${section.role}]` : `[${sectionMatch[1]}]`;
+          throw configError(
+            `duplicate ${duplicateLabel} table on line ${lineNumber}; first declared on line ${existing.lineNumber}`,
+            section.kind === "role" ? "role_config.duplicate_role" : "role_config.duplicate_table",
             {
-              code: "role_config.duplicate_role",
-              detail: {
-                role: section.role,
-                line_number: lineNumber,
-                first_line_number: roleTables.get(section.role).lineNumber,
-                source
-              }
+              ...(section.kind === "role" ? { role: section.role } : { table: section.key }),
+              line_number: lineNumber,
+              first_line_number: existing.lineNumber,
+              source
             }
           );
         }
-        roleTables.set(section.role, {
-          lineNumber,
-          values: new Map(),
-          keyLines: new Map()
-        });
+        tables.set(section.key, { section, lineNumber, values: new Map(), keyLines: new Map() });
       }
       continue;
     }
 
     const assignmentMatch = ASSIGNMENT_PATTERN.exec(line);
     if (!assignmentMatch) {
-      throw new AgentLaunchRoleConfigError(
-        `agent-launch-role-config: invalid TOML assignment on line ${lineNumber}`,
-        {
-          code: "role_config.invalid_assignment",
-          detail: { line_number: lineNumber, source }
-        }
+      throw configError(
+        `invalid TOML assignment on line ${lineNumber}`,
+        "role_config.invalid_assignment",
+        { line_number: lineNumber, source }
       );
     }
 
     if (section.kind === "other") continue;
     if (section.kind === "roles_root") {
-      throw new AgentLaunchRoleConfigError(
-        `agent-launch-role-config: [roles] assignments are not supported on line ${lineNumber}; use [roles.<role>] with model = "..."`,
-        {
-          code: "role_config.legacy_roles_table_assignment",
-          detail: { line_number: lineNumber, source }
-        }
+      throw configError(
+        `[roles] assignments are not supported on line ${lineNumber}; use [roles.<role>] with model = "..."`,
+        "role_config.legacy_roles_table_assignment",
+        { line_number: lineNumber, source }
+      );
+    }
+    if (section.kind === "models_root") {
+      throw configError(
+        `[models] assignments are not supported on line ${lineNumber}; use [models."<registered-model-id>"] with use_litellm = true`,
+        "role_config.models_root_assignment",
+        { line_number: lineNumber, source }
       );
     }
 
-    const role = section.role;
     const key = assignmentMatch[1];
-    if (key !== "model" && key !== "effort") {
-      throw new AgentLaunchRoleConfigError(
-        `agent-launch-role-config: unsupported key ${key} for role ${role} on line ${lineNumber}; expected model or effort`,
+    const table = tables.get(section.key);
+    const value = parseTableValue(section, key, assignmentMatch[2], { lineNumber, source });
+    if (table.keyLines.has(key)) {
+      const owner = section.kind === "role" ? `role ${section.role}` : `[${section.key}]`;
+      throw configError(
+        `duplicate ${key} for ${owner} on line ${lineNumber}; first declared on line ${table.keyLines.get(key)}`,
+        "role_config.duplicate_key",
         {
-          code: "role_config.unsupported_key",
-          detail: { role, key, line_number: lineNumber, source }
+          ...(section.kind === "role" ? { role: section.role } : { table: section.key }),
+          key,
+          line_number: lineNumber,
+          first_line_number: table.keyLines.get(key),
+          source
         }
       );
     }
-
-    const roleTable = roleTables.get(role);
-    if (roleTable.keyLines.has(key)) {
-      throw new AgentLaunchRoleConfigError(
-        `agent-launch-role-config: duplicate ${key} for role ${role} on line ${lineNumber}; first declared on line ${roleTable.keyLines.get(key)}`,
-        {
-          code: "role_config.duplicate_key",
-          detail: {
-            role,
-            key,
-            line_number: lineNumber,
-            first_line_number: roleTable.keyLines.get(key),
-            source
-          }
-        }
-      );
-    }
-
-    const value = parseTomlBasicString(assignmentMatch[2], { lineNumber, key });
-    const trimmed = value.trim();
-    if (key === "model" && trimmed === "") {
-      throw new AgentLaunchRoleConfigError(
-        `agent-launch-role-config: role ${role} model must be non-empty`,
-        {
-          code: "role_config.empty_model",
-          detail: { line_number: lineNumber, role, source }
-        }
-      );
-    }
-    if (key === "effort" && !ROLE_CONFIG_EFFORT_SET.has(trimmed)) {
-      throw new AgentLaunchRoleConfigError(
-        `agent-launch-role-config: role ${role} effort ${trimmed} is not in low|medium|high|xhigh|max`,
-        {
-          code: "role_config.unknown_effort",
-          detail: { line_number: lineNumber, role, effort: trimmed, source }
-        }
-      );
-    }
-    roleTable.values.set(key, trimmed);
-    roleTable.keyLines.set(key, lineNumber);
+    table.values.set(key, value);
+    table.keyLines.set(key, lineNumber);
   }
 
-  const roles = new Map();
-  const efforts = new Map();
-  for (const [role, roleTable] of roleTables) {
-    if (!roleTable.values.has("model")) {
-      throw new AgentLaunchRoleConfigError(
-        `agent-launch-role-config: [roles.${role}] must declare model`,
-        {
-          code: "role_config.missing_model",
-          detail: { line_number: roleTable.lineNumber, role, source }
-        }
-      );
-    }
-    roles.set(role, roleTable.values.get("model"));
-    if (roleTable.values.has("effort")) {
-      efforts.set(role, roleTable.values.get("effort"));
+  const roles = {};
+  const efforts = {};
+  const models = {};
+  let vertexai = null;
+  for (const { section: owner, lineNumber, values } of tables.values()) {
+    if (owner.kind === "role") {
+      if (!values.has("model")) {
+        throw configError(
+          `[roles.${owner.role}] must declare model`,
+          "role_config.missing_model",
+          { line_number: lineNumber, role: owner.role, source }
+        );
+      }
+      roles[owner.role] = values.get("model");
+      if (values.has("effort")) efforts[owner.role] = values.get("effort");
+    } else if (owner.kind === "model") {
+      models[owner.model] = Object.freeze({
+        use_litellm: values.get("use_litellm") === true,
+        line_number: lineNumber
+      });
+    } else if (owner.kind === "vertexai") {
+      vertexai = Object.freeze({
+        credentials_file: values.get("credentials_file") ?? null,
+        project: values.get("project") ?? null,
+        location: values.get("location") ?? null,
+        port: values.get("port") ?? null
+      });
     }
   }
 
   return Object.freeze({
-    roles: Object.freeze(Object.fromEntries(roles)),
-    efforts: Object.freeze(Object.fromEntries(efforts)),
+    roles: Object.freeze(roles),
+    efforts: Object.freeze(efforts),
+    models: Object.freeze(models),
+    vertexai,
     source
   });
 }
 
-export function readRoleDefaultModel(role, { dir, readFileText = (filePath) => readFileSync(filePath, "utf8") } = {}) {
-  const resolvedRole = canonicalRole(role);
-  if (!resolvedRole || !KNOWN_ROLE_SET.has(resolvedRole)) {
-    return null;
-  }
+const EMPTY_SNAPSHOT_SOURCE = Object.freeze({ kind: "absent" });
+
+export function readAgentLaunchConfigSnapshot({
+  dir,
+  readFileText = (filePath) => readFileSync(filePath, "utf8")
+} = {}) {
   const configPath = roleConfigPath(dir);
   if (!configPath || !existsSync(configPath)) {
-    return null;
+    return parseAgentLaunchRoleConfigSource("", { source: EMPTY_SNAPSHOT_SOURCE });
   }
-  const parsed = parseAgentLaunchRoleConfigSource(readFileText(configPath), {
+  return parseAgentLaunchRoleConfigSource(readFileText(configPath), {
     source: Object.freeze({ kind: "file", path: configPath })
   });
-  return parsed.roles[resolvedRole] ?? null;
 }
 
-export function readRoleEffort(role, { dir, readFileText = (filePath) => readFileSync(filePath, "utf8") } = {}) {
+export function roleDefaultModelFromSnapshot(role, snapshot) {
   const resolvedRole = canonicalRole(role);
-  if (!resolvedRole || !KNOWN_ROLE_SET.has(resolvedRole)) {
-    return null;
-  }
-  const configPath = roleConfigPath(dir);
-  if (!configPath || !existsSync(configPath)) {
-    return null;
-  }
-  const parsed = parseAgentLaunchRoleConfigSource(readFileText(configPath), {
-    source: Object.freeze({ kind: "file", path: configPath })
-  });
-  return parsed.efforts[resolvedRole] ?? null;
+  if (!resolvedRole || !KNOWN_ROLE_SET.has(resolvedRole)) return null;
+  return snapshot?.roles?.[resolvedRole] ?? null;
+}
+
+export function roleEffortFromSnapshot(role, snapshot) {
+  const resolvedRole = canonicalRole(role);
+  if (!resolvedRole || !KNOWN_ROLE_SET.has(resolvedRole)) return null;
+  return snapshot?.efforts?.[resolvedRole] ?? null;
+}
+
+export function readRoleDefaultModel(role, { dir, readFileText } = {}) {
+  const resolvedRole = canonicalRole(role);
+  if (!resolvedRole || !KNOWN_ROLE_SET.has(resolvedRole)) return null;
+  return roleDefaultModelFromSnapshot(resolvedRole, readAgentLaunchConfigSnapshot({ dir, readFileText }));
+}
+
+export function readRoleEffort(role, { dir, readFileText } = {}) {
+  const resolvedRole = canonicalRole(role);
+  if (!resolvedRole || !KNOWN_ROLE_SET.has(resolvedRole)) return null;
+  return roleEffortFromSnapshot(resolvedRole, readAgentLaunchConfigSnapshot({ dir, readFileText }));
 }

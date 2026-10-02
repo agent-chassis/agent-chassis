@@ -336,6 +336,22 @@ const SLICE_ID_PATTERN = /^(?:SLICE-[0-9]{3}|[a-z0-9][a-z0-9-]*)$/;
 const ESCALATION_ID_PATTERN = /^ESC-[0-9]{4}$/;
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
+const WORK_RECORD_FRESHNESS_PATTERN = /^[0-9a-f]{16}$/;
+const WORK_RECORD_FRESHNESS_HEX_LENGTH = 16;
+
+function projectWorkRecordFreshness(sourceDigest) {
+  if (typeof sourceDigest !== "string" || !SHA256_PATTERN.test(sourceDigest)) return null;
+  return sourceDigest.slice("sha256:".length, "sha256:".length + WORK_RECORD_FRESHNESS_HEX_LENGTH);
+}
+
+function isWorkRecordFreshness(value) {
+  return typeof value === "string" && WORK_RECORD_FRESHNESS_PATTERN.test(value);
+}
+
+function workRecordFreshnessMatches(freshness, sourceDigest) {
+  return isWorkRecordFreshness(freshness) && projectWorkRecordFreshness(sourceDigest) === freshness;
+}
+
 export {
   REQUIRED_TOP_LEVEL_FIELDS,
   REQUIRED_STRING_TOP_LEVEL_FIELDS,
@@ -346,5 +362,9 @@ export {
   OBJECT_TOP_LEVEL_FIELDS,
   SLICE_ID_PATTERN,
   ESCALATION_ID_PATTERN,
-  SHA256_PATTERN
+  SHA256_PATTERN,
+  WORK_RECORD_FRESHNESS_PATTERN,
+  projectWorkRecordFreshness,
+  isWorkRecordFreshness,
+  workRecordFreshnessMatches
 };

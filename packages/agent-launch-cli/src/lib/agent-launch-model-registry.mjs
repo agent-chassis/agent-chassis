@@ -9,6 +9,8 @@ const BACKEND_BY_APP = Object.freeze({
 
 const NEUTRAL_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 
+const VERTEX_MODEL_PATTERN = /^[a-z0-9][a-z0-9._@-]{0,127}$/;
+
 export const MODEL_REGISTRY = Object.freeze([
   Object.freeze([
     "gpt-5.5",
@@ -145,6 +147,27 @@ export const MODEL_REGISTRY = Object.freeze([
       default_effort: "medium"
     })
   ]),
+
+  Object.freeze([
+    "vertex-claude-opus-5-5",
+    Object.freeze({
+      app: "codex",
+      backend: "codex",
+      codex_profile: "orchestrator",
+      default_effort: "high",
+      vertex_model: "claude-opus-5-5"
+    })
+  ]),
+  Object.freeze([
+    "vertex-claude-sonnet-5-5",
+    Object.freeze({
+      app: "codex",
+      backend: "codex",
+      codex_profile: "worker",
+      default_effort: "medium",
+      vertex_model: "claude-sonnet-5-5"
+    })
+  ]),
   Object.freeze([
     "fable",
     Object.freeze({
@@ -207,6 +230,17 @@ function assertDefaultEffort(model, defaultEffort) {
   }
 }
 
+function assertVertexModel(model, spec) {
+  const vertexModel = spec.vertex_model ?? null;
+  if (vertexModel === null) return;
+  if (spec.app !== "codex") {
+    throw new Error(`agent-launch-model-registry: non-codex model ${model} must not declare vertex_model`);
+  }
+  if (typeof vertexModel !== "string" || !VERTEX_MODEL_PATTERN.test(vertexModel)) {
+    throw new Error(`agent-launch-model-registry: model ${model} vertex_model must be a Vertex AI model id`);
+  }
+}
+
 function assertCodexProfile(model, spec) {
   if (!Object.prototype.hasOwnProperty.call(spec, "codex_profile")) {
     throw new Error(`agent-launch-model-registry: model ${model} missing codex_profile`);
@@ -246,13 +280,15 @@ export function buildModelRegistry(entries) {
     assertBackend(model, spec.app, spec.backend);
     assertDefaultEffort(model, spec.default_effort);
     assertCodexProfile(model, spec);
+    assertVertexModel(model, spec);
 
     const normalizedSpec = Object.freeze({
       app: spec.app,
       backend: spec.backend,
       backend_profile: spec.backend_profile ?? spec.codex_profile,
       codex_profile: spec.codex_profile,
-      default_effort: spec.default_effort
+      default_effort: spec.default_effort,
+      vertex_model: spec.vertex_model ?? null
     });
 
     registry.set(model, normalizedSpec);

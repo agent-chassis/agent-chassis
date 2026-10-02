@@ -109,8 +109,23 @@ test("work_item spec preserves today's required top-level, status, and section s
     "scope",
     "summary",
     "tasks",
+    "user_requirements",
     "why_it_matters"
   ]);
+});
+
+test("work_item user_requirements is an optional search-eligible root string", () => {
+  const spec = getRecordKindSpec("work_item");
+  assert.deepEqual(spec.sectionSpec.user_requirements, { type: "string", allowEmpty: true });
+  assert.deepEqual(validateRecordByKind(validWorkItem()), [], "absent requirements stay valid");
+  for (const value of ["", "Keep exact versions 🙂\r\n"]) {
+    const record = validWorkItem();
+    record.sections.user_requirements = value;
+    assert.deepEqual(validateRecordByKind(record), [], JSON.stringify(value));
+  }
+  const invalid = validWorkItem();
+  invalid.sections.user_requirements = ["not", "a", "string"];
+  assert.ok(validateRecordByKind(invalid).some(issue => issue.path === "sections.user_requirements"));
 });
 
 test("a valid work_item record passes with no diagnostics", () => {

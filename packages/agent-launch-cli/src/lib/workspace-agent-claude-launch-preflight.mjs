@@ -358,7 +358,9 @@ export async function openClaudeStdioMcpConduit({
   provisioning,
   completionCredential = null,
   completionTransport = null,
-  canonicalRepo = null
+  canonicalRepo = null,
+  workerAssignment = null,
+  advisoryReviewInput = null
 }) {
   const authority = mintTrustedStdioMcpConduitAuthority({
     family: "claude",
@@ -368,7 +370,11 @@ export async function openClaudeStdioMcpConduit({
     workerScopeAuthority,
     canonicalWriteScope,
     provisioning,
-    commitTuple
+    commitTuple,
+
+    workerAssignment,
+
+    advisoryReviewInput
   });
 
   const authenticatedCompletionCredential = authenticateClaudeCompletionCredential({

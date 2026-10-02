@@ -1,7 +1,15 @@
 
 
-import { accessSync, constants, existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
+
+import { fingerprintPopulation, measurePopulationContent } from
+  "@agent-chassis/wiki-core/src/lib/runtime-inputs/population-identity.mjs";
+import { observeExecutable } from
+  "@agent-chassis/wiki-core/src/lib/runtime-inputs/executable-lookup.mjs";
+import { TOOLCHAIN_DESCRIPTIONS } from
+  "@agent-chassis/wiki-core/src/lib/runtime-inputs/toolchain-descriptions.mjs";
+import { observeToolchainInstallation } from
+  "@agent-chassis/wiki-core/src/lib/runtime-inputs/toolchain-observation.mjs";
 
 import {
   TOOLCHAIN_RECIPES,
@@ -9,10 +17,10 @@ import {
   readProjectToolchainPins,
   versionSatisfies
 } from "./recipes.mjs";
-import { fingerprintPopulation, measurePopulationContent } from "./tree-identity.mjs";
 import { processDiagnostic, runSetupProcess } from "./process.mjs";
 
 const SYSTEM_BIN_DIRS = Object.freeze(["/usr/local/bin", "/usr/bin", "/bin"]);
+const SETUP_PROBE_TIMEOUT_MS = 60000;
 
 export class TestRuntimeSetupError extends Error {
   constructor(code, message, detail = {}) {
@@ -28,31 +36,21 @@ function fail(code, message, detail = {}) {
 }
 
 export function findOnPath(command, searchPath) {
-  for (const directory of String(searchPath ?? "").split(path.delimiter)) {
-    if (!path.isAbsolute(directory)) continue;
-    const candidate = path.join(directory, command);
-    try {
-      accessSync(candidate, constants.X_OK);
-      const real = realpathSync(candidate);
-      if (statSync(real).isFile()) return { found: candidate, real };
-    } catch {
-
-    }
+  const observation = observeExecutable({ command, searchPath });
+  if (observation.status === "found") {
+    return { found: observation.requested_path, real: observation.resolved_path };
   }
-  return null;
+  if (observation.status === "absent") return null;
+  fail("test_runtime_toolchain_lookup_failed", observation.message,
+    { observation, correction: observation.correction, cause: observation.cause ?? null });
 }
 
 export function detectNativePrerequisite(command) {
-  for (const directory of SYSTEM_BIN_DIRS) {
-    const candidate = path.join(directory, command);
-    try {
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-
-    }
-  }
-  return null;
+  const observation = observeExecutable({ command, searchPath: SYSTEM_BIN_DIRS.join(path.delimiter) });
+  if (observation.status === "found") return observation.requested_path;
+  if (observation.status === "absent") return null;
+  fail("test_runtime_toolchain_lookup_failed", observation.message,
+    { observation, correction: observation.correction, cause: observation.cause ?? null });
 }
 
 function selectRequirement(recipe, { requestedVersion, projectDirs }) {
@@ -83,106 +81,79 @@ function selectRequirement(recipe, { requestedVersion, projectDirs }) {
   };
 }
 
-const PYTHON_DESCRIBE_PROGRAM = [
-  "import json, os, platform, sys, sysconfig",
-  "print(json.dumps({'executable': os.path.realpath(sys.executable),",
-  "  'version': platform.python_version(), 'prefix': sys.base_prefix,",
-  "  'stdlib': os.path.realpath(sysconfig.get_paths()['stdlib'])}))"
-].join("\n");
-
-async function describePython(executable) {
-  const result = await runSetupProcess(executable, ["-I", "-B", "-c", PYTHON_DESCRIBE_PROGRAM],
-    { env: { PATH: "/usr/bin:/bin", PYTHONDONTWRITEBYTECODE: "1" }, timeoutMs: 60000 });
-  if (!result.ok) return { ok: false, diagnostic: processDiagnostic(result) };
-  try { return { ok: true, described: JSON.parse(result.stdout) }; } catch {
-    return { ok: false, diagnostic: processDiagnostic(result) };
-  }
-}
-
-async function probeVersion(recipe, executables) {
-  const executable = executables[recipe.probe.executable];
-  const result = await runSetupProcess(executable, [...recipe.probe.args], {
-    env: { PATH: [path.dirname(executable), "/usr/bin", "/bin"].join(path.delimiter),
-      RUSTC: executables.rustc ?? "" },
-    timeoutMs: 60000
-  });
-  return { version: result.ok ? recipe.probe.version(result.stdout.trim()) : null,
-    diagnostic: processDiagnostic(result) };
-}
-
 function resolveConfiguredExecutable(name, executable) {
-  if (!path.isAbsolute(executable)) {
-    fail("test_runtime_toolchain_executable_invalid",
-      `configured ${name} executable ${executable} must be an absolute path`,
-      { toolchain: name, executable });
-  }
-  let real;
-  try {
-    real = realpathSync(executable);
-  } catch (error) {
+  const observation = observeExecutable({ executable });
+  if (observation.status === "found") return observation.resolved_path;
+  if (observation.status === "absent") {
     fail("test_runtime_toolchain_executable_unavailable",
       `configured ${name} executable ${executable} does not exist`,
-      { toolchain: name, executable, errno: error?.code ?? null });
+      { toolchain: name, executable, searched_paths: observation.searched_paths,
+        correction: `set ${name} executable to an existing absolute path` });
   }
-  if (!statSync(real).isFile()) {
-    fail("test_runtime_toolchain_executable_invalid",
-      `configured ${name} executable ${executable} is not a regular file`,
-      { toolchain: name, executable, resolved: real });
+  const code = observation.code === "runtime_input_executable_invalid" ||
+    observation.operation === "access"
+    ? "test_runtime_toolchain_executable_invalid" : "test_runtime_toolchain_lookup_failed";
+  fail(code, `configured ${name} executable ${executable}: ${observation.message}`,
+    { toolchain: name, executable, operation: observation.operation, path: observation.path,
+      errno: observation.errno, observation, correction: observation.correction,
+      cause: observation.cause ?? null });
+}
+
+function setupProbe({ command, args, cwd, env, deadline, signal }) {
+  const timeoutMs = deadline - Date.now();
+  if (timeoutMs <= 0 && !signal?.aborted) {
+    return { ok: false, command, code: null, signal: null, timed_out: true, cancelled: false,
+      output_overflow: null, spawn_error: null, stdout: "", stderr: "" };
   }
-  try {
-    accessSync(real, constants.X_OK);
-  } catch (error) {
-    fail("test_runtime_toolchain_executable_invalid",
-      `configured ${name} executable ${executable} is not executable`,
-      { toolchain: name, executable, resolved: real, errno: error?.code ?? null });
+  return runSetupProcess(command, args, { cwd, env, timeoutMs, signal });
+}
+
+function installationFailure(recipe, observation) {
+  const { toolchain: name, executable: real, source, phase } = observation;
+  const detail = { toolchain: name, executable: real, source, observation };
+  switch (observation.code) {
+    case "runtime_input_installation_component_lookup_failed":
+      fail("test_runtime_toolchain_lookup_failed", observation.message,
+        { ...detail, root: observation.root, correction: observation.correction,
+          cause: observation.cause ?? null });
+      break;
+    case "runtime_input_installation_components_missing":
+      fail("test_runtime_toolchain_incomplete",
+        `${source} ${name} installation at ${observation.root} is missing required components`,
+        { ...detail, root: observation.root, required: Object.values(recipe.executables),
+          missing: observation.missing.map(({ role, path: file }) => ({ executable: role, path: file })) });
+      break;
+    case "runtime_input_installation_probe_failed":
+    case "runtime_input_installation_output_invalid": {
+      const outcome = observation.result ? processDiagnostic(observation.result) : null;
+      const diagnostic = observation.code === "runtime_input_installation_probe_failed" && outcome
+        ? outcome : [observation.message, outcome].filter(Boolean).join("\n");
+      if (phase === "version") {
+        fail("test_runtime_toolchain_unusable", `${source} ${name} at ${real} did not report a usable version`,
+          { ...detail, root: observation.root, diagnostic });
+      }
+      fail("test_runtime_toolchain_incomplete", phase === "describe"
+        ? `${source} python interpreter ${real} did not describe a usable installation`
+        : `${source} ${name} executable ${real} did not report its toolchain root`, { ...detail, diagnostic });
+      break;
+    }
+    default:
+      throw new TypeError(`${observation.message}; ${observation.correction}`, { cause: observation });
   }
-  return real;
 }
 
 async function identifyInstallation(recipe, { real, source }) {
-  const name = recipe.name;
-  if (name === "python") {
-    const described = await describePython(real);
-    if (!described.ok) {
-      fail("test_runtime_toolchain_incomplete",
-        `${source} python interpreter ${real} did not describe a usable installation`,
-        { toolchain: name, executable: real, source, diagnostic: described.diagnostic });
-    }
-    const { executable, version, prefix, stdlib } = described.described;
-    return { root: prefix, executables: { python: executable },
-      population: [executable, stdlib], population_exclude: ["__pycache__", "site-packages", "dist-packages"],
-      version, source };
-  }
-  let root;
-  if (recipe.host_root_probe) {
-    const probed = await runSetupProcess(real, [...recipe.host_root_probe],
-      { env: { PATH: "/usr/bin:/bin" }, timeoutMs: 60000 });
-    if (!probed.ok) {
-      fail("test_runtime_toolchain_incomplete",
-        `${source} ${name} executable ${real} did not report its toolchain root`,
-        { toolchain: name, executable: real, source, diagnostic: processDiagnostic(probed) });
-    }
-    root = probed.stdout.trim();
-  } else {
-    root = recipe.hostRoot(real);
-  }
-  const executables = Object.fromEntries(Object.entries(recipe.executables)
-    .map(([role, relative]) => [role, path.join(root, relative)]));
-  const missing = Object.entries(executables).filter(([, file]) => !existsSync(file))
-    .map(([role, file]) => ({ executable: role, path: file }));
-  if (missing.length > 0) {
-    fail("test_runtime_toolchain_incomplete",
-      `${source} ${name} installation at ${root} is missing required components`,
-      { toolchain: name, executable: real, root, source, required: Object.values(recipe.executables), missing });
-  }
-  const probed = await probeVersion(recipe, executables);
-  if (probed.version === null) {
-    fail("test_runtime_toolchain_unusable",
-      `${source} ${name} at ${real} did not report a usable version`,
-      { toolchain: name, executable: real, root, source, diagnostic: probed.diagnostic });
-  }
-  return { root, executables, population: recipe.population.map((relative) => path.join(root, relative)),
-    population_exclude: [], version: probed.version, source };
+  const observation = await observeToolchainInstallation({
+    description: TOOLCHAIN_DESCRIPTIONS[recipe.name], executable: real,
+    requiredRoles: Object.keys(recipe.executables), source, probe: setupProbe,
+    probeContext: { cwd: process.cwd(), timeoutMs: SETUP_PROBE_TIMEOUT_MS, env: {
+      root: { PATH: "/usr/bin:/bin" },
+      describe: { PATH: "/usr/bin:/bin", PYTHONDONTWRITEBYTECODE: "1" },
+      version: { PATH: "/usr/bin:/bin" } } }
+  });
+  if (observation.status !== "observed") installationFailure(recipe, observation);
+  const { status, ...installation } = observation;
+  return installation;
 }
 
 export async function resolveToolchain({

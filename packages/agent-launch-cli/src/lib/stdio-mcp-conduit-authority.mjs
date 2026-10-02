@@ -20,8 +20,9 @@ import {
   serializeTrustedFrozenReviewContract,
   digestFrozenReviewContractSnapshot
 } from "./frozen-review-contract-snapshot.mjs";
-import { consumeLauncherFindingsLifecycleContext } from
-  "./workspace-agent-findings-lifecycle-context.mjs";
+import { assertManagedWorkerAssignment } from "./worker-assignment-authority.mjs";
+import { createManagedAssignmentReadSnapshot } from "./managed-assignment-read-artifact.mjs";
+import { consumeAdvisoryReviewInput } from "./workspace-agent-advisory-review-contract.mjs";
 
 export const STDIO_MCP_CONDUIT_AUTHORITY_SCHEMA_VERSION =
   "launcher-stdio-mcp-conduit-authority.v1";
@@ -303,6 +304,162 @@ export function isLauncherMintedAgentSessionContract(value) {
   return isPlainObject(value) && SESSION_CONTRACTS.has(value);
 }
 
+export const WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR =
+  "WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT";
+
+function sessionContractRefusal(refusalCode, message, detail = null) {
+  fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID, message, {
+    session_contract_refusal: Object.freeze({
+      schema_version: "launcher-agent-session-contract-refusal.v1",
+      code: refusalCode
+    }),
+    refusal_code: refusalCode,
+    ...(detail === null ? {} : { detail })
+  });
+}
+
+function sameCanonicalBytes(left, right) {
+  return canonicalSerializeLauncherAgentSessionContract(left).equals(
+    canonicalSerializeLauncherAgentSessionContract(right)
+  );
+}
+
+export function authenticateLauncherAgentSessionContract({
+  contract,
+  expectedFacts = null,
+  expectedContract = null,
+  consumerVersion = LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION
+} = {}) {
+  if (consumerVersion !== LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.CONSUMER_VERSION_MISMATCH,
+      "session contract consumer version is incompatible"
+    );
+  }
+  if (contract === null || contract === undefined) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.MISSING,
+      "launcher agent session contract is absent"
+    );
+  }
+  if (!isPlainObject(contract)) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.SHAPE_INVALID,
+      "launcher agent session contract is not a closed object"
+    );
+  }
+  if (typeof contract.schema_version !== "string" ||
+      contract.schema_version !== LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.SCHEMA_UNSUPPORTED,
+      "launcher agent session contract schema is unsupported"
+    );
+  }
+  const fields = Object.keys(contract).sort();
+  const expectedFields = [...LAUNCHER_AGENT_SESSION_CONTRACT_FIELDS].sort();
+  if (fields.length !== expectedFields.length ||
+      fields.some((field, index) => field !== expectedFields[index])) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.SHAPE_INVALID,
+      "launcher agent session contract field closure is invalid"
+    );
+  }
+  if (typeof contract.contract_digest !== "string" ||
+      digestLauncherAgentSessionContract(contract) !== contract.contract_digest) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.DIGEST_MISMATCH,
+      "launcher agent session contract digest does not match canonical bytes"
+    );
+  }
+  if ((expectedFacts === null || expectedFacts === undefined) && expectedContract !== null) {
+    if (!isPlainObject(expectedContract) ||
+        expectedContract.schema_version !== LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION ||
+        Object.keys(expectedContract).sort().join("\0") !== expectedFields.join("\0") ||
+        typeof expectedContract.contract_digest !== "string" ||
+        digestLauncherAgentSessionContract(expectedContract) !== expectedContract.contract_digest) {
+      sessionContractRefusal(
+        LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED,
+        "launcher-expected session contract is invalid"
+      );
+    }
+    if (!sameCanonicalBytes(contract, expectedContract)) {
+      const operatorMismatch = JSON.stringify(contract.minting_provenance?.operator_action_binding) !==
+        JSON.stringify(expectedContract.minting_provenance?.operator_action_binding);
+      const authorityMismatch = contract.minting_provenance?.authority_schema_version !==
+          expectedContract.minting_provenance?.authority_schema_version ||
+        contract.minting_provenance?.authority_digest !==
+          expectedContract.minting_provenance?.authority_digest;
+      const capabilityMismatch = JSON.stringify(contract.capabilities) !==
+        JSON.stringify(expectedContract.capabilities);
+      const transportMismatch = contract.completion_transport?.transport_id !==
+        expectedContract.completion_transport?.transport_id;
+      sessionContractRefusal(
+        operatorMismatch
+          ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.OPERATOR_ACTION_BINDING_INVALID
+          : authorityMismatch
+            ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED
+            : capabilityMismatch
+              ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.CAPABILITY_UNKNOWN
+              : transportMismatch
+                ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.COMPLETION_TRANSPORT_MISMATCH
+                : LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.FACT_MISMATCH,
+        "session contract facts do not match launcher-expected facts"
+      );
+    }
+    return Object.freeze(structuredClone(contract));
+  }
+  if (!isPlainObject(expectedFacts) || !expectedFacts.authority) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED,
+      "session contract consumer has no launcher-minted authority"
+    );
+  }
+  const availableCapabilities = new Set(expectedFacts.capabilities ?? []);
+  if (!Array.isArray(contract.capabilities) ||
+      contract.capabilities.some((capability) => !availableCapabilities.has(capability))) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.CAPABILITY_UNKNOWN,
+      "session contract names a capability absent from the registry snapshot"
+    );
+  }
+  if (contract.completion_transport?.transport_id !== expectedFacts.completionTransport) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.COMPLETION_TRANSPORT_MISMATCH,
+      "session contract completion transport contradicts launcher facts"
+    );
+  }
+  let expected;
+  try {
+    expected = mintLauncherAgentSessionContract(expectedFacts);
+  } catch (error) {
+    const code = error?.detail?.refusal_code ===
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.OPERATOR_ACTION_BINDING_INVALID
+      ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.OPERATOR_ACTION_BINDING_INVALID
+      : LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED;
+    sessionContractRefusal(code, "session contract expected authority facts are invalid");
+  }
+  if (contract.minting_provenance?.authority_schema_version !==
+      expected.minting_provenance.authority_schema_version ||
+      contract.minting_provenance?.authority_digest !==
+      expected.minting_provenance.authority_digest) {
+    sessionContractRefusal(
+      LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED,
+      "session contract authority provenance is untrusted"
+    );
+  }
+  if (!sameCanonicalBytes(contract, expected)) {
+    const operatorMismatch = JSON.stringify(contract.minting_provenance?.operator_action_binding) !==
+      JSON.stringify(expected.minting_provenance.operator_action_binding);
+    sessionContractRefusal(
+      operatorMismatch
+        ? LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.OPERATOR_ACTION_BINDING_INVALID
+        : LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.FACT_MISMATCH,
+      "session contract facts do not match launcher-resolved facts"
+    );
+  }
+  return Object.freeze(structuredClone(contract));
+}
+
 export const STDIO_MCP_FROZEN_REVIEW_CONTRACT_PATH_CLASS =
   "launcher-private-frozen-review-contract";
 
@@ -320,6 +477,7 @@ const ORCHESTRATOR_PROFILE = Object.freeze({
 
 const TRUSTED_AUTHORITIES = new WeakSet();
 const TRUSTED_FROZEN_REVIEW_SNAPSHOTS = new WeakMap();
+const TRUSTED_WORKER_ASSIGNMENT_SNAPSHOTS = new WeakMap();
 const TRUSTED_SESSION_CONTRACTS = new WeakMap();
 const TRUSTED_SESSION_CONTRACT_FACTS = new WeakMap();
 
@@ -360,60 +518,6 @@ function normalizeScopeArray(label, value) {
 
 function sameScope(left, right) {
   return left.length === right.length && left.every((entry, index) => entry === right[index]);
-}
-
-export function mintTrustedManagedFindingsFrozenReviewBinding({
-  role,
-  assignedUnit,
-  findingsLifecycleContext,
-  launchRef,
-  runId,
-  retryId = 0
-} = {}) {
-  const conduitRole = normalizeStdioMcpConduitRole(role);
-  const lifecycle = consumeLauncherFindingsLifecycleContext(findingsLifecycleContext, {
-    required: true,
-    selectedUnit: assignedUnit,
-    subject: assignedUnit
-  });
-  if (!lifecycle.ok) {
-    refuse("managed findings lifecycle context is missing or subject-mismatched", {
-      reason: lifecycle.reason ?? null,
-      detail: lifecycle.detail ?? null
-    });
-  }
-  const trustedFrozenReviewContract = lifecycle.context.trusted_frozen_review_contract;
-  if (!isTrustedFrozenReviewContract(trustedFrozenReviewContract) ||
-      trustedFrozenReviewContract.review_subject !== assignedUnit) {
-    refuse("managed findings frozen contract authority is missing or subject-mismatched", {
-      reason: "trusted_advisory_review_presentation_unavailable"
-    });
-  }
-  const retry = String(retryId);
-  if (typeof launchRef !== "string" || launchRef.length === 0 ||
-      typeof runId !== "string" || runId.length === 0 ||
-      !/^(0|[1-9]\d*)$/u.test(retry) || !Number.isSafeInteger(Number(retry))) {
-    refuse("managed findings requires its exact launcher run credential tuple");
-  }
-  const snapshot = createFrozenReviewContractSnapshot(trustedFrozenReviewContract);
-  const credential = Object.freeze({
-    launch_ref: launchRef,
-    run_id: runId,
-    retry_id: retry
-  });
-  return Object.freeze({
-    binding: Object.freeze({
-      snapshot,
-      subject: assignedUnit,
-      role: conduitRole,
-      schema_version: snapshot.schema_version,
-      digest: snapshot.digest,
-      path_class: STDIO_MCP_FROZEN_REVIEW_CONTRACT_PATH_CLASS,
-      materialization_root: lifecycle.context.review_materialization_root,
-      credential
-    }),
-    commitTuple: Object.freeze({ launchRef, runId, retryId: Number(retry) })
-  });
 }
 
 function requireFrozenReviewBinding(binding, { assignedUnit, conduitRole, crossRunIdentity }) {
@@ -578,6 +682,58 @@ function resolveCrossRunIdentity({ sliceBinding, commitTuple }) {
   });
 }
 
+function requireAdvisoryReviewSource(advisoryReviewInput, { assignedUnit, conduitRole, workspace }) {
+  if (advisoryReviewInput === null || advisoryReviewInput === undefined) return null;
+  if (conduitRole !== "reviewer" && conduitRole !== "redteam") {
+    refuse("only a findings conduit may carry an advisory review input", { role: conduitRole });
+  }
+  try {
+    consumeAdvisoryReviewInput(advisoryReviewInput, { role: conduitRole, subject: assignedUnit });
+  } catch {
+    refuse("advisory review input is not the launcher-owned input for this launch", {
+      reason: "advisory_review_input_invalid"
+    });
+  }
+  const { repository, private_checkout_root: checkoutRoot } = advisoryReviewInput;
+  if (typeof repository !== "string" || !path.isAbsolute(repository) ||
+      path.resolve(repository) !== workspace) {
+    refuse("advisory review input repository does not match the conduit workspace", {
+      reason: "advisory_review_repository_mismatch"
+    });
+  }
+  if (typeof checkoutRoot !== "string" || !path.isAbsolute(checkoutRoot)) {
+    refuse("advisory review input has no private review checkout", {
+      reason: "advisory_review_checkout_invalid"
+    });
+  }
+  return path.resolve(checkoutRoot);
+}
+
+function requireWorkerAssignmentBinding(workerAssignment, { assignedUnit, conduitRole, sourceDigest }) {
+  if (workerAssignment === null || workerAssignment === undefined) return null;
+  if (conduitRole !== "worker") {
+    refuse("only a worker conduit may carry a managed worker assignment", { role: conduitRole });
+  }
+  try {
+    assertManagedWorkerAssignment(workerAssignment, { role: "worker", subject: assignedUnit });
+  } catch (error) {
+    refuse("managed worker assignment is not the launcher-minted value for this unit", {
+      reason: error?.code ?? null
+    });
+  }
+  if (typeof workerAssignment.assignment_guidance !== "string" ||
+      workerAssignment.assignment_guidance.length === 0) {
+    refuse("managed worker assignment carries no retrievable guidance");
+  }
+  if (sourceDigest !== null && workerAssignment.source_digest !== sourceDigest) {
+    refuse("managed worker assignment and frozen scope authority disagree on the canonical source", {
+      canonical: sourceDigest,
+      requested: workerAssignment.source_digest ?? null
+    });
+  }
+  return createManagedAssignmentReadSnapshot(workerAssignment);
+}
+
 export function mintTrustedStdioMcpConduitAuthority({
   family,
   role,
@@ -587,7 +743,9 @@ export function mintTrustedStdioMcpConduitAuthority({
   canonicalWriteScope = null,
   provisioning = null,
   commitTuple = null,
-  frozenReviewContractBinding = null
+  frozenReviewContractBinding = null,
+  workerAssignment = null,
+  advisoryReviewInput = null
 } = {}) {
   const conduitRole = normalizeStdioMcpConduitRole(role);
   if (!STDIO_MCP_CONDUIT_ALLOWED_FAMILIES.has(family)) {
@@ -727,6 +885,12 @@ export function mintTrustedStdioMcpConduitAuthority({
   const crossRunIdentity = resolveCrossRunIdentity({ sliceBinding: worktreeIdentity, commitTuple });
   const frozenReviewContract = requireFrozenReviewBinding(
     frozenReviewContractBinding, { assignedUnit, conduitRole, crossRunIdentity });
+  const workerAssignmentSnapshot = requireWorkerAssignmentBinding(workerAssignment, {
+    assignedUnit, conduitRole, sourceDigest
+  });
+  const reviewMaterializationDir = requireAdvisoryReviewSource(advisoryReviewInput, {
+    assignedUnit, conduitRole, workspace
+  });
   const authority = Object.freeze({
     schemaVersion: STDIO_MCP_CONDUIT_AUTHORITY_SCHEMA_VERSION,
     family,
@@ -743,11 +907,16 @@ export function mintTrustedStdioMcpConduitAuthority({
     worktreeIdentity,
     crossRunIdentity,
     frozenReviewContract,
-    reviewMaterializationDir: frozenReviewContract?.materializationRoot ?? null
+    reviewMaterializationDir,
+
+    workerAssignmentDigest: workerAssignmentSnapshot?.digest ?? null
   });
   TRUSTED_AUTHORITIES.add(authority);
   if (frozenReviewContract !== null) {
     TRUSTED_FROZEN_REVIEW_SNAPSHOTS.set(authority, frozenReviewContractBinding.snapshot);
+  }
+  if (workerAssignmentSnapshot !== null) {
+    TRUSTED_WORKER_ASSIGNMENT_SNAPSHOTS.set(authority, workerAssignmentSnapshot);
   }
   return authority;
 }
@@ -786,6 +955,16 @@ export function assertTrustedStdioMcpConduitAuthority(authority, expected = {}) 
     });
     if (JSON.stringify(expectedBinding) !== JSON.stringify(authority.frozenReviewContract)) {
       refuse("stdio MCP conduit frozen review contract authority was minted for a different launch");
+    }
+  }
+  if (expected.workerAssignment !== undefined) {
+    const expectedSnapshot = requireWorkerAssignmentBinding(expected.workerAssignment, {
+      assignedUnit: authority.assignedUnit,
+      conduitRole: authority.role,
+      sourceDigest: authority.sourceDigest
+    });
+    if ((expectedSnapshot?.digest ?? null) !== authority.workerAssignmentDigest) {
+      refuse("stdio MCP conduit worker assignment authority was minted for a different launch");
     }
   }
   return authority;
@@ -842,4 +1021,9 @@ export function resolveLauncherAgentSessionContractFacts(authority) {
 export function resolveTrustedStdioMcpFrozenReviewContractSnapshot(authority) {
   assertTrustedStdioMcpConduitAuthority(authority);
   return TRUSTED_FROZEN_REVIEW_SNAPSHOTS.get(authority) ?? null;
+}
+
+export function resolveTrustedStdioMcpWorkerAssignmentSnapshot(authority) {
+  assertTrustedStdioMcpConduitAuthority(authority);
+  return TRUSTED_WORKER_ASSIGNMENT_SNAPSHOTS.get(authority) ?? null;
 }

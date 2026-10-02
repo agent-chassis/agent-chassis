@@ -23,15 +23,24 @@ import {
   assertExactWorktreeBinding,
   assertWkLifecycleObservationCurrent,
   parseCanonicalRecord,
-  resolveSliceMarkerCommit,
-  resolveSliceMarkerEvidence,
+  classifySliceMarkerEvidenceFromRegion,
   SLICE_MARKER_EVIDENCE_STATES,
   buildCompleteWkReviewTarget,
   resolveTree,
   resolveAuthenticatedExactSliceDeliveryBase,
   isLastIncompleteImplementationSlice,
   boundedWkLifecycleObservation,
-  resolveZeroDeltaIntegrationEvidenceFromObservation
+  resolveZeroDeltaIntegrationEvidenceFromObservation,
+  runMaybeAsyncGenerator,
+  distillGitReadFailure,
+  resolveFixedWkForkCommit,
+  readCanonicalContractGenerationIdentity,
+  readCanonicalRepositoryIdentity,
+  sameCanonicalContractGeneration,
+  authenticateIntegratedDeliveryCandidate,
+  INTEGRATED_DELIVERY_AUTHENTICATION_STATES,
+  observeLiteralInclusionAboveFork,
+  LITERAL_INCLUSION_STATES
 } from "./slice-integration-authorization.mjs";
 
 import {
@@ -370,10 +379,11 @@ function isParentPreterminal(status) {
 const EXACT_RAW_REF_FORMAT = "%(refname)%00%(objectname)%00%(objecttype)%00%(symref)";
 const EXACT_RAW_REF_OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
-async function authenticateExactDirectCommitRef(runGit, mainRepo, requestedRef, targetKind) {
+export function classifyExactDirectCommitRef(runGit, mainRepo, requestedRef) {
+  return runMaybeAsyncGenerator(function* exactDirectRefSteps() {
   let result;
   try {
-    result = await runGit({
+    result = yield runGit({
       repo: mainRepo,
       args: [
         "--no-replace-objects",
@@ -382,8 +392,8 @@ async function authenticateExactDirectCommitRef(runGit, mainRepo, requestedRef, 
         requestedRef
       ]
     });
-  } catch {
-    result = null;
+  } catch (error) {
+    result = { ok: false, error: error?.message ?? String(error) };
   }
 
   let refusal = "indeterminate";
@@ -412,13 +422,27 @@ async function authenticateExactDirectCommitRef(runGit, mainRepo, requestedRef, 
           } else if (objectType !== "commit") {
             refusal = "non_commit";
           } else {
-            return oid;
+            return Object.freeze({ oid, refusal: null });
           }
         }
       }
     }
   }
+  return Object.freeze({
+    oid: null,
+    refusal,
+    ...(refusal === "indeterminate" ? {
+      read: distillGitReadFailure("for-each-ref", requestedRef, {
+        outcome: result?.ok === true ? "faulted" : "failed", ...(result ?? {})
+      })
+    } : {})
+  });
+  });
+}
 
+async function authenticateExactDirectCommitRef(runGit, mainRepo, requestedRef, targetKind) {
+  const { oid, refusal } = await classifyExactDirectCommitRef(runGit, mainRepo, requestedRef);
+  if (oid !== null) return oid;
   fail(
     SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
     `zero-delta recovery could not authenticate the exact ${targetKind} ref`,
@@ -906,9 +930,27 @@ export async function reconcileIntegratedSliceRecord({
   const runGit = deps.runGit ?? defaultRunGitAsync;
   const { slice, wk } = normalizeIntegrationTarget({ unitAddress, sliceRef, wkRef });
   const wkTip = await revParse(runGit, mainRepo, wk.ref);
-  const markerSha = await resolveSliceMarkerCommit(runGit, mainRepo, wkTip, slice.match[2], slice.match[3]);
   const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
   const record = loadRecord(mainRepo, slice.match[2]);
+
+  const markerEvidenceAt = async (tipSha) => (await classifySliceMarkerEvidenceFromRegion({
+    runGit,
+    mainRepo,
+    observation: await boundedWkLifecycleObservation({
+      runGit,
+      mainRepo,
+      initiative: slice.match[1],
+      wkId: slice.match[2],
+      wkTipSha: tipSha,
+      recordSourceDigest: computeWorkRecordSourceDigest(record)
+    }),
+    wkId: slice.match[2],
+    sliceIds: [slice.match[3]]
+  })).get(slice.match[3]);
+  const wkMarker = await markerEvidenceAt(wkTip);
+
+  const markerSha = wkMarker?.state === SLICE_MARKER_EVIDENCE_STATES.FOUND &&
+    wkMarker.candidates.length === 1 ? wkMarker.candidates[0] : null;
   if (markerSha === null) {
 
     return null;
@@ -916,13 +958,7 @@ export async function reconcileIntegratedSliceRecord({
   const sliceTip = await revParse(runGit, mainRepo, slice.ref);
   if (sliceTip !== markerSha) {
 
-    const retained = await resolveSliceMarkerEvidence(
-      runGit,
-      mainRepo,
-      sliceTip,
-      slice.match[2],
-      slice.match[3]
-    );
+    const retained = await markerEvidenceAt(sliceTip);
     if (retained.state !== SLICE_MARKER_EVIDENCE_STATES.FOUND ||
         !retained.candidates.includes(sliceTip)) {
       fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
@@ -1023,7 +1059,267 @@ async function isZeroDeltaEvidenceCommit(runGit, mainRepo, oid, subject) {
     `agent-launch zero-delta integration evidence: ${subject}`;
 }
 
-export async function observeIntegratedSliceDelivery({
+export function observeIntegratedSliceDelivery(options = {}) {
+  if (options?.capturedWkTip !== undefined) {
+    return observeIntegratedSliceDeliveryAtCapturedTip(options);
+  }
+  return observeCurrentIntegratedSliceDelivery(options);
+}
+
+export const INTEGRATED_DELIVERY_OBSERVATION_SCHEMA_VERSION =
+  "integrated-delivery-captured-tip-observation.v1";
+export const INTEGRATED_DELIVERY_OBSERVATION_STATES = Object.freeze({
+  PRESENT: "present",
+  ABSENT: "absent",
+  INDETERMINATE: "indeterminate"
+});
+
+const EXACT_OBSERVED_OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const isExactObservedOid = (value) => typeof value === "string" &&
+  EXACT_OBSERVED_OID_RE.test(value) && !/^0+$/u.test(value);
+
+function distillObservationError(error) {
+  const detail = error?.detail ?? {};
+  const line = (value) => typeof value === "string"
+    ? value.split(/\r?\n/u).map((entry) => entry.trim()).find((entry) => entry.length > 0)
+      ?.slice(0, 240) ?? null
+    : null;
+  return Object.freeze({
+    code: typeof error?.code === "string" ? error.code : null,
+    reason: typeof detail.reason === "string" ? detail.reason : null,
+    message: line(error?.message),
+    ...(typeof detail.fork_ref === "string" ? { ref: detail.fork_ref } : {}),
+    ...(typeof detail.oid === "string" ? { object: detail.oid } : {}),
+    ...(detail.read_failure === undefined ? {} : { read_failure: detail.read_failure }),
+    status: typeof detail.status === "number" ? detail.status : null,
+    stderr_line: line(detail.stderr),
+    error: line(detail.error)
+  });
+}
+
+function capturedTipRecordReconciliation(record, sliceId) {
+  const entry = record.slices.find((candidate) => candidate?.id === sliceId);
+  const observed = { slice_status: entry?.status ?? null, parent_status: record.status ?? null };
+  if (entry?.status === "cancelled") {
+    return Object.freeze({ state: INTEGRATED_RECORD_RECONCILIATION_STATES.BLOCKED,
+      reason: "integrated_slice_cancelled", ...observed });
+  }
+  if (entry?.status !== "done" && (record.status === "review" || record.status === "done")) {
+    return Object.freeze({ state: INTEGRATED_RECORD_RECONCILIATION_STATES.BLOCKED,
+      reason: "non_done_slice_with_terminal_parent", ...observed });
+  }
+  if (recordReflectsIntegration(record, sliceId)) return RECONCILED_RECORD;
+  return Object.freeze({ state: INTEGRATED_RECORD_RECONCILIATION_STATES.PENDING,
+    reason: "canonical_record_not_reconciled", ...observed });
+}
+
+function observeIntegratedSliceDeliveryAtCapturedTip({
+  mainRepo,
+  unitAddress,
+  sliceRef,
+  wkRef,
+  capturedWkTip,
+  capturedDeliverySha,
+  record,
+  deps = {}
+}) {
+  const runGit = deps.runGit ?? defaultRunGitAsync;
+  const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
+  const { slice, wk, subject } = normalizeIntegrationTarget({ unitAddress, sliceRef, wkRef });
+  const [initiative, wkId, sliceId] = [slice.match[1], slice.match[2], slice.match[3]];
+  const STATES = INTEGRATED_DELIVERY_OBSERVATION_STATES;
+  const identity = Object.freeze({
+    schema_version: INTEGRATED_DELIVERY_OBSERVATION_SCHEMA_VERSION,
+    subject,
+    wk_ref: wk.ref,
+    captured_wk_tip: capturedWkTip ?? null,
+    slice_ref: slice.ref,
+    retained_delivery_sha: capturedDeliverySha ?? null
+  });
+  const indeterminate = (reason, detail = {}) => Object.freeze({
+    ...identity, state: STATES.INDETERMINATE, reason, ...detail
+  });
+  return runMaybeAsyncGenerator(function* capturedTipSteps() {
+    if (!isExactObservedOid(capturedWkTip)) return indeterminate("captured_wk_tip_malformed");
+    if (!isExactObservedOid(capturedDeliverySha)) return indeterminate("retained_delivery_malformed");
+    if (record === null || typeof record !== "object" || record.id !== wkId ||
+        !Array.isArray(record.slices)) {
+      return indeterminate("canonical_record_unavailable");
+    }
+    const sliceEntry = record.slices.find((entry) => entry?.id === sliceId) ?? null;
+    if (sliceEntry === null) return indeterminate("canonical_slice_absent");
+    let repository;
+    let fork;
+    let generation;
+    try {
+      repository = readCanonicalRepositoryIdentity(mainRepo);
+      fork = yield resolveFixedWkForkCommit({ runGit, mainRepo, initiative, wkId });
+      generation = readCanonicalContractGenerationIdentity(mainRepo, wkId);
+    } catch (error) {
+      return indeterminate(error?.detail?.reason ?? "fixed_fork_unobservable",
+        { failure: distillObservationError(error) });
+    }
+    const recordSourceDigest = computeWorkRecordSourceDigest(record);
+    const cache = new Map();
+    const hasSelector = Object.hasOwn(sliceEntry, "integrated_delivery_sha") &&
+      sliceEntry.integrated_delivery_sha !== null;
+    let selection;
+    if (hasSelector) {
+      const selector = sliceEntry.integrated_delivery_sha;
+      if (!isExactObservedOid(selector) || selector.length !== capturedWkTip.length) {
+        return indeterminate("integrated_delivery_selector_malformed",
+          { selector: typeof selector === "string" ? selector.slice(0, 64) : null });
+      }
+      const authentication = yield authenticateIntegratedDeliveryCandidate({
+        runGit, mainRepo, subject, candidateSha: selector, deliverySha: capturedDeliverySha, cache
+      });
+      if (authentication.state !== INTEGRATED_DELIVERY_AUTHENTICATION_STATES.AUTHENTICATED) {
+        return indeterminate(authentication.state === INTEGRATED_DELIVERY_AUTHENTICATION_STATES.MISMATCH
+          ? "integrated_delivery_selector_unauthenticated"
+          : "integrated_delivery_authentication_read_failed", {
+          selector,
+          authentication_reason: authentication.reason,
+          failure: authentication.failure ?? null
+        });
+      }
+      const inclusion = yield observeLiteralInclusionAboveFork({
+        runGit, mainRepo, tipSha: capturedWkTip, forkSha: fork.sha, targetSha: selector, cache
+      });
+      if (inclusion.state === LITERAL_INCLUSION_STATES.INDETERMINATE) {
+        return indeterminate("integrated_delivery_inclusion_read_failed", {
+          selector, inclusion_reason: inclusion.reason, failure: inclusion.detail
+        });
+      }
+      selection = {
+        source: "integrated_delivery_sha",
+        sha: selector,
+        kind: authentication.kind,
+        included: inclusion.state === LITERAL_INCLUSION_STATES.INCLUDED,
+        inclusion: inclusion.relation,
+        scope: "targeted_fixed_fork_region",
+        reason: "integrated_delivery_not_in_captured_tip"
+      };
+    } else {
+      let observation;
+      let evidence;
+      try {
+        observation = yield boundedWkLifecycleObservation({
+          runGit, mainRepo, initiative, wkId, wkTipSha: capturedWkTip, recordSourceDigest,
+          expectedFixedForkSha: fork.sha
+        });
+        evidence = (yield classifySliceMarkerEvidenceFromRegion({
+          runGit, mainRepo, observation, wkId, sliceIds: [sliceId]
+        })).get(sliceId);
+      } catch (error) {
+        return indeterminate("fixed_fork_region_unobservable",
+          { failure: distillObservationError(error) });
+      }
+      if (evidence.state === SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE) {
+        return indeterminate("integrated_delivery_marker_indeterminate",
+          { marker_reason: evidence.reason });
+      }
+      const matches = [];
+      for (const candidate of evidence.candidates) {
+        const authentication = yield authenticateIntegratedDeliveryCandidate({
+          runGit, mainRepo, subject, candidateSha: candidate, deliverySha: capturedDeliverySha, cache
+        });
+        if (authentication.state === INTEGRATED_DELIVERY_AUTHENTICATION_STATES.INDETERMINATE) {
+          return indeterminate("integrated_delivery_authentication_read_failed", {
+            marker_sha: candidate, authentication_reason: authentication.reason,
+            failure: authentication.failure ?? null
+          });
+        }
+        if (authentication.state === INTEGRATED_DELIVERY_AUTHENTICATION_STATES.AUTHENTICATED) {
+          matches.push(authentication);
+        }
+      }
+      if (matches.length > 1) {
+        return indeterminate("integrated_delivery_marker_ambiguous", { match_count: matches.length });
+      }
+      selection = {
+        source: "fixed_fork_region",
+        sha: matches[0]?.candidate_sha ?? null,
+        kind: matches[0]?.kind ?? null,
+        included: matches.length === 1,
+        inclusion: matches.length === 1 ? "region_member" : null,
+        scope: "complete_fixed_fork_region",
+        reason: evidence.state === SLICE_MARKER_EVIDENCE_STATES.ABSENT
+          ? "integrated_delivery_marker_absent"
+          : "integrated_delivery_marker_unmatched"
+      };
+    }
+
+    let recheckedFork;
+    let recheckedGeneration;
+    try {
+      if (readCanonicalRepositoryIdentity(mainRepo) !== repository) {
+        return indeterminate("repository_identity_changed");
+      }
+      recheckedFork = yield resolveFixedWkForkCommit({ runGit, mainRepo, initiative, wkId });
+      recheckedGeneration = readCanonicalContractGenerationIdentity(mainRepo, wkId);
+    } catch (error) {
+      return indeterminate(error?.detail?.reason ?? "fixed_fork_unobservable",
+        { failure: distillObservationError(error) });
+    }
+    if (recheckedFork.ref !== fork.ref || recheckedFork.sha !== fork.sha) {
+      return indeterminate("fixed_fork_moved",
+        { expected_fork_sha: fork.sha, observed_fork_sha: recheckedFork.sha });
+    }
+    if (!sameCanonicalContractGeneration(recheckedGeneration, generation)) {
+      return indeterminate("contract_generation_changed");
+    }
+    for (const [ref, expected, moved] of [
+      [wk.ref, capturedWkTip, "captured_wk_tip_moved"],
+      [slice.ref, capturedDeliverySha, "retained_delivery_ref_moved"]
+    ]) {
+      const observed = yield classifyExactDirectCommitRef(runGit, mainRepo, ref);
+      if (observed.refusal === "indeterminate") {
+        return indeterminate("pinned_ref_unobservable", { ref, failure: observed.read });
+      }
+      if (observed.oid !== expected) {
+        return indeterminate(moved, { ref, expected, observed: observed.oid,
+          observed_refusal: observed.refusal });
+      }
+    }
+
+    let liveRecord;
+    try {
+      liveRecord = loadRecord(mainRepo, wkId);
+    } catch (error) {
+      return indeterminate("canonical_record_unreadable", { failure: distillObservationError(error) });
+    }
+    if (liveRecord === null || liveRecord === undefined) {
+      return indeterminate("canonical_record_unreadable",
+        { failure: { reason: "canonical_record_reader_returned_no_record" } });
+    }
+    if (computeWorkRecordSourceDigest(liveRecord) !== recordSourceDigest) {
+      return indeterminate("canonical_record_changed");
+    }
+
+    const selectorFacts = { source: selection.source, sha: selection.sha, scope: selection.scope };
+    if (!selection.included) {
+      return Object.freeze({
+        ...identity,
+        state: STATES.ABSENT,
+        reason: selection.reason,
+        selector: Object.freeze(selectorFacts),
+        fixed_fork_sha: fork.sha
+      });
+    }
+    return Object.freeze({
+      ...identity,
+      state: STATES.PRESENT,
+      reason: null,
+      selector: Object.freeze(selectorFacts),
+      delivery_kind: selection.kind,
+      inclusion: selection.inclusion,
+      fixed_fork_sha: fork.sha,
+      record_reconciliation: capturedTipRecordReconciliation(record, sliceId)
+    });
+  });
+}
+
+async function observeCurrentIntegratedSliceDelivery({
   mainRepo,
   unitAddress,
   sliceRef,

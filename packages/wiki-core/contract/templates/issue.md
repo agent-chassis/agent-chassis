@@ -52,8 +52,6 @@ State the operational impact and what future readers should understand from this
 - [ ] out-of-scope work is explicit when useful
 
 ## Acceptance Criteria
-- [ ] intended behavior or invariant is explicit
-- [ ] verification plan or regression coverage is identified
 
 ## Tasks
 - [ ]

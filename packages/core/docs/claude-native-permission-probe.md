@@ -30,7 +30,8 @@ runner without adding headless settings. `launchTransportInjected` retains its
 independent conduit-routing behavior. There is no permission-probe bypass flag,
 compatibility alias, optional product diagnostic route or verifier injection.
 
-See executor design,
+See the repository-only executor design
+(`the project documentation`),
 [launch/admission](mcp-dispatch-launch-and-admission.md#configured-readiness-and-native-permission-diagnostics)
 and [enforcement model](enforcement-model.md) for the retained launch boundaries.
 

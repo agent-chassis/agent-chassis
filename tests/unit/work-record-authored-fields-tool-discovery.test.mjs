@@ -44,6 +44,9 @@ function durableValueConstraint(entry) {
   if (schema.type === "string" && Array.isArray(schema.enum)) {
     return `\`${schema.enum.join("\\|")}\``;
   }
+  if (schema.type === "string" && schema.format === "local_branch_name") {
+    return "non-empty local branch name";
+  }
   if (schema.type === "string" && schema.trim === true && schema.min_length === 1) {
     return "trimmed non-empty string";
   }

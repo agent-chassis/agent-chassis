@@ -130,6 +130,9 @@ export function buildWorkerAssignmentCanonicalSummary(
         : [],
     validation_commands: validationProjection.validation_entries,
 
+    operative_summary: isNonEmptyString(operativeUnit?.sections?.summary)
+      ? operativeUnit.sections.summary
+      : null,
     operative_tasks: operativeTasks(operativeUnit),
     operative_notes: isNonEmptyString(operativeUnit?.sections?.agent_notes)
       ? operativeUnit.sections.agent_notes
@@ -224,7 +227,9 @@ export function prepareWorkerAssignmentPresentation({
   outputPath = undefined,
   scopeMode = "declared",
   resolvedScope = null,
-  scopeExclusions = []
+  scopeExclusions = [],
+
+  assignmentDelivery = undefined
 } = {}) {
   const parsedUnit = parseWorkRecordUnitAddress(unitAddress);
   if (!parsedUnit.ok) {
@@ -317,10 +322,11 @@ export function prepareWorkerAssignmentPresentation({
     agentBrief: normalizedBrief,
     launchTimestamp,
     supplementalInstructions: stringList(supplementalInstructions),
-    terminalStructuredRoleResultMode
+    terminalStructuredRoleResultMode,
+    assignmentDelivery
   });
 
-  if (!isNonEmptyString(launchPacket?.prompt)) {
+  if (!isNonEmptyString(launchPacket?.prompt) || !isNonEmptyString(launchPacket?.assignment_guidance)) {
     return Object.freeze({
       ok: false,
       diagnostic: presentationDiagnostic(
@@ -347,6 +353,8 @@ export function prepareWorkerAssignmentPresentation({
     canonical_summary: canonicalSummary,
     agent_brief: normalizedBrief,
     launch_packet: launchPacket,
+    assignment_delivery: launchPacket.assignment_delivery,
+    assignment_guidance: launchPacket.assignment_guidance,
     prompt: launchPacket.prompt
   }, foreign, new WeakSet());
 }

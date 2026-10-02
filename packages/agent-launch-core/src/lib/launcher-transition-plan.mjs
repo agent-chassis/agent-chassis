@@ -45,6 +45,12 @@ export const LAUNCHER_TRANSITION_FAILURES = Object.freeze({
     authority_limb: "mechanical_failure",
     next_action: "publish_or_integrate_the_exact_dependency_then_retry_workspace_agent_dispatch"
   }),
+
+  DEPENDENCY_OBSERVATION_INDETERMINATE: Object.freeze({
+    code: "launcher_transition.dependency_observation_indeterminate.v1",
+    authority_limb: "mechanical_failure",
+    next_action: "restore_the_named_dependency_observation_read_then_retry_workspace_agent_dispatch"
+  }),
   PUBLICATION_IDENTITY_UNRESOLVED: Object.freeze({
     code: "launcher_transition.publication_identity_unresolved.v1",
     authority_limb: "mechanical_failure",

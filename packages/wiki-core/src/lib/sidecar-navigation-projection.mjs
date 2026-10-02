@@ -1,7 +1,8 @@
 const COMPACT_LIMIT = 20;
 const RETAINED_ORIGINAL_NEXT_ACTION =
-  "The complete original answer is retained at full_result.content_reference; read it with its " +
-  "read_tool. verbose:true runs a new evaluation and does not recover this answer.";
+  "The complete original answer is retained; follow next_calls, or name one of its collections " +
+  "with a row id, path, symbol or relationship in detail, to read that part without evaluating " +
+  "the question again.";
 const RESULT_FIELDS = Object.freeze({ definition: "definitions", find_references: "references",
   symbol_callers: "callers", symbol_callees: "callees" });
 
@@ -48,7 +49,7 @@ function compactHit({ hit_id: hitId, occurrence, call_edge: callEdge, source }) 
     symbol_roles: occurrence.payload?.symbol_roles ?? null, source: structuredClone(source) };
 }
 
-export function projectNativeNavigation(result, base) {
+export function projectNativeNavigation(result, base, { limit = COMPACT_LIMIT } = {}) {
   const field = RESULT_FIELDS[result?.query_kind] ?? "references";
   const rows = list(result?.[field]);
   const resolution = result?.symbol_resolution ?? {};
@@ -56,8 +57,8 @@ export function projectNativeNavigation(result, base) {
   const allHits = list(result?.source_hits);
   const allRegions = list(result?.context_regions);
   const hitsById = new Map(allHits.map((hit) => [hit.hit_id, hit]));
-  const shownRows = rows.slice(0, COMPACT_LIMIT);
-  const shownCandidates = candidates.slice(0, COMPACT_LIMIT);
+  const shownRows = rows.slice(0, limit);
+  const shownCandidates = candidates.slice(0, limit);
   const displayed = new Set(shownRows.map((row) => row.hit_id));
   for (const candidate of shownCandidates) {
     const anchor = candidateAnchor(candidate, hitsById, resolution);
@@ -107,4 +108,49 @@ export function projectNativeNavigation(result, base) {
     next_action: [base.next_action, scipAvailable ? RETAINED_ORIGINAL_NEXT_ACTION : null]
       .filter(Boolean).join(" ")
   };
+}
+
+function withoutRegionText({ source_text: text, ...region }) {
+  return { ...region, omitted: { source_text: { utf8_bytes: Buffer.byteLength(String(text ?? ""), "utf8") } } };
+}
+
+function regionHolders(summary) {
+  if (Array.isArray(summary?.context_regions)) return [summary];
+  return Object.values(summary?.parts ?? {}).filter((part) => Array.isArray(part?.context_regions));
+}
+
+function withoutRowHits(holder) {
+  const rows = holder[RESULT_FIELDS[holder.query_kind] ?? "references"];
+  const rowHits = new Set(list(rows).map((row) => row.hit_id));
+  const hits = list(holder.source_hits);
+  holder.source_hits = hits.filter((hit) => !rowHits.has(hit.hit_id));
+  if (holder.counts?.source_hits) {
+    holder.counts.source_hits = counted(holder.counts.source_hits.total, holder.source_hits.length);
+  }
+}
+
+function answerHolders(summary) {
+  if (Array.isArray(summary?.source_hits)) return [summary];
+  return Object.values(summary?.parts ?? {}).filter((part) => Array.isArray(part?.source_hits));
+}
+
+export function fitNavigationSummary(project, fits) {
+  for (let limit = COMPACT_LIMIT; limit >= 0; limit -= 1) {
+    const complete = project(limit);
+    if (fits(complete)) return complete;
+    const holders = regionHolders(complete);
+    const texts = holders.map((holder) => holder.context_regions);
+    holders.forEach((holder) => { holder.context_regions = holder.context_regions.map(withoutRegionText); });
+    if (!fits(complete)) answerHolders(complete).forEach(withoutRowHits);
+    if (!fits(complete)) continue;
+    holders.forEach((holder, index) => {
+      texts[index].forEach((region, position) => {
+        const reduced = holder.context_regions[position];
+        holder.context_regions[position] = region;
+        if (!fits(complete)) holder.context_regions[position] = reduced;
+      });
+    });
+    return complete;
+  }
+  throw new RangeError("navigation summary identity exceeds the complete-frame class");
 }

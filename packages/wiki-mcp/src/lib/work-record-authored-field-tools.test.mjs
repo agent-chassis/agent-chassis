@@ -46,7 +46,9 @@ test("general edit schema is a closed mechanical projection of every facade entr
           ? "high"
           : entry.value_schema.entry_content === true ? { text: "value" } : "value";
       } else if (entry.kind === "list") {
-        request.value = action === "append" ? "value" : ["value"];
+
+        const item = entry.value_schema.items?.type === "object" ? { ref: "value" } : "value";
+        request.value = action === "append" ? item : [item];
       } else if (action === "append_todo") {
         request.value = entry.value_schema[action].entry_content === true
           ? { text: "value" } : "value";

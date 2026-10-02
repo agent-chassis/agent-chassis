@@ -47,6 +47,10 @@ const LAUNCHER_TRANSITION_EXPECTATIONS = Object.freeze({
   "launcher_transition.dependency_identity_unresolved.v1": {
     category: "work_record_readiness", actor_recovery: "coordinator", blocking: true
   },
+
+  "launcher_transition.dependency_observation_indeterminate.v1": {
+    category: "work_record_readiness", actor_recovery: "operator", blocking: true
+  },
   "launcher_transition.publication_identity_unresolved.v1": {
     category: "work_record_readiness", actor_recovery: "coordinator", blocking: true
   },

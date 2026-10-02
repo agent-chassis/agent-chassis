@@ -47,6 +47,13 @@ function stable(value) {
   return JSON.stringify(canonical(value));
 }
 
+const CURSOR_KEYS = Object.freeze({
+  domain: "d", identity: "i", collection: "c", selector: "s", ordinal: "o",
+  maximum_items: "n", maximum_bytes: "b", field_path: "f", expires_at: "e", source_identity: "u"
+});
+const CURSOR_FIELDS = Object.freeze(Object.fromEntries(
+  Object.entries(CURSOR_KEYS).map(([field, key]) => [key, field])));
+
 function matchesExpectedSourceIdentity(actual, expected) {
   if (expected === null) return true;
   if (expected === null || typeof expected !== "object" || Array.isArray(expected)) return false;
@@ -265,7 +272,11 @@ export function createTaskResultSnapshotRegistry({
   }
 
   function issueCursor(payload) {
-    const body = Buffer.from(stable(payload), "utf8").toString("base64url");
+    const compact = Object.fromEntries(Object.entries(payload).map(([field, value]) => {
+      if (!Object.hasOwn(CURSOR_KEYS, field)) throw new TypeError(`cursor field ${field} is not declared`);
+      return [CURSOR_KEYS[field], value];
+    }));
+    const body = Buffer.from(stable(compact), "utf8").toString("base64url");
     const mac = createHmac("sha256", key).update(body).digest("base64url");
     return `${body}.${mac}`;
   }
@@ -279,11 +290,17 @@ export function createTaskResultSnapshotRegistry({
         !timingSafeEqual(supplied, expected)) {
       throw unavailable("cursor_authentication_failed", recovery);
     }
+    let compact;
     try {
-      return JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+      compact = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
     } catch {
       throw unavailable("cursor_payload_invalid", recovery);
     }
+    if (compact === null || typeof compact !== "object" || Array.isArray(compact) ||
+        Object.keys(compact).some((key) => !Object.hasOwn(CURSOR_FIELDS, key))) {
+      throw unavailable("cursor_payload_invalid", recovery);
+    }
+    return Object.fromEntries(Object.entries(compact).map(([key, value]) => [CURSOR_FIELDS[key], value]));
   }
 
   function descriptorFor(domain, collection, recovery) {

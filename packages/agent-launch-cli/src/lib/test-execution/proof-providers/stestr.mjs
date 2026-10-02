@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import integration from "../runner-integrations/stestr.mjs";
 import { escapeRegExp } from "../runner-integrations/common.mjs";
 import { instrumentPythonModule } from "../source-instrumentation/python.mjs";
+import { PYTHON_DIAGNOSTIC_GRAPH_ASSET } from "../../workspace-agent-test-proof-pytest-provider.mjs";
 import { nativeProviderImplementation, refuseAttempt } from "./native-lifecycle.mjs";
 
 const OBSERVER = fileURLToPath(new URL("../observers/stestr_observer.py", import.meta.url));
@@ -71,7 +72,7 @@ export default nativeProviderImplementation({
   identity_format: Object.freeze({ kind: "joined", separator: "." }),
   completion: "session_end",
   window_start: "explicit",
-  assets: [OBSERVER, PYTHON_INSTRUMENTATION_ASSET],
+  assets: [OBSERVER, PYTHON_INSTRUMENTATION_ASSET, PYTHON_DIAGNOSTIC_GRAPH_ASSET],
   layout,
   instrument,
   invocation

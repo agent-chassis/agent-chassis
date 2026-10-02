@@ -27,7 +27,7 @@ import {
   deriveExactUnitName,
   SLICE_TIP_RECONCILE_STATES
 } from "./worktree-substrate-exact-unit.mjs";
-import { bindingFilePath } from "./worktree-substrate-identity.mjs";
+import { bindingFilePath, resolveCapturedWkBase } from "./worktree-substrate-identity.mjs";
 import {
   WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES,
   fail,
@@ -1171,6 +1171,21 @@ function verifyPersistentWkRefCoherence({ repo, binding, committedTip, runGit, s
   }
 }
 
+function retainsCreatedWkCapturedBase({ repo, receipts }) {
+  const captured = receipts?.wk_captured_base;
+  if (receipts?.wk?.reused !== false || !captured) return false;
+  let resolved;
+  try {
+    resolved = resolveCapturedWkBase({ mainRepo: repo, unitAddress: captured.unit_address });
+  } catch {
+
+    return false;
+  }
+  return resolved !== null &&
+    resolved.base_ref === captured.base_ref &&
+    resolved.base_sha === captured.base_sha;
+}
+
 function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, receipts = {}, createdRoots = [], recordCommit = null, cause }) {
   const failures = [];
 
@@ -1200,6 +1215,7 @@ function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, 
 
   for (const [kind, binding] of [["slice", bindings.slice], ["wk", bindings.wk]]) {
     if (!binding) continue;
+    if (kind === "wk" && retainsCreatedWkCapturedBase({ repo, receipts })) continue;
     removeBindingFile(repo, launchRef, bindingIdentity(runId, kind), retryId, failures);
   }
   for (const root of createdRoots) {
@@ -1390,6 +1406,12 @@ async function establishManagedWkLifecycleLocked({
     binding: bindings.wk, repo, unitAddress: `${initiative}/${wkId}`, launchRef,
     runId: bindingIdentity(runId, "wk"), retryId,
     worktreeRoot: roots.worktreeRoot, sparse: false, runGit
+  });
+
+  receipts.wk_captured_base = Object.freeze({
+    unit_address: bindings.wk.unit_address,
+    base_ref: bindings.wk.base_ref,
+    base_sha: bindings.wk.base_sha
   });
 
   if (generation !== null) {

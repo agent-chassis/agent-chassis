@@ -75,17 +75,192 @@ function boundedFailureMessage(message) {
   return String(message ?? "").slice(0, 4096);
 }
 
+const NATIVE_ERROR_FACTS = Object.freeze([
+  ["code", "string"], ["errno", "number"], ["syscall", "string"], ["path", "string"]
+]);
+
+function nativeErrorFacts(error) {
+  if (error === null || typeof error !== "object") return null;
+  const facts = {};
+  for (const [field, type] of NATIVE_ERROR_FACTS) {
+    let value;
+    try { value = error[field]; } catch { value = undefined; }
+    if (typeof value === type) facts[field] = type === "string" ? value.slice(0, 512) : value;
+  }
+  return Object.keys(facts).length === 0 ? null : Object.freeze(facts);
+}
+
+const PRODUCTION_RUNNER_RESULTS = new WeakSet();
+
+const NATIVE_GIT_DIAGNOSES = new WeakMap();
+
+function nativeGitDiagnosis(result) {
+  if (!PRODUCTION_RUNNER_RESULTS.has(result)) return null;
+  const trace2 = result.trace2;
+  if (!isPlainObject(trace2) || typeof trace2.state !== "string") return null;
+  return closedTerminalWkCandidateGitDiagnosis({
+    capture: trace2.state,
+    diagnostics: Array.isArray(trace2.diagnostics) ? trace2.diagnostics : []
+  });
+}
+
+export const TERMINAL_WK_CANDIDATE_GIT_DIAGNOSIS_CAPTURES = Object.freeze([
+  "captured",
+  "none_emitted",
+  "unavailable",
+  "malformed",
+  "incomplete",
+  "capture_failed",
+  "overflow",
+  "not_started"
+]);
+const GIT_DIAGNOSIS_CAPTURE_SET = new Set(TERMINAL_WK_CANDIDATE_GIT_DIAGNOSIS_CAPTURES);
+
+export function closedTerminalWkCandidateGitDiagnosis(value) {
+  try {
+    if (!isPlainObject(value) || !GIT_DIAGNOSIS_CAPTURE_SET.has(value.capture) ||
+        !Array.isArray(value.diagnostics)) return null;
+    const diagnostics = [];
+    for (const entry of value.diagnostics) {
+      if (!isPlainObject(entry) || typeof entry.msg !== "string" ||
+          typeof entry.fmt !== "string") return null;
+      diagnostics.push(Object.freeze({ msg: entry.msg, fmt: entry.fmt }));
+    }
+    return Object.freeze({ capture: value.capture, diagnostics: Object.freeze(diagnostics) });
+  } catch {
+    return null;
+  }
+}
+
+function gitFailureDetail(result, facts) {
+  const error = result?.spawn_error ?? result?.error ?? null;
+  const stderr = typeof result?.stderr === "string" ? result.stderr : null;
+  const production = PRODUCTION_RUNNER_RESULTS.has(result);
+  const detail = {
+    ...facts,
+    status: result?.status ?? null,
+    signal: result?.signal ?? null,
+    ...(result?.overflow === true ? { output_overflow: true } : {}),
+    ...(result?.timed_out === true ? { timed_out: true } : {}),
+    ...(error === null ? {} : { native_error: nativeErrorFacts(error) }),
+    stderr,
+    stderr_bytes: production ? result.stderr_bytes
+      : stderr === null ? null : Buffer.byteLength(stderr, "utf8")
+  };
+  if (production && isPlainObject(result.trace2)) {
+    Object.defineProperty(detail, "git_trace2", {
+      value: result.trace2, enumerable: false, writable: false, configurable: false
+    });
+  }
+  return detail;
+}
+
+function gitFailureCause(result) {
+  if (result?.spawn_error instanceof Error) return result.spawn_error;
+  return result?.error instanceof Error ? result.error : null;
+}
+
+function mintGitFailure(code, message, result, facts) {
+  const error = new TerminalWkCandidateError(message, {
+    code, detail: gitFailureDetail(result, facts), cause: gitFailureCause(result)
+  });
+  const diagnosis = nativeGitDiagnosis(result);
+  if (diagnosis !== null) {
+    const mechanical = boundedMechanicalDetail(error.detail);
+    NATIVE_GIT_DIAGNOSES.set(error, Object.freeze({
+      code,
+      git_operation: mechanical?.git_operation ?? null,
+      git_status: mechanical?.git_status ?? null,
+      diagnosis
+    }));
+  }
+  return error;
+}
+
+function failGit(code, message, result, facts) {
+  throw mintGitFailure(code, message, result, facts);
+}
+
+async function observeAfterFailedWrite(observe, writeFailure) {
+  try {
+    return await observe();
+  } catch (observationError) {
+    if (!(observationError instanceof TerminalWkCandidateError)) {
+      writeFailure.detail.reobservation_failure = observationError;
+      throw writeFailure;
+    }
+    const error = new TerminalWkCandidateError(
+      String(observationError.message).replace(/^terminal WK candidate: /u, ""), {
+        code: observationError.code,
+        detail: { ...(isPlainObject(observationError.detail) ? observationError.detail : {}),
+          write_failure: writeFailure },
+        cause: observationError
+      });
+    const registered = NATIVE_GIT_DIAGNOSES.get(observationError);
+    if (registered !== undefined) NATIVE_GIT_DIAGNOSES.set(error, registered);
+    throw error;
+  }
+}
+
+function classifyAncestryObservation(result) {
+  if (result?.ok === true && (result.status === undefined || result.status === 0)) return "ancestor";
+  const completed = result?.status === 1 && result?.signal == null && result?.error == null &&
+    result?.spawn_error == null && result?.timed_out !== true && result?.overflow !== true;
+  if (!completed) return "failed";
+  const trace2 = result.trace2;
+  if (trace2 === undefined) return "not_ancestor";
+  return isPlainObject(trace2) && trace2.state === "none_emitted" ? "not_ancestor" : "failed";
+}
+
+export function projectTerminalWkCandidateGitDiagnosis(error) {
+  if ((typeof error !== "object" || error === null) && typeof error !== "function") return null;
+  return NATIVE_GIT_DIAGNOSES.get(error) ?? null;
+}
+
+export function projectTerminalWkCandidateRefDisagreements(value) {
+  try {
+    if (!Array.isArray(value) || value.length === 0 || value.length > 32) return null;
+    const projected = [];
+    for (const entry of value) {
+      if (!isPlainObject(entry) || Object.getPrototypeOf(entry) !== Object.prototype) return null;
+      const { ref, expected, actual } = entry;
+      if (typeof ref !== "string" || ref.length === 0 || ref.length > 1024) return null;
+      for (const oid of [expected, actual]) {
+        if (oid !== null && (typeof oid !== "string" || !OID_RE.test(oid))) return null;
+      }
+      projected.push(Object.freeze({ ref, expected, actual }));
+    }
+    return Object.freeze(projected);
+  } catch {
+    return null;
+  }
+}
+
 function boundedMechanicalDetail(detail) {
   if (!isPlainObject(detail)) return null;
   const projected = {};
   if (Array.isArray(detail.args)) {
     projected.git_args = detail.args.slice(0, 32).map((arg) => String(arg).slice(0, 256));
+    const operation = detail.args.find((arg) => typeof arg === "string" && !arg.startsWith("-"));
+    if (operation !== undefined) projected.git_operation = operation.slice(0, 256);
   }
+  for (const field of ["ref", "path", "oid"]) {
+    if (typeof detail[field] === "string") projected[`git_${field}`] = detail[field].slice(0, 1024);
+  }
+  const disagreements = projectTerminalWkCandidateRefDisagreements(detail.ref_disagreements);
+  if (disagreements !== null) projected.ref_disagreements = disagreements;
   if (detail.status !== undefined) {
     projected.git_status = detail.status === null ? null : Number(detail.status);
   }
-  if (detail.stderr !== undefined && detail.stderr !== null) {
-    projected.git_stderr = String(detail.stderr).slice(0, 8192);
+  if (detail.signal !== undefined) {
+    projected.git_signal = typeof detail.signal === "string" ? detail.signal : null;
+  }
+  if (detail.output_overflow === true) projected.git_output_overflow = true;
+  if (isPlainObject(detail.native_error)) projected.git_native_error = { ...detail.native_error };
+  if (Object.hasOwn(detail, "stderr_bytes")) {
+    if (Number.isSafeInteger(detail.stderr_bytes)) projected.git_stderr_bytes = detail.stderr_bytes;
+  } else if (typeof detail.stderr === "string") {
+    projected.git_stderr_bytes = Buffer.byteLength(detail.stderr, "utf8");
   }
   return Object.keys(projected).length === 0 ? null : Object.freeze(projected);
 }
@@ -103,11 +278,15 @@ const TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE = Object.freeze({
 
 export function projectTerminalWkCandidateFailure(error) {
   if (error instanceof TerminalWkCandidateError) {
+    const code = typeof error.code === "string" ? error.code : null;
+    const detail = boundedMechanicalDetail(error.detail);
+    const registered = projectTerminalWkCandidateGitDiagnosis(error);
     return Object.freeze({
       kind: "typed_candidate_error",
-      code: typeof error.code === "string" ? error.code : null,
+      code,
       message: boundedFailureMessage(error.message),
-      detail: boundedMechanicalDetail(error.detail)
+      detail: registered === null || registered.code !== code ? detail
+        : Object.freeze({ ...(detail ?? {}), git_diagnosis: registered.diagnosis })
     });
   }
   return TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE;
@@ -121,16 +300,29 @@ export async function defaultTerminalCandidateRunGit({ repo, args, env = null, i
     input,
     env: env === null ? process.env : { ...process.env, ...env },
     maxBuffer: 64 * 1024 * 1024,
-    stderrLimit: 8192
+    trace2Diagnostics: true
   });
-  if (result.error) return { ok: false, error: result.error, ...(result.overflow === true ? { overflow: true } : {}) };
-  return {
-    ok: result.status === 0,
-    status: result.status,
+  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  const facts = {
+    status: typeof result.status === "number" ? result.status : null,
     signal: result.signal ?? null,
     stdout: typeof result.stdout === "string" ? result.stdout : "",
-    stderr: typeof result.stderr === "string" ? result.stderr : ""
+    stderr,
+    stderr_bytes: result.overflow === true ? null : Buffer.byteLength(stderr, "utf8"),
+    ...(result.trace2 === undefined ? {} : { trace2: result.trace2 })
   };
+  const adapted = result.error
+    ? {
+        ok: false,
+        error: result.error,
+        ...(result.overflow === true ? { overflow: true } : {}),
+        ...(result.timed_out === true ? { timed_out: true } : {}),
+        ...(result.spawn_error === undefined ? {} : { spawn_error: result.spawn_error }),
+        ...facts
+      }
+    : { ok: result.status === 0, ...facts };
+  PRODUCTION_RUNNER_RESULTS.add(adapted);
+  return adapted;
 }
 
 function authorityGitArgs(args) {
@@ -141,11 +333,7 @@ async function git(runGit, repo, args, { code = TERMINAL_WK_CANDIDATE_CODES.GIT_
   const authorityArgs = authorityGitArgs(args);
   const result = await runGit({ repo, args: authorityArgs, env });
   if (!result || result.ok !== true) {
-    fail(code, message ?? `git ${args[0]} failed`, {
-      args: authorityArgs,
-      status: result?.status ?? null,
-      stderr: result?.stderr ?? result?.error ?? null
-    });
+    failGit(code, message ?? `git ${args[0]} failed`, result, { args: authorityArgs });
   }
   return String(result.stdout ?? "").trim();
 }
@@ -154,11 +342,7 @@ async function gitRaw(runGit, repo, args, { code = TERMINAL_WK_CANDIDATE_CODES.G
   const authorityArgs = authorityGitArgs(args);
   const result = await runGit({ repo, args: authorityArgs, env });
   if (!result || result.ok !== true) {
-    fail(code, message ?? `git ${args[0]} failed`, {
-      args: authorityArgs,
-      status: result?.status ?? null,
-      stderr: result?.stderr ?? result?.error ?? null
-    });
+    failGit(code, message ?? `git ${args[0]} failed`, result, { args: authorityArgs });
   }
   return String(result.stdout ?? "");
 }
@@ -241,13 +425,17 @@ async function resolveRef(runGit, repo, ref, field) {
 }
 
 async function assertBaseAncestor(runGit, repo, base, wkTip) {
-  const result = await runGit({ repo, args: authorityGitArgs(["merge-base", "--is-ancestor", base, wkTip]), env: null });
-  if (!result || result.ok !== true) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID, "base is not an ancestor of the accumulated WK tip", {
-      args: ["merge-base", "--is-ancestor", base, wkTip],
-      status: result?.status ?? null
-    });
+  const args = authorityGitArgs(["merge-base", "--is-ancestor", base, wkTip]);
+  const result = await runGit({ repo, args, env: null });
+  const observed = classifyAncestryObservation(result);
+  if (observed === "ancestor") return;
+  const facts = { args, base, wk_tip: wkTip };
+  if (observed === "not_ancestor") {
+    failGit(TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID,
+      "base is not an ancestor of the accumulated WK tip", result, facts);
   }
+  failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
+    "could not complete the ancestry comparison of base and the accumulated WK tip", result, facts);
 }
 
 export function resolveTerminalWkCandidateBaseRef({
@@ -709,25 +897,19 @@ export async function inspectTerminalWkCandidateVersion({
 }
 
 export async function observeExactDirectCommitRef({ mainRepo, ref, runGit, subject, objectFormat = null }) {
-  const observed = await runGit({
-    repo: mainRepo,
-    args: authorityGitArgs([
-      "for-each-ref",
-      `--format=${CURRENT_CANDIDATE_REF_FORMAT}`,
-      "--count=2",
-      "--",
-      ref
-    ]),
-    env: null
-  });
+  const args = authorityGitArgs([
+    "for-each-ref",
+    `--format=${CURRENT_CANDIDATE_REF_FORMAT}`,
+    "--count=2",
+    "--",
+    ref
+  ]);
+  const observed = await runGit({ repo: mainRepo, args, env: null });
 
   if (observed?.ok !== true || observed?.error != null || observed?.signal != null ||
       (observed?.status !== undefined && observed.status !== 0)) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, `${subject} could not be observed`, {
-      ref,
-      status: observed?.status ?? null,
-      stderr: observed?.stderr ?? observed?.error ?? null
-    });
+    failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, `${subject} could not be observed`, observed,
+      { args, ref });
   }
   const stdout = typeof observed.stdout === "string" ? observed.stdout : null;
   if (stdout === "") return null;
@@ -782,9 +964,8 @@ export async function readExactWkRecordBlobObservation({
   });
   if (!result || result.ok !== true || result.error != null || result.signal != null ||
       (result.status !== undefined && result.status !== 0)) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not observe exact WK record path", {
-      path: recordPath, status: result?.status ?? null, stderr: result?.stderr ?? result?.error ?? null
-    });
+    failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not observe exact WK record path", result,
+      { args: authorityGitArgs(["ls-tree"]), path: recordPath });
   }
   const stdout = typeof result.stdout === "string" ? result.stdout : null;
   if (stdout === null) {
@@ -809,10 +990,8 @@ export async function readExactWkRecordBlobObservation({
   const blobResult = await runGit({ repo: mainRepo, args: authorityGitArgs(["cat-file", "blob", oid]), env: null });
   if (!blobResult || blobResult.ok !== true || blobResult.error != null || blobResult.signal != null ||
       (blobResult.status !== undefined && blobResult.status !== 0)) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not read exact WK record blob", {
-      path: recordPath, oid, status: blobResult?.status ?? null,
-      stderr: blobResult?.stderr ?? blobResult?.error ?? null
-    });
+    failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not read exact WK record blob", blobResult,
+      { args: authorityGitArgs(["cat-file", "blob", oid]), path: recordPath, oid });
   }
   if (typeof blobResult.stdout !== "string") {
     fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID, "WK record blob is unreadable", { path: recordPath, oid });
@@ -875,16 +1054,15 @@ export async function inspectTerminalReviewCandidateAuthority({
   const treeEqual = tree === embeddedWTree;
   const soleParentBase = parents.length === 2 && parents[0] === candidate && parents[1] === metadata.base;
   const forkEqualBase = fork === metadata.base;
-  const ancestor = await runGit({ repo: mainRepo, args: authorityGitArgs(["merge-base", "--is-ancestor", metadata.base, wk]), env: null });
-  if (!ancestor || ancestor.ok !== true) {
-    if (ancestor?.status !== 1) fail(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
-      "could not observe whether embedded B is an ancestor of current W", {
-        args: ["merge-base"],
-        status: ancestor?.status ?? null, base: metadata.base, wk_tip: wk,
-        stderr: ancestor?.stderr ?? ancestor?.error ?? null
-      });
+  const ancestryArgs = authorityGitArgs(["merge-base", "--is-ancestor", metadata.base, wk]);
+  const ancestor = await runGit({ repo: mainRepo, args: ancestryArgs, env: null });
+  const ancestry = classifyAncestryObservation(ancestor);
+  if (ancestry === "failed") {
+    failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
+      "could not complete the ancestry comparison of embedded B and current W", ancestor,
+      { args: ancestryArgs, base: metadata.base, wk_tip: wk });
   }
-  const baseAncestorCurrentW = ancestor?.status === 1 ? false : ancestor?.ok === true;
+  const baseAncestorCurrentW = ancestry === "ancestor";
   if (!treeEqual) causes.push("candidate_tree_mismatch");
   if (!soleParentBase) causes.push("sole_parent_mismatch");
   if (!forkEqualBase) causes.push("fork_base_mismatch");
@@ -946,25 +1124,29 @@ async function createImmutableCandidateRef({ mainRepo, ref, candidate, runGit })
     if (observed === candidate) return "converged";
     fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
       "immutable candidate version ref already names a different candidate", {
-        ref, expected: candidate, actual: observed
+        ref, ref_disagreements: [{ ref, expected: candidate, actual: observed }]
       });
   }
-  const result = await runGit({
-    repo: mainRepo,
-    args: authorityGitArgs(["update-ref", "--no-deref", "--stdin"]),
-    input: `create ${ref} ${candidate}\n`,
-    env: null
-  });
+  const args = authorityGitArgs(["update-ref", "--no-deref", "--stdin"]);
+  const input = `create ${ref} ${candidate}\n`;
+  const result = await runGit({ repo: mainRepo, args, input, env: null });
   if (result?.ok === true && (result.status === undefined || result.status === 0) &&
       result.error == null && result.signal == null && String(result.stderr ?? "") === "") {
     return "created";
   }
-  const winner = await observeExactDirectCommitRef({
+
+  const facts = { args, ref, expected: candidate, transaction: input };
+  const writeFailure = mintGitFailure(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
+    "immutable candidate version ref could not be created", result, facts);
+  const winner = await observeAfterFailedWrite(() => observeExactDirectCommitRef({
     mainRepo, ref, runGit, subject: "immutable candidate version ref"
-  });
+  }), writeFailure);
   if (winner === candidate) return "converged";
-  fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
-    "immutable candidate version ref could not be created", { ref, expected: candidate });
+  if (winner === null) throw writeFailure;
+  failGit(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+    "immutable candidate version ref names a different candidate after a failed create", result, {
+      ...facts, ref_disagreements: [{ ref, expected: candidate, actual: winner }]
+    });
 }
 
 export async function publishTerminalWkCandidateVersion({
@@ -1033,12 +1215,8 @@ export async function casTerminalCandidateCurrentRef({
       ? ["create", candidateRef, candidate]
       : ["update", candidateRef, candidate, expectedOld]
   ].map((command) => command.join(" ")).join("\n") + "\n";
-  const advanced = await runGit({
-    repo: mainRepo,
-    args: authorityGitArgs(["update-ref", "--no-deref", "--stdin"]),
-    input: transaction,
-    env: null
-  });
+  const args = authorityGitArgs(["update-ref", "--no-deref", "--stdin"]);
+  const advanced = await runGit({ repo: mainRepo, args, input: transaction, env: null });
   if (advanced?.ok === true && (advanced?.status === undefined || advanced.status === 0) &&
       advanced?.error == null && advanced?.signal == null && String(advanced?.stderr ?? "") === "") {
     return Object.freeze({
@@ -1048,29 +1226,38 @@ export async function casTerminalCandidateCurrentRef({
     });
   }
 
-  const reauthenticated = await Promise.all(verifyRefs.map(async ({ ref, oid }) => ({
-    ref,
-    expected: oid,
-    actual: await observeExactDirectCommitRef({
-      mainRepo,
+  const facts = { args, ref: candidateRef, expected_old: expectedOld, proposed: candidate, transaction };
+  const writeFailure = mintGitFailure(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
+    "current candidate transaction failed", advanced, facts);
+  const reauthenticated = await observeAfterFailedWrite(() => Promise.all(
+    verifyRefs.map(async ({ ref, oid }) => ({
       ref,
-      runGit,
-      subject: `verified ${ref}`
-    })
-  })));
-  const current = await readTerminalCandidateCurrentRef({ mainRepo, canonicalWkId, runGit });
+      expected: oid,
+      actual: await observeExactDirectCommitRef({
+        mainRepo,
+        ref,
+        runGit,
+        subject: `verified ${ref}`
+      })
+    }))), writeFailure);
+  const current = await observeAfterFailedWrite(
+    () => readTerminalCandidateCurrentRef({ mainRepo, canonicalWkId, runGit }), writeFailure);
   const factsMatch = reauthenticated.every(({ expected, actual }) => expected === actual);
   if (factsMatch && current === candidate) {
     return Object.freeze({ state: "converged", ref: candidateRef, candidate });
   }
-  fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
-    "current candidate transaction lost without an exact captured winner", {
-      ref: candidateRef,
-      expected_old: expectedOld,
-      proposed: candidate,
+  const refDisagreements = [
+    ...reauthenticated.filter(({ expected, actual }) => expected !== actual),
+    ...(current === candidate || current === expectedOld ? []
+      : [{ ref: candidateRef, expected: expectedOld, actual: current }])
+  ];
+  if (refDisagreements.length === 0) throw writeFailure;
+  failGit(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+    "current candidate transaction lost to a conflicting ref value", advanced, {
+      ...facts,
       actual: current,
       reauthenticated,
-      transaction
+      ref_disagreements: refDisagreements
     });
 }
 
@@ -1164,11 +1351,8 @@ async function deriveTerminalWkCandidateIdentityWithGuard({ frozen, runGit, asse
   const treeArgs = ["rev-parse", "--verify", `${frozen.wk_tip}^{tree}`];
   const treeResult = await runGit({ repo: frozen.main_repo, args: authorityGitArgs(treeArgs), env: null });
   if (!treeResult || treeResult.ok !== true) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not resolve the accumulated WK tree", {
-      args: authorityGitArgs(treeArgs),
-      status: treeResult?.status ?? null,
-      stderr: String(treeResult?.stderr ?? treeResult?.error ?? "").slice(0, 8192)
-    });
+    failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not resolve the accumulated WK tree", treeResult,
+      { args: authorityGitArgs(treeArgs) });
   }
   const tree = canonicalOid(String(treeResult.stdout ?? "").split(/\r?\n/u)[0], "candidate tree");
   await assertFacts({ frozen, runGit });

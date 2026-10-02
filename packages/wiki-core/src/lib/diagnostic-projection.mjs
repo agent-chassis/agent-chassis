@@ -102,61 +102,17 @@ export function isDiagnosticValue(value) {
   return isJsonDiagnostic(value);
 }
 
-function replaceExactValue(value, exactValue, placeholder) {
-  if (typeof value === "string") {
-    if (!value.includes(exactValue)) return { value, replaced: false };
-    return { value: value.split(exactValue).join(placeholder), replaced: true };
-  }
-  if (Array.isArray(value)) {
-    let replaced = false;
-    const projected = value.map((entry) => {
-      const result = replaceExactValue(entry, exactValue, placeholder);
-      replaced ||= result.replaced;
-      return result.value;
-    });
-    return { value: projected, replaced };
-  }
-  if (isPlainObject(value)) {
-    let replaced = false;
-    const projected = Object.fromEntries(Object.entries(value).map(([key, entry]) => {
-      const result = replaceExactValue(entry, exactValue, placeholder);
-      replaced ||= result.replaced;
-      return [key, result.value];
-    }));
-    return { value: projected, replaced };
-  }
-  return { value, replaced: false };
-}
-
-export function projectDiagnostic(value, { fieldPrefix = "diagnostic" } = {}) {
+export function projectDiagnostic(value) {
   if (isPlainObject(value) &&
       value.schema_version === STRUCTURED_DIAGNOSTIC_SCHEMA_VERSION &&
       !isStructuredDiagnostic(value)) {
     throw new TypeError("structured diagnostic must use the closed schema and redaction vocabulary");
   }
-  const structured = isStructuredDiagnostic(value);
-  let projected = structured
-    ? cloneJsonDiagnostic(value.value)
-    : safeDiagnosticValue(value);
-  const redactions = [];
-
-  const declarations = structured
-    ? [...value.sensitive_values].sort((left, right) => right.value.length - left.value.length)
-    : [];
-  for (const declaration of declarations) {
-    const placeholder = `[redacted:${declaration.reason}]`;
-    const result = replaceExactValue(projected, declaration.value, placeholder);
-    projected = result.value;
-    if (result.replaced) {
-      redactions.push(Object.freeze({
-        field: `${fieldPrefix}.${declaration.field}`,
-        reason: declaration.reason
-      }));
-    }
-  }
   return Object.freeze({
-    value: projected,
-    redactions: Object.freeze(redactions)
+    value: isStructuredDiagnostic(value)
+      ? cloneJsonDiagnostic(value.value)
+      : safeDiagnosticValue(value),
+    redactions: Object.freeze([])
   });
 }
 

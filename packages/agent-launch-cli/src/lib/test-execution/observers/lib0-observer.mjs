@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import channelModule from "./native-channel.cjs";
 
-const { createChannel, errorFacts, installReachSink, loadConfig, repositoryPath } = channelModule;
+const { createChannel, failureDiagnostic, installReachSink, loadConfig, repositoryPath } = channelModule;
 const config = loadConfig();
 const channel = createChannel(config, "lib0");
 installReachSink(channel);
@@ -69,7 +69,7 @@ function reportSelected(state) {
   channel.emit("test_result", { file, test,
     outcome: error === null ? "passed" : skipped ? "skipped" : "failed",
     assertion_failure: error !== null && !skipped && assertion,
-    error: error === null || skipped ? null : errorFacts(error, assertion) });
+    ...(error === null || skipped ? {} : { failure_diagnostic: failureDiagnostic(error) }) });
 }
 
 function observedRunTests(runTests) {

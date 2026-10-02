@@ -12,6 +12,12 @@ import {
   resolveLauncherProfile
 } from "../../packages/agent-launch-cli/src/lib/agent-launch-profiles.mjs";
 
+function workerSelection(repo) {
+  const resolved = resolveLauncherProfile({ role: "worker", env: {}, dir: repo });
+  assert.equal(resolved.ok, true, JSON.stringify(resolved));
+  return resolved.value.model_selection;
+}
+
 async function makeCodexEffortFixture(t, { effort = "high" } = {}) {
   const base = await mkdtemp(path.join(os.tmpdir(), "codex-effort-"));
   t.after(() => rm(base, { recursive: true, force: true }));
@@ -62,7 +68,8 @@ test("WK-1283 SLICE-001: non-orchestrator Codex headless argv emits mapped high 
     verbose: false,
     argsPrefix: ["-p", "worker", "exec", "--ignore-rules"],
     prompt: "PROMPT",
-    model: "gpt-5.5"
+    model: "gpt-5.5",
+    modelSelection: workerSelection(repo)
   });
   assert.equal(plan.mode, "headless");
   assert.deepEqual(
@@ -83,7 +90,8 @@ test("WK-1283 SLICE-001: non-orchestrator Codex xhigh emits as -c and does not s
     verbose: false,
     argsPrefix: ["-p", "worker", "exec", "--ignore-rules"],
     prompt: "PROMPT",
-    model: "gpt-5.5"
+    model: "gpt-5.5",
+    modelSelection: workerSelection(repo)
   });
   assert.deepEqual(
     configOverrideValues(plan.args, "model_reasoning_effort"),
@@ -106,8 +114,7 @@ test("WK-1283 SLICE-001: Codex neutral max clamps to xhigh for non-orchestrator 
   assert.deepEqual(
     buildCodexReasoningEffortConfigOverrides({
       role: "worker",
-      repo,
-      model: "gpt-5.5"
+      modelSelection: workerSelection(repo)
     }),
     ["model_reasoning_effort=xhigh"]
   );

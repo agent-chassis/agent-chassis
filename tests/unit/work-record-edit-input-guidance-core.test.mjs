@@ -379,7 +379,12 @@ test("editor guidance covers field shapes and exact value boundaries", () => {
     assert.equal(Object.hasOwn(criteria.semantics.replacement, "acceptance_validation"), false,
       `acceptance.criteria:${scope} must not carry the acceptance.validation-only rule`);
     assert.equal(Object.hasOwn(criteria.semantics.replacement, "notes"), false, scope);
-    assert.deepEqual(Object.keys(criteria.semantics.replacement), ["list"], scope);
+    assert.deepEqual(Object.keys(criteria.semantics.replacement), ["list", "acceptance_criteria"],
+      scope);
+    assert.equal(criteria.semantics.replacement.acceptance_criteria,
+      inventory.semantics.replacement.acceptance_criteria, `acceptance.criteria:${scope}`);
+    assert.match(criteria.semantics.replacement.acceptance_criteria,
+      /starts with none.*intended behavior or invariant.*verification plan or regression coverage/su);
 
     const validation = createWorkRecordEditFieldGuidance({
       field: "acceptance.validation", scope, requestFacts
@@ -387,12 +392,24 @@ test("editor guidance covers field shapes and exact value boundaries", () => {
     assert.equal(validation.ok, true, scope);
     assert.equal(validation.semantics.replacement.list,
       inventory.semantics.replacement.list, `acceptance.validation:${scope}`);
+    assert.equal(Object.hasOwn(validation.semantics.replacement, "acceptance_criteria"), false,
+      `acceptance.validation:${scope} must not carry the acceptance.criteria-only rule`);
     assert.equal(validation.semantics.replacement.acceptance_validation,
       inventory.semantics.replacement.acceptance_validation, scope);
     assert.match(validation.semantics.replacement.acceptance_validation,
       /node_test bindings are preserved/u, scope);
     assert.match(validation.semantics.replacement.acceptance_validation,
       /authored only by controlled-contract proof operations/u, scope);
+
+    for (const pattern of [/NEW workspace_work_record_entry_upsert entry: omit entry_id/u,
+      /current source_digest as expected_source_digest/u,
+      /keep candidate-bound acceptance and existing entries unchanged/u,
+      /can block candidate publication even when generation_transition is unchanged/u,
+      /records evidence only and cures no other drift/u]) {
+      assert.match(validation.semantics.replacement.acceptance_validation, pattern, scope);
+    }
+    assert.doesNotMatch(criteria.semantics.replacement.acceptance_criteria,
+      /entry_upsert|candidate publication/u, scope);
 
     for (const selected of [criteria, validation]) {
       assert.equal(selected.semantics.no_op, inventory.semantics.no_op, scope);

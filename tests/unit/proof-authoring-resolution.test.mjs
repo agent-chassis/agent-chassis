@@ -772,3 +772,42 @@ test('WK-2664 a malformed registry entry throws when the registry is composed', 
   refuses([{ ...base, recovery: null }], /must declare its recovery/u,
     'caller_retry without a recovery');
 });
+
+test('WK-2667 a typed missing runtime module path names the component correction beside other corrections', async () => {
+  const { occurrenceRecoverySummary } = await import('@agent-chassis/controlled-contract/executable-map');
+  const typed = diagnostics => ({ code: 'obligation_coverage_native_binding_case_incomplete',
+    problem: { cause: { owner_details: { diagnostics } } } });
+  const moduleMissing = [
+    { instancePath: '/system_under_test_boundary', keyword: 'required',
+      params: { missingProperty: 'runtime_module_path' }, message: 'unrelated prose' },
+    { instancePath: '/system_under_test_boundary', keyword: 'if', params: { failingKeyword: 'then' } }];
+  const component = /obligations\[\]\.case\.component[^]*case_authoring\.component/u;
+  const association = /case_authoring\.verification_association/u;
+  const prose = occurrenceRecoverySummary(typed(moduleMissing), { summary: 'fallback' });
+  assert.match(prose, component);
+  assert.match(prose, /repository_path/u);
+  assert.match(prose, /preserve valid requirement\/verification links/u);
+  assert.doesNotMatch(prose, association);
+  assert.doesNotMatch(prose, /\/system_under_test_boundary/u, 'bounded prose repeats no typed path');
+
+  const mixed = occurrenceRecoverySummary(typed([...moduleMissing,
+    { instancePath: '', keyword: 'required', params: { missingProperty: 'verification_claim_id' } }]),
+  { summary: 'fallback' });
+  assert.match(mixed, association, 'the association correction is kept');
+  assert.match(mixed, component, 'and the component correction is added');
+
+  for (const [name, diagnostics] of [
+    ['message only', [{ instancePath: '/observable_result', keyword: 'required',
+      params: { missingProperty: 'kind' }, message: "must have required property 'runtime_module_path'" }]],
+    ['sibling boundary field', [{ instancePath: '/system_under_test_boundary', keyword: 'required',
+      params: { missingProperty: 'subject_reference_ids' } }]],
+    ['forbidden path', [{ instancePath: '/system_under_test_boundary/runtime_module_path',
+      keyword: 'false schema', params: {} }]],
+    ['other owner', null]]) {
+    const diagnostic = diagnostics === null
+      ? { ...typed(moduleMissing), code: 'obligation_coverage_native_binding_missing' }
+      : typed(diagnostics);
+    assert.doesNotMatch(occurrenceRecoverySummary(diagnostic, { summary: 'fallback' }),
+      /case_authoring\.component/u, name);
+  }
+});

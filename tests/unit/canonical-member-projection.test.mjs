@@ -4,20 +4,23 @@ import assert from "node:assert/strict";
 import {
   buildSelectedRecordMemberCall,
   projectSelectedRecordMember,
-  selectedRecordMemberSelectorIssues
+  projectSelectedRecordMembers,
+  selectedRecordMemberSelectorIssues,
+  selectedRecordMembersSelectorIssues
 } from "../../packages/wiki-core/src/lib/work-record-selected-unit-projection.mjs";
 import { unresolvedArgumentNames } from "../../packages/wiki-core/src/lib/next-calls-descriptor.mjs";
 
-const DIGEST = `sha256:${"a".repeat(64)}`;
+const DIGEST = "a".repeat(16);
 const bytes = (value) => Buffer.byteLength(JSON.stringify(value), "utf8");
 
+const buildCall = (selection) => buildSelectedRecordMemberCall({
+  tool: "workspace_read_page",
+  repository: "current",
+  identity: { path: "wiki/work-records/WK-0001.json" },
+  selection
+});
+
 function project(value, member, { sourceDigest = DIGEST } = {}) {
-  const buildCall = (selector) => buildSelectedRecordMemberCall({
-    tool: "workspace_read_page",
-    repository: "current",
-    identity: { path: "wiki/work-records/WK-0001.json" },
-    member: selector
-  });
   return projectSelectedRecordMember({
     value,
     member,
@@ -52,9 +55,11 @@ test("a container page carries immediate descriptors only, in canonical key orde
   assert.equal(member.total_count, 4);
   assert.equal(member.returned_count, 4);
   assert.deepEqual(nextCalls, []);
-  for (const row of member.members) {
-    assert.deepEqual(row.next_call.arguments.member, { path: [row.key], expected_source_digest: DIGEST });
-  }
+  for (const row of member.members) assert.equal(Object.hasOwn(row, "next_call"), false, "rows repeat no envelope");
+
+  assert.deepEqual(member.child_calls.map((call) => call.arguments), [{ repo: "current",
+    path: "wiki/work-records/WK-0001.json", members: Object.keys(record).map((key) => ({ path: [key] })),
+    expected_source_digest: DIGEST }]);
   const serialized = JSON.stringify(projected.result);
   assert.equal(serialized.includes("nested body"), false, "descendant values are not embedded");
   assert.equal(serialized.includes("deeper body"), false);
@@ -62,7 +67,7 @@ test("a container page carries immediate descriptors only, in canonical key orde
 
   const array = project(record, { path: ["a"] }).result.member;
   assert.deepEqual(array.members.map((row) => [row.index, row.kind]), [[0, "string"], [1, "object"]]);
-  assert.deepEqual(array.members[1].next_call.arguments.member.path, ["a", 1]);
+  assert.deepEqual(array.child_calls[0].arguments.members, [{ path: ["a", 0] }, { path: ["a", 1] }]);
 });
 
 test("container pages are bounded and their continuations recover every immediate member exactly once", () => {
@@ -76,6 +81,12 @@ test("container pages are bounded and their continuations recover every immediat
     assert.equal(page.member.total_count, 173);
   }
   assert.deepEqual(pages.flatMap((page) => page.member.members.map((row) => row.key)), Object.keys(record));
+
+  for (const page of pages) {
+    assert.ok(page.member.child_calls.every((call) => call.arguments.members.length <= 16));
+    assert.deepEqual(page.member.child_calls.flatMap((call) => call.arguments.members.map(({ path }) => path[0])),
+      page.member.members.map((row) => row.key));
+  }
 
   const explicit = walk(record, { path: [], limit: 50 });
   for (const page of explicit) {
@@ -178,4 +189,168 @@ test("member calls publish authored keys that resemble placeholders without wide
   assert.deepEqual(unresolvedArgumentNames({ member: { path: ["a"], expected_source_digest: "" } }), ["member"]);
   assert.deepEqual(unresolvedArgumentNames({ member: { path: ["a"], unexpected: "$x" } }), ["member"]);
   assert.deepEqual(unresolvedArgumentNames({ other: { path: ["$schema"] } }), ["other"]);
+});
+
+const ENVELOPE = { ok: true, record_id: "WK-0001", source_digest: DIGEST };
+const batch = (value, members, sourceDigest = DIGEST) =>
+  projectSelectedRecordMembers({ value, members, sourceDigest, envelope: ENVELOPE, buildCall });
+
+function walkBatch(value, members) {
+  const pages = [];
+  const delivered = new Map();
+  let selections = members;
+  while (selections) {
+    const projected = batch(value, selections);
+    assert.equal(projected.ok, true, JSON.stringify(projected));
+    const page = projected.result;
+    pages.push(page);
+    for (const fragment of page.members) {
+      const key = JSON.stringify(fragment.path);
+      const prior = delivered.get(key);
+      if (fragment.kind === "string") delivered.set(key, (prior ?? "") + fragment.value);
+      else if (fragment.kind === "object" || fragment.kind === "array") {
+        delivered.set(key, [...(prior ?? []), ...fragment.members.map((row) => row.key ?? row.index)]);
+      } else delivered.set(key, fragment.value);
+    }
+    assert.ok(page.next_calls.length <= 1, "a batch without diagnostics has at most its one continuation");
+    assert.equal(page.next_calls.length, page.selections.remaining > 0 ? 1 : 0,
+      "unfinished selections always carry exactly one continuation");
+    selections = page.next_calls[0]?.arguments.members ?? null;
+    if (selections) assert.equal(page.next_calls[0].arguments.expected_source_digest, DIGEST);
+  }
+  return { pages, delivered };
+}
+
+test("a batch answers ordered selections from one value under one envelope and one budget", () => {
+  const criteria = ["first λ criterion", "second \u{1f680} criterion", "third \"quoted\" criterion", "fourth é"];
+  const record = { acceptance: { criteria, validation: ["node --test a"] }, sections: { notes: "n".repeat(50) },
+    slices: [{ id: "SLICE-001", sections: { tasks: [{ text: "task text", status: "todo" }] } }] };
+  const projected = batch(record, criteria.map((_, index) => ({ path: ["acceptance", "criteria", index] })));
+  assert.equal(projected.ok, true);
+  const page = projected.result;
+  assert.deepEqual(page.members.map((fragment) => [fragment.selection, fragment.path, fragment.value]),
+    criteria.map((text, index) => [index, ["acceptance", "criteria", index], text]));
+  assert.deepEqual(page.selections, { requested: 4, completed: 4, failed: 0, remaining: 0 });
+  assert.deepEqual(page.next_calls, []);
+  assert.equal(page.source_digest, DIGEST);
+  for (const fragment of page.members) {
+    for (const repeated of ["repo", "source_digest", "record_id", "tool", "next_calls"]) {
+      assert.equal(Object.hasOwn(fragment, repeated), false, `a fragment repeats no ${repeated}`);
+    }
+  }
+  const serialized = JSON.stringify(page);
+  for (const unrequested of ["node --test a", "nnnn", "task text"]) {
+    assert.equal(serialized.includes(unrequested), false, `no unrequested ${unrequested}`);
+  }
+
+  const container = batch(record, [{ path: ["slices", 0] }, { path: ["slices", 0, "sections", "tasks", 0, "text"] }]).result;
+  assert.deepEqual(container.members[0].members.map((row) => row.key), ["id", "sections"]);
+  assert.equal(JSON.stringify(container.members[0]).includes("task text"), false);
+  assert.equal(container.members[1].value, "task text");
+});
+
+test("sixteen explicit maximum selections stay within the one hard bound and continue losslessly", () => {
+  const long = `λ\u{1f680}́"\\${"東".repeat(9000)}`;
+  const record = { a: { b: { c: [long, `${long}!`] } }, t: long, list: Array.from({ length: 80 }, (_, index) => index) };
+  const members = [
+    ...Array.from({ length: 12 }, (_, index) => ({ path: index % 3 === 0 ? ["t"] : ["a", "b", "c", index % 3 - 1],
+      length: 8192 })),
+    { path: ["list"], limit: 50 }, { path: ["a", "b"] }, { path: ["list", 79] }, { path: ["t"], offset: 3, length: 4000 }
+  ];
+  assert.equal(members.length, 16);
+  const pages = [];
+  let selections = members;
+  const perSelection = new Map(members.map((_, index) => [index, []]));
+
+  let origin = members.map((_, index) => index);
+  while (selections) {
+    const projected = batch(record, selections);
+    assert.equal(projected.ok, true, JSON.stringify(projected));
+    const page = projected.result;
+    pages.push(page);
+    assert.ok(bytes(page) <= 8192, `a batch page is ${bytes(page)} bytes`);
+    const indexes = page.members.map((fragment) => fragment.selection);
+    assert.deepEqual(indexes, [...indexes].sort((left, right) => left - right), "fragments keep request order");
+    const { requested, completed, failed, remaining } = page.selections;
+    assert.deepEqual([requested, failed, completed + remaining <= requested], [selections.length, 0, true]);
+    for (const fragment of page.members) perSelection.get(origin[fragment.selection]).push(fragment);
+    const next = page.next_calls[0]?.arguments.members ?? null;
+    if (next) {
+
+      const finished = new Set(page.members.filter((fragment) => {
+        const end = fragment.kind === "string" ? fragment.offset + fragment.length
+          : fragment.kind === "array" || fragment.kind === "object" ? fragment.offset + fragment.returned_count : null;
+        const total = fragment.kind === "string" ? fragment.total : fragment.total_count;
+        return end === null || end >= total;
+      }).map((fragment) => fragment.selection));
+      origin = origin.filter((_, index) => !finished.has(index));
+      assert.equal(next.length, origin.length);
+    }
+    selections = next;
+  }
+  assert.ok(pages.length > 1, "maximum explicit lengths spill into exact continuations");
+  const text = (index) => perSelection.get(index).map((fragment) => fragment.value).join("");
+  for (const [index, member] of members.entries()) {
+    if (member.path[0] === "t" && member.offset === undefined) assert.equal(text(index), long);
+    if (member.path[0] === "a" && member.path.length === 4) assert.equal(text(index), record.a.b.c[member.path[3]]);
+  }
+
+  assert.equal(text(15), Array.from(long).slice(3).join(""));
+  assert.deepEqual(perSelection.get(12).flatMap((fragment) => fragment.members.map((row) => row.index)),
+    Array.from({ length: 80 }, (_, index) => index));
+  assert.deepEqual(perSelection.get(13).flatMap((fragment) => fragment.members.map((row) => row.key)), ["c"]);
+  assert.deepEqual(perSelection.get(14).map((fragment) => fragment.value), [79]);
+});
+
+test("each string selection reassembles exactly once through emitted batch continuations", () => {
+  const texts = { x: `x${"é".repeat(3000)}`, y: `y${"\u{1f680}".repeat(700)}`, z: "short" };
+  const { delivered, pages } = walkBatch(texts, [{ path: ["x"] }, { path: ["y"], length: 100 }, { path: ["z"] }]);
+  for (const [key, value] of Object.entries(texts)) assert.equal(delivered.get(JSON.stringify([key])), value);
+  for (const page of pages) assert.ok(bytes(page) <= 8192);
+});
+
+test("bad paths and ranges are ordered selection diagnostics that keep the valid selections", () => {
+  const record = { list: ["zero"], map: { a: "alpha" } };
+  const projected = batch(record, [{ path: ["map", "a"] }, { path: ["map", "missing"] }, { path: ["list"], offset: 9 },
+    { path: ["list", 0] }]);
+  assert.equal(projected.ok, true);
+  const page = projected.result;
+  assert.deepEqual(page.members.map((fragment) => [fragment.selection, fragment.value]), [[0, "alpha"], [3, "zero"]]);
+  assert.deepEqual(page.diagnostics.map((diagnostic) => [diagnostic.selection, diagnostic.code, diagnostic.path]), [
+    [1, "record_member_path_missing", "members[1].path[1]"],
+    [2, "record_member_range_invalid", "members[2].offset"]]);
+  assert.deepEqual(page.selections, { requested: 4, completed: 2, failed: 2, remaining: 0 });
+
+  assert.deepEqual(page.next_calls.map((call) => call.arguments.members), [[{ path: ["map"] }, { path: ["list"] }]]);
+  assert.equal(page.next_calls[0].arguments.expected_source_digest, DIGEST);
+
+  const none = batch(record, [{ path: ["absent"] }]);
+  assert.equal(none.ok, false);
+  assert.deepEqual(none.diagnostics.map((diagnostic) => diagnostic.code), ["record_member_path_missing"]);
+  assert.deepEqual(none.next_calls[0].arguments.members, [{ path: [] }]);
+});
+
+test("a batch whose smallest progress exceeds the hard bound refuses with a narrowed call", () => {
+  const key = "k".repeat(1200);
+  const record = Object.fromEntries(Array.from({ length: 16 }, (_, index) => [`${key}${index}`, index]));
+  const members = Object.keys(record).map((name) => ({ path: [name] }));
+  const refused = batch(record, members);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.diagnostics[0].code, "record_member_batch_too_large");
+  assert.equal(refused.diagnostics[0].authority_limb, "mechanical");
+  assert.deepEqual(refused.next_calls.map((call) => call.arguments.members), [[members[0]]]);
+  const narrowed = batch(record, refused.next_calls[0].arguments.members);
+  assert.equal(narrowed.ok, true);
+  assert.ok(bytes(narrowed.result) <= 8192);
+});
+
+test("members selector validation bounds the batch and keeps the pin at call level", () => {
+  assert.deepEqual(selectedRecordMembersSelectorIssues([{ path: [] }]), []);
+  assert.deepEqual(selectedRecordMembersSelectorIssues(Array.from({ length: 16 }, () => ({ path: ["a"], length: 1 }))), []);
+  for (const members of [[], Array.from({ length: 17 }, () => ({ path: [] })), [{ path: [], expected_source_digest: DIGEST }],
+    [{ path: "a" }], null, [{}]]) {
+    assert.ok(selectedRecordMembersSelectorIssues(members).length > 0, JSON.stringify(members));
+  }
+  assert.ok(selectedRecordMemberSelectorIssues({ path: [], expected_source_digest: `sha256:${"a".repeat(64)}` }).length > 0,
+    "the single member pin accepts only the 16-hex wire value");
 });

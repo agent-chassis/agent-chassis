@@ -98,6 +98,25 @@ function normalizeCriterionIdentityEntry(entry, label = "identity entry") {
   return Object.freeze({ position: entry.position, text, identity, source: entry.source });
 }
 
+function deriveCriterionIdentities(criteria) {
+  if (!Array.isArray(criteria)) {
+    throw new AcceptanceCoverageIdentityError(
+      "criterion_identity_input_invalid", "criteria must be an array"
+    );
+  }
+  return Object.freeze(criteria.map((criterion, index) => {
+    const text = criterionText(criterion, index);
+    const typedIdentity = typeof criterion === "string" ? null : typedIdentityOf(criterion);
+    const identity = typedIdentity ?? `derived:${criterionIdentityDigest(index, text)}`;
+    return normalizeCriterionIdentityEntry({
+      position: index,
+      text,
+      identity,
+      source: typedIdentity === null ? "derived" : "typed"
+    }, `criteria[${index}]`);
+  }));
+}
+
 function deriveCriterionIdentitySet({
   criteria,
   selectedUnitDigest,
@@ -116,17 +135,7 @@ function deriveCriterionIdentitySet({
     contractDigest, proofPlanDigest, selectedPackDigest, mappingDigest
   });
   const unitDigest = requireString(selectedUnitDigest, "selectedUnitDigest");
-  const identities = criteria.map((criterion, index) => {
-    const text = criterionText(criterion, index);
-    const typedIdentity = typeof criterion === "string" ? null : typedIdentityOf(criterion);
-    const identity = typedIdentity ?? `derived:${criterionIdentityDigest(index, text)}`;
-    return normalizeCriterionIdentityEntry({
-      position: index,
-      text,
-      identity,
-      source: typedIdentity === null ? "derived" : "typed"
-    }, `criteria[${index}]`);
-  });
+  const identities = deriveCriterionIdentities(criteria);
   return Object.freeze({
     version: "acceptance-coverage-criterion-identity.v1",
     identities: Object.freeze(identities),
@@ -191,6 +200,7 @@ export {
   AcceptanceCoverageIdentityError,
   BINDING_DIGESTS,
   compareCriterionIdentitySets,
+  deriveCriterionIdentities,
   deriveCriterionIdentitySet,
   criterionIdentityDigest,
   normalizeCriterionIdentityEntry

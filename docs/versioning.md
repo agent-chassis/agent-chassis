@@ -392,4 +392,6 @@ The embedded authoring projection advances proof-pack selection schemas from
 v1/v2 to v3/v4; selector indexes, assessment component-applicability projections and proof resolutions use v2.
 Superseded definitions and their certifications are deleted;
 no certificate transfers to a changed definition and no consumer silently
-substitutes a version. See the [complete census and certification contract](../packages/controlled-contract/README.md#current-proof-definition-format-and-certification-wk-2555).
+substitutes a version. The complete census and certification contract is in the
+`@agent-chassis/controlled-contract` package README, "Current proof definition
+format and certification (work record)".

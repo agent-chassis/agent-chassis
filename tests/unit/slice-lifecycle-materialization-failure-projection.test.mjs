@@ -27,6 +27,7 @@ import {
 } from "../../packages/agent-launch-cli/src/lib/committed-slice-review-admission.mjs";
 import {
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
+  POST_WORKER_LIFECYCLE_CHECKPOINT,
   POST_WORKER_LIFECYCLE_PHASES
 } from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
 import {
@@ -111,11 +112,14 @@ function monitorRoutes(makeValue, { child = TERMINAL_CHILD, lifecycle = null } =
       getRunStatus: async () => child, waitForRunStatus: async () => child,
       runPostWorkerSliceLifecycle: async (args) => {
         counters.lifecycle += 1;
+
+        checkpoint = args.status[POST_WORKER_LIFECYCLE_CHECKPOINT];
         if (typeof lifecycle === "function") return await lifecycle(args);
         throw makeValue();
       }
     }
   });
+  let checkpoint = null;
 
   const call = async (_tool, extra) => readStructuredResult(
     await tools.get("workspace_agent_run_status").handler({ subject: child.subject,
@@ -124,7 +128,8 @@ function monitorRoutes(makeValue, { child = TERMINAL_CHILD, lifecycle = null } =
     counters,
     status: () => call("workspace_agent_run_status", {}),
 
-    wait: () => call("workspace_agent_run_status", { timeout_ms: 1 })
+    wait: () => call("workspace_agent_run_status", { timeout_ms: 1 }),
+    recordedFailure: () => checkpoint?.retained_failure ?? null
   };
 }
 const bothRoutes = async (r) => [["status", await r.status()], ["wait", await r.wait()]];
@@ -156,9 +161,15 @@ const classificationJson = (response) => JSON.stringify(withoutEvidence(response
 function assertGenericLifecycleFailure(label, response) {
   const classified = withoutEvidence(response);
   assert.deepEqual(classified.slice_lifecycle, { ...GENERIC_LIFECYCLE_FAILURE }, label);
-  assert.equal(response.slice_lifecycle.evidence.operation,
-    "post_worker_slice_lifecycle_invocation", label);
-  assert.ok(Array.isArray(response.slice_lifecycle.evidence.thrown.capture_failures), label);
+  const evidence = response.slice_lifecycle.evidence;
+  assert.equal(evidence.operation, "post_worker_slice_lifecycle_invocation", label);
+
+  assert.ok(evidence.thrown === null || Array.isArray(evidence.thrown.cause_chain), label);
+  assert.equal(Object.hasOwn(evidence.thrown ?? {}, "capture_failures"), false, label);
+  if (evidence.retained_evidence !== undefined) {
+    assert.equal(evidence.retained_evidence.owner, "post_worker_lifecycle_failure_record", label);
+  }
+  assert.equal(JSON.stringify(evidence).includes("\"stack\""), false, label);
   assert.deepEqual(response.lifecycle_resolution.latest_failure.evidence_summary,
     response.slice_lifecycle.evidence_summary, label);
   for (const key of RETIRED_FAILURE_KEYS) {
@@ -246,6 +257,11 @@ test("WK-2510 every authenticated materialization refusal publishes only the gen
       return classificationJson(response);
     });
     assert.equal(published[0], published[1], "both routes publish the identical envelope");
+
+    const recorded = routes.recordedFailure().evidence;
+    assert.equal(recorded.operation, "post_worker_slice_lifecycle_invocation", code);
+    assert.deepEqual(recorded.thrown.capture_failures, [], code);
+    assert.equal(recorded.thrown.value.properties.code, code);
     assert.equal(routes.counters.launched, 0, "a failure must never launch a run");
   }
 });
@@ -422,9 +438,16 @@ test("WK-1793 a real prepareSliceReviewSurface refusal authenticates and drops i
   assertGenericLifecycleFailure("real binding refusal/status", response);
   assertNoSecrets("real binding refusal/status", JSON.stringify(withoutEvidence(response)));
 
-  const thrown = response.slice_lifecycle.evidence.thrown.value;
+  const bindingRoutes = monitorRoutes(() => bindingFailure);
+  const published = (await bindingRoutes.status()).slice_lifecycle.evidence.thrown.cause_chain;
+  assert.deepEqual(published.map(({ name, message }) => [name, message]).slice(0, 2), [
+    ["SliceReviewMaterializationError", bindingFailure.message],
+    ["Error", SECRETS[0]]
+  ]);
+  const thrown = bindingRoutes.recordedFailure().evidence.thrown.value;
   assert.equal(thrown.name, "SliceReviewMaterializationError");
   assert.equal(thrown.cause.message, SECRETS[0]);
+  assert.equal(typeof thrown.stack, "string");
 });
 
 test("WK-1793 concurrent observers share one attempt and one retained generic failure", async () => {

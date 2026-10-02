@@ -16,6 +16,8 @@ import {
   scopeAuthorityRefusal
 } from "./backend-scope-authority.mjs";
 import { dispatchRefusal } from "./workspace-agent-dispatch-refusal.mjs";
+import { readWorkerScopePathRefusal, scopeInvalid } from "./backend-worker-scope-authority.mjs";
+import { scopeResolutionFailureDetail } from "./workspace-agent-dispatch-backend-scope.mjs";
 
 import { deriveCanonicalUnitScope } from "./canonical-unit-scope.mjs";
 
@@ -28,6 +30,28 @@ function selectedCanonicalUnit(mainRepo, subject) {
   return match[2] === undefined
     ? record
     : record?.slices?.find((slice) => slice?.id === match[2]) ?? null;
+}
+
+function unsupportedScopeSelectorRefusal(selected, recordPath, { role, subject }) {
+  for (const field of ["read_scope", "repo_paths", "write_scope"]) {
+    try {
+      deriveCanonicalUnitScope(selected?.[field], field, recordPath, {
+        required: false,
+        invalid: (message, facts = null) => {
+          if (facts?.kind === "unsupported_selector") scopeInvalid(message, facts);
+          throw new Error(message);
+        }
+      });
+    } catch (error) {
+      if (readWorkerScopePathRefusal(error) === null) continue;
+      const { refusal } = scopeAuthorityRefusal(WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER, {
+        reason: "canonical_scope_resolution_failed",
+        ...scopeResolutionFailureDetail(error, { role, subject })
+      });
+      return dispatchRefusal(refusal.code, refusal.reason, refusal.detail);
+    }
+  }
+  return null;
 }
 
 export function createBackendWorkerRouting(ctx) {
@@ -116,6 +140,8 @@ export function createBackendWorkerRouting(ctx) {
     }
 
     const recordPath = `wiki/work-records/${String(input.subject).split("#", 1)[0]}.json`;
+    const selectorRefusal = unsupportedScopeSelectorRefusal(selected, recordPath, input);
+    if (selectorRefusal !== null) return selectorRefusal;
     let effectiveWriteScope = null;
     try {
       effectiveWriteScope = deriveCanonicalUnitScope(

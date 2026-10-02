@@ -222,12 +222,14 @@ export async function prepareRepositoryTestRuntimes({
     .every(({ status }) => status === "ready");
   const savedRunners = runners.length > 0 ? runners
     : saved.present && runtimeConfig === null ? saved.runners : [];
+
+  const savedTestEntrypoints = saved.present && runtimeConfig === null ? saved.test_entrypoints : [];
   let configPath = saved.path;
   if (!dryRun && located && runtimeConfig === null &&
       (savedRunners.length > 0 || Object.keys(toolchains).length > 0 ||
         Object.keys(environmentSelections).length > 0)) {
     const written = writeRepositoryRuntimeConfig(repositoryRoot, { runners: savedRunners, toolchains,
-      environments: environmentSelections });
+      environments: environmentSelections, test_entrypoints: savedTestEntrypoints });
     configPath = written.path;
     output.write(`${written.written ? "Saved" : "Unchanged"} runtime configuration: ` +
       `${REPOSITORY_RUNTIME_CONFIG_FILE}\n`);

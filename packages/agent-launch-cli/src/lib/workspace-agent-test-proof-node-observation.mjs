@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import {
   TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE,
   parseTestProofModuleFaultWitnessName,
@@ -11,12 +12,21 @@ import { stableRuntimeTestIdFromParts } from
 
 export const NODE_TEST_PROOF_REPORTER_PATH =
   "packages/agent-launch-cli/src/lib/workspace-agent-test-proof-node-reporter.mjs";
-export const NODE_TEST_PROOF_FAULT_LOADER_PATH =
-  "packages/agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-loader.mjs";
+const NODE_TEST_PROOF_FAULT_LOADER_URL = new URL(
+  "./workspace-agent-test-proof-module-fault-loader.mjs", import.meta.url);
+
+export const NODE_TEST_PROOF_LAUNCHER_ASSETS = Object.freeze([
+  "./workspace-agent-test-proof-node-reporter.mjs",
+  "./workspace-agent-test-proof-error-diagnostic.mjs",
+  "./workspace-agent-test-proof-diagnostic-graph.cjs",
+  "./workspace-agent-test-proof-module-fault-loader.mjs",
+  "./workspace-agent-test-proof-module-fault-contract.mjs"
+].map((relative) => fileURLToPath(new URL(relative, import.meta.url))));
 
 const REPORT_SCHEMA_VERSION = "workspace-agent-test-proof-node-events.v1";
 export const TEST_PROOF_STRUCTURED_EVENTS_OVERSIZED_CODE =
   "test_proof_structured_events_oversized";
+export const TEST_PROOF_SELECTED_TEST_SKIPPED_CODE = "test_proof_selected_test_skipped";
 
 export const NODE_TEST_PROOF_REPORTER_PROTOCOL_CAP_BYTES = 2 * 1024 * 1024;
 export const LAUNCHER_NODE_TEST_INVENTORY_SCHEMA_VERSION =
@@ -26,6 +36,13 @@ export const LAUNCHER_NODE_TEST_STABLE_IDENTITY = "launcher-stable-v1";
 export function launcherNodeTestReporterUrl() {
   const url = new URL("./workspace-agent-test-proof-node-reporter.mjs", import.meta.url);
   url.searchParams.set("launcher_protocol_fd", "3");
+  return url.href;
+}
+
+export function launcherNodeTestFaultLoaderUrl(configuration) {
+  const url = new URL(NODE_TEST_PROOF_FAULT_LOADER_URL);
+  url.searchParams.set("configuration", Buffer.from(JSON.stringify(configuration))
+    .toString("base64url"));
   return url.href;
 }
 
@@ -393,7 +410,17 @@ export function observeLauncherNodeTestRun({
   );
   const targetFailureObserved = targetFailureEvents.length > 0;
   if (!targetPassObserved && !targetFailureObserved) {
-    return selectedIdentityNotObserved(expectation, testEvents);
+    const notObserved = selectedIdentityNotObserved(expectation, testEvents);
+
+    const selectedSkip = expectation?.capability === "candidate_execution"
+      ? testEvents.find(({ test_id: testId, status }) =>
+        testId === expectation.target_test_id && status === "skipped")
+      : undefined;
+    return selectedSkip === undefined ? notObserved : {
+      ...notObserved,
+      code: TEST_PROOF_SELECTED_TEST_SKIPPED_CODE,
+      detail: { ...notObserved.detail, selected_event: projectObservedTestFact(selectedSkip) }
+    };
   }
   if (expectation?.capability === "candidate_execution") return {
     valid: true,

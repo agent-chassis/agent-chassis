@@ -29,7 +29,7 @@ const OBLIGATION_COVERAGE_MAX_BYTES = 1048576;
 
 export const PROOF_AUTHORING_FIELDS = Object.freeze([
   'statement', 'controlled_contract_node_ids', 'mechanism', 'proof_name',
-  'parameters', 'clear_parameters', 'refresh_proof_version'
+  'parameters', 'clear_parameters', 'refresh_proof_version', 'acceptance_criteria', 'proof_opt_out'
 ]);
 export const PROOF_AUTHORING_FIELD_SCHEMAS = deepFreeze({
   ...Object.fromEntries(['statement', 'controlled_contract_node_ids', 'mechanism'].map(key => {
@@ -41,7 +41,13 @@ export const PROOF_AUTHORING_FIELD_SCHEMAS = deepFreeze({
     'title or case ID; see workspace_controlled_proof_intents_discover. Unknown names refuse.' },
   parameters: { type: 'object', additionalProperties: true },
   clear_parameters: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
-  refresh_proof_version: { const: true }
+  refresh_proof_version: { const: true },
+  acceptance_criteria: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 },
+    description: 'Criterion identities from query acceptance_criteria[].identity that this obligation ' +
+      'covers, all on the selected unit. Replaces the saved associations; [] clears them; omission preserves.' },
+  proof_opt_out: { type: 'boolean', description: 'true records that the author declines proof for ' +
+    'this obligation; it still covers its associated criteria and grants no verification credit. ' +
+    'false clears it. Refused together with a proof selection or case.' }
 });
 const { validateAmendment } = await compiledValidators('controlled-contract.proof-authoring-amendment.v1', {
   validators: { validateAmendment: { type: 'object', additionalProperties: false,
@@ -235,6 +241,14 @@ function validateObligationCoverageDraft(carrier) {
       ids.add(row.obligation_id);
       if (row.statement !== undefined && (row.statement !== row.statement.trim() || /[\r\n]/u.test(row.statement))) {
         diagnostics.push({ code: "obligation_coverage_statement_not_atomic", pointer: `${pointer}/statement` });
+      }
+      if (row.proof_opt_out === true && (row.selection !== undefined || row.case_id !== undefined)) {
+        diagnostics.push({ code: "obligation_coverage_proof_opt_out_conflict", pointer: `${pointer}/proof_opt_out` });
+      }
+      if (new Set((row.acceptance_criteria ?? []).map(entry => entry.identity)).size !==
+          (row.acceptance_criteria ?? []).length) {
+        diagnostics.push({ code: "obligation_coverage_acceptance_criterion_duplicate",
+          pointer: `${pointer}/acceptance_criteria` });
       }
       if (row.selection) {
         const pin = row.selection;

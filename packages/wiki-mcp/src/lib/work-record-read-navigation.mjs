@@ -12,8 +12,10 @@ import {
   WORK_RECORD_READ_TOOLS,
   workRecordDetailRouteSupported
 } from "@agent-chassis/wiki-core/src/lib/work-record-summary.mjs";
+import { projectWorkRecordFreshness } from
+  "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import { buildNextCall } from "./mcp-response.mjs";
-import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
+import { isOrchestratorPresentationSession, parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
 
 export const WORK_RECORD_NAVIGATION_MAX_BYTES = 1024;
 export const WORK_RECORD_DETAILS_DEFAULT_LIMIT = 3;
@@ -25,6 +27,7 @@ const TRUNCATION_MARK = "…";
 const DEFAULT_TEXT_FIELD_PREFERENCE = Object.freeze([
   "sections.agent_notes", "sections.tasks", "sections.summary"
 ]);
+const USER_REQUIREMENTS_FIELD = "sections.user_requirements";
 
 const published = new WeakSet();
 
@@ -93,13 +96,15 @@ function readPagePath(unit) {
   return `wiki/work-records/${unit.record_id}.json`;
 }
 
+const repoArgument = repository => repository === null ? {} : { repo: repository };
+
 function summaryCall(repository, unit, selector) {
   return buildNextCall({ tool: WORK_RECORD_READ_TOOLS.SUMMARY,
-    arguments: { repo: repository, unit: unit.address, ...selector } });
+    arguments: { ...repoArgument(repository), unit: unit.address, ...selector } });
 }
 
 function entryListCall(repository, unit) {
-  return buildNextCall({ tool: ENTRY_READ_TOOL, arguments: { repo: repository, unit: unit.address } });
+  return buildNextCall({ tool: ENTRY_READ_TOOL, arguments: { ...repoArgument(repository), unit: unit.address } });
 }
 
 function membersCall(repository, unit) {
@@ -153,34 +158,96 @@ function fittedTitle(result, title) {
   return count === 0 && scalars.length > 0 ? TRUNCATION_MARK : render(count);
 }
 
-export function projectWorkRecordNavigation({
-  loaded, unit, repository, isToolVisible = toolVisibleToSession
-}) {
-  const resolved = resolveTarget(loaded, unit);
-  if (!resolved || resolved.failure) return resolved?.failure ?? null;
-  const { record, target } = resolved;
+function openingCalls({ record, target, unit, repository, isToolVisible }) {
   const summaryVisible = isToolVisible(WORK_RECORD_READ_TOOLS.SUMMARY);
-  const nextCalls = [];
-
+  let text = null;
+  let navigation = null;
   if (summaryVisible) {
     const enrolled = ordinaryFieldEntries(unit);
     const textField = DEFAULT_TEXT_FIELD_PREFERENCE
       .map(field => enrolled.find(entry => entry.field === field))
       .find(entry => entry && nonempty(fieldValue(target, entry)));
-    if (textField) nextCalls.push(summaryCall(repository, unit, { ordinary_field: { field: textField.field } }));
+    if (textField) text = summaryCall(repository, unit, { ordinary_field: { field: textField.field } });
   }
   if (hasEntries(target) && isToolVisible(ENTRY_READ_TOOL)) {
-    nextCalls.push(entryListCall(repository, unit));
+    navigation = entryListCall(repository, unit);
   } else if (summaryVisible && unit.kind !== "slice" && hasSlices(record) &&
       workRecordDetailRouteSupported(WORK_RECORD_READ_TOOLS.SUMMARY, WORK_RECORD_DETAIL_ROUTES.SLICE_ENUMERATION)) {
-    nextCalls.push(summaryCall(repository, unit, { slice_offset: 0 }));
+    navigation = summaryCall(repository, unit, { slice_offset: 0 });
   }
-  if (summaryVisible) nextCalls.push(summaryCall(repository, unit, { details: {} }));
+  const details = summaryVisible ? summaryCall(repository, unit, { details: {} }) : null;
+  return { summaryVisible, text, navigation, details };
+}
 
+export function projectWorkRecordNavigation({
+  loaded, unit, repository, isToolVisible = toolVisibleToSession,
+  isOrchestratorPresentation = isOrchestratorPresentationSession
+}) {
+  const resolved = resolveTarget(loaded, unit);
+  if (!resolved || resolved.failure) return resolved?.failure ?? null;
+  const { record, target } = resolved;
+  const calls = openingCalls({ record, target, unit, repository, isToolVisible });
+  if (isOrchestratorPresentation()) {
+    return publish(requirementsFirstNavigation({ loaded, record, target, unit, repository, calls }));
+  }
   const result = { ok: true, unit: unit.address, status: target.status ?? null, summary: null,
-    next_calls: nextCalls };
+    next_calls: [calls.text, calls.navigation, calls.details].filter(Boolean) };
   result.summary = fittedTitle(result, target.title);
   return publish(result);
+}
+
+function requirementsFirstNavigation({ loaded, record, target, unit, repository, calls }) {
+  const text = record.sections?.user_requirements;
+  const present = typeof text === "string";
+  const scalars = present ? Array.from(text) : [];
+  const sourceDigest = projectWorkRecordFreshness(loaded.source_digest);
+  const requirementsCall = present && calls.summaryVisible
+    ? summaryCall(repository, { address: record.id }, {
+      expected_source_digest: sourceDigest, ordinary_field: { field: USER_REQUIREMENTS_FIELD } })
+    : null;
+  const first = present ? requirementsCall : calls.text;
+  const titleScalars = typeof target.title === "string" ? Array.from(target.title) : null;
+  const renderTitle = count => titleScalars === null ? null
+    : count >= titleScalars.length ? target.title
+      : count === 0 && titleScalars.length > 0 ? TRUNCATION_MARK
+        : `${titleScalars.slice(0, count).join("")}${TRUNCATION_MARK}`;
+  const frame = ({ title, navigation, length, details }) => ({
+    ok: true,
+    unit: unit.address,
+    status: target.status ?? null,
+    user_requirements: { unit: record.id, source_digest: sourceDigest, offset: 0,
+      length: present ? length : 0, total: scalars.length,
+      value: present ? scalars.slice(0, length).join("") : null },
+    summary: renderTitle(title),
+    next_calls: [first, navigation ? calls.navigation : null, details ? calls.details : null].filter(Boolean)
+  });
+  const fits = candidate => payloadBytes(candidate) <= WORK_RECORD_NAVIGATION_MAX_BYTES;
+  const titleCap = titleScalars === null ? 0 : Math.min(titleScalars.length, SUMMARY_TITLE_MAX_SCALARS);
+
+  const largest = (upper, build) => {
+    if (!fits(build(0))) return null;
+    let low = 0;
+    let high = upper;
+    while (low < high) {
+      const middle = Math.ceil((low + high) / 2);
+      if (fits(build(middle))) low = middle;
+      else high = middle - 1;
+    }
+    return low;
+  };
+  const full = { title: titleCap, navigation: true, length: scalars.length, details: true };
+
+  const title = largest(titleCap, count => frame({ ...full, title: count }));
+  if (title !== null) return frame({ ...full, title });
+  const unnavigated = { ...full, title: 0, navigation: false };
+  if (fits(frame(unnavigated))) return frame(unnavigated);
+
+  for (const details of [true, false]) {
+    const length = largest(scalars.length, count => frame({ ...unnavigated, details, length: count }));
+    if (length !== null) return frame({ ...unnavigated, details, length });
+  }
+
+  return frame({ ...unnavigated, details: false, length: 0 });
 }
 
 function detailRows({ record, unit, repository, isToolVisible }) {

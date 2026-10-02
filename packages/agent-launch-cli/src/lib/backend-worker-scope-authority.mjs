@@ -10,8 +10,10 @@ import {
   computeWorkRecordSourceDigest
 } from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import {
-  compileRepositoryScopePath,
-  repositoryScopeGlobIndex
+  REPOSITORY_SCOPE_SELECTOR_KINDS,
+  UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
+  parseRepositoryScopeFileSelector,
+  repositoryScopeSelectorRefusalMessage
 } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
 import {
   WK_SUBJECT_RE,
@@ -45,7 +47,10 @@ export const WORKER_SCOPE_PATH_REFUSAL_CAUSES = Object.freeze({
   SYMLINK: "symlink",
   GITLINK: "gitlink",
   TYPE_CONFLICT: "type_conflict",
-  ESCAPES_REPOSITORY: "escapes_repository"
+  ESCAPES_REPOSITORY: "escapes_repository",
+
+  GLOB_SELECTOR: REPOSITORY_SCOPE_SELECTOR_KINDS.GLOB,
+  DIRECTORY_SCOPE: REPOSITORY_SCOPE_SELECTOR_KINDS.DIRECTORY
 });
 const CAUSES = WORKER_SCOPE_PATH_REFUSAL_CAUSES;
 const CAUSE_VALUES = new Set(Object.values(CAUSES));
@@ -78,8 +83,16 @@ export function readWorkerScopePathRefusal(error) {
   });
 }
 
-const scopeInvalid = (message, facts = null) => {
+function unsupportedScopeSelectorRefusal(field, entry, cause, component = null) {
+  return scopePathRefusal(repositoryScopeSelectorRefusalMessage(field, entry),
+    { field, path: entry, component, cause });
+}
+
+export const scopeInvalid = (message, facts = null) => {
   if (facts === null) throw new Error(message);
+  if (facts.kind === "unsupported_selector") {
+    throw unsupportedScopeSelectorRefusal(facts.field, facts.path, facts.selector_kind);
+  }
   const kind = facts.kind === "git_metadata" ? "forbidden Git metadata" : "non-canonical repository-relative";
   throw scopePathRefusal(`${facts.field} contains a ${kind} path: ${JSON.stringify(facts.path)}`, {
     field: facts.field,
@@ -98,24 +111,21 @@ function assertPathWithin(root, candidate, label, scopePath = null) {
 }
 
 function splitValidatedScopeComponents(scopePath, label) {
-  const parsed = compileRepositoryScopePath(scopePath);
+  const parsed = parseRepositoryScopeFileSelector(scopePath);
+  if (!parsed.ok && parsed.diagnostic.code === UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR) {
+    throw unsupportedScopeSelectorRefusal(label, scopePath, parsed.diagnostic.selector_kind);
+  }
   if (!parsed.ok) {
     throw scopePathRefusal(
       `${label} contains a non-canonical repository-relative path: ${JSON.stringify(scopePath)}`,
       { field: label, path: scopePath, cause: CAUSES.NON_CANONICAL }
     );
   }
-  const { components, directory_hint: directoryHint } = parsed.value;
-  const wildcardIndex = repositoryScopeGlobIndex(parsed.value);
-  return Object.freeze({
-    directoryHint,
-    wildcardIndex,
-    parts: Object.freeze(wildcardIndex === -1 ? components : components.slice(0, wildcardIndex))
-  });
+  return parsed.value.components;
 }
 
 function validateScopePathType(mainRepo, scopePath, label, { writable = false, allowMissingLeaf = false } = {}) {
-  const { directoryHint, wildcardIndex, parts } = splitValidatedScopeComponents(scopePath, label);
+  const parts = splitValidatedScopeComponents(scopePath, label);
   const componentAt = (index) => parts.slice(0, index + 1).join("/");
   const refuse = (message, index, cause) => scopePathRefusal(message, {
     field: label, path: scopePath, component: componentAt(index), cause
@@ -130,7 +140,7 @@ function validateScopePathType(mainRepo, scopePath, label, { writable = false, a
       stat = lstatSync(current);
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
-      if ((writable || allowMissingLeaf) && final && wildcardIndex === -1) return;
+      if ((writable || allowMissingLeaf) && final) return;
       throw refuse(
         `${label} is incomplete at ${JSON.stringify(scopePath)}; missing ${JSON.stringify(componentAt(index))}`,
         index, final ? CAUSES.MISSING_LEAF : CAUSES.MISSING_INTERMEDIATE
@@ -146,11 +156,8 @@ function validateScopePathType(mainRepo, scopePath, label, { writable = false, a
     }
     if (final) finalStat = stat;
   }
-  if (directoryHint && wildcardIndex === -1 && finalStat !== null && !finalStat.isDirectory()) {
-    throw refuse(
-      `${label} has a path-type conflict at non-directory ${JSON.stringify(componentAt(parts.length - 1))}`,
-      parts.length - 1, CAUSES.TYPE_CONFLICT
-    );
+  if (finalStat !== null && finalStat.isDirectory()) {
+    throw unsupportedScopeSelectorRefusal(label, scopePath, CAUSES.DIRECTORY_SCOPE, componentAt(parts.length - 1));
   }
   if (parts.length > 0) {
     assertPathWithin(mainRepo, realpathSync(current), label, scopePath);
@@ -159,16 +166,15 @@ function validateScopePathType(mainRepo, scopePath, label, { writable = false, a
 
 export const LANDING_AUTHORITY_WORK_RECORD_RE = /^wiki\/work-records\/[^/*?[]+\.json$/u;
 
-function validateScopePathTypeInTree(reader, scopePath, label, { writable = false, allowMissingLeaf = false } = {}) {
-  const { directoryHint, wildcardIndex, parts } = splitValidatedScopeComponents(scopePath, label);
-  if (parts.length === 0) return;
+function validateScopePathTypeInTree(reader, scopePath, label, { output = false } = {}) {
+  const parts = splitValidatedScopeComponents(scopePath, label);
   const resolved = reader.resolve(parts);
   const component = parts.slice(0, resolved.index + 1).join("/");
   const at = JSON.stringify(component);
   const final = resolved.index === parts.length - 1;
   const refuse = (message, cause) => scopePathRefusal(message, { field: label, path: scopePath, component, cause });
   if (resolved.kind === SCOPE_TREE_PATH_KINDS.ABSENT) {
-    if ((writable || allowMissingLeaf) && final && wildcardIndex === -1) return;
+    if (output) return;
     throw refuse(
       `${label} is incomplete at ${JSON.stringify(scopePath)}; missing ${at}`,
       final ? CAUSES.MISSING_LEAF : CAUSES.MISSING_INTERMEDIATE
@@ -183,8 +189,9 @@ function validateScopePathTypeInTree(reader, scopePath, label, { writable = fals
   if (!final) {
     throw refuse(`${label} has a path-type conflict at non-directory ${at}`, CAUSES.TYPE_CONFLICT);
   }
-  if (directoryHint && wildcardIndex === -1 && resolved.kind !== SCOPE_TREE_PATH_KINDS.DIRECTORY) {
-    throw refuse(`${label} has a path-type conflict at non-directory ${at}`, CAUSES.TYPE_CONFLICT);
+
+  if (resolved.kind === SCOPE_TREE_PATH_KINDS.DIRECTORY) {
+    throw unsupportedScopeSelectorRefusal(label, scopePath, CAUSES.DIRECTORY_SCOPE, component);
   }
 }
 
@@ -229,22 +236,28 @@ export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, s
     slice.write_scope, "write_scope", recordPath, scopeOptions);
   const reader = openScopeExistenceBase({ mainRepo: repo, scopeBase, deps });
 
-  const validateReadable = (entry, label, options) => (
+  const validateReadable = (entry, label, coveredOutput) => (
     LANDING_AUTHORITY_WORK_RECORD_RE.test(entry)
-      ? validateScopePathType(repo, entry, label, options)
-      : validateScopePathTypeInTree(reader, entry, label, options)
+      ? validateScopePathType(repo, entry, label, { allowMissingLeaf: coveredOutput })
+      : validateScopePathTypeInTree(reader, entry, label, { output: coveredOutput })
   );
-  for (const entry of writeScope) validateScopePathTypeInTree(reader, entry, "write_scope", { writable: true });
+  for (const entry of writeScope) validateScopePathTypeInTree(reader, entry, "write_scope", { output: true });
 
   const exclusions = Object.freeze([CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]);
   const writable = resolveWritableScopeCoverage(reader, writeScope, { exclusions });
+
+  const [conflict] = writable.conflicts;
+  if (conflict !== undefined) {
+    throw scopePathRefusal(
+      `write_scope has a path-type conflict at ${JSON.stringify(conflict.component)}: it is declared as an output file and as a parent of ${JSON.stringify(conflict.path)}`,
+      { field: "write_scope", path: conflict.path, component: conflict.component, cause: CAUSES.TYPE_CONFLICT }
+    );
+  }
   const writableCovers = writable.covers;
 
   for (const [label, entries] of [["read_scope", readScope], ["repo_paths", repoPaths]]) {
     for (const entry of entries) {
-      validateReadable(entry, label, {
-        allowMissingLeaf: writableCovers(compileRepositoryScopePath(entry).value.canonical_path)
-      });
+      validateReadable(entry, label, writableCovers(entry));
     }
   }
   const readableScope = deriveCanonicalReadableScope(readScope, repoPaths);
@@ -289,6 +302,11 @@ export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, s
     scope_exclusions: exclusions,
 
     resolved_scope: resolvedScope,
+
+    scope_preparation: Object.freeze({
+      base_sha: reader.base_sha,
+      directories: writable.preparation_directories
+    }),
     private_scope_policy_facts: privateScopePolicyFacts
   });
 }

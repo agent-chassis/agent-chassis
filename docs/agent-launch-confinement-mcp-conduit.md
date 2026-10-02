@@ -11,6 +11,22 @@ repository namespace is exactly the frozen union of canonical `read_scope`,
 `write_scope`, with the controlled-contract private family at
 `wiki/contracts` subtracted. A full host checkout never broadens this namespace.
 
+Every confined worker, reviewer, and redteam launch also receives one launcher
+support directory outside that scope: the `data/role-guides/` directory of the
+launcher's own `@agent-chassis/agent-launch-core` package, resolved from that
+package in source and installed layouts alike. The shared planner grants it from
+the trusted launch role, never from task scope, sparse authority, prompt text,
+environment, or the candidate checkout. It hard-binds that directory read-only
+at its resolved absolute path after every writable mount and before the final
+confidentiality masks, so every shipped guide is readable and none is writable.
+The role's selected guide (`managed-worker.md` for a worker, `reviewer.md` for a
+reviewer or redteam) also keeps its exact read-only bind and its identity pin
+from the required-file check; a missing, unreadable, non-regular, or changed
+selected guide refuses the launch. Claude's minted native permission settings
+allow `Read` for the same resolved directory subtree, and grant no edit there.
+The grant exposes no containing package directory, package file, or repository
+content, and it is neither `read_scope` nor write authority.
+
 The subtraction is a filesystem fact only after an enforced bwrap plan is
 constructed and spawned. The launcher derives the private path itself, overlays
 it with an empty read-only mount after every ordinary read/write mount, and
@@ -172,7 +188,7 @@ The wiki tool surface is not a filesystem backend and does not widen repository
 visibility. For confined Claude and Codex roles, the launcher establishes a
 private Unix-domain socket admission service. Each authenticated MCP command
 invocation receives its own connection and host wiki-MCP process, as specified
-by [decision](../wiki/decisions/decision.md) and
+by `decision` (repository-only: `wiki/decisions/decision.md`) and
 [MCP integration](mcp-integration.md#transport). The sandbox receives the pinned
 connector and its Node executable, socket endpoint, and credential file; the
 wiki-MCP server package, dependency tree, and server runtime state stay on the host.
@@ -421,6 +437,53 @@ can never mask the originating failure. No terminal result is published before
 that settlement completes, which means before the owned host-server generations
 have been reaped and admission resources disposed.
 
+Teardown clears both client-readiness deadlines, and reaping the active
+generation's host is the launcher's own action rather than a server loss, so the
+settlement itself resolves any readiness still unfinished once disposal has
+completed and the cleanup verdict is retained. For an authenticated generation
+whose client has not completed readiness — whether the confined client was killed,
+timed out by its run budget, exited on its own, or the conduit was cancelled — it
+publishes one typed `stdio_mcp_client_readiness_failed` with `detail.reason`
+`cleanup_before_client_readiness` through the ordinary failure path: `failure`,
+`readinessFailure`, the `failureSettlement` value and the `clientReady` rejection
+name that same error, and the launcher cause names it at the conduit-lifecycle
+boundary. A launcher awaiting `clientReady` therefore resumes from the settlement
+and publishes its accepted run as a terminal typed conduit failure; no further
+deadline, disposal owner or caller-side race is involved. An earlier typed cause
+keeps its exact identity and every promise it already settled, a resolved
+`clientReady` is never touched — so healthy teardown after readiness records no
+failure — and a cleanup failure stays the separate `cleanupFailure` verdict,
+never the readiness primary. `cancel()` still throws its own
+`stdio_mcp_conduit_cancelled` to its caller, carrying the cancellation reason and
+any cleanup residue additively; that thrown outcome is not retained, while the
+conduit it cancelled before readiness retains the readiness failure above.
+
+Construction failures and generation-start failures are reported differently.
+A failure while the conduit is being constructed — minting or validating the
+private directory, resolving the server entrypoint, the conduit-wide Node
+Engine bootstrap, resolving role tools, or opening admission — rejects
+construction with its original error unchanged; a launcher-typed refusal keeps
+its code and any other thrown value keeps its identity. Once a connection has
+authenticated, its generation's own start — the per-generation Node Engine
+bootstrap, the launcher no-CCE authority descriptor, and the synchronous spawn
+call — can fail before any child lifecycle exists. That failure is a typed
+`stdio_mcp_host_server_start_failed` whose `detail.phase` names the step and
+whose `cause` is the exact thrown value, including a falsy or non-`Error` one;
+externally only the bounded code and cause projection are published. While no
+generation is active it becomes the conduit's primary failure before teardown:
+`failure`, `readinessFailure`, `failureSettlement`, and the `clientReady`
+rejection all carry it, the launcher cause names it at the conduit-lifecycle
+boundary, and `serverExit` settles at once as a no-child `spawnFailed`
+termination. Teardown's pre-authentication fallback never relabels it, and a
+genuine cleanup failure is reported separately through the cleanup verdict. The
+authority descriptor is conduit-owned from acquisition, so a failed close is
+retained for the single cleanup settlement rather than masking the start
+outcome. A generation that fails to start while another generation is active
+leaves that generation's cause, readiness, and terminal projections untouched;
+only the failed connection is refused. A conduit torn down before any
+connection authenticated keeps its pre-authentication settlement with no
+originating cause.
+
 The host-server child's `error`, `close`, and `exit` events converge on one
 terminal finalizer. A spawn that failed produces no process, so the conduit
 records that terminal state instead of waiting for an exit that cannot arrive.
@@ -488,16 +551,39 @@ refusal contract are normatively specified in [Frozen reviewer-query
 protocol](mcp-dispatch-runtime-contract.md#frozen-reviewer-query-protocol).
 This page owns only the private transport and cleanup lifecycle.
 
-The same branded findings context carries an action-private review-materialization
-root distinct from the canonical launcher/run-state root. For canonical design
-reviews, both family adapters forward that root unchanged. The host server keeps
+Every reviewer and redteam dispatch reads from one action-private review
+checkout, distinct from the canonical launcher/run-state root. The advisory
+pipeline materializes the selected reviewed commit there, then captures the
+canonical WK that carries the assignment, with its selected entry material and
+controlled-contract inputs, and places those captured files at their normal
+paths over the reviewed bytes. Capture applies to every advisory selector,
+including an explicit-SHA or implementation-slice review whose assignment was
+authored after the reviewed commit, so the captured WK may be newer than the
+committed one. Dispatch never amends a commit or moves a candidate ref.
+
+Both family adapters forward the launcher-owned advisory review input
+unchanged to the shared authority, which authenticates it with its own consumer
+for the exact role and unit, requires its canonical repository to be the
+conduit workspace, and derives the review-materialization root from its private
+checkout. That input is the only producer of the root. The host server keeps
 `WIKI_MCP_WORKSPACE_DIR` bound to canonical launcher identity, but binds
-`workspace_read_page` through the launcher-only
-`WIKI_MCP_REVIEW_MATERIALIZATION_DIR` to the frozen checkout projection. The
-variable is accepted only for reviewer/redteam profiles and is never a caller or
-prompt selector. Consequently direct checkout reads and MCP page reads share the
-same frozen WK and selected controlled-contract/proof bytes, while completion and
-run identity continue to authenticate against the canonical root.
+`workspace_read_page`, summary and delegated entry reads, and their returned
+continuations through the launcher-only `WIKI_MCP_REVIEW_MATERIALIZATION_DIR`
+to that checkout. The variable is accepted only for reviewer/redteam profiles
+and is never a caller or prompt selector. Consequently direct checkout reads and
+MCP page reads share the same captured WK and selected controlled-contract/proof
+bytes for the whole review, while completion and run identity continue to
+authenticate against the canonical root. Coordinator and other sessions read the
+live repository.
+
+A reviewer/redteam session whose launcher session contract is present but does
+not authenticate, or authenticates with no bound review root, refuses with
+`workspace_read_review_source_unavailable`; a root that fails the resolver's
+role, absolute-path, or repository-alias checks refuses, and a WK missing from
+the bound checkout refuses as not found. None of these falls back to live WK
+state. The live metadata operations `workspace_work_record_validate` and
+`workspace_record_staleness_check` stay outside this read binding and are not a
+source oracle for captured reads.
 
 Frozen assignments may also select immutable work-record entry material. The
 launcher resolves those refs only from the selected canonical source set,
@@ -505,8 +591,9 @@ checks the recipient's source visibility, and captures the complete
 referenced WK closure through the same private snapshot owner. For a managed
 worker, visibility is coverage by the frozen resolved read and write membership
 at the scope-existence base, minus the launcher exclusions, through the same
-containment predicate the scope tree owns; a glob admits only records present at
-that base, and a reference never grants source access by itself. Reviewer
+containment predicate the scope tree owns. Each record source must be granted as
+its own individual file (globs and directory grants are unsupported), and a
+reference never grants source access by itself. Reviewer
 findings capture keeps its own declared read/repository/write check.
 Every reference must belong to the trusted repository identity bound to the
 canonical repository. A reference or `record.repo` never supplies that identity.
@@ -598,6 +685,22 @@ packet, the canonical summary and brief, and the resolved terminal-result mode.
 The raw work record, the private controlled-proof carrier, and the launcher-
 private provisioning ticket do not cross it, and a caller prompt, request field,
 or environment value can neither create nor replace the value.
+
+The client spawns with the assignment's startup text only. The authority mint
+accepts the launcher-minted assignment as a private snapshot, refusing a value it
+did not mint, one for another unit or canonical source, or one on a non-worker
+conduit; its expected-authority check binds that exact snapshot digest. The
+conduit publishes the snapshot as a digest-named, owner-only, read-only artifact
+inside its private directory before readiness, through the same publisher and
+cleanup settlement as the frozen review contract, and hands its path only to the
+host wiki-MCP server environment. A publication failure refuses conduit
+construction with `assignment_read_publication_failed` before any client exists.
+The worker retrieves the guidance through its assignment-only
+`workspace_read_page`; that route and its refusals are part of the delivery
+path below. Managed guidance carries the selected task, not a scope inventory:
+the frozen scope, its exclusions and bindings stay in the launcher authority,
+the bubblewrap namespace enforces filesystem access, and the worker tool
+profile enforces tool access.
 
 The complete delivery path, its content rules, its four stable transport
 diagnostics, and the surviving non-presentation canonical reads are described in
@@ -725,13 +828,19 @@ Three owners, and no others, hold any part of this contract:
   `classifyLauncherFindingsCompletionTransport` decides a route's completion
   transport from the launcher-minted `canonicalRepo` signal and the role.
   Nothing else may spell a transport out or grow a parallel predicate.
-- `stdio-mcp-conduit-core.mjs` is the sole minter, authenticator, and refusal
-  owner. `mintStdioMcpCompletionCredential` is the only way a credential comes
-  into existence; `authenticateStdioMcpCompletionCredential` is the only thing
-  that validates a transported one against launcher-resolved expected facts.
-  These are DISTINCT operations: the composition facade exports both and must
-  never alias authentication to minting, which would turn every check into a
-  re-derivation from facts already trusted and validate nothing.
+- `stdio-mcp-conduit-authority.mjs` is the sole minter, authenticator, and
+  refusal owner of the launcher agent session contract:
+  `mintLauncherAgentSessionContract` is the only way one comes into existence,
+  and `authenticateLauncherAgentSessionContract` is the only thing that validates
+  a transported one against launcher-resolved expected facts or the
+  launcher-expected contract. The conduit core's
+  `mintStdioMcpCompletionCredential` and
+  `authenticateStdioMcpCompletionCredential` delegate to those two, and the
+  wiki-MCP server's `launcher-run-credential.mjs` authenticates through the same
+  owner, so no consumer reaches the injectable conduit core. Minting and
+  authentication are DISTINCT operations: the composition facade exports both
+  and must never alias authentication to minting, which would turn every check
+  into a re-derivation from facts already trusted and validate nothing.
 - The Claude and Codex family modules are MECHANICAL consumers. They select
   which expected facts their route completes against, forward the credential,
   and project the authenticated result's own fields into the conduit input. They
@@ -836,12 +945,21 @@ executable, argv, environment, cwd, mount or root.
 
 The launcher binds these read-only at their recorded paths: the recorded
 toolchain roots, the detected dependency installations, its observer assets and its own
-attempt driver with the driver's working-copy copier. Proof execution alone binds the host's actual `/tmp` at `/tmp`
-and sets `TMPDIR=/tmp`; the shared launcher baseline and ordinary validation
-retain their private `/tmp` mount. Each native proof invocation mints a unique
-`/tmp/agent-chassis-proof-*` root for `HOME`, caches, instrumentation and
-its working copy, and removes that owned root after completion, failure or
-cancellation without touching other `/tmp` entries. The driver receives a closed
+attempt driver with the driver's working-copy copier. Every test execution (a
+proof stage, a preparation probe or an ordinary test run through the same shared
+confined execution) gets one launcher-owned execution root, a unique
+`/tmp/agent-chassis-execution-*` host directory: its `tmp/` child is bound
+as the sandbox's whole `/tmp` with `TMPDIR=/tmp`, and its `scratch/` child is the
+compiler-stable `/agent-validation-tmp` that holds `HOME`, caches,
+instrumentation and the working copy. Native temporary APIs and literal `/tmp`
+paths work; the host's other `/tmp` entries and every other execution's root are
+invisible, and the host `/tmp` itself is never bound. The root is removed after
+the process tree settles (completion, failure, timeout or cancellation); when
+settlement is not confirmed it is kept and the run reports the cleanup failure
+instead of a clean removal. Setup probes and Node validation keep their private
+`/tmp` tmpfs. Dependency mountpoints inside the read-only checkout are created
+in the sandbox namespace only (a read-only skeleton of the checkout), never on
+the host. The driver receives a closed
 plan on stdin. It creates the attempt's working copy of the project
 from exactly the project-relative entries the plan lists, which the launcher
 selects through Git before launch (see
@@ -993,6 +1111,40 @@ Mountpoints follow the shared sparse-worker lifecycle:
 - Source and mountpoint identities are rechecked immediately before spawn.
 - After the child terminates, only still-empty, identity-matching leaves this
   launch created are removed. Replaced or populated ones are preserved.
+
+## LiteLLM-routed Codex launches
+
+A Codex launch whose selected model is LiteLLM-routed (see
+[env reference](env-reference.md#per-model-litellm-routing-modelsid-vertexai))
+keeps its role's confinement, mounts and secret-environment policy unchanged.
+The route adds only argv and one file:
+
+- `-c model_provider="agent_launch_litellm"` and an inline
+  `model_providers.agent_launch_litellm` table are inserted before the final
+  positional by the shared Codex renderer, with `-c web_search="disabled"`: a
+  Vertex partner model would otherwise receive Codex's hosted web-search tool
+  as a provider feature (refused where Vertex organization policy does not
+  allow it). `-c` outranks an inherited profile provider and a same-named user
+  provider table.
+- The provider authenticates with Codex's command-backed auth: `/usr/bin/cat`
+  (inside the read-only system roots) reading one exact per-run key file. The
+  file is created 0600 in the role's existing launcher runtime directory
+  (`CODEX_HOME/tmp` for headless roles, the orchestrator runtime directory
+  otherwise), which the namespace already binds. No key enters the child
+  environment, so the `OPENAI_API_KEY`-style `--setenv` denial is not relaxed.
+- The attachment happens only on a real launch, after the launch's own
+  refusals (plan, isolation, MCP conduit, sandbox fail-open decision) have been
+  decided and immediately before the spawned argv is materialized, so a refused
+  launch never provisions, starts or contacts the gateway. The key file is removed when the
+  child exits, or immediately when the launch is refused before spawn. The
+  shared gateway and its key are never stopped or removed by a launch.
+- The endpoint is loopback, so the confined child reaches it through the shared
+  network namespace Codex roles already use.
+
+A gateway failure refuses the launch with the gateway's own code (for example
+`litellm_gateway_foreign_listener` or `litellm_runtime_install_failed`), its
+stage, correction and bounded detail. Diagnostics never include gateway log
+content, key bytes or Google tokens; they name the log path instead.
 
 ## Optional stdio-MCP transcript capture
 
@@ -1168,6 +1320,20 @@ undeclared sentinel, and writes a bounded receipt through a declared writable
 file. Tests correlate that receipt with independently observed managed-run and
 source identities.
 
+The receipt's assignment-read record carries the read count, the read identity,
+the public freshness token and a digest of the complete guidance the probe
+retrieved, continuations included. A test-owned server may give the composition
+a fixture-owned observation directory. Before the child starts, the composition
+then reads that attempt's launcher-published assignment from the conduit
+directory its own bubblewrap plan projects, using the existing private-artifact
+reader. It requires the artifact to be the assignment-snapshot owner's
+serialization and records only its identity, artifact digest and guidance
+digest. The child is never told any of these values. Tests bind the receipt to
+that observation, comparing unit, role, run, canonical source digest, the
+owner's public freshness projection of the artifact digest and the guidance
+digest. The startup prompt digest is a prompt observation only, not assignment
+evidence.
+
 This is test support, not a production launcher mode and not implementation
 completion evidence. It stops at worker start and assignment/source
 acknowledgement. Missing bubblewrap, namespace, conduit, or launcher
@@ -1183,7 +1349,13 @@ supervision, or identity binding. No request, environment value, PATH override,
 CLI flag, or arbitrary callback selects either composition.
 
 The owner-level composition test invokes both unavailable dependencies and
-rejects an unbranded lookalike. The connected paired witness independently
+rejects an unbranded lookalike. A separate provider-only branded composition
+keeps the orchestrator proof runtime real and replaces only the proof provider.
+A server calibration test starts each composition through `startWikiMcpServer`.
+It requires the registered `workspace_verify_proof` route to report each
+dependency's own originating unavailable code, with no proof executed and no
+credit. Its verification requests are counted separately from the connected
+journeys. The connected paired witness independently
 observes that every server generation ran the fixed selected entrypoint and that
 both the default and proof-disabled lanes reached equivalent confined assignment
 and source acknowledgement with no proof execution or verification credit.

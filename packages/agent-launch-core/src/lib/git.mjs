@@ -33,6 +33,113 @@ export function boundGitStderr(text, limit) {
   return { stderr: full.slice(0, end), stderr_truncated: true, stderr_bytes: stderrBytes };
 }
 
+const TRACE2_EVENT_FD = 3;
+
+export function decodeGitTrace2Events(bytes) {
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.alloc(0);
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const diagnostics = [];
+  let events = 0;
+  let malformed = 0;
+  let start = 0;
+  let incomplete = false;
+  while (start < buffer.length) {
+    const end = buffer.indexOf(0x0a, start);
+    if (end === -1) {
+      incomplete = true;
+      break;
+    }
+    const line = buffer.subarray(start, end);
+    start = end + 1;
+    let event;
+    try {
+      event = JSON.parse(decoder.decode(line));
+    } catch {
+      malformed += 1;
+      continue;
+    }
+    if (event === null || typeof event !== "object" || Array.isArray(event) ||
+        typeof event.event !== "string") {
+      malformed += 1;
+      continue;
+    }
+    events += 1;
+    if (event.event !== "error") continue;
+    if (typeof event.msg !== "string" || typeof event.fmt !== "string") {
+      malformed += 1;
+      continue;
+    }
+    diagnostics.push(Object.freeze({
+      msg: event.msg,
+      fmt: event.fmt,
+      sid: typeof event.sid === "string" ? event.sid : null
+    }));
+  }
+  const state = malformed > 0 ? "malformed"
+    : incomplete ? "incomplete"
+      : diagnostics.length > 0 ? "captured" : "none_emitted";
+  return Object.freeze({
+    state,
+    diagnostics: Object.freeze(diagnostics),
+    events,
+    malformed_records: malformed,
+    unterminated_bytes: incomplete ? buffer.length - start : 0
+  });
+}
+
+export function captureGitTrace2(stream, maxBuffer) {
+  const chunks = [];
+  let bytes = 0;
+  let overflow = false;
+  let error = null;
+  stream.on("data", (chunk) => {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += buffer.length;
+    if (overflow) return;
+    if (bytes > maxBuffer) {
+      overflow = true;
+      chunks.length = 0;
+      return;
+    }
+    chunks.push(buffer);
+  });
+  stream.once("error", (failure) => {
+    error = failure;
+  });
+  const retained = () => {
+    const output = Buffer.concat(chunks);
+    let text = null;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(output);
+    } catch {
+      text = null;
+    }
+    return {
+      ...decodeGitTrace2Events(output),
+
+      ...(text === null
+        ? { output: output.toString("base64"), output_encoding: "base64" }
+        : { output: text, output_encoding: "utf8" })
+    };
+  };
+  return Object.freeze({
+    result({ notStarted = false } = {}) {
+      if (notStarted) return Object.freeze({ state: "not_started", bytes, output: null });
+      if (error !== null) {
+        return Object.freeze({
+          ...(overflow ? { diagnostics: Object.freeze([]), output: null, discarded: true } : retained()),
+          state: "capture_failed",
+          bytes,
+          error
+        });
+      }
+      if (overflow) return Object.freeze({ state: "overflow", bytes, output: null });
+      if (bytes === 0) return Object.freeze({ state: "unavailable", bytes: 0, output: "" });
+      return Object.freeze({ ...retained(), bytes });
+    }
+  });
+}
+
 export async function runGitAsync({
   repo = null,
   gitDir = null,
@@ -43,7 +150,8 @@ export async function runGitAsync({
   input = undefined,
   maxBuffer = DEFAULT_GIT_MAX_BUFFER,
   stderrLimit = null,
-  timeoutMs = null
+  timeoutMs = null,
+  trace2Diagnostics = false
 } = {}) {
   let prefix;
   try {
@@ -60,16 +168,27 @@ export async function runGitAsync({
   if (timeoutMs !== null && (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1)) {
     return { ok: false, error: "runGitAsync timeoutMs must be null or a positive safe integer" };
   }
+  if (typeof trace2Diagnostics !== "boolean") {
+    return { ok: false, error: "runGitAsync trace2Diagnostics must be a boolean" };
+  }
 
   return await new Promise((resolve) => {
+    const baseEnv = env === undefined ? process.env : env;
     let child;
     try {
       child = spawn("git", [...prefix, ...args], {
-        env: env === undefined ? process.env : env,
-        stdio: [input === undefined || input === null ? "ignore" : "pipe", "pipe", "pipe"]
+        env: trace2Diagnostics ? { ...baseEnv, GIT_TRACE2_EVENT: String(TRACE2_EVENT_FD) } : baseEnv,
+        stdio: [input === undefined || input === null ? "ignore" : "pipe", "pipe", "pipe",
+          ...(trace2Diagnostics ? ["pipe"] : [])]
       });
     } catch (error) {
-      resolve({ ok: false, error: error?.message ?? String(error) });
+      resolve({
+        ok: false,
+        error: error?.message ?? String(error),
+        ...(trace2Diagnostics
+          ? { spawn_error: error, trace2: Object.freeze({ state: "not_started", bytes: 0, output: null }) }
+          : {})
+      });
       return;
     }
 
@@ -99,9 +218,21 @@ export async function runGitAsync({
 
     child.stdout.on("data", capture(stdoutChunks, "stdout"));
     child.stderr.on("data", capture(stderrChunks, "stderr"));
+    const trace2 = trace2Diagnostics ? captureGitTrace2(child.stdio[TRACE2_EVENT_FD], maxBuffer) : null;
+    let processSpawnError = null;
     child.once("error", (error) => {
       spawnError = error;
+      if (typeof error?.syscall === "string" && error.syscall.startsWith("spawn")) {
+        processSpawnError = error;
+      }
     });
+    const trace2Result = () => {
+      if (trace2 === null) return {};
+      return {
+        ...(processSpawnError === null ? {} : { spawn_error: processSpawnError }),
+        trace2: trace2.result({ notStarted: processSpawnError !== null })
+      };
+    };
 
     const bounding = Number.isSafeInteger(stderrLimit) && stderrLimit >= 0;
     const capturedStderr = () => {
@@ -119,7 +250,8 @@ export async function runGitAsync({
           status: typeof status === "number" ? status : null,
           signal: signal ?? null,
           stdout: Buffer.concat(stdoutChunks).toString("utf8"),
-          ...capturedStderr()
+          ...capturedStderr(),
+          ...trace2Result()
         });
         return;
       }
@@ -133,7 +265,8 @@ export async function runGitAsync({
           signal: signal ?? null,
           stdout: "",
           stderr: "",
-          ...(bounding ? { stderr_truncated: true, stderr_bytes: null } : {})
+          ...(bounding ? { stderr_truncated: true, stderr_bytes: null } : {}),
+          ...trace2Result()
         });
         return;
       }
@@ -144,17 +277,19 @@ export async function runGitAsync({
           status: typeof status === "number" ? status : null,
           signal: signal ?? null,
           stdout: Buffer.concat(stdoutChunks).toString("utf8"),
-          ...capturedStderr()
+          ...capturedStderr(),
+          ...trace2Result()
         });
         return;
       }
       const stdout = Buffer.concat(stdoutChunks).toString("utf8");
       const bounded = capturedStderr();
       if (typeof status !== "number" || status !== 0) {
-        resolve({ ok: false, status: status ?? null, signal: signal ?? null, stdout, ...bounded });
+        resolve({ ok: false, status: status ?? null, signal: signal ?? null, stdout, ...bounded,
+          ...trace2Result() });
         return;
       }
-      resolve({ ok: true, stdout, status, signal: signal ?? null, ...bounded });
+      resolve({ ok: true, stdout, status, signal: signal ?? null, ...bounded, ...trace2Result() });
     });
 
     if (timeoutMs !== null) {

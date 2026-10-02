@@ -467,7 +467,8 @@ const {
   resolveBoundManifestArtifacts,
   resolveBoundRecordArtifact,
   resolveBoundRuntimePackageArtifacts,
-  runtimePackageMatchesTree
+  runtimePackageMatchesTree,
+  selectedRuntimePackagesInHistory
 } = createControlledContractGenerationTreeOperations({
   fail,
   codes: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES,
@@ -670,6 +671,46 @@ function structuralDiffPaths({ runGit, binding, before, after }) {
     code: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STRUCTURAL_DIFF_INVALID
   });
   return parseStructuralDiff(stdoutBytes(result));
+}
+
+export function controlledContractGenerationPopulationPaths(binding) {
+  const manifestArtifacts = resolveBoundManifestArtifacts(binding);
+  return Object.freeze([...new Set([
+    resolveBoundRecordArtifact(binding).path,
+    ...binding.descriptors.map((descriptor) => descriptor.path),
+    ...manifestArtifacts.map((artifact) => artifact.path),
+    ...resolveBoundRuntimePackageArtifacts(binding, manifestArtifacts)
+      .map((artifact) => artifact.path)
+  ])].sort());
+}
+
+export function controlledContractStructuralDiffPaths({
+  binding, before, after, gitDir = binding.git_dir, deps = {}
+}) {
+  return structuralDiffPaths({
+    runGit: deps.runGit ?? defaultControlledContractGenerationRunGit,
+    binding: { git_dir: gitDir }, before, after
+  });
+}
+
+export function controlledContractRetainedGenerationPaths({ binding, since, landing, deps = {} }) {
+  const runGit = deps.runGit ?? defaultControlledContractGenerationRunGit;
+  assertOid(since, "retained generation history boundary");
+  assertOid(landing, "retained generation landing commit");
+  const selected = selectedRuntimePackagesInHistory({ runGit, binding, since });
+  if (selected.size === 0) return Object.freeze([]);
+  const listing = runGitOrFail(runGit, { gitDir: binding.git_dir }, [
+    "--no-replace-objects", ...GIT_INERT_CONFIG, "--literal-pathspecs",
+    "ls-tree", "-z", "--full-tree", landing, "--", ...selected.keys()
+  ], "landing controlled-contract entries could not be enumerated", {
+    code: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID
+  });
+  const carried = [];
+  for (const record of stdoutBytes(listing).toString("utf8").split("\0").filter(Boolean)) {
+    const match = /^([0-7]{6}) blob ([0-9a-f]{40}|[0-9a-f]{64})\t([\s\S]+)$/u.exec(record);
+    if (match !== null && selected.get(match[3])?.has(`${match[1]} ${match[2]}`)) carried.push(match[3]);
+  }
+  return Object.freeze(carried.sort());
 }
 
 function commitParents({ runGit, binding, commit }) {

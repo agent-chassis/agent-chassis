@@ -28,6 +28,7 @@ Its `failure` is null or one tuple from this closed population:
 | `launcher_transition.prospective_lifecycle_unavailable.v1` | `mechanical_failure` | Retry `workspace_agent_dispatch` after lifecycle preflight succeeds. |
 | `launcher_transition.lifecycle_allocation_failed.v1` | `mechanical_failure` | Complete launcher allocation recovery, then retry `workspace_agent_dispatch`. |
 | `launcher_transition.dependency_identity_unresolved.v1` | `mechanical_failure` | Publish or integrate the exact dependency, then retry `workspace_agent_dispatch`. |
+| `launcher_transition.dependency_observation_indeterminate.v1` | `mechanical_failure` | Restore the named failed dependency observation read, then retry the identical `workspace_agent_dispatch`; integrating again is not the recovery. |
 | `launcher_transition.publication_identity_unresolved.v1` | `mechanical_failure` | Obtain the carrier returned by work record's landed-publication observer, then retry `workspace_agent_dispatch`. |
 | `launcher_transition.cce_policy_refused.v1` | `exact_returned_policy` | Perform the exact recovery returned by CCE, then retry `workspace_agent_dispatch`. |
 | `launcher_transition.findings_route_authentication_failed.v1` | `mechanical_failure` | Dispatch the exact canonical findings unit through `workspace_agent_dispatch`. |
@@ -137,12 +138,23 @@ registered identity, listed in
 [Launch and admission](mcp-dispatch-launch-and-admission.md).
 
 A refusal that carries a thrown or returned failure preserves the complete
-original diagnostic evidence through the public response, beside the display
-projection rather than instead of it. The display field stays redacted; the
-evidence field under `detail.evidence` is the unredacted
-`agent_launch.diagnostic_evidence.v1` encoding of the message, stack, own
-properties, and full `cause` chain, and any cut-off it could not carry is
-disclosed in its own `capture_failures` list rather than dropped.
+original diagnostic evidence beside the display projection rather than instead
+of it. The display field is the original message or structured value, unmasked. The
+public detail publishes each cause level's name, code, message and scalar
+facts as `cause_chain`; the unredacted `agent_launch.diagnostic_evidence.v1`
+encoding of the message, stack, own properties and full `cause` chain, with
+any cut-off disclosed in its own `capture_failures` list, is retained once for
+the operator, at the failure's original recording seam, and named by
+`retained_evidence`
+([Dispatch-family failure detail](mcp-operation-reference.md#dispatch-family-failure-detail)).
+Observing an already-recorded failure, or a failure a read observed, uses the
+same projection's pure half: it names the original's existing owner and retains,
+records or executes nothing
+([Pure failure observation](mcp-dispatch-managed-run-lifecycle.md#pure-failure-observation)).
+A classifying wrapper is not the original: terminal-candidate construction and
+recovery keep the thrown value as the transport error's `cause`, so the cause
+chain names the real failure while the candidate classification stays closed
+([Terminal-candidate original-cause preservation](mcp-dispatch-managed-run-lifecycle.md#terminal-candidate-original-cause-preservation)).
 
 **Confirmed no-authority is positive only.** A launcher-confirmed declaration
 that no CCE authority is configured produces no local admissibility block: a
@@ -226,11 +238,20 @@ The presenter output is the complete readiness carrier, and every ordinary
 response frame fits the compact complete-frame class
 (`min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES, activeMcpInlineByteLimit())`).
 A carrier that fits is returned whole with `selected_detail.complete: true`.
-Otherwise the carrier is retained once and the response is a bounded summary. It
-first reserves the decision header, action-essential next action, recovery and
-decision facts, exact reason, distinct-reason, owner-call and collection counts,
-the retained source locator and detail calls. Then it inlines complete members,
-and distinct reason and owner-call identities, that fit. An identity population
+Otherwise the carrier is retained once and the response is a bounded summary.
+Before anything optional spends the budget, it reserves:
+
+- the decision header, the retained source locator, detail calls and collection
+  counts;
+- the primary correction (`next_action`);
+- complete reason and owner-call coverage, each population whole when it fits,
+  otherwise its exact reason, distinct-reason or owner-call counts with the
+  collection call that reaches it;
+- the decision facts.
+
+Then come the other action-essential members (graph failure code, recovery,
+state). After them it inlines complete members, and distinct reason and
+owner-call identities, that fit. An identity population
 that does not fit inline is disclosed as `inline.complete: false`, and a chosen
 reason or owner call is read directly by ordinal from its original collection.
 Cardinality alone never refuses valid readiness. `workspace_validate_dispatch` with
@@ -249,25 +270,46 @@ implementation axis, the registered route composes the launcher's read-only
 worker scope preflight with the wiki-core validator. It resolves the prospective
 scope-existence base with the launcher's own resolver, which is the persistent
 WK tip when that branch exists and otherwise the record-level `base_branch`
-commit the allocator would capture. It then runs the same frozen-authority resolution the scope
+commit the allocator would capture. Only a completed observation that the WK
+branch is absent selects `base_branch`. A WK tip that `show-ref` cannot resolve
+is re-read through the shared exact-ref classifier; any answer other than
+`missing`, at the capture or the stability recheck, is an unreadable tip. The
+report is then `not_evaluated` with `reason.code:
+scope_existence_base_unresolved` and `reason.detail` carrying `wk_ref`,
+`wk_tip_observation: "unreadable"`, `observation_point` (`capture` or
+`recheck`) and `wk_tip_read_cause`; the preflight never evaluates scope at
+`base_branch` for it. It then runs the same frozen-authority resolution the scope
 freeze runs. It never allocates, snapshots, writes a ref, or creates a directory.
 The response carries `worker_scope_preflight` with `status` (`passed`,
 `refused`, or `not_evaluated`), the `base` ref, SHA and `source`, the
 `evaluated` checks, and `pending_at_launch`. `pending_at_launch` names the launch
 work a pass never certifies: allocation and record snapshot, revalidation at the
-provisioned base, assigned-source readability, writable-directory preparation,
-namespace projection, and runtime and sandbox availability. A `refused` report
+provisioned base, assigned-source readability, structural-parent preparation
+(`structural_parent_preparation`), namespace projection, and runtime and sandbox
+availability. A missing output file beneath parents absent at the base passes;
+its parents are frozen preparation facts that only launch creates, in the
+allocated checkout. A `refused` report
 carries `refusal: {code: "worker_scope_path_refused", message, field, path,
 component, cause}`. `cause` is one of `missing_leaf`, `missing_intermediate`,
 `symlink`, `gitlink`, `type_conflict`, `non_canonical_path`,
-`git_metadata_path`, or `escapes_repository`. A refused preflight overturns only
+`git_metadata_path`, `escapes_repository`, `glob_selector`, or
+`directory_scope`. `missing_leaf` and `missing_intermediate` apply to a missing
+read entry that is not the same file as a writable output, including a read of
+a parent an output needs. `type_conflict` also covers two writable outputs where
+one would need the other as a directory (`a` and `a/b`); the refusal names the
+deeper entry and the contested component. The last two mean the entry is not one individual file (a
+glob, a slash-named directory, the repository root, or a literal path naming a
+directory at the base); their message says to enumerate each required
+repository-relative file, including intended new write files, then retry. A refused preflight overturns only
 a readiness that would otherwise dispatch. It sets
 `decision_code: "worker_scope_path_refused"` and keeps the prior structural
 result under `structural_readiness`. A `not_evaluated` report, such as an
 unresolvable base or a supplied non-live record store, never changes the
 decision. Launch remains authoritative and refuses the same path facts with the
 same `worker_scope_path_refused` detail through
-`canonical_scope_resolution_failed`.
+`canonical_scope_resolution_failed`. A glob, slash-named directory, or root
+selector needs no tree, so launch refuses it with that same detail before any WK
+allocation, worktree, or attempt event.
 
 For an unallocated WK, absence of `base_branch` is reported as
 `scope_existence_base_selection_missing`; preflight never substitutes the
@@ -431,26 +473,51 @@ actor is `operator`, and the recovery is `no_supported_route`. The detail carrie
 
 - `isolation_code` and `errno`;
 - the repository-relative `path` and, for a worker scope member, `scope_member`
-  (`access`, `member_kind`, `index`, `path`, `failed_component`);
+  (`access`, `member_kind`, `index`, `path`, `failed_component`). A structural
+  parent preparation failure names the exact output file that needs the parent
+  as the member (`access: "writable"`, `member_kind: "files"`), and the parent or
+  refusing ancestor as `failed_component`;
 - `scope_widening_recovers: false` and `unchanged_retry_recovers: false`;
-- `sandbox_required: true` and `unenforced_fallback_permitted: false`.
+- `sandbox_required: true` and `unenforced_fallback_permitted: false`;
+- when planning created resources it could not release,
+  `precreation_cleanup_failure` as secondary evidence.
+
+A base-existing parent that has disappeared from the allocated checkout, or a
+planned parent replaced by a file or symlink, is such a mechanical preparation
+failure. The launcher never recreates a base-existing ancestor. It offers no
+supported fresh-checkout recovery for this case (`no_supported_route`); the
+missing capability is launcher preparation recovery, not an authored-scope
+correction or a retry.
 
 The raw message is not published, because it contains the host checkout path. A
 Claude launch without a conduit also refuses a path diagnostic before the
 sandbox decision, so it can never select an unenforced launch.
 
+A typed `bwrap_spawn_failed` while a conduit is held is an identified spawn
+failure, not missing bubblewrap: the operating system refused to start the
+bwrap executable, for example with `E2BIG`. The refusal keeps
+`agent_launch.launch_failed_before_start.v1` as `refusal.code` and the public
+blocker code, and uses the registered
+`agent_launch.isolation.bwrap_spawn_failed.v1` as `refusal.reason` and the
+classified cause. The detail carries the bounded `message`, the diagnostic
+`code`, the producer's `operation` (`bwrap_version_probe` or
+`bwrap_confined_child_spawn`), a validated `errno`, the bounded, path-redacted
+`native_message`, `bubblewrap_unavailable_established: false`,
+`actor_recovery: "operator"`, and
+`recovery: {state: "no_supported_route", route: null}`. It does not say which
+argument or environment entry exceeded a limit.
+
 `stdio_mcp_conduit_requires_bubblewrap` is the refusal only for a typed
-bubblewrap backend diagnostic (`bwrap_unavailable`, `bwrap_not_executable`,
-`bwrap_probe_failed`, or `bwrap_spawn_failed`) while a conduit is held. Its
-detail carries the bounded `message`, the diagnostic `code`, and a validated
-`errno`. Every other failure while a conduit is held, including an unmodeled
+bubblewrap backend diagnostic (`bwrap_unavailable`, `bwrap_not_executable`, or
+`bwrap_probe_failed`) while a conduit is held. Its detail carries the bounded
+`message`, the diagnostic `code`, and a validated `errno`. Every other failure while a conduit is held, including an unmodeled
 exception and a typed isolation diagnostic that names no backend failure, uses
 the reason `confined_launch_failure_unclassified`. That reason is deliberately
 unregistered, so classification reports `authenticated_unclassified` with
 `launcher_transition.authenticated_backend_refusal_unclassified.v1`. Its detail
 states `cause_known: false` and `bubblewrap_failure_established: false`, with
 the bounded `message` and `code`, `actor_recovery: "operator"`, and
-`recovery: {state: "no_supported_route", route: null}`. Both reasons keep
+`recovery: {state: "no_supported_route", route: null}`. All three reasons keep
 `sandbox_required: true` and `unenforced_fallback_permitted: false`. Messages
 are bounded, with absolute host paths replaced by `<host-path>`, and never
 include a stack. A plain error that only carries a similar `code` is not a
@@ -467,11 +534,12 @@ secondary evidence (`code`, path-redacted `message`, and up to eight collected
 failures) and never replaces the primary cause:
 
 - conduit teardown: `conduit_cleanup_failures`;
-- attempt-owned precreated files and directories (Codex and Claude):
-  `precreation_cleanup_failure`. After an accepted Claude child has terminated,
-  the same field is set on the terminal `exit` and on a `missing_result`
-  detail. `precreation_cleanup_deferred` records that the run was reported
-  terminal before its child's termination was observed;
+- attempt-owned precreated files and directories (Codex and Claude, one shared
+  attempt owner), including a refusal during planning before any attempt
+  adopted the plan: `precreation_cleanup_failure`. After an accepted child has
+  terminated, the same field is set on the terminal `exit` and on a
+  `missing_result` detail. `precreation_cleanup_deferred` records that the run
+  was reported terminal before its child's termination was observed;
 - pending managed-run identity discard or reservation release after a refused,
   resultless, or invalid-status executor, a thrown executor, or a pre-executor
   settlement refusal: `managed_identity_settlement_failure`, with
@@ -514,21 +582,29 @@ redaction, and never converted into backend absence. The raised message names th
 field path and, for an over-bound value, its observed length — never the value.
 
 The complete losslessly serializable `refusal.detail` crosses the classifier as
-diagnostic data. The registered MCP response publishes it exactly once, at
-`blocker.detail.originating_detail`. The mechanical refusal carrier does not
-repeat it; `refusal.carried.launcher_backend_refusal.originating_detail_location`
-names `blocker.detail.originating_detail` instead. The diagnostic includes
-originating messages, codes, details, nested causes, paths, stdout, stderr, and
-other supplied plain diagnostic values. `blocker.detail` also repeats top-level
-scalar diagnostic fields, such as a relative `path`, for display. Structured
-values appear only under `originating_detail`.
+diagnostic data. The registered MCP response publishes its semantic projection
+exactly once, at `blocker.detail.originating_detail`. The mechanical refusal
+carrier does not repeat it;
+`refusal.carried.launcher_backend_refusal.originating_detail_location` names
+`blocker.detail.originating_detail` instead. The published diagnostic includes
+originating messages, codes, details, nested causes, paths and other supplied
+plain diagnostic values. `blocker.detail` also repeats top-level scalar
+diagnostic fields, such as a relative `path`, for display. Structured values
+appear only under `originating_detail`.
 
-Stack text is the one redaction. Every error-shaped object (one with a string
-`stack` and a `name` or `message`) loses `stack` and gains `origin_frame`: its
-first `packages/` or `node_modules/` stack frame as a package-relative
-`file:line:column`, or `null` when it has none. That frame keeps throw sites
-distinguishable without publishing host paths. `redactions` lists each removed
-stack by location, for example `originating_detail.diagnostic.stack`. No field
+Stack text and raw process output are withheld, never rewritten. Every
+error-shaped object (one with a string `stack` and a `name` or `message`) loses
+`stack` and gains `origin_frame`: its first `packages/` or `node_modules/` stack
+frame as a package-relative `file:line:column`, or `null` when it has none. That
+frame keeps throw sites distinguishable without publishing host paths.
+`redactions` lists each withheld stack by location, for example
+`originating_detail.diagnostic.stack`. Raw process output (`stdout`, `stderr`,
+`output`, `stdout_tail`, `stderr_tail`, a `captured_run`) is withheld by the
+shared dispatch failure projection, and a captured exception becomes its
+`cause_chain`. A refusal is a new failure at the dispatch seam, so whenever
+anything was withheld the complete original diagnostics are retained once for
+the operator, through the registration's bound response environment, and named
+by `blocker.detail.retained_evidence` (with every withheld path). No field
 allowlist, content filter, or generic-message replacement applies on this path.
 
 The shared `serializeWorkRecordDiagnosticValue` operation owns this conversion.
@@ -706,7 +782,8 @@ exists.
 
 The dispatch family builds every mechanical refusal through this carrier:
 `workspace_agent_dispatch` admission (including the findings-only write-scope
-seam and graph admission), the run-monitor routes, and forge handoff.
+seam; graph admission is supplementary evidence and builds no refusal), the
+run-monitor routes, and forge handoff.
 `dispatch-tool-helpers.mjs` retains only the transport projection — the
 per-schema envelope, the blocker limb, and the scalar `next_action` — and
 re-validates nothing the carrier already decided.
@@ -980,7 +1057,11 @@ Two corpora record what work record audited, and both state their own limits:
 Both are POINT-IN-TIME and record their base identity, audit method, declared
 population, and disclosed omissions. Neither claims repository-wide completeness,
 performs discovery, detects source moves, or gates drift: **work record** exclusively
-owns repository enumeration and mutation gating. Asynchronous settlement,
+owns repository enumeration and mutation gating. When that gate reports a
+classified site absent, the corpus follows the behavior rather than the line: a
+classification moves to the site that now carries the same behavior, or is
+removed once the behavior is retired, and each step is recorded in
+`provenance.site_maintenance` with its commit and evidence. Asynchronous settlement,
 teardown, cache, detached-rejection, and process-guard sites are carried in the
 exception corpus as **work record**-owned external references only — they are neither
 re-adjudicated nor re-witnessed here.
@@ -1001,7 +1082,9 @@ crash-durable state substrate.
 The launcher semantic validator owns reviewer/redteam summary-budget state. Its
 numeric recommendation, JavaScript string-length measurement, role eligibility,
 absent/null behavior, and captured-evidence semantics are defined only in
-agent-role-result.
+the repository-only agent role result schema
+(`the project documentation`, "Reviewer/Redteam Summary
+Budget And Captured Evidence").
 The child payload cannot supply that state.
 
 On the default managed parser path, captured response and payload bytes are not
@@ -1017,7 +1100,8 @@ After semantic validation, dispatch projects the validator-minted
 measure the summary or derive budget state from text, diagnostics, findings,
 counts, or outcome. Authenticated wiki-core managed evidence consumes the same
 state under the rules in
-Agent role result.
+the repository-only agent role result schema
+(`the project documentation`).
 Absent or malformed managed budget state is invalid at that consumer boundary.
 
 Budget excess alone is nonfatal. A captured semantically valid result retains
@@ -1414,6 +1498,16 @@ behavior remain unchanged.
 Canonical text: [Launch and admission › Supported
 families](mcp-dispatch-launch-and-admission.md#supported-families).
 
+## Assignment first read
+
+Managed workers, reviewers, and redteams start with bounded startup text and
+first read their assignment through `workspace_read_page`: a worker with
+`{"assignment":true}` against its launcher-published assignment, a reviewer or
+redteam with the assigned unit's root (and, for a slice, its parent's root) from
+its existing review source. The worker route's access guard, pagination, and
+refusal codes are specified in
+[MCP dispatch launch and admission](mcp-dispatch-launch-and-admission.md#assignment-retrieval).
+
 ## Reviewer and standalone redteam transport matrix
 
 Completion transport is runtime-bound and not interchangeable, and the closure a
@@ -1543,19 +1637,30 @@ The resolver's `failure_class` is total and closed. Lifecycle reasons are
 `exact_slice_accumulated_implementation_requires_integration`,
 `launcher_transition_settlement_unverifiable`,
 `launcher_transition_planned_base_mismatch`,
-`scope_existence_base_unresolved`, and `scope_existence_base_unstable`;
-dependency reasons are `unit_dependencies_unmet` (including nested
+`scope_existence_base_unresolved`, and `scope_existence_base_unstable`. The
+subject WK tip is observed through the shared exact-ref classifier: only its
+`missing` answer is an absent WK branch. An unreadable tip, at the capture or
+the final recheck, is `scope_existence_base_unresolved` with `wk_ref`,
+`wk_tip_observation: "unreadable"`, `observation_point` and
+`wk_tip_read_cause`, in every resolver mode; it is never an unmet dependency and
+never `scope_existence_base_unstable`, which is reserved for a tip that moved or
+was deleted. A settlement-bound absent tip is `scope_existence_base_unresolved`
+with `wk_tip_observation: "absent"`. Dependency reasons are `unit_dependencies_unmet` (including nested
 `fact_resolution_failed` diagnostics), `dependency_identity_unresolved`,
 `dependency_self_edge_forbidden`, and
-`dependency_not_present_on_wk_branch`; publication reasons are
+`dependency_not_present_on_wk_branch`; the dependency-observation reason is
+`dependency_observation_indeterminate` (a required integrated-delivery
+authentication read failed, was malformed, or moved; its diagnostics name the
+dependency, the captured WK tip and the distilled read cause); publication reasons are
 `dependency_publication_identity_unavailable`,
 `dependency_publication_identity_mismatch` (a successful result that is not the
 exact landed carrier for that dependency), and
 `dependency_publication_not_landed` (the read-only landing observer answered
 `awaiting_human_landing`, `contradictory` or `unavailable`; its `landing_state`
-and original `landing_cause` are retained). These classes map exactly to
+and original `landing_cause` are retained). The lifecycle, dependency and publication classes map exactly to
 `LIFECYCLE_ALLOCATION_FAILED`, `DEPENDENCY_IDENTITY_UNRESOLVED`, and
-`PUBLICATION_IDENTITY_UNRESOLVED`, respectively. A missing, malformed, or
+`PUBLICATION_IDENTITY_UNRESOLVED`, respectively, and the dependency-observation
+class maps to `DEPENDENCY_OBSERVATION_INDETERMINATE`. A missing, malformed, or
 unknown class fails loudly and never defaults to dependency. Lifecycle mismatch
 refusals retain their class and publish only public-safe `mismatch_field`,
 `expected`, and `actual` detail through the allowlisted projection.
@@ -1655,7 +1760,10 @@ A successfully persisted generation stays on the WK ref. When a later
 provisioning stage refuses, the generation-persistence commit is intentionally
 retained: it establishes the complete current canonical generation the ref is
 required to carry, and compensation rolls back only slice resources, owned
-record-snapshot advances, and attempt bindings.
+record-snapshot advances, and attempt bindings. A created WK's authenticated
+captured-base binding is not an attempt binding for this purpose; it stays with
+the retained persistent WK (see [MCP dispatch launch and
+admission](mcp-dispatch-launch-and-admission.md#admission-refusals-carry-the-canonical-mechanical-envelope)).
 
 These are mechanical execution conditions and nothing more. They are distinct
 from proof readiness, from CCE policy, from the exceptional direct recovery
@@ -1866,8 +1974,8 @@ fork, the complete selected canonical contract generation, and the canonical
 record source digest. Complete contract generation is authority-bearing contract
 identity; record digest is coordination identity only and never substitutes for
 it. The marker and zero-delta projections traverse no history of their own, and
-backend provisioning consumes the same marker projection for replay-equivalent
-dependency evidence.
+backend provisioning's same-WK dependency observation uses the same region and
+marker projection when no integration-written selector is recorded.
 
 Reuse ends with the exact operation phase. Delivery, a concurrency-loser
 reauthentication, durable recovery, later fresh integration, each record-CAS
@@ -1875,8 +1983,8 @@ attempt, and each new integration transaction all construct distinct
 observations; WK-tip, fixed-fork, contract-generation, or record-digest movement
 also invalidates the phase. Delivery and recovery retain
 `ZERO_DELTA_EVIDENCE_INDETERMINATE`, final-sibling indeterminacy remains
-incomplete/`false`, and provisioning retains `admitted: false` with
-`replay_marker_indeterminate`. These are mechanical decision boundaries. The
+incomplete/`false`, and provisioning refuses with
+`dependency_observation_indeterminate`. These are mechanical decision boundaries. The
 fixed fork is the sole history floor, and successful work is proportional only
 to post-fork commits plus relevant candidates—not pre-fork repository age or the
 number of completed siblings. See [Committed-slice integration](mcp-dispatch-slice-integration.md#one-fixed-fork-post-fork-observation-serves-every-live-consumer).
@@ -2523,6 +2631,12 @@ or a CLI flag, and the server rejects an unbranded lookalike.
 The paired runs repeat the complete public authoring, selected-slice recovery,
 dispatch, confinement, and assignment/source acknowledgement journey. Their
 normalized authored, dispatch, launch, and worker observations must match, with
-zero proofs executed and zero verification credit. This establishes worker-start
+zero proofs executed and zero verification credit. Each refused dispatch is
+bracketed by observations. Attempt events, process identities, managed
+worktrees and WK refs must show no start. The main-checkout receipt must be
+unchanged, which shows only that the checkout was not mutated. The authored
+parent, selected and sibling populations must also be unchanged. Each worker
+receipt's assignment read is bound to the launcher-published assignment of that
+attempt. This establishes worker-start
 independence from explicitly disabled proof-execution facilities; it does not
 claim that the default lane executed a proof or establish live provider health.

@@ -5,6 +5,7 @@ import {
 import {
   ControlledContractToolError
 } from "../../lib/controlled-contract-tools.mjs";
+import { today } from "../../lib/wiki-shared.mjs";
 import { loadWorkRecordById } from "../../lib/work-record-store.mjs";
 import { writeValidatedWorkRecord } from "../work-records-store-io.mjs";
 
@@ -23,7 +24,7 @@ function onlyReplaceableProofPostureDiagnostics(loaded) {
 export function prepareControlledAcceptanceProofPostureAmendment({
   record, wkId, disposition, rationale = null, allowCorrection = false,
   allowInvalidReplacement = false,
-  now = () => new Date().toISOString()
+  now = today
 } = {}) {
   let proofPosture;
   try {
@@ -63,7 +64,7 @@ export async function persistControlledAcceptanceProofPostureOperation({
 } = {}, {
   loadRecord = loadWorkRecordById,
   writeRecord = writeValidatedWorkRecord,
-  now = () => new Date().toISOString()
+  now = today
 } = {}) {
   if (focus !== null) refusal(
     "controlled_acceptance_proof_posture_focus_forbidden",

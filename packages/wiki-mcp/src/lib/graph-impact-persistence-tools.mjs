@@ -1,5 +1,8 @@
 
 
+import { WORK_RECORD_FRESHNESS_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import { resolveExpectedSourceDigest, workRecordFreshnessSource } from "./work-record-write-route-helpers.mjs";
+import { projectOrdinaryWriteFreshness } from "./write-response-boundary.mjs";
 import {
   persistWorkRecordGraphImpactByUnit,
   readWorkRecordById
@@ -20,6 +23,48 @@ import {
   normalizeGraphImpactSummaryRefInput,
   normalizeGraphImpactUnit
 } from "./graph-impact-response-boundary.mjs";
+import { resolveCommittedHead } from "@agent-chassis/wiki-core/src/lib/sidecar-repository-identity.mjs";
+import { readSelectedResponseSource, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
+import { GRAPH_IMPACT_VERBOSE_NEXT_ACTION } from "./code-index-tools.mjs";
+import { describeRetainedObservation } from "./code-index-query-response.mjs";
+
+const IMPACT_ROUTE = "workspace_code_index_impact";
+const RECORDER_ROUTE = "workspace_record_graph_impact_evidence";
+const SOURCE_EXCLUSIVE_ARGUMENTS = Object.freeze(["paths", "graph_impact", "graph_impact_summary",
+  "graph_impact_summary_ref"]);
+const SOURCE_LOCATOR_KEYS = Object.freeze(["ref_id", "sha256"]);
+
+function isSelectedSourceLocator(value) {
+  return isPlainObject(value) && Object.keys(value).length === SOURCE_LOCATOR_KEYS.length &&
+    SOURCE_LOCATOR_KEYS.every((key) => Object.hasOwn(value, key)) &&
+    typeof value.ref_id === "string" && /^[A-Za-z0-9._-]{1,200}$/u.test(value.ref_id) &&
+    typeof value.sha256 === "string" && /^[a-f0-9]{64}$/u.test(value.sha256);
+}
+
+function readRetainedImpactAnswer(args, repository) {
+  const conflicting = SOURCE_EXCLUSIVE_ARGUMENTS.filter((field) =>
+    args[field] !== undefined && args[field] !== null);
+  if (conflicting.length > 0) {
+    throw selectedResponseQueryInvalidError(RECORDER_ROUTE, "graph_impact_source_excludes_other_evidence",
+      { arguments: conflicting });
+  }
+  if (args.verbose === true) {
+    throw selectedResponseQueryInvalidError(RECORDER_ROUTE, "graph_impact_source_is_compact_only",
+      { argument: "verbose" });
+  }
+  if (!isSelectedSourceLocator(args.graph_impact_source)) {
+    throw selectedResponseQueryInvalidError(RECORDER_ROUTE, "graph_impact_source_invalid",
+      { accepted_form: "the exact selected_detail.source {ref_id, sha256} of a workspace_code_index_impact answer" });
+  }
+  const envelope = readSelectedResponseSource(args.graph_impact_source, { route: RECORDER_ROUTE,
+    expected: { route: IMPACT_ROUTE, repository, unit: null } });
+  const { workspaceRepo: _workspaceRepo, ...answer } = envelope.carrier;
+  if (answer.query_kind !== "impact") {
+    throw selectedResponseQueryInvalidError(RECORDER_ROUTE, "graph_impact_source_not_impact",
+      { query_kind: typeof answer.query_kind === "string" ? answer.query_kind : null });
+  }
+  return { answer, binding: envelope.binding };
+}
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -298,7 +343,7 @@ export function registerGraphImpactPersistenceTools({
     "workspace_record_graph_impact_evidence",
     {
       description:
-        "Persist WK/slice graph-impact evidence. Unit-only mode derives trusted paths; courier mode requires supported provenance. Caller roots or shell output grant no authority. Prospective evidence must validate. verbose:true adds graph state.",
+        "Persist WK/slice graph-impact evidence. Unit-only mode computes it now from trusted unit paths. graph_impact_source {ref_id,sha256}, the selected_detail.source of an earlier workspace_code_index_impact answer, records that exact original server-side without re-evaluating it. Summary courier mode requires supported provenance. Caller roots or shell output grant no authority. Prospective evidence must validate.",
       inputSchema: {
         repo: z.string().optional(),
         unit: z.string(),
@@ -306,8 +351,9 @@ export function registerGraphImpactPersistenceTools({
         graph_impact: z.unknown().optional(),
         graph_impact_summary: z.unknown().optional(),
         graph_impact_summary_ref: z.unknown().optional(),
+        graph_impact_source: z.unknown().optional(),
         verbose: z.boolean().optional(),
-        expected_source_digest: z.string().optional()
+        expected_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional()
       }
     },
     async (args) => {
@@ -318,6 +364,68 @@ export function registerGraphImpactPersistenceTools({
           return errorContent(
             new Error("workspace_record_graph_impact_evidence requires a valid work-record unit address")
           );
+        }
+
+        const freshness = await resolveExpectedSourceDigest(args.expected_source_digest ?? null,
+          { load: workRecordFreshnessSource(workspace.dir, args.unit) });
+        if (!freshness.ok) {
+          return jsonContent(projectOrdinaryWriteFreshness({
+            workspaceRepo: workspace.repo,
+            record_id: requestedUnit.record_id,
+            selected_unit: requestedUnit,
+            valid: false,
+            written: false,
+            diagnostics: [freshness.diagnostic],
+            ...(freshness.stale ? { source_digest: freshness.current_source_digest,
+              expected_source_digest: args.expected_source_digest,
+              current_source_digest: freshness.current_source_digest } : {})
+          }));
+        }
+
+        if (args.graph_impact_source !== undefined) {
+          const { answer: original, binding } = readRetainedImpactAnswer(args, workspace.repo);
+          const observation = await describeRetainedObservation(binding,
+            () => resolveCommittedHead(workspace.dir));
+          const result = await persistWorkRecordGraphImpactByUnit({
+            dir: workspace.dir,
+            unitAddress: args.unit,
+            graph_impact: original,
+            expectedSourceDigest: freshness.value
+          });
+          const { detail_available: _detailAvailable, next_action: nextAction, ...compact } =
+            createGraphImpactToolResponse({
+              workspaceRepo: workspace.repo,
+              result,
+              graphImpact: result.graph_impact,
+              verbose: false,
+              compactFields: {
+                record_id: result.record_id ?? null,
+                selected_unit: result.selected_unit ?? null,
+                canonical_record_path: result.canonical_record_path ?? null,
+                source_digest: result.source_digest ?? null,
+                valid: Boolean(result.valid),
+                written: Boolean(result.written),
+                dirty_state: result.graph_impact?.dirty_state ?? result.graph_impact?.graph_state?.dirty_state ?? null,
+                staleness: result.graph_impact?.staleness ?? result.graph_impact?.graph_state?.staleness ?? null,
+                diagnostics: result.diagnostics ?? []
+              }
+            });
+
+          return jsonContent(projectOrdinaryWriteFreshness({
+            ...compact,
+            ...(nextAction === undefined || nextAction === GRAPH_IMPACT_VERBOSE_NEXT_ACTION
+              ? {} : { next_action: nextAction }),
+            mode: "retained_source",
+            observation,
+            graph_impact_source: { ref_id: args.graph_impact_source.ref_id,
+              sha256: args.graph_impact_source.sha256 }
+          }));
+        }
+
+        if (isPlainObject(args.graph_impact) && args.graph_impact.query_kind === "impact") {
+          throw selectedResponseQueryInvalidError(RECORDER_ROUTE, "consolidated_impact_requires_source", {
+            accepted_form: "graph_impact_source: the selected_detail.source {ref_id, sha256} of the workspace_code_index_impact answer"
+          });
         }
 
         const hasCallerSuppliedEvidence =
@@ -476,10 +584,10 @@ export function registerGraphImpactPersistenceTools({
           unitAddress: args.unit,
           graph_impact: graphImpactInput,
           ...(compactSummaryRef ? { graph_impact_summary_ref: compactSummaryRef } : {}),
-          expectedSourceDigest: args.expected_source_digest ?? null
+          expectedSourceDigest: freshness.value
         });
 
-        return jsonContent(
+        return jsonContent(projectOrdinaryWriteFreshness(
           createGraphImpactToolResponse({
             workspaceRepo: workspace.repo,
             result,
@@ -503,7 +611,7 @@ export function registerGraphImpactPersistenceTools({
             includeDerivedEvidence: true,
             rawGraphImpact: result.graph_impact
           })
-        );
+        ));
       } catch (error) {
         return errorContent(error);
       }

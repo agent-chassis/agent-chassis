@@ -200,13 +200,18 @@ async function useExactCommit(input, use, runGit) {
         workspaceDir: materialized.checkout.worktree_path
       });
     } catch (error) {
+
+      const cachePath = (key) => typeof error?.details?.[key] === "string"
+        ? { [key]: error.details[key] } : {};
       fail(ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.EXACT_DEPENDENCY_PROJECTION,
         "exact-commit proof dependency projection could not be authenticated",
         {
           selector: "exact_sha",
           cause_code: typeof error?.code === "string"
             ? error.code
-            : "dependency_projection_authentication_failed"
+            : "dependency_projection_authentication_failed",
+          candidate_commit: candidate.commit,
+          validator_cache: { ...cachePath("cache_root"), ...cachePath("path") }
         }, error);
     }
     const authority = mintOrchestratorProofAuthority({

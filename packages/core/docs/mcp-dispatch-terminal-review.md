@@ -58,12 +58,15 @@ repository selected.
   foreign input, an inconsistent candidate identity, tree or parent, or
   generation drift refuses with zero publication. Configured CCE denial is
   enacted; the absence of a configured decision is not a local denial.
-- **Publication is create-or-observe and nothing more.** The result reports the
-  exact candidate and proposal identity and the truthful effects. Repeating a
-  handoff recovers the same proposal and the already-published closeout chain
-  rather than opening a duplicate or appending closeout commits again, a branch
-  already present at different bytes refuses rather than being republished, and
-  publication neither merges nor completes the WK on the base branch.
+- **Publication creates, observes or refreshes one publication and nothing
+  more.** The result reports the exact candidate and proposal identity and the
+  truthful effects. Repeating a handoff recovers the same proposal and the
+  already-published closeout chain rather than opening a duplicate or appending
+  closeout commits again; when the canonical record carries permitted
+  coordination changes it replaces that same publication (see Repeat handoff
+  below). A branch present at bytes outside the authenticated closeout chain
+  refuses rather than being republished, and publication neither merges nor
+  completes the WK on the base branch.
 - **Closeout preserves the published bytes.** Before initial publication, both
   workflows keep `C` beneath exactly two WK-only commits carrying the actual
   applicable closure evidence and then the parent review-to-done transition, so
@@ -97,25 +100,231 @@ any effect, never from caller input.
   for selection and remote identity, `git_failed` for local and Git transport)
   and never selects another destination; a failed hosted publication is never
   turned into a local success.
+- **Who corrects a refusal.** Every forge and landing refusal is a
+  `no_supported_route` carrier whose recovery names the responsible actor and the
+  required condition where the refusal's own facts establish them: an absent
+  handoff executor or landing observer is the operator's server composition
+  (`missing_component` names it), a malformed `assigned_unit` is the caller's, a
+  destination selector or remote URL configuration refusal
+  (`handoff_destination_unselected`, `handoff_destination_selector_ambiguous`,
+  `handoff_destination_selector_invalid`, `url_rewrite_configured`,
+  `remote_fetch_url_not_unique`, `remote_push_url_not_unique`,
+  `remote_push_url_diverges`, `remote_url_not_canonical_https`) is the operator's
+  main-repository configuration, and an executor composed without its main
+  repository or candidate resolver or observer is the launcher's. The landing
+  observer distinguishes its own request defects the same way:
+  `assigned_unit_invalid` (the caller's WK id; no other WK is guessed),
+  `main_repository_missing` and `authenticated_handoff_observer_missing` (the
+  launcher composition's, naming the `missing_component`). The executor and the
+  observer state these on the refusal they make, and the route publishes them
+  unchanged. Any other refusal (an unreadable remote, a Git transport failure, an
+  eligibility or publication disagreement) publishes `responsible_actor: null`
+  with the category and reason whose change is required, rather than a guessed
+  owner; contradictory and unavailable landing observations keep their own
+  causes and are not refusals.
+- **The refusal detail is the producer's diagnosis.** A forge executor
+  refusal's detail crosses exactly: no member is dropped for its name (`message`,
+  `token` or any other), and no string, array, member list or depth is clipped.
+  A value that is not plain data (an Error, a reference back into its own
+  ancestry) crosses as its own diagnostic capture and is published as its cause
+  chain. Raw process output (`stdout`, `stderr`, captured runs, stacks) is
+  withheld by the shared dispatch failure projection and the complete original is
+  retained once for the operator when the refusal occurs; a `recovery_detail`
+  carried as ordinary data is published as data and grants nothing. No refusal offers a call, and handoff,
+  merge and landing authority are unchanged. An unresolvable `repo` is the
+  repository-resolution owner's `workspace_repo_resolution_invalid` refusal.
+- **Every executor category has one public identity.** The seven executor
+  categories map to registered cause-neutral identities (`request_invalid`,
+  `remote_invalid`, `eligibility_refused`, `policy_boundary_refused`,
+  `publication_disagreement`, `publication_indeterminate`,
+  `git_transport_failed` under `agent_launch.wk_forge_handoff.*.v1`); the native
+  category, reason, detail and effects cross beside the identity unchanged. An
+  undeclared category is published as `unclassified` with
+  `launcher_transition.backend_refusal_identity_unknown.v1` and its original
+  captured. The policy-boundary identity is not an authenticated CCE deny, and
+  neither a category nor a policy object copied into the detail grants authority.
+- **An oversized refusal names its error log.** The executor refusal's complete
+  answer is measured as the whole response frame against the active inline
+  limit of the server's response environment. When it fits it is published
+  unchanged. When it does not, the answer keeps the failure identity, the refusal
+  carrier and every producer fact that fits whole (`effects`,
+  `uncertain_effect`, short native reasons), lists the facts left out in
+  `facts_not_inline`, and publishes `error_log` with the exact absolute `path`,
+  `byte_count` and `sha256` of the complete original already retained at that
+  failure (or retained once there when nothing had been). The caller reads that
+  file directly; nothing is clipped, redacted, paged or spilled, and reading it
+  replays nothing. If the original cannot be retained or located, `error_log` is
+  `null` and `error_log_failure` reports the actual storage failure beside the
+  known effects. The file is in the orchestrator's launcher-owned response state
+  directory, which the headless Claude orchestrator may read through one native
+  `Read` rule.
+- **A caught failure keeps its original.** Every executor catch that answers
+  with a reason also carries the thrown value as its diagnostic capture
+  (`evidence`, or `create_evidence` for a thrown pull-request create), with its
+  native code, properties and nested causes, beside the `stage` or `phase` and the
+  `subject` it concerned. Candidate authentication reports
+  `terminal_candidate_binding_moved` only for a disagreement its owner observed
+  and typed (a candidate binding mismatch, moved input or candidate ref, stale
+  controlled generation, a materialization that disagrees, or a checkout binding
+  check), with the observed facts under `observed`; any other authentication
+  failure is `terminal_candidate_authentication_incomplete`. The generation owner's
+  typed exact-W disagreement keeps its expected and actual tips. A thrown
+  publication (`terminal_candidate_publication_threw`) reports the hosted effects
+  known when it was thrown and names a mutation in flight as `uncertain_effect`;
+  before those effects are tracked it states `effects_observed: false` rather than
+  claiming none. A thrown create stays beside whatever its one re-observation
+  found; an exact singleton after it is still a success, and nothing is retried.
+  A thrown existing-publication observation
+  (`existing_publication_observation_threw`), a controlled-contract authority
+  failure (`controlled_contract_generation_authority_refused`) and an invalid
+  authority context (`stage: "authority_context"`) keep theirs the same way. A
+  mutation route retains the complete original once; a read observation retains
+  nothing. No correction owner is inferred for these failures.
+- **A hosted forge command keeps its native outcome.** The `gh` runner returns
+  the command's argv, exit status, signal and complete output, unsliced. A
+  command that could not start carries the native spawn error and no output; one
+  stopped by the existing output bound carries `capture_failure` and the bytes it
+  returned, so the capture is reported incomplete rather than whole. Each of the
+  seven hosted adapter operations (probe, remote-branch observation, branch
+  publication, proposal listing, proposal creation, landed-proposal observation
+  and exact-head ancestry) keeps a failed command's or an unreadable response's
+  original as `evidence` beside its unchanged native reason, and a failed command
+  is never reported as a malformed response. The original names the operation
+  and holds the command result, with the native or parser error as its cause.
+  Native output stays in the retained original: forge text is not reinterpreted
+  as a cause, and when the forge supplied only a status and output, that is the
+  whole diagnosis.
+- **An unreadable proposal is not a disagreeing one.** A proposal property,
+  response or iteration that throws refuses `publication_indeterminate` as
+  `observed_pull_request_unreadable`, `pull_request_observation_unusable` or
+  `pull_request_transport_failed`, with the `page`, `item`, `property` or `step`
+  and the thrown value as caught (`null` and `undefined` included); the offending
+  getter is not read again. Only a completed observation of a disagreeing
+  repository, base, head, number, state or URL is
+  `observed_pull_request_identity_mismatch`. Neither yields an authenticated
+  proposal.
+- **A mutation and its re-observation keep both answers.** A branch push or
+  pull-request create whose own answer is not a confirmed success (thrown,
+  `uncertain`, `lease_failed` or another returned value) keeps that answer's
+  original (`publish_outcome` and `publish_evidence`, or `create_outcome`,
+  `create_kind` and `create_evidence`) beside the one re-observation's facts and
+  original (`observation`, `evidence`). Nothing is pushed or created again. When
+  the re-observation confirms the exact effect, the result is the same success
+  and carries the superseded answer as its `diagnostic` (reason
+  `unconfirmed_mutation_answer_superseded_by_observation`), apart from its
+  identity fields. A refresh update whose re-observation could not be made is
+  indeterminate; only an observed other head or a deleted branch disagrees.
+  Whatever refuses or throws later in the same publication -- the
+  re-observation throwing, a boundary guard, a later proposal observation --
+  carries each earlier unconfirmed answer's original under
+  `attempted_mutations` (unless the refusal already carries it inline) beside
+  its own cause, and names an effect not yet confirmed as `uncertain_effect`.
+- **A probe that did not authenticate keeps its cause.** A
+  `human_reconciliation_required` result carries `diagnostic` with the probe's
+  `state`, native `reason` and command original, and an existing-publication
+  read refusing `authenticated_forge_required_for_existing_publication` carries
+  the same under `probe`. The route projects an accepted result's `diagnostic`
+  exactly as a refusal's detail: its cause chain inline, its complete original
+  retained once and, when the whole answer exceeds the inline limit, an
+  `error_log` inside the diagnostic while the result's kind, identity and effects
+  stay whole.
 - **Local and Git material.** Local and Git handoff record the authenticated
   closeout head `D` in the product-owned ref
   `refs/agent-launch/wk-handoffs/<initiative>/<WK>/<C>/local` or
-  `.../<C>/git/<remote>` in the main repository, created only when absent. The
+  `.../<C>/git/<remote>` in the main repository, written only under its expected
+  old value (absent for a first handoff). The
   ref name retains the destination the candidate was handed to: when the
   current selection names a different destination, handoff and landing
   observation refuse `handoff_destination_changed` with no effect (observation
   reports `unavailable`) rather than re-reading or repeating the handoff under
   the new selection. Git delivery first pushes `D` to
   `refs/heads/handoff/wk/<initiative>/<WK>/<C>` at the selected remote's
-  validated URL, with a create-only lease, so no remote-tracking ref moves; the
-  handoff ref is written only once the destination branch is observed at `D`, so
-  a failed delivery leaves no ref. A retry or a fresh process authenticates the
-  same ref and appends no second chain. The result reports `transport`,
+  validated URL, with a lease on its expected old head (absent for a first
+  handoff), so no remote-tracking ref moves; the handoff ref is written only once
+  the destination branch is observed at the requested head, so a failed delivery
+  leaves the ref where it was. A retry or a fresh process authenticates the same
+  ref and appends no second chain. The result reports `transport`,
   `destination`, `handoff_ref`, the exact head, the base branch and the actual
   `effects`, and names the human landing action with `next_action`; it carries
   no repository coordinate, pull request or proposal authority. Handoff never
-  moves a landing base, merges, or completes the WK, and forge merge refuses a
-  local or Git handoff because there is no proposal to merge.
+  moves a landing base, merges, or completes the WK.
+- **Landing a local or Git handoff.** The human Git actor may land it with the
+  explicit `agent-launch forge-merge WK-#### [--checkout <path>]`. There is no
+  proposal: the command fast-forwards one checkout, by default the main
+  repository's, with an ordinary `git merge --ff-only` to the exact
+  authenticated head `D`. The checkout's HEAD must be the configured base branch.
+  For a local handoff it must share the main repository's Git storage (the main
+  checkout or a linked worktree). For a Git handoff, a separate clone is
+  accepted only through a remote whose unique, unrewritten URL is the
+  destination's, and `D` is fetched from the destination's handoff branch into
+  its object store alone when absent. `--checkout` only locates the checkout; it
+  never selects the handoff, its head, destination or base. Before merging, the
+  command stages the coordination files Git would otherwise refuse to overwrite:
+  the paths in both the authenticated controlled generation's population (the WK
+  record, descriptors, selected carrier-set manifests and runtime-package
+  members) and the structural diff from HEAD to `D`, when Git records their
+  working content with `D`'s exact blob and mode and their index entry is
+  absent, HEAD's or already `D`'s. Canonical JSON equality is not a match.
+  Persisting a later generation keeps the earlier generations' runtime packages
+  in the WK tree, so `D` can also carry those files. Such a path belongs to the
+  population only when a commit of the authenticated WK ref's own history after
+  the handoff's captured base selected that package through its visible
+  carrier-set manifest and held it exactly as that manifest describes, and `D`
+  holds that commit's exact blob and mode. A path under the generation-archive
+  directory without such a persisted selection is not included.
+  The one admitted difference is the handoff's own review-to-done transition:
+  after handoff the live WK record is ordinarily the closeout record `K` in
+  `review`, and `D` changes only its status to `done`. When the closeout-chain
+  owner authenticates this handoff's `C -> K -> D` chain and the working record,
+  and any staged entry for it, hold `K`'s exact blob and mode, the command
+  installs `D`'s exact record bytes and mode after every other selected path is
+  validated, stages it and merges. Any other difference in the record, such as a
+  later entry, title, scope, timestamp or attachment change, refuses.
+  Preparation, the fast-forward and any restoration of that record hold the
+  checkout's canonical WK writer lock, so an update by a writer that takes it is
+  either observed by preparation, which then refuses, or made after the command
+  is done with the record. An editor outside that lock is detected only by the
+  command's observed-state checks.
+  Differing working content or independently staged content refuses with its
+  path, and unrelated working files and staging are never touched. When the
+  refused path is the WK record in the main repository's own checkout, the
+  refusal also carries `handoff_refresh`, the handoff owner's read-only refresh
+  assessment of the canonical record against the authenticated publication. It
+  applies the repeat handoff's own authentication, landing and permitted-change
+  rules and builds, writes and publishes nothing. When the record carries a
+  permitted change to an unlanded publication (for example a notes edit made
+  after handoff), it reports `applicable: true` with the published head, and the
+  refusal's `next_calls` holds the one recommended
+  `workspace_wk_forge_handoff({assigned_unit})` call that refreshes it, after
+  which landing can be requested again. Its success predicate is
+  `forge_handoff.live_record_published` `is_true`; the refusal's
+  `observed_facts` carries that fact as `false`. A local or Git handoff result
+  reports `live_record_published`: after its effects, whether the canonical
+  record's authored content is the returned head's `K` (or its `D`), by the same
+  comparison the refresh decision uses. When that cannot be observed, the result
+  carries `live_record_published_unobserved` with the specific cause instead and
+  no value. The registered handoff route publishes only an observed value, in its
+  response's `observed_facts` under the same identity, so an unobserved fact
+  never satisfies the predicate. The call is recovery guidance, not a
+  promise of success: the repeat handoff rechecks everything before any effect.
+  Otherwise `handoff_refresh` reports `applicable: false` with the owner's
+  specific reason, such as a protected-field projection cause,
+  `published_handoff_already_landed` or `live_record_matches_publication`, and no
+  call is offered. Attachment conflicts, a missing record and other checkouts
+  are not assessed. The merge itself never refreshes or publishes. The index is
+  updated under Git's own `index.lock`. A failure after the record is installed,
+  a diverged base, or any other Git refusal of the fast-forward keeps its cause
+  and restores the prior record bytes and mode and the entries the command
+  staged, only where they still hold what it wrote; a later independent file or
+  staging change is reported as not restored, not overwritten. After a completed
+  fast-forward nothing is restored, and a later landing-observation failure
+  reports the completed movement. It never pushes, forces, resets, stashes,
+  creates a merge commit or resolves a conflict. Landing is then read through the landing
+  observer: a local handoff succeeds only when it reports `landed`. For a Git
+  handoff the local fast-forward is local completion; unless the observer sees
+  the destination's base carrying `D`, the result reports `remote_landing:
+  "pending"` and carries no landed publication. A repeat after landing changes
+  nothing.
 - **One read-only landing observer.** `workspace_wk_landing_status` and
   dependency provisioning consume the same observer. It re-authenticates the
   existing handoff through the handoff authority owner's read-only observer and
@@ -126,7 +335,11 @@ any effect, never from caller input.
   is `landed` only when the exact handed-off head is an ancestor of the observed
   base tip; the carrier is `git-landed-publication-identity.v1`. Hosted landing
   is the merged exact proposal and its bound ancestry, as the
-  `forge-confirmed-landed-publication-identity.v1` carrier. A Git destination
+  `forge-confirmed-landed-publication-identity.v1` carrier. A hosted landed
+  observation or ancestry lookup that could not be made is `unavailable` with its
+  reason (`authoritative_observation_failed` or `exact_head_ancestry_unobservable`)
+  and original; only a completed comparison proving another history is
+  contradictory. A Git destination
   branch that disappeared or moved without landing is contradictory. The observer
   never publishes, creates or merges a proposal, reconstructs or materializes a
   candidate, executes proofs, or reconciles the canonical record; explicit
@@ -142,11 +355,11 @@ settlement, receipt, recovery, or replay path. The review action remains
 read-only and action-local, and its output creates no lifecycle authority.
 
 The managed post-worker lifecycle constructs and publishes the candidate after the
-final implementation slice integrates, and only when the canonical record
+final implementation slice integrates, whether or not the canonical record
 designates a `terminal_whole_wk` unit. It never dispatches the terminal reviewer:
 terminal review runs only when a coordinator explicitly dispatches that unit. A
-record that designates no such unit gets no candidate from the lifecycle and
-reaches the workflow-not-selected state below.
+record that designates no such unit still gets the publication candidate, with
+no terminal review unit or review result attached.
 
 The advertised terminal reviewer call is subject-addressed:
 `{role: "reviewer", subject}` for the canonical slice whose `review_purpose` is
@@ -311,7 +524,178 @@ authentication on retry, existing-publication observation and forge merge
 re-establishes the same expectation from the candidate binding; without it the
 chain is not authenticated. The producer proof needs the retained slice delivery
 ref and the canonical record's recorded value; when either is gone the closeout
-refuses rather than accepting the field. Review
+refuses rather than accepting the field.
+
+Canonical entries appended after `C` are closeout bookkeeping, not contract. An
+entry created through the canonical entry writer on the parent or on a slice `C`
+already holds (for example an outcome recording tests, review findings or a
+reported proof failure) is carried into `K` as the live record holds it. The
+projection admits it only when every entry `C` holds stays byte-identical and in
+order (including its versions, `current_version` and any receipt), the appended
+entries pass the canonical entry, population-identity and new-entry-form
+validation, and nothing else changes; the server-managed `updated` date that
+moves with the append is admitted with it. An entry's title, kind or prose grants
+nothing. A new version of an entry `C` holds, a removed or reordered entry, or an
+invalid appended entry refuses with `entry_history_drift` or
+`entry_append_invalid`; an append beside any other change (acceptance, scope,
+titles, dispatch intent, `sections.material_refs`, or any other authored field
+outside the coordination notes below) refuses with that change's own reason. Removing or rewriting a
+persisted entry is refused earlier by the canonical writer itself. Handoff
+preparation, retry and existing-chain recognition, and forge merge reach the same
+decision through the one projection owner, so the appended entry survives
+publication and retry without rebuilding `C` or changing its tree.
+
+Coordination notes are not contract either. `sections.agent_notes` on the
+parent and on every slice `C` already holds (ordinary, closing or review
+slices) may be replaced with a schema-shaped value, and a slice whose notes
+moved may carry a moved well-formed `updated`. The projection compares every
+other field with `C`'s notes and dates restored, so a notes-only slice edit is
+never read as an additional slice closeout and notes beside a change to
+requirements, acceptance, summary, tasks, scope, dispatch intent, material
+selection or any other authored field refuse with that field's own reason. The
+notes' text is not read, classified or fed into the frozen worker or reviewer
+assignment.
+
+Review history is coordination, never a publication gate. The projection
+matches review-consumer slices (`review_purpose: "terminal_whole_wk"`) by their
+stable id, not by position or count, so any number of them may already be in
+`C` or be added after it, interleaved with implementation slices. A review slice
+`C` holds keeps its id, tag and every authored field; only its status (to any
+canonical `WORK_RECORD_STATUS_VALUES` value) and a well-formed `updated` may move,
+beside the entries and notes admitted above. A review slice `C` does not hold is
+admitted in the canonical findings-only shape in any canonical status: an empty
+`write_scope`, the reviewer role the findings semantics require for `review`
+work, a slice target, and canonical identity, ownership, priority, scope and
+acceptance fields. Neither the number of reviews nor whether any is `done`,
+`cancelled` or still `active` grants or removes publication. A refusal carries
+`review_consumer_slice_drift` with the `slice_id`, a `cause` and the offending
+`fields`: `candidate_review_removed`, `candidate_review_changed` (for example
+a rewritten title, acceptance or scope), `review_purpose_changed` (an
+implementation slice relabeled as a review, or a review dropping its tag, which
+never bypasses the implementation-slice comparison),
+`non_canonical_review_addition` (for example a nonempty `write_scope` or a
+worker role) or `duplicate_slice_id`. A repeat handoff keeps the review history
+the published `K` carries under the same entry rules; a review added after `C`
+that holds no entries may still be removed.
+
+Terminal-review shaping after `C` may opt the parent into a completion policy.
+`workspace_work_record_ready_slice` with `review_purpose: "terminal_whole_wk"`
+and `completion_policy` writes that policy on the parent beside the review
+slice it adds. The projection admits only the introduction: a parent
+`completion_policy` absent from `C` may appear with a canonical value, and it
+stays admitted when the review slice is later deleted. A policy `C` already
+holds must stay exactly; removing or replacing it, or introducing a
+non-canonical value, refuses `unrelated_record_drift` with
+`field: "completion_policy"`, which the refusal carries through the registered
+response. A repeat handoff also keeps a policy the published `K` carries
+(`published_closeout_drift` with the same field). The introduction admits
+nothing else: unrelated protected changes beside it refuse with their own
+reason. Neither a review slice nor a policy is required for publication.
+
+Any other protected authored field that differs from `C` refuses
+`unrelated_record_drift` with `fields`: every differing path, descending
+through objects, so appended validation notes are reported as exactly
+`acceptance.validation` and a changed criterion as `acceptance.criteria`. When
+the parent's `acceptance.validation` is the only such field, handoff
+preparation adds `acceptance_validation_drift` beside the projection, taken
+from `C` and the record it observed: the `unit`, the `candidate` commit, the
+`field`, the `candidate_value` `C` declares, the `observed_value`, and the
+editor's CAS value of exactly that observed record (`observed_source_digest`,
+for `expected_source_digest`). The registered response keeps the refusal and
+its identity, publishes nothing, and offers one guidance read: the ordinary
+editor's record-level `acceptance.validation` field contract
+(`workspace_tools_describe` with `input_contract {kind:"field",scope:"record",field:"acceptance.validation"}`).
+The guidance recovery is conditional and owned by the coordinator. If the
+change was meant to record results or limitations, preserve that text in a new
+`workspace_work_record_entry_upsert` entry, restore `acceptance.validation` to
+`candidate_value` through `workspace_work_record_edit`, and retry the handoff;
+each write passes the current freshness, so a correction based on a refusal an
+intervening edit made stale is refused and the intervening edit survives. If the
+change altered a requirement, this candidate cannot be published: an entry
+records evidence only, satisfies no unmet requirement and does not cure the
+drift. The handoff never classifies the prose, relocates or reverts content, or
+mints a write call, and reading the guidance changes nothing. Drift in any other
+protected field, alone or beside `acceptance.validation`, offers no guidance and
+keeps `no_supported_route`. When the serving registrar cannot offer the read,
+the refusal states the missing capability instead.
+
+## Repeat handoff refreshes the same publication
+
+After a successful handoff, an ordinary WK edit can leave the published
+closeout record stale. Repeating the same `workspace_wk_forge_handoff` call, with
+the same request, updates that one publication; there is no separate command,
+editor hook or background publication, and normal editing is unchanged.
+
+- **Observe before refreshing.** The repeat resolves the same candidate,
+  generation, destination and base identity and authenticates the published
+  head as `C -> K -> D`. Landing and proposal state are observed before any live
+  record is required to be in `review`. A landed publication (exact-head
+  ancestry of the local or Git landing base, or a single exact merged proposal)
+  is only observed: when the canonical record is that publication's `D` or its
+  `K` awaiting reconciliation the retry returns the landed head with no effect;
+  any other record refuses `published_handoff_already_landed` with the landed
+  head. A closed-unmerged, ambiguous or head-disagreeing proposal refuses with
+  its existing cause.
+- **Unchanged is a no-op.** When the live record's authored content equals the
+  published `K` (or its `D`), the existing head is returned: no commit, ref
+  update, push or proposal. Unchanged and fresh-process retries report
+  `existing` effects.
+- **Permitted changes rebuild beside, not above.** Otherwise the live record is
+  read once, must be `review`, and is authenticated by the one projection owner
+  against `C` and against the published `K`: every entry `K` carries stays under
+  the same exact-prefix rule, and `K`'s parent closure and its closed
+  implementation slice's status, closure and `integrated_delivery_sha` stay
+  exactly (`published_closeout_drift` names the unit and field otherwise). The
+  same closeout builder then commits `C -> K2 -> D2` directly above the same `C`
+  from that captured record, and the chain authenticator verifies it. The
+  candidate, its version and generation, the integrated delivery, destination and
+  base are unchanged; no proof, review or reviewer runs, and no existing evidence
+  is claimed for changed implementation (a changed requirement refuses; it never
+  manufactures a new candidate).
+- **Expected-old replacement.** Local handoff compare-and-swaps the handoff ref
+  from `D` to `D2`. Git delivery lease-updates the destination branch through its
+  validated URL from `D`, re-observes it at `D2`, then compare-and-swaps the local
+  handoff ref from its observed value. Hosted handoff lease-updates the same
+  branch behind the same exact open proposal and re-observes that proposal at
+  `D2`; no second proposal is created. The old head's landing and proposal state
+  are rechecked immediately before the replacement, and the replacement runs under
+  the canonical WK writer lock only while the live record still holds the exact
+  bytes `K2` was built from (`local_WK_changed_before_publication` otherwise).
+  An unexpected head is never overwritten, and nothing moves the base, merges or
+  pushes the base. Effects report `closeout_chain: "replaced"` and
+  `handoff_ref`/`destination_branch: "updated"`.
+- **Partial failure stays truthful.** A failed, rejected or uncertain update is
+  re-observed once and never retried blindly; a refusal after an effect carries
+  its original cause, the expected, requested and observed heads and the actual
+  `effects`. When a Git destination holds an authenticated `D2` whose `K2`
+  preserves the local ref's `K` (an update whose local ref write failed), a
+  later repeat treats `D2` as the current publication: with the live record still
+  at `K2` it only repairs the local ref; after a further permitted edit it
+  updates the destination from `D2` under its expected head and repairs the local
+  ref from its observed value. A foreign head is never adopted.
+- **Landing during a refresh is reported, not hidden.** A human can land `D`
+  between the final check and the update; no cross-system atomicity is claimed.
+  Hosted handoff then refuses `handoff_landed_during_refresh` with the landed
+  head and the published replacement, and landing observation authenticates a
+  single exact merged proposal's own head even when its branch now holds `D2`, so
+  `D2` is never reported landed when only `D` landed. Local and Git handoff
+  observe the replaced head's exact-head ancestry of the landing base once more
+  after the replacement is published and, when it landed, refuse
+  `handoff_landed_during_refresh` (stage `landing_base`) with the landed head,
+  the published head and the effects that occurred; the replacement stays
+  published and nothing is rolled back or merged. Landing observation otherwise
+  remains exact-head ancestry of the current handed-off head.
+- **Forge merge of a hosted handoff lands what landed.** When a single exact
+  proposal is confirmed merged, forge merge takes that proposal's own head as
+  the completion, authenticated above the same `C` by the closeout-chain owner,
+  even when the branch now holds a newer refreshed `D2`; an open proposal still
+  merges the observed branch head. A live record matching the landed `D` or its
+  `K` reconciles or observes it as before. A live `K2` carrying newer changes
+  refuses `local_reconciliation_failed` with the authenticated landed publication
+  of `D`; the live record is left unchanged, its changes are neither discarded
+  nor merged, and no further forge merge is requested.
+
+Review
 text informs coordinator disposition but review schema, receipts, provenance,
 history, and formal-attestation availability grant no candidate or forge authority
 and cannot veto publication. Formal attestations retain their narrow admission
@@ -553,7 +937,8 @@ implementation-WK lifecycle state; technical role remains a confinement and
 transport fact only.
 
 Candidate construction assumes the repository-wide
-[design-first work-record sequence](../AGENTS.md#wk-first-work); terminal review
+design-first work-record sequence (repository-only: `AGENTS.md`, "WK-First
+Work"); terminal review
 does not provide a local substitute for its semantic authoring or CCE-owned
 sequencing.
 

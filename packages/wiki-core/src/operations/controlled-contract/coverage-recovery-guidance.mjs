@@ -44,6 +44,11 @@ export function obligationCoverageDescribeCalls({ resolved, sourceIdentity }) {
   ]);
 }
 
+export function obligationCoverageQueryCall({ wkId, focus = null, selectedUnit = null, obligationId }) {
+  return fixedCall("workspace_controlled_contract_obligation_coverage_query",
+    { ...coverageUnitArguments({ wkId, focus, selectedUnit }), obligation_id: obligationId });
+}
+
 export function coverageSelectorRecovery({ family, input }) {
   const fixed = coverageUnitArguments(input);
   return frozen(family === "obligation"

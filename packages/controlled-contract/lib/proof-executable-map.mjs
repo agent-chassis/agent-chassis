@@ -1,6 +1,7 @@
 
 
-import { linkedNativeTestProofs } from './native-test-proof-authoring.mjs';
+import { CASE_COMPONENT_FIELD, CASE_VERIFICATION_ASSOCIATION_FIELD,
+  linkedNativeTestProofs } from './native-test-proof-authoring.mjs';
 import { resolveStableTestProofProviderBindings } from './test-proof-contract-v1.mjs';
 
 import { loadPackParameterContract, describePackParameters, inspectParameterSource,
@@ -223,9 +224,13 @@ function escapeJsonPointerToken(value) {
 }
 
 export function typedBindingFailurePaths(diagnostic) {
+  return [...new Set(typedBindingFailures(diagnostic).map(({ path }) => path))].sort();
+}
+
+function typedBindingFailures(diagnostic) {
   const diagnostics = diagnostic.problem?.cause?.owner_details?.diagnostics;
   if (!Array.isArray(diagnostics)) return [];
-  return [...new Set(diagnostics.flatMap(entry => {
+  return diagnostics.flatMap(entry => {
     const base = typeof entry?.pointer === 'string' ? entry.pointer
       : typeof entry?.instancePath === 'string' ? entry.instancePath : null;
     if (base === null) return [];
@@ -237,25 +242,64 @@ export function typedBindingFailurePaths(diagnostic) {
         ? entry.params.additionalProperty : null;
     const suffix = property === null ? '' : `/${escapeJsonPointerToken(property)}`;
     const path = `${base === '/' ? '' : base}${suffix}`;
-    return path.length === 0 ? ['/'] : [path];
-  }))].sort();
+    return [{ keyword: entry?.keyword, path: path.length === 0 ? '/' : path }];
+  });
 }
 
-export function occurrenceRecoverySummary(diagnostic, recovery) {
-  if (diagnostic.code !== 'obligation_coverage_native_binding_case_incomplete') {
-    return recovery.summary;
-  }
-  const failedPaths = typedBindingFailurePaths(diagnostic);
-  if (failedPaths.length === 0) {
-    return "Use the upsert's case_authoring guidance and inspect the structured owner diagnostic details. No typed failed field path was published, so this refusal does not identify a verification-association repair. Never supply or edit the derived binding itself.";
-  }
-  const associationFailure = failedPaths.some(path =>
+const RUNTIME_MODULE_PATH = '/system_under_test_boundary/runtime_module_path';
+
+export const OCCURRENCE_CORRECTION_CLAUSES = deepFreeze({
+  component: { field: CASE_COMPONENT_FIELD, guidance: 'case_authoring.component' },
+  association: { field: CASE_VERIFICATION_ASSOCIATION_FIELD,
+    guidance: 'case_authoring.verification_association' },
+  case_content: { field: 'obligations[].case', guidance: 'case_authoring' }
+});
+
+export function occurrenceRecoveryFacts(diagnostic) {
+  if (diagnostic?.code !== 'obligation_coverage_native_binding_case_incomplete') return null;
+  const failures = typedBindingFailures(diagnostic);
+  const failedFields = [...new Map(failures.map(entry => [`${entry.path}\u0000${entry.keyword}`,
+    { keyword: entry.keyword ?? null, path: entry.path }])).values()]
+    .sort((left, right) => left.path.localeCompare(right.path) ||
+      String(left.keyword).localeCompare(String(right.keyword)));
+  const association = failures.some(({ path }) =>
     path === '/verification_claim_id' || path.endsWith('/proposition_id'));
-  const pathSummary = `Typed derived-binding validation reported ${failedPaths.length} failed field ${failedPaths.length === 1 ? 'path' : 'paths'}; the complete paths remain in the structured owner diagnostics.`;
-  const correction = associationFailure
-    ? " Use the upsert's case_authoring.verification_association guidance when the failed proposition identities must be derived from an eligible test_execution verification."
-    : " The typed failures do not identify the verification association as invalid; preserve valid requirement/verification links and use the upsert's case_authoring guidance to supply the omitted case meaning.";
-  return `${pathSummary}${correction} Never supply or edit the derived binding itself.`;
+  const moduleSource = failures.some(({ keyword, path }) =>
+    keyword === 'required' && path === RUNTIME_MODULE_PATH);
+  const corrections = failures.length === 0 ? [] : [
+    ...(moduleSource ? ['component'] : []),
+    ...(association ? ['association'] : []),
+    ...(moduleSource || association ? [] : ['case_content'])];
+  return deepFreeze({ failed_fields: failedFields, association_correction: association,
+    module_source_correction: moduleSource, corrections });
+}
+
+export function occurrenceRecoverySummary(diagnostic, recovery, { failedFields = 'owner_diagnostics' } = {}) {
+  const facts = occurrenceRecoveryFacts(diagnostic);
+  if (facts === null) return recovery.summary;
+  const published = failedFields === 'public';
+  if (facts.failed_fields.length === 0) {
+    return `Use the upsert's ${OCCURRENCE_CORRECTION_CLAUSES.case_content.guidance} guidance${published ? '' : ' and inspect the structured owner diagnostic details'}. No typed failed field path was published, so this refusal does not identify a verification-association repair. Never supply or edit the derived binding itself.`;
+  }
+  const count = new Set(facts.failed_fields.map(({ path }) => path)).size;
+  const pathSummary = `Typed derived-binding validation reported ${count} failed field ${count === 1 ? 'path' : 'paths'}; ${published ? 'each subject\'s failed_fields lists them' : 'the complete paths remain in the structured owner diagnostics'}.`;
+  const correction = facts.association_correction
+    ? ` Use the upsert's ${OCCURRENCE_CORRECTION_CLAUSES.association.guidance} guidance when the failed proposition identities must be derived from an eligible test_execution verification.`
+    : ` The typed failures do not identify the verification association as invalid; preserve valid requirement/verification links and use the upsert's ${OCCURRENCE_CORRECTION_CLAUSES.case_content.guidance} guidance to supply the omitted case meaning.`;
+  const componentCorrection = facts.module_source_correction
+    ? ` The derived binding has no runtime module path, which is derived only from the resolved ${OCCURRENCE_CORRECTION_CLAUSES.component.field} when its identity is a repository_path (by value, or through the saved reference a reference_id selects); a profile_term or other descriptive identity names no module source, even when it mentions a file. Author that component with the actual repository and path under the upsert's ${OCCURRENCE_CORRECTION_CLAUSES.component.guidance} guidance.`
+    : '';
+  return `${pathSummary}${correction}${componentCorrection} Never supply or edit the derived binding itself.`;
+}
+
+export function occurrencePublicRecovery(diagnostic) {
+  const recovery = diagnostic?.problem?.route_assessment?.recovery ?? null;
+  if (recovery === null) return null;
+  const registered = Object.hasOwn(diagnostic.problem?.cause ?? {}, 'actor_recovery')
+    ? registeredRecoveryTemplate(PROOF_PREREQUISITE_CODES, diagnostic.code) : null;
+  const instructions = registered === null ? recovery.operator_action ?? null
+    : `${occurrenceRecoverySummary(diagnostic, registered, { failedFields: 'public' })} Supported next call: ${registered.route}.`;
+  return deepFreeze({ explanation: recovery.explanation ?? null, instructions });
 }
 
 function registeredRecoveryProjection(diagnostic, operation) {

@@ -7,9 +7,9 @@ import { resolveImmutableExactCommitCandidate, materializeImmutableCandidate, as
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { canonicalDigest, deepFreeze } from "../../../controlled-contract/lib/deterministic-projection-primitives.mjs";
-import { loadAdmittedProofPack } from "../../../controlled-contract/lib/admitted-proof-packs.mjs";
-import { resolveBehaviorAndVerificationPopulation, createNativeVerificationIndex } from "../../../controlled-contract/lib/proof-native-verification-graph.mjs";
+import { canonicalDigest, deepFreeze } from "@agent-chassis/controlled-contract";
+import { loadAdmittedProofPack } from "@agent-chassis/controlled-contract";
+import { resolveBehaviorAndVerificationPopulation, createNativeVerificationIndex } from "@agent-chassis/controlled-contract";
 import { locateVerifyProofSubjectWkIds, orderVerifyProofSourceChoices, resolveVerifyProofSourceBinding,
   resolveSavedProofRuntimeBindings, verifyProofSourceChoice } from "../../../wiki-core/src/operations/controlled-contract/verify-proof-source-binding.mjs";
 import { VerifyProofOperationError, parseVerifyProofSource, verifyProofPopulationSubject }
@@ -124,21 +124,25 @@ async function gitIdentity(root) {
   return { commit, tree };
 }
 
+function authenticateManagedWorkerSliceBinding({ mainRepo, state, wkId }) {
+  const credential = state.credential;
+  if (!credential || state.assignedUnit?.startsWith(`${wkId}#`) !== true) throw Object.assign(
+    new Error("managed worker proof authority is unavailable"),
+    { code: "verify_proof.worker_authority_unavailable.v1" });
+  return verifyExactSliceCommitBinding({
+    binding: resolveWorktreeBinding({ mainRepo, launchRef: credential.launchRef,
+      runId: credential.runId, retryId: credential.retryId }),
+    mainRepo,
+    assignedUnit: state.assignedUnit,
+    launchRef: credential.launchRef,
+    runId: credential.runId,
+    retryId: credential.retryId
+  });
+}
+
 async function resolveRuntimeAuthority({ env, mainRepo, state, wkId }) {
   if (state.role === "worker") {
-    const credential = state.credential;
-    if (!credential || state.assignedUnit?.startsWith(`${wkId}#`) !== true) throw Object.assign(
-      new Error("managed worker proof authority is unavailable"),
-      { code: "verify_proof.worker_authority_unavailable.v1" });
-    const binding = verifyExactSliceCommitBinding({
-      binding: resolveWorktreeBinding({ mainRepo, launchRef: credential.launchRef,
-        runId: credential.runId, retryId: credential.retryId }),
-      mainRepo,
-      assignedUnit: state.assignedUnit,
-      launchRef: credential.launchRef,
-      runId: credential.runId,
-      retryId: credential.retryId
-    });
+    const binding = authenticateManagedWorkerSliceBinding({ mainRepo, state, wkId });
     const managed = mintManagedWorkerTestRunAuthority({ commitBinding: binding, mainRepo });
     const authority = mintManagedWorkerTestProofRuntimeAuthority({ authority: managed });
     VERIFIED_WORKER_SLICE_BINDINGS.set(authority, binding);
@@ -268,5 +272,5 @@ async function resolveProductionContextFromRuntime({ args, runtime }) {
   } };
 }
 
-export { resolveCanonicalSubjectWkId, resolveProductionContext, resolveProductionContextFromRuntime,
-  resolveRuntimeAuthority as resolveManagedRuntimeAuthority };
+export { authenticateManagedWorkerSliceBinding, resolveCanonicalSubjectWkId, resolveProductionContext,
+  resolveProductionContextFromRuntime, resolveRuntimeAuthority as resolveManagedRuntimeAuthority };

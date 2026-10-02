@@ -1,7 +1,9 @@
 
 
 import {
+  closedTerminalWkCandidateGitDiagnosis,
   projectTerminalWkCandidateFailure,
+  projectTerminalWkCandidateRefDisagreements,
   TERMINAL_WK_CANDIDATE_CODES,
   TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE_MESSAGE
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
@@ -13,8 +15,10 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
 import { captureDiagnosticEvidence } from
   "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
-import { projectAuthenticatedTerminalCandidateFailure } from
-  "./dispatch-terminal-candidate-coordinator.mjs";
+import {
+  projectAuthenticatedTerminalCandidateFailure
+} from "./dispatch-terminal-candidate-coordinator.mjs";
+import { distillCapturedCauses } from "./dispatch-tool-helpers.mjs";
 
 export const CLOSED_LIFECYCLE_FAILURE_SCHEMA_VERSION =
   "agent_launch.closed_lifecycle_failure.v1";
@@ -271,8 +275,20 @@ export const CLOSED_CANDIDATE_FAILURE_KEYS = Object.freeze([
 
 export const APPROVED_CANDIDATE_GIT_DETAIL_KEYS = Object.freeze([
   "git_args",
+  "git_operation",
+  "git_ref",
+  "git_path",
+  "git_oid",
   "git_status",
-  "git_stderr"
+  "git_signal",
+  "git_output_overflow",
+  "git_native_error",
+  "git_stderr_bytes",
+  "git_diagnosis",
+  "ref_disagreements"
+]);
+const APPROVED_NATIVE_ERROR_FACTS = Object.freeze([
+  ["code", "string"], ["errno", "number"], ["syscall", "string"], ["path", "string"]
 ]);
 
 const CLOSED_TYPED_CANDIDATE_FAILURE_MESSAGE =
@@ -289,18 +305,37 @@ const APPROVED_TERMINAL_WK_CANDIDATE_CODES = Object.freeze(
   new Set(Object.values(TERMINAL_WK_CANDIDATE_CODES))
 );
 
-function closedCandidateGitDetail(detail) {
+export function closedCandidateGitDetail(detail) {
   if (typeof detail !== "object" || detail === null || Array.isArray(detail)) return null;
   const projected = {};
   if (Array.isArray(detail.git_args)) {
     projected.git_args = Object.freeze(detail.git_args.filter((arg) => typeof arg === "string"));
   }
+  for (const field of ["git_operation", "git_ref", "git_path", "git_oid"]) {
+    if (typeof detail[field] === "string") projected[field] = detail[field];
+  }
   if (typeof detail.git_status === "number" || detail.git_status === null) {
     projected.git_status = detail.git_status;
   }
-  if (typeof detail.git_stderr === "string") {
-    projected.git_stderr = detail.git_stderr;
+  if (typeof detail.git_signal === "string" || detail.git_signal === null) {
+    projected.git_signal = detail.git_signal;
   }
+  if (detail.git_output_overflow === true) projected.git_output_overflow = true;
+  const native = detail.git_native_error;
+  if (typeof native === "object" && native !== null && !Array.isArray(native)) {
+    const facts = {};
+    for (const [field, type] of APPROVED_NATIVE_ERROR_FACTS) {
+      if (typeof native[field] === type) facts[field] = native[field];
+    }
+    if (Object.keys(facts).length > 0) projected.git_native_error = Object.freeze(facts);
+  }
+  if (Number.isSafeInteger(detail.git_stderr_bytes) && detail.git_stderr_bytes >= 0) {
+    projected.git_stderr_bytes = detail.git_stderr_bytes;
+  }
+  const diagnosis = closedTerminalWkCandidateGitDiagnosis(detail.git_diagnosis);
+  if (diagnosis !== null) projected.git_diagnosis = diagnosis;
+  const disagreements = projectTerminalWkCandidateRefDisagreements(detail.ref_disagreements);
+  if (disagreements !== null) projected.ref_disagreements = disagreements;
   return Object.keys(projected).length === 0 ? null : Object.freeze(projected);
 }
 
@@ -484,7 +519,8 @@ export function summarizeLifecycleFailureEvidence(evidence) {
     code: isError ? text(value.properties?.code) : null,
     message: isError ? text(value.message) : typeof value === "string" ? value : null,
     capture_failure_count: (evidence.thrown?.capture_failures?.length ?? 0) +
-      (evidence.evidence_capture_failure === undefined ? 0 : 1)
+      (evidence.evidence_capture_failure === undefined ? 0 : 1),
+    cause_chain: Object.freeze(distillCapturedCauses(evidence.thrown))
   });
 }
 

@@ -242,9 +242,8 @@ export async function publishSidecarGraphCandidate({
     );
   }
   if (basis === "published" && !predecessor.exists) {
-    const error = new Error("sidecar graph database is missing");
-    error.code = "missing";
-    throw priorPreserved(error);
+    throw new SidecarGraphPublicationError("sidecar graph database is missing",
+      { code: "missing", publicationOutcome: "prior_preserved" });
   }
   const candidatePath = path.join(paths.store_dir,
     `${SIDECAR_GRAPH_CANDIDATE_PREFIX}${randomUUID()}.sqlite`);
@@ -263,7 +262,10 @@ export async function publishSidecarGraphCandidate({
     graph = null;
     throwIfSidecarPreparationCancelled(signal);
     if (existsSync(`${candidatePath}-journal`)) {
-      throw new Error("sidecar graph candidate retained a rollback journal after its transaction");
+      throw new SidecarGraphPublicationError(
+        "sidecar graph candidate retained a rollback journal after its transaction",
+        { code: "sidecar_publication_candidate_journal_retained", publicationOutcome: "prior_preserved" }
+      );
     }
     if (!sameObservation(await observeGraphPath(paths.graph_path), predecessor)) {
       throw new SidecarGraphPublicationError(
@@ -295,7 +297,9 @@ export async function publishSidecarGraphCandidate({
     }
     return publication;
   } catch (error) {
-    throw error instanceof SidecarGraphPublicationError ? error : priorPreserved(error);
+
+    if (!(error instanceof SidecarGraphPublicationError)) priorPreserved(error);
+    throw error;
   } finally {
     if (graph?.isOpen && graph.isTransaction) graph.exec("ROLLBACK");
     if (graph?.isOpen) graph.close();

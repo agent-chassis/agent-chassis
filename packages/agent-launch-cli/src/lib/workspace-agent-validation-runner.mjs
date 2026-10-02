@@ -1,7 +1,7 @@
 
 
 import path from "node:path";
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, accessSync, constants } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmSync, statSync, accessSync, constants } from "node:fs";
 
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
@@ -30,8 +30,11 @@ import {
   DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
   DEFAULT_VALIDATION_TIMEOUT_MS,
   TEST_PROOF_LIVE_CLEANUP_ALLOWANCE_MS,
+  WORKSPACE_AGENT_VALIDATION_DISPOSITIONS,
   assertTestProofExecutionBudget,
+  interruptedBeforeSpawn,
   resolveValidationOutputBounds,
+  settleConfinedCapture,
   spawnAndCapture
 } from "./test-execution/confined-capture.mjs";
 
@@ -41,13 +44,14 @@ export {
   DEFAULT_VALIDATION_OUTPUT_CAP_BYTES,
   DEFAULT_VALIDATION_TIMEOUT_MS,
   TEST_PROOF_LIVE_CLEANUP_ALLOWANCE_MS,
+  WORKSPACE_AGENT_VALIDATION_DISPOSITIONS,
   assertTestProofExecutionBudget,
   mintTestProofExecutionBudget,
   resolveValidationOutputBounds
 } from "./test-execution/confined-capture.mjs";
 import { assertLauncherTestProofRuntimeAuthority } from
   "./workspace-agent-test-proof-runtime-identity.mjs";
-import { runConfinedInvocation } from "./test-execution/confined-invocation.mjs";
+import { executeConfinedInvocation, withExecutionRoot } from "./test-execution/confined-invocation.mjs";
 
 const AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS = Object.freeze({
   node_check: Object.freeze({
@@ -90,12 +94,6 @@ export const WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES = Object.freeze({
   TARGET_INVALID: "workspace_agent_validation_runner.target_invalid.v1",
   TARGET_PATH_ESCAPE: "workspace_agent_validation_runner.target_path_escape.v1",
   TARGET_NOT_AUTHORIZED: "workspace_agent_validation_runner.target_not_authorized.v1"
-});
-
-export const WORKSPACE_AGENT_VALIDATION_DISPOSITIONS = Object.freeze({
-  PASSED: "passed",
-  FAILED: "failed",
-  NOT_RUN: "not_run"
 });
 
 const FORBIDDEN_RAW_EXEC_INPUT_KEYS = Object.freeze([
@@ -376,6 +374,17 @@ export async function runWorkspaceAgentValidation(input = {}) {
   if (pendingInterruption !== null) {
     return interruptedBeforeSpawn(baseEvidence, pendingInterruption, startedAtMs, clock());
   }
+  const run = { input, buildPlan, buildBwrap, spawnIsolated, clock, timeoutMs, outputBounds, nodeBinary,
+    flag, providerNodeArguments, planEnv, envSource, authorized, baseEvidence, startedAtMs, executionBudget,
+    testProofProviderExecution };
+
+  return testProofProviderExecution === null ? confinedValidationRun({ ...run, executionRoot: null })
+    : withExecutionRoot((executionRoot) => confinedValidationRun({ ...run, executionRoot }));
+}
+
+async function confinedValidationRun({ input, buildPlan, buildBwrap, spawnIsolated, clock, timeoutMs,
+  outputBounds, nodeBinary, flag, providerNodeArguments, planEnv, envSource, authorized, baseEvidence,
+  startedAtMs, executionBudget, testProofProviderExecution, executionRoot }) {
   let plan;
   try {
     plan = buildPlan({
@@ -388,7 +397,8 @@ export async function runWorkspaceAgentValidation(input = {}) {
         ? input.dependencyReadOnlyBinds
         : [],
 
-      useSystemTmp: testProofProviderExecution !== null,
+      executionTmpSource: executionRoot?.tmp ?? null,
+      namespaceOnlyMountpoints: executionRoot !== null,
 
       ...(input.maskAgentLaunchDirWhenPresent === true
         ? { agentLaunchDirExists: existsSync }
@@ -446,6 +456,7 @@ export async function runWorkspaceAgentValidation(input = {}) {
     });
   }
 
+  if (capture.cleanupFailed === true) executionRoot?.markUnsettled();
   return settleConfinedCapture({
     baseEvidence,
     capture,
@@ -457,95 +468,6 @@ export async function runWorkspaceAgentValidation(input = {}) {
         stdout: protocolText, exitCode,
         expectation: testProofProviderExecution.observation_expectation,
         reporterProtocolOverflow })
-  });
-}
-
-function interruptedBeforeSpawn(baseEvidence, interruption, startedAtMs, endedAtMs) {
-  return Object.freeze({
-    ...baseEvidence,
-    ran: false,
-    skipped: false,
-    disposition: WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN,
-    ok: false,
-    exit_code: null,
-    signal: null,
-    timed_out: interruption === "timed_out",
-    cancelled: interruption === "cancelled",
-    cleanup_failed: false,
-    blocker_code: interruption === "timed_out"
-      ? "test_proof_execution_timed_out" : "test_proof_execution_cancelled",
-    started_at_ms: startedAtMs,
-    ended_at_ms: endedAtMs,
-    duration_ms: endedAtMs - startedAtMs
-  });
-}
-
-function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outputBounds,
-  executionBudget = null, proofObservation = null }) {
-  const exitCode = typeof capture.code === "number" ? capture.code : null;
-
-  const ran = capture.spawnError === null;
-  const budgetInterruption = capture.cancelled || (capture.timedOut && executionBudget !== null)
-    ? executionBudget?.interruption() ?? null : null;
-  const cancelled = capture.cancelled && budgetInterruption === "cancelled";
-  const timedOut = capture.timedOut || (capture.cancelled && budgetInterruption !== "cancelled");
-  const interrupted = timedOut || cancelled;
-  const reporterProtocolOverflow = capture.reporter?.protocol_overflow === true;
-  const testProofObservation = proofObservation !== null && ran &&
-      (reporterProtocolOverflow || !interrupted)
-    ? proofObservation({ protocolText: capture.reporter.text, exitCode, reporterProtocolOverflow })
-    : null;
-  const observationValid = proofObservation === null || testProofObservation?.valid === true;
-  const ok = ran && !interrupted && exitCode === 0 && observationValid;
-
-  let disposition;
-  if (!ran) {
-    disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN;
-  } else if (ok) {
-    disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.PASSED;
-  } else {
-    disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.FAILED;
-  }
-  const budgetBlocker = executionBudget === null ? null
-    : capture.cleanupFailed ? "test_proof_execution_cleanup_failed"
-      : cancelled ? "test_proof_execution_cancelled"
-        : timedOut ? "test_proof_execution_timed_out" : null;
-  const blockerCode = budgetBlocker ?? (observationValid ? null
-    : testProofObservation?.code ?? "test_proof_structured_observation_invalid");
-
-  return Object.freeze({
-    ...baseEvidence,
-    ran,
-    skipped: false,
-    disposition,
-    ok,
-    exit_code: exitCode,
-    signal: capture.signal ?? null,
-    timed_out: timedOut,
-    ...(executionBudget === null ? {} : {
-      cancelled,
-      cleanup_failed: capture.cleanupFailed === true
-    }),
-    spawn_error: capture.spawnError,
-    ...(proofObservation !== null ? {
-      test_proof_observation: testProofObservation,
-      ...(blockerCode === null ? {} : { blocker_code: blockerCode })
-    } : {}),
-    output_truncated: capture.stdout.truncated || capture.stderr.truncated ||
-      capture.reporter?.truncated === true,
-    output_elided_bytes: capture.stdout.elided_bytes + capture.stderr.elided_bytes +
-      (capture.reporter?.elided_bytes ?? 0),
-    output_bounds: Object.freeze({
-      head_cap_bytes: outputBounds.headCapBytes,
-      tail_cap_bytes: outputBounds.tailCapBytes,
-      retains: "head_and_tail"
-    }),
-
-    stdout: capture.stdout.text,
-    stderr: capture.stderr.text,
-    started_at_ms: startedAtMs,
-    ended_at_ms: capture.endedAtMs,
-    duration_ms: capture.endedAtMs - startedAtMs
   });
 }
 
@@ -864,6 +786,7 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
   let executionBudget = null;
   let nativeExecution = null;
   let nodeRuntime = null;
+  let nodeAssetBinds = [];
   try {
     if (Object.hasOwn(input, "executionBudget")) {
       executionBudget = assertTestProofExecutionBudget(input.executionBudget);
@@ -872,6 +795,7 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
       const providerExecution = assertLauncherTestProofProviderExecution(input.testProofProviderExecution);
       nativeExecution = providerExecution.native ?? null;
       nodeRuntime = providerExecution.node_runtime ?? null;
+      nodeAssetBinds = providerExecution.node_asset_binds ?? [];
     }
   } catch (error) {
     return buildRefusal(
@@ -903,74 +827,68 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
     .filter(({ dst }) => !reviewerBinds.some((bind) => bind.dst === dst));
 
   const preparedBinds = nodeRuntime?.binds ?? [];
+
   const dependencyBinds = [...preparedBinds, ...[...reviewerBinds, ...validatorCacheBinds]
-    .filter(({ dst }) => !preparedBinds.some((bind) => bind.dst === dst))];
-  const mountpoints = [...new Set([...(nodeRuntime?.mountpoints ?? []),
-    ...(reviewerBinds.length > 0 ? [path.join(authority.worktree_path, "node_modules")] : []),
-    ...validatorCacheBinds.map(({ dst }) => dst)])];
+    .filter(({ dst }) => !preparedBinds.some((bind) => bind.dst === dst)), ...nodeAssetBinds];
 
-  const createdMountpoints = mountpoints.filter((mountpoint) => !existsSync(mountpoint) &&
-    existsSync(path.dirname(mountpoint)));
-  for (const mountpoint of createdMountpoints) mkdirSync(mountpoint, { mode: 0o700 });
-  try {
-    const result = await runWorkspaceAgentValidation({
-      operation: "node_test",
-      workspaceDir: authority.worktree_path,
-      target: authorized.posixRelative,
-      authorizedTargets: input.authorizedTargets,
-      timeoutMs: DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
-      dependencyReadOnlyBinds: dependencyBinds,
-      maskAgentLaunchDirWhenPresent: true,
-      testProofProviderExecution: input.testProofProviderExecution,
-      ...(executionBudget === null ? {} : { executionBudget })
-    });
-    return Object.freeze({
-      ...result,
-      unit: authority.selected_unit,
-      dependency: Object.freeze({
-        mount_selected: dependencyProof?.projection_selected === true,
-        projection_identity: dependencyProof?.projection_identity ?? null,
-        installation_digest: dependencyProof?.dependency_installation_digest ?? null,
-        advisory: true
-      }),
-      advisory: true,
-      admission_effect: "none",
-      review_effect: "none",
-      closure_effect: "none"
-    });
-  } finally {
-    for (const mountpoint of createdMountpoints) rmSync(mountpoint, { recursive: true, force: true });
-  }
+  const result = await runWorkspaceAgentValidation({
+    operation: "node_test",
+    workspaceDir: authority.worktree_path,
+    target: authorized.posixRelative,
+    authorizedTargets: input.authorizedTargets,
+    timeoutMs: DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
+    dependencyReadOnlyBinds: dependencyBinds,
+    maskAgentLaunchDirWhenPresent: true,
+    testProofProviderExecution: input.testProofProviderExecution,
+    ...(executionBudget === null ? {} : { executionBudget })
+  });
+  return Object.freeze({
+    ...result,
+    unit: authority.selected_unit,
+    dependency: Object.freeze({
+      mount_selected: dependencyProof?.projection_selected === true,
+      projection_identity: dependencyProof?.projection_identity ?? null,
+      installation_digest: dependencyProof?.dependency_installation_digest ?? null,
+      advisory: true
+    }),
+    advisory: true,
+    admission_effect: "none",
+    review_effect: "none",
+    closure_effect: "none"
+  });
 }
-
-const NATIVE_DRIVER_BLOCKERS = Object.freeze({
-  working_copy_failed: "test_proof_native_working_copy_failed",
-  spawn_failed: "test_proof_native_runner_launch_failed",
-  plan_invalid: "test_proof_native_driver_status_missing"
-});
 
 async function runConfinedNativeTestProof({ authority, authorized, execution, executionBudget }) {
   const command = path.basename(execution.invocation.command);
-  const baseEvidence = {
-    schema_version: WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION,
-    operation: "native_test_proof",
-    command,
-    normalized_argv: Object.freeze([command, "[launcher-test-proof-provider]", authorized.posixRelative]),
-    target: authorized.posixRelative,
-    raw_exec_enabled: false,
-    enforcement_posture: Object.freeze({
-      confined: true,
-      execution_context: "confined_target_execution",
-      executes_target: true,
-      repo_mount: "read_only",
-      secrets_masked: true,
-      network: "denied",
-      env: "launcher_minted_clean",
-      spawn_site: "launcher_confined_proof_runner"
-    })
-  };
-  const envelope = (result) => Object.freeze({
-    ...result,
+  const settled = await executeConfinedInvocation({
+    checkout: authorized.repoReal,
+    runtime: execution.runtime,
+    invocation: execution.invocation,
+    timeoutMs: execution.timeout_ms ?? DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
+    budget: executionBudget,
+    nativeReport: execution.native_report ?? null,
+    baseEvidence: {
+      schema_version: WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION,
+      operation: "native_test_proof",
+      command,
+      normalized_argv: Object.freeze([command, "[launcher-test-proof-provider]", authorized.posixRelative]),
+      target: authorized.posixRelative,
+      raw_exec_enabled: false,
+      enforcement_posture: Object.freeze({
+        confined: true,
+        execution_context: "confined_target_execution",
+        executes_target: true,
+        repo_mount: "read_only",
+        secrets_masked: true,
+        network: "denied",
+        env: "launcher_minted_clean",
+        spawn_site: "launcher_confined_proof_runner"
+      })
+    },
+    observe: execution.observe
+  });
+  return Object.freeze({
+    ...settled,
     unit: authority.selected_unit,
     dependency: Object.freeze({
       mount_selected: false,
@@ -984,73 +902,4 @@ async function runConfinedNativeTestProof({ authority, authorized, execution, ex
     review_effect: "none",
     closure_effect: "none"
   });
-  const startedAtMs = Date.now();
-  const notRun = (blockerCode, message, extra = {}) => {
-    const endedAtMs = Date.now();
-    return envelope({ ...baseEvidence, ran: false, skipped: false,
-      disposition: WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN, ok: false, exit_code: null,
-      signal: null, timed_out: false, cancelled: false, cleanup_failed: false,
-      blocker_code: blockerCode, blocker_message: message,
-      started_at_ms: startedAtMs, ended_at_ms: endedAtMs, duration_ms: endedAtMs - startedAtMs,
-      ...extra });
-  };
-  const ownsScratch = execution.invocation.scratchRoot === undefined;
-  const scratchRoot = ownsScratch
-    ? mkdtempSync("/tmp/agent-chassis-proof-")
-    : execution.invocation.scratchRoot;
-  let invoked;
-  try {
-    invoked = await runConfinedInvocation({
-      checkout: authorized.repoReal,
-      runtime: execution.runtime,
-      invocation: { ...execution.invocation, scratchRoot },
-      timeoutMs: execution.timeout_ms ?? DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
-      budget: executionBudget
-    });
-  } finally {
-    if (ownsScratch) rmSync(scratchRoot, { recursive: true, force: true });
-  }
-  if (invoked.status === "plan_failed") {
-    return notRun(invoked.code, invoked.error?.message ?? String(invoked.error));
-  }
-  if (invoked.status === "interrupted_before_start") {
-    return envelope(interruptedBeforeSpawn(baseEvidence, invoked.interruption, startedAtMs, Date.now()));
-  }
-  if (invoked.status === "spawn_failed") {
-    return notRun(invoked.code ?? BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_SPAWN_FAILED,
-      invoked.error?.message ?? String(invoked.error));
-  }
-  const { capture, driver, channel, outputBounds } = invoked;
-  const driverExited = driver?.phase === "exited";
-
-  const driverCapture = {
-    ...capture,
-    code: driverExited ? driver.exit_code : capture.code,
-    signal: driverExited ? driver.signal : capture.signal,
-    reporter: { text: channel?.bytes === null || channel?.bytes === undefined ? ""
-      : channel.bytes.toString("utf8"), bytes: channel?.bytes ?? Buffer.alloc(0),
-    protocol_overflow: channel?.overflow === true, truncated: channel?.overflow === true,
-    elided_bytes: 0 }
-  };
-  const interrupted = capture.timedOut || capture.cancelled;
-  if (!driverExited && !interrupted && !capture.cleanupFailed) {
-    const blocker = driver === null
-      ? (invoked.frame_error === "protocol_overflow" ? "test_proof_structured_events_oversized"
-        : "test_proof_native_driver_status_missing")
-      : NATIVE_DRIVER_BLOCKERS[driver.phase] ?? "test_proof_native_driver_status_missing";
-    return notRun(blocker, driver?.error ?? invoked.frame_error ?? "the attempt driver did not report",
-      { stdout: capture.stdout.text, stderr: capture.stderr.text,
-        output_truncated: capture.stdout.truncated || capture.stderr.truncated,
-        output_elided_bytes: capture.stdout.elided_bytes + capture.stderr.elided_bytes });
-  }
-  return envelope(settleConfinedCapture({
-    baseEvidence,
-    capture: driverCapture,
-    startedAtMs,
-    outputBounds,
-    executionBudget,
-    proofObservation: ({ exitCode, reporterProtocolOverflow }) => execution.observe({
-      channelBytes: driverCapture.reporter.bytes, channelText: driverCapture.reporter.text,
-      exitCode, channelOverflow: reporterProtocolOverflow })
-  }));
 }

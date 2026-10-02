@@ -15,12 +15,12 @@ import {
   compactGraphImpactSummaryAffectedSurfaces,
   createBoundedGraphImpactResponse
 } from "./graph-impact-response-boundary.mjs";
-import { createCodeIndexNavigationHandler } from "./code-index-query-response.mjs";
-import { registerCodeIndexQueryTools } from "./code-index-query-tools.mjs";
+import { codeIndexDetailSchema, createCodeIndexNavigationHandler } from "./code-index-query-response.mjs";
+import { SELECTED_CODE_ANSWER_CONTRACT, createCodeIndexSelection, registerCodeIndexQueryTools }
+  from "./code-index-query-tools.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
 
-const CODE_INDEX_NAVIGATION_CONTRACT =
-  "ambiguity keeps all candidates. Compact keeps the original at full_result; verbose:true re-evaluates.";
+const CODE_INDEX_NAVIGATION_CONTRACT = `ambiguity keeps all candidates. ${SELECTED_CODE_ANSWER_CONTRACT}`;
 const describeCodeIndexNavigationRoute = (subject) =>
   `SCIP ${subject} with committed source; ${CODE_INDEX_NAVIGATION_CONTRACT}`;
 
@@ -31,7 +31,7 @@ const codeIndexNavigationInputSchema = () => z.object({
   line: z.union([z.number(), z.string()]).optional(),
   character: z.union([z.number(), z.string()]).optional(),
   cacheDir: z.string().optional(),
-  verbose: z.boolean().optional()
+  detail: codeIndexDetailSchema(z).optional()
 }).strict();
 
 function isPlainObject(value) {
@@ -61,7 +61,7 @@ function cloneJsonSerializable(value) {
   }
 }
 
-const GRAPH_IMPACT_VERBOSE_NEXT_ACTION =
+export const GRAPH_IMPACT_VERBOSE_NEXT_ACTION =
   "Re-call this tool with verbose:true to inspect suppressed graph-impact detail";
 
 function graphImpactResponseSuppressesDetail({
@@ -160,7 +160,8 @@ const codeIndexWriterInputSchema = () => ({
   cacheDir: z.string().optional()
 });
 
-export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonContent, errorContent }) {
+export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonContent, errorContent,
+  env = process.env }) {
   const shared = { workspaceRepos, jsonContent, errorContent };
   registerTool(
     "workspace_code_index_build",
@@ -213,29 +214,34 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
   registerTool(
     "workspace_code_index_find_references",
     { description: describeCodeIndexNavigationRoute("references"), inputSchema: codeIndexNavigationInputSchema() },
-    createCodeIndexNavigationHandler({ query: getSidecarSymbolReferences, ...shared })
+    createCodeIndexNavigationHandler({ query: getSidecarSymbolReferences, ...shared,
+      session: createCodeIndexSelection({ env, route: "workspace_code_index_find_references", workspaceRepos }) })
   );
 
   registerTool(
     "workspace_code_index_definition",
     { description: describeCodeIndexNavigationRoute("definitions"), inputSchema: codeIndexNavigationInputSchema() },
-    createCodeIndexNavigationHandler({ query: getSidecarSymbolDefinition, ...shared })
+    createCodeIndexNavigationHandler({ query: getSidecarSymbolDefinition, ...shared,
+      session: createCodeIndexSelection({ env, route: "workspace_code_index_definition", workspaceRepos }) })
   );
 
   registerTool(
     "workspace_code_index_callers",
     { description: describeCodeIndexNavigationRoute("callers"), inputSchema: codeIndexNavigationInputSchema() },
-    createCodeIndexNavigationHandler({ query: getSidecarSymbolCallers, ...shared })
+    createCodeIndexNavigationHandler({ query: getSidecarSymbolCallers, ...shared,
+      session: createCodeIndexSelection({ env, route: "workspace_code_index_callers", workspaceRepos }) })
   );
 
   registerTool(
     "workspace_code_index_callees",
     { description: describeCodeIndexNavigationRoute("callees"), inputSchema: codeIndexNavigationInputSchema() },
-    createCodeIndexNavigationHandler({ query: getSidecarSymbolCallees, ...shared })
+    createCodeIndexNavigationHandler({ query: getSidecarSymbolCallees, ...shared,
+      session: createCodeIndexSelection({ env, route: "workspace_code_index_callees", workspaceRepos }) })
   );
 
   registerCodeIndexQueryTools({
     registerTool,
+    env,
     navigation: {
       definition: getSidecarSymbolDefinition,
       references: getSidecarSymbolReferences,

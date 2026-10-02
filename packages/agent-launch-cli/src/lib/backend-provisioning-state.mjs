@@ -6,9 +6,6 @@ import {
 import { serializeWorkRecordDiagnosticValue } from
   "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
 import {
-  computeWorkRecordSourceDigest
-} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
-import {
   collectDeclaredInterRecordIds,
   resolveDependencyEvidenceVector
 } from "@agent-chassis/wiki-core/src/lib/work-record-dispatch-dependencies.mjs";
@@ -27,16 +24,15 @@ import {
 } from "./backend-constants.mjs";
 import { isPlainObject } from "./backend-review-identity.mjs";
 import { readCanonicalWorkRecord } from "./backend-scope-authority.mjs";
-import { buildServerGeneratedCommitMessage } from "./commit-tool-exposure-guard.mjs";
 import { isLandedPublicationIdentity } from "./launcher-transition-plan.mjs";
 import { projectProvisioningRefusal } from "./backend-provisioning-refusal-projection.mjs";
 
+import { runMaybeAsyncGenerator } from "./slice-integration-authorization.mjs";
 import {
-  SLICE_MARKER_EVIDENCE_STATES,
-  authenticateZeroDeltaIntegrationEvidenceCandidate,
-  boundedWkLifecycleObservation,
-  classifySliceMarkerEvidenceFromRegion
-} from "./slice-integration-authorization.mjs";
+  INTEGRATED_DELIVERY_OBSERVATION_STATES,
+  classifyExactDirectCommitRef,
+  observeIntegratedSliceDelivery
+} from "./slice-integration.mjs";
 
 export function resolveProvisioningInitiative({ readiness, mainRepo, subject }) {
   const readinessCandidates = [
@@ -161,6 +157,34 @@ function resolveExactRefCommit(runGit, mainRepo, ref) {
   return EXACT_OID_RE.test(sha) && !/^0+$/u.test(sha) ? sha : null;
 }
 
+function observeExactWkTip(runGit, mainRepo, wkRef) {
+  return runMaybeAsyncGenerator(function* exactWkTipSteps() {
+    const sha = resolveExactRefCommit(runGit, mainRepo, wkRef);
+    if (sha !== null) return Object.freeze({ state: "present", sha });
+    const exactRef = wkRef.startsWith("refs/") ? wkRef : `refs/heads/${wkRef}`;
+    const classified = yield classifyExactDirectCommitRef(runGit, mainRepo, exactRef);
+    if (classified.refusal === "missing") return Object.freeze({ state: "absent", sha: null });
+    return Object.freeze({
+      state: "unreadable",
+      sha: null,
+      cause: Object.freeze({
+        show_ref: "unresolved",
+        exact_ref: classified.refusal ?? "resolved_after_show_ref_unresolved",
+        ...(classified.read === undefined ? {} : { read: classified.read })
+      })
+    });
+  });
+}
+
+function unreadableWkTipFailure(wkRef, observed, observationPoint) {
+  return exactSliceResolutionFailure("scope_existence_base_unresolved", {
+    wk_ref: wkRef,
+    wk_tip_observation: "unreadable",
+    observation_point: observationPoint,
+    wk_tip_read_cause: observed.cause
+  });
+}
+
 function literalReadFailure(detail, oid, parseReason = null) {
   return {
     commit: null,
@@ -182,10 +206,6 @@ function readLiteralCommitOutcome(runGit, mainRepo, oid, cache) {
   if (!parsed.ok) return literalReadFailure("literal_commit_malformed", oid, parsed.reason);
   cache.set(oid, parsed.commit);
   return { commit: parsed.commit, failure: null };
-}
-
-function readLiteralCommit(runGit, mainRepo, oid, cache) {
-  return readLiteralCommitOutcome(runGit, mainRepo, oid, cache).commit;
 }
 
 function probeExactAncestry(runGit, mainRepo, ancestor, descendant, cache) {
@@ -216,200 +236,6 @@ function probeExactAncestry(runGit, mainRepo, ancestor, descendant, cache) {
   return { state: visited.has(ancestor) ? "ancestor" : "not_ancestor" };
 }
 
-function canonicalRetainedMessage(commit, subject) {
-  if (commit.parents.length !== 1) return null;
-  const parent = commit.parents[0];
-  const expected = `${buildServerGeneratedCommitMessage({ subject, base_sha: parent })}\n`;
-  return commit.message === expected ? expected : null;
-}
-
-function parseGitQuotedPath(token) {
-  if (typeof token !== "string" || token.length === 0) return null;
-  const bytes = [];
-  if (!token.startsWith('"')) {
-    for (const character of token) {
-      const code = character.codePointAt(0);
-      if (code < 0x20 || code > 0x7e || character === '"' || character === "\\") return null;
-      bytes.push(code);
-    }
-  } else {
-    if (token.length < 2 || !token.endsWith('"')) return null;
-    const body = token.slice(1, -1);
-    const namedEscapes = Object.freeze({
-      a: 0x07,
-      b: 0x08,
-      t: 0x09,
-      n: 0x0a,
-      v: 0x0b,
-      f: 0x0c,
-      r: 0x0d,
-      '"': 0x22,
-      "\\": 0x5c
-    });
-    for (let index = 0; index < body.length; index += 1) {
-      const character = body[index];
-      const code = character.codePointAt(0);
-      if (character !== "\\") {
-        if (code < 0x20 || code > 0x7e || character === '"') return null;
-        bytes.push(code);
-        continue;
-      }
-      const escaped = body[index + 1];
-      if (Object.prototype.hasOwnProperty.call(namedEscapes, escaped)) {
-        bytes.push(namedEscapes[escaped]);
-        index += 1;
-        continue;
-      }
-      const octal = body.slice(index + 1, index + 4);
-      if (!/^[0-7]{3}$/u.test(octal)) return null;
-      const value = Number.parseInt(octal, 8);
-      if (value > 0xff) return null;
-      bytes.push(value);
-      index += 3;
-    }
-  }
-  if (bytes.length === 0 || bytes.includes(0)) return null;
-  return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function parseRawObjectDelta(stdout, oidLength) {
-  if (typeof stdout !== "string" || stdout.includes("\uFFFD")) return null;
-  if (stdout.length === 0) return Object.freeze([]);
-  if (!stdout.endsWith("\n")) return null;
-  const records = [];
-  for (const line of stdout.slice(0, -1).split("\n")) {
-    const match = line.match(
-      /^:([0-7]{6}) ([0-7]{6}) ([0-9a-f]+) ([0-9a-f]+) ([ADMT])\t(.+)$/u
-    );
-    if (match === null || match[3].length !== oidLength || match[4].length !== oidLength) return null;
-    const pathHex = parseGitQuotedPath(match[6]);
-    if (pathHex === null) return null;
-    records.push(`${match[1]} ${match[2]} ${match[3]} ${match[4]} ${match[5]} ${pathHex}`);
-  }
-  records.sort();
-  if (new Set(records).size !== records.length) return null;
-  return Object.freeze(records);
-}
-
-function fixedRawObjectDelta(runGit, mainRepo, parent, commit) {
-  const result = authorityGit(runGit, mainRepo, [
-    "-c", "core.quotePath=true",
-    "-c", "color.ui=false",
-    "diff-tree", "--raw", "-r", "--no-renames", "--no-abbrev",
-    "--ignore-submodules=none", "--no-ext-diff", "--no-textconv", "--no-color",
-    parent, commit
-  ]);
-  return result.ok === true ? parseRawObjectDelta(result.stdout, commit.length) : null;
-}
-
-function structuralDeltasEqual(left, right) {
-  return left.length === right.length && left.every((record, index) => record === right[index]);
-}
-
-function replayEquivalentDependencyEvidence({
-  runGit,
-  mainRepo,
-  observation,
-  dependencyTip,
-  record,
-  slice,
-  dependencyEvidence,
-  literalCache
-}) {
-  const dependencyWkId = dependencyEvidence.record_id;
-  const dependencySliceId = dependencyEvidence.slice_id;
-  const canonicalAddress = dependencySliceId === null
-    ? dependencyWkId
-    : `${dependencyWkId}#${dependencySliceId}`;
-  const addressMatches = dependencyEvidence.address === canonicalAddress ||
-    (dependencyWkId === record.id && dependencyEvidence.address === dependencySliceId);
-  if (dependencySliceId === null || dependencyWkId !== record.id) {
-    return { admitted: false, evidence: "replay_marker_not_same_record_slice" };
-  }
-  if (dependencyEvidence.provenance !== "canonical_wk_json" ||
-      dependencyEvidence.target_identity !== canonicalAddress ||
-      !addressMatches || dependencyEvidence.target_initiative !== record.initiative) {
-    return { admitted: false, evidence: "replay_marker_canonical_identity_mismatch" };
-  }
-  if (dependencySliceId === slice.id) {
-    return { admitted: false, evidence: "replay_marker_self_edge_forbidden" };
-  }
-  let marker;
-  try {
-    marker = classifySliceMarkerEvidenceFromRegion({
-      runGit,
-      mainRepo,
-      observation,
-      wkId: dependencyWkId,
-      sliceIds: [dependencySliceId]
-    }).get(dependencySliceId);
-  } catch (error) {
-    return { admitted: false, evidence: "replay_marker_probe_faulted", detail: error?.message ?? String(error) };
-  }
-  if (marker?.state !== SLICE_MARKER_EVIDENCE_STATES.FOUND || !Array.isArray(marker.candidates)) {
-    return {
-      admitted: false,
-      evidence: marker?.state === SLICE_MARKER_EVIDENCE_STATES.ABSENT
-        ? "replay_marker_absent"
-        : "replay_marker_indeterminate",
-      detail: marker?.reason ?? null
-    };
-  }
-
-  const retained = readLiteralCommit(runGit, mainRepo, dependencyTip, literalCache);
-  const subject = `${dependencyWkId}#${dependencySliceId}`;
-  const retainedMessage = retained === null ? null : canonicalRetainedMessage(retained, subject);
-  if (retained === null || retainedMessage === null || retained.parents.length !== 1 ||
-      readLiteralCommit(runGit, mainRepo, retained.parents[0], literalCache) === null) {
-    return { admitted: false, evidence: "retained_delivery_not_canonical_single_parent" };
-  }
-  const retainedDelta = fixedRawObjectDelta(runGit, mainRepo, retained.parents[0], retained.oid);
-  if (retainedDelta === null) {
-    return { admitted: false, evidence: "retained_delivery_delta_indeterminate" };
-  }
-
-  const matches = [];
-  for (const candidateOid of marker.candidates) {
-    if (!EXACT_OID_RE.test(candidateOid) || /^0+$/u.test(candidateOid)) {
-      return { admitted: false, evidence: "replay_candidate_indeterminate" };
-    }
-    const candidate = readLiteralCommit(runGit, mainRepo, candidateOid, literalCache);
-    if (candidate === null || candidate.parents.length !== 1 ||
-        readLiteralCommit(runGit, mainRepo, candidate.parents[0], literalCache) === null) {
-      return { admitted: false, evidence: "replay_candidate_not_single_parent" };
-    }
-    const workerDeliveryMatch = candidate.message === retainedMessage;
-    const zeroDeltaMatch = workerDeliveryMatch
-      ? null
-      : authenticateZeroDeltaIntegrationEvidenceCandidate({
-          runGit,
-          mainRepo,
-          evidenceSha: candidate.oid,
-          subject,
-          deliverySha: retained.oid,
-          baseSha: retained.parents[0]
-        });
-    if (!workerDeliveryMatch && zeroDeltaMatch === null) continue;
-    const candidateDelta = fixedRawObjectDelta(runGit, mainRepo, candidate.parents[0], candidate.oid);
-    if (candidateDelta === null) {
-      return { admitted: false, evidence: "replay_candidate_delta_indeterminate" };
-    }
-    if (structuralDeltasEqual(candidateDelta, retainedDelta)) matches.push(candidate.oid);
-  }
-  return matches.length === 1
-    ? {
-        admitted: true,
-        evidence: "replay_delivery_unique_match",
-        marker_commit: matches[0],
-        candidate_count: marker.candidates.length
-      }
-    : {
-        admitted: false,
-        evidence: matches.length === 0 ? "replay_delivery_zero_matches" : "replay_delivery_multiple_matches",
-        detail: `matching_candidates:${matches.length}`
-      };
-}
-
 function resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch }) {
   if (wkTip !== null) return Object.freeze({ base_ref: wkRef, base_sha: wkTip });
   let resolved;
@@ -428,15 +254,18 @@ function resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch 
 }
 
 function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch }) {
+  return runMaybeAsyncGenerator(function* stableScopeExistenceBaseSteps() {
   const captured = resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
   if (captured === null) {
     return exactSliceResolutionFailure("scope_existence_base_unresolved", { wk_ref: wkRef });
   }
+  const recheck = yield observeExactWkTip(runGit, mainRepo, wkRef);
+  if (recheck.state === "unreadable") return unreadableWkTipFailure(wkRef, recheck, "recheck");
   const observed = resolveScopeExistenceBase({
     runGit,
     mainRepo,
     wkRef,
-    wkTip: resolveExactRefCommit(runGit, mainRepo, wkRef),
+    wkTip: recheck.sha,
     baseBranch
   });
   if (observed === null || observed.base_ref !== captured.base_ref ||
@@ -451,11 +280,14 @@ function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseB
     });
   }
   return { ok: true, scope_existence_base: captured };
+  });
 }
 
 export const EXACT_SLICE_RESOLUTION_FAILURE_CLASSES = Object.freeze({
   LIFECYCLE: "lifecycle",
   DEPENDENCY: "dependency",
+
+  DEPENDENCY_OBSERVATION: "dependency_observation",
   PUBLICATION: "publication"
 });
 
@@ -476,6 +308,9 @@ export const EXACT_SLICE_RESOLUTION_FAILURE_REASONS = Object.freeze({
     "dependency_self_edge_forbidden",
     "dependency_not_present_on_wk_branch"
   ]),
+  [EXACT_SLICE_RESOLUTION_FAILURE_CLASSES.DEPENDENCY_OBSERVATION]: Object.freeze([
+    "dependency_observation_indeterminate"
+  ]),
   [EXACT_SLICE_RESOLUTION_FAILURE_CLASSES.PUBLICATION]: Object.freeze([
     "dependency_publication_identity_unavailable",
     "dependency_publication_identity_mismatch",
@@ -494,19 +329,23 @@ export function resolveProspectiveScopeExistenceBase({
 }) {
   const runGit = deps.runGit ?? defaultRunGit;
   const wkRef = perWkBranchRef(initiative, recordId);
-  const wkTip = resolveExactRefCommit(runGit, mainRepo, wkRef);
+  return runMaybeAsyncGenerator(function* prospectiveScopeExistenceBaseSteps() {
+  const capturedWk = yield observeExactWkTip(runGit, mainRepo, wkRef);
+  if (capturedWk.state === "unreadable") return unreadableWkTipFailure(wkRef, capturedWk, "capture");
+  const wkTip = capturedWk.sha;
   if (wkTip === null && (typeof baseBranch !== "string" || baseBranch.length === 0)) {
     return exactSliceResolutionFailure("scope_existence_base_selection_missing", {
       wk_ref: wkRef,
       required_field: "base_branch"
     });
   }
-  const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
+  const stable = yield resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
   if (!stable.ok) return stable;
   return Object.freeze({
     ok: true,
     scope_existence_base: stable.scope_existence_base,
     source: wkTip === null ? "configured_base" : "wk_tip"
+  });
   });
 }
 
@@ -560,10 +399,14 @@ export function resolveExactSliceDependencies(
   const runGit = deps.runGit ?? defaultRunGit;
   const wkRef = perWkBranchRef(record.initiative, record.id);
 
-  const wkTip = resolveExactRefCommit(runGit, mainRepo, wkRef);
+  return runMaybeAsyncGenerator(function* capturedWkTipSteps() {
+  const capturedWk = yield observeExactWkTip(runGit, mainRepo, wkRef);
+  if (capturedWk.state === "unreadable") return unreadableWkTipFailure(wkRef, capturedWk, "capture");
+  const wkTip = capturedWk.sha;
   if (settlementBound && wkTip === null) {
     return exactSliceResolutionFailure("scope_existence_base_unresolved", {
-      wk_ref: wkRef
+      wk_ref: wkRef,
+      wk_tip_observation: "absent"
     });
   }
   const observedSettlement = settlementBound
@@ -583,7 +426,8 @@ export function resolveExactSliceDependencies(
     });
   }
 
-  const continueResolution = (publicationEvidence, observations) => {
+  const continueResolution = (publicationEvidence, observations) =>
+    runMaybeAsyncGenerator(function* continueResolutionSteps() {
     const publicationIdentities = new Map();
     for (let index = 0; index < publicationEvidence.length; index += 1) {
       const evidence = publicationEvidence[index];
@@ -610,7 +454,7 @@ export function resolveExactSliceDependencies(
       ? { publication_identities: Object.freeze([...publicationIdentities.values()]) }
       : {};
     if (dependencies.length === 0) {
-      const stable = resolveStableScopeExistenceBase({
+      const stable = yield resolveStableScopeExistenceBase({
         runGit, mainRepo, wkRef, wkTip, baseBranch: record.base_branch
       });
       if (!stable.ok) return stable;
@@ -624,10 +468,9 @@ export function resolveExactSliceDependencies(
       });
     }
     const unmet = [];
+    const indeterminate = [];
     const capturedDependencyRefs = new Map();
     const literalCache = new Map();
-    let replayObservation = null;
-    let replayObservationFailure = null;
     for (const evidence of dependencyEvidence) {
     const dependency = evidence.address;
     if (evidence.marker === "fact_resolution_failed") {
@@ -673,6 +516,27 @@ export function resolveExactSliceDependencies(
       ? capturedDependencyRefs.get(dependencyRef)
       : resolveExactRefCommit(runGit, mainRepo, dependencyRef);
     if (!capturedDependencyRefs.has(dependencyRef)) capturedDependencyRefs.set(dependencyRef, dependencyTip);
+
+    if (wkTip !== null && dependencyTip === null && dependencyWkId === record.id &&
+        dependencySliceId !== null) {
+      const retained = yield classifyExactDirectCommitRef(runGit, mainRepo,
+        dependencyRef.startsWith("refs/") ? dependencyRef : `refs/heads/${dependencyRef}`);
+      if (retained.refusal !== "missing") {
+        indeterminate.push({
+          dependency,
+          reason: "dependency_observation_indeterminate",
+          wk_ref: wkRef,
+          dependency_ref: dependencyRef,
+          captured_wk_tip: wkTip,
+          retained_delivery_sha: null,
+          observation_state: INTEGRATED_DELIVERY_OBSERVATION_STATES.INDETERMINATE,
+          observation_reason: "retained_delivery_ref_unobservable",
+          retained_ref_refusal: retained.refusal,
+          ...(retained.read === undefined ? {} : { failure: { read: retained.read } })
+        });
+        continue;
+      }
+    }
     if (wkTip === null || dependencyTip === null) {
       unmet.push({
         dependency,
@@ -684,61 +548,72 @@ export function resolveExactSliceDependencies(
       continue;
     }
 
-    const ancestry = probeExactAncestry(runGit, mainRepo, dependencyTip, wkTip, literalCache);
-    if (ancestry.state === "ancestor") continue;
-    if (ancestry.state !== "not_ancestor") {
-      unmet.push({
-        dependency,
-        reason: "dependency_not_present_on_wk_branch",
-        wk_ref: wkRef,
-        dependency_ref: dependencyRef,
-        evidence: "ancestry_indeterminate",
-        detail: ancestry.detail ?? null,
-        ...(ancestry.object === undefined ? {} : { object: ancestry.object }),
-        ...(ancestry.parse_reason === undefined ? {} : { parse_reason: ancestry.parse_reason })
-      });
-      continue;
-    }
-    if (replayObservation === null && replayObservationFailure === null) {
+    if (dependencyWkId === record.id && dependencySliceId !== null) {
+      let observed;
       try {
-        replayObservation = boundedWkLifecycleObservation({
-          runGit,
+        observed = yield observeIntegratedSliceDelivery({
           mainRepo,
-          initiative: record.initiative,
-          wkId: record.id,
-          wkTipSha: wkTip,
-          recordSourceDigest: computeWorkRecordSourceDigest(record)
+          unitAddress: `${record.initiative}/${record.id}/${dependencySliceId}`,
+          sliceRef: dependencyRef,
+          wkRef,
+          capturedWkTip: wkTip,
+          capturedDeliverySha: dependencyTip,
+          record,
+          deps: { runGit, loadCanonicalRecord: readCanonicalWorkRecord }
         });
       } catch (error) {
-        replayObservationFailure = error;
+        observed = { state: null, reason: "integrated_delivery_observation_faulted",
+          failure: { code: typeof error?.code === "string" ? error.code : null,
+            message: String(error?.message ?? error).split("\n", 1)[0].slice(0, 240) } };
       }
+      if (observed?.state === INTEGRATED_DELIVERY_OBSERVATION_STATES.PRESENT) continue;
+      const observation = {
+        dependency,
+        wk_ref: wkRef,
+        dependency_ref: dependencyRef,
+        captured_wk_tip: wkTip,
+        retained_delivery_sha: dependencyTip,
+        observation_state: typeof observed?.state === "string" ? observed.state : null,
+        observation_reason: typeof observed?.reason === "string"
+          ? observed.reason
+          : "integrated_delivery_observation_unresolved",
+        ...(observed?.selector === undefined ? {} : { selector: observed.selector }),
+        ...Object.fromEntries(["selector_sha", "authentication_reason", "inclusion_reason",
+          "marker_reason", "marker_sha", "match_count", "ref", "expected", "observed", "failure"]
+          .filter((field) => observed?.[field] !== undefined && field !== "selector_sha")
+          .map((field) => [field, observed[field]]))
+      };
+      if (observed?.state === INTEGRATED_DELIVERY_OBSERVATION_STATES.ABSENT) {
+        unmet.push({ ...observation, reason: "dependency_not_present_on_wk_branch",
+          evidence: "integrated_delivery_absent" });
+      } else {
+        indeterminate.push({ ...observation, reason: "dependency_observation_indeterminate" });
+      }
+      continue;
     }
-    const replay = replayObservation === null
-      ? {
-          admitted: false,
-          evidence: "replay_marker_indeterminate",
-          detail: replayObservationFailure?.detail?.reason ??
-            replayObservationFailure?.message ?? "bounded_history_indeterminate"
-        }
-      : replayEquivalentDependencyEvidence({
-          runGit,
-          mainRepo,
-          observation: replayObservation,
-          dependencyTip,
-          record,
-          slice,
-          dependencyEvidence: evidence,
-          literalCache
-        });
-    if (replay.admitted) continue;
+
+    const ancestry = probeExactAncestry(runGit, mainRepo, dependencyTip, wkTip, literalCache);
+    if (ancestry.state === "ancestor") continue;
     unmet.push({
       dependency,
       reason: "dependency_not_present_on_wk_branch",
       wk_ref: wkRef,
       dependency_ref: dependencyRef,
-      evidence: replay.evidence,
-      detail: replay.detail ?? null
+      evidence: ancestry.state === "not_ancestor" ? "not_ancestor" : "ancestry_indeterminate",
+      ...(ancestry.state === "not_ancestor" ? {} : {
+        detail: ancestry.detail ?? null,
+        ...(ancestry.object === undefined ? {} : { object: ancestry.object }),
+        ...(ancestry.parse_reason === undefined ? {} : { parse_reason: ancestry.parse_reason })
+      })
     });
+    }
+
+    if (indeterminate.length > 0) {
+      return exactSliceResolutionFailure("dependency_observation_indeterminate", {
+        indeterminate: indeterminate.map((entry) => entry.dependency),
+        unmet: unmet.map((entry) => entry.dependency),
+        dependency_diagnostics: [...indeterminate, ...unmet]
+      });
     }
     if (unmet.length > 0) {
       return exactSliceResolutionFailure("unit_dependencies_unmet", {
@@ -747,7 +622,7 @@ export function resolveExactSliceDependencies(
       });
     }
     if (capturedDependencyRefs.size === 0) {
-      const stable = resolveStableScopeExistenceBase({
+      const stable = yield resolveStableScopeExistenceBase({
         runGit, mainRepo, wkRef, wkTip, baseBranch: record.base_branch
       });
       if (!stable.ok) return stable;
@@ -789,7 +664,9 @@ export function resolveExactSliceDependencies(
       });
     }
     }
-    const stableWkTip = resolveExactRefCommit(runGit, mainRepo, wkRef);
+    const wkRecheck = yield observeExactWkTip(runGit, mainRepo, wkRef);
+    if (wkRecheck.state === "unreadable") return unreadableWkTipFailure(wkRef, wkRecheck, "recheck");
+    const stableWkTip = wkRecheck.sha;
     if (wkTip === null || stableWkTip === null || stableWkTip !== wkTip) {
       return exactSliceResolutionFailure("scope_existence_base_unstable", {
         wk_ref: wkRef,
@@ -807,7 +684,7 @@ export function resolveExactSliceDependencies(
       scope_existence_base: Object.freeze({ base_ref: wkRef, base_sha: wkTip }),
       ...publicationProjection
     });
-  };
+    });
 
   const publicationEvidence = settlementBound
     ? dependencyEvidence.filter((evidence) =>
@@ -835,6 +712,7 @@ export function resolveExactSliceDependencies(
     );
   }
   return continueResolution(publicationEvidence, observations);
+  });
 }
 
 export function serializeManagedBootstrapFailure(error) {

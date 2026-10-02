@@ -49,7 +49,7 @@
         "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "SCIP references and definitions with committed source; ambiguity keeps all candidates. Compact retains the original at full_result; verbose:true reruns.",
+      "notes": "SCIP references on committed source. Follow root next_calls for retained rows, candidates or source lines; reads never re-evaluate.",
       "use_when": [
         "Find every indexed reference to one known symbol or source position."
       ],
@@ -62,8 +62,7 @@
       "recommended_first_call": {
         "operation": "query one known symbol or source position",
         "arguments": {
-          "symbol": "$known_symbol",
-          "verbose": false
+          "symbol": "$known_symbol"
         },
         "omit_null_arguments": true
       }
@@ -111,7 +110,7 @@
         "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "SCIP definitions with committed source; ambiguous targets list all candidates. Compact retains the original at full_result; verbose:true re-evaluates it.",
+      "notes": "SCIP definitions on committed source. Follow root next_calls for retained rows, candidates or source lines; reads never re-evaluate.",
       "use_when": [
         "Resolve the indexed definition of one known symbol or source position."
       ],
@@ -172,7 +171,7 @@
         "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "SCIP callers with committed call-site source; ambiguity keeps all candidates. Compact retains the original at full_result; verbose:true re-evaluates it.",
+      "notes": "SCIP callers with committed call-site source. Follow root next_calls for retained rows, candidates or source lines; reads never re-evaluate.",
       "use_when": [
         "Find indexed symbols that call one known symbol or source position."
       ],
@@ -185,8 +184,7 @@
       "recommended_first_call": {
         "operation": "query callers of one known symbol",
         "arguments": {
-          "symbol": "$known_symbol",
-          "verbose": false
+          "symbol": "$known_symbol"
         },
         "omit_null_arguments": true
       }
@@ -233,7 +231,7 @@
         "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "SCIP callees with committed call-site source; ambiguity keeps all candidates. Compact retains the original at full_result; verbose:true re-evaluates it.",
+      "notes": "SCIP callees with committed call-site source. Follow root next_calls for retained rows, candidates or source lines; reads never re-evaluate.",
       "use_when": [
         "Find indexed symbols called by one known symbol or source position."
       ],
@@ -246,8 +244,7 @@
       "recommended_first_call": {
         "operation": "query callees of one known symbol",
         "arguments": {
-          "symbol": "$known_symbol",
-          "verbose": false
+          "symbol": "$known_symbol"
         },
         "omit_null_arguments": true
       }

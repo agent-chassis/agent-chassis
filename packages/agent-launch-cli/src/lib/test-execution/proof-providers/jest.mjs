@@ -1,7 +1,7 @@
 
 
 import integration from "../runner-integrations/jest.mjs";
-import { CHANNEL_ASSET, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
+import { CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
   instrumentJavaScriptAttempt, javascriptLayout, observerAsset } from "./javascript-support.mjs";
 import { nativeProviderImplementation } from "./native-lifecycle.mjs";
 
@@ -13,7 +13,7 @@ export default nativeProviderImplementation({
   runtime_runner: "jest",
   identity_format: JSON_TITLE_PATH,
   completion: "session_end",
-  assets: [ENTRY, observerAsset("jest-setup.cjs"), CHANNEL_ASSET, JAVASCRIPT_INSTRUMENTATION_ASSET],
+  assets: [ENTRY, observerAsset("jest-setup.cjs"), ...CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET],
   runner_options: (attempt) => ({ cache_directory: `${attempt.runtime.scratchRoot}/jest-cache` }),
   layout: javascriptLayout,
   instrument: instrumentJavaScriptAttempt,

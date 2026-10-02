@@ -227,3 +227,22 @@ test("facade keeps historical unsupported-gap API and baseline behavior after mo
     await rm(rootDir, { recursive: true, force: true });
   }
 });
+
+test("trajectory records are a closed schema with correlation-bound outcomes", async () => {
+  const { buildTrajectoryRecord, validateAnonymousMetricRecord, TRAJECTORY_RECORD_FIELDS } = await import(
+    "../../packages/wiki-mcp/src/lib/tool-usage-audit/anonymous-metrics.mjs");
+  const registeredToolNames = new Set(["workspace_verify_proof"]);
+  const hour = { hour_utc: "2026-09-27T10:00:00.000Z", clock_status: "measured" };
+  const record = buildTrajectoryRecord({ tool: "workspace_verify_proof", registeredToolNames, hour,
+    correlation: "refusal_replacement", trajectory: "refusal_recovered" });
+  assert.deepEqual(Object.keys(record), [...TRAJECTORY_RECORD_FIELDS]);
+  assert.equal(validateAnonymousMetricRecord(record), true);
+  for (const [correlation, trajectory] of [["none", "followed"], ["router_recommendation", "refusal_recovered"],
+    ["emitted_next_calls", "wrong_first_tool"], ["refusal_replacement", "followed"], ["guessed", "unobserved"]]) {
+    assert.equal(buildTrajectoryRecord({ tool: "workspace_verify_proof", registeredToolNames, hour,
+      correlation, trajectory }), null, `${correlation}/${trajectory}`);
+  }
+  assert.equal(buildTrajectoryRecord({ tool: "unregistered_tool", registeredToolNames, hour,
+    correlation: "none", trajectory: "unobserved" }), null);
+  assert.equal(validateAnonymousMetricRecord({ ...record, subject: "WK-2716" }), false);
+});

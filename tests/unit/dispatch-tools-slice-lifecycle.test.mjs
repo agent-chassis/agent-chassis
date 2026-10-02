@@ -10,6 +10,7 @@ import {
 } from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
 import {
   createLifecycleCheckpoint,
+  POST_WORKER_LIFECYCLE_CHECKPOINT,
   recordLifecycleFailure
 } from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
 import {
@@ -41,7 +42,13 @@ const INJECTED_FAILURE_SUMMARY = Object.freeze({
   name: "SliceIntegrationError",
   code: "agent_launch.slice_integration.git_failed.v1",
   message: DELEGATION_ERROR_MESSAGE,
-  capture_failure_count: 0
+  capture_failure_count: 0,
+
+  cause_chain: [{
+    name: "SliceIntegrationError",
+    message: DELEGATION_ERROR_MESSAGE,
+    code: "agent_launch.slice_integration.git_failed.v1"
+  }]
 });
 
 function closedFailureEntry(phase) {
@@ -55,9 +62,18 @@ function closedFailureEntry(phase) {
   };
 }
 
-function assertInjectedFailureEvidence(label, response) {
+function assertInjectedFailureEvidence(label, response, fixture) {
   const { evidence, evidence_summary: _summary, ...classification } = response.slice_lifecycle;
-  const thrown = evidence.thrown.value;
+  const [cause] = evidence.thrown.cause_chain;
+  assert.equal(cause.message, DELEGATION_ERROR_MESSAGE, label);
+  assert.equal(cause.name, "SliceIntegrationError", label);
+  assert.deepEqual(cause.detail.integration_refusal, { code: INJECTED_REFUSAL_CODE }, label);
+  assert.deepEqual(evidence.retained_evidence, { retained: true,
+    owner: "post_worker_lifecycle_failure_record", audience: "operator", fields: ["evidence.thrown"] },
+  label);
+  assert.doesNotMatch(JSON.stringify(response), /delegateSliceIntegrationToHost|"stack"/u,
+    `${label}: no captured trace is published`);
+  const thrown = fixture.recordedFailure().evidence.thrown.value;
   assert.equal(thrown.message, DELEGATION_ERROR_MESSAGE, label);
   assert.deepEqual(thrown.properties.detail.integration_refusal, { code: INJECTED_REFUSAL_CODE }, label);
   assert.match(thrown.stack, /delegateSliceIntegrationToHost/u, label);
@@ -86,9 +102,14 @@ function createFailingIntegrationHarness({
     backend: {
       getRunStatus: async () => harness.status,
       waitForRunStatus: async () => harness.status,
-      runPostWorkerSliceLifecycle: harness.invoke
+      runPostWorkerSliceLifecycle: (input) => {
+
+        checkpoint = input.status[POST_WORKER_LIFECYCLE_CHECKPOINT];
+        return harness.invoke(input);
+      }
     }
   });
+  let checkpoint = null;
 
   const call = async (tool, extraArgs = {}) => readStructuredResult(
     await tools.get(tool).handler({
@@ -105,7 +126,8 @@ function createFailingIntegrationHarness({
       timeout_ms: MONITOR_CALL_DEFAULT_TIMEOUT_MS,
       ...extraArgs
     }),
-    integrationCalls: () => harness.counts().integrationCalls
+    integrationCalls: () => harness.counts().integrationCalls,
+    recordedFailure: () => checkpoint.retained_failure
   };
 }
 
@@ -142,7 +164,7 @@ test("WK-1690: a child-succeeded run whose lifecycle failed is NOT terminal and 
     evidence_summary: INJECTED_FAILURE_SUMMARY,
     evidence: first.slice_lifecycle.evidence
   });
-  assertInjectedFailureEvidence("first status poll", first);
+  assertInjectedFailureEvidence("first status poll", first, fixture);
   assertNoReviewFields("first status poll", first);
 
   assert.deepEqual(fixture.harness.counts(),
@@ -166,7 +188,7 @@ test("WK-2655: the next poll withholds a refusal no owner can establish as corre
       second.lifecycle_resolution.retry_assessment.attempt_withheld],
     ["correction_condition_unavailable", true]
   );
-  assertInjectedFailureEvidence("withheld second poll", second);
+  assertInjectedFailureEvidence("withheld second poll", second, fixture);
   assertNoReviewFields("second status poll", second);
   assert.deepEqual(fixture.harness.counts(),
     { integrationCalls: 1, reviewSeamCalls: 0 });
@@ -176,6 +198,7 @@ test("WK-2655: the next-action vocabulary names every withheld retry outcome", (
   assert.deepEqual(Object.values(LIFECYCLE_RESOLUTION_NEXT_ACTIONS).sort(), [
     "delivery_requires_new_generation_work",
     "escalate_missing_retry_capability",
+    "launcher_repair_result_publication_identity",
     "repair_retry_assessment_then_check_status",
     "resolve_lifecycle_failure_then_retry_run_status",
     "retry_run_status_after_exact_slice_commit",
@@ -246,7 +269,8 @@ test("WK-1690: once finalized, both routes replay a byte-stable terminal project
 test("WK-1690: recording more failures than the history bound keeps storage fixed-size and retains the LATEST failure", async () => {
 
   const fixture = createFailingIntegrationHarness({ integrationFailures: 1 });
-  const published = (await fixture.status()).slice_lifecycle;
+  await fixture.status();
+  const published = fixture.recordedFailure();
   const overBound = LIFECYCLE_FAILURE_HISTORY_LIMIT + 3;
   const checkpoint = createLifecycleCheckpoint();
   for (let attempt = 0; attempt < overBound; attempt += 1) {
@@ -340,8 +364,8 @@ test("WK-1690 (review M-1): one shared lifecycle invocation records exactly one 
     "one attempt cannot truncate the bounded ring");
 
   assert.deepEqual(statusResolution.latest_failure, closedFailureEntry("pre-integration"));
-  assertInjectedFailureEvidence("coalesced status", viaStatus);
-  assertInjectedFailureEvidence("coalesced wait", viaWait);
+  assertInjectedFailureEvidence("coalesced status", viaStatus, fixture);
+  assertInjectedFailureEvidence("coalesced wait", viaWait, fixture);
 
   assert.deepEqual(waitResolution, statusResolution,
     "concurrent callers must not see different attempt accounting");
@@ -461,12 +485,13 @@ test("WK-1690 (review M-1): distinct attempts are distinct records, and later po
   assert.equal(fixture.integrationCalls(), 1, "a later poll starts no unestablished attempt");
   assert.equal(secondStatus.lifecycle_resolution.failure_attempts, 1);
   assert.equal(secondStatus.lifecycle_resolution.retained_failures.length, 1);
-  assertInjectedFailureEvidence("later poll", secondStatus);
+  assertInjectedFailureEvidence("later poll", secondStatus, fixture);
 
+  const recorded = fixture.recordedFailure();
   const checkpoint = createLifecycleCheckpoint();
-  recordLifecycleFailure(checkpoint, firstStatus.slice_lifecycle);
-  recordLifecycleFailure(checkpoint, secondStatus.slice_lifecycle);
-  const resolution = projectLifecycleResolution({ lifecycle: secondStatus.slice_lifecycle, checkpoint });
+  recordLifecycleFailure(checkpoint, recorded);
+  recordLifecycleFailure(checkpoint, recorded);
+  const resolution = projectLifecycleResolution({ lifecycle: recorded, checkpoint });
   assert.equal(resolution.failure_attempts, 2, "distinct attempts increment separately");
   assert.equal(resolution.retained_failures.length, 2, "and append separately");
   const closedEntry = closedFailureEntry("pre-integration");
@@ -571,7 +596,7 @@ test("WK-1690: status and wait agree on terminality for a RECOVERED projection",
     const { view, complete, omitted_members: omitted, ...facts } = result.slice_lifecycle;
     assert.equal(view, "workspace-agent-run-status-compact-lifecycle.v1", label);
     assert.deepEqual(omitted, [], label);
-    assert.deepEqual(complete.complete_mode, { include_final_result: true }, label);
+    assert.equal(complete.call.arguments.include_final_result, true, label);
     assert.deepEqual(facts, recoveredLifecycle, `${label}: the view carries every recovered fact`);
   }
   assert.deepEqual((await call({ include_final_result: true })).slice_lifecycle, recoveredLifecycle,

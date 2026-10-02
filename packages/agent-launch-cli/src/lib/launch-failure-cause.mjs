@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
 
+import { BWRAP_SPAWN_OPERATIONS } from "./launch-isolation-bwrap.mjs";
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES as ISOLATION,
   BubblewrapIsolationError
@@ -39,6 +40,7 @@ export const CONFINED_LAUNCH_FAILURE_UNCLASSIFIED_REASON = "confined_launch_fail
 const SCOPE_MEMBER_ACCESS = Object.freeze(new Set(["readable", "writable"]));
 const SCOPE_MEMBER_KINDS = Object.freeze(new Set(["files", "directories"]));
 const ERRNO_RE = /^E[A-Z0-9]{1,31}$/u;
+const SPAWN_OPERATIONS = Object.freeze(new Set(Object.values(BWRAP_SPAWN_OPERATIONS)));
 const TEXT_LIMIT = 512;
 const PATH_LIMIT = 1024;
 const CLEANUP_FAILURE_LIMIT = 8;
@@ -97,7 +99,11 @@ export function classifyLaunchPathFailure(err) {
     isolation_code: err.code,
     errno: typeof detail.errno === "string" && ERRNO_RE.test(detail.errno) ? detail.errno : null,
     scope_member: scopeMember,
-    path: scopeMember?.failed_component ?? null
+    path: scopeMember?.failed_component ?? null,
+
+    ...(isPlainObject(detail.precreation_cleanup_failure)
+      ? { precreation_cleanup_failure: detail.precreation_cleanup_failure }
+      : {})
   });
 }
 
@@ -157,6 +163,9 @@ export function buildLaunchPathFailureRefusal(makeRefusal, pathFailure, secondar
     unchanged_retry_recovers: false,
     sandbox_required: true,
     unenforced_fallback_permitted: false,
+    ...(pathFailure.precreation_cleanup_failure === undefined
+      ? {}
+      : { precreation_cleanup_failure: pathFailure.precreation_cleanup_failure }),
     ...secondary
   });
 }
@@ -175,6 +184,18 @@ export function buildWorkerTestRuntimePreparationRefusal(makeRefusal, detail, se
     sandbox_required: true,
     unenforced_fallback_permitted: false,
     ...secondary
+  });
+}
+
+export function classifyBwrapSpawnFailure(err) {
+  if (!(err instanceof BubblewrapIsolationError) || err.code !== ISOLATION.BWRAP_SPAWN_FAILED) {
+    return null;
+  }
+  const detail = isPlainObject(err.detail) ? err.detail : {};
+  return Object.freeze({
+    operation: SPAWN_OPERATIONS.has(detail.operation) ? detail.operation : null,
+    errno: typeof detail.errno === "string" && ERRNO_RE.test(detail.errno) ? detail.errno : null,
+    native_message: boundedText(detail.message)
   });
 }
 
@@ -204,6 +225,23 @@ export function buildConduitSpawnFailureRefusal(makeRefusal, err, conduitCleanup
     unenforced_fallback_permitted: false,
     conduit_cleanup_failures: conduitCleanupFailure
   };
+  const spawnFailure = classifyBwrapSpawnFailure(err);
+  if (spawnFailure !== null) {
+
+    return makeRefusal(
+      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+      ISOLATION.BWRAP_SPAWN_FAILED,
+      {
+        ...evidence,
+        ...spawnFailure,
+        bubblewrap_unavailable_established: false,
+        authority_limb: "mechanical_failure",
+        actor_recovery: "operator",
+        recovery: { state: "no_supported_route", route: null },
+        ...confinement
+      }
+    );
+  }
   if (isBubblewrapBackendFailure(err)) {
     const errno = err.detail?.errno;
     return makeRefusal(

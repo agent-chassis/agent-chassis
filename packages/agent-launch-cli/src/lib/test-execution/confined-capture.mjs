@@ -207,6 +207,63 @@ function createReporterProtocolSink(capBytes) {
   };
 }
 
+export const NATIVE_REPORT_LINE_CAP_BYTES = 1024 * 1024;
+
+export function createNativeReportObserver(adapter, { lineCapBytes = NATIVE_REPORT_LINE_CAP_BYTES } = {}) {
+  let pending = [];
+  let pendingBytes = 0;
+  let oversized = false;
+  let lost = false;
+  let failed = false;
+  const deliver = (bytes) => {
+    if (failed) return;
+    try {
+      adapter.line(bytes.toString("utf8"));
+    } catch {
+      failed = true;
+    }
+  };
+  const frame = (chunk) => {
+    let start = 0;
+    for (let index = chunk.indexOf(0x0a); index >= 0; index = chunk.indexOf(0x0a, start)) {
+      const piece = chunk.subarray(start, index);
+      if (!oversized && pendingBytes + piece.length <= lineCapBytes) {
+        deliver(pending.length === 0 ? piece : Buffer.concat([...pending, piece]));
+      } else lost = true;
+      pending = [];
+      pendingBytes = 0;
+      oversized = false;
+      start = index + 1;
+    }
+    const rest = chunk.subarray(start);
+    if (rest.length === 0 || oversized) return;
+    if (pendingBytes + rest.length > lineCapBytes) {
+      oversized = true;
+      pending = [];
+      pendingBytes = 0;
+      return;
+    }
+    pending.push(Buffer.from(rest));
+    pendingBytes += rest.length;
+  };
+  return {
+    stream: adapter.stream ?? "stdout",
+    push(chunk) {
+      frame(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), "utf8"));
+    },
+    finish() {
+      if (oversized) lost = true;
+      else if (pendingBytes > 0) deliver(Buffer.concat(pending));
+      pending = [];
+      let facts = null;
+      if (!failed) {
+        try { facts = adapter.finish(); } catch { failed = true; }
+      }
+      return Object.freeze({ ...(facts ?? {}), unreadable: lost || failed });
+    }
+  };
+}
+
 export function spawnAndCapture(plan, {
   spawnIsolated,
   parentEnv,
@@ -216,7 +273,8 @@ export function spawnAndCapture(plan, {
   clock,
   signal = null,
   cleanupAllowanceMs = null,
-  stdinPayload = null
+  stdinPayload = null,
+  nativeReport = null
 }) {
   const stdin = stdinPayload === null ? "ignore" : "pipe";
   const child = spawnIsolated(plan, {
@@ -276,7 +334,8 @@ export function spawnAndCapture(plan, {
         endedAtMs: clock(),
         stdout: stdoutSink.result(),
         stderr: stderrSink.result(),
-        reporter: reporterSink?.result() ?? null
+        reporter: reporterSink?.result() ?? null,
+        native_report: nativeReport?.finish() ?? null
       });
     };
     if (signal !== null) {
@@ -284,10 +343,111 @@ export function spawnAndCapture(plan, {
       else signal.addEventListener("abort", onAbort, { once: true });
     }
 
-    if (child.stdout) child.stdout.on("data", (chunk) => stdoutSink.push(chunk));
-    if (child.stderr) child.stderr.on("data", (chunk) => stderrSink.push(chunk));
+    if (child.stdout) child.stdout.on("data", (chunk) => {
+      if (nativeReport?.stream === "stdout") nativeReport.push(chunk);
+      stdoutSink.push(chunk);
+    });
+    if (child.stderr) child.stderr.on("data", (chunk) => {
+      if (nativeReport?.stream === "stderr") nativeReport.push(chunk);
+      stderrSink.push(chunk);
+    });
     if (child.stdio?.[3]) child.stdio[3].on("data", (chunk) => reporterSink.push(chunk));
     child.on("error", (err) => finish({ spawnError: err?.code ?? err?.message ?? String(err), code: null, signal: null }));
     child.on("close", (code, signal) => finish({ spawnError: null, code, signal }));
+  });
+}
+
+export const WORKSPACE_AGENT_VALIDATION_DISPOSITIONS = Object.freeze({
+  PASSED: "passed",
+  FAILED: "failed",
+  NOT_RUN: "not_run"
+});
+
+export function interruptedBeforeSpawn(baseEvidence, interruption, startedAtMs, endedAtMs) {
+  return Object.freeze({
+    ...baseEvidence,
+    ran: false,
+    skipped: false,
+    disposition: WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN,
+    ok: false,
+    exit_code: null,
+    signal: null,
+    timed_out: interruption === "timed_out",
+    cancelled: interruption === "cancelled",
+    cleanup_failed: false,
+    blocker_code: interruption === "timed_out"
+      ? "test_proof_execution_timed_out" : "test_proof_execution_cancelled",
+    started_at_ms: startedAtMs,
+    ended_at_ms: endedAtMs,
+    duration_ms: endedAtMs - startedAtMs
+  });
+}
+
+export function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outputBounds,
+  executionBudget = null, proofObservation = null }) {
+  const exitCode = typeof capture.code === "number" ? capture.code : null;
+
+  const ran = capture.spawnError === null;
+  const budgetInterruption = capture.cancelled || (capture.timedOut && executionBudget !== null)
+    ? executionBudget?.interruption() ?? null : null;
+  const cancelled = capture.cancelled && budgetInterruption === "cancelled";
+  const timedOut = capture.timedOut || (capture.cancelled && budgetInterruption !== "cancelled");
+  const interrupted = timedOut || cancelled;
+  const reporterProtocolOverflow = capture.reporter?.protocol_overflow === true;
+  const testProofObservation = proofObservation !== null && ran &&
+      (reporterProtocolOverflow || !interrupted)
+    ? proofObservation({ protocolText: capture.reporter.text, exitCode, reporterProtocolOverflow })
+    : null;
+  const observationValid = proofObservation === null || testProofObservation?.valid === true;
+  const ok = ran && !interrupted && exitCode === 0 && observationValid;
+
+  let disposition;
+  if (!ran) {
+    disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN;
+  } else if (ok) {
+    disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.PASSED;
+  } else {
+    disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.FAILED;
+  }
+  const budgetBlocker = executionBudget === null ? null
+    : capture.cleanupFailed ? "test_proof_execution_cleanup_failed"
+      : cancelled ? "test_proof_execution_cancelled"
+        : timedOut ? "test_proof_execution_timed_out" : null;
+  const blockerCode = budgetBlocker ?? (observationValid ? null
+    : testProofObservation?.code ?? "test_proof_structured_observation_invalid");
+
+  return Object.freeze({
+    ...baseEvidence,
+    ran,
+    skipped: false,
+    disposition,
+    ok,
+    exit_code: exitCode,
+    signal: capture.signal ?? null,
+    timed_out: timedOut,
+    ...(executionBudget === null ? {} : {
+      cancelled,
+      cleanup_failed: capture.cleanupFailed === true
+    }),
+    spawn_error: capture.spawnError,
+    ...(proofObservation !== null ? {
+      test_proof_observation: testProofObservation,
+      ...(blockerCode === null ? {} : { blocker_code: blockerCode })
+    } : {}),
+    output_truncated: capture.stdout.truncated || capture.stderr.truncated ||
+      capture.reporter?.truncated === true,
+    output_elided_bytes: capture.stdout.elided_bytes + capture.stderr.elided_bytes +
+      (capture.reporter?.elided_bytes ?? 0),
+    output_bounds: Object.freeze({
+      head_cap_bytes: outputBounds.headCapBytes,
+      tail_cap_bytes: outputBounds.tailCapBytes,
+      retains: "head_and_tail"
+    }),
+
+    stdout: capture.stdout.text,
+    stderr: capture.stderr.text,
+    started_at_ms: startedAtMs,
+    ended_at_ms: capture.endedAtMs,
+    duration_ms: capture.endedAtMs - startedAtMs
   });
 }

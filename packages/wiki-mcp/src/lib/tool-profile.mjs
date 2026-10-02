@@ -23,9 +23,6 @@ export const SESSION_ROLE_VALUES = Object.freeze([
   TOOL_PROFILE_OPERATOR
 ]);
 
-const TOOL_PROFILE_FULL = "full";
-const TOOL_PROFILE_AGENT_SAFE = "agent-safe";
-
 export const REGISTERED_TIER_FREE_LOCAL = "free_local";
 export const REGISTERED_TIER_PAID_CCE = "paid_cce";
 
@@ -61,15 +58,18 @@ export function parseToolProfile(env = process.env) {
   if (SESSION_ROLE_VALUES.includes(profile)) {
     return profile;
   }
-
-  if (profile === TOOL_PROFILE_FULL || profile === TOOL_PROFILE_AGENT_SAFE) {
-    return profile;
-  }
   throw new Error(
     `Unsupported WIKI_MCP_TOOL_PROFILE: ${profile}. Expected one of ` +
-      `${SESSION_ROLE_VALUES.join(", ")} ` +
-      `(transition aliases: ${TOOL_PROFILE_FULL}, ${TOOL_PROFILE_AGENT_SAFE}).`
+      `${SESSION_ROLE_VALUES.join(", ")}.`
   );
+}
+
+export function isOrchestratorPresentationSession(env = process.env) {
+  try {
+    return parseToolProfile(env) === TOOL_PROFILE_ORCHESTRATOR;
+  } catch {
+    return false;
+  }
 }
 
 export function shouldExposeToolFromPolicy(toolProfile, name, policy) {
@@ -88,12 +88,7 @@ function shouldExposeToolFromResolvedPolicy(
   roleToolGrants,
   toolDispositions
 ) {
-  const role =
-    toolProfile === TOOL_PROFILE_AGENT_SAFE
-      ? TOOL_PROFILE_ORCHESTRATOR
-      : toolProfile === TOOL_PROFILE_FULL
-        ? TOOL_PROFILE_OPERATOR
-        : toolProfile;
+  const role = toolProfile;
   if (!SESSION_ROLE_VALUES.includes(role)) {
     return false;
   }

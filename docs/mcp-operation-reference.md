@@ -29,7 +29,8 @@ There are two distinct discovery layers:
    rules are documented in
    [MCP integration](mcp-integration.md#tool-input-schema-publication).
 
-These paths are lossless under [decision](../wiki/decisions/decision.json):
+These paths are lossless under `decision` (repository-only:
+`wiki/decisions/decision.json`):
 follow the discovery continuation until the role-visible set is complete, and
 use the registered tool's `tools/list` entry for its exact request shape. A tool
 absent from either the session's visibility projection or the live registry is
@@ -55,7 +56,7 @@ not a catalog of tool names:
 | Controlled-contract authoring, proof, assessment, and recovery | [Controlled-contract operations](mcp-controlled-contract-operations.md) and [Acceptance-coverage MCP](acceptance-coverage-mcp.md) |
 | Code index and graph-impact evidence | [Tool discovery surfaces](tool-discovery-surfaces.md) and [MCP integration](mcp-integration.md); graph output remains derived, non-canonical evidence |
 | Dispatch, monitoring, integration, and terminal publication | [MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md) and its focused document map |
-| Enforcement, authority, refusal, and recovery | [Enforcement model](enforcement-model.md), [decision](../wiki/decisions/decision.json), [decision](../wiki/decisions/decision.json), and the runtime-contract entry page |
+| Enforcement, authority, refusal, and recovery | [Enforcement model](enforcement-model.md), `decision` and `decision` (repository-only: `wiki/decisions/`), and the runtime-contract entry page |
 
 CLI commands are a separate operator surface. Their current arguments come
 from the CLI's own `--help` output; MCP `tools/list` does not publish CLI
@@ -83,6 +84,29 @@ navigation page subordinate to decision's enforcement boundary and decision's
 mechanical-failure versus returned-policy split. The focused producers and
 projectors linked from that page retain their distributed ownership; the entry
 page is not a sole semantic owner.
+
+### Dispatch-family failure detail
+
+`projectDispatchFailureDetail` and `buildDispatchToolExceptionDetail` in
+`dispatch-tool-helpers.mjs` are the one projection of a dispatch-family failure
+detail, used by the committed-slice integration, forge handoff, landing status
+and run-status routes. The detail keeps every fact its owner attached and each
+level of the cause chain (name, code, message); an authenticated
+`exact_returned_policy` carrier crosses verbatim. Raw process output (`stdout`,
+`stderr`, `output`, `native`, `captured_run`), server call traces and captured
+diagnostic evidence graphs are not published: the complete original is retained
+once for the operator (`retained_evidence` names its identity and the withheld
+fields), and the public reader refuses it with no route. When that retention
+fails, `retained_evidence` keeps `retained: false` and the withheld `fields`,
+names `failed_operation` and `subject`, and carries the failure's actual `cause`;
+the withheld values stay unpublished and nothing is retained to report it. A forge executor's
+refusal crosses in the carrier as its identity; its detail is published once.
+A thrown `structured-diagnostic.v1` carrier keeps its original value exactly in
+`error_message` and its cause level, whatever its producer declared; an object
+value passes through the same distillation, so its facts are published while
+raw process output stays retained. A malformed carrier is refused by its schema
+owner. Run-status detail that its owner reports unavailable keeps its registered
+`agent_launch.monitor.*` code and actor instead of `handler_exception`.
 
 ## Controlled-contract operations
 
@@ -222,6 +246,23 @@ validation snapshot. When its `content_digest` equals the validation
 assessed. A different digest identifies a newer contract, and the caller
 revalidates before relying on matching findings.
 
+Only for an orchestrator session, an authored-valid answer also carries the
+advisory `user_requirements_comparison` fact, inside the same measured response
+bound: `{scope,advisory,requirements,read_call}`. `scope` is `whole_unit` for
+an authored-valid whole-unit answer, `selected_obligation` for an
+authored-valid selected obligation (whole-unit validity and coverage remain
+unassessed), and `authored_scope` for a valid source-absent answer with zero
+saved obligations. `advisory` reminds the orchestrator, before dispatch, to
+compare the current user requirements with the authored contract and
+obligations at that scope for omissions, unjustified narrowing and unrequested
+scope, and states that proof-authoring validity does not establish coverage of
+the user request. `requirements` is `recorded`, `empty` or `not_recorded`;
+`read_call` is the root `sections.user_requirements` ordinary-field read, or
+null when the field is absent. The fact never repeats the requirement body and
+carries no checked flag, execution, credit, gate or dispatch authority.
+Invalid answers, diagnostic-group reads and other roles never carry it;
+diagnoses, owner failures and zero execution counts are unchanged.
+
 ### Saved-proof verification
 
 `workspace_verify_proof` resolves the selected WK, slice, proof, or obligation
@@ -245,6 +286,14 @@ The request accepts `subject`, optional `source: {unit, focus?}`, optional
 `short` (30 seconds), `medium` (300
 seconds, the default when omitted), `long` (1800 seconds), or the closed object
 `{seconds: N}` with integer `N` from 1 to 2147483. No other value is coerced.
+
+`subject` and `source` select saved proofs, never the code they run against.
+An orchestrator that omits `git_sha` executes the configured current checkout,
+including any permitted dirty state, not a WK's delivered commit; `git_sha`
+selects that exact full commit instead. A managed worker or reviewer always
+executes its launcher-bound checkout. After a finalized integration, the
+orchestrator's `workspace_agent_run_status` offers the exact-candidate call (see
+[Monitoring](mcp-dispatch-monitoring-and-ownership.md#candidate-bound-verification-call)).
 
 `subject` names exactly one existing saved proof selection per call; verify
 several subjects with separate calls. Accepted forms:
@@ -308,16 +357,26 @@ each proof's `environment`. See
 [Prepared environment routing](test-proof-runtime-identity.md#prepared-environment-routing).
 
 A bare ID refusal with `verify_proof.source_tuple_ambiguous.v1`, or a cross-WK
-`verify_proof.subject_ambiguous.v1`, lists every authorized source as
-`recovery.action: "select_source"` with the complete ordered
-`recovery.choices` and its exact `recovery.choice_count`. Each choice is a
-ready `workspace_verify_proof` call that keeps the subject and the accepted
-call's `repo`, `timeout`, `environment` and `git_sha` and adds one `source`; root choices omit
-`focus`. A source that cannot resolve the subject, such as a same-source
-proof/obligation collision, is never offered, so a refusal may carry an empty
-population. Large populations are delivered losslessly through the ordinary
-spilled-response reference. The selected unit and focus are part of the
-execution source binding and of a managed worker's retained request.
+`verify_proof.subject_ambiguous.v1`, keeps its complete owner-validated choice
+population internally. Its public `source_selection` reports the exact
+`choice_count`, `returned_count` and `not_shown_count`, with at most three
+ordered `{unit, focus?}` identities. Root `next_calls` gives one read of each
+shown tuple. Supply the intended exact `source` alongside the refusal's
+`result` or `recorded_invocation` to inspect any retained tuple, including one
+outside the preview; omitted `focus` means root, not all focuses. The selected
+read returns the original owner-built source-qualified execution call at root
+`next_calls`, preserving subject, repository, timeout, environment and
+`git_sha`. Reading executes nothing and grants no authority. A later explicit
+execution uses current source and authority and can refuse after changes.
+Normally supply a known intended source on the initial execution to avoid
+ambiguity. A source that cannot resolve the subject is never offered; a
+same-source collision or zero-choice ambiguity has no false selectable call.
+Standalone ambiguity retains its complete original once behind a protected
+`result` locator; managed ambiguity uses its existing recorded invocation.
+The generic public byte reader refuses that standalone original. A failed
+retention reports its cause and offers no nonexistent read. The selected unit
+and focus remain part of the execution source binding and a managed worker's
+retained request.
 One monotonic execution budget starts after the canonical proof population and
 its runtime bindings are resolved. Provider preparation, currentness checks and
 every candidate, falsifier and traversal attempt share its remaining time;
@@ -383,10 +442,126 @@ and claims no provider-specific repair; the facts name the provider that ran
 retries automatically. A proof whose native run completed before its
 observation was refused reports `execution_status: completed` beside
 `not_executable`; see
-[Test-proof runtime identity](test-proof-runtime-identity.md). The verifier summary's `evidence_retrieval.reassembly`
-states the reader's page protocol
-([Oversized MCP Response References](mcp-repository-model.md#oversized-mcp-response-references))
-followed by UTF-8 JSON decoding of the verified bytes.
+[Test-proof runtime identity](test-proof-runtime-identity.md).
+
+### Settled results and selected failure diagnosis
+
+The ordinary answer is the outcome. The compact summary keeps passed, failed,
+skipped and not-observed test observations, and proven, unproven and
+not-executable proof verdicts, distinct with exact counts; a passing test is
+never whole-unit proof. Its `next_calls` name one exact read for each returned
+proof that is not proven.
+
+- **Standalone calls** retain the complete public result once as a
+  selected-response source bound to `workspace_verify_proof`, the repository,
+  the unit, the request's subject and source, and the `result_digest`. The
+  answer carries that locator as `result: {ref_id, sha256}`. A call with
+  `result` reads the settled result instead of executing: the original subject
+  returns its summary, and a `test_proof_id` or `obligation_id` in the result
+  returns that proof's selected detail. `timeout`, `environment` and `git_sha`
+  configure an execution and are refused in a result read; a supplied `source`
+  must equal the retained one. A missing, corrupt, digest-mismatched or
+  wrong-repository locator refuses with its specific cause and never re-executes
+  or substitutes another observation. A subject not in the result refuses with
+  the result's valid choices. When retention fails after execution settled, the
+  summary is still returned with `result_retention.retained: false`, the
+  `failed_operation`, `subject`, `cause_code` and the actual `cause` (for a
+  refused spill, the original filesystem condition at
+  `cause.envelope.cause_diagnostic`), no `result` locator, and no replay. A
+  standalone refusal whose original could not be retained reports the same
+  fields as `original_retention`.
+- **A single `test_proof_id` or `obligation_id` verification** that is not
+  proven returns the same selected detail directly as `selected_detail`.
+- **Answer size.** An answer that carries a selected diagnosis (a direct
+  single-proof answer, a same-subject read of one, a selected read, or the
+  run-status selected detail), measured as delivered with its result locator
+  or recorded invocation, observation and next calls, is fitted to the
+  selected-response delivery class, min(8,192 bytes, the active inline limit).
+  Required outcome, identity, reason and recovery facts come first, then whole
+  competing verification identities, then summary rows, which a selected read
+  repeats; omitted rows and identities are counted exactly. Population answers
+  without a selected diagnosis keep the transport's own inline limit. Known
+  limitation: when a selected diagnosis's required facts alone exceed the
+  class, they are returned whole and every optional identity and summary row
+  is omitted and counted; no larger budget is used for optional content, and
+  the required diagnosis itself is not compacted.
+- **Selected detail** (`workspace-verify-proof-selected-detail.v1`) carries the
+  proof's outcome row and, for a proof that is not proven, its failure: the
+  selected test event with its status and error codes; for a failed test, the
+  captured error diagnostic projected by the native diagnostic schema
+  (`projectSelectedTestFailureDiagnostic`): error name, message, code,
+  assertion operator, captured call trace (`stack`), cause chain and aggregate
+  errors; the selected relationships' evaluator diagnostic facts; and the
+  producer's recovery. Each relationship diagnostic keeps its scalar facts and,
+  from the producer's `details`, the scalar join facts `join_kind`, `arity`,
+  `owner_code`, `path`, `resolved_node_identity` and `case_id` when supplied;
+  any other retained member is named in `retained_fields`. Competing
+  verification identities appear once as `verification_ids`, whole and in the
+  producer's order, with `verification_ids_total`, `verification_ids_returned`
+  and `verification_ids_omitted`; every list in one answer shares one budget,
+  and a returned subset is never presented as complete. An obligation whose
+  links qualify several verifications
+  (`verify_proof.qualifying_verification_ambiguous.v1`) carries the producer's
+  root `next_calls` correction: `workspace_controlled_contract_obligation_coverage_query`
+  with that obligation's canonical `unit`, `focus` when it has one, and
+  `obligation_id`. It reads current authoring, not the settled result, and its
+  revision supports the ordinary upsert that links one verification before a
+  new verification. Operands whose inline form fits 256 UTF-8 bytes are
+  shown; a larger `expected` or `actual` stays complete in the retained result
+  and is shown as `deferred` with its type and size. A failed test with no
+  captured structured diagnostic reports `diagnostic.status: "not_captured"`,
+  distinct from an assertion failure. Sibling test events, other proofs, stage
+  output and raw process output are not part of it. Nothing is masked: messages
+  and traces are published exactly as captured.
+- **Verification timing.** The summary and the retained result carry the
+  invocation's constant-size `timing` (`measurement: "server_verification"`,
+  `started_at`, `elapsed_ms`, execution counts, disjoint phase totals,
+  `attempt_other_ms`, `invocation_other_ms` and nested retained-cache
+  totals). Its totals cover every selected execution, whatever rows the answer
+  omits. Each summary row carries only `timing: {state, execution_index,
+  elapsed_ms}`. A managed call's recorded outcome summary carries the row
+  timing within its byte budget; the invocation totals are retained once, in
+  the recorded result. A proof's selected detail, passing or failing, carries its
+  complete execution timing. Timing is diagnostic, is measured on the server
+  only (not the full RPC or worker time), and grants no credit. Both
+  result-bound and recorded-invocation reads return the original timing
+  without measuring, executing or recording. See
+  [Verification timing](test-proof-runtime-identity.md#verification-timing).
+- **Managed worker calls** are retained once as the recorded invocation; no
+  second copy of the evidence is written and no result locator exists. The
+  answer names `recorded_invocation: {invocation_id, detail_call}`, and each
+  returned failure's next call is `workspace_verify_proof` with that proof's
+  `test_proof_id` or `obligation_id` as `subject` and
+  `recorded_invocation: {invocation_id}`. A recorded modeled refusal names the
+  same read of itself.
+- **Recorded-invocation read.** `recorded_invocation: {invocation_id}` (a
+  non-empty string of at most 200 characters) is read-only and available only
+  to the authenticated managed worker for its own attempt; any other session
+  role is refused as `verify_proof.role_ineligible.v1`. It is exclusive of
+  `result`, `timeout`, `environment` and `git_sha`, and is dispatched before
+  any cancellation, invocation, source resolution, runtime authority or
+  provider preparation. The worker's launcher binding is authenticated through
+  the same shared check execution uses; its attempt is selected on the
+  validated journal by the recorder's own binding-pair relation, and the
+  invocation exactly within that attempt; the original cached record is then
+  read. `source`, when given, must equal the invocation's own request source.
+  The original subject returns the original summary; a `test_proof_id` or
+  `obligation_id` in the recorded aggregate returns its selected detail; a
+  recorded refusal is returned as that original refusal. Successful reads
+  carry `observation.kind: "retained_prior_observation"`. Refusals
+  (`workspace-verify-proof-recorded-read-refusal.v1`) keep the journal or cache
+  owner's code and name the subject, invocation and `stage`
+  (`request_validation`, `worker_authentication`, `journal_selection`,
+  `current_record_validation`, `cached_record_read`, `subject_selection`);
+  misuse names the valid read, while authorization and unknown-invocation
+  refusals name no foreign choice. A read never executes, records, caches or
+  retains anything, and corrupt or missing cached bytes are refused with the
+  recorded outcome kept as it was.
+
+The complete public result, including every stage's captured output and the
+execution source binding with each construction diagnostic's own source
+failure, stays retained. The public ranged reader refuses its bytes and names
+the result-bound read instead.
 
 Removed construction, manual mapping, assessment, public refactoring, and
 duplicate execution routes are unknown at the MCP call boundary. Their former
@@ -598,6 +773,27 @@ summary matrices, digests, acknowledgment tokens or lifecycle advice. A missing
 slice keeps its `missing_slice` diagnostic on the summary route and its
 selected-identity refusal on the page route.
 
+For an orchestrator session (the launcher-minted startup profile), the same
+root or selected-slice default returns
+`{ok,unit,status,user_requirements,summary,next_calls}`. `user_requirements` is
+`{unit,source_digest,offset:0,length,total,value}` for the parent WK's
+`sections.user_requirements`: the parent identity, the loaded parent
+`source_digest`, and a literal Unicode-scalar prefix with no ellipsis, where
+`length === total` means the value is complete. An absent field is
+`value:null,length:0,total:0`; an explicitly empty field is
+`value:"",length:0,total:0`. Both mean no current user requirements are
+recorded; nothing is backfilled from derived prose. When the field exists, the
+first call is the complete root read
+`{unit:<parent WK>,expected_source_digest,ordinary_field:{field:"sections.user_requirements"}}`
+in place of the notes/tasks/summary call, followed by the entries-or-slices and
+`details` calls, at most three in total; a selected-slice opening also targets
+the parent WK. The complete frame stays within 1,024 bytes: the title (at most
+160 scalars) shortens first, the entries-or-slices call is omitted next, then
+the literal prefix shortens; the `details` call is omitted only when the frame
+cannot fit with zero text. Identity, extent and the retrieval call are never
+dropped. The ordinary-field reader owns complete delivery and a stale pin
+refuses with `stale_source_digest`. Other roles keep the default above.
+
 `details:{offset?,limit?}` (default 3, maximum 5) is a live page of the
 role-visible selected routes for that unit, in fixed order: enrolled ordinary
 fields, entries, root slices, root contract fields, and the unit's members.
@@ -618,17 +814,37 @@ content, and, on `workspace_read_page`, `entry:{entry_id,include_body:true}` for
 one entry body. It does not combine with `member`, `entry`, or
 `content_reference`.
 
-Top-level `expected_source_digest` has two modes. On `workspace_get_record` and
-the summary route it pins a slice enumeration and requires `slice_offset`,
-`slice_limit`, or `slice_status`. The summary route also accepts it with
-`ordinary_field`. A member read never uses it: `member.expected_source_digest`
-pins member pages, and `workspace_read_page` publishes no top-level digest.
-There, a top-level digest is refused as `tool_input_validation_failed` with the
+Top-level `expected_source_digest` pins a slice enumeration on
+`workspace_get_record` and the summary route (with `slice_offset`,
+`slice_limit`, or `slice_status`), an `ordinary_field` read on the summary
+route, and a `members` batch on all three readers. A single member read pins
+`member.expected_source_digest` instead. On `workspace_read_page` a top-level
+digest without `members` is refused as `tool_input_validation_failed` with the
 validator's report unchanged. `diagnostic.digest_placement` names the selected
 read, the placement that pins it (`member.expected_source_digest`,
 `entry.expected_source_digest`, or none), and every accepted placement. `next_calls` offers the same read
 without the digest when that request is valid. The digest is never moved into a
 selector or applied.
+
+Ordinary record freshness is one wire value: the first eight bytes of the
+record's full `sha256` source digest as exactly 16 lowercase hexadecimal
+characters. Member, summary, ordinary-field, slice-enumeration, entry and
+validate reads publish it as `source_digest`; staleness checks, ordinary write
+responses and stale-source refusals publish it in `source_digest`,
+`expected_source_digest`, `current_source_digest` and
+`use_as_expected_source_digest`; and every public freshness input accepts only
+it, so the same value works whichever read supplied it. It is derived from the
+full digest on demand; nothing stores, counts or maps it. At the MCP write
+boundary the route loads the addressed canonical WK, IN or DEC record,
+compares the supplied value with that record's projection, and hands the
+record's full digest to the unchanged core operation, whose own full-digest
+check under its write lock still refuses an edit that lands after the
+comparison. A mismatch refuses there with `stale_source_digest` and the current
+value and writes nothing; an optional guard stays optional and the entry-upsert
+pin stays mandatory. Retained references, choice checksums, candidate and
+generation identities, admission, attestation and review-lineage bindings,
+assignment authentication and proof identities keep their full digests, and
+nested payload fields are never rewritten because of their names.
 Explicit selected reads remain: `selected_record:true` returns the root contract
 fields, slice paging the root's slices, `selected_slice` a bounded slice
 projection, and ordinary fields and entries their own routes.
@@ -640,12 +856,14 @@ Path segments are exact own object keys (strings) and array indexes (integers);
 `path: []` selects the record or slice itself. There is no dotted-path parsing,
 wildcard, or recursive expansion. A container answers with its complete
 immediate-member total and a page of immediate descriptors (key or index, kind,
-string length or member count, and an exact member call), default 25 and
-maximum 50, fitted to the normal read target unless `limit` is explicit and
-then to the 8,192-byte compact bound. A string answers with one Unicode-scalar
-range, default 512 and explicit `length` up to 8,192, fitted the same way, with
-at most one continuation. Other JSON values are returned directly. Descendant
-values and sibling bodies are never included. Every result carries
+and string length or member count), default 25 and maximum 50, plus
+`child_calls`: one `members` batch call per 16 listed rows, sharing the tool,
+identity and freshness pin at call level instead of repeating them per row. A
+page is fitted to the normal read target unless `limit` is explicit and then to
+the 8,192-byte compact bound. A string answers with one Unicode-scalar range,
+default 512 and explicit `length` (the page size) up to 8,192, fitted the same
+way, with at most one continuation. Other JSON values are returned directly.
+Descendant values and sibling bodies are never included. Every result carries
 `source_digest`; every emitted call pins it, and a changed record refuses the
 continuation with `stale_source_digest` and a fresh call. A missing member, a
 path segment of the wrong type, or an out-of-range offset refuses with
@@ -653,6 +871,35 @@ path segment of the wrong type, or an out-of-range offset refuses with
 `record_member_range_invalid`, and names the nearest containing member's call.
 Compact IN and DEC reads advertise the root member call as their recovery for
 every omitted member.
+
+`members:[{path, offset?, limit?, length?}, ...]` with one top-level
+`expected_source_digest` reads 1 to 16 explicit selections of the same
+addressed record or slice from one canonical load. It combines with no other
+selection. The response carries identity and `source_digest` once, the ordered
+fragments of the selections it started (each tagged with its request
+`selection` index and path, in the single-member fragment shape), and
+`selections:{requested,completed,failed,remaining}`; a partially returned
+string or container is not completed. The whole serialized response, including
+diagnostics and every emitted call, is fitted once with the same population
+fitter against the 2,048-byte target, or the 8,192-byte bound when any
+selection sizes itself explicitly: complete selection windows are added in
+request order, then the first one that does not fit is trimmed. Unfinished
+selections continue in one exact source-pinned `members` call with no expiry
+and no stored state; a changed live record refuses it with
+`stale_source_digest`. A bad path or range is an ordered diagnostic for its
+selection only, and one `members` call reads the named containing members. A
+batch with no valid selection refuses with that recovery. Malformed, mixed and
+oversized requests (more than 16 selections, `member` with `members`, another
+selector, a malformed pin) refuse with `selector_member_invalid` or
+`selector_conflict` and a bounded `next_call` holding the same identity with at
+most 16 well-formed selections. When even the smallest progress exceeds
+8,192 bytes the batch refuses with `record_member_batch_too_large` and a call
+for its first selection.
+
+A session whose repository the read resolver bound -- the launcher-frozen
+review repository or the session's current workspace repository -- receives
+emitted member, batch, summary and entry calls without `repo`; the same
+resolver answers them from the same source.
 
 Summary reads resolve their repository through the same frozen-aware resolver
 as page and entry reads, with the same alias and binding refusals. Reviewer and
@@ -669,7 +916,7 @@ repository do not change them.
 Allocator-backed creation produces an inbox record, not an executable contract
 or readiness claim. Design, review disposition, semantic controlled-contract
 and proof authoring, and independently executable slice shaping occur through
-their owning operations. [AGENTS.md](../AGENTS.md#wk-first-work) owns the
+their owning operations. The repository-only `AGENTS.md` ("WK-First Work") owns the
 repository workflow; CCE owns action sequencing and admissibility. Local wiki
 operations do not acquire that authority.
 
@@ -701,7 +948,8 @@ A newly created slice must explicitly define `read_scope`, `repo_paths`,
 `write_scope`, `depends_on`, `acceptance.criteria`, and
 `acceptance.validation`. Missing fields are incomplete and never borrow parent
 record values. `depends_on: []` intentionally declares no dependencies. Partial
-updates may omit an already-authored field to preserve it.
+updates may omit an already-authored field to preserve it. Implementation
+shaping requires nonempty `write_scope` and `expected_edit_targets`.
 
 The three registry-owned prose destinations are `sections.summary`,
 `sections.why_it_matters`, and `sections.agent_notes`. Slice upsert accepts them
@@ -778,7 +1026,7 @@ or bypass the exact-candidate route. Follow
 [Terminal review](mcp-dispatch-terminal-review.md) and the runtime-contract
 entry page for navigation.
 
-- `workspace_wk_forge_handoff` hands off an already-reviewed exact candidate to the repository's configured destination: locally, by plain Git delivery to a selected remote, or by hosted branch-and-proposal publication (see [Handoff destinations and landing observation](mcp-dispatch-terminal-review.md#handoff-destinations-and-landing-observation)). Cold recovery reads only `refs/agent-launch/terminal-current-v2/<WK>` and accepts an already-present, directly commit-valued raw target. If that ref is absent, cold recovery fails closed with `terminal_candidate_recovery_current_ref_absent`; construction from absence belongs only to the hot post-worker lifecycle, where absence is the expected-old CAS state. Findings remain advisory and caller input supplies no forge authority.
+- `workspace_wk_forge_handoff` hands off an already-reviewed exact candidate to the repository's configured destination: locally, by plain Git delivery to a selected remote, or by hosted branch-and-proposal publication (see [Handoff destinations and landing observation](mcp-dispatch-terminal-review.md#handoff-destinations-and-landing-observation)). Repeating the same call after a permitted WK coordination edit updates that same publication under its expected old head ([Repeat handoff](mcp-dispatch-terminal-review.md#repeat-handoff-refreshes-the-same-publication)). Cold recovery reads only `refs/agent-launch/terminal-current-v2/<WK>` and accepts an already-present, directly commit-valued raw target. If that ref is absent, cold recovery fails closed with `terminal_candidate_recovery_current_ref_absent`; construction from absence belongs only to the hot post-worker lifecycle, where absence is the expected-old CAS state. Findings remain advisory and caller input supplies no forge authority.
 - `workspace_wk_landing_status` is the read-only landing observation of that handoff: `awaiting_human_landing`, `landed` with the landed-publication carrier, `contradictory`, or `unavailable`, with the original cause. It never publishes, merges or reconciles.
 
 ## Contract-edit compact default, verbose opt-in, stale-source protection, and validate-before-write
@@ -809,13 +1057,41 @@ references are returned only when requested. An uncertain publication is
 reconciled through canonical reads; there is no create-replay key or receipt
 mode.
 
-A completed managed reviewer/redteam result exposes a bounded reusable source
-reference for its exact original advisory text through ordinary status/wait
-monitoring. Supplying that ref as entry content captures the literal text and
-original run/value provenance under the incumbent monitor-handle, caller,
-subject, repository, and source-access checks. Unavailable, expired, changed,
-corrupt, and denied sources remain distinct failures. The ref is neither an
-attestation nor acceptance and grants no authority after capture.
+A completed managed reviewer/redteam result carries a temporary
+managed-findings source reference for its exact original advisory text. It is
+an input to this writer, not readable material: its source exists only while
+the owning backend retains the run, and no dispatch or status answer presents
+it as a standalone pointer. An accepted advisory dispatch returns one exact
+`workspace_agent_run_status` call (`repo`, `subject`, `attempt_id`), even for an
+initially terminal run. For a completed WK root or slice review, compact and
+complete status then publish `findings_capture` and one root `next_calls` entry
+checked against the registered request contract: an entry upsert with the
+producer's exact `content:{ref}`, the run's own unit, the server-resolved
+repository, the unit's current `expected_source_digest` and the title
+`Original <role> findings <run_id>`. When an immutable version on that unit
+already holds this run's exact capture, selected by its captured reference, run
+identity and exact text (never by title), status instead returns the pinned
+body read of the first such version in canonical entry/version order. After a
+stale or uncertain capture, observe the same run's status before creating
+again. `findings_capture.state` is `capturable`, `captured` or `unavailable`
+with its specific `code` (for example `findings_source_unavailable`,
+`findings_source_changed`, `target_unit_unavailable`,
+`workspace_work_record_entry_upsert_not_registered` or
+`findings_capture_guidance_failed`); an unavailable guidance never changes the
+completed run. Status itself writes, retains, executes and retries nothing, and
+running runs, runs without original text and non-advisory runs carry no
+capture fact.
+
+Supplying the ref as entry content captures the literal text and original
+run/value provenance under the incumbent monitor-handle, caller, subject,
+repository, and source-access checks, rechecked under the write lock.
+Unavailable, expired, changed, corrupt, and denied sources remain distinct
+failures. The returned immutable entry reference reaches another assignment
+only through its `sections.material_refs` and frozen assignment
+materialization, which read the pinned version without the original run. The
+ref is neither an attestation nor acceptance and grants no authority after
+capture; caller-authored creates outside this guidance keep the writer's
+ordinary semantics.
 
 Entry titles are nonempty Unicode-scalar strings capped at 256 scalars and
 1,024 UTF-8 bytes; optional kinds are capped at 64 scalars and 256 UTF-8 bytes.
@@ -950,7 +1226,8 @@ Ordinary scalar fields outside the reusable-text enrollment use
 `sections.tasks` using `mark_done` (one `text` or `index` selector),
 `replace_text` (selector plus `value`), or `append_todo` (`value`, no selector).
 For root/slice `sections.summary`, `sections.why_it_matters`, and
-`sections.agent_notes`, and both task-text value positions, `value` is exactly
+`sections.agent_notes`, root-only `sections.user_requirements`, and both
+task-text value positions, `value` is exactly
 `{text:string}`, `{ref:opaqueReturnedString}`
 or `{parts:[...]}` with one to 256 flat `{text}`/`{ref}` leaves. Bare public
 strings, mixed or unknown members, null, nested/empty parts and invalid Unicode
@@ -999,9 +1276,11 @@ table is its complete durable projection.
 | Registry entry | Kind | Scope | Actions | Value | Owning planner |
 | --- | --- | --- | --- | --- | --- |
 | `title` | scalar | record | replace | trimmed non-empty string | `editWorkRecordByUnit` |
+| `base_branch` | scalar | record | replace | non-empty local branch name | `editWorkRecordByUnit` |
 | `priority` | scalar | record | replace | `critical\|high\|medium\|low` | `editWorkRecordByUnit` |
 | `owner` | scalar | record | replace | trimmed non-empty string | `editWorkRecordByUnit` |
 | `sections.summary` | scalar | record, slice | replace | exact content | `editWorkRecordByUnit` |
+| `sections.user_requirements` | scalar | record | replace | exact content | `editWorkRecordByUnit` |
 | `sections.why_it_matters` | scalar | record, slice | replace | exact content | `editWorkRecordByUnit` |
 | `sections.agent_notes` | scalar | record, slice | replace | exact content, destination at most 8,192 UTF-8 bytes | `editWorkRecordByUnit` |
 | `tags` | list | record | replace, append | string array / one string | `editWorkRecordByUnit` |
@@ -1023,7 +1302,11 @@ Scalar edits replace only the selected address. List action `append` adds exactl
 entry and an identical entry is a digest-stable no-op. Task replacement
 preserves status; task action `append_todo` creates one `todo` entry. Resolved
 task text refuses when trimming would change it, so exact content never reaches
-the task planner through silent normalization. Existing-slice upsert
+the task planner through silent normalization. `replace_text` accepts an
+explicit empty `{text:""}` because the canonical task schema permits blank task
+text, so a blank description can be restored exactly with its status unchanged;
+a missing, non-string or whitespace-only value still refuses, and
+`append_todo` still requires nonempty text. Existing-slice upsert
 refuses supplied `sections.tasks`, while new-slice creation may provide its
 initial tasks. `workspace_work_record_edit` delegates list operations to the
 shared `setListField` planner. The operator `set-list-field` CLI uses the same
@@ -1240,25 +1523,35 @@ request rather than a chore handed back to the caller.
   Non-forge and operator-authorized direct-`main` paths require no fabricated
   candidate, forge or proof dependency.
 - **A bounded result still leads to the whole one.** A run with more findings
-  than the compact preview reports exact totals and names its own complete
-  retrieval, preserving every error class and its selected evidence. No internal
-  task or hidden helper is needed to continue.
-- **The original result is retained, not replayed.** A closeout call asks its
+  than the compact preview reports exact totals and names the exact read of its
+  retained receipt, preserving every error class and its selected evidence. No
+  internal task or hidden helper is needed to continue.
+- **Lint scope is stated.** `generateAndLint` checks the whole repository, so
+  `closeout_lint.lint_scope` is `repository`: its verdict and findings are the
+  repository's and are never attributed to the selected unit.
+- **The original receipt is retained, not replayed.** A closeout call asks its
   executor for the complete result, not a default page of it, and retains the
-  complete permitted receipt once through the same response owner an oversized
-  result already uses. The bounded frame carries that retained answer's
-  authenticated content reference in `full_result`, and
-  `workspace_read_mcp_content_reference` reads it back. Retrieval is a read: it
-  performs no second write and runs no second check. Re-calling the mutation is
-  never the route to the detail, because the mutation has already landed and
-  repeating it is a no-op that runs nothing and returns no findings. The
-  generator's own target directory and build never appear in what is retained or
-  returned.
+  complete permitted receipt once as a selected-response source bound to the
+  producing operation, repository, unit and observed record digest. The bounded
+  frame carries `receipt: {retained, source, finding_count}` and the exact read
+  at root `next_calls`. That call is `workspace_work_record_summary` with the unit and
+  `receipt: {ref_id, sha256}`, which returns the receipt's effects, lint facts
+  and every finding identity (`finding-<index>` in that exact receipt) with
+  selection calls; adding `finding_id` returns that original finding. Receipt
+  mode is exclusive of every other summary selector, refuses a receipt of
+  another unit, repository or operation, and never enters write or check code.
+  Re-calling the mutation is never the route to the detail, because the
+  mutation has already landed and repeating it is a no-op that runs nothing and
+  returns no findings. The generator's own target directory and build never
+  appear in what is retained or returned.
 - **A retained original that could not be kept is disclosed.** When retention
   fails, the call still reports exactly the effects it had and the checks it ran,
-  and says the original detail is unavailable. It never advertises a reference
-  that cannot be read, and it never converts a transport failure into a claim
-  about the write.
+  and says the original detail is unavailable: `receipt` carries
+  `retained: false`, `failed_operation`, `subject`, `cause_code` and the actual
+  `cause`, including the original filesystem condition of a refused spill. It
+  never advertises a reference that cannot be read, never replays the
+  mutation, and never converts a transport failure into a claim about the
+  write.
 - **An unknown publication stays unknown.** Where storage could not establish
   canonical publication, the response says so and keeps the cause: `written` is
   null, `publication_state` is `unknown`, and the closeout half reports
@@ -1382,8 +1675,19 @@ of its own.
   three states: `recorded`, `none_recorded` (not a pass) or `unavailable`.
   - The coordinator reads the cached result from the durable root of its own
     authenticated workspace.
-  - For an aggregate it returns a fresh evidence reference readable in its own
-    session. It never reads another session's spill directory or a caller path.
+  - For an aggregate it returns the recorded outcome summary with an exact
+    read of each returned failure; adding `proof_subject` (a `test_proof_id`
+    or `obligation_id` in that invocation) returns its selected detail, as a
+    result-bound `workspace_verify_proof` read does. Both project the one cached
+    record directly; nothing is copied to another store. A selection naming no
+    proof in the invocation refuses with its valid choices, and
+    `proof_subject` without `invocation_id` is refused. It never reads another
+    session's spill directory or a caller path.
+  - For a retained source ambiguity, adding `source:{unit,focus?}` with
+    `invocation_id` selects that exact original choice. The status response
+    carries inspection reads or the selected original execution call at root
+    `next_calls`; the journal observer does not receive the presentation-only
+    source qualifier. The read executes and records nothing.
   - Recorded facts carry `grants_authority: false`. They add no review,
     admission, integration or completion authority, and the coverage query
     keeps its meaning.
@@ -1504,14 +1808,31 @@ disclosed and excluded — and uncommitted patch content is attributed to the
 caller rather than to indexed source. No inferred adjacency is labelled
 graph-derived.
 
-Each branch keeps the response contract of the owner that answered it. Impact
-answers with the bounded summary and the executable `selected_detail` call over
-its retained original; file context and the composed symbol answer keep their
-complete original at `full_result`. Compact counts are exact against the whole
-population in every branch, and following only the returned detail,
-continuation or content-reference calls reconstructs every result, including
-Unicode and rows past the ranked preview. A selection retained at an earlier
-HEAD reports that its observation `changed` rather than combining generations.
+Every branch answers the same way, as do the dedicated file-context and
+navigation routes: the complete original is retained once as that route's
+selected-response source, the bounded summary carries `selected_detail` with
+the opaque source and exact collection counts, and its top-level `next_calls`
+selects the answer's first subject (the first affected file by `path`, or the
+first definition, reference, caller or callee by its hit identity). `detail`
+names one collection of that retained answer and narrows it by `selector.id`,
+`path`, `symbol` or `relationship`. `input_path` selects relationships within
+one affected file; `lines` selects absolute source lines in one retained region
+or file; `candidates` exposes ambiguity, with relationship selection retaining
+each composed part. The response is the selected original rows,
+or, when they exceed one frame, their compact view with exact counts and calls
+selecting a narrower subject. There is no cursor, ordinal, byte range, field
+path, base64 page or digest step for a caller, and no verbose or `full_result`
+form. A detail call carrying query arguments is corrected to the exact
+detail-only call once its selection resolves. Compact counts are exact against
+the whole population in every branch. A selection retained at an earlier HEAD
+reports that its observation `changed` rather than combining generations. The
+contract is in
+[MCP Selected Response Details](mcp-selected-response-details.md#code-index-answers).
+To record an impact answer as graph-impact evidence, pass its
+`selected_detail.source` as `graph_impact_source` to
+`workspace_record_graph_impact_evidence`, which persists the complete retained
+original server-side and reports whether it is still current; a copied
+consolidated answer is refused in favor of the source.
 
 Role grants are unchanged and come solely from
 `session-role-tool-access.json`: the question and each route it delegates to
@@ -1538,6 +1859,165 @@ of every applicable SCIP provider are applied in one owned
 `.graph-candidate-*.sqlite` file, which is published by rename under the single
 updater lock. A candidate is never
 reused or treated as authority.
+
+## Code-index provider activation and input identity
+
+Committed-tree discovery selects the applicable SCIP provider projects:
+`scip-typescript` for a root `tsconfig.json`, `scip-python` whenever Python
+sources are tracked, and `scip-go` for each committed `go.mod` outside
+`testdata`, `vendor`, and `.`/`_`-prefixed directories. A Go module builds in
+the nearest committed `go.work` only when that workspace `use`s it; its inputs
+are then the module, `go.work`, `go.work.sum`, every workspace member and the
+contained local `replace` targets of the workspace and its members. Any other
+module builds alone (`GOWORK=off`) with its own contained `replace` targets. A
+member or replacement outside the committed tree, or a `go.mod` without a
+module path, refuses that project.
+
+Each committed Cargo workspace is one `rust-analyzer` project, keyed by its
+workspace directory as Cargo reports it (`cargo locate-project --workspace`);
+its members belong to it, and a path package outside the workspace remains its
+own workspace. Cargo's own offline `cargo metadata --format-version=1`
+(`--locked` when the workspace commits a `Cargo.lock`) is the workspace and
+dependency authority: the project's committed inputs are everything under the
+workspace directory and each contained path package, plus the committed
+`.cargo/config`, `.cargo/config.toml`, `rust-toolchain` and
+`rust-toolchain.toml` from the workspace directory up to the repository root.
+A path package outside the committed tree
+(`scip_rust_path_dependency_uncontained`), a workspace outside it
+(`scip_rust_workspace_uncontained`), or Cargo configuration that would apply
+from outside the committed tree and the selected Cargo home
+(`scip_rust_config_unsupported`) refuses that project.
+
+Each provider's executables are looked up on the server's `PATH`
+(`scip-typescript` and `scip-python` also need `node`, and their entry script
+runs under that observed `node` rather than its own interpreter lookup;
+`scip-go` also needs `go`). For Rust the `PATH` `rustc` (a rustup proxy
+reads the committed toolchain selection in the workspace directory, with
+auto-installation disabled) reports the selected sysroot, and the project's
+executables are that toolchain's own `rust-analyzer`, `cargo` and `rustc`,
+which are what runs. Without `rustc` Cargo cannot establish workspaces, so each
+committed Cargo manifest's directory is an inactive candidate with
+`membership: "unobserved"`; only Cargo metadata, when available, decides which
+manifests share one workspace project. A toolchain without its
+`rust-analyzer` component leaves the workspace inactive without running Cargo. An absent executable leaves its project explicitly
+inactive in `provider_coverage.inactive_projects`
+(`reason: provider_not_installed`, with the missing roles); it never counts as a
+successful empty run, and when every applicable project is inactive
+`status_reason` is `scip_providers_inactive`. A present but unusable
+executable (`scip_indexer_resolution_failed`), a refused project, unavailable
+Go dependencies (`scip_go_dependencies_unavailable`), a Rust toolchain the
+selection cannot resolve (`scip_rust_toolchain_unavailable`), dependencies
+Cargo cannot resolve offline (`scip_rust_dependencies_unavailable`), and any provider or decode
+failure fail preparation instead: the prior publication and its tag stay
+unchanged and no partial active set is published.
+
+Go runs offline against the committed snapshot with the observed toolchain
+directory and system tools on `PATH`, private `HOME`, `GOPATH` and `GOCACHE` in
+the temporary snapshot container, `GOPROXY=off`, `GONOPROXY=none`,
+`GOSUMDB=off`, `GOTOOLCHAIN=local`, `GOENV=off`, `GOFLAGS=-mod=readonly`, and
+the committed workspace selection (`GOWORK`, otherwise `off`). The module cache
+is `GOMODCACHE`, else the first `GOPATH` entry's `pkg/mod`, else
+`$HOME/go/pkg/mod`; nothing is acquired. `go list -deps -test ./...` must load
+every package before `scip-go index --module-root=. --repository-remote=<module
+path> --module-version=<captured commit>` runs. Generated test mains that Go
+writes outside the tree are reported in the project's `uncovered_documents` and
+never become sources, nodes or edges; external references without provider
+symbol information stay unresolved.
+
+Rust runs `rust-analyzer scip . --output <file>` in the workspace directory of
+the committed snapshot with the captured toolchain's `bin` and system tools on
+`PATH`, its own `CARGO` and `RUSTC`, private `HOME` and `CARGO_TARGET_DIR` in
+the temporary snapshot container, the selected Cargo home (`CARGO_HOME`, else
+`$HOME/.cargo`), `CARGO_NET_OFFLINE=true` and `RUSTUP_AUTO_INSTALL=0`. Build
+scripts and procedural macros whose source is already available run as normal
+Rust indexing requires, inside that snapshot; dependencies are never
+downloaded, so a dependency missing from the Cargo home fails with its Cargo
+cause instead of producing dependency-incomplete output. Cargo writes its own
+bookkeeping (package-cache locks, its global last-use cache) to the selected
+Cargo home and unpacks already-present `.crate` files into it, as it does for
+any offline command; it never acquires crates, and indexing never writes to the
+source repository. Documents
+`rust-analyzer` reports outside the admitted committed sources (for example a
+`#[path]` module under an excluded directory) are `uncovered_documents`; build
+script output is not reported as a document. The library and integration-test
+roots of one package share the provider's crate-root symbol, and both
+definitions are kept as reported.
+
+`provider_input_identity.records` holds one input record per applicable
+project: a digest of its committed inputs; for each executable role its
+resolved path and the content digest of its installed population (the
+provider's package directory for `scip-typescript` and `scip-python`, the
+`node` executable, the `scip-go` executable, the whole Go toolchain root for `go`, and for Rust the
+`PATH` `rustc` with rustup's installed `settings.toml` when present, the
+`rust-analyzer` and `cargo` executables, and the sysroot's `bin`, `lib` and
+`libexec` for its `rustc`), so a removed `PATH` `rustc` or a changed default
+selection is seen at the same commit without running Cargo; its semantic settings (for Rust the resolved sysroot,
+default features, host target, offline and locked selection, the contained
+dependency mapping digest, Cargo home and
+rustup selection environment); the content digest of its measured dependency
+population (for Rust the source directories of the external packages Cargo
+metadata resolved and the Cargo home's configuration file); and its
+invocation. A commit-sensitive producer's recorded invocation carries the
+captured commit (`--project-version` for `scip-python`, `--module-version` for
+`scip-go`), so every new commit reruns it and its symbols, `input_commit` and
+the publication tag agree. Commit-independent output (`scip-typescript`,
+`rust-analyzer`) whose
+other inputs are unchanged is reused, keeps the commit that produced it as its
+`input_commit`, and lets a commit that changes no base input only advance the
+tag. One comparison of these records decides same-commit reuse, tag
+advancement and which projects rerun.
+
+Content identity is measured with the shared population measurement; each
+population's metadata fingerprint is only its currentness. Same-commit reuse
+starts no process and measures no content: it looks up the recorded
+executables, recomputes environment settings and population fingerprints, and
+any difference, or a publication without input records, sends the request to
+preparation. Preparation measures content only where a fingerprint moved;
+output whose content identity still holds is reused and the new fingerprints
+are published. An added, removed or replaced executable, changed provider
+package or toolchain content, a changed module cache or changed dependency
+content therefore reruns only the affected projects, and read-only status
+reports `scip_provider_inputs_changed` for the provider layer. Native
+build-cache eviction is not an input change. Executables and dependency
+content are observed again before publication; a change during preparation
+(`scip_provider_inputs_changed`) publishes nothing. A publication of an
+earlier extraction basis is prepared again from a clean candidate, at the same
+commit too.
+
+The base graph resolves a Go import through the committed `go.mod` module paths
+to the non-test `.go` files of that package directory, so file impact follows
+package imports; standard-library and external imports stay unresolved. A
+change inside a package directory or to any `go.mod` rematerializes its
+importers. Import edges never become call edges: callers and callees come only
+from provider enclosing ranges, and `unattributed_reference_count` reports
+references no enclosing definition attributes. Deno has no code-index
+provider.
+
+The base graph parses Rust with the installed tree-sitter Rust grammar. A
+literal `mod name;` resolves to the committed `name.rs` or `name/mod.rs` of its
+parent module, and a `use` or `extern crate` path that starts with `crate`,
+`self`, `super`, a module of the current crate, the file's own package's
+library crate name, or a dependency name resolves to the deepest committed
+module file on that path inside the nearest committed Cargo package. A
+dependency name resolves only as Cargo metadata reported it for the owning
+package: the name its code uses (after any rename) maps to the dependency's
+library file when that dependency is itself a committed package. A name Cargo
+did not report as such a dependency is `external_or_unresolved`, so a committed
+package that merely shares a name is never taken as the dependency. When Cargo
+metadata did not run (no `rustc`, an inactive or refused project), the mapping
+is unobserved and such paths stay unresolved
+(`rust_dependency_mapping_unobserved`). The mapping's digest is part of each
+Rust project's input record (`dependency_mapping`); when it changes, including
+Cargo becoming available or unavailable at the same commit, every Rust file
+whose resolution consulted the crate set is materialized again. Modules and uses under
+`cfg` attributes (`cfg_dependent`), `#[path]` modules (`rust_path_attribute`),
+glob imports (`glob_import`), external crates, ambiguous module files or crate
+roots and paths that leave the crate stay named unresolved facts; macro-generated items
+are not parsed. Any `Cargo.toml` change or a change to a candidate module file
+or crate root (present or absent) rematerializes the importing file. Code-language membership for parsing,
+structural impact and dispatch's graph-bearing selection comes from one shared
+language description; a missing grammar leaves a file's extraction
+unavailable, never absent from the graph-bearing set.
 
 `workspace_coordination_preflight` discloses each fact-family using the closed
 local-handling vocabulary `evaluated_locally`, `projected`, or
@@ -1577,6 +2057,7 @@ resolved before dependencies; invalid sources retain their owning diagnostics.
 | --- | --- |
 | `{field:"sections.summary"}` | First root-summary body page |
 | `{field:"sections.summary",reference_only:true}` | Whole root-summary ref without body bytes |
+| `{field:"sections.user_requirements"}` | Complete root user-requirements body |
 | `{field:"sections.why_it_matters"}` | First root/slice rationale body page |
 | `{field:"sections.agent_notes"}` | First root/slice note body page |
 | `{field:"sections.agent_notes",offset:0,length:100}` | Unicode-scalar body range |

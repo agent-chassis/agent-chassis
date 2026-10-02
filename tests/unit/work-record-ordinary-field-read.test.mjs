@@ -85,6 +85,8 @@ test("selection text discloses its Unicode scalar and UTF-8 byte rules separatel
 });
 
 const digest = `sha256:${"a".repeat(64)}`;
+
+const freshness = "a".repeat(16);
 const record = { id: "WK-0001", repo: "test", sections: { summary: "prefix aa suffix", agent_notes: "a🙂e\u0301z", tasks: [
   { text: " A ", status: "todo" }, { text: "B", status: "done" }] }, slices: [] };
 const loaded = { valid: true, source_digest: digest, record, diagnostics: [] };
@@ -93,17 +95,17 @@ const project = (selection, expectedSourceDigest = null) => projectOrdinaryField
 });
 test("ordinary projection preserves Unicode coordinates and task occurrence selection", () => {
   assert.equal(project({ field: "sections.agent_notes", length: 2 }).ordinary_field.value, "a🙂");
-  assert.equal(project({ field: "sections.agent_notes", offset: 2 }, digest).ordinary_field.value, "e\u0301z");
-  assert.equal(project({ field: "sections.agent_notes", offset: 99 }, digest).ordinary_field.length, 0);
+  assert.equal(project({ field: "sections.agent_notes", offset: 2 }, freshness).ordinary_field.value, "e\u0301z");
+  assert.equal(project({ field: "sections.agent_notes", offset: 99 }, freshness).ordinary_field.length, 0);
   assert.equal(project({ field: "sections.tasks", text: "A" }).ordinary_field.task.index, 0);
-  assert.equal(project({ field: "sections.tasks", index: 1 }, digest).ordinary_field.task.status, "done");
+  assert.equal(project({ field: "sections.tasks", index: 1 }, freshness).ordinary_field.task.status, "done");
   assert.equal(project({ field: "sections.tasks", index: 1 }).valid, false);
-  assert.equal(project({ field: "sections.tasks", index: 1 }, `sha256:${"b".repeat(64)}`).ordinary_field, null);
+  assert.equal(project({ field: "sections.tasks", index: 1 }, "b".repeat(16)).ordinary_field, null);
   for (const selection of [ { field: "sections.tasks", all: true, limit: 1 },
     { field: "sections.tasks", index: 0, text: "A" },
     { field: "sections.tasks", index: 0, member: "status", length: 1 },
     { field: "sections.agent_notes", length: 0 } ]) {
-    assert.ok(ordinaryFieldSelectionIssues(selection, digest).length);
+    assert.ok(ordinaryFieldSelectionIssues(selection, freshness).length);
   }
 });
 test("Stage A ordinary projection returns generation-bound whole, range, and exact-selection refs", () => {
@@ -113,7 +115,7 @@ test("Stage A ordinary projection returns generation-bound whole, range, and exa
   assert.equal(whole.ordinary_field.length, Array.from(record.sections.summary).length);
   assert.equal(decodeWorkRecordTextReference(whole.ordinary_field.reference).reference.g, digest);
 
-  const range = project({ field: "sections.agent_notes", offset: 1, length: 2 }, digest);
+  const range = project({ field: "sections.agent_notes", offset: 1, length: 2 }, freshness);
   assert.equal(range.ordinary_field.value, "🙂e");
   const decodedRange = decodeWorkRecordTextReference(range.ordinary_field.reference).reference;
   assert.deepEqual([decodedRange.o, decodedRange.l], [1, 2]);
@@ -148,7 +150,7 @@ test("ordinary compound projection loads once and never traverses dependencies",
   for (const extra of [{}, { selected_record: true }, { slice_offset: 0 }]) {
     loads = 0;
     const result = await runWorkRecordSummaryWithCompactGate({ workspaceDir: ".", workspaceRepo: "test",
-      args: { repo: "test", id: record.id, ordinary_field: { field: "sections.agent_notes" }, expected_source_digest: digest, ...extra },
+      args: { repo: "test", id: record.id, ordinary_field: { field: "sections.agent_notes" }, expected_source_digest: freshness, ...extra },
       getWorkRecordSummary: forbidden, readWorkRecordById });
     assert.equal(loads, 1);
     assert.equal(result.ordinary_field.value, record.sections.agent_notes);
@@ -192,7 +194,7 @@ test("ordinary text bodies return the complete selected remainder without a read
   Object.assign(sized.sections, { agent_notes: note, summary });
   const sizedLoaded = { ...loaded, record: sized };
   const read = ordinary_field => runWorkRecordSummaryWithCompactGate({ workspaceDir: ".", workspaceRepo: "test",
-    args: { repo: "test", id: sized.id, ordinary_field, expected_source_digest: digest },
+    args: { repo: "test", id: sized.id, ordinary_field, expected_source_digest: freshness },
     getWorkRecordSummary: () => { throw new Error("broad dependency traversal"); },
     readWorkRecordById: async () => sizedLoaded });
   const bytes = value => Buffer.byteLength(JSON.stringify(value), "utf8");
@@ -212,7 +214,7 @@ test("ordinary text bodies return the complete selected remainder without a read
   const range = await read({ field: "sections.summary", offset: 2, length: 3 });
   assert.equal(range.ordinary_field.value, Array.from(summary).slice(2, 5).join(""));
   assert.deepEqual(range.next_calls[0].arguments.ordinary_field, { field: "sections.summary", offset: 5, length: 3 });
-  assert.equal(range.next_calls[0].arguments.expected_source_digest, digest);
+  assert.equal(range.next_calls[0].arguments.expected_source_digest, freshness);
 
   const beyond = await read({ field: "sections.summary", offset: total - 2, length: 1_000_000 });
   assert.deepEqual([beyond.ordinary_field.length, beyond.next_calls], [2, []]);

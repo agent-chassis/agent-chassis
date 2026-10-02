@@ -1,0 +1,68 @@
+{
+  "cache_format_version": "controlled-contract-compiled-validator-cache.v2",
+  "toolchain_digest": "394bb191b040bf929f9047c837d1199673284ec7366537e5a2affe5426d77751",
+  "toolchain": {
+    "cache_format_version": "controlled-contract-compiled-validator-cache.v2",
+    "module_format": "commonjs",
+    "ajv_package": {
+      "name": "ajv",
+      "version": "8.18.0"
+    },
+    "ajv_runtime": [
+      {
+        "module": "ajv/dist/runtime/equal",
+        "sha256": "c94467da09ee94e5d194483a7ab821b9bb3bf1c04397270f2ab53dea9de59274"
+      },
+      {
+        "module": "ajv/dist/runtime/parseJson",
+        "sha256": "1bc006064c98afbbb4fc03bef49db7e85dd9493fb54a7dc647d4344ad043848e"
+      },
+      {
+        "module": "ajv/dist/runtime/quote",
+        "sha256": "1061132b1475fce15821d2b41c74b9ac710f278a33f5dae3385458715cc962b2"
+      },
+      {
+        "module": "ajv/dist/runtime/re2",
+        "sha256": "e1a6849652ae9a099c36c9aee9d2efc7412c8f83c4b285142413af99a7238361"
+      },
+      {
+        "module": "ajv/dist/runtime/timestamp",
+        "sha256": "05cd4fc283b82af25a2a71ee5e587640c1d42945c74cea790627135fff338bef"
+      },
+      {
+        "module": "ajv/dist/runtime/ucs2length",
+        "sha256": "1df012dd3d23fced07255a7204798004509687cb1f431ae0ab976db436bbd890"
+      },
+      {
+        "module": "ajv/dist/runtime/uri",
+        "sha256": "d1d61baf97ed87d7310df847a78ed73d19c8cc003207bf5aaec977500bdb1578"
+      },
+      {
+        "module": "ajv/dist/runtime/validation_error",
+        "sha256": "11bf5b4affc8114e5e7cdf65b93006c2d997ab60ada1152c22e136f9b828b815"
+      }
+    ],
+    "ajv_options": {
+      "strict": true,
+      "allErrors": true
+    },
+    "ajv_code_options": {
+      "source": true,
+      "esm": false,
+      "lines": false
+    },
+    "custom_formats": [],
+    "custom_keywords": []
+  },
+  "group_id": "controlled-contract.proof-intent-discovery-result.v1",
+  "schema_digest": "4fdd2b70c7b50bcba79628b50dd438583c204df49a14c67bd8656e952ae1e548",
+  "file": "validators.cjs",
+  "code_bytes": 59637,
+  "code_sha256": "2d1dbdce5ad1290a8fecc517826da1237db27229fbe2d7d1f69c38068f4ed1e4",
+  "validators": [
+    {
+      "name": "validateProofIntentDiscoveryResult",
+      "export": "v0"
+    }
+  ]
+}

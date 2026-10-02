@@ -16,12 +16,18 @@ import {
   errorContent,
   getResponseSpillConfig,
   guardToolHandler,
+  isLosslessMcpSpillDelivery,
   jsonContent,
   measureMcpInlineResultBytes,
   normalizeMcpToolResult,
   readSpilledMcpContentReference,
   structuredToolResult
 } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import {
+  CARRIER_FINDING_KINDS,
+  assertStructuredCarrier,
+  structuredCarrierFindings
+} from "../helpers/mcp-journey-accounting.mjs";
 
 const INLINE_BYTE_LIMIT = 8192;
 
@@ -29,16 +35,19 @@ function utf8Bytes(value) {
   return Buffer.byteLength(value, "utf8");
 }
 
-function readStructuredOnly(result) {
-  assert.ok(result.structuredContent !== null && typeof result.structuredContent === "object",
-    "structured result must carry structuredContent");
-  assert.deepEqual(result.content, []);
-  assert.equal(JSON.stringify(result).includes('"type":"text"'), false);
+function readCarrier(result, options = {}) {
+  const value = assertStructuredCarrier(result, options);
   const parsed = CallToolResultSchema.safeParse(result);
   assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
   assert.deepEqual(parsed.data.structuredContent, result.structuredContent);
-  assert.deepEqual(parsed.data.content, []);
-  return result.structuredContent;
+  assert.deepEqual(parsed.data.content, result.content);
+  return value;
+}
+
+function textAlone(result) {
+  const texts = result.content.filter((block) => block.type === "text");
+  assert.equal(texts.length, 1);
+  return JSON.parse(texts[0].text);
 }
 
 function assertCompleteResultWithinLimit(result, limit = INLINE_BYTE_LIMIT) {
@@ -79,17 +88,18 @@ function readReferenceToEnd(reference, env) {
 
 function payloadWithFrameBytes(targetBytes, { isError = false } = {}) {
   const prefix = "quote \" backslash \\ newline \n tab \t é 🔥 ";
-  const at = (padding) => ({
+  const at = (padding, extra = "") => ({
     schema_version: "boundary-response.v1",
-    value: `${prefix}${"x".repeat(padding)}`
+    value: `${prefix}${extra}${"x".repeat(padding)}`
   });
   const base = measureMcpInlineResultBytes(at(0), { isError });
-  const payload = at(targetBytes - base);
+  const remainder = targetBytes - base;
+  const payload = remainder % 2 === 0 ? at(remainder / 2) : at((remainder - 5) / 2, "\n");
   assert.equal(measureMcpInlineResultBytes(payload, { isError }), targetBytes);
   return payload;
 }
 
-test("a success publishes its complete value once, in structuredContent", () => {
+test("a success publishes its value in structuredContent and its compact serialization in one text block", () => {
   const payload = {
     schema_version: "example-success.v1",
     ok: true,
@@ -99,13 +109,16 @@ test("a success publishes its complete value once, in structuredContent", () => 
 
   const result = jsonContent(payload);
 
-  assert.deepEqual(readStructuredOnly(result), payload);
+  assert.deepEqual(readCarrier(result), payload);
   assert.equal(result.isError, undefined);
   assert.deepEqual(result, structuredToolResult(payload));
+
+  assert.deepEqual(result.content, [{ type: "text", text: JSON.stringify(payload) }]);
+  assert.deepEqual(textAlone(result), result.structuredContent);
   assertCompleteResultWithinLimit(result, getResponseSpillConfig().inlineByteLimit);
 });
 
-test("a structured error publishes its envelope once and keeps isError", () => {
+test("a structured error publishes its envelope in both representations and keeps isError", () => {
   const envelope = {
     schema_version: "example-error.v1",
     code: "example_refusal",
@@ -116,7 +129,8 @@ test("a structured error publishes its envelope once and keeps isError", () => {
   const result = errorContent({ envelope });
 
   assert.equal(result.isError, true);
-  assert.deepEqual(readStructuredOnly(result), envelope);
+  assert.deepEqual(readCarrier(result), envelope);
+  assert.deepEqual(textAlone(result), envelope);
   assertCompleteResultWithinLimit(result, getResponseSpillConfig().inlineByteLimit);
 });
 
@@ -125,7 +139,7 @@ test("an unstructured throw is translated once into the structured refusal carri
   const result = errorContent(new Error(message));
 
   assert.equal(result.isError, true);
-  const envelope = readStructuredOnly(result);
+  const envelope = readCarrier(result);
   const refusal = envelope.refusal;
   assert.equal(envelope.code, "mcp_response.handler_exception.v1");
   assert.equal(refusal.schema_version, "public-mechanical-refusal.v1");
@@ -137,6 +151,11 @@ test("an unstructured throw is translated once into the structured refusal carri
   assert.equal(facts["mcp_response.handler_completed"].value, false);
   assert.equal(refusal.no_supported_route, true);
   assert.equal(Buffer.from(envelope.diagnostic, "utf8").equals(Buffer.from(message, "utf8")), true);
+
+  const fromText = textAlone(result);
+  assert.deepEqual(fromText, envelope);
+  assert.equal(fromText.diagnostic, message);
+  assert.equal(fromText.refusal.code, "mcp_response.handler_exception.v1");
 });
 
 test("inline admission is exact at the final-frame boundary with escaped and Unicode payloads", async () => {
@@ -147,7 +166,7 @@ test("inline admission is exact at the final-frame boundary with escaped and Uni
       const inline = isError
         ? errorContent({ envelope: atLimit }, { env })
         : jsonContent(atLimit, { env });
-      assert.deepEqual(readStructuredOnly(inline), atLimit);
+      assert.deepEqual(readCarrier(inline), atLimit);
       assert.equal(utf8Bytes(JSON.stringify(inline)), INLINE_BYTE_LIMIT);
       assert.equal(inline.isError, isError ? true : undefined);
 
@@ -155,7 +174,7 @@ test("inline admission is exact at the final-frame boundary with escaped and Uni
       const spilled = isError
         ? errorContent({ envelope: overLimit }, { env })
         : jsonContent(overLimit, { env });
-      const envelope = readStructuredOnly(spilled);
+      const envelope = readCarrier(spilled);
       assert.equal(envelope.response_spilled, true);
       assert.equal(spilled.isError, isError ? true : undefined);
       assert.equal(envelope.measurement.complete_frame_bytes, INLINE_BYTE_LIMIT + 1);
@@ -175,13 +194,13 @@ test("preserved protocol metadata is part of the measured frame and is kept", as
     const _meta = { "example.org/trace": "t".repeat(128) };
 
     const small = normalizeMcpToolResult({ ...jsonContent(payload, { env }), _meta }, { env });
-    assert.deepEqual(readStructuredOnly(small), payload);
+    assert.deepEqual(readCarrier(small), payload);
     assert.deepEqual(small._meta, _meta);
 
     const fitting = payloadWithFrameBytes(INLINE_BYTE_LIMIT - 64);
     const bigMeta = { "example.org/trace": "m".repeat(256) };
     const spilled = normalizeMcpToolResult({ ...jsonContent(fitting, { env }), _meta: bigMeta }, { env });
-    const envelope = readStructuredOnly(spilled);
+    const envelope = readCarrier(spilled);
     assert.equal(envelope.response_spilled, true);
     assert.deepEqual(spilled._meta, bigMeta);
     assert.ok(envelope.measurement.complete_frame_bytes > INLINE_BYTE_LIMIT);
@@ -205,7 +224,7 @@ test("a spilled response carries the reference once and reconstructs the origina
     });
 
     const result = jsonContent(payload, { env });
-    const spilled = readStructuredOnly(result);
+    const spilled = readCarrier(result);
 
     assert.equal(spilled.schema_version, "wiki-mcp-spilled-response.v1");
     assert.equal(spilled.response_spilled, true);
@@ -237,7 +256,7 @@ test("an oversized structured error keeps isError and continues to the original 
     const result = errorContent({ envelope }, { env });
 
     assert.equal(result.isError, true);
-    const spilled = readStructuredOnly(result);
+    const spilled = readCarrier(result);
     assert.equal(spilled.response_spilled, true);
     assertCompleteResultWithinLimit(result);
     assert.deepEqual(
@@ -260,7 +279,7 @@ test("a spill-persistence failure is one bounded structured refusal with no part
     const result = jsonContent(payload, { env });
 
     assert.equal(result.isError, true);
-    const refusal = readStructuredOnly(result);
+    const refusal = readCarrier(result);
     assert.equal(refusal.schema_version, "mcp-response-refusal.v1");
     assert.equal(refusal.code, "mcp_response.spill_persistence_failed.v1");
     assert.equal(refusal.content_reference, undefined);
@@ -272,7 +291,7 @@ test("a spill-persistence failure is one bounded structured refusal with no part
   });
 });
 
-test("the public guard removes a text carrier a handler built or appended, below the byte limit", async () => {
+test("the public guard regenerates the one text representation over stale, conflicting or additional handler text", async () => {
   await withSpillDirectory(async (stateDir) => {
     const env = spillEnv(stateDir);
     const payload = { schema_version: "already-formed.v1", ok: true, items: ["a", "b"] };
@@ -299,27 +318,128 @@ test("the public guard removes a text carrier a handler built or appended, below
       },
       structured_only_without_content: async () => ({ structuredContent: payload })
     };
+    shapes.empty_content = async () => ({ content: [], structuredContent: payload });
+    shapes.empty_text = async () => ({ content: [{ type: "text", text: "" }], structuredContent: payload });
+    shapes.reordered_json_text = async () => ({
+      content: [{ type: "text", text: JSON.stringify({ items: ["a", "b"], ok: true,
+        schema_version: "already-formed.v1" }, null, 2) }],
+      structuredContent: payload
+    });
     for (const [shape, handler] of Object.entries(shapes)) {
       const result = await guardToolHandler(handler, { name: shape, env })({});
       assert.ok(utf8Bytes(JSON.stringify(result)) < INLINE_BYTE_LIMIT, shape);
-      assert.deepEqual(readStructuredOnly(result), payload, shape);
+      assert.deepEqual(readCarrier(result), payload, shape);
+      assert.deepEqual(result.content, [{ type: "text", text: JSON.stringify(payload) }], shape);
       assert.ok(!JSON.stringify(result).includes("handler-authored summary line"), shape);
       assert.ok(!JSON.stringify(result).includes("stale pointer"), shape);
+
+      assert.strictEqual(normalizeMcpToolResult(result, { env }), result, shape);
     }
 
     const mixed = await guardToolHandler(async () => ({
-      content: [{ type: "text", text: JSON.stringify(payload) }, image],
+      content: [{ type: "text", text: "handler-authored summary line" }, image],
       structuredContent: payload
     }), { name: "mixed", env })({});
-    assert.deepEqual(mixed.content, [image]);
+    assert.deepEqual(mixed.content, [{ type: "text", text: JSON.stringify(payload) }, image]);
     assert.deepEqual(mixed.structuredContent, payload);
-    assert.equal(CallToolResultSchema.safeParse(mixed).success, true);
+    assert.deepEqual(readCarrier(mixed, { permitNonTextBlocks: true }), payload);
+    assert.deepEqual(structuredCarrierFindings(mixed).findings,
+      [{ kind: CARRIER_FINDING_KINDS.CONTENT_BESIDE_STRUCTURED, block_type: "image" }]);
+    assert.strictEqual(normalizeMcpToolResult(mixed, { env }), mixed);
   });
 });
 
 test("a result already on the contract passes the guard unchanged", async () => {
   const shaped = jsonContent({ ok: true });
   assert.equal(normalizeMcpToolResult(shaped), shaped);
+  assert.equal(normalizeMcpToolResult(normalizeMcpToolResult(shaped)), shaped);
+});
+
+test("the shared carrier predicate names each broken representation below the byte limit", () => {
+  const value = { schema_version: "control.v1", code: "example_refusal", subject: "OBL-1" };
+  const text = JSON.stringify(value);
+  const kinds = (result) => structuredCarrierFindings(result).findings.map(({ kind, reason }) =>
+    reason === undefined ? kind : `${kind}:${reason}`);
+  assert.deepEqual(kinds({ content: [{ type: "text", text }], structuredContent: value, isError: true }), []);
+  const controls = {
+    missing: [{ content: [], structuredContent: value, isError: true },
+      [CARRIER_FINDING_KINDS.TEXT_MISSING]],
+    empty: [{ content: [{ type: "text", text: "" }], structuredContent: value },
+      [CARRIER_FINDING_KINDS.TEXT_EMPTY]],
+    mismatched: [{ content: [{ type: "text", text: JSON.stringify({ ...value, subject: "OBL-2" }) }],
+      structuredContent: value }, [`${CARRIER_FINDING_KINDS.TEXT_DISAGREES}:meaning`]],
+    generic_error_text: [{ content: [{ type: "text", text: "Unknown error" }], structuredContent: value,
+      isError: true }, [`${CARRIER_FINDING_KINDS.TEXT_DISAGREES}:meaning`]],
+    not_compact: [{ content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+      structuredContent: value }, [`${CARRIER_FINDING_KINDS.TEXT_DISAGREES}:serialization`]],
+    additional: [{ content: [{ type: "text", text }, { type: "text", text }], structuredContent: value },
+      [CARRIER_FINDING_KINDS.TEXT_ADDITIONAL]],
+    missing_structured: [{ content: [{ type: "text", text }] },
+      [CARRIER_FINDING_KINDS.STRUCTURED_MEANING_MISSING]]
+  };
+  for (const [label, [result, expected]] of Object.entries(controls)) {
+    assert.ok(utf8Bytes(JSON.stringify(result)) < INLINE_BYTE_LIMIT, label);
+    assert.deepEqual(kinds(result), expected, label);
+    assert.throws(() => assertStructuredCarrier(result), assert.AssertionError, label);
+  }
+
+  assert.deepEqual(structuredCarrierFindings({ content: [{ type: "text", text: "plain" }], isError: true }),
+    { structured: false, unstructured_error: true, text_bytes: 0, findings: [] });
+});
+
+test("inline admission is exact at both the production default and the supported minimum limit", async () => {
+  await withSpillDirectory(async (stateDir) => {
+    const productionDefault = getResponseSpillConfig({ WIKI_MCP_RESPONSE_STATE_DIR: stateDir });
+
+    const minimum = getResponseSpillConfig({ WIKI_MCP_RESPONSE_STATE_DIR: stateDir,
+      WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: "1024" });
+    assert.equal(productionDefault.inlineByteLimit, 128 * 1024);
+    assert.equal(minimum.inlineByteLimit, INLINE_BYTE_LIMIT);
+    for (const [label, env] of [
+      ["production_default", { WIKI_MCP_RESPONSE_STATE_DIR: stateDir }],
+      ["supported_minimum", { WIKI_MCP_RESPONSE_STATE_DIR: stateDir, WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: "1024" }]
+    ]) {
+      const limit = getResponseSpillConfig(env).inlineByteLimit;
+      for (const isError of [false, true]) {
+        const atLimit = payloadWithFrameBytes(limit, { isError });
+        const inline = isError ? errorContent({ envelope: atLimit }, { env }) : jsonContent(atLimit, { env });
+        assert.deepEqual(readCarrier(inline), atLimit, label);
+        assert.deepEqual(textAlone(inline), atLimit, label);
+        assert.equal(utf8Bytes(JSON.stringify(inline)), limit, label);
+
+        const overLimit = payloadWithFrameBytes(limit + 1, { isError });
+        const spilled = isError ? errorContent({ envelope: overLimit }, { env }) : jsonContent(overLimit, { env });
+        const envelope = readCarrier(spilled);
+        assert.equal(envelope.response_spilled, true, label);
+        assert.equal(envelope.measurement.complete_frame_bytes, limit + 1, label);
+        assert.equal(spilled.isError, isError ? true : undefined, label);
+        assertCompleteResultWithinLimit(spilled, limit);
+        assert.deepEqual(textAlone(spilled), envelope, label);
+      }
+    }
+  });
+});
+
+test("the lossless spill recognizer admits exactly one generated text agreeing with the minted envelope", async () => {
+  await withSpillDirectory(async (stateDir) => {
+    const env = spillEnv(stateDir);
+    const spilled = jsonContent({ value: "s".repeat(INLINE_BYTE_LIMIT * 2) }, { env });
+    assert.equal(isLosslessMcpSpillDelivery(spilled), true);
+    const envelope = spilled.structuredContent;
+    const variants = {
+      no_text: { content: [], structuredContent: envelope },
+      stale_text: { content: [{ type: "text", text: JSON.stringify({ ...envelope, total_bytes: 1 }) }],
+        structuredContent: envelope },
+      indented_text: { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }],
+        structuredContent: envelope },
+      additional_text: { content: [...spilled.content, ...spilled.content], structuredContent: envelope },
+      extra_block_field: { content: [{ ...spilled.content[0], annotations: {} }], structuredContent: envelope },
+      caller_field: { ...structuredToolResult({ ...envelope, extra: true }) }
+    };
+    for (const [label, variant] of Object.entries(variants)) {
+      assert.equal(isLosslessMcpSpillDelivery(variant), false, label);
+    }
+  });
 });
 
 test("legitimate unstructured text results are left intact", async () => {
@@ -329,7 +449,7 @@ test("legitimate unstructured text results are left intact", async () => {
   assert.deepEqual(guarded, { content: [{ type: "text", text: "plain text result" }] });
 });
 
-test("the installed SDK client receives every structured shape without a text carrier", async () => {
+test("the installed SDK client receives every structured shape with its one generated text representation", async () => {
   await withSpillDirectory(async (stateDir) => {
     const env = spillEnv(stateDir);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -364,20 +484,24 @@ test("the installed SDK client receives every structured shape without a text ca
       await client.connect(clientTransport);
       const call = (name) => client.callTool({ name, arguments: {} });
 
-      assert.deepEqual(readStructuredOnly(await call("success")), { ok: true, marker: "é 🔥 \"q\"" });
+      const success = await call("success");
+      assert.deepEqual(readCarrier(success), { ok: true, marker: "é 🔥 \"q\"" });
+      assert.equal(success.content[0].text, '{"ok":true,"marker":"é 🔥 \\"q\\""}');
       const error = await call("structured_error");
       assert.equal(error.isError, true);
-      assert.deepEqual(readStructuredOnly(error), { code: "example_refusal", ok: false });
+      assert.deepEqual(readCarrier(error), { code: "example_refusal", ok: false });
+      assert.deepEqual(textAlone(error), { code: "example_refusal", ok: false });
       const thrown = await call("thrown");
       assert.equal(thrown.isError, true);
-      assert.equal(readStructuredOnly(thrown).diagnostic, "thrown-marker");
-      const spilled = readStructuredOnly(await call("spilled"));
+      assert.equal(readCarrier(thrown).diagnostic, "thrown-marker");
+      assert.equal(textAlone(thrown).diagnostic, "thrown-marker");
+      const spilled = readCarrier(await call("spilled"));
       assert.equal(spilled.response_spilled, true);
       assert.deepEqual(
         JSON.parse(readReferenceToEnd(spilled.content_reference, env).toString("utf8")),
         { value: "s".repeat(INLINE_BYTE_LIMIT * 2) }
       );
-      assert.deepEqual(readStructuredOnly(await call("handler_text")), { ok: true, marker: "m" });
+      assert.deepEqual(readCarrier(await call("handler_text")), { ok: true, marker: "m" });
       assert.deepEqual((await call("plain_text")).content,
         [{ type: "text", text: "plain text result" }]);
     } finally {

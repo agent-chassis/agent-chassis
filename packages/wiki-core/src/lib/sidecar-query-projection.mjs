@@ -1,11 +1,13 @@
 export const CODE_INDEX_COMPACT_LIMIT = 20;
 export const RETAINED_ANSWER_NEXT_ACTION =
-  "The complete original answer is retained at full_result.content_reference; read it with its " +
-  "read_tool. verbose:true runs a new evaluation and does not recover this answer.";
+  "The complete original answer is retained; follow next_calls, or name one of its collections " +
+  "with a row id, path, symbol or relationship in detail, to read that part without evaluating " +
+  "the question again.";
 
 export const IMPACT_SELECTED_DETAIL_NEXT_ACTION =
-  "Omitted impact rows and fields are retained; follow selected_detail.next_calls. " +
-  "verbose:true runs a new evaluation and does not recover this answer.";
+  "Omitted impact rows and members are retained; follow next_calls, or name a collection or " +
+  "omitted member with a path, symbol or relationship in detail, to read them without " +
+  "evaluating the question again.";
 
 const list = (value) => (Array.isArray(value) ? value : []);
 

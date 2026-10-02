@@ -14,6 +14,8 @@ order and repo map.
 - [local-package-install.md](local-package-install.md) — installing the
   packages from a local build.
 - [adoption.md](adoption.md) — adopting the contract in a new or existing repo.
+- [vertex-ai-inference.md](vertex-ai-inference.md) — run Codex inference through
+  the local LiteLLM gateway to Vertex AI.
 
 ## Operating and enforcement model
 

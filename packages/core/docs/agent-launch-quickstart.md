@@ -68,7 +68,11 @@ per-dispatch overrides only. Missing, malformed, or unknown role config refuses
 with a role-specific diagnostic that names the operator-owned config to fix;
 there is no family fallback and caller prompt/request/argv/environment/identity
 cannot select the runtime. Editing `agent-launch.toml` affects the next dispatch
-without a restart. Updating loaded launcher or MCP code still requires restarting
+without a restart. A model that `agent-launch.toml` marks
+`[models."<id>"] use_litellm = true` is routed through the shared local LiteLLM
+gateway for every role that selects it; see
+[env reference](env-reference.md#per-model-litellm-routing-modelsid-vertexai).
+Updating loaded launcher or MCP code still requires restarting
 the owning MCP server or launcher session.
 
 With a launch executor configured on the MCP server process, dispatch-readiness
@@ -123,13 +127,13 @@ refuses orchestrator launch attempts from any role kind other than
 `human_operator` with the refusal code
 `agent_dispatch_identity.orchestrator_not_operator.v1`.
 
-Startup prompts deliver the package-owned role guides in
-`@agent-chassis/agent-launch-core` under `data/role-guides/`. The orchestrator
-prompt names the package-resolved `orchestrator.md` path. Managed worker and
-reviewer/redteam prompts inline `managed-worker.md` or `reviewer.md` once,
-because a confined session cannot read package files outside its scope.
-Direct-worker prompts are prepared by hand, so the preparer names the actual
-`direct-worker.md` path.
+Startup prompts name the package-owned role guides in
+`@agent-chassis/agent-launch-core` under `data/role-guides/`. Each orchestrator,
+worker, reviewer, and redteam prompt carries one `Read your ... guide before
+acting: <path>` line with the package-resolved `orchestrator.md`,
+`managed-worker.md`, or `reviewer.md` path. The launcher grants a confined
+worker, reviewer, or redteam that whole guide directory read-only, including
+Claude's native `Read`, whatever its task scope.
 
 Reviewer review uses `workspace_agent_dispatch --role reviewer`. If that route
 is unavailable in the current session, an implementation WK or slice covered by
@@ -269,8 +273,10 @@ the index. Dirty, staged, deleted, and untracked worktree bytes do not enter or
 block the committed semantic graph. A dirty+fresh result means only that the
 committed artifact's HEAD anchor is current; it is valid and does not itself
 require rebuilding. Only an actual rebuild or verification failure, or a HEAD
-that cannot stabilize, reaches the blocking `graph_impact_unavailable`, with
-its cause and correction-before-retry guidance. A usable dirty overlay remains
+that cannot stabilize, fails preparation, with its cause and
+correction-before-retry guidance. An explicit graph or symbol query returns that
+typed failure; dispatch carries it as supplementary evidence and continues,
+because graph-impact evidence never refuses dispatch. A usable dirty overlay remains
 separately reported as non-canonical path-context evidence; its source count is
 the eligible source population, not a modified-file total.
 
@@ -552,7 +558,7 @@ Two prerequisites are commonly missed before a WK's first managed start:
   branch inventory. Without it, dispatch refuses before worker start with
   `managed_worktree_base_selection_missing`; the refusal's `next_calls` is that
   read-only field lookup (`kind: "guidance"`, `next_action: null`) and
-  `refusal.carried.base_selection` names the root and its fresh
+  `refusal.carried.base_selection` names the root and its fresh 16-hex
   `root_source_digest`. Edit, then resubmit the original dispatch. After the first allocation the
   captured base is frozen; editing `base_branch` later is not a rebase. See
   [work-record-schema.md](work-record-schema.md#record-shape) and

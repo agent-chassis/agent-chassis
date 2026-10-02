@@ -135,3 +135,35 @@ test("refuses cross-bound evidence and propagates candidate movement unchanged",
   await assert.rejects(executeVerifyProofReceiptPopulation(stale.input),
     (error) => error === moved);
 });
+
+test("carries each attempt observation with its receipt and keeps it on later boundary failures", async () => {
+  const observation = Object.freeze({ runtime_environment: null, stages: Object.freeze([
+    Object.freeze({ stage: "candidate", check_id: null, provider: null,
+      captured_run: Object.freeze({ ran: true, exit_code: 1, stdout: "candidate output" }) })]) });
+  const runAttempt = async () => Object.freeze({ evidence: {
+    evidence_identity: { verification_id: VERIFICATION, command_target: TARGET } },
+  attempt_observation: observation });
+  const completed = await executeVerifyProofReceiptPopulation(harness({ runAttempt }).input);
+  assert.equal(completed.attempt_observations_by_target[TARGET].length, 1);
+  assert.equal(completed.attempt_observations_by_target[TARGET][0], observation);
+  assert.equal(Object.hasOwn(completed, "runtime_environments_by_target"), false);
+
+  const fault = new Error("receipt fault");
+  await assert.rejects(executeVerifyProofReceiptPopulation(harness({ runAttempt,
+    extractReceipt: () => { throw fault; } }).input), (error) =>
+    error.code === VERIFY_PROOF_EXECUTION_FAILURE_CODES.RECEIPT_INCOMPLETE &&
+    error.cause === fault && error.attempt_observation === observation);
+  await assert.rejects(executeVerifyProofReceiptPopulation(harness({ runAttempt,
+    extractReceipt: () => ({ evidence_identity: { verification_id: "claim-other",
+      command_target: TARGET } }) }).input), (error) =>
+    error.code === VERIFY_PROOF_EXECUTION_FAILURE_CODES.RECEIPT_CROSS_BOUND &&
+    error.attempt_observation === observation);
+
+  const moved = Object.assign(new Error("candidate moved"), {
+    code: "agent_launch.verify_proof.candidate_moved.v1" });
+  let checks = 0;
+  await assert.rejects(executeVerifyProofReceiptPopulation(harness({ runAttempt,
+    assertCurrentIdentity: async () => { checks += 1; if (checks === 2) throw moved; } }).input),
+  (error) => error === moved && error.code === "agent_launch.verify_proof.candidate_moved.v1" &&
+    error.attempt_observation === observation);
+});

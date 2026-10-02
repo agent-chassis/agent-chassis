@@ -135,7 +135,10 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
     env: orchEnv,
     isolation,
     headless: isHeadless,
-    headlessLogTarget
+    headlessLogTarget,
+
+    model_selection: resolvedProfile?.model_selection ?? null,
+    model_route_secret_dir: runtimeDir
   };
 }
 

@@ -4,6 +4,10 @@ import {
   WORKER_SCOPE_PATH_REFUSED_DECISION_CODE as WORKER_SCOPE_PATH_REFUSED,
   projectLauncherTransitionReadiness
 } from "@agent-chassis/wiki-core/src/lib/work-record-dispatch-readiness-shape.mjs";
+import { ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION } from
+  "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-shared.mjs";
+import { MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE } from
+  "@agent-chassis/wiki-core/src/lib/work-record-dispatch.mjs";
 import {
   createFailedLauncherTransitionPlan
 } from "@agent-chassis/agent-launch-core/src/lib/launcher-transition-plan.mjs";
@@ -15,9 +19,12 @@ import {
   buildBlockedDispatchResult,
   buildDispatchContinuation,
   buildDispatchMechanicalRefusal,
-  NO_SUPPORTED_ROUTE_RECOVERY
+  distillDispatchFailureDetail,
+  NO_SUPPORTED_ROUTE_RECOVERY,
+  ownedNoRouteRecovery,
+  retainWithheldOriginal
 } from "../dispatch-tool-helpers.mjs";
-import { buildDispatchGuidanceRefusal, GUIDANCE_CAPABILITY_OWNER } from
+import { buildDispatchGuidanceRefusal, GUIDANCE_CAPABILITY_OWNER, guidanceCapability } from
   "../dispatch-guidance-contract.mjs";
 import { classifyMechanicalRuntimeBlocker } from "./runtime-blocker-classifier.mjs";
 import { projectBoundedExactPolicyPayloadIssueReadiness } from
@@ -109,13 +116,18 @@ function redactDiagnosticStacks(value, location, redactions) {
   return Object.freeze(result);
 }
 
-export function projectPublicBackendDetail(classification, app) {
+export function projectPublicBackendDetail(classification, app, { env = process.env } = {}) {
   const redactions = [];
-  const diagnostics = redactDiagnosticStacks(
+  const stackFree = redactDiagnosticStacks(
     classification.diagnostics,
     "originating_detail",
     redactions
   );
+  const { detail: distilled, withheld } = distillDispatchFailureDetail(stackFree,
+    { at: "originating_detail" });
+  const diagnostics = distilled !== null && typeof distilled === "object" ? distilled : stackFree;
+  const retention = retainWithheldOriginal(classification.diagnostics,
+    [...redactions, ...withheld], { env });
   const projected = {
     app,
     classification_state: classification.state,
@@ -133,6 +145,7 @@ export function projectPublicBackendDetail(classification, app) {
     transition_failure: classification.transition_failure.code,
     originating_detail: diagnostics,
     redactions: Object.freeze(redactions),
+    ...retention,
     schema_rejected: classification.schema_rejected
   };
 
@@ -314,6 +327,64 @@ export function reviewerShaSubjectRefusal({ subject, requestSchemaAuthority = nu
     noSupportedRoute: true,
     recovery: NO_SUPPORTED_ROUTE_RECOVERY,
     carried: { ...correction, guidance_unavailable: built.unavailable }
+  });
+}
+
+export function missingInitiativeAssignmentRefusal({ readiness, code, requestSchemaAuthority = null }) {
+  const parent = readiness.record_id;
+  const factEntries = [
+    ["wk.dispatchable", false],
+    ["wk.decision_code", MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE]
+  ];
+  const common = {
+    code,
+    decidingFacts: factEntries.map(([field, value]) => ({ field, value })),
+    observedFacts: Object.fromEntries(factEntries),
+    route: AGENT_DISPATCH_TOOL_NAME
+  };
+  const prerequisite = `canonical parent ${parent} declares no canonical IN-#### initiative`;
+  const assignment = guidanceCapability({
+    tool: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION, requestSchemaAuthority
+  });
+  const carried = {
+    initiative_assignment: {
+      operation: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
+      arguments: { unit: parent },
+      required_arguments: ["initiative"],
+      success_predicate: { fact: "wk.canonical_initiative", operator: "is_present" }
+    }
+  };
+  const built = assignment.available ? buildDispatchGuidanceRefusal({
+    ...common,
+    guidance: {
+      tool: "workspace_tools_describe",
+      arguments: { tool_name: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION },
+      information:
+        `The registered ${ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION} contract that assigns parent ` +
+        `${parent} (unit) to the caller-chosen existing IN-#### (initiative).`
+    },
+    recovery: {
+      responsible_actor: "coordinator",
+      prerequisite,
+      selected_from: ["wk.decision_code"],
+      retry_condition:
+        `call ${ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION} with unit ${parent} and the existing initiative, ` +
+        "then resubmit workspace_agent_dispatch; its other readiness conditions are evaluated then"
+    },
+    carried,
+    requestSchemaAuthority
+  }) : { unavailable: assignment };
+  if (built.refusal) return built.refusal;
+  return buildDispatchMechanicalRefusal({
+    ...common,
+    noSupportedRoute: true,
+    recovery: ownedNoRouteRecovery({
+      responsibleActor: null,
+      prerequisite,
+      explanation: `This server cannot offer initiative assignment: missing ` +
+        `${built.unavailable.missing.join(", ")} (${built.unavailable.owner}).`
+    }),
+    carried: { guidance_unavailable: built.unavailable }
   });
 }
 

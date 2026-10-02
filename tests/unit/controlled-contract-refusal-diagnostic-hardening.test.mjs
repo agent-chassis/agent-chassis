@@ -31,32 +31,23 @@ test("a path-shaped diagnostic remains exact", () => {
   assert.deepEqual(projected.summary_redactions, []);
 });
 
-test("a structured secret removes only the secret and preserves surrounding text", () => {
+test("a structured diagnostic with sensitive declarations keeps its original text", () => {
   const secret = "sk-live-abc123";
-  const projected = diagnostic(captureStructuredDiagnostic(
-    `authorization ${secret}\nfailed: punctuation!?`,
-    { sensitiveValues: [{ field: "credential", value: secret, reason: "secret_material" }] }
-  ));
-  assert.equal(projected.summary,
-    "authorization [redacted:secret_material]\nfailed: punctuation!?");
-  assert.deepEqual(projected.summary_redactions, [
-    { field: "controlled_contract.diagnostic.credential", reason: "secret_material" }
-  ]);
-  assert.equal(JSON.stringify(projected).includes(secret), false);
+  const original = `authorization ${secret}\nfailed: punctuation!?`;
+  const projected = diagnostic(captureStructuredDiagnostic(original,
+    { sensitiveValues: [{ field: "credential", value: secret, reason: "secret_material" }] }));
+  assert.equal(projected.summary, original);
+  assert.deepEqual(projected.summary_redactions, []);
 });
 
-test("cause diagnostics obey the same exact-component rule", () => {
+test("a structured cause diagnostic keeps its original text", () => {
   const secret = "credential-value";
-  const cause = captureStructuredDiagnostic(
-    `inner ${secret} remained ordinary around it`,
-    { sensitiveValues: [{ field: "credential", value: secret, reason: "secret_material" }] }
-  );
+  const original = `inner ${secret} remained ordinary around it`;
+  const cause = captureStructuredDiagnostic(original,
+    { sensitiveValues: [{ field: "credential", value: secret, reason: "secret_material" }] });
   const projected = diagnostic(new Error("outer", { cause }));
-  assert.equal(projected.cause_summary,
-    "inner [redacted:secret_material] remained ordinary around it");
-  assert.deepEqual(projected.cause_summary_redactions, [
-    { field: "controlled_contract.diagnostic.credential", reason: "secret_material" }
-  ]);
+  assert.equal(projected.cause_summary, original);
+  assert.deepEqual(projected.cause_summary_redactions, []);
   assert.equal(projected.cause_summary_truncated, false);
 });
 

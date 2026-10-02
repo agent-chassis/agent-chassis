@@ -295,6 +295,84 @@ export function createControlledContractGenerationTreeOperations({
     return paths.sort();
   }
 
+  function blobEntriesAtTree({ runGit, binding, treeish, paths }) {
+    const listing = runGitOrFail(runGit, { repo: binding.repository, gitDir: binding.git_dir }, [
+      "--no-replace-objects", ...gitInertConfig, "--literal-pathspecs",
+      "ls-tree", "-z", "--full-tree", treeish, "--", ...paths
+    ], "controlled-contract runtime package entries could not be enumerated");
+    return new Map(parseLsTree(stdoutBytes(listing))
+      .filter((entry) => entry.type === "blob")
+      .map((entry) => [entry.path, { mode: entry.mode, oid: entry.oid }]));
+  }
+
+  function selectedRuntimePackageAtTree({ runGit, binding, treeish, manifestPath }) {
+    const stem = manifestPath.slice(`wiki/contracts/${binding.record_id}`.length,
+      -".carrier-set-manifest.json".length);
+    const focus = stem === "" ? null : stem.slice(1);
+    const visible = blobEntriesAtTree({ runGit, binding, treeish, paths: [manifestPath] })
+      .get(manifestPath);
+    if (visible === undefined) return null;
+    const visibleBytes = stdoutBytes(runGitOrFail(runGit, { gitDir: binding.git_dir },
+      ["--no-replace-objects", "cat-file", "blob", visible.oid],
+      "stored controlled-contract manifest blob could not be read"));
+    let manifest;
+    try {
+      manifest = parseControlledContractCarrierSetManifest(visibleBytes, {
+        wkId: binding.record_id, focus
+      });
+    } catch (error) {
+      fail(codes.STORED_GENERATION_INVALID,
+        "a visible controlled-contract manifest in the WK history is invalid", {
+          commit: treeish,
+          path: manifestPath,
+          cause_code: error?.code ?? null,
+          cause_message: error?.message ?? null
+        });
+    }
+    const prefix = `wiki/contracts/${manifest.generation.path}`;
+    const expected = new Map([[`${prefix}/manifest.json`, {
+      content_digest: sha256(visibleBytes), byte_length: visibleBytes.byteLength
+    }]]);
+    for (const member of manifest.carrier_census) {
+      if (member.member_kind !== "carrier" && member.member_kind !== "evaluation_input") continue;
+      expected.set(`wiki/contracts/${member.path}`, {
+        content_digest: member.content_digest, byte_length: member.byte_length
+      });
+    }
+    const entries = blobEntriesAtTree({ runGit, binding, treeish, paths: [...expected.keys()] });
+    for (const [repositoryPath, declared] of expected) {
+      const entry = entries.get(repositoryPath);
+      if (entry === undefined || entry.mode !== "100644") return null;
+      const bytes = stdoutBytes(runGitOrFail(runGit, { gitDir: binding.git_dir },
+        ["--no-replace-objects", "cat-file", "blob", entry.oid],
+        "stored controlled-contract runtime package blob could not be read"));
+      if (bytes.byteLength !== declared.byte_length || sha256(bytes) !== declared.content_digest) {
+        return null;
+      }
+    }
+    return new Map([...expected.keys()].map((repositoryPath) =>
+      [repositoryPath, entries.get(repositoryPath)]));
+  }
+
+  function selectedRuntimePackagesInHistory({ runGit, binding, since }) {
+    const commits = runGitOrFail(runGit, { repo: binding.repository, gitDir: binding.git_dir }, [
+      "--no-replace-objects", ...gitInertConfig, "--literal-pathspecs",
+      "rev-list", binding.wk_tip_sha, "--not", since, "--", "wiki/contracts"
+    ], "controlled-contract generation history could not be enumerated");
+    const history = stdoutBytes(commits).toString("utf8").split("\n").filter(Boolean);
+    const selected = new Map();
+    for (const commit of history) {
+      for (const manifestPath of manifestPathsFromTree({ runGit, binding, treeish: commit })) {
+        const entries = selectedRuntimePackageAtTree({ runGit, binding, treeish: commit, manifestPath });
+        for (const [repositoryPath, entry] of entries ?? []) {
+          if (!selected.has(repositoryPath)) selected.set(repositoryPath, new Set());
+          selected.get(repositoryPath).add(`${entry.mode} ${entry.oid}`);
+        }
+      }
+    }
+    return selected;
+  }
+
   async function generationFromTree({ runGit, binding, treeish, allowEmpty }) {
     const listing = await runGitOrFailAsync(runGit, {
       repo: binding.repository, gitDir: binding.git_dir
@@ -455,6 +533,7 @@ export function createControlledContractGenerationTreeOperations({
     resolveBoundManifestArtifacts,
     resolveBoundRecordArtifact,
     resolveBoundRuntimePackageArtifacts,
-    runtimePackageMatchesTree
+    runtimePackageMatchesTree,
+    selectedRuntimePackagesInHistory
   });
 }

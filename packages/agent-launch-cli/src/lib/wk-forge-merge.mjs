@@ -20,6 +20,10 @@ import { authenticateCurrentControlledContractGenerationAtW } from
   "./controlled-carrier-attachment-primitive.mjs";
 import { withControlledContractAuthorityExclusion } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
+import {
+  mergeWkHandoffIntoCheckout,
+  WK_FORGE_MERGE_CHECKOUT_FAILURE_CATEGORIES
+} from "./wk-forge-merge-checkout.mjs";
 
 export function defaultRunGit({ repo, args, env = null }) {
   const result = spawnSync("git", ["-C", repo, ...args], {
@@ -70,7 +74,11 @@ export const WK_FORGE_MERGE_FAILURE_CATEGORIES = Object.freeze({
   IDENTITY: "identity_disagreement",
   FORGE: "forge_merge_failed",
   RECONCILIATION: "local_reconciliation_failed",
-  INDETERMINATE: "indeterminate"
+  INDETERMINATE: "indeterminate",
+  CHECKOUT_CONTENT: WK_FORGE_MERGE_CHECKOUT_FAILURE_CATEGORIES.CONTENT,
+  CONCURRENT: WK_FORGE_MERGE_CHECKOUT_FAILURE_CATEGORIES.CONCURRENT,
+  GIT: WK_FORGE_MERGE_CHECKOUT_FAILURE_CATEGORIES.GIT,
+  FAST_FORWARD: WK_FORGE_MERGE_CHECKOUT_FAILURE_CATEGORIES.FAST_FORWARD
 });
 
 const WK_RE = /^WK-\d{4}$/u;
@@ -356,7 +364,7 @@ function handoffObservationDeps(deps) {
 }
 
 async function runWkForgeMergeWithinGenerationAuthority({
-  mainRepo, assignedUnit, authorityContext, deps
+  mainRepo, assignedUnit, checkout, authorityContext, deps
 }) {
   const wk = assignedUnit;
   const runGit = deps.runGit ?? defaultRunGit;
@@ -387,11 +395,12 @@ async function runWkForgeMergeWithinGenerationAuthority({
             "authenticated_handoff_identity_disagrees");
         }
 
-        if (authenticatedHandoff.transport !== "hosted") {
-          return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY,
-            "forge_merge_requires_hosted_handoff", { transport: authenticatedHandoff.transport });
+        if (authenticatedHandoff.transport === "hosted" && checkout !== null) {
+          return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.REQUEST_INVALID,
+            "checkout_option_requires_local_or_git_handoff", { transport: authenticatedHandoff.transport });
         }
         candidateState = Object.freeze({
+          retained: retainedHandoff,
           binding: retainedHandoff.binding,
           version_decision: retainedHandoff.version_decision,
           branch: authenticatedHandoff.branch,
@@ -430,6 +439,16 @@ async function runWkForgeMergeWithinGenerationAuthority({
       await verify({ binding, runGit });
     } catch {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "terminal_candidate_binding_unverified");
+    }
+
+    if (candidateState.authenticated_handoff_result.transport !== "hosted") {
+      return await mergeWkHandoffIntoCheckout({
+        mainRepo,
+        handoff: candidateState.authenticated_handoff_result,
+        retained: candidateState.retained,
+        checkout,
+        runGit
+      });
     }
     const candidate = binding.candidate;
     const candidateRecord = await readCandidateBoundRecord({ mainRepo, wk, binding, deps });
@@ -472,10 +491,14 @@ async function runWkForgeMergeWithinGenerationAuthority({
     let chain = completion && completion !== candidate
       ? await commitChain(runGit, mainRepo, completion, wk, { deps, candidate, binding }) : null;
     let pr = await observePr(forge, { repository: remote.repository, base, branch });
-    if (completion === null) {
-      if (pr?.merged === true && OID_RE.test(pr.head_sha)) completion = pr.head_sha;
-      else return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "handoff_branch_unobservable");
-      chain = await commitChain(runGit, mainRepo, completion, wk, { deps, candidate, binding });
+
+    if (pr?.merged === true && OID_RE.test(pr.head_sha ?? "")) {
+      if (completion !== pr.head_sha) {
+        completion = pr.head_sha;
+        chain = await commitChain(runGit, mainRepo, completion, wk, { deps, candidate, binding });
+      }
+    } else if (completion === null) {
+      return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "handoff_branch_unobservable");
     }
 
     if (!chain || chain.candidate !== candidate) {
@@ -569,9 +592,10 @@ async function runWkForgeMergeWithinGenerationAuthority({
   }
 }
 
-export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } = {}) {
+export async function defaultWkForgeMerge({ mainRepo, assignedUnit, checkout = null, deps = {} } = {}) {
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
-      !WK_RE.test(assignedUnit ?? "")) {
+      !WK_RE.test(assignedUnit ?? "") ||
+      (checkout !== null && (typeof checkout !== "string" || !path.isAbsolute(checkout)))) {
     return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.REQUEST_INVALID, "invalid_request");
   }
   try {
@@ -581,6 +605,7 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
       run: async (authorityContext) => runWkForgeMergeWithinGenerationAuthority({
         mainRepo,
         assignedUnit,
+        checkout,
         authorityContext,
         deps
       })

@@ -1,3 +1,4 @@
+import { WORK_RECORD_FRESHNESS_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import { Buffer } from "node:buffer";
 import {
   WORK_RECORD_EDIT_FIELD_REGISTRY,
@@ -62,7 +63,7 @@ export function createWorkRecordEditCommonShape(z) {
   return {
     repo: z.string().optional(),
     unit: z.string().regex(EDITOR_UNIT_PATTERN),
-    expected_source_digest: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+    expected_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional(),
     verbose: z.boolean().optional()
   };
 }
@@ -297,10 +298,10 @@ function requestFactsForSchemaParts(z, { schema, variants, refusalVariants }) {
       {
         path: "$.expected_source_digest",
         reason: "post_schema_validation",
-        owner: "validateOptionalExpectedSourceDigest",
+        owner: "resolveExpectedSourceDigest",
         statement:
-          "When supplied, expected_source_digest must be sha256: followed by " +
-          "64 lowercase hexadecimal characters."
+          "When supplied, expected_source_digest must be the 16 lowercase hexadecimal " +
+          "source_digest a read returned, and must match the current canonical record."
       },
       {
         path: "$.value",

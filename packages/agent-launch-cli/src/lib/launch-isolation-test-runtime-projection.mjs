@@ -1,6 +1,6 @@
 
 
-import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { inspectDependencyMountpoint } from "./dependency-mountpoint-occupant.mjs";
@@ -13,7 +13,7 @@ import { readShebangLine, resolveBasenameOnPath } from "./launch-isolation-execu
 import { prependPathEntry } from "./launch-isolation-package-asset.mjs";
 import {
   createMissingDirectoryLeaf,
-  rollbackPreparedWorkerDirectories
+  releasePreparedDirectoriesOnRefusal
 } from "./launch-isolation-worker-scope.mjs";
 import { TEST_RUNTIME_READINESS_CODES, loadReadiness } from "./test-runtime-setup/readiness.mjs";
 import {
@@ -103,8 +103,7 @@ export function prepareWorkerTestRuntimeMounts({ workerTestRuntime = null, spars
     }
   } catch (error) {
 
-    rollbackPreparedWorkerDirectories(created);
-    throw error;
+    throw releasePreparedDirectoriesOnRefusal(error, created, repoReal);
   }
   return Object.freeze({
     readOnlyBinds: workerTestRuntime.readOnlyBinds,
@@ -119,6 +118,67 @@ export function prepareWorkerTestRuntimeMounts({ workerTestRuntime = null, spars
     identity: workerTestRuntime.identity,
     publication: workerTestRuntime.publication
   });
+}
+
+export function planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds = [] }) {
+  const missing = [];
+  for (const bind of readOnlyBinds) {
+    const dst = bind?.dst;
+    const src = bind?.src;
+    if (typeof dst !== "string" || typeof src !== "string" || dst === repoReal ||
+        !isWithinRepo(dst, repoReal)) continue;
+    let source;
+    try { source = statSync(src); } catch { continue; }
+    if (!source.isDirectory()) continue;
+    try {
+      lstatSync(dst);
+      continue;
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        refuse(`dependency mountpoint could not be inspected: ${dst}`,
+          { mountpoint: dst, errno: error?.code ?? null });
+      }
+    }
+    if (!missing.includes(dst)) missing.push(dst);
+  }
+
+  const outer = readOnlyBinds.map((bind) => bind?.dst).filter((dst) => typeof dst === "string");
+  const own = missing.filter((dst) => !outer.some((other) => other !== dst && isWithinRepo(dst, other)));
+  missing.length = 0;
+  missing.push(...own);
+  if (missing.length === 0) return null;
+  const chain = new Set([repoReal]);
+  for (const mountpoint of missing) {
+    for (let dir = path.dirname(mountpoint); dir !== repoReal; dir = path.dirname(dir)) chain.add(dir);
+  }
+  const created = new Set([...chain, ...missing]);
+  created.delete(repoReal);
+  const depth = (dir) => dir.split("/").length;
+  const args = ["--tmpfs", repoReal];
+  for (const dir of [...chain].sort((left, right) => depth(left) - depth(right) || left.localeCompare(right))) {
+    if (dir !== repoReal) args.push("--dir", dir);
+    let entries = [];
+    try {
+      const stat = lstatSync(dir);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        refuse(`a dependency mountpoint ancestor is not a real directory: ${dir}`, { ancestor: dir });
+      }
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      const child = path.join(dir, entry.name);
+      if (created.has(child)) continue;
+      if (entry.isSymbolicLink()) args.push("--symlink", readlinkSync(child), child);
+      else args.push("--ro-bind", child, child);
+    }
+  }
+  for (const mountpoint of [...missing].sort()) {
+    if (!chain.has(mountpoint)) args.push("--dir", mountpoint);
+  }
+  args.push("--remount-ro", repoReal);
+  return Object.freeze({ mountpoints: Object.freeze([...missing].sort()), args: Object.freeze(args) });
 }
 
 export function projectWorkerTestRuntimeEnv(env, prepared) {
@@ -142,20 +202,6 @@ export function pinHarnessInterpreter({ resolvedCommand, args, pathEnv, prepared
   const tokens = line.split(/\s+/u);
   const extra = tokens.slice(tokens.indexOf(shebang.envInterpreterName) + 1);
   return { argvCommand: realpathSync(interpreter), args: [...extra, resolvedCommand.argvCommand, ...args] };
-}
-
-export function releaseOwnedTestRuntimeMountpointsAfterChild(plan, child) {
-  const owned = (plan?.workerTestRuntime?.mounts ?? []).filter((mount) => mount.owned)
-    .map((mount) => ({ real: mount.dst, identity: mount.destination }));
-  if (owned.length === 0 || child === null || typeof child?.once !== "function") return;
-  let released = false;
-  const release = () => {
-    if (released) return;
-    released = true;
-    rollbackPreparedWorkerDirectories(owned);
-  };
-  child.once("exit", release);
-  child.once("close", release);
 }
 
 function unchangedDirectory(expected) {

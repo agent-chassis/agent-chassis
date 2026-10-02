@@ -119,15 +119,13 @@ export function classifyAssignedSourceSet({
     const path_class = pathClassForAssignedEntry(value, writeSet, repoSet);
 
     if (isGlobLikeSourceEntry(value) || value.endsWith("/")) {
-      result.namespaces.push({ path: value, path_class });
-      continue;
+      throw new Error(`assigned source ${JSON.stringify(value)} is not an individual file`);
     }
     const presence = LANDING_AUTHORITY_WORK_RECORD_RE.test(value)
       ? classifyOnLanding(value, { workspaceDir, repoReal, statFn, realpathFn })
       : classifyAtBase(scopeExistenceReader, value);
     if (presence === PRESENT_DIRECTORY) {
-      result.namespaces.push({ path: value, path_class });
-      continue;
+      throw new Error(`assigned source ${JSON.stringify(value)} names a directory, not an individual file`);
     }
     if (presence === PRESENT_FILE) {
       result.existingFiles.push({ path: value, path_class });

@@ -50,6 +50,7 @@ export function createAdvisoryProcessRunner({
           backend: selection.resolvedBackend,
           backend_profile: selection.resolvedBackendProfile,
           default_effort: selection.resolvedDefaultEffort,
+          model_selection: selection.resolvedModelSelection,
           routeKind: selection.routeKind,
           applicable: selection.applicable,
           advisory_review_input: reviewInput

@@ -184,3 +184,78 @@ test("complete response size scales with distinct captured texts", () => {
   assert.deepEqual(MEMBERS.map((member) => reconstructedText(projectedEqual, member)),
     [large, large, large, large]);
 });
+
+test("public projection withholds a missing result's process tail and keeps its diagnosis", () => {
+  const PROCESS_TAIL = "codex: RAW-PROCESS-TAIL 🙂 at /opt/runtime/child.mjs:4:2";
+  const source = Object.freeze({
+    schema_version: "workspace-agent-dispatch-final-result.v1",
+    kind: "missing_result",
+    full_response: null,
+    findings: null,
+    no_findings: null,
+    missing_result: Object.freeze({
+      code: "final_report_not_captured",
+      reason: "final_message_file_unreadable",
+      detail: Object.freeze({
+        path: "/run/final.md", code: "ENOENT", message: "no such file",
+        stderr_tail: PROCESS_TAIL, stderr_bytes: Buffer.byteLength(PROCESS_TAIL), stderr_truncated: false
+      })
+    })
+  });
+  const original = structuredClone(source);
+  const projected = projectPublicFinalResult(source);
+
+  assert.deepEqual(projected.missing_result, {
+    code: "final_report_not_captured",
+    reason: "final_message_file_unreadable",
+    detail: { path: "/run/final.md", code: "ENOENT", message: "no such file",
+      stderr_bytes: Buffer.byteLength(PROCESS_TAIL), stderr_truncated: false },
+    retained_evidence: { retained: true, owner: "dispatch_run_final_result", audience: "operator",
+      fields: ["missing_result.detail.stderr_tail"] }
+  });
+
+  assert.equal(JSON.stringify(projected).includes("RAW-PROCESS-TAIL"), false);
+  assert.equal(projected.full_response, null);
+  assert.deepEqual(projected.text_projection,
+    { source_text_count: 0, distinct_text_count: 0, omitted_text_count: 0 });
+
+  assert.deepEqual(source, original);
+  assert.equal(source.missing_result.detail.stderr_tail, PROCESS_TAIL);
+  assert.deepEqual(projectPublicFinalResult(source), projected, "the same record projects identically");
+});
+
+test("authored worker and reviewer text survive publication beside a process tail", () => {
+  const authored = "Findings:\n1. [medium] preserve the original cause.\n    at the reviewer's own words";
+  const source = {
+    ...sourceWithTexts([authored, authored, authored, "No findings."]),
+    missing_result: { code: "partial", detail: { stderr_tail: "RAW-TAIL", stdout_tail: "RAW-OUT" } }
+  };
+  const projected = projectPublicFinalResult(source);
+
+  assert.equal(projected.full_response.text, authored, "authored text is published verbatim");
+  assert.equal(reconstructedText(projected, MEMBERS[1]), authored);
+  assert.equal(reconstructedText(projected, MEMBERS[2]), authored);
+  assert.equal(projected.no_findings.text, "No findings.");
+  assert.deepEqual(projected.findings.rows, [{ title: "nested text stays untouched" }]);
+  assert.deepEqual(projected.missing_result.retained_evidence.fields,
+    ["missing_result.detail.stderr_tail", "missing_result.detail.stdout_tail"]);
+  const rendered = JSON.stringify(projected);
+  assert.equal(rendered.includes("RAW-TAIL") || rendered.includes("RAW-OUT"), false);
+});
+
+test("public projection omits the temporary findings source reference and keeps the source", () => {
+  const authored = "Findings\r\n1. keep é \u{1f680} exact";
+  const sourceReference = Object.freeze({ ref: "managed-findings.v1.payload.checksum",
+    source_kind: "original_managed_findings", authority: "advisory_only", attestation: false });
+  const source = sourceWithTexts([authored, authored, "findings", "none"]);
+  source.advisory_review.advisory_output.source_reference = sourceReference;
+  const before = JSON.stringify(source);
+  const projected = projectPublicFinalResult(source);
+
+  assert.equal(Object.hasOwn(projected.advisory_review.advisory_output, "source_reference"), false);
+  assert.equal(JSON.stringify(projected).includes(sourceReference.ref), false);
+  assert.equal(reconstructedText(projected, MEMBERS[1]), authored, "authored findings are unchanged");
+  assert.equal(projected.advisory_review.advisory_output.available, true);
+  assert.equal(JSON.stringify(source), before, "the internal source keeps its reference");
+  assert.strictEqual(source.advisory_review.advisory_output.source_reference, sourceReference);
+});

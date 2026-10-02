@@ -11,6 +11,7 @@ import {
   assertRegistryUnsupportedTraversalAttestation,
   executeLauncherTestProofProvider,
   prepareLauncherTestProofProviderRuntime,
+  releaseLauncherTestProofProviderRuntime,
   resolveTestProofProviders
 } from "./workspace-agent-test-proof-provider-registry.mjs";
 import {
@@ -23,14 +24,15 @@ import { observeLauncherPytestRun } from "./workspace-agent-test-proof-pytest-pr
 import { projectNativeObservation } from "./test-execution/native-observation.mjs";
 import { PROOF_CAPABILITY_LIMITATION_CODES } from
   "./test-execution/proof-providers/execution.mjs";
-import {
-  TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE,
-  projectTestProofForcedInvocationIdentityFailure
-} from "./workspace-agent-test-proof-module-fault-contract.mjs";
+import { boundedRunFacts } from "./workspace-agent-test-proof-run-facts.mjs";
+import { attachAttemptObservation } from
+  "../../../agent-launch-core/src/lib/workspace-agent-verify-proof-capability.mjs";
+import { startTestProofAttemptTiming } from "../../../agent-launch-core/src/lib/test-proof-timing.mjs";
 import { stableRuntimeTestId as deriveStableRuntimeTestId } from
   "./workspace-agent-test-proof-node-reporter.mjs";
 
-import { projectObservedTestFact } from "./workspace-agent-test-proof-node-observation.mjs";
+import { TEST_PROOF_SELECTED_TEST_SKIPPED_CODE, projectObservedTestFact } from
+  "./workspace-agent-test-proof-node-observation.mjs";
 
 export const TEST_PROOF_ATTEMPT_SCHEMA_VERSION = "workspace-agent-test-proof-attempt.v1";
 export const TEST_PROOF_ATTEMPT_AUTHORITY = "advisory_execution_facts";
@@ -48,60 +50,6 @@ function fail(code, message, detail = null) {
   throw new TestProofEvidenceError(code, message, detail);
 }
 
-const STABLE_RUN_CODE_RE = /^[a-z][a-z0-9_.]{0,159}$/u;
-
-const BOUNDED_RUN_FACT_KEYS = Object.freeze([
-  "ran", "disposition", "exit_code", "signal", "timed_out",
-  "blocker_code", "output_truncated", "output_elided_bytes"
-]);
-
-const REJECTED_RECORD_TEXT_KEYS = Object.freeze(["provider_id", "provider_version",
-  "selected_node_id", "observed_node_id", "record_kind", "observed_outcome", "selected_outcome",
-  "writer"]);
-const REJECTED_RECORD_COUNT_KEYS = Object.freeze(["sequence", "record_index", "record_count",
-  "exit_code"]);
-
-function rejectedRecordContext(detail) {
-  if (!isObject(detail) || typeof detail.selected_node_id !== "string") return null;
-  const context = {};
-  for (const key of REJECTED_RECORD_TEXT_KEYS) {
-    if (typeof detail[key] === "string" && detail[key].length <= 4096) context[key] = detail[key];
-  }
-  for (const key of REJECTED_RECORD_COUNT_KEYS) {
-    if (Number.isSafeInteger(detail[key])) context[key] = detail[key];
-  }
-  return context;
-}
-
-function boundedRun(run) {
-  if (!isObject(run)) return null;
-  const bounded = {};
-  for (const key of BOUNDED_RUN_FACT_KEYS) {
-    if (Object.hasOwn(run, key)) bounded[key] = run[key];
-  }
-  if (typeof run.refusal_code === "string") {
-    bounded.refusal_code = run.refusal_code;
-    if (typeof run.detail?.errno === "string") bounded.detail = { errno: run.detail.errno };
-  }
-
-  if (typeof run.spawn_error === "string" &&
-      STABLE_RUN_CODE_RE.test(run.spawn_error.toLowerCase())) {
-    bounded.spawn_error_code = run.spawn_error;
-  }
-
-  if (typeof run.test_proof_observation?.code === "string") {
-    const { code, detail } = run.test_proof_observation;
-    const identityFailure = code === TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.code
-      ? projectTestProofForcedInvocationIdentityFailure(detail) : null;
-    const rejected = identityFailure === null ? rejectedRecordContext(detail) : null;
-    bounded.test_proof_observation = { code, ...(identityFailure === null ? {} : {
-      detail: { reason: identityFailure.reason, module_path: identityFailure.module_path,
-        export_name: identityFailure.export_name }
-    }), ...(rejected === null ? {} : { detail: rejected }) };
-  }
-  return bounded;
-}
-
 function providerExecutionFailureDetail(trusted, executionStage, run, provider = null) {
   return {
     execution_stage: executionStage,
@@ -109,21 +57,21 @@ function providerExecutionFailureDetail(trusted, executionStage, run, provider =
     verification_id: trusted.evidence_identity.verification_id,
     ...(provider === null ? {} : { provider: { provider_id: provider.provider_id,
       provider_version: provider.provider_version } }),
-    run: boundedRun(run),
+    run: boundedRunFacts(run),
     ...(isObject(run) ? { captured_run: run } : {})
   };
 }
 
-function selectedIdentityNotObservedDetail(trusted, executionStage, run) {
+function selectedIdentityNotObservedDetail(trusted, executionStage, run,
+  code = "test_proof_selected_identity_not_observed") {
   const observation = run?.test_proof_observation;
-  if (observation?.code !== "test_proof_selected_identity_not_observed" ||
-      !isObject(observation.detail)) return null;
+  if (observation?.code !== code || !isObject(observation.detail)) return null;
   return {
     execution_stage: executionStage,
     test_proof_id: trusted.test_proof_binding.test_proof_id,
     verification_id: trusted.evidence_identity.verification_id,
     ...observation.detail,
-    run: boundedRun(run),
+    run: boundedRunFacts(run),
     ...(isObject(run) ? { captured_run: run } : {})
   };
 }
@@ -401,7 +349,7 @@ export function buildTestProofRuntimeEvidence({
   capabilityLimitations = [],
   observedShortcuts = [],
   artifacts = [],
-  runtimeEnvironment = null
+  attemptObservation = null
 } = {}) {
   if (!isObject(evidenceIdentity) || Object.hasOwn(evidenceIdentity, "evidence_id")) {
     fail("test_proof_evidence_identity_invalid", "evidence identity must omit the derived evidence_id");
@@ -438,7 +386,7 @@ export function buildTestProofRuntimeEvidence({
     evidence: Object.freeze(evidence),
     evidence_digest: digestTestProofEvidence(evidence),
 
-    ...(runtimeEnvironment === null ? {} : { runtime_environment: runtimeEnvironment }),
+    ...(attemptObservation === null ? {} : { attempt_observation: attemptObservation }),
     semantic_judgment: "not_performed_coordinator_owned",
     advisory: true,
     admission_effect: "none",
@@ -557,6 +505,13 @@ function projectAttemptRuntimeEnvironment(trusted, prepared) {
   }));
 }
 
+function stageCapture(stage, checkId, provider, run) {
+  return Object.freeze({ stage, check_id: checkId,
+    provider: isObject(provider) ? Object.freeze({ provider_id: provider.provider_id,
+      provider_version: provider.provider_version }) : null,
+    captured_run: run });
+}
+
 export async function executeTestProofAttempt({ context, executionBudget = undefined } = {}) {
   const supplied = arguments[0] ?? {};
   for (const key of ["executeCandidate", "executeFalsifier", "executor", "callback",
@@ -579,7 +534,36 @@ export async function executeTestProofAttempt({ context, executionBudget = undef
     `caller-supplied test-proof identity or execution input is forbidden: ${key}`
   );
   const trusted = assertLauncherTestProofAttemptContext(context);
-  assertLauncherTestProofSourceSnapshotCurrent(trusted);
+
+  const timing = startTestProofAttemptTiming();
+
+  const stages = [];
+  let runtimeEnvironment = null;
+
+  let owned = null;
+  const releasePrepared = () => {
+    if (owned === null) return;
+    const { resolved, prepared } = owned;
+    owned = null;
+    timing.measure("cleanup", () => releaseLauncherTestProofProviderRuntime(resolved, prepared));
+  };
+  const observation = () => Object.freeze({ runtime_environment: runtimeEnvironment,
+    stages: Object.freeze([...stages]), timing: timing.seal() });
+  try {
+    assertLauncherTestProofSourceSnapshotCurrent(trusted);
+    return await executeObservedTestProofAttempt({ trusted, executionBudget, stages, timing,
+      observeEnvironment: (environment) => { runtimeEnvironment = environment; },
+      ownPrepared: (resolved, prepared) => { owned = { resolved, prepared }; },
+      releasePrepared, observation });
+  } catch (error) {
+    releasePrepared();
+
+    throw attachAttemptObservation(error, observation());
+  }
+}
+
+async function executeObservedTestProofAttempt({ trusted, executionBudget, stages, timing,
+  observeEnvironment, ownPrepared, releasePrepared, observation }) {
   const evidenceIdentity = trusted.evidence_identity;
   const contractBinding = trusted.contract_binding;
   const testProofBinding = trusted.test_proof_binding;
@@ -610,12 +594,19 @@ export async function executeTestProofAttempt({ context, executionBudget = undef
     ...(executionBudget === undefined ? {} : { executionBudget }),
     ...(trusted.requested_environment === null ? {} : { environment: trusted.requested_environment }) };
   assertBudgetOpen("candidate");
-  const prepared = await prepareLauncherTestProofProviderRuntime(providers.candidate, preparationBase);
+  const prepared = await timing.measure("preparation",
+    () => prepareLauncherTestProofProviderRuntime(providers.candidate, preparationBase));
+  ownPrepared(providers.candidate, prepared);
+  observeEnvironment(projectAttemptRuntimeEnvironment(trusted, prepared));
   let nativeDependencies = null;
   if (prepared !== null) {
+
+    if (isObject(prepared.run)) {
+      stages.push(stageCapture("preparation", null, providers.candidate, prepared.run));
+    }
     if (prepared.status !== "prepared") fail("test_proof_candidate_execution_error",
       "launcher-owned native provider preparation did not complete",
-      providerExecutionFailureDetail(trusted, "candidate", prepared.run, providers.candidate));
+      providerExecutionFailureDetail(trusted, "preparation", prepared.run, providers.candidate));
     nativeDependencies = bindLauncherNativeRuntimeInputs({ context: trusted,
       runtimeInputs: prepared.runtime });
   }
@@ -627,8 +618,19 @@ export async function executeTestProofAttempt({ context, executionBudget = undef
     }
   };
   assertBudgetOpen("candidate");
-  const candidate = await executeLauncherTestProofProvider(
-    providers.candidate, executionBase
+  const candidate = await timing.measure("stage_work",
+    () => executeLauncherTestProofProvider(providers.candidate, executionBase));
+  if (isObject(candidate.run)) {
+    stages.push(stageCapture("candidate", null, providers.candidate, candidate.run));
+  }
+
+  const candidateSkipped = selectedIdentityNotObservedDetail(
+    trusted, "candidate", candidate.run, TEST_PROOF_SELECTED_TEST_SKIPPED_CODE
+  );
+  if (candidateSkipped !== null) fail(
+    TEST_PROOF_SELECTED_TEST_SKIPPED_CODE,
+    "launcher-owned candidate observed the selected runtime test as skipped",
+    candidateSkipped
   );
   const candidateIdentityFailure = selectedIdentityNotObservedDetail(
     trusted, "candidate", candidate.run
@@ -654,9 +656,11 @@ export async function executeTestProofAttempt({ context, executionBudget = undef
       { falsifier_id: falsifier.falsifierId });
     assertBudgetOpen("falsifier");
     assertNativeInputsCurrent();
-    const result = await executeLauncherTestProofProvider(association.provider, {
-      ...executionBase
-    });
+    const result = await timing.measure("stage_work",
+      () => executeLauncherTestProofProvider(association.provider, { ...executionBase }));
+    if (isObject(result.run)) {
+      stages.push(stageCapture("falsifier", falsifier.falsifierId, association.provider, result.run));
+    }
     const falsifierIdentityFailure = selectedIdentityNotObservedDetail(
       trusted, "falsifier", result.run
     );
@@ -702,9 +706,12 @@ export async function executeTestProofAttempt({ context, executionBudget = undef
   } else {
     assertBudgetOpen("traversal");
     assertNativeInputsCurrent();
-    traversalResult = await executeLauncherTestProofProvider(providers.traversal.provider, {
-      ...executionBase
-    });
+    traversalResult = await timing.measure("stage_work",
+      () => executeLauncherTestProofProvider(providers.traversal.provider, { ...executionBase }));
+    if (isObject(traversalResult.run)) {
+      stages.push(stageCapture("traversal", testProofBinding.system_under_test_boundary.boundary_id,
+        providers.traversal.provider, traversalResult.run));
+    }
     const traversalIdentityFailure = selectedIdentityNotObservedDetail(
       trusted, "traversal", traversalResult.run
     );
@@ -725,6 +732,8 @@ export async function executeTestProofAttempt({ context, executionBudget = undef
     );
     else launcherArtifacts.push(...traversalResult.artifacts);
   }
+
+  releasePrepared();
   assertLauncherTestProofSourceSnapshotCurrent(trusted);
   const mismatchDetail = boundIdentityMismatchDetail(
     candidate, evidenceIdentity.test_id, target
@@ -743,7 +752,7 @@ export async function executeTestProofAttempt({ context, executionBudget = undef
   return buildTestProofRuntimeEvidence({
     evidenceIdentity,
     contractBinding,
-    runtimeEnvironment: projectAttemptRuntimeEnvironment(trusted, prepared),
+    attemptObservation: observation(),
     executionResult: { status: candidate.status, exit_code: candidate.exit_code ?? null,
       attempt_id: executionAttemptId(evidenceIdentity, "candidate", target),
       structured_result: candidate.structured_result,

@@ -36,8 +36,8 @@ export const FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES = Object.freeze({
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const WK_RE = /^WK-\d{4}$/u;
 
-function refuse(reason, category = FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.IDENTITY) {
-  return { ok: false, category, detail: { reason } };
+function refuse(reason, category = FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.IDENTITY, facts = {}) {
+  return { ok: false, category, detail: { reason, ...facts } };
 }
 
 function deepFreeze(value) {
@@ -127,7 +127,8 @@ function forgeIdentity(pr) {
 
 function normalizeObservation(pr) {
   if (!pr || typeof pr !== "object" || Array.isArray(pr)) {
-    return { ok: false, reason: "authoritative_observation_unavailable" };
+    return { ok: false, reason: "authoritative_observation_unavailable",
+      evidence: captureDiagnosticEvidence(pr) };
   }
   if (pr.kind === "ambiguous") return { ok: false, reason: "pull_request_ambiguous" };
   if (pr.kind === "missing") return { ok: false, reason: "pull_request_observation_missing" };
@@ -230,13 +231,14 @@ export async function observeForgeLandedPublication({
       repository, base, wk, candidate, completion, branch, number: pullRequestNumber
     }));
     if (!normalized.ok) {
+      const { ok: _ok, reason, ...facts } = normalized;
       const observationReasons = new Set([
         "authoritative_observation_unavailable",
         "pull_request_observation_missing"
       ]);
-      return refuse(normalized.reason, observationReasons.has(normalized.reason)
+      return refuse(reason, observationReasons.has(reason)
         ? FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.OBSERVATION
-        : FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.IDENTITY);
+        : FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.IDENTITY, facts);
     }
     const observation = normalized.observation;
     if (!sameRepository(observation.repository, repository)) return refuse("wrong_repository");
@@ -259,6 +261,14 @@ export async function observeForgeLandedPublication({
         head: completion,
         merge_commit_sha: observation.mergeSha,
         observation_binding: observation.binding
+      });
+    }
+
+    if (landing === null || typeof landing !== "object" || landing.ok !== true) {
+      return refuse("exact_head_ancestry_unobservable", FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.OBSERVATION, {
+        observation_reason: typeof landing?.reason === "string" ? landing.reason : null,
+        evidence: typeof landing?.evidence === "object" && landing.evidence !== null
+          ? landing.evidence : captureDiagnosticEvidence(landing)
       });
     }
     const landingResult = exactLanding(landing, observation);
@@ -288,9 +298,11 @@ export async function observeForgeLandedPublication({
       }
     };
     return { ok: true, result: deepFreeze(carrier) };
-  } catch {
+  } catch (error) {
+
     return refuse("authoritative_observation_failed",
-      FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.OBSERVATION);
+      FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.OBSERVATION,
+      { evidence: captureDiagnosticEvidence(error) });
   }
 }
 
@@ -434,10 +446,46 @@ function landingObservation(assignedUnit, { state, handoff = null, outcome = nul
   });
 }
 
+export async function observeAuthenticatedHandoffLanding({ mainRepo, handoff, deps = {} } = {}) {
+  assertAuthenticatedWkForgeHandoffResult(handoff);
+  const outcome = handoff.transport === HANDOFF_TRANSPORTS.HOSTED
+    ? await observeHostedLanding({ mainRepo, handoff, deps })
+    : await observeGitLanding({ mainRepo, handoff, runGit: deps.runGit ?? defaultRunGit });
+  return landingObservation(handoff.assigned_unit, { state: outcome.state, handoff, outcome });
+}
+
+function landingRequestRefusal(reason, facts) {
+  return {
+    ok: false,
+    category: FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.REQUEST_INVALID,
+    detail: { reason, ...facts }
+  };
+}
+
 export async function observeWkHandoffLanding({ mainRepo, assignedUnit, deps = {} } = {}) {
-  if (typeof mainRepo !== "string" || mainRepo.length === 0 || !WK_RE.test(assignedUnit ?? "") ||
-      typeof deps.observeAuthenticatedHandoff !== "function") {
-    return refuse("invalid_request", FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.REQUEST_INVALID);
+  if (!WK_RE.test(assignedUnit ?? "")) {
+    return landingRequestRefusal("assigned_unit_invalid", {
+      assigned_unit: typeof assignedUnit === "string" ? assignedUnit : null,
+      responsible_actor: "caller_retry",
+      prerequisite: "assigned_unit names one WK record (WK-####)"
+    });
+  }
+  if (typeof mainRepo !== "string" || mainRepo.length === 0) {
+    return landingRequestRefusal("main_repository_missing", {
+      assigned_unit: assignedUnit,
+      missing_component: "main_repository",
+      responsible_actor: "launcher",
+      prerequisite: "the landing observer is composed with the launcher-bound canonical main repository"
+    });
+  }
+  if (typeof deps.observeAuthenticatedHandoff !== "function") {
+    return landingRequestRefusal("authenticated_handoff_observer_missing", {
+      assigned_unit: assignedUnit,
+      missing_component: "deps.observeAuthenticatedHandoff",
+      responsible_actor: "launcher",
+      prerequisite: "the landing observer is composed with the handoff authority owner's " +
+        "authenticated existing-publication observer"
+    });
   }
   const runGit = deps.runGit ?? defaultRunGit;
   let observation;
@@ -459,12 +507,7 @@ export async function observeWkHandoffLanding({ mainRepo, assignedUnit, deps = {
             }
           });
         }
-        const handoff = observed.result;
-        assertAuthenticatedWkForgeHandoffResult(handoff);
-        const outcome = handoff.transport === HANDOFF_TRANSPORTS.HOSTED
-          ? await observeHostedLanding({ mainRepo, handoff, deps })
-          : await observeGitLanding({ mainRepo, handoff, runGit });
-        return landingObservation(assignedUnit, { state: outcome.state, handoff, outcome });
+        return observeAuthenticatedHandoffLanding({ mainRepo, handoff: observed.result, deps: { ...deps, runGit } });
       }
     });
   } catch (error) {

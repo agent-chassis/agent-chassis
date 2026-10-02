@@ -142,37 +142,71 @@ The path is:
    freezes or mutates a record, readiness envelope, or material object the
    caller still owns.
 5. **Delivery.** Both managed adapters authenticate that value before any launch
-   preparation and use its prompt verbatim. A managed launch that arrives
-   without it, with a value it did not mint, or with one bound to another launch
-   refuses before spawning anything.
+   preparation. The client spawns with the assignment's startup text only; the
+   assignment guidance is served through the worker's assignment-only
+   `workspace_read_page` (see [Assignment retrieval](#assignment-retrieval)).
+   A managed launch that arrives without the value, with a value it did not
+   mint, or with one bound to another launch refuses before spawning anything.
 
 ### Assignment content
 
-The delivered task opens with one shared, family-neutral instruction: implement
-the assigned task, read only the listed readable paths and modify only the
-listed writable paths, use the tools available in the session, run
-`workspace_verify_proof` and report its result before committing, and report a
-blocker when required work falls outside scope. The package-owned managed-worker
-guide (`data/role-guides/managed-worker.md` in `@agent-chassis/agent-launch-core`)
-follows, inlined once; it defers execution and completion ordering to the
-runtime instructions. The prompt names no family tool,
-confinement mechanism, or alternative editing or validation route; the
-launcher-granted tools and confinement remain the authority. The existing
-commit-then-result completion protocol follows unchanged.
+The prepared launch packet owns two sections: the startup text and the
+assignment guidance. Direct delivery composes both into one prompt; managed
+delivery spawns with the startup text, which directs the worker to retrieve the
+guidance first. The two delivery modes intentionally carry different guidance:
+the same composer selects each mode's content, and neither is a copy of the
+other.
 
-The instruction is followed by the selected unit's own operative notes and
-tasks, rendered verbatim, its acceptance criteria, and its resolved paths.
-Readable paths are the selected unit's read scope, repository paths and write
-scope in that order without duplicates; writable paths are its write scope. The
-declared validation is presented as acceptance validation outside the
-assignment, together with any full-suite validation named in the authored task
-text, so it is not a separate worker step before commit. The worker prompt does
-not refer to reviewers. The explicitly selected assignment material follows
-in the agent brief. Unselected parent and sibling content
-stays out, exactly as the selected-unit projection already required. Delivery grants no scope and no
-tools: R union W, the mutation targets, the private-family exclusion, and the
-worker MCP tool profile are unchanged by it, and the task text describes exactly
-the admitted scope.
+The startup text opens with one shared, family-neutral instruction. For direct
+delivery it is: implement the assigned task, read only the listed readable
+paths and modify only the listed writable paths, use the tools available in the
+session, run `workspace_verify_proof` and report its result before committing,
+and report a blocker when required work falls outside scope. Managed delivery
+uses the same instruction without the listed-path sentence: the session itself
+enforces which paths the worker may read and modify. One `Read your
+managed-worker guide before acting: <path>` line follows, naming the
+package-owned guide (`data/role-guides/managed-worker.md` in
+`@agent-chassis/agent-launch-core`), whose directory the launcher grants
+read-only; the guide defers execution and completion ordering to the runtime
+instructions. In
+managed delivery the instruction and the guide line are separated by the
+first-read instruction: call
+`workspace_read_page` with `{"assignment":true}`, follow every returned
+continuation before other work, and report a refused read as a blocker. The
+startup text names no family tool, confinement mechanism, or alternative
+editing or validation route; the launcher-granted tools and confinement remain
+the authority. The existing commit-then-result completion protocol follows
+unchanged. Managed startup text carries no task body, material, or scope
+inventory, so its size does not grow with the assignment or its scope.
+
+Managed guidance carries the selected unit's operative content, each section
+once: a concise record identification, the selected unit's complete summary,
+its operative notes and tasks rendered verbatim, its acceptance criteria, its
+declared validation, and the explicitly selected assignment material in its
+resolved root-then-selected order, rendered by the agent brief's own material
+formatter. The summary, notes and tasks are never truncated or summarized, and a
+sentence of authored task or material text is never removed because it names a
+path or a permission. Managed guidance does not carry generated scope
+inventories (readable, writable or excluded path lists), dispatch metadata,
+readiness or derived-evidence reports, or the agent brief. The complete
+authenticated scope, its exclusions and bindings stay with the launcher:
+confinement enforces filesystem access and the worker MCP tool profile enforces
+tool access, so the worker needs no permission list and gains no permission
+lookup.
+
+Direct delivery keeps its inline guidance: the selected unit's operative notes
+and tasks, its acceptance criteria, and its resolved paths. Readable paths are
+the selected unit's read scope, repository paths and write scope in that order
+without duplicates; writable paths are its write scope. The explicitly
+selected assignment material follows in the agent brief.
+
+In both modes the declared validation is presented as acceptance validation
+outside the assignment, together with any full-suite validation named in the
+authored task text, so it is not a separate worker step before commit. The
+worker prompt does not refer to reviewers. Unselected parent and sibling content
+stays out, exactly as the selected-unit projection already required. Delivery
+grants no scope and no tools: R union W, the mutation targets, the
+private-family exclusion, and the worker MCP tool profile are unchanged by it.
 
 ### Assignment transport diagnostics
 
@@ -185,6 +219,51 @@ They ride the shared refusal envelope and always precede worker spawn:
 | `worker_assignment_untrusted` | the value is not the one the launcher minted |
 | `worker_assignment_binding_mismatch` | the assignment binds another unit, run, monitor handle, or worktree |
 | `worker_assignment_projection_invalid` | the admitted inputs could not be projected into an assignment |
+
+### Assignment retrieval
+
+The managed conduit authority carries the minted assignment as a private
+snapshot: its non-authoritative identity (assigned unit, role, canonical source
+digest, run id) and the complete guidance. Before MCP readiness the conduit
+publishes it as a digest-named, owner-only, read-only artifact inside its own
+private directory, through the same publisher as the frozen review contract, and
+removes it in the conduit's single cleanup settlement. Exclusive creation is the
+publisher's acquisition: a refused or failed create removes nothing, and any
+later publication failure removes the file it created before refusing with the
+originating failure as its cause and each descriptor-close or removal failure
+reported beside it as `publication_cleanup_failures`. Only the host wiki-MCP
+server learns its path; the confined client receives no artifact path, and
+family adapters forward the minted value without adding role policy.
+
+A worker session's `workspace_read_page` accepts exactly `{"assignment":true}`,
+optionally with the existing `member` grammar for the continuations it returns.
+The request names no unit, repository, path, run, role, or artifact. The server
+authenticates the launcher session, reads the artifact back through a no-follow
+open whose device, inode, size, mode, and digest must agree, checks that its
+unit and role are the session's, and pages the guidance through the shared
+selected-member projector. The first read returns the identity and the first
+guidance page; every continuation is pinned to the artifact digest, which is
+distinct from the canonical source digest. The served value is the one frozen at
+preparation: canonical edits after the freeze do not change it, and no read
+falls back to live canonical data.
+
+Every other selector from a worker — path, id, unit, entry, content reference,
+search, or a schema-invalid request — and `assignment` from any other session
+refuse before any repository resolution, source loader, or recovery lookup
+runs. Reviewer, redteam, orchestrator, and operator reads are otherwise
+unchanged.
+
+| code | cause | recovery |
+| --- | --- | --- |
+| `assignment_read_selector_invalid` | unsupported or conflicting selector, an ordinary selector from a worker, or `assignment` from another role | the caller uses `{"assignment":true}` (worker) or the read its startup text names (reviewer/redteam) |
+| `assignment_read_binding_mismatch` | the session does not authenticate, or the artifact binds another unit or role | the coordinator ends the attempt and dispatches an independently authenticated replacement after launcher binding repair |
+| `assignment_read_unavailable` | the artifact is missing, unreadable, or fails its identity or digest checks | the coordinator or operator repairs publication and starts a fresh authorized attempt |
+| `assignment_read_stale_digest` | a continuation pins a digest other than this session's artifact | the caller restarts at `{"assignment":true}` |
+| `assignment_read_publication_failed` | publication or its identity check failed before readiness | no client spawned; the coordinator or operator corrects the condition and dispatches again |
+
+Each refusal names the bound assignment, stage, effects, and recovery actor and
+action, and returns no assignment content. A validly bound read whose member
+range is wrong keeps the shared projector's own diagnostic code.
 
 ### One terminal-result mode
 
@@ -216,10 +295,16 @@ arrived without an assignment.
 ## Admission refusals carry the canonical mechanical envelope
 
 Every admission refusal on this path — subject/role matrix, readiness, the
-findings-only write-scope seam, graph admission, backend absence, and the
-authenticated CCE limb — is built by the one public mechanical carrier and
-carries a registered code, a deciding fact by identity, and exactly one
-continuation limb.
+findings-only write-scope seam, backend absence, and the authenticated CCE
+limb — is built by the one public mechanical carrier and carries a registered
+code, a deciding fact by identity, and exactly one continuation limb.
+
+Graph admission is not a refusal source. Dispatch prepares the committed-HEAD
+graph automatically and carries the outcome as supplementary evidence: a trusted
+envelope when preparation succeeds, and only a bounded failure code when a typed
+host graph failure occurs or no envelope is produced. Dispatch then continues.
+Any other exception during preparation propagates as an unexpected error rather
+than launching.
 
 Two of those limbs are worth naming here, because they are the ones an agent
 acts on:
@@ -227,9 +312,8 @@ acts on:
 - a NOT-DISPATCHABLE authored contract offers the canonical authoring route
   `workspace_work_record_ready_slice` for the selected unit, with complete
   arguments and the machine-checkable outcome that the unit becomes
-  dispatchable. A graph-coded readiness state does NOT offer it: the work record
-  is not what is wrong, so sending a coordinator to edit it would be false
-  guidance.
+  dispatchable. A graph state never makes a unit not dispatchable, so no graph
+  condition sends a coordinator to edit the work record.
 - a canonical standalone reviewer or redteam unit authenticates empty effective
   mutation scope. A reviewer selecting a write-bearing implementation slice is
   delegated to the exact-target backend, which grants that action empty mutation
@@ -237,11 +321,11 @@ acts on:
   that implementation-slice form. Missing, malformed, mutable, or substituted
   scope refuses before route selection; no unit identity or purpose is invented.
 
-An absent launch backend, an unbuildable graph baseline, and an authenticated
-CCE policy refusal all state `no_supported_route`. That is the accurate answer
-rather than a missing one: no agent-callable route registers a backend, makes an
-unbuildable baseline buildable, or overturns a policy decision, and re-issuing
-the same dispatch against unchanged facts reproduces the same refusal.
+An absent launch backend and an authenticated CCE policy refusal both state
+`no_supported_route`. That is the accurate answer rather than a missing one: no
+agent-callable route registers a backend or overturns a policy decision, and
+re-issuing the same dispatch against unchanged facts reproduces the same
+refusal.
 
 Normal tooling outcomes never use `operator_recovery_needed`. Validation,
 launcher declaration, authority binding, backend, route, decision-envelope,
@@ -269,6 +353,11 @@ The registered identities for the launcher and monitoring families are:
 | WK forge handoff could not select its destination or establish or validate the selected remote identity (executor category `remote_invalid`; the reason, such as `handoff_destination_unselected`, `remote_unreadable` or `remote_rewrite_config_unreadable`, names the case) | `agent_launch.wk_forge_handoff.remote_invalid.v1` |
 | WK forge handoff refused because the WK, its candidate or its closeout was not eligible for publication (executor category `eligibility`; the reason, such as `local_WK_not_authenticated_against_candidate` or `handoff_destination_changed`, names the case and the detail keeps its diagnostic facts) | `agent_launch.wk_forge_handoff.eligibility_refused.v1` |
 | A local or Git WK handoff could not observe or deliver through its selected Git transport (executor category `git_failed`; the stage and reason, such as `destination_publication_failed`, name the case) | `agent_launch.wk_forge_handoff.git_transport_failed.v1` |
+| The WK forge handoff executor refused its request as invalid (executor category `request_invalid`; the issue or reason, such as `main_repo_missing`, names the case, and only a producer-established owner says who corrects it) | `agent_launch.wk_forge_handoff.request_invalid.v1` |
+| WK forge handoff stopped at its CCE policy boundary (executor category `cce_policy`; the reason distinguishes malformed configuration, a missing, unavailable, malformed, mismatched or unratified decision, and an actual `cce_policy_decision_denied`; the identity carries no decision and grants no CCE authority) | `agent_launch.wk_forge_handoff.policy_boundary_refused.v1` |
+| WK forge handoff observed a publication that disagrees with the authenticated candidate or captured base (executor category `publication_disagreement`; stage, reason, identities and any occurred effects are carried; no ref overwrite is authorized) | `agent_launch.wk_forge_handoff.publication_disagreement.v1` |
+| WK forge handoff could not establish a publication step's outcome (executor category `indeterminate`; known `effects` and any `uncertain_effect` are carried, and an effect may have occurred) | `agent_launch.wk_forge_handoff.publication_indeterminate.v1` |
+| A WK forge handoff refusal carried an undeclared category (published as category `unclassified` with the original captured; never promoted to a declared category) | `launcher_transition.backend_refusal_identity_unknown.v1` |
 | Prospective or allocated launcher-transition lifecycle failure | `launcher_transition.prospective_lifecycle_unavailable.v1`, `launcher_transition.lifecycle_allocation_failed.v1` |
 | A backend refusal identity is absent or undeclared | `launcher_transition.backend_refusal_identity_missing.v1`, `launcher_transition.backend_refusal_identity_unknown.v1` |
 
@@ -278,13 +367,17 @@ says so rather than naming a next call, and where one does exist -- the
 corrective-status and unresponsive-budget identities -- the refusal names it
 instead of claiming operator recovery.
 
-Every refusal that carries a thrown or returned failure also publishes the
-complete original diagnostic evidence beside its display projection, under
-`detail.evidence`, using the `agent_launch.diagnostic_evidence.v1` encoder: the
-message, stack, every own property, the whole `cause` chain, and non-`Error`
-thrown values, unredacted, with any cut-off disclosed in `capture_failures`.
-Redaction applies only to the separate display field; it never consumes the
-evidence.
+Every refusal that carries a thrown or returned failure also keeps the
+complete original diagnostic evidence beside its display projection, using the
+`agent_launch.diagnostic_evidence.v1` encoder: the message, stack, every own
+property, the whole `cause` chain, and non-`Error` thrown values, unredacted,
+with any cut-off disclosed in `capture_failures`. The public detail carries
+each cause level's name, code, message and scalar facts as `cause_chain`; the
+complete evidence is retained once for the operator and named by
+`retained_evidence`
+([Dispatch-family failure detail](mcp-operation-reference.md#dispatch-family-failure-detail)).
+Nothing is masked: a structured diagnostic's original value is published
+exactly in the display field, whatever its producer declared.
 
 Node Engine and CCE admissibility belong only to implementation-worker
 admission. Reviewer and redteam startup performs read-only readiness and never
@@ -378,7 +471,20 @@ index and working files may remain at a mechanically proven cleanly-older parent
 and provisioning performs no read-tree, reset, checkout, or other file
 rematerialization against it. Failure compensation runs in reverse acquisition
 order and restores only transaction-owned state; persistent WK resources are never
-removed merely because one attempt failed.
+removed merely because one attempt failed. When the failed attempt created the
+persistent WK, its launcher-owned WK binding is retained with those resources:
+it is the only authenticated source of the captured `base_ref`/`base_sha` that a
+later attempt's adoption must recover. Compensation retains it only when that
+attempt passed the complete-binding gate and the identity store's recovery
+validator still resolves exactly that captured base for the WK; an unvalidated,
+altered, unreadable, or conflicting binding is removed, and a reused WK's attempt
+binding is removed because earlier bindings already carry its captured base.
+Retained base evidence is historical identity, not attempt authority: the failed
+attempt's slice binding is removed, so its launch identity forms no recovery
+pair, and a later attempt adopts only through the ordinary adoption route, which
+re-derives the branch, worktree association, and fork ref and still refuses
+missing or conflicting captured-base evidence. Compensation does not reconstruct
+evidence already lost before this rule applied.
 
 An existing correctly associated deterministic exact-slice worktree is a resume
 surface, not a clean-room allocation. Provisioning preserves and admits any
@@ -456,7 +562,7 @@ the serving registrar's schema and registered set, reads the canonical root
 once, and returns `recovery.state: "guidance"` (`responsible_actor:
 "operator"`, `blocker_unchanged: true`), `next_action: null`, and
 `refusal.carried.base_selection` with the repository alias, root WK and fresh
-`root_source_digest`. The operator chooses the branch; a caller whose session
+16-hex `root_source_digest` for the editor's `expected_source_digest`. The operator chooses the branch; a caller whose session
 registers `workspace_work_record_edit` may perform the edit, otherwise
 `edit_actor` names an authorized operator session. Then the original dispatch
 is resubmitted and reassessed in full. A read failure, root or repository
@@ -540,85 +646,62 @@ mechanical identity failure. Repo-qualified external edges preserve their
 existing mechanical disposition without deriving a cross-repository ref or
 introducing cross-repository policy.
 
-**Exact ancestry is the primary implementation evidence.** Through the launcher's existing Git
-runner, the launcher resolves the subject WK tip and retained dependency tip with
-exact `show-ref` queries, without peeling, and requires canonical non-zero object
-ids. Every authority-bearing Git argv begins with `--no-replace-objects`. The
-launcher reads each full oid's literal commit with `cat-file`, parses its complete
-literal parent list, and performs a bounded walk of those literal parent oids.
-Replacement refs, revision expressions, and semantic history output are not
-ancestry authority; graft inputs are irrelevant because Git's semantic parent
-view is never consulted. Malformed objects, missing parents, cycles, bound
-exhaustion, inconsistent output, and Git faults are indeterminate refusals. An
-indeterminate diagnostic names the offending `object` and a `detail` that
-separates Git read outcomes (`literal_commit_read_failed`,
-`literal_object_not_commit`) from parsing (`literal_commit_malformed`, with a
-stable `parse_reason`). A determinate literal not-ancestor result is the only
-route to replay-equivalent matching.
+**A same-WK implementation slice dependency is answered only by the shared
+integrated-delivery observation.** The launcher captures the subject WK tip and
+the dependency's retained slice tip with exact `show-ref` queries, without
+peeling, and requires canonical non-zero object ids. It then awaits one
+launcher-captured-tip observation from `observeIntegratedSliceDelivery`
+([slice integration](mcp-dispatch-slice-integration.md#captured-tip-dependency-observation))
+before consuming its answer. No ancestry probe runs before it or as a fallback.
+The observation returns one of three facts:
 
-**Replay-equivalent marker admission is the one additional implementation path**,
-reached only from that determinate negative and never sufficient by itself. The
-commit-preserving WK replay rewrites the sha
-of an already-integrated delivery, so the retained slice ref keeps naming the
-original commit while the WK chain carries an equivalent with a different object
-id; strict ancestry then reports a mechanically present dependency as absent. The
-stable `Wk-Slice: WK-NNNN#SLICE-MMM` trailer is the identity that survives that
-rewrite, and the single canonical marker authority enumerates every authenticated
-historical candidate reachable from the captured subject WK tip. The marker must
-occupy the launcher's exact final trailer paragraph; marker-keyed body lines,
-duplicates, conflicts, padding, case variants, malformed values, and trailing
-prose refuse. It authenticates both launcher-minted families: an ordinary worker
-delivery and the exact work record zero-delta integration-evidence template with all
-of its delivery, base, WK-parent, literal-parent, and tree bindings. Multiple
-authenticated commits carrying the same slice identity are legitimate history
-and are returned as an ordered-neutral set. The compatibility single-sha view
-yields a sha only for a one-candidate set. Every candidate reachable from the
-captured WK tip participates even when it is
-also reachable from current landing; landing is not resolved or consulted by
-this authority.
+- `present` — the exact retained delivery is authenticated as integrated into
+  the captured tip. The dependency is met whatever the record's reported
+  `record_reconciliation` substate (`reconciled`, `pending` or `blocked`);
+  observation enacts no ordering policy and dispatch writes no record.
+- `absent` — a completed permitted observation proves the exact delivery is not
+  in the captured tip. The dependency is unmet with
+  `dependency_not_present_on_wk_branch` and evidence `integrated_delivery_absent`.
+- `indeterminate` — a named required fact was unavailable, malformed, mismatched
+  or moved. The exact-resolution failure is the distinct
+  `dependency_observation_indeterminate` (class `dependency_observation`), never
+  `unit_dependencies_unmet`.
 
-Marker identity is not delivery authority. The current retained slice commit and
-every historical candidate must be literal, readable, single-parent commit
-objects. The retained commit must carry the exact launcher-generated canonical
-message. An ordinary candidate matches only when its exact canonical message
-equals that retained message and its fixed parent-relative object delta equals
-the retained delta. A zero-delta evidence candidate must authenticate every
-encoded binding, name the current retained delivery and its literal parent as its
-delivery and base, and have a parent-relative structural delta equal to the
-retained delta. Consequently only a genuinely empty retained delivery can match
-that family. With explicit parsed parent oids, the runner executes `-c
-core.quotePath=true -c color.ui=false diff-tree --raw -r --no-renames
---no-abbrev --ignore-submodules=none --no-ext-diff --no-textconv --no-color`.
-Every non-NUL raw record and Git C-quoted pathname is parsed fail-closed into its
-original filename bytes, then converted to a deterministic sorted structural set;
-patch rendering, external diff, textconv, rename detection, caller configuration,
-and `<oid>^` never participate. This preserves file modes, symlinks, binary blobs,
-gitlinks, empty commits, distinct non-UTF-8 filenames, hostile filename bytes, and
-both SHA-1 and SHA-256 object ids. Exactly one current retained-delivery match
-admits only when the dependency also has exact canonical implementation identity,
-a matching canonical address, matching initiative and `canonical_wk_json`
-provenance, the captured WK tip, determinate literal non-ancestry, and final ref
-stability. Zero or multiple matches refuse; unmatched historical candidates are
-harmless and candidate position grants nothing.
+A dependency diagnostic names the dependency, the WK and dependency refs, the
+captured WK tip, the retained delivery, the observation state and reason, and,
+for a failed read, the distilled cause: the failed operation and object or ref,
+exit status, signal, spawn error, timeout or output-overflow flags and at most
+the first stderr line. Raw Git output never crosses. An unmarked commit that is
+merely an ancestor of the WK tip is not an integrated delivery; no markerless
+compatibility exists.
 
-The marker path is closed to a **same-record canonical implementation slice**;
-no lifecycle status participates. There is no cross-WK and no whole-WK marker fallback: a marker
-naming another record, or a marker for a different slice, grants nothing however
-reachable it is. Every other outcome of either probe — spawn error, signal,
-unexpected status, malformed output, an absent or malformed marker, a parentless
-or merge-shaped delivery/candidate, or any indeterminate resolver state — refuses
-without another fallback. One shared launcher parser reads every literal
-commit. It validates every structural header and continuation before using the
-tree or parents; a CR, NUL, other control byte, or malformed line in the header
-section makes the object unreadable and grants no authority. The message is
-everything after the first blank line and is returned verbatim: CR, CRLF, NUL,
-and other bytes are ordinary message content, are never normalized, and cannot
-make an ancestor unreadable. Because the Git runner delivers text as UTF-8, a
-header or message containing U+FFFD cannot be proven byte-exact and is
-refused as malformed (`message_bytes_unrepresentable` or
-`header_bytes_unrepresentable`) rather than substituted. Marker and delivery
-message comparisons remain exact byte equality, so a CRLF rendering of a
-server-generated message is not that message.
+**Every other implementation dependency keeps exact literal ancestry.** A cross-WK
+slice or whole-WK implementation dependency is present only when its retained
+tip is a literal ancestor of the captured subject WK tip. Every authority-bearing
+Git argv begins with `--no-replace-objects`. The launcher reads each full oid's
+literal commit with `cat-file`, parses its complete literal parent list, and
+performs a bounded walk of those literal parent oids. Replacement refs, revision
+expressions, and semantic history output are not ancestry authority; graft
+inputs are irrelevant because Git's semantic parent view is never consulted.
+Malformed objects, missing parents, cycles, bound exhaustion, inconsistent
+output, and Git faults are indeterminate refusals (`ancestry_indeterminate`)
+naming the offending `object` and a `detail` that separates Git read outcomes
+(`literal_commit_read_failed`, `literal_object_not_commit`) from parsing
+(`literal_commit_malformed`, with a stable `parse_reason`). A determinate
+non-ancestor is `not_ancestor`. A marker naming another record grants nothing
+however reachable it is.
+
+One shared launcher parser reads every literal commit. It validates every
+structural header and continuation before using the tree or parents; a CR, NUL,
+other control byte, or malformed line in the header section makes the object
+unreadable and grants no authority. The message is everything after the first
+blank line and is returned verbatim: CR, CRLF, NUL, and other bytes are ordinary
+message content, are never normalized, and cannot make an ancestor unreadable.
+Because the Git runner delivers text as UTF-8, a header or message containing
+U+FFFD cannot be proven byte-exact and is refused as malformed
+(`message_bytes_unrepresentable` or `header_bytes_unrepresentable`) rather than
+substituted. Marker and delivery message comparisons remain exact byte equality,
+so a CRLF rendering of a server-generated message is not that message.
 
 All implementation Git evidence is bound to the allocated or adopted subject WK
 tip and every exact implementation dependency ref/tip used by either proof.
@@ -800,6 +883,18 @@ correction: the existing coverage query followed by
 `..._obligation_coverage_upsert`, answered with caller-authored data. Inline
 lists are capped and report what they omitted; counts stay exact.
 
+Both members derive their terminal gaps through the same classifier over the
+same workbench, in separate calls. When `workspace_work_record_ready_slice`
+refuses a slice because the parent's controlled acceptance does not admit it,
+and the two detailed `groups` populations are identical, the refusal's
+`controlled_acceptance_state` publishes them once, at
+`controlled_acceptance_state.semantic.terminal_gaps.groups`. Its
+`definition_readiness.terminal_gaps` keeps every count, the affected
+obligations and `groups_omitted`, and states `groups_published_at` (that
+location) and `groups_returned` instead of repeating the groups. Groups that
+differ are separate facts and both stay. The semantic subset, its admission
+decision and the correction are unchanged.
+
 The compact `workspace_validate_dispatch` response carries that projection on
 `controlled_acceptance_state`. A required contract's whole readiness rarely fits
 the compact complete-frame class, and the byte budget is unchanged, so when the
@@ -853,6 +948,15 @@ authority exists only for an authenticated semantic transition. Missing fields,
 competing values, and identities omitted from a bounded preview remain available
 through validation's existing paginated diagnostic-group collection and selector.
 All six consumers read these same facts rather than reconstructing a local cause.
+The deciding cause is selected from owner facts: `admission.deciding_causes`
+lists the readiness owner's open conditions. When uncovered acceptance criteria
+alone decide the refusal, the owner, codes, counts, explanation and next call
+come from the criterion-coverage owner, and the workbench observations move to
+`admission.independent_observations`. `workspace_validate_dispatch` carries the
+same `deciding_causes` on `controlled_acceptance_recovery` and uses the coverage
+explanation as its reason. Blocked `workspace_agent_dispatch` prefixes the same
+denominator and uncovered identities to its next action. See
+[Acceptance coverage](acceptance-coverage-mcp.md).
 
 `workspace_work_record_ready_slice` consumes `admission.recovery_capability`.
 It reports `actor_recovery: agent` only for an available authored correction (or
@@ -1010,8 +1114,17 @@ provenance requirement. Nonempty implementation admission continues to use the
 existing persistent WK allocation, generation persistence, confinement, and
 compare-and-swap path unchanged.
 
-Reviewer and redteam prompts are text-first and inline the package-owned
-reviewer guide once. They ask for the actual advisory
+Reviewer and redteam prompts are text-first and name the package-owned
+reviewer guide in one `Read your reviewer guide before acting: <path>` line;
+the launcher grants that exact file read-only. Their startup text keeps only the
+role, subject, reviewed
+range, tree, and descriptor identity and the result-format instructions; it
+does not serialize the assignment. It directs the reviewer first to read the
+assigned unit's root through `workspace_read_page` from its existing review
+source and, for a slice, the parent record's root, since a slice root does not
+carry its parent contract, and to follow the returned member calls and selected
+material references. Review source selection and broader context reads are
+unchanged on every route. They ask for the actual advisory
 analysis and state that it remains usable whether or not optional structured
 metadata conforms. Worker-only outcomes are not offered. Schema-constrained
 output is reserved for an explicitly selected formal-attestation use; ordinary
@@ -1028,15 +1141,20 @@ tools, result schema, and completion transport. Family planning must not run a
 second readiness pass against the sparse snapshot or accept graph-impact evidence
 from argv, prompt, ambient environment, or caller fields.
 
-Canonical design findings add one narrow projection to that transaction. Routing
-captures the current WK file and only the canonical controlled-contract/proof
-members selected for that WK, verifies that none moved while capture was in
-progress, and writes those exact bytes at their canonical paths in the fresh
-detached review checkout. The rest of the checkout remains the selected Git commit,
-so unrelated tracked dirt and untracked host files never enter the action. The
-capture is action-local: host edits after capture do not alter the active review,
-and the next independent dispatch captures the new canonical bytes. This projection
-does not apply to exact implementation SHA ranges or terminal candidates.
+Every reviewer/redteam dispatch adds one narrow projection to that transaction,
+whatever its selector: canonical design, exact implementation SHA range,
+implementation slice, or terminal candidate. Routing captures the current WK file
+that carries the assignment, its selected entry material, and only the canonical
+controlled-contract/proof members selected for that WK, verifies that none moved
+while capture was in progress, and writes those exact bytes at their canonical
+paths in the fresh detached review checkout. The rest of the checkout remains the
+selected Git commit, so implementation bytes stay at the reviewed commit and
+unrelated tracked dirt and untracked host files never enter the action. The
+captured WK may be newer than the one committed at the reviewed commit, so an
+assignment authored after that commit is still readable; dispatch never amends a
+commit or moves a candidate ref. The capture is action-local: host edits after
+capture do not alter the active review, and the next independent dispatch
+captures the new canonical bytes.
 
 The shared launcher role-contract renderer directs every Codex and Claude
 reviewer/redteam client to the assigned unit's canonical

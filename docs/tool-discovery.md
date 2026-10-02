@@ -628,7 +628,7 @@ the responsible actor and route recovery through
 
 Structured discovery publishes one allocator-backed workspace creation route: `workspace_create_record`. For a `WK-*`, it allocates the canonical inbox template and nothing more, then returns `workspace_controlled_contract_obligation_coverage_query` as the post-allocation read and identifies ordinary obligation-coverage upsert as its follow-up authoring operation. Its schema does not accept controlled-contract/proof carriers, slices, readiness, proof posture, or lifecycle status, and discovery must not recommend an unregistered birth operation.
 
-Post-allocation work follows the [design-first operating model](../AGENTS.md#wk-first-work). Semantic controlled-contract and proof operations own their respective authoring stages, while `workspace_work_record_ready_slice` owns atomic executable-unit shaping. CCE exclusively owns action sequencing and admissibility; descriptor routing is advisory and never a local lifecycle gate.
+Post-allocation work follows the design-first operating model (repository-only: `AGENTS.md`, "WK-First Work"). Semantic controlled-contract and proof operations own their respective authoring stages, while `workspace_work_record_ready_slice` owns atomic executable-unit shaping. CCE exclusively owns action sequencing and admissibility; descriptor routing is advisory and never a local lifecycle gate.
 
 For an existing canonical WK or slice, discovery routes ordinary authored
 scalar/list/task repairs to `workspace_work_record_edit`. Its descriptor does

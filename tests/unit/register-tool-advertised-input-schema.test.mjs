@@ -2,6 +2,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -46,6 +47,7 @@ import {
   TOOL_ROUTER_PRODUCER_ERROR_CODES,
   recommendToolRouteFromVocabulary
 } from "../../packages/wiki-core/src/operations/tool-router.mjs";
+import { assertStructuredCarrier } from "../helpers/mcp-journey-accounting.mjs";
 
 const AUTHORITATIVE = z.object({
   unit: z.string().regex(/^WK-[0-9]{4}$/u),
@@ -77,7 +79,10 @@ function createBoundary({
   toolProfile = "operator",
   registeredTier = "paid_cce",
   freeLocalToolNames = toolNames,
-  server = null
+  server = null,
+
+  responseEnv = undefined,
+  respond = () => ({ content: [{ type: "text", text: "ok" }] })
 } = {}) {
   const registered = new Map();
   const calls = [];
@@ -94,11 +99,12 @@ function createBoundary({
     },
     toolUsageAuditBoundary: { wrapHandler: (_name, handler) => handler },
     registeredToolNames: new Set(),
-    structuredLog: () => {}
+    structuredLog: () => {},
+    ...(responseEnv === undefined ? {} : { responseEnv })
   });
   const handler = async (args) => {
     calls.push(args);
-    return { content: [{ type: "text", text: "ok" }] };
+    return respond(args);
   };
   const register = (config) => registerTool(toolName, config, handler);
   return {
@@ -510,7 +516,7 @@ test("an input-failure projector terminal result bypasses owner projection uncha
 
   const result = await registered.get(toolName).handler({ unit: "WK-2520", answer: "bad" });
   assert.deepEqual(result.structuredContent, terminal);
-  assert.deepEqual(result.content, []);
+  assertStructuredCarrier(result);
   assert.equal(result.isError, true);
   assert.deepEqual(calls, []);
 });
@@ -1015,5 +1021,49 @@ test("an oversized generated failure is retrieved completely through the existin
     assert.equal(recovered.diagnostic.validator_diagnostics[59].unionErrors.length, 2);
   } finally {
     await scope.dispose();
+  }
+});
+
+test("the registered final guard uses the injected response environment for formed results and throws", async (t) => {
+  const scope = createTestResourceScope({ label: "register-tool-response-env" });
+  t.after(() => scope.dispose());
+  const root = (label) => scope.acquire(label, () => mkdtemp(path.join(tmpdir(), "wk2716-guard-")),
+    (dir) => rm(dir, { recursive: true, force: true }));
+  const injected = await root("injected response state");
+  const ambient = await root("ambient response state");
+  const priorStateDir = process.env.WIKI_MCP_RESPONSE_STATE_DIR;
+  const priorLimit = process.env.WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT;
+  process.env.WIKI_MCP_RESPONSE_STATE_DIR = ambient;
+  delete process.env.WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT;
+  t.after(() => {
+    if (priorStateDir === undefined) delete process.env.WIKI_MCP_RESPONSE_STATE_DIR;
+    else process.env.WIKI_MCP_RESPONSE_STATE_DIR = priorStateDir;
+    if (priorLimit !== undefined) process.env.WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT = priorLimit;
+  });
+  const responseEnv = { ...process.env, WIKI_MCP_RESPONSE_STATE_DIR: injected,
+    WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: "8192" };
+  const large = "w".repeat(20_000);
+  const cases = [
+
+    ["formed", () => ({ content: [], structuredContent: { ok: true, value: large } })],
+
+    ["thrown", () => { throw new Error(large); }]
+  ];
+  for (const [label, respond] of cases) {
+    const boundary = createBoundary({ responseEnv, respond });
+    boundary.register({ description: "Guarded route.", inputSchema: z.object({}).strict() });
+    const before = readdirSync(injected).length;
+    const result = await boundary.registered.get(boundary.toolName).handler({});
+    assert.equal(result.structuredContent.response_spilled, true, `${label}: ${JSON.stringify(result).slice(0, 300)}`);
+    assert.equal(result.structuredContent.inline_byte_limit, 8192, label);
+    assert.ok(Buffer.byteLength(JSON.stringify(result), "utf8") <= 8192, label);
+    assert.equal(readdirSync(injected).length > before, true, `${label}: retained in the injected root`);
+    assert.deepEqual(readdirSync(ambient), [], `${label}: nothing written to the ambient root`);
+
+    const read = readSpilledMcpContentReference(
+      { ref_id: result.structuredContent.content_reference.ref_id }, { env: responseEnv });
+    assert.equal(read.ref_id, result.structuredContent.content_reference.ref_id, label);
+    assert.throws(() => readSpilledMcpContentReference(
+      { ref_id: result.structuredContent.content_reference.ref_id }), undefined, label);
   }
 });

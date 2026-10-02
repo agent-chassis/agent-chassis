@@ -120,6 +120,7 @@
       "dispatch_role_call",
       "dispatch_readiness",
       "run_monitoring",
+      "initiative_assignment",
       "work_record_mutation",
       "selected_slice_detail",
       "selected_work_record_context",
@@ -224,6 +225,19 @@
           "selected_work_record_context"
         ],
         "reason": "dispatch readiness is a structured decision, not manual record inspection"
+      },
+      {
+        "when": "task asks to assign or reassign a record-level WK to an initiative, including recovery from a missing_initiative_ref_namespace dispatch refusal",
+        "choose": "initiative_assignment",
+        "instead_of": [
+          "work_record_mutation",
+          "dispatch_readiness",
+          "dispatch_role_call",
+          "initiative_status",
+          "selected_slice_detail",
+          "selected_work_record_context"
+        ],
+        "reason": "WK.initiative has one owning operation; the general editor and slice shaping do not write it"
       },
       {
         "when": "task names a specific supported work-record mutation",
@@ -1985,6 +1999,85 @@
           "replace": "workspace_work_record_summary",
           "with": "validated work-record setter route",
           "when": "the task is already a specific create, status, task, closure, list-field, acceptance, entry, slice, or review-unit mutation"
+        }
+      ]
+    },
+    {
+      "intent": "initiative_assignment",
+      "tie_break_rank": 35,
+      "use_when": [
+        "The user asks to assign or reassign a record-level WK to an existing initiative.",
+        "A worker dispatch refused with missing_initiative_ref_namespace and the parent WK needs its canonical initiative."
+      ],
+      "match_phrases": [
+        "assign to initiative",
+        "assign to IN-",
+        "assign initiative",
+        "reassign initiative",
+        "set initiative",
+        "initiative assignment",
+        "missing initiative",
+        "missing initiative ref namespace"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_assign_work_record_to_initiative",
+        "arguments": {
+          "unit": "$work_record_if_known",
+          "initiative": "$initiative_if_known"
+        },
+        "required_authored_fields": [
+          {
+            "name": "unit",
+            "any_of": [
+              "work_record_id"
+            ]
+          },
+          "initiative"
+        ],
+        "reason": "Assign the record-level WK (the parent of a slice subject) to an existing IN-####. The initiative is a caller decision and is never inferred."
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_work_record_edit",
+          "reason": "The general editor refuses the initiative field; its owner is the assignment operation.",
+          "use_instead": "workspace_assign_work_record_to_initiative"
+        },
+        {
+          "tool": "workspace_work_record_ready_slice",
+          "reason": "Slice shaping does not write the parent WK initiative that missing_initiative_ref_namespace reports.",
+          "use_instead": "workspace_assign_work_record_to_initiative"
+        }
+      ],
+      "allowed_next_call_families": [
+        "work_record_mutation",
+        "work_record_read",
+        "dispatch_readiness",
+        "dispatch"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided WK-*",
+            "parent WK of a WK-*#SLICE-* dispatch subject"
+          ],
+          "if_missing": "ask for the record-level WK id"
+        },
+        {
+          "name": "initiative",
+          "required": true,
+          "accepted_sources": [
+            "user-provided IN-*"
+          ],
+          "if_missing": "ask which existing IN-#### the WK belongs to; never infer one"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_work_record_ready_slice",
+          "with": "workspace_assign_work_record_to_initiative",
+          "when": "worker dispatch refused with missing_initiative_ref_namespace"
         }
       ]
     }

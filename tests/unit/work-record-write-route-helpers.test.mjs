@@ -138,9 +138,10 @@ function nonStaleRefusalResult() {
 }
 
 function assertStaleRetrySurfaced(response) {
+
   assert.equal(
     response.current_source_digest,
-    STALE_CURRENT_DIGEST,
+    "a".repeat(16),
     "stale refusal must surface the fresh current_source_digest"
   );
   assert.equal(typeof response.next_action, "string");
@@ -163,7 +164,7 @@ for (const [label, compactor] of [
     const response = compactor("agent-chassis/agent-chassis", staleWriteResult({ guarded: true }));
     assertStaleRetrySurfaced(response);
 
-    assert.equal(response.expected_source_digest, GUARD_EXPECTED_DIGEST);
+    assert.equal(response.expected_source_digest, "b".repeat(16));
   });
 
   test(`WK-1411 C3: ${label} does not attach a stale digest/next_action on a successful write`, () => {

@@ -4,9 +4,11 @@ import path from "node:path";
 import { boundPublicSemanticCode } from "./refusal-payload.mjs";
 import { types as utilTypes } from "node:util";
 
+import { isSidecarCodeLanguagePath } from "./sidecar-language-descriptions.mjs";
 import { getSidecarIndexStatus } from "./sidecar-status.mjs";
 import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
 import { buildNextCall } from "./next-calls-descriptor.mjs";
+import { ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION } from "./work-record-contract-edit-shared.mjs";
 import {
   deriveDirectImportAdjacencyFromGraph,
   getCommittedHeadGraphImpactPaths
@@ -98,13 +100,8 @@ export const WORK_RECORD_DISPATCH_UNIT_KIND_VALUES = Object.freeze([
   "slice"
 ]);
 
-const GRAPH_BEARING_CODE_EXTENSION_PATTERN = /\.(?:cjs|cts|js|jsx|mjs|mts|py|ts|tsx)$/;
-
 export function isGraphBearingCodePath(relativePath) {
-  return (
-    typeof relativePath === "string" &&
-    GRAPH_BEARING_CODE_EXTENSION_PATTERN.test(relativePath)
-  );
+  return typeof relativePath === "string" && isSidecarCodeLanguagePath(relativePath);
 }
 
 export function selectGraphBearingPaths(paths) {
@@ -276,7 +273,7 @@ function buildMissingInitiativeRefNamespaceRefusal({ record, unit, reportOnly })
     next_calls: Object.freeze([
       Object.freeze(
         buildNextCall({
-          tool: "assign_work_record_to_initiative",
+          tool: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
           arguments: { unit: record.id },
           recommended: true,
           required_arguments: ["initiative"],

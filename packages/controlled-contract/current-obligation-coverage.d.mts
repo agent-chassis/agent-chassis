@@ -212,7 +212,6 @@ export interface ProofAuthoringAmendment {
   readonly statement?: string;
   readonly controlled_contract_node_ids?: readonly string[];
   readonly mechanism?: Readonly<{ owner: string; kind: ObligationCoverageMechanismKind; selector: string }> | null;
-  readonly gap?: ProofAuthoringObligation['gap'] | null;
   readonly proof_name?: string;
   readonly parameters?: Readonly<Record<string, ProofAuthoringJson>>;
   readonly clear_parameters?: readonly string[];

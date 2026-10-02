@@ -9,7 +9,7 @@ import { resolveSavedProofSource, resolveSavedProofContext, resolveDerivedProofC
 
 import { resolveProofExecutableMap } from '@agent-chassis/controlled-contract/executable-map';
 import { readControlledContractCarrierFile } from '../../lib/controlled-contract-tools.mjs';
-import { resolveBehaviorAndVerificationPopulation, createNativeVerificationIndex } from '../../../../controlled-contract/lib/proof-native-verification-graph.mjs';
+import { resolveBehaviorAndVerificationPopulation, createNativeVerificationIndex } from '@agent-chassis/controlled-contract';
 import { ControlledContractToolError } from '../../lib/controlled-contract-tool-shared.mjs';
 import { parseVerifyProofSource, verifyProofPopulationSubject } from './verify-proof-operations.mjs';
 

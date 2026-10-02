@@ -79,6 +79,7 @@ const WORK_ITEM_SPEC = Object.freeze({
   optionalTopLevel: Object.freeze(buildWorkItemOptionalTopLevel()),
   statusEnum: WORK_RECORD_STATUS_VALUES,
   sectionSpec: Object.freeze({
+    user_requirements: { type: "string", allowEmpty: true },
     summary: { type: "string", allowEmpty: true },
     why_it_matters: { type: "string", allowEmpty: true },
     scope: { type: "object" },

@@ -3,6 +3,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   BACKEND_MISSING_RESULT_CODES
@@ -18,6 +21,28 @@ import {
   assertNoForbiddenTokens,
   createTestDispatchBackend
 } from "../workspace-agent-dispatch-backend-shared.mjs";
+import { fixtureFrozenScopeFacts } from "../helpers/frozen-worker-resolved-scope.mjs";
+import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+
+const LAUNCH_CORE_WK = "WK-0626";
+const LAUNCH_CORE_SUBJECT = `${LAUNCH_CORE_WK}#SLICE-001`;
+
+async function launchCoreWorkspace(t) {
+  const scope = createTestResourceScope();
+  t.after(() => scope.dispose());
+  const root = await scope.acquire("launch-core-workspace",
+    () => mkdtempSync(path.join(os.tmpdir(), "launch-core-workspace-")),
+    (created) => rmSync(created, { recursive: true, force: true }));
+  mkdirSync(path.join(root, "wiki", "work-records"), { recursive: true });
+  writeFileSync(path.join(root, "wiki", "work-records", `${LAUNCH_CORE_WK}.json`), JSON.stringify({
+    id: LAUNCH_CORE_WK,
+    initiative: "IN-0030",
+    status: "active",
+    slices: [{ id: "SLICE-001", work_kind: "implementation",
+      write_scope: ["packages/agent-launch-cli/src/lib/workspace-agent-launch-core.mjs"] }]
+  }));
+  return root;
+}
 
 function makeFakeChild({ pid = 5150 } = {}) {
   const child = new EventEmitter();
@@ -60,7 +85,8 @@ function fakeCoreParser({ stdout, role, subject }) {
   };
 }
 
-test("WK-0626 backend surfaces shared launch core findings final_result with full_response", async () => {
+test("WK-0626 backend surfaces shared launch core findings final_result with full_response", async (t) => {
+  const workspaceDir = await launchCoreWorkspace(t);
   const reportText = "## Findings\n- packages/y.mjs:9 — example\n";
   const backend = createTestDispatchBackend({
     launchExecutor: async (req) => {
@@ -82,8 +108,10 @@ test("WK-0626 backend surfaces shared launch core findings final_result with ful
     role: "worker",
     app: "codex",
     model: "gpt-5.5",
-    subject: "WK-0626#SLICE-001"
+    subject: LAUNCH_CORE_SUBJECT,
+    workspace_dir: workspaceDir
   });
+  assert.equal(launch.accepted, true, JSON.stringify(launch));
   const status = await backend.getRunStatus({
     caller_session_id: "session-LC-A",
     monitor_handle: launch.monitor_handle
@@ -95,7 +123,8 @@ test("WK-0626 backend surfaces shared launch core findings final_result with ful
   assert.equal(status.final_result.full_response.text, reportText);
 });
 
-test("WK-0626 backend preserves bounded stderr detail for shared launch core failed terminal", async () => {
+test("WK-0626 backend preserves bounded stderr detail for shared launch core failed terminal", async (t) => {
+  const workspaceDir = await launchCoreWorkspace(t);
   const backend = createTestDispatchBackend({
     launchExecutor: async (req) => {
       const child = makeFakeChild();
@@ -116,8 +145,10 @@ test("WK-0626 backend preserves bounded stderr detail for shared launch core fai
     role: "worker",
     app: "codex",
     model: "gpt-5.5",
-    subject: "WK-0626#SLICE-001"
+    subject: LAUNCH_CORE_SUBJECT,
+    workspace_dir: workspaceDir
   });
+  assert.equal(launch.accepted, true, JSON.stringify(launch));
   const status = await backend.getRunStatus({
     caller_session_id: "session-LC-B",
     monitor_handle: launch.monitor_handle
@@ -213,7 +244,9 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     canonical_refs: Object.freeze([]),
     derived_evidence: Object.freeze([])
   });
+
   const authority = Object.freeze({
+    schema_version: "workspace-agent-frozen-scope-authority.v1",
     unit_address: "IN-0038/WK-2261/SLICE-004",
     selected_unit: selectedUnit,
     source: "wiki/work-records/WK-2261.json#SLICE-004",
@@ -222,7 +255,11 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     source_version: "work-record.v1",
     read_scope: Object.freeze(["README.md"]),
     repo_paths: Object.freeze(["README.md"]),
-    write_scope: Object.freeze(["tests/example.test.mjs"])
+    readable_scope: Object.freeze(["README.md"]),
+    write_scope: Object.freeze(["tests/example.test.mjs"]),
+    scope_exclusions: Object.freeze(["wiki/contracts"]),
+    ...fixtureFrozenScopeFacts({ readable: ["README.md"],
+      writable: ["tests/example.test.mjs"] })
   });
   const sliceBinding = Object.freeze({
     schema_version: "worktree-identity-binding.v2",
@@ -292,8 +329,12 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     assert.equal(input.worker_assignment.run_id, "wkdb_WK2261");
     assert.equal(input.worker_assignment.monitor_handle, "wkmh_WK2261");
     assert.equal(input.worker_assignment.worktree_path, "/tmp/wk2261-slice");
-    assert.match(input.worker_assignment.prompt, /WK2261_SLICE_CRITERION/);
-    assert.match(input.worker_assignment.prompt, /WK2261_SLICE_NOTES/);
+
+    assert.match(input.worker_assignment.prompt, /workspace_read_page/);
+    assert.equal(input.worker_assignment.assignment_delivery, "read_page");
+    assert.match(input.worker_assignment.assignment_guidance, /WK2261_SLICE_CRITERION/);
+    assert.match(input.worker_assignment.assignment_guidance, /WK2261_SLICE_NOTES/);
+    assert.doesNotMatch(input.worker_assignment.prompt, /WK2261_SLICE_CRITERION/);
     assert.equal(Object.hasOwn(input.worker_assignment, "record"), false);
     return { accepted: true, status: "launching" };
   };

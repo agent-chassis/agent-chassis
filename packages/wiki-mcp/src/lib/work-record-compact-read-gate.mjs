@@ -1,7 +1,11 @@
 import { ordinaryFieldSelectionIssues, ORDINARY_FIELD_CODES } from "@agent-chassis/wiki-core/src/lib/work-record-ordinary-field-read.mjs";
 import { runOrdinaryFieldRead } from "./work-record-ordinary-field-read.mjs";
 import { types as utilTypes } from "node:util";
-import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
+  isWorkRecordFreshness,
+  projectWorkRecordFreshness,
+  SLICE_ID_PATTERN
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import {
   parseWorkRecordSummaryUnit,
   WORK_RECORD_SLICE_PAGE_MAX_LIMIT,
@@ -9,8 +13,12 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/work-record-summary.mjs";
 import {
   buildSelectedRecordMemberCall,
-  selectedRecordMemberSelectorIssues
+  SELECTED_RECORD_MEMBERS_ENTRY_FIELDS,
+  SELECTED_RECORD_MEMBERS_MAX,
+  selectedRecordMemberSelectorIssues,
+  selectedRecordMembersSelectorIssues
 } from "@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs";
+import { buildNextCall } from "./mcp-response.mjs";
 
 import {
   classifyReadPagePath,
@@ -40,6 +48,7 @@ import {
   toolVisibleToSession,
   workRecordDetailsSelectorIssues
 } from "./work-record-read-navigation.mjs";
+import { isOrchestratorPresentationSession } from "./tool-profile.mjs";
 
 export {
   selectedRecordMemberSchema,
@@ -66,7 +75,7 @@ const SELECTOR_REFUSAL_CODES = Object.freeze({
 
 const DETAILS_EXCLUSIVE_FIELDS = Object.freeze([
   "ordinary_field", "selected_record", "slice_offset", "slice_limit", "slice_status",
-  "expected_source_digest", "member"
+  "expected_source_digest", "member", "members"
 ]);
 
 const SLICE_PAGE_ARGUMENT_FIELDS = Object.freeze([
@@ -77,8 +86,17 @@ const SLICE_PAGE_ARGUMENT_FIELDS = Object.freeze([
 ]);
 
 const MEMBER_EXCLUSIVE_FIELDS = Object.freeze([
-  "ordinary_field", "details", "selected_record", "include_body", ...SLICE_PAGE_ARGUMENT_FIELDS
+  "ordinary_field", "details", "selected_record", "include_body", "members", ...SLICE_PAGE_ARGUMENT_FIELDS
 ]);
+const MEMBERS_EXCLUSIVE_FIELDS = Object.freeze([
+  "ordinary_field", "details", "selected_record", "include_body", "member", "entry", "content_reference",
+  "slice_offset", "slice_limit", "slice_status"
+]);
+
+const MEMBERS_RECOVERY_IDENTITY_FIELDS = Object.freeze([
+  "repo", "id", "unit", "path", "selected_slice", "profile", "extensionNamespaces"
+]);
+const MEMBERS_RECOVERY_CALL_MAX_BYTES = 4096;
 
 const RECORD_PROJECTION_PAGE_KINDS = new Set(["work-records", "issues", "initiatives", "decisions"]);
 const SUMMARY_ARGUMENT_FIELDS = new Set([
@@ -89,6 +107,7 @@ const SUMMARY_ARGUMENT_FIELDS = new Set([
   "path",
   "details",
   "member",
+  "members",
   ...SLICE_PAGE_ARGUMENT_FIELDS
 ]);
 
@@ -105,6 +124,8 @@ const READ_PAGE_ARGUMENT_FIELDS = new Set([
   "selected_slice",
   "selected_record",
   "member",
+  "members",
+  "expected_source_digest",
   ...READ_PAGE_DELEGATED_FIELDS
 ]);
 const GET_RECORD_ARGUMENT_FIELDS = new Set([
@@ -115,6 +136,7 @@ const GET_RECORD_ARGUMENT_FIELDS = new Set([
   "include_body",
   "selected_slice",
   "member",
+  "members",
   ...SLICE_PAGE_ARGUMENT_FIELDS
 ]);
 
@@ -155,7 +177,8 @@ function throwSelectorValidationError(toolFamily, issues) {
     code: issue.code,
     severity: "error",
     path: issue.path,
-    message: issue.message
+    message: issue.message,
+    ...(issue.next_call === undefined ? {} : { next_call: issue.next_call })
   }));
   const first = diagnostics[0];
   const error = new Error(first.message);
@@ -204,11 +227,12 @@ function getSlicePageSelectorValidationIssues(args, toolFamily) {
       `${toolFamily} slice_status must be a non-empty status string or an array of them`
     ));
   }
-  if (hasOwn(args, "expected_source_digest") && !normalizeString(args.expected_source_digest)) {
+  if (hasOwn(args, "members")) return issues;
+  if (hasOwn(args, "expected_source_digest") && !isWorkRecordFreshness(args.expected_source_digest)) {
     issues.push(selectorIssue(
       SELECTOR_REFUSAL_CODES.SLICE_PAGE_INVALID,
       ["expected_source_digest"],
-      `${toolFamily} expected_source_digest must be the non-empty source_digest a prior page returned`
+      `${toolFamily} expected_source_digest must be the 16-hex source_digest a prior read returned`
     ));
   }
   if (hasOwn(args, "expected_source_digest") && !hasOwn(args, "ordinary_field") &&
@@ -225,7 +249,8 @@ function getSlicePageSelectorValidationIssues(args, toolFamily) {
 
 function slicePageRequested(args) {
   return SLICE_PAGE_ARGUMENT_FIELDS.some((field) =>
-    !(hasOwn(args, "ordinary_field") && field === "expected_source_digest") && hasOwn(args, field));
+    !((hasOwn(args, "ordinary_field") || hasOwn(args, "members")) && field === "expected_source_digest") &&
+    hasOwn(args, field));
 }
 
 function normalizeSlicePageRequest(args) {
@@ -260,6 +285,62 @@ function getMemberSelectorValidationIssues(args, toolFamily) {
     ));
   }
   return issues;
+}
+
+function membersRecoveryCall(args, toolFamily) {
+  const entryIssues = selectedRecordMembersSelectorIssues(args.members);
+  const malformed = new Set(entryIssues.filter((issue) => typeof issue.path[0] === "number")
+    .map((issue) => issue.path[0]));
+  const kept = Array.isArray(args.members)
+    ? args.members.filter((entry, index) => !malformed.has(index)).slice(0, SELECTED_RECORD_MEMBERS_MAX)
+      .map((entry) => Object.fromEntries(SELECTED_RECORD_MEMBERS_ENTRY_FIELDS
+        .filter((field) => hasOwn(entry, field)).map((field) => [field, entry[field]])))
+    : [];
+  const recovered = Object.fromEntries(MEMBERS_RECOVERY_IDENTITY_FIELDS
+    .filter((field) => hasOwn(args, field)).map((field) => [field, args[field]]));
+  recovered.members = kept.length > 0 ? kept : [{ path: [] }];
+  if (isWorkRecordFreshness(args.expected_source_digest)) {
+    recovered.expected_source_digest = args.expected_source_digest;
+  }
+  const call = buildNextCall({ tool: toolFamily, arguments: recovered, recommended: true });
+  return Buffer.byteLength(JSON.stringify(call), "utf8") <= MEMBERS_RECOVERY_CALL_MAX_BYTES ? call : undefined;
+}
+
+function getMembersSelectorValidationIssues(args, toolFamily) {
+  if (!hasOwn(args, "members")) return [];
+  const issues = selectedRecordMembersSelectorIssues(args.members).map((issue) => selectorIssue(
+    SELECTOR_REFUSAL_CODES.MEMBER_INVALID,
+    ["members", ...issue.path],
+    `${toolFamily} ${issue.message}`
+  ));
+  if (hasOwn(args, "expected_source_digest") && !isWorkRecordFreshness(args.expected_source_digest)) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.MEMBER_INVALID,
+      ["expected_source_digest"],
+      `${toolFamily} expected_source_digest must be the 16-hex source_digest a prior read returned`
+    ));
+  }
+  const conflicting = MEMBERS_EXCLUSIVE_FIELDS.filter((field) => hasOwn(args, field));
+  if (conflicting.length > 0) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.CONFLICT,
+      ["members"],
+      `${toolFamily} members is mutually exclusive with ${conflicting.join(", ")}`
+    ));
+  }
+  if (issues.length === 0) return issues;
+  const recovery = membersRecoveryCall(args, toolFamily);
+  return recovery === undefined ? issues : issues.map((issue) => ({ ...issue, next_call: recovery }));
+}
+
+function getReadPageDigestPlacementIssues(args) {
+  if (!hasOwn(args, "expected_source_digest") || hasOwn(args, "members")) return [];
+  return [selectorIssue(
+    SELECTOR_REFUSAL_CODES.CONFLICT,
+    ["expected_source_digest"],
+    `${READ_PAGE_TOOL_FAMILY} top-level expected_source_digest pins a members batch only; pin a single ` +
+      "member read with member.expected_source_digest"
+  )];
 }
 
 export function getSummarySelectorValidationIssues(args) {
@@ -308,6 +389,7 @@ export function getSummarySelectorValidationIssues(args) {
   }
   issues.push(...getSlicePageSelectorValidationIssues(args, SUMMARY_TOOL_FAMILY));
   issues.push(...getMemberSelectorValidationIssues(args, SUMMARY_TOOL_FAMILY));
+  issues.push(...getMembersSelectorValidationIssues(args, SUMMARY_TOOL_FAMILY));
   if (hasOwn(args, "details")) {
     for (const issue of workRecordDetailsSelectorIssues(args.details)) {
       issues.push(selectorIssue(SELECTOR_REFUSAL_CODES.DETAILS_INVALID, issue.path,
@@ -407,7 +489,9 @@ function validateAndNormalizeSummarySelector(args) {
       selected_slice: selectedAddress?.kind === "slice" ? selectedAddress.slice_id : null,
       selected_record: args.selected_record === true,
       slice_page: normalizeSlicePageRequest(args),
-      member: hasOwn(args, "member") ? args.member : null
+      member: hasOwn(args, "member") ? args.member : null,
+      members: hasOwn(args, "members") ? args.members : null,
+      expected_source_digest: hasOwn(args, "expected_source_digest") ? args.expected_source_digest : null
     }
   };
 }
@@ -535,7 +619,9 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
     }
   }
   issues.push(...getMemberSelectorValidationIssues(args, toolFamily));
+  issues.push(...getMembersSelectorValidationIssues(args, toolFamily));
   if (toolFamily === READ_PAGE_TOOL_FAMILY) {
+    issues.push(...getReadPageDigestPlacementIssues(args));
     issues.push(...getOrdinaryReaderSelectorIssues(args, primaryField));
   } else {
     const unsupportedPrimaryFields = ["id", "unit", "path"].filter(
@@ -703,14 +789,14 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
 
   if (
     toolFamily === READ_PAGE_TOOL_FAMILY &&
-    hasOwn(args, "member") &&
+    (hasOwn(args, "member") || hasOwn(args, "members")) &&
     readPagePath &&
     (readPagePath.kind === "graph_evidence" ||
       (readPagePath.kind === "generic" && !selected.endsWith(".json")))
   ) {
     issues.push(selectorIssue(
       SELECTOR_REFUSAL_CODES.PATH_UNSUPPORTED,
-      ["member"],
+      [hasOwn(args, "member") ? "member" : "members"],
       `${READ_PAGE_TOOL_FAMILY} member requires a canonical WK, initiative or decision JSON path`
     ));
   }
@@ -777,7 +863,9 @@ function validateAndNormalizeReadSelector(args, toolFamily) {
       selected_record: selectedRecord,
       selected_detail: Boolean(selectedSlice || selectedRecord),
       slice_page: toolFamily === GET_RECORD_TOOL_FAMILY ? normalizeSlicePageRequest(args) : null,
-      member: hasOwn(args, "member") ? args.member : null
+      member: hasOwn(args, "member") ? args.member : null,
+      members: hasOwn(args, "members") ? args.members : null,
+      expected_source_digest: hasOwn(args, "expected_source_digest") ? args.expected_source_digest : null
     }
   };
 }
@@ -892,14 +980,18 @@ async function loadNavigationUnit({ workspaceDir, recordId, unitAddress, readWor
 
 export async function runWorkRecordSummaryWithCompactGate({
   workspaceRepo,
+  callRepository = workspaceRepo,
   workspaceDir,
   args,
   readWorkRecordById,
-  isToolVisible = toolVisibleToSession
+  isToolVisible = toolVisibleToSession,
+  isOrchestratorPresentation = isOrchestratorPresentationSession
 }) {
   const normalized = validateAndNormalizeSummarySelector(args);
   const normalizedArgs = normalized.args;
   const selector = normalized.selector;
+
+  if (callRepository === null) delete normalizedArgs.repo;
 
   const selectedRecordId =
     parseWorkRecordSummaryUnit(selector.selected)?.record_id ??
@@ -930,15 +1022,17 @@ export async function runWorkRecordSummaryWithCompactGate({
     });
   }
 
-  if (selector.member) {
+  if (selector.member || selector.members) {
     return runSelectedRecordMember({
       toolFamily: SUMMARY_TOOL_FAMILY,
-      workspaceRepo,
+      workspaceRepo: callRepository,
       workspaceDir,
       recordId: selectedRecordId,
       sliceId: selector.selected_slice,
       identity: { unit: selector.selected_slice ? `${selectedRecordId}#${selector.selected_slice}` : selectedRecordId },
       member: selector.member,
+      members: selector.members,
+      expectedSourceDigest: selector.expected_source_digest,
       readWorkRecordById
     });
   }
@@ -946,13 +1040,14 @@ export async function runWorkRecordSummaryWithCompactGate({
   const { loaded, unit } = await loadNavigationUnit({ workspaceDir, recordId: selectedRecordId,
     unitAddress: normalizedArgs.unit, readWorkRecordById });
   if (hasOwn(normalizedArgs, "details")) {
-    const menu = projectWorkRecordDetailMenu({ loaded, unit, repository: workspaceRepo,
+    const menu = projectWorkRecordDetailMenu({ loaded, unit, repository: callRepository,
       details: normalizedArgs.details, isToolVisible });
     if (!menu) throwSelectedIdentityError(SUMMARY_TOOL_FAMILY);
     return menu;
   }
 
-  const navigation = projectWorkRecordNavigation({ loaded, unit, repository: workspaceRepo, isToolVisible });
+  const navigation = projectWorkRecordNavigation({ loaded, unit, repository: callRepository, isToolVisible,
+    isOrchestratorPresentation });
   if (!navigation) throwSelectedIdentityError(SUMMARY_TOOL_FAMILY);
   return navigation;
 }
@@ -961,7 +1056,7 @@ export async function runWorkRecordReadWithCompactGate(options) {
   if (options.toolFamily !== READ_PAGE_TOOL_FAMILY) return runWorkRecordRead(options);
   return withCanonicalProjectionReadRecovery({
     toolFamily: options.toolFamily,
-    workspaceRepo: options.workspaceRepo,
+    workspaceRepo: options.callRepository === undefined ? options.workspaceRepo : options.callRepository,
     workspaceDir: options.workspaceDir,
     args: options.args,
     loadKindRecordByPath: options.loadKindRecordByPath,
@@ -971,6 +1066,7 @@ export async function runWorkRecordReadWithCompactGate(options) {
 
 async function runWorkRecordRead({
   workspaceRepo,
+  callRepository = workspaceRepo,
   workspaceDir,
   args,
   toolFamily,
@@ -982,7 +1078,8 @@ async function runWorkRecordRead({
   readWorkRecordById,
   loadKindRecordById,
   loadKindRecordByPath,
-  isToolVisible = toolVisibleToSession
+  isToolVisible = toolVisibleToSession,
+  isOrchestratorPresentation = isOrchestratorPresentationSession
 }) {
   const normalized = validateAndNormalizeReadSelector(args, toolFamily);
   const normalizedArgs = normalized.args;
@@ -1010,13 +1107,13 @@ async function runWorkRecordRead({
     });
   }
 
-  if (selector.member) {
+  if (selector.member || selector.members) {
     const workRecordId = toolFamily === GET_RECORD_TOOL_FAMILY || canonicalIdentity
       ? (WORK_RECORD_ID_PATTERN.test(selector.id ?? "") ? selector.id : null)
       : extractWorkRecordReadPath(selector.path)?.record_id ?? null;
     return runSelectedRecordMember({
       toolFamily,
-      workspaceRepo,
+      workspaceRepo: callRepository,
       workspaceDir,
       recordId: workRecordId ?? selector.selected,
       workRecord: workRecordId !== null,
@@ -1025,6 +1122,8 @@ async function runWorkRecordRead({
         ? { id: selector.id }
         : { ...(selector.identity_argument ?? { path: selector.path }) },
       member: selector.member,
+      members: selector.members,
+      expectedSourceDigest: selector.expected_source_digest,
       readWorkRecordById,
       loadKindRecordById,
       loadKindRecordByPath
@@ -1053,7 +1152,8 @@ async function runWorkRecordRead({
     const { loaded, unit } = await loadNavigationUnit({ workspaceDir, recordId,
       unitAddress: selector.selected_slice ? `${recordId}#${selector.selected_slice}` : recordId,
       readWorkRecordById });
-    const navigation = projectWorkRecordNavigation({ loaded, unit, repository: workspaceRepo, isToolVisible });
+    const navigation = projectWorkRecordNavigation({ loaded, unit, repository: callRepository, isToolVisible,
+      isOrchestratorPresentation });
 
     if (!navigation || (selector.selected_slice && navigation.ok === false &&
         navigation.diagnostics?.[0]?.code === "missing_slice")) {
@@ -1084,9 +1184,10 @@ async function runWorkRecordRead({
   if (bodyRequested) throwRecordBodyUnsupported(toolFamily);
 
   if (kindDisclosure) {
+    compactResult.source_digest = projectWorkRecordFreshness(compactResult.source_digest);
     compactResult.compact_read = buildKindRecordContinuation({
       toolFamily,
-      workspaceRepo,
+      workspaceRepo: callRepository,
       compactResult,
       selector,
       args: normalizedArgs,
@@ -1098,7 +1199,7 @@ async function runWorkRecordRead({
   const loadedRecord = typeof readWorkRecordById === "function"
     ? await readWorkRecordById({ dir: workspaceDir, id: compactResult.record_id })
     : null;
-  compactResult.source_digest = loadedRecord?.source_digest ?? compactResult.source_digest ?? null;
+  compactResult.source_digest = projectWorkRecordFreshness(loadedRecord?.source_digest ?? compactResult.source_digest);
   compactResult.compact_read = buildContinuationMetadata({
     toolFamily,
     compactResult,

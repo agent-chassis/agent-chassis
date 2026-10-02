@@ -14,8 +14,12 @@ import { classifyControlledAcceptanceStateOperation } from
   "../../packages/wiki-core/src/operations/controlled-contract/controlled-acceptance-state-operations.mjs";
 import { applyControlledContractDesignSemanticResponse } from
   "../../packages/wiki-core/src/operations/controlled-contract/authoring-operations.mjs";
-import { persistControlledAcceptanceProofPostureOperation } from
-  "../../packages/wiki-core/src/operations/controlled-contract/proof-posture-operations.mjs";
+import {
+  persistControlledAcceptanceProofPostureOperation,
+  prepareControlledAcceptanceProofPostureAmendment
+} from "../../packages/wiki-core/src/operations/controlled-contract/proof-posture-operations.mjs";
+import { today } from "../../packages/wiki-core/src/lib/wiki-shared.mjs";
+import { isWorkRecordUpdatedDate } from "../../packages/agent-launch-cli/src/lib/wk-forge-handoff-recovery.mjs";
 
 function record(extra = {}) {
   return {
@@ -32,9 +36,11 @@ function record(extra = {}) {
   };
 }
 
-function workbench(generation, complete, contractDigest = null) {
+function workbench(generation, complete, contractDigest = null, coverage = "complete") {
   return {
     subject: { generation_id: generation }, mechanically_complete: complete,
+    evaluated_snapshot: coverage === null ? null : {
+      ordinary_authoring_readiness: { acceptance_coverage: { status: coverage } } },
     dimension_count: 9, incomplete_row_count: complete ? 0 : 4,
     actionable_row_count: complete ? 0 : 3,
     non_actionable_row_count: complete ? 0 : 1,
@@ -73,6 +79,16 @@ test("proof posture is the sole carrier for absent, incomplete, complete, and op
   });
   assert.equal(complete.state, "complete");
   assert.equal(complete.mechanically_complete, true);
+
+  for (const coverage of ["incomplete", null]) {
+    const uncovered = await classifyControlledAcceptanceStateOperation({ repoRoot: "/repo",
+      wkId: required.id, record: required }, {
+      inspectWorkbench: async () => workbench("sha256:generation", true, null, coverage)
+    });
+    assert.equal(uncovered.state, "incomplete", `coverage ${coverage}`);
+    assert.equal(uncovered.semantic.admission.blocked_reason_code,
+      "controlled_acceptance_incomplete");
+  }
 
   const opted = record({ proof_posture: buildControlledAcceptanceProofPosture({
     wkId: bare.id, disposition: "opted_out", rationale: "No executable behavior applies."
@@ -167,6 +183,27 @@ test("the semantic owner replaces an otherwise-valid retired posture shape", asy
   assert.deepEqual(written.proof_posture,
     buildControlledAcceptanceProofPosture({ wkId: "WK-9997", disposition: "required" }));
   assert.equal(Object.hasOwn(written.proof_posture, "enforcement"), false);
+});
+
+test("recording the disposition moves the record's updated to a calendar date", async () => {
+  let written = null;
+  await persistControlledAcceptanceProofPostureOperation({
+    repoRoot: "/repo", wkId: "WK-9997", disposition: "required",
+    expectedSourceDigest: `sha256:${"a".repeat(64)}`
+  }, {
+    loadRecord: async () => ({ valid: true, record: record({ updated: "2026-01-01" }),
+      source_digest: `sha256:${"a".repeat(64)}`, diagnostics: [] }),
+    writeRecord: async ({ record: replacement }) => {
+      written = replacement;
+      return { written: true, source_digest: `sha256:${"b".repeat(64)}` };
+    }
+  });
+  assert.equal(written.updated, today());
+  assert.equal(isWorkRecordUpdatedDate(written.updated), true, written.updated);
+  const amended = prepareControlledAcceptanceProofPostureAmendment({
+    record: record({ updated: "2026-01-01" }), wkId: "WK-9997", disposition: "required"
+  });
+  assert.equal(amended.record.updated, today());
 });
 
 test("guarded responses invoke exactly one proof-posture semantic owner", async () => {

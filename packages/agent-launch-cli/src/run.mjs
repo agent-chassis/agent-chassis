@@ -48,7 +48,11 @@ selects a canonical launcher profile (default: same name as the role);
 \`--family\` is a deprecated alias for \`--app\`.
 
 Maintenance and supporting commands:
-  forge-merge WK-####                         Merge the exact reviewed pull request
+  forge-merge WK-#### [--checkout <path>]     Land the WK's exact authenticated handoff:
+                                             hosted merges the reviewed pull request;
+                                             local and Git stage the matching WK and
+                                             contract files and run git merge --ff-only
+                                             in the base-branch checkout (never pushes)
   init-config [--force]                      Write a default local launcher registry
   initiative <status|start|redteam> <IN-ID>  Plan initiative workflows; dispatch is internal/deferred
   install-drift-check [--target-dir <path>] [--json]
@@ -91,6 +95,7 @@ export async function run(argv, { cwd = process.cwd(), env = process.env, io = {
     case "forge-merge":
 
       await runForgeMerge(rest, io, null, {
+        cwd,
         env: {
           ...env,
           [WIKI_MCP_WORKSPACE_DIR_ENV_VAR]: cwd

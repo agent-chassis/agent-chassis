@@ -14,8 +14,9 @@ const CANONICAL_REPO = "/srv/canonical/main-repo";
 const SUBMIT_SIGNAL =
   "When findings-only reviewer or redteam work is complete, call workspace_submit_for_review";
 const MANAGED_NO_SUBMIT = "Do not call workspace_submit_for_review.";
+
 const MANAGED_CAPTURE =
-  "Complete by returning your terminal structured findings result for trusted-runtime capture";
+  "Complete by returning your findings response for trusted-runtime capture";
 
 const SNAPSHOT_ACCEPTANCE_SOURCE =
   'Snapshot acceptance: workspace_read_page arguments ' +
@@ -70,7 +71,9 @@ test("managed review reads acceptance from the exact snapshot-local assigned uni
     assert.doesNotMatch(prompt, /"selected_slice":"WK-1577#SLICE-007"/u);
     assert.doesNotMatch(prompt, /workspace_frozen_review_contract_query|read its index|paging|cursor|omitted=0/u);
   }
-  assert.match(managed, /Terminal structured role result/);
+
+  assert.match(managed, /## Review findings/);
+  assert.doesNotMatch(managed, /## Terminal structured role result/);
 });
 
 test("redteamPrompt is unchanged and never enters the managed branch", () => {

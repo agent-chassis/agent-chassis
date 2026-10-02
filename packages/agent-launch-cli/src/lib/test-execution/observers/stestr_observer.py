@@ -15,6 +15,13 @@ authenticated source with an entry probe at the start of every function body
 and, for a falsifier, the declared scalar return replaced. The probe
 credentials and the substitution come only from the launcher directive line
 appended to the working-copy module, never from the observer configuration.
+
+A failure's diagnosis is the launcher diagnostic graph of unittest's original
+exception, named with its subtest when one failed, encoded by the shared
+``workspace_agent_test_proof_diagnostic_graph.py`` owner installed with the
+launcher package and loaded from that exact path without changing
+``sys.path``. An unexpected success is unittest's own runner condition and
+supplies no exception.
 """
 
 import ast
@@ -30,13 +37,24 @@ import runpy
 import secrets
 import sys
 import threading
-import traceback
 import unittest
+
+
+def _load_diagnostic_graph():
+    """The shared diagnostic graph owner, loaded from its installed launcher path."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))),
+                        "workspace_agent_test_proof_diagnostic_graph.py")
+    spec = importlib.util.spec_from_file_location("launcher_test_proof_diagnostic_graph", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+diagnostic_graph = _load_diagnostic_graph()
 
 CONFIG_SCHEMA = "launcher-test-proof-observer-config.v1"
 REACH_NAME = "__launcher_test_proof_reach__"
 DIRECTIVE_MARKER = b"#__launcher_test_proof__ "
-MAX_TEXT = 64 * 1024
 
 
 class Channel:
@@ -62,28 +80,6 @@ class Channel:
             finally:
                 os.close(descriptor)
             self.sequence += 1
-
-
-def _text(value):
-    try:
-        return str(value)[:MAX_TEXT]
-    except Exception:  # noqa: BLE001 - diagnostics must not raise
-        return None
-
-
-def _error_facts(err, assertion):
-    if not err:
-        return None
-    kind, value, trace = err
-    facts = {"name": getattr(kind, "__name__", "Error"), "assertion": bool(assertion)}
-    message = _text(value)
-    if message is not None:
-        facts["message"] = message
-    try:
-        facts["stack"] = "".join(traceback.format_exception(kind, value, trace))[:MAX_TEXT]
-    except Exception:  # noqa: BLE001
-        pass
-    return facts
 
 
 class ModuleInstrumentation(ast.NodeTransformer):
@@ -200,18 +196,30 @@ def install_module_hook(config, channel):
 class RecordingResult:
     """Forward every call to the runner's result while recording the outcome."""
 
-    def __init__(self, inner, failure_exception):
+    def __init__(self, inner, failure_exception, root):
         self._inner = inner
         self._failure_exception = failure_exception
+        self._root = root
         self.outcome = None
         self.assertion = False
-        self.error = None
+        self.diagnostic = None
 
-    def _failed(self, err, assertion):
+    def _failed(self, diagnostic, assertion):
         self.outcome = "failed"
         self.assertion = self.assertion or assertion
-        if self.error is None:
-            self.error = _error_facts(err, assertion)
+        if self.diagnostic is None:
+            self.diagnostic = diagnostic()
+
+    def _exception(self, err, subtest=None):
+        value = err[1] if err else None
+        name = None
+        if subtest is not None:
+            try:
+                name = subtest._subDescription()
+            except Exception:  # noqa: BLE001 - the subtest is still the origin
+                name = None
+        return diagnostic_graph.failure_diagnostic(value, self._root,
+                                                   None if subtest is None else "subtest", name)
 
     def addSuccess(self, test, *args, **kwargs):
         if self.outcome is None:
@@ -229,21 +237,21 @@ class RecordingResult:
         return self._inner.addSkip(test, *args, **kwargs)
 
     def addFailure(self, test, err, *args, **kwargs):
-        self._failed(err, True)
+        self._failed(lambda: self._exception(err), True)
         return self._inner.addFailure(test, err, *args, **kwargs)
 
     def addError(self, test, err, *args, **kwargs):
-        self._failed(err, False)
+        self._failed(lambda: self._exception(err), False)
         self.assertion = False
         return self._inner.addError(test, err, *args, **kwargs)
 
     def addUnexpectedSuccess(self, test, *args, **kwargs):
-        self._failed(None, False)
+        self._failed(lambda: diagnostic_graph.condition_diagnostic("condition", "unexpected_success"), False)
         return self._inner.addUnexpectedSuccess(test, *args, **kwargs)
 
     def addSubTest(self, test, subtest, err, *args, **kwargs):
         if err is not None:
-            self._failed(err, issubclass(err[0], self._failure_exception))
+            self._failed(lambda: self._exception(err, subtest), issubclass(err[0], self._failure_exception))
         return self._inner.addSubTest(test, subtest, err, *args, **kwargs)
 
     def __getattr__(self, name):
@@ -286,14 +294,15 @@ def install_observer(config, channel):
                 channel.emit("test_start", file=selected_file, test=identity(self))
             return original_run(self, result)
         channel.emit("test_start", file=selected_file, test=selected_test)
-        recording = RecordingResult(result, self.failureException)
+        recording = RecordingResult(result, self.failureException, config["repository_root"])
         try:
             return original_run(self, recording)
         finally:
             outcome = recording.outcome or "failed"
-            channel.emit("test_result", file=selected_file, test=selected_test, outcome=outcome,
-                         assertion_failure=outcome == "failed" and recording.assertion,
-                         error=recording.error if outcome == "failed" else None)
+            fields = {"assertion_failure": outcome == "failed" and recording.assertion}
+            if outcome == "failed":
+                fields["failure_diagnostic"] = recording.diagnostic or diagnostic_graph.unavailable()
+            channel.emit("test_result", file=selected_file, test=selected_test, outcome=outcome, **fields)
 
     def observed_call(self, method):
         if self.id() != selected_id:

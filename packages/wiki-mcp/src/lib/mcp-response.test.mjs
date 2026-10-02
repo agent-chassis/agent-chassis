@@ -17,10 +17,9 @@ import {
   measureMcpInlineResultBytes,
   normalizeMcpToolResult,
   persistControlledContractRefactorItemReference,
-  persistVerifyProofEvidenceReference,
-  isVerifyProofEvidenceReference,
+  readRetainedArtifactBytes,
   readSpilledMcpContentReference,
-  redactAbsolutePaths
+  retainOperatorOnlyEvidence
 } from "./mcp-response.mjs";
 import {
   captureStructuredDiagnostic
@@ -29,16 +28,16 @@ import {
   createWorkspaceRepoResolutionError
 } from "./workspace-repo-resolution.mjs";
 import { createRegisterTool } from "./register-tool.mjs";
+import {
+  CARRIER_FINDING_KINDS,
+  assertStructuredCarrier,
+  structuredCarrierFindings
+} from "../../../../tests/helpers/mcp-journey-accounting.mjs";
 
 const INLINE_LIMIT = 8192;
 
 function completeResultBytes(result) {
   return Buffer.byteLength(JSON.stringify(result), "utf8");
-}
-
-function assertStructuredCarrierOnly(result) {
-  assert.ok(result.structuredContent !== null && typeof result.structuredContent === "object");
-  assert.deepEqual(result.content, []);
 }
 
 function assertWithinInlineLimit(result, limit = INLINE_LIMIT) {
@@ -71,7 +70,6 @@ test("exports the shared response helpers", () => {
   assert.equal(typeof errorContent, "function");
   assert.equal(typeof normalizeMcpToolResult, "function");
   assert.equal(typeof persistControlledContractRefactorItemReference, "function");
-  assert.equal(typeof redactAbsolutePaths, "function");
   assert.equal(typeof createDiagnosticSink, "function");
   assert.equal(typeof createStdioShutdownController, "function");
 });
@@ -102,52 +100,31 @@ test("refactor item persistence is plan-or-receipt scoped and range-readable", a
   }, { WIKI_MCP_RESPONSE_REFERENCE_READ_MAX_BYTES: "1024" });
 });
 
-test("verify-proof evidence persistence mints a digest-bound reference or the typed refusal", async () => {
+test("retained artifacts are read whole by the internal verified reader, never by a public bypass", async () => {
   await withSpillEnv(async (env) => {
-    const evidence = { schema_version: "workspace-verify-proof-aggregate.v1", status: "satisfied",
-      proof_results: [{ test_proof_id: "proof", detail: "d".repeat(20_000) }],
-      result_digest: `sha256:${"a".repeat(64)}` };
-    const persisted = persistVerifyProofEvidenceReference(
-      { evidence, evidenceIdentity: evidence.result_digest }, { env });
-    assert.equal(persisted.status, "persisted");
-    assert.equal(isVerifyProofEvidenceReference(persisted.reference), true);
-    assert.equal(persisted.reference.item_identity, evidence.result_digest);
-    assert.equal(persisted.reference.content_reference.read_tool,
-      "workspace_read_mcp_content_reference");
-    const chunks = [];
-    let offset = 0;
-    do {
-      const page = readSpilledMcpContentReference({
-        ref_id: persisted.reference.content_reference.ref_id, offset,
-        length: persisted.reference.content_reference.range.max_length
-      }, { env });
-      chunks.push(Buffer.from(page.data_base64, "base64"));
-      offset = page.next_offset;
-    } while (offset !== null);
-    assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString("utf8")), evidence);
-    for (const request of [
-      { evidence, evidenceIdentity: `sha256:${"b".repeat(64)}` },
-      { evidence: { ...evidence, schema_version: "other.v1" }, evidenceIdentity: evidence.result_digest },
-      { evidence: [], evidenceIdentity: evidence.result_digest }
+    const value = { outcome: "failed", detail: "d".repeat(20_000), trace: "Error: x\n    at /opt/y.mjs:1:1" };
+    const retained = retainOperatorOnlyEvidence(value, { env });
+    const { stateDir } = getResponseSpillConfig(env);
+    const bytes = readRetainedArtifactBytes(retained, { stateDir });
+    assert.equal(bytes.byteLength, retained.byte_count);
+    assert.deepEqual(JSON.parse(bytes.toString("utf8")), value);
+
+    for (const [locator, reason] of [
+      [{ ...retained, sha256: "0".repeat(64) }, "bytes_mismatch"],
+      [{ ...retained, byte_count: retained.byte_count + 1 }, "bytes_mismatch"],
+      [{ ...retained, ref_id: "resp-missing" }, "not_readable"],
+      [{ ...retained, ref_id: "../escape" }, "invalid_reference"]
     ]) {
-      assert.throws(() => persistVerifyProofEvidenceReference(request, { env }), TypeError);
+      assert.throws(() => readRetainedArtifactBytes(locator, { stateDir }),
+        (error) => error.reason === reason, reason);
     }
-    for (const mutant of [
-      { ...persisted.reference, resource_kind: "plan" },
-      { ...persisted.reference, byte_count: persisted.reference.byte_count + 1 },
-      { ...persisted.reference, extra: true },
-      { ...persisted.reference, item_identity: "digest" }
-    ]) assert.equal(isVerifyProofEvidenceReference(mutant), false);
-    const refused = persistVerifyProofEvidenceReference(
-      { evidence, evidenceIdentity: evidence.result_digest },
-      { env: { ...env, WIKI_MCP_RESPONSE_STATE_DIR: `${import.meta.filename}/not-a-directory` } });
-    assert.equal(refused.status, "refused");
-    assert.equal(refused.result.isError, true);
-    assert.equal(refused.result.structuredContent.code, "mcp_response.spill_persistence_failed.v1");
-    assert.equal(refused.result.structuredContent.core_result.outcome, "succeeded");
-    assert.equal(refused.result.structuredContent.core_result.schema_version,
-      "workspace-verify-proof-aggregate.v1");
-    assert.equal(Object.hasOwn(refused.result.structuredContent, "content_reference"), false);
+
+    assert.throws(() => readSpilledMcpContentReference({ ref_id: retained.ref_id }, { env }), (error) => {
+      assert.equal(error.envelope.limb, "selected_access");
+      assert.equal(error.envelope.refusal.no_supported_route, true);
+      assert.equal(JSON.stringify(error.envelope).includes("/opt/y.mjs"), false);
+      return true;
+    });
   }, { WIKI_MCP_RESPONSE_REFERENCE_READ_MAX_BYTES: "1024" });
 });
 
@@ -174,11 +151,6 @@ test("errorContent preserves an absolute path embedded in an Error message", () 
   assert.equal(result.structuredContent.diagnostic, error.message);
   assert.deepEqual(result.structuredContent.diagnostic_redactions, []);
   assert.equal(result.structuredContent.code, "mcp_response.handler_exception.v1");
-});
-
-test("the compatibility path projector preserves its input", () => {
-  const message = "open C:\\Users\\Alice\\file.txt and /srv/wiki/file.txt";
-  assert.equal(redactAbsolutePaths(message), message);
 });
 
 test("hostile-looking non-sensitive text is preserved exactly", () => {
@@ -254,7 +226,7 @@ test("errorContent exposes a structured error.envelope verbatim in structuredCon
 
   assert.equal(result.isError, true);
   assert.deepEqual(result.structuredContent, envelope);
-  assertStructuredCarrierOnly(result);
+  assertStructuredCarrier(result);
 
   assert.equal(result.structuredContent.message, envelope.message);
 });
@@ -275,7 +247,7 @@ test("a live invalid-repo envelope remains exactly as its validation owner decla
   assert.equal(Object.hasOwn(envelope, "owning_boundary"), false);
   assert.equal(Object.hasOwn(envelope, "correction"), false);
   assert.equal(Object.hasOwn(envelope, "next_calls"), false);
-  assertStructuredCarrierOnly(result);
+  assertStructuredCarrier(result);
 });
 
 test("operator recovery requires an authenticated external condition across the complete envelope", () => {
@@ -346,7 +318,7 @@ test("operator recovery requires an authenticated external condition across the 
     assert.deepEqual(envelope.next_calls, carried.detail.next_calls, label);
     assert.equal(JSON.stringify(envelope).includes("owner_tool"), false, label);
     assert.equal(JSON.stringify(envelope).includes("operator_recovery_needed"), false, label);
-    assertStructuredCarrierOnly(projected);
+    assertStructuredCarrier(projected);
   }
 
   const error = new Error("external supervisor condition");
@@ -374,14 +346,14 @@ test("operator recovery requires an authenticated external condition across the 
     authenticated.structuredContent.refusal.observed_facts["mcp_response.external_condition"],
     declaredExternal.external_condition
   );
-  assertStructuredCarrierOnly(authenticated);
+  assertStructuredCarrier(authenticated);
 });
 
 test("jsonContent returns an inline structured-only result for small payloads", () => {
   const data = { ok: true, items: [1, 2, 3] };
   const result = jsonContent(data);
   assert.deepEqual(result.structuredContent, data);
-  assertStructuredCarrierOnly(result);
+  assertStructuredCarrier(result);
   assert.equal(result.isError, undefined);
   assertWithinInlineLimit(result, getResponseSpillConfig().inlineByteLimit);
 });
@@ -396,7 +368,7 @@ test("normalization admits no complete-inline bypass: an oversized structured re
     assert.ok(completeResultBytes(formed) > INLINE_LIMIT);
     const normalized = normalizeMcpToolResult(formed, { env });
     assert.equal(normalized.structuredContent.schema_version, "wiki-mcp-spilled-response.v1");
-    assertStructuredCarrierOnly(normalized);
+    assertStructuredCarrier(normalized);
     assert.equal(Object.hasOwn(await import("./mcp-response.mjs"), "completeInlineJsonContent"), false);
   });
 });
@@ -425,7 +397,7 @@ test("jsonContent spills oversized payloads to a file-backed reference and round
     const response = jsonContent(payload);
 
     assert.equal(response.structuredContent.response_spilled, true);
-    assertStructuredCarrierOnly(response);
+    assertStructuredCarrier(response);
     assertWithinInlineLimit(response);
     const ref = response.structuredContent.content_reference;
     assert.ok(ref && typeof ref.ref_id === "string");
@@ -526,7 +498,7 @@ test("guardToolHandler passes a structured result through and wraps throws with 
 
   const success = await guarded("ok");
   assert.deepEqual(success.structuredContent, { ok: true });
-  assertStructuredCarrierOnly(success);
+  assertStructuredCarrier(success);
   assert.ok(!JSON.stringify(success).includes("already structured"));
 
   const failure = await guarded("boom");
@@ -559,8 +531,9 @@ test("a declared output schema preserves a sound owner result byte-for-byte", as
       arguments: { id: "WK-2428" }
     }
   };
+
   const result = {
-    content: [],
+    content: [{ type: "text", text: JSON.stringify(ownerEnvelope) }],
     structuredContent: ownerEnvelope,
     _meta: { owner: "unchanged" }
   };
@@ -619,7 +592,7 @@ test("a declared output schema rejects absent, non-JSON, and schema-invalid stru
       operation: "workspace_required_output",
       broken_invariant: fixture.invariant
     }, fixture.label);
-    assertStructuredCarrierOnly(projected);
+    assertStructuredCarrier(projected);
     assert.equal(Object.hasOwn(projected.structuredContent, "recovery"), false, fixture.label);
     assert.equal(Object.hasOwn(projected.structuredContent, "no_supported_route"), false,
       fixture.label);
@@ -636,11 +609,17 @@ test("an undeclared structured envelope is optional and creates no inferred refu
   assert.strictEqual(await guardToolHandler(async () => contentOnly, {
     name: "workspace_optional_output"
   })(), contentOnly);
-  assert.strictEqual(await guardToolHandler(async () => missingPolicy, {
+  const normalized = await guardToolHandler(async () => missingPolicy, {
     name: "workspace_optional_output"
-  })(), missingPolicy);
+  })();
+
+  assert.deepEqual(normalized, {
+    content: [{ type: "text", text: "{\"accepted\":true}" }],
+    structuredContent: { accepted: true }
+  });
+  assertStructuredCarrier(normalized);
   assert.equal(JSON.stringify(contentOnly).includes("mechanical_failure"), false);
-  assert.equal(JSON.stringify(missingPolicy).includes("no_supported_route"), false);
+  assert.equal(JSON.stringify(normalized).includes("no_supported_route"), false);
 });
 
 test("registerTool transports its outputSchema declaration into the response guard", async () => {
@@ -710,8 +689,8 @@ test("the public guard normalizes helper-produced and already-formed results ide
       { env }
     )();
 
-    assertStructuredCarrierOnly(viaHelper);
-    assertStructuredCarrierOnly(alreadyFormed);
+    assertStructuredCarrier(viaHelper);
+    assertStructuredCarrier(alreadyFormed);
     assert.deepEqual(alreadyFormed.content, viaHelper.content);
     assert.deepEqual(alreadyFormed.structuredContent, viaHelper.structuredContent);
     assert.ok(!JSON.stringify(alreadyFormed).includes("opaque handler summary"));
@@ -727,27 +706,30 @@ test("the public guard normalizes helper-produced and already-formed results ide
   });
 });
 
-test("admission compares the single-carrier final frame, not a nonexistent second copy", async () => {
+test("admission compares the complete two-representation frame, not either representation alone", async () => {
   await withSpillEnv(async (env) => {
 
     const fitting = {
       schema_version: "near-limit.v1",
-      value: `near-limit-payload-marker-${"n".repeat(5_000)}`
+      value: `near-limit-payload-marker-${"n".repeat(3_000)}`
     };
     const inline = jsonContent(fitting, { env });
-    assertStructuredCarrierOnly(inline);
+    assertStructuredCarrier(inline);
     assert.deepEqual(inline.structuredContent, fitting);
     assert.equal(completeResultBytes(inline), measureMcpInlineResultBytes(fitting));
     assertWithinInlineLimit(inline);
 
     const oversized = {
       schema_version: "near-limit.v1",
-      value: `near-limit-payload-marker-${"n".repeat(INLINE_LIMIT)}`
+      value: `near-limit-payload-marker-${"n".repeat(5_000)}`
     };
+    const oneRepresentation = Buffer.byteLength(JSON.stringify(oversized), "utf8");
+    assert.ok(oneRepresentation < INLINE_LIMIT && oneRepresentation * 2 > INLINE_LIMIT);
+    assert.ok(measureMcpInlineResultBytes(oversized) > INLINE_LIMIT);
     const result = jsonContent(oversized, { env });
     assert.equal(result.structuredContent.schema_version, "wiki-mcp-spilled-response.v1");
     assert.equal(result.structuredContent.response_spilled, true);
-    assertStructuredCarrierOnly(result);
+    assertStructuredCarrier(result);
     assertWithinInlineLimit(result);
   });
 });
@@ -756,7 +738,7 @@ test("already-formed result metadata participates in the complete-result spill d
   await withSpillEnv(async (env) => {
     const payload = {
       schema_version: "metadata-boundary.v1",
-      value: `structured-payload-${"s".repeat(5_000)}`
+      value: `structured-payload-${"s".repeat(2_500)}`
     };
 
     assert.ok(measureMcpInlineResultBytes(payload) < INLINE_LIMIT);
@@ -769,7 +751,7 @@ test("already-formed result metadata participates in the complete-result spill d
     assert.equal(result.structuredContent.schema_version, "wiki-mcp-spilled-response.v1");
     assert.equal(result.structuredContent.response_spilled, true);
     assert.equal(result._meta.note.length, 3_500);
-    assertStructuredCarrierOnly(result);
+    assertStructuredCarrier(result);
     assertWithinInlineLimit(result);
     const reference = result.structuredContent.content_reference;
     const chunks = [];
@@ -804,7 +786,7 @@ test("an oversized structured error spills, keeps isError, and continues to the 
 
     assert.equal(result.isError, true);
     assert.equal(result.structuredContent.schema_version, "wiki-mcp-spilled-response.v1");
-    assertStructuredCarrierOnly(result);
+    assertStructuredCarrier(result);
     assertWithinInlineLimit(result);
 
     assert.ok(!JSON.stringify(result).includes(envelope.message));
@@ -849,7 +831,7 @@ test("a spill-persistence failure returns the deterministic bounded refusal enve
     ]) {
       const refusal = result.structuredContent;
       assert.equal(result.isError, true);
-      assertStructuredCarrierOnly(result);
+      assertStructuredCarrier(result);
       assertWithinInlineLimit(result);
       assert.equal(refusal.schema_version, "mcp-response-refusal.v1");
       assert.equal(refusal.code, "mcp_response.spill_persistence_failed.v1");
@@ -889,7 +871,7 @@ test("the guard re-synchronizes a spilled result a handler mutated after shaping
 
     assert.equal(result.structuredContent.schema_version, "wiki-mcp-spilled-response.v1");
     assert.equal(result.structuredContent.selected_unit, "WK-2112#SLICE-002");
-    assertStructuredCarrierOnly(result);
+    assertStructuredCarrier(result);
     assertWithinInlineLimit(result);
   });
 });
@@ -906,7 +888,7 @@ test("the guard bounds oversized terminal mutations without spilling a second ti
     const result = await guardToolHandler(async () => terminal, { env })();
 
     assertWithinInlineLimit(result);
-    assertStructuredCarrierOnly(result);
+    assertStructuredCarrier(result);
     assert.equal(result.isError, true);
     assert.equal(result.structuredContent.schema_version, "wiki-mcp-spilled-response.v1");
     assert.deepEqual(result.structuredContent.content_reference, originalReference);
@@ -936,7 +918,7 @@ test("a diagnostic larger than the former cap is preserved completely", () => {
   assert.equal(result.isError, true);
   assert.equal(result.structuredContent.diagnostic, diagnostic);
   assert.deepEqual(result.structuredContent.diagnostic_redactions, []);
-  assertStructuredCarrierOnly(result);
+  assertStructuredCarrier(result);
   assertWithinInlineLimit(result, getResponseSpillConfig().inlineByteLimit);
 });
 
@@ -969,20 +951,19 @@ test("an oversized diagnostic is exactly reconstructable through ranged retrieva
   });
 });
 
-test("a structured secret redacts only the secret component", () => {
+test("a structured diagnostic with sensitive declarations reaches the client as its original", () => {
   const secret = "credential-secret-123";
-  const diagnostic = captureStructuredDiagnostic(
-    `ordinary prefix ${secret}\nordinary suffix!?`,
-    { sensitiveValues: [{ field: "credential", value: secret, reason: "secret_material" }] }
-  );
-  const envelope = errorContent(diagnostic).structuredContent;
-  assert.equal(envelope.diagnostic,
-    "ordinary prefix [redacted:secret_material]\nordinary suffix!?");
-  assert.deepEqual(envelope.diagnostic_redactions, [
-    { field: "mcp_response.thrown_diagnostic.credential", reason: "secret_material" }
-  ]);
-  assert.equal(JSON.stringify(envelope).includes(secret), false);
-  assert.equal(JSON.stringify(envelope.refusal.recovery).includes(secret), false);
+  const text = `ordinary prefix ${secret}\nordinary suffix!?`;
+  const nested = { operation: "fetch", attempts: [{ url: `https://host/${secret}`, status: 401 }],
+    detail: { token: secret, note: null, ok: false } };
+  for (const original of [text, nested]) {
+    const diagnostic = captureStructuredDiagnostic(original,
+      { sensitiveValues: [{ field: "credential", value: secret, reason: "secret_material" }] });
+    const envelope = errorContent(diagnostic).structuredContent;
+    assert.deepEqual(envelope.diagnostic, original);
+    assert.deepEqual(envelope.diagnostic_redactions, []);
+    assert.doesNotMatch(JSON.stringify(envelope), /\[redacted:/u);
+  }
 });
 
 test("an unknown structured redaction reason is schema-invalid", () => {
@@ -1336,7 +1317,7 @@ function assertCanonicalUntypedRefusal(result, label) {
   assert.equal(facts["mcp_response.handler_completed"].value, false, label);
   assert.equal(Object.hasOwn(facts, "mcp_response.thrown_diagnostic"), false, label);
   assert.equal(envelope.refusal.no_supported_route, true, label);
-  assertStructuredCarrierOnly(result);
+  assertStructuredCarrier(result);
   return envelope;
 }
 

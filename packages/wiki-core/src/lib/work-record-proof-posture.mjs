@@ -219,6 +219,108 @@ const ORDINARY_COMPLETE_REPAIR_QUALIFICATION = Object.freeze({
   candidate_digest: null
 });
 
+const ACCEPTANCE_COVERAGE_OWNER = "assessAcceptanceCriterionCoverage";
+const ACCEPTANCE_CRITERIA_UNCOVERED = "acceptance_criteria_uncovered";
+const ACCEPTANCE_CRITERIA_UNCOVERED_CODE = "controlled_acceptance_criteria_uncovered";
+const READINESS_OWNER = "ordinaryAuthoringReadiness";
+const OBLIGATION_DEFINITIONS_INCOMPLETE = "obligation_definitions_incomplete";
+
+function correctionSentence({ read_tool: read, write_tool: write, arguments: args }) {
+  return `${read}(${JSON.stringify(args)}), then ${write} on the same unit with that ` +
+    "response's fresh content_digest as expected_content_digest.";
+}
+
+function causeNarrative(causes) {
+  const [first, ...rest] = causes;
+  return [first.explanation, ...rest.map(({ summary }) => summary)].join(" ");
+}
+
+function acceptanceCoverageCause(coverage) {
+  const listed = coverage.uncovered_criteria.map(({ identity }) => identity);
+  const more = coverage.uncovered_criteria_omitted > 0
+    ? ` and ${coverage.uncovered_criteria_omitted} more` : "";
+  const { correction } = coverage;
+  const instruction = "Supply the missing verification meaning and associate an appropriate " +
+    "obligation with each uncovered criterion";
+  return Object.freeze({
+    cause: ACCEPTANCE_CRITERIA_UNCOVERED,
+    code: ACCEPTANCE_CRITERIA_UNCOVERED_CODE,
+    owner: ACCEPTANCE_COVERAGE_OWNER,
+    selected_unit: coverage.selected_unit,
+    criterion_count: coverage.criterion_count,
+    covered_count: coverage.covered_count,
+    uncovered_count: coverage.uncovered_count,
+    uncovered_criteria: Object.freeze(structuredClone(coverage.uncovered_criteria)),
+    uncovered_criteria_omitted: coverage.uncovered_criteria_omitted,
+    stale_association_count: coverage.stale_association_count,
+    correction: Object.freeze(structuredClone(correction)),
+    summary: `${coverage.uncovered_count} of ${coverage.criterion_count} acceptance criteria ` +
+      `are uncovered (${listed.join(", ")}${more}). ${instruction}.`,
+    explanation: `${coverage.uncovered_count} of ${coverage.criterion_count} acceptance ` +
+      `criteria on ${coverage.selected_unit} have no associated valid obligation ` +
+      `(${coverage.covered_count} covered; uncovered: ${listed.join(", ")}${more}). ` +
+      `${instruction}: ${correctionSentence(correction)}`
+  });
+}
+
+function authoredInputField(rows, obligationId, code) {
+  for (const row of rows) {
+    if ((row.evidence?.obligation_id ?? row.semantic_identity?.obligation_id) !== obligationId) {
+      continue;
+    }
+    const found = (row.evidence?.diagnostics ?? []).find((diagnostic) =>
+      diagnostic?.code === code && typeof diagnostic.problem?.cause?.field === "string");
+    if (found) return found.problem.cause.field;
+  }
+  return null;
+}
+
+function obligationDefinitionsCause(definitions, rows) {
+  const { correction } = definitions;
+  const unit = correction.arguments.unit;
+  const obligations = definitions.unresolved_obligations.map(({ obligation_id: id,
+    authored_input_diagnostic_codes: codes }) => Object.freeze({ obligation_id: id,
+    diagnostics: Object.freeze(codes.map((code) => Object.freeze({ code,
+      field: authoredInputField(rows, id, code) }))) }));
+
+  const [{ obligation_id: first, diagnostics }] = obligations;
+  const fields = [...new Set(diagnostics.map(({ field }) => field).filter(Boolean))];
+  const others = definitions.unresolved_obligation_count - 1;
+  const summary = `On ${unit}, existing obligation ${first} ` +
+    `${fields.length > 0 ? `is missing its authored ${fields.join(" and ")}`
+      : "has an incomplete authored input"} ` +
+    `(${diagnostics.map(({ code }) => code).join(", ")}), at the authored_inputs stage` +
+    `${others > 0 ? `, and ${others} more existing obligation${others === 1 ? " is" : "s are"} ` +
+      "incomplete" : ""}. Amend ${others > 0 ? "each one" : "that obligation"} in place with ` +
+    `its missing authored input, keeping ${others > 0 ? "their" : "its"} identity, ` +
+    "criterion associations and case links.";
+  return Object.freeze({
+    cause: OBLIGATION_DEFINITIONS_INCOMPLETE,
+    owner: READINESS_OWNER,
+    selected_unit: unit,
+    stage: "authored_inputs",
+    unresolved_obligation_count: definitions.unresolved_obligation_count,
+    unresolved_obligations: Object.freeze(obligations),
+    unresolved_obligations_omitted: definitions.unresolved_obligations_omitted,
+    summary,
+    explanation: `${summary} Amend through ${correctionSentence(correction)}`
+  });
+}
+
+function readinessDecidingCauses(readiness, rows) {
+  const conditions = Array.isArray(readiness?.incomplete_conditions)
+    ? readiness.incomplete_conditions : [];
+  const definitions = readiness?.definition_readiness;
+  return conditions.map((condition) =>
+    condition === ACCEPTANCE_CRITERIA_UNCOVERED &&
+      readiness.acceptance_coverage?.correction
+      ? acceptanceCoverageCause(readiness.acceptance_coverage)
+      : condition === OBLIGATION_DEFINITIONS_INCOMPLETE && definitions?.correction &&
+          definitions.unresolved_obligations?.length > 0
+        ? obligationDefinitionsCause(definitions, rows)
+        : Object.freeze({ cause: condition, owner: READINESS_OWNER }));
+}
+
 function subsetReadiness(readiness) {
   if (readiness === null || typeof readiness !== "object") return readiness ?? null;
   const { definition_readiness: _presentation, ...subset } = readiness;
@@ -311,6 +413,44 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
   const ownerCodes = [...new Set(causeRows
     .flatMap((row) => row.reason_codes ?? []))]
     .filter((code) => !nonblockingCodes.has(code)).sort();
+
+  const readinessCauses = !blocked || stale || internalFailure || state !== "incomplete"
+    ? [] : readinessDecidingCauses(ordinaryReadiness, causeRows);
+  const coverageCause = readinessCauses.find(
+    (cause) => cause.cause === ACCEPTANCE_CRITERIA_UNCOVERED) ?? null;
+  const decidingCauses = coverageCause !== null && workbench?.mechanically_complete === true
+    ? [coverageCause] : readinessCauses;
+
+  const coverageAlone = coverageCause !== null && generation !== null &&
+    decidingCauses.length === 1;
+  const withCoverage = (values, value) => coverageCause === null
+    ? values : [...new Set([...values, value])].sort();
+  const decidingOwners = coverageAlone ? [ACCEPTANCE_COVERAGE_OWNER]
+    : withCoverage(diagnosticOwners, ACCEPTANCE_COVERAGE_OWNER);
+  const decidingCodes = coverageAlone ? [ACCEPTANCE_CRITERIA_UNCOVERED_CODE]
+    : withCoverage(ownerCodes, ACCEPTANCE_CRITERIA_UNCOVERED_CODE);
+  const independentObservations = !coverageAlone ? null : Object.freeze({
+    authority: "not_deciding_this_refusal",
+    population: "controlled_contract_design_workbench_rows",
+    incomplete_row_count: workbench?.incomplete_row_count ?? 0,
+    diagnostic_owners: Object.freeze(diagnosticOwners),
+    owner_codes: Object.freeze(ownerCodes),
+    affected_obligation_count: terminalGaps?.affected_obligation_count ?? 0,
+    detail_call: terminalGaps?.detail_call ?? null
+  });
+
+  const ownerNarrated = decidingCauses.length > 0 &&
+    decidingCauses.every((cause) => typeof cause.explanation === "string") &&
+    (coverageAlone || decidingCauses.some((cause) =>
+      cause.cause === OBLIGATION_DEFINITIONS_INCOMPLETE));
+  const genericExplanation =
+    recoveryCapability.status === "system_owner_failure"
+      ? "An internal semantic owner or classifier failed; authored proof changes are not an established repair."
+      : recoveryCapability.status === "authored_correction_available"
+        ? "The deciding authored-input causes are retrievable and the authoring owner exposes a revision-bound correction route."
+        : recoveryCapability.status === "inspection_only"
+          ? "The deciding semantic causes are retrievable, but no authenticated authored correction was established."
+          : readinessRecovery?.explanation ?? null;
   return Object.freeze({
     schema_version: "controlled-acceptance-semantic-subset.v1",
     wk_id: wkId,
@@ -366,33 +506,35 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
             : "controlled_acceptance_incomplete",
       blocked_stage: !blocked || stale || state === "absent" ? null
         : readinessRecovery?.stage ??
-          (ordinaryReadiness?.stage_counts?.authored_inputs?.incomplete > 0
+          (ordinaryReadiness?.stage_counts?.authored_inputs?.incomplete > 0 ||
+            ordinaryReadiness?.acceptance_coverage?.status !== "complete" &&
+            ordinaryReadiness?.acceptance_coverage?.status !== "not_applicable"
             ? "authored_inputs" : "canonical_sources"),
       responsible_owner: !blocked ? null
-        : diagnosticOwners.length === 1 ? diagnosticOwners[0]
-          : diagnosticOwners.length > 1 ? "multiple_diagnostic_owners"
+        : decidingOwners.length === 1 ? decidingOwners[0]
+          : decidingOwners.length > 1 ? "multiple_diagnostic_owners"
             : readinessRecovery?.responsible_owner ?? null,
-      diagnostic_owners: Object.freeze(!blocked ? [] : diagnosticOwners),
-      affected_obligation_count: !blocked ? 0
+      diagnostic_owners: Object.freeze(!blocked ? [] : decidingOwners),
+
+      affected_obligation_count: !blocked || coverageAlone ? 0
         : terminalGaps?.affected_obligation_count ??
           readinessRecovery?.affected_obligation_count ?? 0,
-      affected_obligation_ids: Object.freeze(!blocked ? []
+      affected_obligation_ids: Object.freeze(!blocked || coverageAlone ? []
         : structuredClone(terminalGaps?.affected_obligation_ids ?? [])),
-      affected_obligation_ids_omitted: !blocked ? 0
+      affected_obligation_ids_omitted: !blocked || coverageAlone ? 0
         : terminalGaps?.affected_obligation_ids_omitted ?? 0,
       owner_codes: Object.freeze(!blocked
-        ? [] : ownerCodes.length > 0 ? ownerCodes
+        ? [] : decidingCodes.length > 0 ? decidingCodes
           : structuredClone(readinessRecovery?.owner_codes ?? [])),
+      deciding_causes: Object.freeze(decidingCauses),
+      independent_observations: independentObservations,
       unavailable_operations: Object.freeze(!blocked
         ? [] : structuredClone(readinessRecovery?.unavailable_operations ?? [])),
       recovery_explanation: !blocked ? null
-        : recoveryCapability.status === "system_owner_failure"
-          ? "An internal semantic owner or classifier failed; authored proof changes are not an established repair."
-          : recoveryCapability.status === "authored_correction_available"
-            ? "The deciding authored-input causes are retrievable and the authoring owner exposes a revision-bound correction route."
-            : recoveryCapability.status === "inspection_only"
-              ? "The deciding semantic causes are retrievable, but no authenticated authored correction was established."
-              : readinessRecovery?.explanation ?? null,
+        : ownerNarrated ? causeNarrative(decidingCauses)
+          : coverageCause !== null && genericExplanation !== null
+            ? `${genericExplanation} ${coverageCause.explanation}`
+            : genericExplanation,
       operator_action: !blocked ? null
         : readinessRecovery?.operator_action ?? null,
       supported_next_call: !blocked ? null
@@ -417,11 +559,13 @@ export function resolveControlledAcceptanceState({ posture, workbench }) {
   }
   if (!posture.present) return "absent";
   if (posture.disposition === "opted_out") return "opted_out";
-  const ordinaryAuthoringComplete =
-    workbench?.evaluated_snapshot?.ordinary_authoring_readiness?.status ===
-      "complete";
+  const ordinaryReadiness = workbench?.evaluated_snapshot?.ordinary_authoring_readiness;
+  const ordinaryAuthoringComplete = ordinaryReadiness?.status === "complete";
+
+  const criteriaCovered = ["complete", "not_applicable"].includes(
+    ordinaryReadiness?.acceptance_coverage?.status);
   return (workbench?.mechanically_complete === true || ordinaryAuthoringComplete) &&
-    (workbench?.subject?.generation_id ?? null) !== null
+    criteriaCovered && (workbench?.subject?.generation_id ?? null) !== null
     ? "complete" : "incomplete";
 }
 

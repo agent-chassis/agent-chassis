@@ -34,7 +34,7 @@ export function deriveLauncherOwnedDispatchWorktreeRoot(repo) {
   return deriveSharedLauncherOwnedDispatchWorktreeRoot(repo);
 }
 
-export function prepareLauncherOwnedDispatchWorktreeRoot({
+export function resolveLauncherOwnedDispatchWorktreeRoot({
   repo,
   dispatchWorktreeRoot = null
 } = {}) {
@@ -49,6 +49,14 @@ export function prepareLauncherOwnedDispatchWorktreeRoot({
       { carried: dispatchWorktreeRoot, derived: derivedRoot }
     );
   }
+  return derivedRoot;
+}
+
+export function prepareLauncherOwnedDispatchWorktreeRoot({
+  repo,
+  dispatchWorktreeRoot = null
+} = {}) {
+  const derivedRoot = resolveLauncherOwnedDispatchWorktreeRoot({ repo, dispatchWorktreeRoot });
 
   mkdirSync(derivedRoot, { recursive: true, mode: 0o700 });
   const rootStat = lstatSync(derivedRoot);

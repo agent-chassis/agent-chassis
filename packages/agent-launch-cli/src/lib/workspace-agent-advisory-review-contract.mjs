@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { readAgentRoleGuide } from
+import { renderAgentRoleGuideReadReference } from
   "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
 
 import {
@@ -9,6 +9,8 @@ import {
 } from "./launch-isolation-errors.mjs";
 import { resolveAuthenticatedCheckoutGitMetadata } from
   "./launch-isolation-findings-git-metadata.mjs";
+import { buildSelectedRecordMemberCall } from
+  "@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs";
 
 export const ADVISORY_REVIEW_DESCRIPTOR_SCHEMA_VERSION =
   "workspace-agent-advisory-review-descriptor.v1";
@@ -49,9 +51,6 @@ export function renderAdvisoryReviewBrief({ role, subject, parent, selected, ent
   return Object.freeze({
     role,
     subject,
-    instructions: role === "redteam"
-      ? "Perform a read-only adversarial review. Return advisory text and do not modify files."
-      : "Perform a read-only review. Return advisory text and do not modify files.",
     material
   });
 }
@@ -131,20 +130,41 @@ export function consumeAdvisoryReviewInput(input, expected = {}) {
   return input;
 }
 
+function advisoryReviewFirstReadCalls(subject) {
+  const sliceMatch = String(subject).match(/^(WK-\d{4})#SLICE-\d{3}$/u);
+  const rootCall = (unit) => JSON.stringify(buildSelectedRecordMemberCall({
+    tool: "workspace_read_page",
+    identity: { unit },
+    member: { path: [] }
+  }).arguments);
+  return sliceMatch
+    ? [rootCall(subject), rootCall(sliceMatch[1])]
+    : [rootCall(subject)];
+}
+
 export function renderFamilyNeutralAdvisoryReviewInput(input) {
   if (!trustedInputs.has(input)) {
     throw new TypeError("advisory review input is not launcher-owned");
   }
-
+  const [unitCall, parentCall = null] = advisoryReviewFirstReadCalls(input.subject);
   return [
-    input.review_brief.instructions,
-    readAgentRoleGuide("reviewer"),
+    renderAgentRoleGuideReadReference("reviewer"),
     `Canonical role: ${input.role}`,
     `Canonical subject: ${input.subject}`,
     `Reviewed range: ${input.base_sha}..${input.reviewed_sha}`,
     `Reviewed tree: ${input.reviewed_tree_sha}`,
-    "Review material:",
-    JSON.stringify(input.review_brief.material, null, 2),
+    `Review descriptor: ${input.descriptor_digest}`,
+    [
+      "Your assignment is not included in this startup text. Before reviewing, first call " +
+        `workspace_read_page with arguments ${unitCall}` +
+        (parentCall === null
+          ? ""
+          : ` and then, because a slice root does not carry its parent contract, ${parentCall}`) +
+        ".",
+      "Follow the operative fields, every returned next_call and next_calls continuation, and the selected " +
+        "material references until the assignment is complete. If a read is refused, report the refusal as " +
+        "a blocker instead of substituting another source."
+    ].join(" "),
     "Return advisory text. Structured formatting is optional unless the launcher-selected formal result contract requests it."
   ].join("\n\n");
 }

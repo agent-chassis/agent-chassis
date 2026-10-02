@@ -111,6 +111,93 @@ actionable role-specific configuration diagnostic. Launcher/MCP source-code
 changes are loaded modules and require restarting the owning server or launcher
 session; that restart boundary does not apply to this per-dispatch config read.
 
+### Per-model LiteLLM routing (`[models."<id>"]`, `[vertexai]`)
+
+The route is a property of the model, not of a role. A registered Codex model
+can be routed through a local LiteLLM gateway backed by Vertex AI:
+
+```toml
+[models."gpt-5.4"]
+use_litellm = true    # false or absent: the model's ordinary route
+
+[vertexai]
+credentials_file = "/abs/path/to/service-account.json"  # required when any model uses LiteLLM
+project = "my-project-id"   # optional; default: the key's project_id
+location = "global"         # default: global
+port = 4000                 # default: 4000; endpoint is always http://127.0.0.1:<port>/v1
+```
+
+Roles keep selecting models exactly as above (explicit `--model`/typed `model`,
+then `[roles.<role>]`). The selected model is resolved first and then decides the
+route, so the same model routes identically for the orchestrator, worker,
+reviewer, redteam, headless and interactive launches and resume. There is no
+per-role switch. `use_litellm` must be a TOML boolean; unknown keys, duplicate
+tables, an unregistered model id, a non-Codex model with `use_litellm = true`, a
+model whose registry entry declares no Vertex AI mapping, a missing or relative
+`credentials_file` while any model sets `use_litellm = true`, and an invalid
+`[vertexai]` value refuse before any launch effect, even when the entry is not
+selected.
+
+The Vertex AI model that serves a routed model is a registry fact
+(`vertex_model` on the Codex entry in `agent-launch-model-registry.mjs`), never
+derived from the registered name. A mapping is declared only for a model id
+Vertex AI actually publishes. The routable models are the Codex-client entries
+`vertex-claude-opus-5-5` (Vertex `claude-opus-5-5`) and
+`vertex-claude-sonnet-5-5` (Vertex `claude-sonnet-5-5`): Codex drives Anthropic
+models on Vertex through the gateway. `use_litellm = true` on any other model
+refuses with `model_route_vertex_model_undeclared`. The Claude Code tokens
+`opus`/`sonnet`/`haiku`/`fable` still launch the `claude` CLI and are not
+LiteLLM-routable.
+
+Each launch reads `agent-launch.toml` once. The resolved model, effort and route
+are frozen and every Codex renderer consumes that value; a later edit applies to
+the next launch, never to one already resolved. Resume uses the current model
+and its current route in either direction.
+
+Only a real launch or resume whose selected model has `use_litellm = true`
+touches the gateway. An ordinary route, an unselected `[models]` entry, invalid
+configuration, `--dry-run-json` and inspection do not install anything, probe
+Python, create keys or use Google credentials. On first real use the launcher:
+
+1. provisions a private runtime: the host `python3` (CPython 3.12 with `pip`)
+   installs the hash-locked LiteLLM release pinned in
+   `@agent-chassis/agent-launch-core/data/litellm-gateway/runtime-requirements.lock`
+   into a venv at a permanent generation path, and publishes readiness
+   atomically only after validation. System Python is never modified. A
+   prepared environment may seed the state root with a private interpreter at
+   `python/bin/python3` (searched first) and the lock's wheels at `wheelhouse/`
+   (installed offline with `--no-index`, hashes still verified);
+2. starts one gateway per port for this OS user under
+   `$XDG_STATE_HOME/agent-launch/litellm` (default
+   `~/.local/state/agent-launch/litellm`, mode 0700). It serves exactly the
+   registry's declared mappings (`<model>` -> `vertex_ai/<vertex_model>`) with
+   `drop_params: false`, `num_retries: 0` and no fallbacks. Repositories share
+   it, concurrent starts converge on one process, and it outlives the launching
+   session. A gateway whose state record cannot be published is stopped rather
+   than left running unrecorded;
+3. gives Codex an exact per-run copy (0600) of the gateway key inside the role's
+   own runtime directory, read by `/usr/bin/cat` through Codex's command-backed
+   provider auth, and removes it when the run ends.
+
+Only the gateway uses Google credentials: the declared `credentials_file`, a
+service-account JSON key that must be a regular file owned by this user and not
+readable by group or others. It is checked, and its `project_id` read, before
+any setup; it is never copied. The gateway receives it as
+`GOOGLE_APPLICATION_CREDENTIALS` in an otherwise closed environment (no
+inherited credential variable, gcloud configuration or metadata-host override)
+with a private `HOME`; Codex roles never see it. No Google token or key bytes appear in
+argv, configuration text or diagnostics.
+
+The launcher never takes over, restarts or stops a gateway. It refuses, with
+the exact path and correction, when the port is held by another service, the
+running gateway has a different configuration, the recorded gateway is no
+longer running, a state or lock file is unreadable, or startup fails or times
+out. Recovery is explicit: stop the named process if it is still running, remove
+the named state or lock file, and relaunch (or choose another `[vertexai] port`).
+Local tests cover the gateway runtime and Codex transport against local fakes;
+real Vertex inference through the gateway requires a separately authorized
+live check.
+
 ## 3. MCP server environment keys
 
 Configuration for the `wiki-mcp` stdio server process — **server configuration,
@@ -123,7 +210,7 @@ full precedence and resolution rules.
 | `WIKI_MCP_DEFAULT_REPO` | Default repo when none is specified |
 | `WIKI_MCP_WORKSPACE_ALIAS` | Repo alias selection |
 | `WIKI_MCP_WORKSPACE_DIR` | Workspace directory the server operates on |
-| `WIKI_MCP_TOOL_PROFILE` | Tool-surface profile |
+| `WIKI_MCP_TOOL_PROFILE` | Session role: `operator`, `orchestrator`, `worker`, `reviewer` or `redteam`; any other value refuses startup |
 
 Response-shaping tuning (optional, non-secret): `WIKI_MCP_RESPONSE_STATE_DIR`,
 `WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT`, `WIKI_MCP_RESPONSE_PREVIEW_BYTE_LIMIT`,

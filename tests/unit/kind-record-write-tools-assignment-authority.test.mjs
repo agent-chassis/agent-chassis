@@ -11,7 +11,8 @@ import { errorContent, guardToolHandler, jsonContent } from "../../packages/wiki
 
 const REQUESTED_REPO = "workspace-alias";
 const CANONICAL_REPO = "agent-chassis";
-const STALE_DIGEST = `sha256:${"0".repeat(64)}`;
+
+const STALE_DIGEST = "0".repeat(16);
 
 async function withRegisteredServer(fn) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -49,7 +50,7 @@ async function withRegisteredServer(fn) {
   try {
     await fn({
       call: (arguments_) =>
-        client.callTool({ name: "assign_work_record_to_initiative", arguments: arguments_ }),
+        client.callTool({ name: "workspace_assign_work_record_to_initiative", arguments: arguments_ }),
       resolutionCalls,
       workspaceRepos,
       getAssignmentAuthorityCalls: () => assignmentAuthorityCalls
@@ -74,7 +75,7 @@ function assertMechanicalRefusal(result, code) {
     },
     {
       workspaceRepo: CANONICAL_REPO,
-      operation: "assign_work_record_to_initiative",
+      operation: "workspace_assign_work_record_to_initiative",
       ok: false,
       valid: false,
       written: false,

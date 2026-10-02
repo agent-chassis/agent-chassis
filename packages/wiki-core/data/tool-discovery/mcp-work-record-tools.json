@@ -51,9 +51,10 @@
         "packages/wiki-core/src/operations/work-records.mjs",
         "packages/wiki-core/src/lib/work-record-admission-derived-evidence.mjs"
       ],
-      "notes": "Agent-safe MCP route for persisting graph-impact derived evidence onto a WK or slice. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots and shell output as authority. The graph_impact payload must be the complete workspace_code_index_impact answer (verbose:true, or the retained original at full_result), and the persisted entry is validated against the work-record schema before writing. Compact by default; verbose:true for raw graph_state and full derived evidence.",
+      "notes": "Agent-safe MCP route for persisting graph-impact derived evidence onto a WK or slice. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots and shell output as authority. With only the unit (and optional paths), the server computes that unit's graph impact now and persists it. To record an earlier workspace_code_index_impact answer exactly, pass its selected_detail.source as graph_impact_source {ref_id, sha256}: the server reads that retained original and persists it without re-evaluating it; a missing, corrupt, mismatched or non-impact source refuses and writes nothing. A copied consolidated impact answer as graph_impact is refused in favor of graph_impact_source. The persisted entry is validated against the work-record schema before writing.",
       "use_when": [
-        "Persist a complete workspace_code_index_impact answer onto a WK or slice as graph-impact evidence."
+        "Generate and persist graph-impact evidence for a WK or slice now: call with the unit.",
+        "Persist the exact earlier workspace_code_index_impact answer onto a WK or slice: pass its selected_detail.source as graph_impact_source."
       ],
       "do_not_use_when": [
         "Impact only needs to be read; workspace_code_index_impact itself records nothing."
@@ -62,19 +63,18 @@
         "WK-stored graph-impact derived evidence"
       ],
       "recommended_first_call": {
-        "operation": "record a complete impact answer for one work unit",
+        "operation": "generate and record graph-impact evidence for one work unit",
         "arguments": {
-          "unit": "$work_record_unit",
-          "graph_impact": "$complete_impact_answer"
+          "unit": "$work_record_unit"
         },
         "omit_null_arguments": true
       }
     },
     {
-      "tool_name": "assign_work_record_to_initiative",
+      "tool_name": "workspace_assign_work_record_to_initiative",
       "display_name": "Assign work record to initiative",
       "kind": "mcp_tool",
-      "entrypoint": "assign_work_record_to_initiative",
+      "entrypoint": "workspace_assign_work_record_to_initiative",
       "task_ids": [
         "contract-edit"
       ],
@@ -123,6 +123,9 @@
         "canonical WK.initiative assignment"
       ],
       "recommended_first_call": {
+        "routing_intents": [
+          "initiative_assignment"
+        ],
         "operation": "assign one WK to an initiative",
         "arguments": {
           "unit": "$unit_if_known",

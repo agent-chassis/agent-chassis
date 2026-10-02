@@ -373,8 +373,13 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
   if (controlledAcceptanceState.semantic.admission.admits) {
     return { controlledAcceptanceState };
   }
-  const decisionCode = controlledAcceptanceState.semantic.admission.blocked_reason_code ??
+  const admission = controlledAcceptanceState.semantic.admission;
+  const decisionCode = admission.blocked_reason_code ??
     CONTROLLED_ACCEPTANCE_DECISION_CODES[controlledAcceptanceState.state];
+
+  const coverageExplanation = admission.deciding_causes.some(
+    (cause) => cause.cause === "acceptance_criteria_uncovered")
+    ? admission.recovery_explanation : null;
   const readiness = buildTerminalReadiness({
     recordId: loaded.record.id,
     unit: options.unitAddress,
@@ -384,12 +389,11 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
       ? "the canonical proof posture has no controlled-acceptance disposition"
       : decisionCode === "controlled_acceptance_source_not_current"
         ? "the authenticated controlled-acceptance source moved during assessment"
-        : controlledAcceptanceState.recovery?.explanation ??
+        : coverageExplanation ?? controlledAcceptanceState.recovery?.explanation ??
           "the current required controlled-acceptance contract is mechanically incomplete",
     dispatchRole
   });
   const recovery = controlledAcceptanceState.recovery;
-  const admission = controlledAcceptanceState.semantic.admission;
   const recoveryContract = recovery === null ? null : Object.freeze({
     ...recovery,
     selected_unit: controlledAcceptanceState.semantic.selected_unit.address,
@@ -404,6 +408,7 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
           argument: "expected_content_digest"
         })
       : null,
+    deciding_causes: admission.deciding_causes,
     authority: Object.freeze({
       decision: "authored_completeness_admission",
       observations: "nonblocking"

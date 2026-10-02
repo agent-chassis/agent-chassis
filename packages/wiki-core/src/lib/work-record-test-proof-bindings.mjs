@@ -1,5 +1,5 @@
 import { resolveNativeTestSelector } from
-  "../../../controlled-contract/lib/test-proof-provider-registry.mjs";
+  "@agent-chassis/controlled-contract/test-proof";
 
 const PACKAGE_SPECIFIER = "@agent-chassis/controlled-contract";
 const STABLE_V1 = "controlled-acceptance-contract.v1";

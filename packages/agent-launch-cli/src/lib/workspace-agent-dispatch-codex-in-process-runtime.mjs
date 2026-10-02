@@ -1,5 +1,4 @@
 import { BACKEND_REFUSAL_CODES } from "./workspace-agent-dispatch-backend.mjs";
-import { releaseOwnedTestRuntimeMountpointsAfterChild } from "./launch-isolation-test-runtime-projection.mjs";
 import { isRuntimeBlockerCode } from
   "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { superviseChildLaunch } from "./workspace-agent-launch-core.mjs";
@@ -47,12 +46,15 @@ import {
 } from "./workspace-agent-dispatch-provenance.mjs";
 import {
   PRECREATION_CLEANUP_IDENTITY_DRIFT_REASON,
-  bindAttemptOwnedPreSpawnCleanup,
-  compensatePreSpawnRefusal as compensateCodexPreSpawnRefusal
+  createAttemptPrecreatedResourceOwner
 } from "./pre-spawn-cleanup-binding.mjs";
 import {
   buildCodexDispatchWorkerPlanArgs
 } from "./workspace-agent-dispatch-codex-plan-args.mjs";
+import {
+  attachCodexModelRoute,
+  liteLlmRouteFailureDetail
+} from "./litellm-gateway-launch.mjs";
 import { selectWorkerLifecycleFromEffectiveWriteScope } from
   "./workspace-agent-worker-lifecycle.mjs";
 
@@ -80,20 +82,55 @@ function resolveCodexPlainSpawnPrimitive(plainSpawn) {
     : async () => plainSpawn;
 }
 
-function assertCodexPreSpawnCleanupIdentity(controller) {
-  if (controller === null || controller.valid === true) return null;
-  return compensateCodexPreSpawnRefusal(controller, makeRefusal(
-    BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-    PRECREATION_CLEANUP_IDENTITY_DRIFT_REASON,
-    {
-      attempt_id: controller.attempt_id,
-      run_id: controller.run_id,
-      unit_address: controller.unit_address
-    }
-  ));
+function adoptCodexFirstPlan(attemptResources, bwrapPlan) {
+  try {
+    attemptResources.adopt(bwrapPlan);
+    return null;
+  } catch {
+    return attemptResources.settle(makeRefusal(
+      BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+      PRECREATION_CLEANUP_IDENTITY_DRIFT_REASON,
+      attemptResources.ownershipRefusal
+    ));
+  }
 }
 
-export async function launchCodexWorkspaceAgentInProcess({
+export const CODEX_SECOND_COMPOSITION_OWNED_RESOURCES_REASON =
+  "codex_second_composition_created_resources";
+
+function assertSecondCompositionOwnsNothing(bwrapPlan) {
+  const capability = bwrapPlan?.writableFilePrecreationCleanup ?? null;
+  const entries = Array.isArray(capability?.entries) ? capability.entries : [];
+  if (entries.length === 0) return;
+  capability.cleanup();
+  const error = new Error("the second Codex sandbox composition created resources the first plan did not own");
+  error.code = CODEX_SECOND_COMPOSITION_OWNED_RESOURCES_REASON;
+  error.detail = Object.freeze({ owned_entry_count: entries.length, authority_limb: "mechanical_failure" });
+  throw error;
+}
+
+export async function launchCodexWorkspaceAgentInProcess(options) {
+  const route = { attachment: null, childStarted: false };
+  try {
+    return await launchCodexWithModelRoute(options, route);
+  } finally {
+    if (!route.childStarted) route.attachment?.release();
+  }
+}
+
+function releaseRouteWithChild(route, child) {
+  if (route.attachment === null || child === null || typeof child !== "object" ||
+      typeof child.once !== "function") {
+    return child;
+  }
+  route.childStarted = true;
+  const release = () => route.attachment.release();
+  child.once("exit", release);
+  child.once("error", release);
+  return child;
+}
+
+async function launchCodexWithModelRoute({
   input,
   role,
   subject,
@@ -117,8 +154,32 @@ export async function launchCodexWorkspaceAgentInProcess({
   resolveUnsandboxedOptIn,
   classifyIsolationBackendAvailability,
   probeCanonicalBwrapAvailability,
-  createMcpConduit
-}) {
+  createMcpConduit,
+  attachModelRoute = attachCodexModelRoute
+}, route) {
+
+  const attachRoute = async (plan) => {
+    try {
+      route.attachment = await attachModelRoute(plan, { env });
+      return null;
+    } catch (error) {
+      const failure = liteLlmRouteFailureDetail(error);
+      return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, failure.code, {
+        ...failure,
+        authority_limb: "mechanical_failure"
+      });
+    }
+  };
+  const routedSpawn = (...spawnArgs) => releaseRouteWithChild(route, spawn(...spawnArgs));
+  const routedPlainSpawn = () => {
+    const resolve = resolveCodexPlainSpawnPrimitive(plainSpawn);
+    return async () => {
+      const primitive = await resolve();
+      return typeof primitive === "function"
+        ? async (...spawnArgs) => releaseRouteWithChild(route, await primitive(...spawnArgs))
+        : primitive;
+    };
+  };
   const advisoryReview = input?.advisory_review_input !== undefined;
   let lifecycleKind = "advisory";
   if (!advisoryReview) {
@@ -163,13 +224,13 @@ export async function launchCodexWorkspaceAgentInProcess({
     ensureWriteRoots,
     assertBwrap
   });
-  const cleanupController = bindAttemptOwnedPreSpawnCleanup({
-    bwrapPlan: artifacts.bwrapPlan,
+
+  const attemptResources = createAttemptPrecreatedResourceOwner({
     role: codexRole,
     subject,
     runId: input?.run_id ?? null
   });
-  const cleanupIdentityRefusal = assertCodexPreSpawnCleanupIdentity(cleanupController);
+  const cleanupIdentityRefusal = adoptCodexFirstPlan(attemptResources, artifacts.bwrapPlan);
   if (cleanupIdentityRefusal !== null) {
     return cleanupIdentityRefusal;
   }
@@ -194,7 +255,7 @@ export async function launchCodexWorkspaceAgentInProcess({
           probeCanonicalBwrapAvailability
         });
       } catch (error) {
-        return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+        return attemptResources.settle(makeRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
           "codex_fail_open_plan_threw",
           { message: error?.message ?? String(error) }
@@ -210,7 +271,7 @@ export async function launchCodexWorkspaceAgentInProcess({
         artifacts.bwrapPlan?.workerScopeAuthority != null &&
         failOpenPlan?.disposition === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN
       ) {
-        return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+        return attemptResources.settle(makeRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
           "managed_worker_plain_spawn_forbidden",
           { issue: "containment_authority_drift" }
@@ -223,6 +284,13 @@ export async function launchCodexWorkspaceAgentInProcess({
           === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN
       ) {
         const failOpenLaunchPlan = failOpenPlan.plan ?? {};
+        const plainRouteRefusal = route.attachment === null ? await attachRoute(artifacts.plan) : null;
+        if (plainRouteRefusal !== null) {
+          return attemptResources.settle(plainRouteRefusal);
+        }
+        if (Array.isArray(failOpenLaunchPlan.args) && failOpenLaunchPlan.args !== artifacts.plan.args) {
+          injectCodexConfigOverridesBeforeFinalPositional(failOpenLaunchPlan.args, [...route.attachment.overrides]);
+        }
         const plainLaunch = await launchWorkspaceAgentFamilyLaunchLifecycle({
           command: failOpenLaunchPlan.command,
           args: failOpenLaunchPlan.args,
@@ -247,7 +315,7 @@ export async function launchCodexWorkspaceAgentInProcess({
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_threw", detail),
           buildNoChildRefusal: () =>
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_no_child", null),
-          resolveSpawn: resolveCodexPlainSpawnPrimitive(plainSpawn),
+          resolveSpawn: routedPlainSpawn(),
           adaptSupervisedResult: (supervised) =>
             attachProvenanceToSupervisedResult(supervised, {
               finalPath,
@@ -258,17 +326,11 @@ export async function launchCodexWorkspaceAgentInProcess({
         });
         return plainLaunch?.accepted === true
           ? plainLaunch
-          : compensateCodexPreSpawnRefusal(cleanupController, plainLaunch);
+          : attemptResources.settle(plainLaunch);
       }
-      return compensateCodexPreSpawnRefusal(
-        cleanupController,
-        buildCodexFailOpenClosedRefusal(failOpenPlan)
-      );
+      return attemptResources.settle(buildCodexFailOpenClosedRefusal(failOpenPlan));
     }
-    return compensateCodexPreSpawnRefusal(
-      cleanupController,
-      mapCodexArtifactsFailureToInProcessRefusal(artifacts)
-    );
+    return attemptResources.settle(mapCodexArtifactsFailureToInProcessRefusal(artifacts));
   }
   const plan = artifacts.plan;
   let bwrapPlan = artifacts.bwrapPlan;
@@ -276,7 +338,7 @@ export async function launchCodexWorkspaceAgentInProcess({
   let conduit = null;
   try {
     if (typeof createMcpConduit !== "function") {
-      return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+      return attemptResources.settle(makeRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
         CODEX_REQUIRED_MCP_CONDUIT_ABSENT_REASON,
         { role: codexRole, subject, unenforced_fallback_permitted: false }
@@ -308,6 +370,10 @@ export async function launchCodexWorkspaceAgentInProcess({
         input?.completionCredential ??
         input?.readiness?.completion_credential ??
         input?.readiness?.completionCredential ?? null,
+
+      workerAssignment: input?.worker_assignment ?? null,
+
+      advisoryReviewInput: input?.advisory_review_input ?? null,
       launcherEnv: env,
       requested: {
         read_scope: input?.read_scope ?? null,
@@ -320,7 +386,16 @@ export async function launchCodexWorkspaceAgentInProcess({
       plan.args,
       buildCodexStdioMcpRegistrationOverrides(conduit)
     );
+    const routeRefusal = await attachRoute(plan);
+    if (routeRefusal !== null) {
+      const conduitCleanupFailure = await cleanupConduitForRefusal(conduit);
+      return attemptResources.settle(conduitCleanupFailure === null
+        ? routeRefusal
+        : { ...routeRefusal, refusal: { ...routeRefusal.refusal,
+          detail: { ...routeRefusal.refusal.detail, conduit_cleanup_failures: conduitCleanupFailure } } });
+    }
     bwrapPlan = buildBwrapPlan(plan, { stdioMcpConduit: conduit });
+    assertSecondCompositionOwnsNothing(bwrapPlan);
     if (input?.advisory_review_input !== undefined) {
       assertGitMetadataProjectionComposed(bwrapPlan, {
         checkout: input.advisory_review_input.private_checkout_root
@@ -330,7 +405,7 @@ export async function launchCodexWorkspaceAgentInProcess({
   } catch (error) {
     const conduitCleanupFailure = conduit ? await cleanupConduitForRefusal(conduit) : null;
     const pathFailure = classifyLaunchPathFailure(error);
-    return compensateCodexPreSpawnRefusal(cleanupController, pathFailure !== null
+    return attemptResources.settle(pathFailure !== null
       ? buildLaunchPathFailureRefusal(makeRefusal, pathFailure, {
           conduit_cleanup_failures: conduitCleanupFailure
         })
@@ -351,7 +426,7 @@ export async function launchCodexWorkspaceAgentInProcess({
 
   let child;
   try {
-    child = spawn(bwrapPlan, {
+    child = routedSpawn(bwrapPlan, {
       env: plan.env,
 
       stdio: ["ignore", "pipe", "pipe"],
@@ -361,24 +436,16 @@ export async function launchCodexWorkspaceAgentInProcess({
 
     if (conduit !== null) {
       const conduitCleanupFailure = await cleanupConduitForRefusal(conduit);
-      return compensateCodexPreSpawnRefusal(
-        cleanupController,
-        buildConduitSpawnFailureRefusal(makeRefusal, err, conduitCleanupFailure)
-      );
+      return attemptResources.settle(
+        buildConduitSpawnFailureRefusal(makeRefusal, err, conduitCleanupFailure));
     }
     const preparation = classifyWorkerTestRuntimePreparationFailure(err);
     if (preparation !== null) {
-      return compensateCodexPreSpawnRefusal(
-        cleanupController,
-        buildWorkerTestRuntimePreparationRefusal(makeRefusal, preparation)
-      );
+      return attemptResources.settle(buildWorkerTestRuntimePreparationRefusal(makeRefusal, preparation));
     }
     const pathFailure = classifyLaunchPathFailure(err);
     if (pathFailure !== null) {
-      return compensateCodexPreSpawnRefusal(
-        cleanupController,
-        buildLaunchPathFailureRefusal(makeRefusal, pathFailure)
-      );
+      return attemptResources.settle(buildLaunchPathFailureRefusal(makeRefusal, pathFailure));
     }
     if (
       err instanceof BubblewrapIsolationError
@@ -403,7 +470,7 @@ export async function launchCodexWorkspaceAgentInProcess({
             bwrapAvailabilityFromCodexIsolationError(err)
         });
       } catch (error) {
-        return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+        return attemptResources.settle(makeRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
           "codex_fail_open_plan_threw",
           { message: error?.message ?? String(error) }
@@ -419,7 +486,7 @@ export async function launchCodexWorkspaceAgentInProcess({
         bwrapPlan.workerScopeAuthority != null &&
         failOpenPlan?.disposition === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN
       ) {
-        return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+        return attemptResources.settle(makeRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
           "managed_worker_plain_spawn_forbidden",
           { issue: "containment_authority_drift" }
@@ -432,6 +499,13 @@ export async function launchCodexWorkspaceAgentInProcess({
           === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN
       ) {
         const failOpenLaunchPlan = failOpenPlan.plan ?? {};
+        const plainRouteRefusal = route.attachment === null ? await attachRoute(plan) : null;
+        if (plainRouteRefusal !== null) {
+          return attemptResources.settle(plainRouteRefusal);
+        }
+        if (Array.isArray(failOpenLaunchPlan.args) && failOpenLaunchPlan.args !== plan.args) {
+          injectCodexConfigOverridesBeforeFinalPositional(failOpenLaunchPlan.args, [...route.attachment.overrides]);
+        }
         const plainLaunch = await launchWorkspaceAgentFamilyLaunchLifecycle({
           command: failOpenLaunchPlan.command,
           args: failOpenLaunchPlan.args,
@@ -456,7 +530,7 @@ export async function launchCodexWorkspaceAgentInProcess({
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_threw", detail),
           buildNoChildRefusal: () =>
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_no_child", null),
-          resolveSpawn: resolveCodexPlainSpawnPrimitive(plainSpawn),
+          resolveSpawn: routedPlainSpawn(),
           adaptSupervisedResult: (supervised) =>
             attachProvenanceToSupervisedResult(supervised, {
               finalPath: lateFinalPath,
@@ -467,15 +541,12 @@ export async function launchCodexWorkspaceAgentInProcess({
         });
         return plainLaunch?.accepted === true
           ? plainLaunch
-          : compensateCodexPreSpawnRefusal(cleanupController, plainLaunch);
+          : attemptResources.settle(plainLaunch);
       }
-      return compensateCodexPreSpawnRefusal(
-        cleanupController,
-        buildCodexFailOpenClosedRefusal(failOpenPlan)
-      );
+      return attemptResources.settle(buildCodexFailOpenClosedRefusal(failOpenPlan));
     }
     if (err instanceof BubblewrapIsolationError) {
-      return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+      return attemptResources.settle(makeRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
         "bubblewrap_spawn_failed",
         {
@@ -486,7 +557,7 @@ export async function launchCodexWorkspaceAgentInProcess({
         }
       ));
     }
-    return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+    return attemptResources.settle(makeRefusal(
       BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
       "spawn_isolated_threw",
       { message: err?.message ?? String(err) }
@@ -494,15 +565,12 @@ export async function launchCodexWorkspaceAgentInProcess({
   }
 
   if (!child || typeof child !== "object") {
-    return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+    return attemptResources.settle(makeRefusal(
       BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
       "spawn_isolated_no_child",
       null
     ));
   }
-
-  releaseOwnedTestRuntimeMountpointsAfterChild(artifacts.bwrapPlan, child);
-
   const finalPath = typeof plan.finalPath === "string" && plan.finalPath.length > 0
     ? plan.finalPath
     : null;
@@ -522,7 +590,7 @@ export async function launchCodexWorkspaceAgentInProcess({
     passthrough: { finalPath, logPath, codexRole, workspaceDir }
   });
 
-  return attachStdioMcpConduitLaunchOutcome(
+  return attemptResources.settle(attachStdioMcpConduitLaunchOutcome(
     attachProvenanceToSupervisedResult(supervised, {
       finalPath,
       logPath,
@@ -536,5 +604,5 @@ export async function launchCodexWorkspaceAgentInProcess({
       failure.reason,
       failure.detail
     )
-  );
+  ), child);
 }

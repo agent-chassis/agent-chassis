@@ -8,6 +8,7 @@ import {
   createControlledContractRefusal
 } from "../../packages/wiki-core/src/operations/controlled-contract/refusal.mjs";
 import { errorContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import { assertStructuredCarrier } from "../helpers/mcp-journey-accounting.mjs";
 
 function payload(error) {
   return createControlledContractRefusal(error).envelope.warning.payload;
@@ -76,7 +77,7 @@ test("a reclassified exception keeps its authentic thrown value as the refusal c
     "re-wrapping this boundary's refusal keeps the cause it preserved");
   const result = errorContent(refusal);
   assert.deepEqual(result.structuredContent, refusal.envelope);
-  assert.deepEqual(result.content, []);
+  assertStructuredCarrier(result);
   assert.equal(JSON.stringify(result).includes("test_proof_fault"), false,
     "the preserved cause is never projected into the result");
 });
@@ -149,7 +150,7 @@ test("the refusal still projects through both MCP channels verbatim", () => {
   assert.equal(result.isError, true);
   assert.deepEqual(result.structuredContent, refusal.envelope);
 
-  assert.deepEqual(result.content, []);
+  assertStructuredCarrier(result);
   const envelope = result.structuredContent;
   assert.deepEqual(envelope, JSON.parse(JSON.stringify(refusal.envelope)));
   assert.equal(envelope.warning.payload.details.internal_exception.exception_class, "ReferenceError");

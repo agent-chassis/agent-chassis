@@ -15,18 +15,15 @@ import { proofAuthoringValidationTestCompositionDeps } from
 import { registerProofDiscoveryTool } from "./proof-discovery-tools.mjs";
 import { registerVerifyProofTool } from "./verify-proof-tool.mjs";
 import { VERIFY_PROOF_TOOL_NAME } from "./verify-proof-public-result.mjs";
-import {
-  assertNoControlledContractRawResponse,
-  persistVerifyProofEvidenceReference
-} from "./mcp-response.mjs";
+import { assertNoControlledContractRawResponse } from "./mcp-response.mjs";
 
 const CONTROLLED_CONTRACT_ROUTE_METADATA = Object.freeze([
   ["workspace_controlled_proof_intents_discover", "sha256:d47d4f56248f499ba17b503a1a5b49415143c108f66c515217b727fcdbdfb917"],
-  ["workspace_verify_proof", "sha256:6c86be2ab88442345a9d7bcb8d6de201d87d50b70120c455ecb5f17484f3664a"],
-  ["workspace_controlled_contract_obligation_coverage_upsert", "sha256:23c9913bde7a8f7f85a626d4a49c9481891209b509302340d06e7f8cff033564"],
+  ["workspace_verify_proof", "sha256:f2266de5997e022eb080dd1a4b2e45a748b9698fc0ddfdf376c0dfc13c649156"],
+  ["workspace_controlled_contract_obligation_coverage_upsert", "sha256:c7e1c4ddf01c883615c7e72177d8a11aee6ae315541ec5de533ae9ad714c688e"],
   ["workspace_controlled_contract_obligation_coverage_remove", "sha256:0738fab5bb5549392b9113c2fff30162a14be8ef97353ae5c568cb08907671a4"],
-  ["workspace_controlled_contract_obligation_coverage_query", "sha256:430e4e6cd50d6e7dd87b93f842d83123b48e2c40a8377f8c41d8c6af21ad7d13"],
-  ["workspace_validate_proof", "sha256:7e26d26777d665bda2ddd1cd5db0255b3656917655dd28cc8e1491a4399c520f"]
+  ["workspace_controlled_contract_obligation_coverage_query", "sha256:24539c1169690917875f9171012d68342f0ae07a3f56ca84cd6d52daa2165d19"],
+  ["workspace_validate_proof", "sha256:df190eb822ba7419d3ce1a2d5d28fdea75baa85e52925ca6ae8519a304fdb108"]
 ].map(([name, discoveryMetadataSha256]) => Object.freeze({
   name,
   discoveryMetadataSha256
@@ -90,8 +87,10 @@ export function createControlledContractToolRegistry({
   resolveWorkspaceRepo,
   verifyProofDeps = {},
   proofAuthoringValidationTestComposition = null,
-  persistVerifyProofEvidence = persistVerifyProofEvidenceReference,
-  responseEnv = process.env
+  responseEnv = process.env,
+
+  sessionEnv = process.env,
+  querySourceDeps = Object.freeze({})
 }) {
   const entries = [];
   const names = new Set();
@@ -155,7 +154,6 @@ export function createControlledContractToolRegistry({
     errorContent,
     resolveWorkspaceRepo,
     responseEnv,
-    persistEvidence: persistVerifyProofEvidence,
     deps: verifyProofDeps
   });
   registerProofAuthoringTools({
@@ -166,7 +164,11 @@ export function createControlledContractToolRegistry({
     identity: parseProofSourceUnitAddress,
     inputBoundary: obligationCoverageInputSchema,
     validationDeps: proofAuthoringValidationTestCompositionDeps(
-      proofAuthoringValidationTestComposition)
+      proofAuthoringValidationTestComposition),
+    sessionEnv,
+    responseEnv,
+    querySourceDeps,
+    resolveWorkspace: (repo) => resolveWorkspaceRepo(workspaceRepos, repo)
   });
 
   const materializedNames = entries.map(({ name }) => name);

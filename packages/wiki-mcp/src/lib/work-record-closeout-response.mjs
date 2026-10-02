@@ -1,6 +1,14 @@
 
 
-import { isLosslessMcpSpillDelivery } from "./mcp-response.mjs";
+import { z } from "zod";
+import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { describeRetentionFailure } from "./mcp-response.mjs";
+import {
+  readSelectedResponseSource,
+  retainSelectedResponseSource,
+  selectedResponseQueryInvalidError,
+  selectedResponseRequestSchema
+} from "./selected-response-snapshot.mjs";
 
 export const CLOSEOUT_LINT_STATUS_TRIGGER_VALUES = ["review", "done"];
 const CLOSEOUT_LINT_FINDING_LIMIT = 3;
@@ -164,7 +172,7 @@ export function shapeCloseoutLintResponse(closeoutLint, { verbose = false } = {}
     compactCloseoutLint.reason = closeoutLint.reason;
   }
 
-  for (const field of ["cause_code", "cause_message", "write_effects_retained",
+  for (const field of ["lint_scope", "cause_code", "cause_message", "write_effects_retained",
     "warning_count", "finding_count_total"]) {
     if (closeoutLint?.[field] === undefined || closeoutLint[field] === null) continue;
     compactCloseoutLint[field] = closeoutLint[field];
@@ -227,6 +235,8 @@ function closeoutChecksResult(produced) {
     ok,
     cleanly_closeable: ok,
     generated_views: "regenerated",
+
+    lint_scope: "repository",
     error_count: errorCount ?? 0,
     warning_count: Number.isInteger(lint?.warning_count) ? lint.warning_count : warnings.length,
 
@@ -255,12 +265,126 @@ export async function runCloseoutChecks({ result, transitionApplicable, workspac
   }
 }
 
-const ORIGINAL_DETAIL_NEXT_ACTION =
-  "read the complete original closeout result with workspace_read_mcp_content_reference " +
-  "using full_result.content_reference; it needs no further write or check execution";
-const ORIGINAL_DETAIL_UNAVAILABLE_NEXT_ACTION =
+export const CLOSEOUT_RECEIPT_READ_ROUTE = "workspace_work_record_summary";
+export const CLOSEOUT_RECEIPT_SCHEMA_VERSION = "work-record-closeout-receipt.v1";
+const CLOSEOUT_RECEIPT_PRODUCERS = Object.freeze([
+  "workspace_work_record_set_status", "workspace_work_record_set_closure"
+]);
+const FINDING_ID_PATTERN = /^finding-(0|[1-9][0-9]*)$/u;
+
+const RECEIPT_SELECTION_CALL_LIMIT = 10;
+const RECEIPT_FINDING_IDENTITY_LIMIT = 100;
+const RECEIPT_DETAIL_NEXT_ACTION =
+  "select a finding of the original closeout receipt with next_calls; reading it " +
+  "repeats no write or check";
+const RECEIPT_UNAVAILABLE_NEXT_ACTION =
   "the complete original closeout result could not be retained, so it cannot be read back; " +
   "the effects reported here still stand and repeating this request would change nothing";
+
+export function closeoutReceiptSelectorSchema(schema = z) {
+  return schema.object({
+    ref_id: schema.string().regex(/^[A-Za-z0-9._-]{1,200}$/u),
+    sha256: schema.string().regex(/^[a-f0-9]{64}$/u),
+    finding_id: schema.string().regex(FINDING_ID_PATTERN).optional()
+  }).strict();
+}
+
+const RECEIPT_REQUEST_SCHEMA = selectedResponseRequestSchema(z.object({
+  repo: z.string().optional(),
+  unit: z.string(),
+  receipt: closeoutReceiptSelectorSchema(z)
+}).strict());
+
+function receiptCall({ repository, unit, source, findingId = null }) {
+  return buildNextCall({ tool: CLOSEOUT_RECEIPT_READ_ROUTE, recommended: true,
+    arguments: { repo: repository, unit, receipt: { ref_id: source.ref_id, sha256: source.sha256,
+      ...(findingId === null ? {} : { finding_id: findingId }) } } });
+}
+
+function receiptFindings(complete) {
+  const findings = complete?.closeout_lint?.top_findings;
+  return Array.isArray(findings) ? findings : [];
+}
+
+function retainCloseoutReceipt({ complete, operation, repository, unit, jsonContent }) {
+  return retainSelectedResponseSource({
+    binding: { route: operation, repository, unit,
+      query_identity: { operation, unit },
+      observation_identity: { source_digest: complete.source_digest ?? null,
+        publication_state: complete.publication_state ?? null } },
+    carrier: complete,
+    ownerCall: (locator) => ({ tool: CLOSEOUT_RECEIPT_READ_ROUTE,
+      arguments: { repo: repository, unit, receipt: { ref_id: locator.ref_id, sha256: locator.sha256 } } }),
+    ownerRequestSchema: RECEIPT_REQUEST_SCHEMA
+  }, { responseOwner: jsonContent });
+}
+
+function receiptEffects(complete) {
+  const effects = {};
+  for (const field of ["valid", "written", "publication_state", "no_op", "changed_fields", "status",
+    "source_digest", "record_id", "selected_unit", "closure", "diagnostics"]) {
+    if (Object.hasOwn(complete ?? {}, field)) effects[field] = structuredClone(complete[field]);
+  }
+  return effects;
+}
+
+function receiptLintFacts(closeoutLint) {
+  const facts = {};
+  for (const field of ["ran", "applicable", "ok", "lint_scope", "generated_views", "reason",
+    "error_count", "warning_count", "finding_count_total", "cause_code", "cause_message",
+    "write_effects_retained", "next_action"]) {
+    if (closeoutLint?.[field] !== undefined) facts[field] = structuredClone(closeoutLint[field]);
+  }
+  return facts;
+}
+
+export function readCloseoutReceipt({ receipt, repository, unit, env = process.env }) {
+  const source = { ref_id: receipt.ref_id, sha256: receipt.sha256 };
+  const envelope = readSelectedResponseSource(source, { env, route: CLOSEOUT_RECEIPT_READ_ROUTE,
+    expected: { repository, unit } });
+  if (!CLOSEOUT_RECEIPT_PRODUCERS.includes(envelope.binding.route)) {
+    throw selectedResponseQueryInvalidError(CLOSEOUT_RECEIPT_READ_ROUTE, "source_binding_mismatch",
+      { binding_field: "route" });
+  }
+  const complete = envelope.carrier;
+  const findings = receiptFindings(complete);
+  const header = {
+    schema_version: CLOSEOUT_RECEIPT_SCHEMA_VERSION,
+    operation: envelope.binding.route,
+    repository,
+    unit,
+    receipt: source,
+    observation: structuredClone(envelope.binding.observation_identity),
+    effects: receiptEffects(complete),
+    closeout_lint: receiptLintFacts(complete.closeout_lint)
+  };
+  if (receipt.finding_id === undefined) {
+    const identities = findings.slice(0, RECEIPT_FINDING_IDENTITY_LIMIT).map((finding, index) => ({
+      finding_id: `finding-${index}`,
+      code: finding?.code ?? null,
+      path: finding?.path ?? null
+    }));
+    return {
+      ...header,
+      finding_count: findings.length,
+      findings: identities,
+      findings_omitted: findings.length - identities.length,
+      next_calls: identities.slice(0, RECEIPT_SELECTION_CALL_LIMIT).map(({ finding_id: findingId }) =>
+        receiptCall({ repository, unit, source, findingId }))
+    };
+  }
+  const index = Number(FINDING_ID_PATTERN.exec(receipt.finding_id)[1]);
+  if (index >= findings.length) {
+    throw selectedResponseQueryInvalidError(CLOSEOUT_RECEIPT_READ_ROUTE, "finding_not_in_receipt",
+      { finding_id: receipt.finding_id, finding_count: findings.length });
+  }
+  return {
+    ...header,
+    finding_count: findings.length,
+    finding: { finding_id: receipt.finding_id, ...structuredClone(findings[index]) },
+    next_calls: []
+  };
+}
 
 const UNKNOWN_PUBLICATION_STATE = "unknown";
 const NOT_WRITTEN_DIAGNOSTIC_CODE = "write_response_not_written";
@@ -293,7 +417,8 @@ function applyPublicationCertainty(frame, publicationState) {
 }
 
 export function composeCloseoutResponse({
-  payload, closeoutLint, publicationState = null, verbose = false, jsonContent, shapeWriteResponse
+  payload, closeoutLint, publicationState = null, operation, repository, unit, jsonContent,
+  shapeWriteResponse
 }) {
 
   const complete = applyPublicationCertainty(
@@ -301,10 +426,6 @@ export function composeCloseoutResponse({
       shapeWriteResponse({ ...payload }, { verbose: true }), closeoutLint, { verbose: true }),
     publicationState
   );
-  if (verbose === true) {
-    return jsonContent(complete);
-  }
-
   const bounded = applyPublicationCertainty(
     attachCloseoutLintResponse(
       shapeWriteResponse(payload, { verbose: false }), closeoutLint, { verbose: false }),
@@ -315,27 +436,32 @@ export function composeCloseoutResponse({
     return jsonContent(bounded);
   }
 
-  const retained = jsonContent(complete, { forceSpill: true });
-  if (!isLosslessMcpSpillDelivery(retained)) {
-    bounded.full_result = { retained: false, next_action: ORIGINAL_DETAIL_UNAVAILABLE_NEXT_ACTION };
+  let source;
+  try {
+
+    source = retainCloseoutReceipt({ complete, operation, repository, unit, jsonContent });
+  } catch (error) {
+
+    bounded.receipt = {
+      ...describeRetentionFailure(error, {
+        operation: "retain_closeout_receipt", subject: { route: operation, repository, unit } }),
+      next_action: RECEIPT_UNAVAILABLE_NEXT_ACTION
+    };
 
     if (bounded.next_action !== UNKNOWN_PUBLICATION_NEXT_ACTION) {
-      bounded.next_action = ORIGINAL_DETAIL_UNAVAILABLE_NEXT_ACTION;
+      bounded.next_action = RECEIPT_UNAVAILABLE_NEXT_ACTION;
     }
     return jsonContent(bounded);
   }
-
-  const envelope = retained.structuredContent;
-  bounded.full_result = {
+  bounded.receipt = {
     retained: true,
-    content_reference: envelope.content_reference,
-    total_bytes: envelope.total_bytes,
-    sha256: envelope.content_reference.sha256,
-    next_action: ORIGINAL_DETAIL_NEXT_ACTION
+    source,
+    finding_count: receiptFindings(complete).length
   };
+  bounded.next_calls = [receiptCall({ repository, unit, source })];
 
   if (bounded.next_action !== UNKNOWN_PUBLICATION_NEXT_ACTION) {
-    bounded.next_action = ORIGINAL_DETAIL_NEXT_ACTION;
+    bounded.next_action = RECEIPT_DETAIL_NEXT_ACTION;
   }
   return jsonContent(bounded);
 }

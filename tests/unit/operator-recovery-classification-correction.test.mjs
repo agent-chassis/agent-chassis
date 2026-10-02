@@ -26,7 +26,7 @@ import {
   buildDispatchToolExceptionDetail,
   mapBackendRefusalToDispatchCode
 } from "../../packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs";
-import { errorContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import { errorContent, readOperatorOnlyEvidence } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import {
   BACKEND_REFUSAL_CODES
 } from "../../packages/agent-launch-core/src/lib/dispatch-runtime.mjs";
@@ -218,7 +218,13 @@ test("an untyped internal throw is a handler exception, never an external condit
   assert.equal(getRuntimeBlockerEntry(envelope.code).actor_recovery, "none");
 });
 
-test("the complete diagnostic evidence of a thrown failure survives to the public detail", () => {
+function retainedThrown(detail) {
+  assert.equal(Object.hasOwn(detail, "evidence"), false, "the capture is not published");
+  assert.equal(detail.retained_evidence.audience, "operator");
+  return readOperatorOnlyEvidence(detail.retained_evidence).thrown;
+}
+
+test("the complete diagnostic evidence of a thrown failure survives to the retained detail", () => {
   const inner = Object.assign(new Error("git exited 128 for ref refs/wk/WK-0001"), {
     code: "agent_launch.slice_integration.git_failed.v1",
     errno: -2,
@@ -234,7 +240,14 @@ test("the complete diagnostic evidence of a thrown failure survives to the publi
   assert.equal(detail.tool, "workspace_integrate_committed_slice");
   assert.equal(detail.error_message, "committed slice integration failed");
 
-  const captured = detail.evidence.thrown;
+  assert.deepEqual(detail.cause_chain, [
+    { name: "Error", message: "committed slice integration failed",
+      code: "agent_launch.slice_integration.classification_unavailable.v1" },
+    { name: "Error", message: "git exited 128 for ref refs/wk/WK-0001",
+      code: "agent_launch.slice_integration.git_failed.v1", errno: -2 }
+  ]);
+
+  const captured = retainedThrown(detail);
   assert.deepEqual(captured.capture_failures, [], "nothing may be dropped without disclosure");
   assert.equal(captured.value.message, "committed slice integration failed");
   assert.equal(
@@ -265,12 +278,13 @@ test("evidence deeper than one encoded value's budget is retrievable, not merely
     "workspace_agent_run_status",
     Object.assign(new Error("deep failure"), { detail: deep })
   );
-  assert.deepEqual(detail.evidence.thrown.capture_failures, []);
-  assert.ok(detail.evidence.thrown.segments.length >= 1);
+  const captured = retainedThrown(detail);
+  assert.deepEqual(captured.capture_failures, []);
+  assert.ok(captured.segments.length >= 1);
   assert.equal(
-    JSON.stringify(detail.evidence).includes("the deepest failing value"),
+    JSON.stringify(captured).includes("the deepest failing value"),
     true,
-    "the value below the per-node budget must survive to the public detail"
+    "the value below the per-node budget must survive to the retained detail"
   );
 });
 
@@ -286,13 +300,15 @@ test("nothing is removed from the detail: no producer declares a value to remove
 
   assert.equal(detail.error_message, message);
   assert.deepEqual(detail.error_message_redactions, []);
-  assert.equal(detail.evidence.thrown.value.message, message);
-  assert.equal(detail.evidence.thrown.value.properties.errno, -13);
-  assert.deepEqual(detail.evidence.thrown.value.properties.detail, {
+  assert.equal(detail.cause_chain[0].errno, -13);
+  const captured = retainedThrown(detail);
+  assert.equal(captured.value.message, message);
+  assert.equal(captured.value.properties.errno, -13);
+  assert.deepEqual(captured.value.properties.detail, {
     path: "/srv/launcher/private/conduit/in.fifo",
     digest: "sha256:abc123"
   });
-  const serialized = JSON.stringify(detail);
+  const serialized = JSON.stringify({ detail, captured });
   for (const fragment of [
     "sk-live-LOOKS-LIKE-A-TOKEN",
     "/srv/launcher/private/conduit/in.fifo",
@@ -307,11 +323,12 @@ test("a non-Error thrown value is preserved rather than summarised away", () => 
     kind: "plain_object_throw",
     observed: { attempt_id: "att-1", exit: 7 }
   });
-  assert.deepEqual(detail.evidence.thrown.value, {
+  const captured = retainedThrown(detail);
+  assert.deepEqual(captured.value, {
     kind: "plain_object_throw",
     observed: { attempt_id: "att-1", exit: 7 }
   });
-  assert.deepEqual(detail.evidence.thrown.capture_failures, []);
+  assert.deepEqual(captured.capture_failures, []);
 });
 
 test("the classifier refuses an unauthenticated or forged external-condition claim", () => {

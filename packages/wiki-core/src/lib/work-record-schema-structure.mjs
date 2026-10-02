@@ -471,6 +471,14 @@ function validateSlice(diagnostics, slice, path, { recordTerminal = false } = {}
         { path: `${path}.sections.structured_validation` }
       );
     }
+    if (hasOwn(sections, "user_requirements")) {
+      addDiagnostic(
+        diagnostics,
+        "invalid_record",
+        `${path}.sections.user_requirements is not supported; user requirements are a root-only field (sections.user_requirements)`,
+        { path: `${path}.sections.user_requirements` }
+      );
+    }
     if (hasOwn(sections, "agent_notes")) {
       const value = sections.agent_notes;
       if (Array.isArray(value)) {
@@ -1014,6 +1022,12 @@ function validateSections(diagnostics, sections) {
   });
   validateStringField(diagnostics, sections, "why_it_matters", {
     path: "sections.why_it_matters",
+    allowEmpty: true
+  });
+
+  validateStringField(diagnostics, sections, "user_requirements", {
+    path: "sections.user_requirements",
+    required: false,
     allowEmpty: true
   });
   validateScope(diagnostics, sections.scope, "sections.scope");

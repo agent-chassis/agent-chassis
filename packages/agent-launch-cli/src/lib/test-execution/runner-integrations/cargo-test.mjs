@@ -6,6 +6,9 @@ function toolchainEnv(runtime) {
   return DEPENDENCY_ECOSYSTEMS.cargo.toolchainEnv({ rust: { executables: runtime.executables } });
 }
 
+const testArgs = (target) => ["test", "--frozen", "--color", "never", "--message-format=json",
+  ...(target.kind === "lib" ? ["--lib"] : ["--test", target.name])];
+
 export default Object.freeze({
   runner_id: "runner.cargo-test",
 
@@ -14,9 +17,7 @@ export default Object.freeze({
     env: toolchainEnv(runtime) }),
   invocation: ({ runtime, projectDir, target, exactName }) => ({
     command: runtime.executables.cargo,
-    args: ["test", "--frozen", "--color", "never",
-      ...(target.kind === "lib" ? ["--lib"] : ["--test", target.name]),
-      "--", "--exact", exactName, "--test-threads", "1"],
+    args: [...testArgs(target), "--", "--exact", exactName, "--test-threads", "1"],
     cwd: projectDir,
     env: toolchainEnv(runtime)
   })

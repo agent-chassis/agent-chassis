@@ -24,6 +24,7 @@ import {
   WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION
 } from "../../packages/wiki-mcp/src/lib/workspace-commit-tool.mjs";
 import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+import { assertStructuredCarrier } from "../helpers/mcp-journey-accounting.mjs";
 import {
   ASSIGNED_UNIT,
   BASE_SHA,
@@ -314,7 +315,7 @@ test("serialized commit binding environment cannot replace the launcher identity
   delete process.env.WIKI_MCP_COMMIT_LAUNCH_REF;
   delete process.env.WIKI_MCP_COMMIT_RUN_ID;
   delete process.env.WIKI_MCP_COMMIT_RETRY_ID;
-  process.env.WIKI_MCP_TOOL_PROFILE = "full";
+  process.env.WIKI_MCP_TOOL_PROFILE = "operator";
   const state = installState();
   const tool = await registerCommitTool(t);
 
@@ -427,7 +428,7 @@ async function snapshotRepository(dir) {
 
 async function readHandlerResponse(fixture, result) {
   assert.equal(result.isError, true);
-  assert.deepEqual(result.content, []);
+  assertStructuredCarrier(result);
   const spilled = result.structuredContent;
   if (spilled.response_spilled !== true) {
     return { envelope: spilled, spilled: false, reads: 0 };

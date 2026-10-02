@@ -16,6 +16,7 @@ import {
   WK_0532_BOOTSTRAP_SUBSET,
   assertRuntimeBlockerSubset,
   evaluateGraphImpactBlocker,
+  GRAPH_IMPACT_WITHOUT_EVIDENCE_OUTCOME,
   getRuntimeBlockerEntry,
   isBlockingRuntimeBlocker,
   isRuntimeBlockerCode,
@@ -501,12 +502,12 @@ test("identity refusal codes use a dotted/versioned grammar and are intentionall
 
 test("graph_impact_state_map covers exhaustive (graph_state, staleness, dirty_state, overlay_state) cases", () => {
 
-  const blockingCases = [
+  const evidenceUnavailableCases = [
     [{ graph_state: "unavailable" }, "graph_impact_unavailable"],
     [{ graph_state: "error" }, "graph_impact_unavailable"],
     [{ graph_state: "query_error" }, "graph_impact_query_error"]
   ];
-  for (const [input, expectedCode] of blockingCases) {
+  for (const [input, expectedCode] of evidenceUnavailableCases) {
     const result = evaluateGraphImpactBlocker(input);
     assert.ok(result, `case ${JSON.stringify(input)} must map to a taxonomy code`);
     assert.equal(
@@ -514,8 +515,17 @@ test("graph_impact_state_map covers exhaustive (graph_state, staleness, dirty_st
       expectedCode,
       `case ${JSON.stringify(input)} must map to ${expectedCode}`
     );
-    assert.equal(result.blocking, true, `case ${JSON.stringify(input)} must be blocking`);
+    assert.equal(result.blocking, false, `case ${JSON.stringify(input)} must not refuse dispatch`);
+    assert.equal(result.outcome, GRAPH_IMPACT_WITHOUT_EVIDENCE_OUTCOME);
+    assert.equal(result.outcome, "proceed_without_graph_evidence");
+
+    assert.equal(getRuntimeBlockerEntry(expectedCode).blocking, true);
   }
+  assert.equal(
+    RUNTIME_BLOCKER_DESCRIPTOR.graph_impact_state_map.rules.some((rule) => rule.blocking !== false),
+    false,
+    "no graph state is a dispatch refusal"
+  );
 
   const degradedOverlayCases = [
     { staleness: "missing", dirty_state: "dirty_worktree", overlay_state: "active" },

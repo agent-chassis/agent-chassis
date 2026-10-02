@@ -489,11 +489,20 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
       delete definition.target.path;
     }
   }
+
+  const selectedBinding = (owner, definitions, row) => {
+    const definition = row?.case_id ? definitions.find(value => value.case_id === row.case_id) : undefined;
+    if (!definition) return [];
+    const verification = pkg.authoredCaseVerificationId(definition);
+    return projectWorkRecordTestProofValidation({ selectedUnit: owner }).executable_declarations
+      .filter(entry => entry.verification_ids.includes(verification)).map(entry => entry.target);
+  };
   const saved = obligations.filter(item => {
     const before = initial.rows.find(row => row.obligation_id === item.obligation_id) ?? null;
     const after = content.obligations.find(row => row.obligation_id === item.obligation_id) ?? null;
     return !same(before, after) || !same(projectSavedProofCase(pkg, initial, before ?? {}),
-      projectSavedProofCase(pkg, { cases, record, contract: initial.contract }, after ?? {}));
+      projectSavedProofCase(pkg, { cases, record, contract: initial.contract }, after ?? {})) ||
+      !same(selectedBinding(initial.unit, initial.cases ?? [], before), selectedBinding(unit, cases, after));
   }).length;
 
   const selectedContent = obligations.length === 0 && initial.source === null &&
@@ -510,9 +519,10 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
     const definition = definitions.get(row.case_id);
     if (!definition) fail('case_unknown', 'A use references an absent case', { case_id: row.case_id });
     const verification = pkg.authoredCaseVerificationId(definition);
+
     const known = (row.controlled_contract_node_ids ?? []).filter(id =>
       verificationClaims.has(id));
-    if (known.some(id => id !== verification)) fail('case_selector_ambiguous',
+    if (known.length > 0 && !known.includes(verification)) fail('case_selector_ambiguous',
       'The use names a different verification fact from its shared case', {
         condition: 'shared_case_verification_conflict', ...caseAssociationRouting(initial),
         case_id: row.case_id, obligation_id: row.obligation_id,

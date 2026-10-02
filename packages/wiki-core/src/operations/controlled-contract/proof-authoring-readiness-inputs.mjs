@@ -14,6 +14,8 @@ import { projectProofAuthoringDiagnosticGroups } from
 import { projectControlledContractRequirements } from
   './contract-requirement-authoring.mjs';
 import { coverageUnitArguments } from './coverage-recovery-guidance.mjs';
+import { acceptanceCriterionInventory, assessAcceptanceCriterionCoverage } from
+  './acceptance-criterion-coverage.mjs';
 
 const identities = new WeakMap();
 
@@ -94,7 +96,7 @@ function capabilityRecovery(declarations) {
 }
 
 function ordinaryAuthoringReadiness({ obligationCoverage, contract, wkId, focus,
-  selectedUnit = null }) {
+  selectedUnit = null, criterionInventory }) {
   const requirements = projectControlledContractRequirements(contract.content);
   const rows = obligationCoverage.source?.content?.obligations ?? [];
   const resolutionRows = new Map((obligationCoverage.resolution?.rows ?? []).map(
@@ -173,10 +175,24 @@ function ordinaryAuthoringReadiness({ obligationCoverage, contract, wkId, focus,
         reported_execution_diagnostic_codes: Object.freeze(executionFacts) })
     }));
   }
-  const complete = requirements.requirements.length > 0 && rows.length > 0 &&
-    declarations.every(row => row.status === 'complete');
+
+  const acceptanceCoverage = assessAcceptanceCriterionCoverage({
+    inventory: criterionInventory, obligations: rows,
+    validObligationIds: declarations.filter(row => row.status === 'complete')
+      .map(row => row.obligation_id),
+    wkId, selectedUnit, focus: focus ?? null });
+  const coverageIncomplete = acceptanceCoverage.status === 'incomplete';
+
+  const incompleteConditions = Object.freeze([
+    ...(requirements.requirements.length === 0 ? ['requirements_absent'] : []),
+    ...(rows.length === 0 ? ['obligations_absent'] : []),
+    ...(declarations.some(row => row.status !== 'complete')
+      ? ['obligation_definitions_incomplete'] : []),
+    ...(coverageIncomplete ? ['acceptance_criteria_uncovered'] : [])
+  ]);
+  const complete = incompleteConditions.length === 0;
   const authoringIncomplete = requirements.requirements.length === 0 || rows.length === 0 ||
-    stageAssessments.some(row =>
+    coverageIncomplete || stageAssessments.some(row =>
     row.stages.authored_inputs.status !== 'complete');
   const canonicalIncomplete = stageAssessments.some(row =>
     row.stages.canonical_sources.status !== 'current');
@@ -193,6 +209,7 @@ function ordinaryAuthoringReadiness({ obligationCoverage, contract, wkId, focus,
   return Object.freeze({
     schema_version: 'proof-authoring-ordinary-readiness.v2',
     status: complete ? 'complete' : 'incomplete',
+    incomplete_conditions: incompleteConditions,
     obligation_count: rows.length,
     case_count: cases.length,
     complete_binding_count: declarations.filter(
@@ -208,6 +225,7 @@ function ordinaryAuthoringReadiness({ obligationCoverage, contract, wkId, focus,
         ['not_started']))
     }),
     recovery,
+    acceptance_coverage: acceptanceCoverage,
     definition_readiness: definitionReadiness({ obligationCoverage,
       declarations, stageAssessments, recovery, authoringIncomplete }),
     declarations: Object.freeze(declarations)
@@ -293,6 +311,7 @@ export async function resolveProofAuthoringReadinessInputs(input, canonicalSet) 
   const completeness = proofAuthoringCompletenessSummary(obligationCoverage);
   const ordinaryReadiness = ordinaryAuthoringReadiness({
     obligationCoverage,
+    criterionInventory: acceptanceCriterionInventory(pkg, obligationCoverage.unit),
     contract: derivedContract,
     wkId: input.wkId,
     focus: input.focus ?? null,
@@ -318,7 +337,9 @@ export async function resolveProofAuthoringReadinessInputs(input, canonicalSet) 
           (resolution === null ? 'obligation_coverage_source_not_found'
             : ordinaryReadiness.stage_counts.authored_inputs.incomplete > 0
               ? 'controlled_acceptance_authored_inputs_incomplete'
-              : 'obligation_coverage_resolution_required'),
+              : ordinaryReadiness.acceptance_coverage.status === 'incomplete'
+                ? 'controlled_acceptance_criteria_uncovered'
+                : 'obligation_coverage_resolution_required'),
         stage: ordinaryReadiness.recovery?.stage ?? 'authored_inputs' },
       next_calls: typeof ordinaryReadiness.recovery?.tool === 'string'
         ? [ordinaryReadiness.recovery] : [] },

@@ -98,7 +98,14 @@ MCP dispatch.
 entrypoints, not worker/reviewer/redteam role paths. `agent-launch orchestrator`
 and `agent-launch resume` read `--model` or `ORCHESTRATOR_MODEL`, derive the
 app/family from the model registry, and accept `--effort xhigh` for the Codex
-`orchestrator_xhigh` backend profile. `agent-launch orchestrator list` is the
+`orchestrator_xhigh` backend profile. Both use the selected model's current
+route: when `agent-launch.toml` sets `[models."<id>"] use_litellm = true` for
+that model, launch and resume go through the shared local LiteLLM gateway, and
+otherwise through the ordinary route, regardless of the route an earlier
+session of the same conversation used (see
+[env reference](env-reference.md#per-model-litellm-routing-modelsid-vertexai)).
+Codex history, thread names and native resume are unchanged.
+`agent-launch orchestrator list` is the
 read-only listing companion and supports `--json`. Agents must not launch
 orchestrator sessions; structured agent dispatch refuses orchestrator launch
 attempts from any role kind other than `human_operator` with the refusal code

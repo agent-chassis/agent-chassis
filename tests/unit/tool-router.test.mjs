@@ -514,7 +514,8 @@ test("registry and router have no parallel routing owners", async () => {
       }
     }
   }
-  assert.equal(routeCount, 44);
+
+  assert.equal(routeCount, 45);
 });
 
 test("the advertised describe default is compact and keeps readiness ownership", async () => {

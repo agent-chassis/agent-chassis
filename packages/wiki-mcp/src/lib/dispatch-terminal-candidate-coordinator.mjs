@@ -64,7 +64,10 @@ import {
   freezeReconstructedTerminalWkCandidateInputs,
   freezeRecoveredTerminalWkCandidateInputs,
   freezeTerminalWkCandidateInputs,
+  closedTerminalWkCandidateGitDiagnosis,
   observeExactDirectCommitRef,
+  projectTerminalWkCandidateGitDiagnosis,
+  projectTerminalWkCandidateRefDisagreements,
   publishTerminalWkCandidateVersion,
   readTerminalCandidateCurrentRef,
   TERMINAL_WK_CANDIDATE_CODES,
@@ -243,7 +246,8 @@ async function authenticateCurrentControlledGeneration({
     wkId
   });
   if (generation === null) {
-    throw new Error("current controlled-contract generation is absent");
+
+    throw new Error(`current controlled-contract generation is absent for ${wkId}`);
   }
   const binding = await resolveControlledContractGenerationBinding({
     repoRoot: mainRepo,
@@ -308,7 +312,8 @@ async function exactWkBoundContract({
     }
     record = JSON.parse(result.stdout);
   } catch (error) {
-    throw new Error(`terminal candidate exact WK-bound contract is not parseable: ${error?.message ?? String(error)}`);
+    throw new Error(`terminal candidate exact WK-bound contract is not parseable: ${error?.message ?? String(error)}`,
+      { cause: error });
   }
   if (record?.id !== recordId || !/^IN-\d{4}$/u.test(record?.initiative ?? "") ||
       (initiative !== null && record.initiative !== initiative)) {
@@ -512,24 +517,44 @@ function gitOperationFromInternalDetail(detail) {
     : null;
 }
 
-function projectTypedTerminalCandidateDetail(code, detail) {
-  if (code !== TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED &&
-      code !== TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID) return null;
+function registeredGitDiagnosis(error, code, gitOperation, gitStatus) {
+  const registered = projectTerminalWkCandidateGitDiagnosis(error);
+  if (registered === null || registered.code !== code ||
+      registered.git_operation !== gitOperation || registered.git_status !== gitStatus) return null;
+  return closedTerminalWkCandidateGitDiagnosis(registered.diagnosis);
+}
+
+function projectTypedTerminalCandidateDetail(error, code, detail) {
+  const gitCode = code === TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED ||
+    code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID;
+  const disagreementCode = code === TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES;
+  if (!gitCode && !disagreementCode) return null;
   if (!plainNonProxyObject(detail)) return null;
+  const projected = {};
   const gitStatus = closedGitStatus(detail);
-  if (gitStatus === undefined) return null;
-  const inferredOperation = gitOperationFromInternalDetail(detail);
+  const inferredOperation = gitStatus === undefined ? null : gitOperationFromInternalDetail(detail);
   const baseOperationEvidence = inferredOperation === "merge-base" ||
     (typeof ownDataValue(detail, "base") === "string" &&
       typeof ownDataValue(detail, "wk_tip") === "string");
   const gitOperation = code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID
     ? baseOperationEvidence ? "merge-base" : null
     : inferredOperation;
-  if (gitOperation === null) return null;
-  return Object.freeze({
-    git_operation: gitOperation,
-    git_status: gitStatus
-  });
+  if (gitOperation !== null) {
+    projected.git_operation = gitOperation;
+    projected.git_status = gitStatus;
+    const diagnosis = registeredGitDiagnosis(error, code, gitOperation, gitStatus);
+    if (diagnosis !== null) projected.git_diagnosis = diagnosis;
+  } else if (gitCode) {
+    return null;
+  }
+  if (disagreementCode) {
+    const raw = ownDataValue(detail, "ref_disagreements");
+    const disagreements = Array.isArray(raw) && !utilTypes.isProxy(raw)
+      ? projectTerminalWkCandidateRefDisagreements(raw) : null;
+    if (disagreements === null) return null;
+    projected.ref_disagreements = disagreements;
+  }
+  return Object.freeze(projected);
 }
 
 export function projectTerminalWkCandidateFailure(error) {
@@ -547,7 +572,7 @@ export function projectTerminalWkCandidateFailure(error) {
       kind: "typed_candidate_error",
       code,
       message: TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE,
-      detail: projectTypedTerminalCandidateDetail(code, ownDataValue(error, "detail"))
+      detail: projectTypedTerminalCandidateDetail(error, code, ownDataValue(error, "detail"))
     });
   } catch {
     return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
@@ -580,12 +605,11 @@ function failTerminalCandidateRecovery(reason, diagnostic = null) {
   throw error;
 }
 
-function failTerminalCandidateConstruction(failure) {
+function failTerminalCandidateConstruction(failure, original) {
   const reason = "terminal_candidate_recovery_construction_failed";
-  const error = new Error(failure.message);
+  const error = new Error(failure.message, { cause: original });
   error.code = reason;
 
-  error.terminal_candidate_failure = failure;
   terminalCandidateRecoveryFailures.set(error, Object.freeze({
     reason,
     failure,
@@ -595,14 +619,18 @@ function failTerminalCandidateConstruction(failure) {
   throw error;
 }
 
-function failUntrustedTerminalCandidateRunner() {
-  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE);
+function untrustedRecoveryVerdict(reason) {
+  return Object.assign(new Error(reason), { code: reason });
+}
+
+function failUntrustedTerminalCandidateRunner(original) {
+  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE, { cause: original });
   error.code = TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE;
   throw error;
 }
 
-function failUntrustedTerminalCandidatePreparation() {
-  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE);
+function failUntrustedTerminalCandidatePreparation(original) {
+  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE, { cause: original });
   error.code = TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE;
   error.terminal_candidate_failure = UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
   throw error;
@@ -777,10 +805,10 @@ export function createTerminalCandidateCoordinator({
       });
     } catch (error) {
       if (!authenticatesTerminalCandidateFailures) {
-        failUntrustedTerminalCandidatePreparation();
+        failUntrustedTerminalCandidatePreparation(error);
       }
       if (terminalCandidateRecoveryFailures.has(error)) throw error;
-      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error));
+      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error), error);
     }
   };
 
@@ -789,7 +817,8 @@ export function createTerminalCandidateCoordinator({
   }) => {
     const initiative = canonicalRecordInitiative({ mainRepo, recordId: wkId });
     if (initiative === null) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner(
+        untrustedRecoveryVerdict("terminal_candidate_recovery_canonical_record_unavailable"));
       failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_record_unavailable");
     }
 
@@ -809,7 +838,8 @@ export function createTerminalCandidateCoordinator({
       runGit
     });
     if (frozen === null) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner(
+        untrustedRecoveryVerdict("terminal_candidate_recovery_current_ref_absent"));
       failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
     }
     const derived = await deriveTerminalWkCandidate({ frozen, runGit });
@@ -826,7 +856,8 @@ export function createTerminalCandidateCoordinator({
     if (published !== derived.candidate || publishedBinding.candidate_ref !== currentRef ||
         (publishedBinding.selection.state !== "created" &&
           publishedBinding.selection.state !== "converged")) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner(
+        untrustedRecoveryVerdict("terminal_candidate_recovery_current_ref_publication_disagrees"));
       failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_publication_disagrees");
     }
     return Object.freeze({ candidate: published });
@@ -883,7 +914,8 @@ export function createTerminalCandidateCoordinator({
       mainRepo, wkId, candidate, generationAuthentication, runGit
     });
     if (authenticated.deterministic !== true) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner(
+        untrustedRecoveryVerdict("terminal_candidate_recovery_no_deterministic_match"));
       failTerminalCandidateRecovery("terminal_candidate_recovery_no_deterministic_match");
     }
     return Object.freeze({
@@ -924,13 +956,15 @@ export function createTerminalCandidateCoordinator({
   const assertDurableReconstructionAuthority = async (wkId) => {
     const initiative = canonicalRecordInitiative({ mainRepo, recordId: wkId });
     if (initiative === null) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner(
+        untrustedRecoveryVerdict("terminal_candidate_recovery_canonical_record_unavailable"));
       failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_record_unavailable");
     }
     const refs = deriveTerminalCandidateDurableRefs({ initiative, canonicalWkId: wkId });
     for (const [ref, subject] of [[refs.fork_ref, "durable WK fork ref"], [refs.wk_ref, "durable WK ref"]]) {
       if (await observeExactDirectCommitRef({ mainRepo, ref, runGit, subject }) === null) {
-        if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+        if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner(
+          untrustedRecoveryVerdict("terminal_candidate_recovery_current_ref_absent"));
         failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
       }
     }
@@ -952,7 +986,8 @@ export function createTerminalCandidateCoordinator({
         if (observed === null) {
 
           if (withGeneration !== recoverTerminalCandidateWithGeneration) {
-            if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+            if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner(
+              untrustedRecoveryVerdict("terminal_candidate_recovery_current_ref_absent"));
             failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
           }
           await assertDurableReconstructionAuthority(wkId);
@@ -972,12 +1007,12 @@ export function createTerminalCandidateCoordinator({
       });
     } catch (error) {
       if (!authenticatesTerminalCandidateFailures) {
-        failUntrustedTerminalCandidateRunner();
+        failUntrustedTerminalCandidateRunner(error);
       }
 
       if (terminalCandidateRecoveryFailures.has(error)) throw error;
 
-      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error));
+      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error), error);
     }
   };
 

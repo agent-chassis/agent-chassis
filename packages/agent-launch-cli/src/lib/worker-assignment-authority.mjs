@@ -40,7 +40,8 @@ export function mintManagedWorkerAssignment({
   worktreePath,
   terminalResultMode
 } = {}) {
-  if (presentation?.ok !== true || !isNonEmptyString(presentation.prompt)) {
+  if (presentation?.ok !== true || !isNonEmptyString(presentation.prompt) ||
+      !isNonEmptyString(presentation.assignment_guidance)) {
     throw new WorkerAssignmentError(
       WORKER_ASSIGNMENT_DIAGNOSTICS.PROJECTION_INVALID,
       "managed worker assignment requires a composed presentation",
@@ -70,7 +71,10 @@ export function mintManagedWorkerAssignment({
     monitor_handle: monitorHandle ?? null,
     worktree_path: worktreePath,
     terminal_result_mode: terminalResultMode ?? null,
+
     prompt: presentation.prompt,
+    assignment_delivery: presentation.assignment_delivery,
+    assignment_guidance: presentation.assignment_guidance,
     canonical_summary: presentation.canonical_summary,
     agent_brief: presentation.agent_brief,
     launch_packet: presentation.launch_packet

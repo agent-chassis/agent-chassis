@@ -206,8 +206,15 @@ pub mod ${RUST_OBSERVER_MODULE} {
     const SOURCE: &str = ${rustString(sourceId)};
     static SEQUENCE: std::sync::Mutex<u64> = std::sync::Mutex::new(0);
 
+    #[derive(Clone)]
+    struct Panic {
+        assertion: bool,
+        message: Option<String>,
+        location: Option<(String, u32)>,
+    }
+
     thread_local! {
-        static PANIC: std::cell::RefCell<Option<(bool, String)>> = const { std::cell::RefCell::new(None) };
+        static PANIC: std::cell::RefCell<Option<Panic>> = const { std::cell::RefCell::new(None) };
     }
 
     fn quote(text: &str) -> String {
@@ -241,6 +248,27 @@ pub mod ${RUST_OBSERVER_MODULE} {
         }
     }
 
+    // The launcher-test-failure-diagnostic.v1 graph of the selected test's panic.
+    fn failure_diagnostic(panic: Option<&Panic>) -> String {
+        const HEAD: &str = "\\"schema_version\\":\\"launcher-test-failure-diagnostic.v1\\"";
+        let Some(panic) = panic else {
+            return format!("{{{},\\"status\\":\\"unavailable\\",\\"root_error\\":null,\\"errors\\":[],\\"values\\":[],\\"issues\\":[{{\\"path\\":\\"/error\\",\\"reason\\":\\"error_not_supplied\\"}}]}}", HEAD);
+        };
+        let mut error = String::from("\\"id\\":\\"error-0\\",\\"name\\":\\"panic\\"");
+        if let Some(message) = &panic.message {
+            error.push_str(&format!(",\\"message\\":{}", quote(message)));
+        }
+        if let Some((file, line)) = &panic.location {
+            error.push_str(&format!(",\\"location\\":{{\\"file\\":{},\\"line\\":{}}}", quote(file), line));
+        }
+        let issues = if panic.message.is_none() {
+            "{\\"path\\":\\"/error/message\\",\\"reason\\":\\"unsupported_value_type\\"}"
+        } else {
+            ""
+        };
+        format!("{{{},\\"status\\":\\"captured\\",\\"root_error\\":\\"error-0\\",\\"errors\\":[{{{}}}],\\"values\\":[],\\"issues\\":[{}]}}", HEAD, error, issues)
+    }
+
     fn test_path(path: &str) -> String {
         let parts: Vec<String> = path.split("::").map(quote).collect();
         format!("[{}]", parts.join(","))
@@ -267,14 +295,15 @@ pub mod ${RUST_OBSERVER_MODULE} {
             let previous = std::panic::take_hook();
             std::panic::set_hook(Box::new(move |info| {
                 let message = if let Some(text) = info.payload().downcast_ref::<&str>() {
-                    text.to_string()
+                    Some(text.to_string())
                 } else if let Some(text) = info.payload().downcast_ref::<String>() {
-                    text.clone()
+                    Some(text.clone())
                 } else {
-                    String::new()
+                    None
                 };
-                let assertion = message.starts_with("assertion");
-                PANIC.with(|cell| *cell.borrow_mut() = Some((assertion, message)));
+                let assertion = message.as_deref().is_some_and(|text| text.starts_with("assertion"));
+                let location = info.location().map(|at| (at.file().to_string(), at.line()));
+                PANIC.with(|cell| *cell.borrow_mut() = Some(Panic { assertion, message, location }));
                 previous(info);
             }));
         });
@@ -289,16 +318,16 @@ pub mod ${RUST_OBSERVER_MODULE} {
                 return;
             }
             let failed = std::thread::panicking();
-            let (assertion, message) = PANIC.with(|cell| cell.borrow().clone())
-                .unwrap_or((false, String::new()));
-            let error = if failed {
-                format!("{{\\"name\\":\\"panic\\",\\"message\\":{},\\"assertion\\":{}}}", quote(&message), assertion)
+            let panic = PANIC.with(|cell| cell.borrow().clone());
+            let assertion = panic.as_ref().is_some_and(|panic| panic.assertion);
+            let diagnostic = if failed {
+                format!(",\\"failure_diagnostic\\":{}", failure_diagnostic(panic.as_ref()))
             } else {
-                String::from("null")
+                String::new()
             };
-            emit(format!("\\"kind\\":\\"test_result\\",\\"file\\":{},\\"test\\":{},\\"outcome\\":{},\\"assertion_failure\\":{},\\"error\\":{}",
+            emit(format!("\\"kind\\":\\"test_result\\",\\"file\\":{},\\"test\\":{},\\"outcome\\":{},\\"assertion_failure\\":{}{}",
                 quote(self.file), test_path(self.path), quote(if failed { "failed" } else { "passed" }),
-                failed && assertion, error));
+                failed && assertion, diagnostic));
         }
     }
 }

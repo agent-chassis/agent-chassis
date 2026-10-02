@@ -3,16 +3,12 @@ import {
   isSidecarGraphExtractionSourcePath,
   materializeSidecarGraphUnit
 } from "./sidecar-graph-extractors.mjs";
-import {
-  filterSidecarSourcePaths,
-  isSidecarScipProviderInputPath,
-  normalizeSidecarRepoPath,
-  SIDECAR_SCIP_PROVIDER_NAMES
-} from "./sidecar-paths.mjs";
+import { sidecarResolutionCandidateKeys } from "./sidecar-graph-import-resolution.mjs";
+import { filterSidecarSourcePaths, normalizeSidecarRepoPath } from "./sidecar-paths.mjs";
 import { readSidecarIncrementalStateFromDatabase } from "./sidecar-store.mjs";
 import { binaryCompare } from "./sidecar-store-queries.mjs";
 
-export const SIDECAR_EXTRACTION_BASIS = Object.freeze({ extraction_basis: "committed_tree_diff.v1" });
+export const SIDECAR_EXTRACTION_BASIS = Object.freeze({ extraction_basis: "committed_tree_diff.v4" });
 
 function record(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -45,11 +41,6 @@ export function isSidecarBaseInputPath(relativePath) {
   return filterSidecarSourcePaths([relativePath]).included.length === 1;
 }
 
-function isProviderInputPath(relativePath) {
-  return SIDECAR_SCIP_PROVIDER_NAMES.some((provider) =>
-    isSidecarScipProviderInputPath(provider, relativePath));
-}
-
 function recordPaths(change) {
   return [change.oldPath, change.newPath].filter(Boolean);
 }
@@ -63,7 +54,8 @@ export async function classifySidecarPreparation({
   requestedCommit,
   mode = "update",
   generatorIdentity = null,
-  compare = null
+  compare = null,
+  providerInputsChanged = null
 } = {}) {
   text(requestedCommit, "requestedCommit");
   if (mode !== "update" && mode !== "rebuild") {
@@ -77,10 +69,16 @@ export async function classifySidecarPreparation({
       publication.base_coverage?.state !== "complete") {
     return decision("clean", "extraction_basis_incompatible");
   }
+  if (typeof providerInputsChanged !== "function") {
+    throw new TypeError("classifying a publication requires the provider input comparison");
+  }
   if (publication.repository_commit === requestedCommit) {
-    return publication.provider_coverage?.state === "complete"
-      ? decision("reuse", "source_commit_match")
-      : decision("incremental", "provider_coverage_incomplete");
+    if (publication.provider_coverage?.state !== "complete") {
+      return decision("incremental", "provider_coverage_incomplete");
+    }
+    return await providerInputsChanged()
+      ? decision("incremental", "provider_inputs_changed")
+      : decision("reuse", "source_commit_match");
   }
   if (typeof generatorIdentity !== "function") {
     throw new TypeError("classifying a changed commit requires the generator identity reader");
@@ -96,8 +94,8 @@ export async function classifySidecarPreparation({
   if (!Array.isArray(comparison?.records)) {
     throw new TypeError("committed comparison records must be an array");
   }
-  const relevant = comparison.records.some((change) => recordPaths(change).some((value) =>
-    isSidecarBaseInputPath(value) || isProviderInputPath(value)));
+  const relevant = comparison.records.some((change) => recordPaths(change).some(isSidecarBaseInputPath)) ||
+    await providerInputsChanged();
   return relevant
     ? decision("incremental", "relevant_inputs_changed", comparison)
     : decision("advance_tag", "no_relevant_inputs_changed", comparison);
@@ -175,7 +173,10 @@ export async function prepareSidecarIncrementalDelta({
   sources = [],
   diffRecords = [],
   parserProvider = null,
-  providerData = null
+  providerData = null,
+  goModules = [],
+  rustCrates = [],
+  candidateKeys = []
 } = {}) {
   if (!graph || typeof graph.prepare !== "function") {
     throw new TypeError("incremental preparation requires the owned candidate connection");
@@ -201,7 +202,8 @@ export async function prepareSidecarIncrementalDelta({
     : new Set(diffRecords.flatMap(recordPaths).filter(isSidecarBaseInputPath));
   const state = readSidecarIncrementalStateFromDatabase(graph, {
     sourcePaths: [...directPaths],
-    candidatePaths: [...directPaths],
+
+    candidatePaths: [...new Set([...[...directPaths].flatMap(sidecarResolutionCandidateKeys), ...candidateKeys])],
     allUnits: clean,
     allFiles: clean
   });
@@ -234,7 +236,8 @@ export async function prepareSidecarIncrementalDelta({
     if (facts.source_path !== relativePath) {
       throw new Error(`stored graph facts source mismatch: ${relativePath}`);
     }
-    const materialized = materializeSidecarGraphUnit({ facts, sourcePaths: sourcePathSet });
+    const materialized = materializeSidecarGraphUnit({ facts, sourcePaths: sourcePathSet, goModules,
+      rustCrates });
     units.push({
       unit_id: `file:${relativePath}`,
       source_path: relativePath,

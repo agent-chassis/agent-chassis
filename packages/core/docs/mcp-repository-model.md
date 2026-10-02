@@ -30,7 +30,9 @@ workspace repository aliases and never accept a caller-supplied filesystem root.
 They validate the prospective result against work-record.v1 before writing and
 refuse invalid edits with structured diagnostics; output is compact by default
 and each route accepts an optional `expected_source_digest` for stale-source
-protection against concurrent edits. The CLI counterparts (`upsert-slice`,
+protection against concurrent edits: the 16-hex `source_digest` a read
+returned, converted at the MCP boundary to the loaded record's full digest,
+which the core write guard checks again under its lock. The CLI counterparts (`upsert-slice`,
 `delete-slice`, `set-list-field`, `shape-review-unit`) are
 operator-shell fallbacks only and are not agent dispatch transports when MCP is
 available. See the "Contract-edit compact default, verbose opt-in, stale-source
@@ -206,6 +208,31 @@ checking the SHA-256, and then parsing the resulting UTF-8 JSON. Requests above
 `max_length` are refused rather than silently shortened. This is a delivery/frame
 bound only: the full response remains reachable and is not truncated.
 
+A selected task result is not a spilled response. A `workspace_verify_proof`
+result, a closeout receipt and a code-index answer are each retained once as a
+selected-response source whose metadata names its one owner read. The ranged
+reader, and the `workspace_read_page` `content_reference` delegate that uses it,
+refuse those bytes with `mcp_response.content_reference_ranged_read_unavailable.v1`
+(`failed_limb: "selected_access"`) and return that owner call as the exact next
+call: `workspace_verify_proof` with `result`, `workspace_work_record_summary`
+with `receipt`, or the code-index route with `detail`. Evidence a dispatch-family
+route retains for the operator is refused with no route. Internally, the
+selected-response reader and the managed verify-proof cache reader share one
+verified whole-artifact read (`readRetainedArtifactBytes` in `mcp-response.mjs`)
+that never passes through this public guard; each keeps its own root, schema and
+identity checks.
+
+A managed worker holds this reader too, so a spilled success or refusal
+envelope a worker's own response names is callable exactly as returned,
+followed through the reader's own `next_offset` to completion. The
+reader resolves an opaque, server-minted `ref_id` in the serving process's
+configured response state directory. That directory may be shared (the default
+XDG/home location is not per session), and the reader enforces no per-session
+ownership: a reference is readable by whoever presents its `ref_id` to a server
+using the same directory, and an unknown `ref_id` is refused. The grant gives a
+worker no page, entry, record, search or path read, and its assignment-only
+`workspace_read_page` still refuses spill and every other ordinary selector.
+
 ### Host wiki-MCP process isolation
 
 The launcher starts one host wiki-MCP server for each authenticated MCP command
@@ -220,6 +247,13 @@ Role selection and tool authority come only from the frozen launcher binding.
 Prompt text, request payloads, argv, ambient environment, repository settings,
 and user settings cannot select a server, connector, mount, endpoint, or lifecycle.
 
+The read resolver also decides the repository argument a read's emitted calls
+repeat. When it resolved the launcher-frozen review repository or the session's
+current workspace repository, emitted member, batch, summary and entry calls omit
+`repo`, and the same resolver answers them from the same bound source; any other
+resolution keeps `repo`. Emitters take that decision from the resolver and never
+re-derive a binding.
+
 The workspace read tool still validates page containment through the shared read core. Path traversal such as `../outside.md` or `wiki/work-records/../../escape.json` is rejected before reading.
 
 `workspace_read_page` reads Markdown pages and registered canonical JSON records.
@@ -230,7 +264,7 @@ never canonical sources. Reading a projection does not confer record authority;
 use the JSON path or a canonical ID read when authority matters.
 
 - Markdown reads (`docs/...`, `wiki/issues/...`, `wiki/initiatives/...`, `wiki/decisions/...`, `wiki/sources/...`, `wiki/areas/...`, generated views) return `format: "markdown"` with `markdown` content, `frontmatter`, `body`, and link metadata.
-- JSON work-record reads on `wiki/work-records/WK-####.json` return `format: "json-work-record"`. Registered initiative and decision JSON reads return `format: "json-kind-record"`, `source_classification: "canonical"`, and `canonical_record_path`. These reads are compact-first and have no whole-record mode: read any current member with `member: {path}`, which returns a bounded page of immediate members or one exact string range and pins `source_digest` in every emitted call. `include_body` reads Markdown page bodies only; it is refused for canonical records and for record projections under `wiki/issues/`, `wiki/initiatives/`, and `wiki/decisions/`. `member` is refused on any Markdown path. When either refusal addresses the exact generated projection of a registered initiative or decision and that canonical record loads valid under the same identity and repository binding, the refusal carries one recommended `next_calls` entry: the `member` read of the canonical JSON path, keeping a refused `member` selection or selecting the record root for a refused `include_body`, pinned to the verified `source_digest` unless the caller pinned one. A missing, traversal, unregistered, or ordinary Markdown path receives the plain refusal. Support for registered canonical paths does not permit arbitrary JSON or filesystem reads.
+- JSON work-record reads on `wiki/work-records/WK-####.json` return `format: "json-work-record"`. Registered initiative and decision JSON reads return `format: "json-kind-record"`, `source_classification: "canonical"`, and `canonical_record_path`. These reads are compact-first and have no whole-record mode: read any current member with `member: {path}`, which returns a bounded page of immediate members or one exact string range and pins the 16-hex `source_digest` in every emitted call, or read 1 to 16 explicit members of the same record or slice in one bounded response with `members: [{path}, ...]` and one top-level `expected_source_digest`. A container page reaches its listed children through `members` batch calls rather than per-row calls. `include_body` reads Markdown page bodies only; it is refused for canonical records and for record projections under `wiki/issues/`, `wiki/initiatives/`, and `wiki/decisions/`. `member` is refused on any Markdown path. When either refusal addresses the exact generated projection of a registered initiative or decision and that canonical record loads valid under the same identity and repository binding, the refusal carries one recommended `next_calls` entry: the `member` read of the canonical JSON path, keeping a refused `member` selection or selecting the record root for a refused `include_body`, pinned to the verified `source_digest` unless the caller pinned one. A missing, traversal, unregistered, or ordinary Markdown path receives the plain refusal. Support for registered canonical paths does not permit arbitrary JSON or filesystem reads.
 - The generated `wiki/catalog.md` links each registered initiative and decision to its canonical JSON path, resolved through the same manifest-derived kind-record authority as reads, when that canonical record loads valid; a projection whose canonical record is missing or invalid, and every other catalog entry, links its own page.
 - Graph-evidence sidecar reads on `wiki/work-records/evidence/WK-####.graph.json` return `format: "graph-evidence-sidecar"`. These per-WK sidecars hold the full graph-impact replay/debug payloads that the canonical work record keeps only as compact refs. They are replay/debug data and never dispatch-control input; canonical WK compact refs remain the pointer. The read projection and parameters are summarized in the bullets below, and the operation-level contract is listed in [docs/mcp-operation-reference.md](mcp-operation-reference.md).
 - Missing JSON work-record paths return a `Wiki record path not found` error rather than treating the absent file as Markdown.
@@ -281,12 +315,13 @@ WK-level orientation from selected-slice retrieval:
   `include_record`, `include_raw`, `include_full_summary`, `accept_full_read`,
   and `compact_read_token` fail schema validation. Complete content is reached
   through explicit selection: `member: {path}` for any current record or slice
-  member, `workspace_work_record_entry_read` for entries and versions, and
+  member, `members: [...]` for up to 16 of them at once,
+  `workspace_work_record_entry_read` for entries and versions, and
   `ordinary_field` for enrolled text. A reference to an unselected whole record
   is never returned in place of a selected value.
 - Write routes that accept `verbose: true` return their complete diagnostics and
   detail fields but never the whole record, including for a no-op edit. The
-  mutation result, `source_digest`, and error identity are the write response;
+  mutation result, the 16-hex `source_digest`, and error identity are the write response;
   record content is read back through the selected routes above.
 
 Omitted `done`, `cancelled`, or `parked` slice details and omitted WK-level
@@ -314,7 +349,7 @@ For agents, the structured workspace tool to use is:
 
 Codex agent-facing repo instructions should prefer the repo-local CLI for search/read/get-record retrieval. Codex may prompt for MCP calls when encrypted reasoning or prior tool-call state is attached to a request, even when the MCP tool is read-only and workspace-scoped. Non-workspace MCP tools remain reserved for admin, bootstrap, migration, and tooling-test flows where an operator intentionally selects the target checkout.
 
-`workspace_code_index_context_for_path` returns complete committed context for one repo-relative path: the file's exact committed source, graph relationships, inferred related code and tests, canonical records, and `affected_files` whose relationships name their basis. A valid path outside the indexed corpus keeps its guidance and reports source `indexed_corpus_excluded`; a path absent from the commit reports `missing_file_descriptor`; forbidden or malformed paths are refused before preparation. Source and line counts come only from the committed publication. That complete answer is retained at `full_result`; the default response carries identity, source state and line count, trust facts, and bounded code-graph `graph_paths` with whole-population totals, as described in [Tool Discovery Surfaces](tool-discovery-surfaces.md).
+`workspace_code_index_context_for_path` returns complete committed context for one repo-relative path: the file's exact committed source, graph relationships, inferred related code and tests, canonical records, and `affected_files` whose relationships name their basis. A valid path outside the indexed corpus keeps its guidance and reports source `indexed_corpus_excluded`; a path absent from the commit reports `missing_file_descriptor`; forbidden or malformed paths are refused before preparation. Source and line counts come only from the committed publication. That complete answer is retained once as the route's selected-response source; the response carries identity, source state and line count, trust facts, and bounded code-graph `graph_paths` with whole-population totals, as described in [Tool Discovery Surfaces](tool-discovery-surfaces.md).
 
 The context route and `workspace_code_index_impact` automatically prepare
 the same exact committed-HEAD base/SCIP pair used by graph impact and symbol
@@ -323,8 +358,8 @@ worktree bytes. `workspace_code_index_status` is the read-only inspection route
 and never prepares either layer.
 
 - The default is `context_available: "compact"`: committed identity, trust facts, source metadata, and at most twenty entries of each population with exact `counts` totals. Committed source above 1200 lines is omitted with `source_text_omitted: true`; large files are never refused. This threshold is unrelated to worker-admission policy and produces no admission verdict.
-- Before any compact omission, the complete original answer is retained through the authenticated content-reference owner and bound at `full_result` (content reference, byte total and SHA-256); read it with `workspace_read_mcp_content_reference`. A retention failure is returned as that failure, never as a compact success.
-- `verbose: true` runs a new evaluation and returns the complete answer; it does not recover an earlier retained answer. CLI `--json` and `--verbose` print the complete answer, and plain CLI output lists every population.
+- Before any compact omission, the complete original answer is retained once as the route's selected-response source, and `selected_detail` carries its opaque `source` `{ref_id, sha256}` and collection counts; the top-level `next_calls` selects the answer's first affected file by path. A call with `detail` names one collection of that original, narrowed by `selector.id`, `path`, `symbol` or `relationship`; `input_path` narrows one affected file's relationships and `lines` selects absolute retained source lines. The `candidates` collection exposes ambiguity without choosing a candidate. These reads never evaluate the question again; the public ranged reader refuses the original bytes. A retention failure is returned as that failure, never as a compact success.
+- There is no verbose or `full_result` form; a new evaluation is a new question. CLI `--json` and `--verbose` print the complete answer, and plain CLI output lists every population.
 
 The internal pure owner for likely-test and same-directory path inference is
 `deriveSidecarPathContext` in
@@ -370,10 +405,12 @@ current-worktree graph queries retain their separate transient dirty-overlay
 selection. Transport adapters must not add another ensure or verification loop.
 
 `ensureSidecarIndex` applies the one freshness classifier. A publication already
-tagged with the captured commit, with a compatible extraction basis and complete
-provider coverage, is reused without an update, provider run, or database copy.
-Otherwise the shared updater applies the committed Git diff from the published
-commit, reruns only the SCIP projects whose inputs changed, and publishes the
+tagged with the captured commit, with a compatible extraction basis, complete
+provider coverage and provider input records that still match the installed
+executables, settings and dependency populations, is reused without an update,
+provider run, or database copy. Otherwise the shared updater applies the
+committed Git diff from the published commit, reruns only the SCIP projects
+whose input records changed, and publishes the
 data and the new commit tag together; an unusable or unrelated predecessor takes
 the clean path. Moving HEAD observations restart within the shared bounded pass
 count. Dirty worktree bytes remain outside both layers and are collected only
@@ -401,19 +438,29 @@ behavior. A failed preparation is not an empty successful impact result or a
 reason to substitute filename guesses for graph evidence.
 
 During automatic pair preparation, the committed snapshot runner invokes only the fixed
-backend-provisioned `scip-typescript` and `scip-python` executables. It resolves
-each installed name to an absolute executable path before spawning with
-`shell:false`, then runs with the committed snapshot as its working directory;
-it does not use `npx`, install packages, or accept executable paths from a
-query. The runner passes the already validated captured commit to
-`scip-python` as `--project-version`, so Python indexing does not depend on
-repository or project-version metadata that is absent from the archive. It
-does not add `.git` data to the snapshot or guess a replacement version.
-Every applicable provider project is required. A provider execution or decode
-failure fails preparation before publication, so the previously published data
-and its commit tag stay in place and no partial provider coverage is published.
-A project whose committed inputs did not change keeps its earlier output and
-the commit that produced it.
+installed `scip-typescript`, `scip-python`, `scip-go` and `rust-analyzer`
+providers (`scip-go` with the installed `go` toolchain; `rust-analyzer` with the
+`cargo` and `rustc` of the toolchain the `PATH` `rustc` selects). It looks each
+name up on the server's `PATH`, runs the resolved absolute executable with
+`shell:false` against the committed snapshot, and does not use `npx`, install
+packages or toolchains, fetch modules or crates, or accept executable paths from
+a query. Rust indexing runs Cargo offline and lets already-available build
+scripts and procedural macros run inside the temporary snapshot. The runner passes the already validated
+captured commit to `scip-python` as `--project-version` and to `scip-go` as
+`--module-version`, so indexing does not depend on repository or version
+metadata that is absent from the archive. It does not add `.git` data to the
+snapshot or guess a replacement version. An applicable project whose provider
+executable is not installed is reported as inactive coverage
+(`provider_coverage.inactive_projects`), never as a successful run. Every active
+project is required: a failed executable lookup, a refused Go or Rust project,
+unavailable Go or Rust dependencies, or a provider execution or decode failure fails
+preparation before publication, so the previously published data and its commit
+tag stay in place and no partial provider coverage is published. A
+commit-independent project whose input record did not change keeps its earlier
+output and the commit that produced it; a commit-sensitive producer reruns at
+every new commit. Provider activation, input records and Go and Rust execution
+are specified in
+[MCP Operation Reference](mcp-operation-reference.md#code-index-provider-activation-and-input-identity).
 SCIP bytes are decoded with the released `@scip-code/scip` generated bindings.
 Alongside aggregate symbol and call edges, the published overlay retains native
 `symbol_occurrences` with provider, path, raw symbol, stable global or
@@ -423,9 +470,10 @@ same-line occurrences without claiming character-precise targeting. Invalid or
 unsupported range encodings are omitted from the collection and counted in
 coverage; they never manufacture graph or call relationships. Source-text
 selection and presentation are a separate query concern.
-Because incomplete provider coverage is never published, a query retried after
-a provider is provisioned prepares the index automatically; no manual rebuild is
-required. Standalone status remains read-only.
+Because each publication records the provider executables it observed, a query
+after a provider is installed, removed or replaced at the same commit prepares
+the affected projects automatically; no manual rebuild is required. Standalone
+status remains read-only and reports `scip_provider_inputs_changed` meanwhile.
 Snapshot,
 Git, filesystem, and publication failures retain their typed infrastructure
 failure behavior.
@@ -443,9 +491,13 @@ durable docs, and candidate implementation paths, implementation workers should:
 3. after a diff exists, call MCP `workspace_code_index_impact` with parsed
    `diffRecords`, raw `patchText`, or `liveGit: true`
 
-The route returns compact output by default, bound to the retained complete
-answer at `full_result`; pass `verbose: true` when the complete answer must be
-evaluated again, for example to record it as graph-impact evidence.
+The route returns a compact answer bound to its retained complete original by
+`selected_detail.source`. To record that exact answer as graph-impact evidence,
+pass the source as `graph_impact_source` to
+`workspace_record_graph_impact_evidence`; the server reads and persists the
+complete original without re-evaluating it and reports whether that
+observation is still the committed HEAD. Calling the recorder with only the unit
+computes the unit's impact now, as a new operation.
 
 Use the CLI forms, such as `npm run wiki -- code-index impact --paths <path>` and
 `npm run wiki -- code-index impact --live-git`, only when MCP approval prompts,

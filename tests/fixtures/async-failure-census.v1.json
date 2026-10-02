@@ -65,6 +65,15 @@
         },
         {
           "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+          "anchor": "const loadControlledContractSharedContract = createEvictOnRejectionMemo(async () => {",
+          "occurrence": 1,
+          "symbol": "loadControlledContractSharedContract",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "the shared proof-contract surface composed from the package's narrow contract subpaths, through the same resolver and settlement owner as the package loader",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::each named package-runtime loader resolves and stays memoized"
+        },
+        {
+          "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
           "anchor": "const loadProofPlanRequestSchema = createEvictOnRejectionMemo(() =>",
           "occurrence": 1,
           "symbol": "loadProofPlanRequestSchema",
@@ -109,13 +118,22 @@
           "witness": "tests/unit/async-memo-retryability.test.mjs::the accepted static-module-map loaders keep their original settlement shape"
         },
         {
+          "module": "packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
+          "anchor": "carrierSetResolutionPromise ??= import(\"./controlled-contract-carrier-set-resolution.mjs\");",
+          "occurrence": 1,
+          "symbol": "loadCarrierSetResolution",
+          "disposition": "accepted_static_module_map_memo",
+          "rationale": "the deferred carrier-set-resolution import. That module statically imports tool-shared as its lower layer, so the reverse edge is deferred to preserve module layering. Same static-specifier shape and the same loader-level retention.",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::the accepted static-module-map loaders keep their original settlement shape"
+        },
+        {
           "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
           "anchor": "const toolchainIdentity = createEvictOnRejectionMemo(buildToolchainIdentity);",
           "occurrence": 1,
           "symbol": "toolchainIdentity",
           "disposition": "evict_on_rejection_owned",
           "rationale": "process-wide and shared by every cache instance, upstream of every group resolution",
-          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed group resolution is evicted and the next attempt re-resolves"
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed group resolution re-resolves; a retired group identity is refused"
         },
         {
           "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
@@ -124,7 +142,7 @@
           "symbol": "resolvedGroups",
           "disposition": "evict_on_rejection_owned",
           "rationale": "per-group resolution keyed by group identity and schema digest",
-          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed group resolution is evicted and the next attempt re-resolves"
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed group resolution re-resolves; a retired group identity is refused"
         },
         {
           "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
@@ -133,7 +151,7 @@
           "symbol": "ensurePopulationPass",
           "disposition": "evict_on_rejection_owned",
           "rationale": "at most one generation pass per process, shared by concurrent callers",
-          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status is evicted and the next attempt re-runs the pass"
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status re-runs; the population declares each group once"
         },
         {
           "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
@@ -142,11 +160,11 @@
           "symbol": "resolvePopulationStatus",
           "disposition": "evict_on_rejection_owned",
           "rationale": "whole-population status resolution",
-          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status is evicted and the next attempt re-runs the pass"
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status re-runs; the population declares each group once"
         }
       ],
       "accepted_non_remediated": {
-        "count": 2,
+        "count": 3,
         "disposition": "accepted_static_module_map_memo",
         "reason": "Remediation would be ineffective, not merely unscoped: local eviction cannot reach a rejection the ESM module map retains. Recorded so a later migration onto the eviction owner is treated as a regression rather than an improvement."
       }
@@ -350,7 +368,7 @@
           "symbol": "runPopulationWorker",
           "disposition": "settles_owning_promise",
           "rationale": "the worker error rejects the one promise the caller awaits",
-          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status is evicted and the next attempt re-runs the pass"
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status re-runs; the population declares each group once"
         },
         {
           "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
@@ -435,19 +453,19 @@
     "populations": 5,
     "corpus_modules": 8,
     "retained_sites_by_population": {
-      "poisoned_memoized_promises": 10,
+      "poisoned_memoized_promises": 12,
       "finally_block_masking": 11,
       "detached_promises": 6,
       "stream_error_listeners": 6,
       "process_guards": 2
     },
-    "retained_sites_total": 35,
+    "retained_sites_total": 37,
     "retained_sites_by_disposition": {
-      "accepted_static_module_map_memo": 2,
+      "accepted_static_module_map_memo": 3,
       "cleanup_failure_suppressed_bounded": 2,
       "crash_durable_publication_owned_wk2357": 6,
       "disables_diagnostic_sink": 2,
-      "evict_on_rejection_owned": 8,
+      "evict_on_rejection_owned": 9,
       "fail_stop_owned": 2,
       "inner_catch_non_masking": 1,
       "launcher_supervision_owned": 6,
@@ -458,7 +476,7 @@
       "synchronous_cleanup_no_failure_path": 1
     },
     "removed_copies_total": 22,
-    "accepted_non_remediated_total": 2,
+    "accepted_non_remediated_total": 3,
     "open_residuals_total": 1
   }
 }

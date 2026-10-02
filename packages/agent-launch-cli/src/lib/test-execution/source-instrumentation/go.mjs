@@ -151,11 +151,13 @@ export async function instrumentGoTestFile({ source, selected }) {
   const tree = await parseSource("go", source);
   const testing = testingImportName(tree);
   const edits = [];
+  const named = [];
   const declared = [];
   for (const node of namedChildren(tree.rootNode)) {
     const name = node.type === "function_declaration" ? node.childForFieldName("name")?.text : null;
-    if (name === null || !TEST_FUNCTION_RE.test(name) ||
-        node.childForFieldName("type_parameters") !== null) continue;
+    if (name === null || !TEST_FUNCTION_RE.test(name)) continue;
+    named.push(name);
+    if (node.childForFieldName("type_parameters") !== null) continue;
     const parameter = testing === null ? null : testingParameter(node, testing);
     const body = node.childForFieldName("body");
     if (parameter === null || body === null) continue;
@@ -164,7 +166,10 @@ export async function instrumentGoTestFile({ source, selected }) {
     edits.push({ index: bodyProbeIndex(body),
       insert: ` defer zzLauncherTestProofEnter(${parameter}, ${goString(name)})();` });
   }
-  if (!declared.includes(selected)) unsupported("selected_test_not_observable", { test: selected });
+  if (!declared.includes(selected)) {
+    unsupported(named.includes(selected) ? "selected_test_shape_unsupported"
+      : "selected_test_not_observable", { test: selected });
+  }
   return { source: applyEdits(source, edits), package_name: packageName(tree), tests: declared };
 }
 
@@ -246,15 +251,20 @@ func zzLauncherTestProofEnter(t *testing.T, name string) func() {
 \t\t} else if t.Skipped() {
 \t\t\toutcome = "skipped"
 \t\t}
-\t\tvar failure any
+\t\trecord := map[string]any{"kind": "test_result", "test": test, "file": ${goString(file)},
+\t\t\t"outcome": outcome, "assertion_failure": failed && !panicked}
+\t\t// The observer holds a recovered panic value itself; a testing.T failure's
+\t\t// messages are written to Go's own test report, not to this observer.
 \t\tif panicked {
-\t\t\tfailure = map[string]any{"name": "panic", "message": panicMessage}
+\t\t\trecord["failure_diagnostic"] = map[string]any{"schema_version": "launcher-test-failure-diagnostic.v1",
+\t\t\t\t"status": "captured", "root_error": "error-0", "values": []any{}, "issues": []any{},
+\t\t\t\t"errors": []any{map[string]any{"id": "error-0", "name": "panic", "message": panicMessage}}}
 \t\t} else if failed {
-\t\t\tfailure = map[string]any{"name": "testing.T failure", "assertion": true}
+\t\t\trecord["failure_diagnostic"] = map[string]any{"schema_version": "launcher-test-failure-diagnostic.v1",
+\t\t\t\t"status": "unavailable", "root_error": nil, "errors": []any{}, "values": []any{},
+\t\t\t\t"issues": []any{map[string]any{"path": "/error", "reason": "error_not_supplied"}}}
 \t\t}
-\t\tzzLauncherTestProofObserverEmit(map[string]any{"kind": "test_result", "test": test,
-\t\t\t"file": ${goString(file)}, "outcome": outcome, "assertion_failure": failed && !panicked,
-\t\t\t"error": failure})
+\t\tzzLauncherTestProofObserverEmit(record)
 \t})
 \t// Records a panic of the selected function body and re-raises it; Go runs
 \t// the cleanup above before the re-raised panic ends the test binary.

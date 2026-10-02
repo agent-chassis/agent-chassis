@@ -32,6 +32,7 @@ import {
   resolveCodexTerminalStructuredRoleResultMode
 } from "./workspace-agent-dispatch-codex-launch-support.mjs";
 import { evaluateDispatchRoleModelGate } from "./workspace-agent-dispatch-codex-executor-policy.mjs";
+import { resolveCarriedModelSelection } from "./agent-launch-profiles.mjs";
 import {
   launchCodexWorkspaceAgentInProcess,
   spawnPlainChildProcess
@@ -86,7 +87,9 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
 
     resolveSchemaConstrainedTier = resolveLauncherSchemaConstrainedTierIsPaid,
     loadWorkRecord = loadWorkRecordById,
-    createMcpConduit = createStdioMcpConduit
+    createMcpConduit = createStdioMcpConduit,
+
+    attachModelRoute = undefined
   } = options;
 
   return async function codexLaunchExecutor(input) {
@@ -225,7 +228,29 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
         inProcessModelGate.detail
       );
     }
-    const effectiveResolvedProfile = inProcessModelGate.resolvedProfile;
+
+    const gatedProfile = inProcessModelGate.resolvedProfile;
+    const launchModel = normalizeDispatchModelHint(gatedProfile?.model) ?? launcherSelectedModel;
+    let effectiveResolvedProfile = gatedProfile;
+    if (launchModel !== null) {
+      const selection = resolveCarriedModelSelection({
+        role,
+        model: launchModel,
+        carried: resolvedProfile?.model_selection ?? input?.model_selection ?? null,
+        dir: input?.config_root_dir ?? workspaceDir ?? defaultCwd
+      });
+      if (!selection.ok) {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, selection.reason, {
+          ...(selection.detail ?? {}),
+          authority_limb: "mechanical_failure"
+        });
+      }
+      effectiveResolvedProfile = Object.freeze({
+        ...(gatedProfile ?? {}),
+        model: launchModel,
+        model_selection: selection.value
+      });
+    }
 
     const forwardedSourceToolSurface = null;
 
@@ -267,7 +292,8 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
       classifyIsolationBackendAvailability,
       probeCanonicalBwrapAvailability,
 
-      createMcpConduit
+      createMcpConduit,
+      attachModelRoute
     });
     return launchResult?.accepted === true
       ? attachLauncherObservedTerminalResultModeFacts(

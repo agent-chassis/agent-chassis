@@ -8,6 +8,9 @@ import {
 import { requestSchema } from "./proof-request-schema.mjs";
 import { declareRequestConstraints } from
   "./zod-request-constraint-declarations.mjs";
+import { selectedResponseDetailSchema } from "./selected-response-snapshot.mjs";
+
+const QUERY_TOOL_NAME = "workspace_controlled_contract_obligation_coverage_query";
 
 export function proofAuthoringUnitInputSchema(z) {
   const declared = CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA;
@@ -29,8 +32,12 @@ export function proofAuthoringFocusInputSchema(z) {
 export function proofAuthoringSchema(tool, z, focus) {
   const operation = tool.name === "workspace_validate_proof"
     ? "validate" : tool.name.split("_").at(-1);
+
   return requestSchema(z, tool.inputSchema, tool.inputSchema.$defs,
-    { memoize: operation === "upsert" }).extend({ focus });
+    { memoize: operation === "upsert" }).extend({ focus,
+    ...(tool.name === QUERY_TOOL_NAME ? {
+      detail: selectedResponseDetailSchema(z).optional().describe("Read one bounded page of a retained " +
+        "query result, exactly as a next_calls entry states it. Takes unit and repo only.") } : {}) });
 }
 
 export function createProofAuthoringQueryInputSchema(z) {

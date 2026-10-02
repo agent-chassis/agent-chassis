@@ -38,6 +38,14 @@ const UNKNOWN = Object.freeze({
   message: UNKNOWN_MESSAGE,
   detail: null
 });
+
+const MISSING_REPOSITORY_DIAGNOSIS = Object.freeze({
+  capture: "captured",
+  diagnostics: [{
+    msg: "not a git repository (or any of the parent directories): .git",
+    fmt: "not a git repository (or any of the parent directories): %s"
+  }]
+});
 const UNTRUSTED_RUNNER_CODE = "terminal_candidate_recovery_construction_failed";
 const UNTRUSTED_RUNNER_MESSAGE = "terminal candidate recovery construction failed";
 const REVIEW_ADDRESS = Object.freeze({
@@ -123,11 +131,14 @@ async function injectedCarrier(thrown, options = {}) {
   return rejectedCoordinatorCarrier(() => { throw thrown; }, options);
 }
 
-function assertUntrustedRunnerTransport(error, forbidden = []) {
+const UNSPECIFIED_ORIGINAL = Symbol("unspecified original");
+
+function assertUntrustedRunnerTransport(error, forbidden = [], original = UNSPECIFIED_ORIGINAL) {
   assert.equal(error.code, UNTRUSTED_RUNNER_CODE);
   assert.equal(error.message, UNTRUSTED_RUNNER_MESSAGE);
   assert.equal(Object.hasOwn(error, "terminal_candidate_failure"), false);
-  assert.equal(Object.hasOwn(error, "cause"), false);
+  assert.equal(Object.hasOwn(error, "cause"), true, "the injected failure was discarded");
+  if (original !== UNSPECIFIED_ORIGINAL) assert.equal(error.cause, original);
   assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(error), UNKNOWN);
   assert.equal(projectTerminalCandidateRecoveryReason(error),
     "terminal_candidate_recovery_failed");
@@ -201,6 +212,20 @@ function publicProjection(result) {
   return result.refusal.refusal.detail.recovery_detail;
 }
 
+function publicClassification(result) {
+  const { evidence: _evidence, retained_evidence: _retained, ...detail } =
+    result.refusal.refusal.detail;
+  return { ...result, refusal: { ...result.refusal, refusal: { ...result.refusal.refusal, detail } } };
+}
+
+function publicCauseChain(result) {
+  const detail = result.refusal.refusal.detail;
+  assert.ok(Array.isArray(detail.evidence?.cause_chain), JSON.stringify(detail));
+  assert.equal(detail.retained_evidence?.retained, true, JSON.stringify(detail.retained_evidence));
+  assert.deepEqual(detail.retained_evidence.fields, ["detail.evidence"]);
+  return detail.evidence.cause_chain;
+}
+
 function assertPreSpawnRefusal(result, expected,
   expectedReason = "terminal_candidate_recovery_failed") {
   assert.equal(result.ok, false);
@@ -220,10 +245,13 @@ function assertPreSpawnRefusal(result, expected,
 async function assertUnknown(thrown, forbidden = []) {
   const result = await refuseThrown(thrown);
   assertPreSpawnRefusal(result, UNKNOWN);
-  const serialized = JSON.stringify(result);
+  const serialized = JSON.stringify(publicClassification(result));
   for (const value of forbidden) {
-    assert.equal(serialized.includes(value), false, `public refusal reflected ${value}`);
+    assert.equal(serialized.includes(value), false, `public classification reflected ${value}`);
   }
+
+  assert.ok(publicCauseChain(result).length > 0);
+  return result;
 }
 
 test("WK-1783 pure projection validates every typed code without granting provenance", () => {
@@ -252,23 +280,66 @@ test("WK-1783 pure projection preserves only bounded structural Git detail", () 
   }
 });
 
+test("WK-2716 a ref disagreement projects its observed refs and, when the write ran, its Git facts", () => {
+  const ref = "refs/agent-launch/terminal-candidates-v1/WK-1783/version";
+  const expected = "a".repeat(40);
+  const actual = "b".repeat(40);
+  const disagreements = [{ ref, expected, actual }];
+  const observedOnly = new TerminalWkCandidateError("names a different candidate", {
+    code: TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+    detail: { ref, ref_disagreements: disagreements }
+  });
+  assert.deepEqual(projectTerminalWkCandidateFailure(observedOnly),
+    typedProjection(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+      { ref_disagreements: disagreements }));
+  const afterWrite = new TerminalWkCandidateError("lost to a conflicting ref value", {
+    code: TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+    detail: { args: ["--no-replace-objects", "update-ref", "--no-deref", "--stdin"], status: 128,
+      stderr: "fatal: raw stderr stays internal\n", ref, ref_disagreements: disagreements }
+  });
+  const projected = projectTerminalWkCandidateFailure(afterWrite);
+  assert.deepEqual(projected, typedProjection(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+    { git_operation: "update-ref", git_status: 128, ref_disagreements: disagreements }));
+  assert.equal(JSON.stringify(projected).includes("raw stderr"), false);
+
+  for (const malformed of [[{ ref, expected: "not-an-oid", actual }], [], "x",
+    [{ ref, expected, actual, extra: new Proxy({}, {}) }].map(({ extra: _extra, ...entry }) =>
+      Object.setPrototypeOf(entry, null))]) {
+    const error = new TerminalWkCandidateError("malformed", {
+      code: TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+      detail: { ref, ref_disagreements: malformed }
+    });
+    assert.equal(projectTerminalWkCandidateFailure(error).detail, null);
+  }
+});
+
 test("WK-1783 exact production runner authenticates a real Git failure for the backend", async (t) => {
   for (const explicitRunner of [false, true]) {
     const { error, mainRepo, marker } = await productionMissingRepositoryCarrier(t, {
       explicitRunner
     });
+
     const expected = typedProjection(
       TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
-      { git_operation: "for-each-ref", git_status: 128 }
+      { git_operation: "for-each-ref", git_status: 128, git_diagnosis: MISSING_REPOSITORY_DIAGNOSIS }
     );
     assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(error), expected);
 
-    assertPreSpawnRefusal(await refuseThrown(error), expected,
+    const result = await refuseThrown(error);
+    assertPreSpawnRefusal(result, expected,
       "terminal_candidate_recovery_construction_failed");
-    const serialized = JSON.stringify(await refuseThrown(error));
+    const serialized = JSON.stringify(publicClassification(result));
     for (const forbidden of [mainRepo, marker, "fatal:", "stderr", "stdout", "cause", "stack"]) {
       assert.equal(serialized.includes(forbidden), false);
     }
+
+    const chain = publicCauseChain(result);
+    assert.deepEqual(chain.at(-1), {
+      name: "TerminalWkCandidateError",
+      message: "terminal WK candidate: current candidate ref could not be observed",
+      code: TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED
+    });
+    assert.equal(JSON.stringify(chain).includes("fatal:"), false);
   }
 });
 
@@ -298,7 +369,9 @@ test("WK-1783 injected callbacks cannot authenticate any typed code", async () =
     const expected = typedProjection(code);
     const error = await injectedCarrier(sourceErrorForProjection(expected, secret));
     assertUntrustedRunnerTransport(error, [secret, code]);
-    assertPreSpawnRefusal(await refuseThrown(error), UNKNOWN);
+    const result = await refuseThrown(error);
+    assertPreSpawnRefusal(result, UNKNOWN);
+    assert.ok(publicCauseChain(result).length >= 1);
   }
 });
 
@@ -324,7 +397,10 @@ test("WK-1783 injected values and forged carriers stay unknown and secret-safe",
   for (const value of values) {
     const error = await injectedCarrier(value);
     assertUntrustedRunnerTransport(error, ["secret", "/private/"]);
-    assertPreSpawnRefusal(await refuseThrown(error), UNKNOWN);
+    const result = await refuseThrown(error);
+    assertPreSpawnRefusal(result, UNKNOWN);
+    assert.equal(JSON.stringify(publicClassification(result)).includes("secret"), false);
+    assert.ok(publicCauseChain(result).length >= 1);
   }
 });
 
@@ -355,7 +431,7 @@ test("WK-1783 wrapped, bound, proxied, and lookalike production runners are untr
 test("WK-1783 remediation rejects exact forged, copied, getter, and proxy carriers", async (t) => {
   const exact = typedProjection(
     TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
-    { git_operation: "for-each-ref", git_status: 128 }
+    { git_operation: "for-each-ref", git_status: 128, git_diagnosis: MISSING_REPOSITORY_DIAGNOSIS }
   );
   const { error: authentic } = await productionMissingRepositoryCarrier(t);
   assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(authentic), exact);
@@ -456,7 +532,7 @@ test("WK-1783#SLICE-002 collapses malformed and open projections to the byte-sta
     const result = await refuseThrown(carrier(projection, "carrier-secret"));
     assertPreSpawnRefusal(result, UNKNOWN);
     assert.equal(JSON.stringify(publicProjection(result)), expectedBytes);
-    const serialized = JSON.stringify(result);
+    const serialized = JSON.stringify(publicClassification(result));
     for (const secret of [
       "carrier-secret",
       "projection-error-secret",
@@ -615,7 +691,7 @@ test("WK-1783 remediation loaded semantic mutations kill provenance and raw-fall
     const result = await module.createBackendTerminalCandidateCoordination(
       backendContext(async () => { throw carrier(null, secret); })
     ).recoverTerminalReviewContext(REVIEW_ADDRESS);
-    assert.equal(JSON.stringify(result).includes(secret), false);
+    assert.equal(result.refusal.refusal.detail.message, UNKNOWN_MESSAGE);
   }));
 
   const rawGitDetail = await loadMutation(
@@ -630,7 +706,7 @@ test("WK-1783 remediation loaded semantic mutations kill provenance and raw-fall
         throw carrier({ ...exact, git_stderr: secret });
       })
     ).recoverTerminalReviewContext(REVIEW_ADDRESS);
-    assert.equal(JSON.stringify(result).includes(secret), false);
+    assert.deepEqual(publicProjection(result), UNKNOWN);
   }));
 
   assert.deepEqual(killed, [
@@ -642,6 +718,64 @@ test("WK-1783 remediation loaded semantic mutations kill provenance and raw-fall
     "export a mint/adoption route",
     "restore raw exception fallback",
     "restore raw Git-detail fallback"
+  ]);
+});
+
+test("WK-2716 loaded mutations that drop the preserved original are killed", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "wk2716-cause-mutant-"));
+  const mainRepo = path.join(root, "missing-repository");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const originalMessage = "terminal WK candidate: current candidate ref could not be observed";
+  const killed = [];
+  const trusted = await loadMutation(
+    "drop the trusted construction cause",
+    "const error = new Error(failure.message, { cause: original });",
+    "const error = new Error(failure.message);",
+    RUNTIME_SOURCE_URL
+  );
+  killed.push(await assertSemanticMutationKilled("drop the trusted construction cause", trusted,
+    async (module) => {
+      const coordinator = module.createTerminalCandidateCoordinator({ mainRepo, worktreeRoot: root });
+      const error = await coordinator.recoverTerminalCandidate("WK-1783").then(
+        () => assert.fail("missing repository must reject"), (rejected) => rejected);
+      assert.equal(error.cause?.message, originalMessage);
+    }));
+  const untrusted = await loadMutation(
+    "drop the untrusted transport cause",
+    "function failUntrustedTerminalCandidateRunner(original) {\n  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE, { cause: original });",
+    "function failUntrustedTerminalCandidateRunner(original) {\n  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE);",
+    RUNTIME_SOURCE_URL
+  );
+  const injected = new Error("WK-2716 injected runner original");
+  killed.push(await assertSemanticMutationKilled("drop the untrusted transport cause", untrusted,
+    async (module) => {
+      const error = await rejectedCoordinatorCarrier(() => { throw injected; },
+        { module, mainRepo: root, worktreeRoot: root });
+      assertUntrustedRunnerTransport(error, [], injected);
+    }));
+  const evidence = await loadMutation(
+    "drop the backend refusal evidence",
+    "          recovery_diagnostic: recoveryDiagnostic,\n          ...terminalCandidateFailureEvidence(error)\n",
+    "          recovery_diagnostic: recoveryDiagnostic\n"
+  );
+  killed.push(await assertSemanticMutationKilled("drop the backend refusal evidence", evidence,
+    async (module) => {
+      const result = await refuseThrown(new Error("WK-2716 backend original"), module);
+      assert.ok(publicCauseChain(result).some((level) =>
+        level.message === "WK-2716 backend original"));
+    }));
+
+  const control = createTerminalCandidateCoordinator({ mainRepo, worktreeRoot: root });
+  assert.equal((await control.recoverTerminalCandidate("WK-1783").catch((error) => error))
+    .cause?.message, originalMessage);
+  assertUntrustedRunnerTransport(await rejectedCoordinatorCarrier(() => { throw injected; },
+    { mainRepo: root, worktreeRoot: root }), [], injected);
+  assert.ok(publicCauseChain(await refuseThrown(new Error("WK-2716 backend original")))
+    .some((level) => level.message === "WK-2716 backend original"));
+  assert.deepEqual(killed, [
+    "drop the trusted construction cause",
+    "drop the untrusted transport cause",
+    "drop the backend refusal evidence"
   ]);
 });
 
@@ -706,8 +840,8 @@ test("WK-1783 loaded runner-identity mutations cannot mint authentication", asyn
   const registrationLabel = "register untrusted callback projection";
   const registrationMutant = await loadMutation(
     registrationLabel,
-    "if (!authenticatesTerminalCandidateFailures) {\n        failUntrustedTerminalCandidateRunner();\n      }\n      // The deliberate control-flow refusals",
-    "if (!authenticatesTerminalCandidateFailures) {\n        failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error));\n      }\n      // The deliberate control-flow refusals",
+    "if (!authenticatesTerminalCandidateFailures) {\n        failUntrustedTerminalCandidateRunner(error);\n      }\n      // The deliberate control-flow refusals",
+    "if (!authenticatesTerminalCandidateFailures) {\n        failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error), error);\n      }\n      // The deliberate control-flow refusals",
     RUNTIME_SOURCE_URL
   );
   killed.push(await assertSemanticMutationKilled(
@@ -726,8 +860,8 @@ test("WK-1783 loaded runner-identity mutations cannot mint authentication", asyn
   const propertyLabel = "copy terminal_candidate_failure onto untrusted transport";
   const propertyMutant = await loadMutation(
     propertyLabel,
-    "function failUntrustedTerminalCandidateRunner() {\n  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE);\n  error.code = TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE;\n  throw error;\n}",
-    "function failUntrustedTerminalCandidateRunner() {\n  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE);\n  error.code = TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE;\n  error.terminal_candidate_failure = UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;\n  throw error;\n}",
+    "function failUntrustedTerminalCandidateRunner(original) {\n  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE, { cause: original });\n  error.code = TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE;\n  throw error;\n}",
+    "function failUntrustedTerminalCandidateRunner(original) {\n  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE, { cause: original });\n  error.code = TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE;\n  error.terminal_candidate_failure = UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;\n  throw error;\n}",
     RUNTIME_SOURCE_URL
   );
   killed.push(await assertSemanticMutationKilled(propertyLabel, propertyMutant, async (module) => {

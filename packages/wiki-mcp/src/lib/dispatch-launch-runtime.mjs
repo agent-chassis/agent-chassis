@@ -157,7 +157,9 @@ export function createWkForgeHandoffAuthenticationObserver({
         detail: Object.freeze({
           stage: "candidate_observation",
           reason: projectTerminalCandidateRecoveryReason(error),
-          recovery_detail: observationFailure
+          recovery_detail: observationFailure,
+
+          evidence: captureDiagnosticEvidence(error)
         })
       });
     }
@@ -482,78 +484,68 @@ export function composePostWorkerSliceLifecycle({
     lifecycle({ workspace, status, deps: { ...deps, ...launcherOwned } });
 }
 
-const WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_DEPTH = 3;
-const WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_KEYS = 24;
-const WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_ARRAY = 12;
-const WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_STRING = 512;
-const WK_FORGE_HANDOFF_REFUSAL_SECRET_KEY =
-  /(?:token|credential|password|secret|authorization|cookie|stderr|stdout|stack|message)/iu;
-
-function boundedForgeRefusalValue(value, depth = 0) {
-  if (depth > WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_DEPTH) return null;
-  if (typeof value === "string") return value.slice(0, WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_STRING);
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "boolean" || value === null) return value;
-  if (Array.isArray(value)) {
-    return value.slice(0, WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_ARRAY)
-      .map((entry) => boundedForgeRefusalValue(entry, depth + 1));
-  }
-  if (!isPlainObject(value)) return null;
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => !WK_FORGE_HANDOFF_REFUSAL_SECRET_KEY.test(key))
-      .slice(0, WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_KEYS)
-      .map(([key, entry]) => [key, boundedForgeRefusalValue(entry, depth + 1)])
-  );
+function isPlainData(value) {
+  if (value === null || typeof value !== "object") return false;
+  if (Array.isArray(value)) return true;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
-function isUnreducedForgeRefusalValue(original, projected) {
-  if (Array.isArray(projected)) {
-    return Array.isArray(original) && original.length === projected.length &&
-      projected.every((entry, index) => isUnreducedForgeRefusalValue(original[index], entry));
+function semanticForgeRefusalValue(value, ancestors = new Set()) {
+  if (value === null || value === undefined || typeof value === "string" ||
+      typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : captureDiagnosticEvidence(value);
   }
-  if (isPlainObject(projected)) {
-    if (!isPlainObject(original)) return false;
-    const keys = Object.keys(original);
-    return keys.length === Object.keys(projected).length &&
-      keys.every((key) => Object.hasOwn(projected, key) &&
-        isUnreducedForgeRefusalValue(original[key], projected[key]));
-  }
-  return Object.is(original, projected);
+  if (!isPlainData(value) || ancestors.has(value)) return captureDiagnosticEvidence(value);
+  ancestors.add(value);
+  const copy = Array.isArray(value)
+    ? value.map((entry) => semanticForgeRefusalValue(entry, ancestors))
+    : Object.fromEntries(Object.entries(value)
+      .map(([key, entry]) => [key, semanticForgeRefusalValue(entry, ancestors)]));
+  ancestors.delete(value);
+  return copy;
 }
 
 const WK_FORGE_HANDOFF_CATEGORY_CODES = Object.freeze({
+  [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.REQUEST_INVALID]: "agent_launch.wk_forge_handoff.request_invalid.v1",
   [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.REMOTE_INVALID]: "agent_launch.wk_forge_handoff.remote_invalid.v1",
   [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY]: "agent_launch.wk_forge_handoff.eligibility_refused.v1",
+  [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.CCE_POLICY]: "agent_launch.wk_forge_handoff.policy_boundary_refused.v1",
+  [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT]:
+    "agent_launch.wk_forge_handoff.publication_disagreement.v1",
+  [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE]: "agent_launch.wk_forge_handoff.publication_indeterminate.v1",
   [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.GIT_FAILED]: "agent_launch.wk_forge_handoff.git_transport_failed.v1"
 });
+
+export const WK_FORGE_HANDOFF_UNCLASSIFIED_CATEGORY = "unclassified";
+const WK_FORGE_HANDOFF_UNCLASSIFIED_CODE = "launcher_transition.backend_refusal_identity_unknown.v1";
 
 export function projectWkForgeHandoffRefusal(outcome) {
   const categories = new Set(Object.values(WK_FORGE_HANDOFF_FAILURE_CATEGORIES));
   const category = categories.has(outcome?.category)
     ? outcome.category
-    : WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE;
+    : WK_FORGE_HANDOFF_UNCLASSIFIED_CATEGORY;
   const original = isPlainObject(outcome?.detail) ? outcome.detail : {};
-  const { evidence: encodedEvidence, ...display } = original;
-  const projected = boundedForgeRefusalValue(display);
-  const reason = typeof projected?.reason === "string" && projected.reason.length > 0
-    ? projected.reason
+  const { evidence: encodedEvidence, ...facts } = original;
+  const semantic = semanticForgeRefusalValue(facts);
+  const reason = typeof facts.reason === "string" && facts.reason.length > 0
+    ? facts.reason
     : `wk_forge_handoff_${category}`;
-  const unreduced = category === outcome?.category &&
-    (outcome?.detail == null || isPlainObject(outcome.detail)) &&
-    isUnreducedForgeRefusalValue(display, projected);
+  const carried = category === outcome?.category &&
+    (outcome?.detail == null || isPlainObject(outcome.detail));
   let evidence;
   if (encodedEvidence?.schema_version === DIAGNOSTIC_EVIDENCE_SCHEMA_VERSION) {
     evidence = encodedEvidence;
-  } else if (encodedEvidence !== undefined || !unreduced) {
+  } else if (encodedEvidence !== undefined || !carried) {
     evidence = captureDiagnosticEvidence(outcome);
   }
   return Object.freeze({
     schema_version: "wk-forge-handoff-refusal.v1",
-    code: WK_FORGE_HANDOFF_CATEGORY_CODES[category] ?? category,
+    code: WK_FORGE_HANDOFF_CATEGORY_CODES[category] ?? WK_FORGE_HANDOFF_UNCLASSIFIED_CODE,
     category,
     reason,
-    detail: Object.freeze({ category, ...projected, ...(evidence === undefined ? {} : { evidence }) })
+    detail: Object.freeze({ category, ...semantic, ...(evidence === undefined ? {} : { evidence }) })
   });
 }
 
@@ -763,7 +755,9 @@ export function buildDispatchRuntime(env = process.env, {
             category: WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY,
             detail: {
               stage: "candidate_resolution",
-              reason: projectTerminalCandidateRecoveryReason(error)
+              reason: projectTerminalCandidateRecoveryReason(error),
+
+              evidence: captureDiagnosticEvidence(error)
             }
           };
           return {

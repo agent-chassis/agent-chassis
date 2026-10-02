@@ -4,7 +4,7 @@ import {
   BUBBLEWRAP_LAUNCH_PLAN_SCHEMA_VERSION,
   fail
 } from "./launch-isolation-errors.mjs";
-import { assertBubblewrapAvailable } from "./launch-isolation-bwrap.mjs";
+import { BWRAP_SPAWN_OPERATIONS, assertBubblewrapAvailable } from "./launch-isolation-bwrap.mjs";
 import {
   assertReadOnlyProjectionMountpointsUnchanged,
   assertRequiredReadOnlyFilesUnchanged
@@ -250,7 +250,11 @@ export function spawnIsolated(plan, stdioOptions = {}) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_SPAWN_FAILED,
       `bwrap child failed to spawn: ${resolved}`,
-      { errno: err?.code ?? null, message: err?.message ?? null }
+      {
+        errno: err?.code ?? null,
+        message: err?.message ?? null,
+        operation: BWRAP_SPAWN_OPERATIONS.CONFINED_CHILD
+      }
     );
   }
   if (conduit !== null) {

@@ -82,7 +82,42 @@ function connectFixedProbeMcp({ clientName, requestTimeoutMs = 15000,
     };
   })();
 }
+
+// WK-2570: a managed worker's startup text carries no assignment body; the
+// probe retrieves it exactly as a worker does -- workspace_read_page
+// {assignment:true}, then every returned continuation -- and consumes the
+// startup text followed by the retrieved guidance.
+async function readFixedProbeAssignment(mcp) {
+  const page = result => {
+    if (!result || result.isError === true) {
+      const body = result && (result.structuredContent || result.content) || null;
+      const error = new Error("assignment_read_refused:" + JSON.stringify(body));
+      error.stage = "assignment_read";
+      throw error;
+    }
+    return result.structuredContent || JSON.parse(result.content[0].text);
+  };
+  const first = page(await mcp.callTool("workspace_read_page", { assignment: true }));
+  let current = first;
+  let guidance = current.member.value;
+  let reads = 1;
+  while (Array.isArray(current.next_calls) && current.next_calls.length > 0) {
+    current = page(await mcp.callTool("workspace_read_page", current.next_calls[0].arguments));
+    guidance += current.member.value;
+    reads += 1;
+  }
+  return { guidance, reads, source_digest: first.source_digest, identity: first.identity };
+}
+
+function fixedProbeDeliveredText(prompt, assignment) {
+  return prompt + "\n\n" + assignment.guidance;
+}
 `;
+
+export const SCOPE_CANARY_FIRST_PATH =
+  "scope-only/canary-0000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt";
+export const SCOPE_CANARY_LAST_PATH =
+  "scope-only/canary-1023-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt";
 
 export const FIXED_PROBE_PHYSICAL_ACCESS_SOURCE = String.raw`
 function sourceRead(relative) {
@@ -125,6 +160,10 @@ function probeAssignedPhysicalAccess() {
       bin_sibling_before: sourceRead("bin/keep.txt"),
       bin_sibling_write: writeProbe("bin/keep.txt", "escaped-bin-sibling\n"),
       undeclared_write: writeProbe("undeclared/escaped.txt", "escaped-undeclared-write\n")
+    },
+    scope_canaries: {
+      first: sourceRead(` + JSON.stringify(SCOPE_CANARY_FIRST_PATH) + String.raw`),
+      last: sourceRead(` + JSON.stringify(SCOPE_CANARY_LAST_PATH) + String.raw`)
     }
   };
 }
@@ -137,30 +176,6 @@ function promptSectionAfter(prompt, heading, nextHeading) {
   const bodyStart = start + heading.length;
   const end = nextHeading === null ? prompt.length : prompt.indexOf(nextHeading, bodyStart);
   return prompt.slice(bodyStart, end < 0 ? prompt.length : end);
-}
-`;
-
-export const FIXED_PROBE_DELIVERED_SCOPE_SOURCE = FIXED_PROBE_PROMPT_SECTION_SOURCE + String.raw`
-function parseDeliveredScope(prompt) {
-  const sectionAfter = (heading, nextHeading) => promptSectionAfter(prompt, heading, nextHeading);
-  function markdownList(heading, nextHeading) {
-    const body = sectionAfter(heading, nextHeading);
-    if (body === null) return null;
-    return body.split("\n").map(line => line.match(/^- (.+)$/u)?.[1] ?? null)
-      .filter(value => value !== null && value !== "None")
-      .map(value => value.startsWith("\x60") && value.endsWith("\x60") ? value.slice(1, -1) : value);
-  }
-  const presented = sectionAfter("\n## Presented Scope\n", "\n## Readable Paths\n");
-  const exclusionStart = prompt.indexOf("\n## Scope Exclusions\n");
-  const hasMaterial = exclusionStart >= 0 &&
-    prompt.indexOf("\n## Assignment Material\n", exclusionStart) >= 0;
-  return {
-    provenance: presented?.match(/^- provenance: \x60([^\x60]+)\x60$/mu)?.[1] ?? null,
-    readable: markdownList("\n## Readable Paths\n", "\n## Writable Paths\n"),
-    writable: markdownList("\n## Writable Paths\n", "\n## Scope Exclusions\n"),
-    exclusions: markdownList("\n## Scope Exclusions\n",
-      hasMaterial ? "\n## Assignment Material\n" : "\n## Escalations\n")
-  };
 }
 `;
 

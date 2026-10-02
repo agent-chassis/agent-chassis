@@ -25,6 +25,7 @@ import {
 } from "./dispatch-tool-helpers.mjs";
 
 import { runPostWorkerSliceLifecycle } from "./dispatch-run-monitor-routes.mjs";
+import { readOperatorOnlyEvidence } from "./mcp-response.mjs";
 import { POST_WORKER_MISSING_DELIVERY_CODE } from "./dispatch-post-worker-lifecycle-run.mjs";
 import {
   createLifecycleCheckpoint,
@@ -572,7 +573,9 @@ test("WK-1691#SLICE-002 unsafe detail shapes omit the discriminator entirely", a
   assert.equal(getterInvoked, true);
   const captured = await runStatusEnvelope(postcheckError(getterDetail));
   assert.equal(Object.hasOwn(captured.blocker.detail, "postcheck_mismatch_field"), false);
-  assert.equal(captured.blocker.detail.evidence.thrown.value.properties.detail.field, "sliceRef");
+  assert.equal(Object.hasOwn(captured.blocker.detail, "evidence"), false, "the capture is not published");
+  assert.equal(readOperatorOnlyEvidence(captured.blocker.detail.retained_evidence)
+    .thrown.value.properties.detail.field, "sliceRef");
 });
 
 test("WK-1691#SLICE-002 every unrelated error code omits the discriminator", async () => {
@@ -592,24 +595,29 @@ test("WK-1691#SLICE-002 existing diagnostic envelopes stay byte-identical apart 
 
   const ordinary = buildDispatchToolExceptionDetail("t", new Error("boom"));
   assert.deepEqual(Object.keys(ordinary), [
-    "tool", "error_name", "error_message", "error_message_redactions", "evidence"
+    "schema_version", "tool", "error_name", "error_message", "error_message_redactions",
+    "cause_chain", "retained_evidence"
   ]);
-  assert.equal(ordinary.evidence.schema_version, DISPATCH_TOOL_EXCEPTION_EVIDENCE_SCHEMA_VERSION);
-  assert.equal(ordinary.evidence.operation, "t");
-  assert.equal(ordinary.evidence.thrown.value.name, "Error");
-  assert.equal(ordinary.evidence.thrown.value.message, "boom");
+  assert.deepEqual(ordinary.cause_chain, [{ name: "Error", message: "boom" }]);
+  const ordinaryEvidence = readOperatorOnlyEvidence(ordinary.retained_evidence);
+  assert.equal(ordinaryEvidence.schema_version, DISPATCH_TOOL_EXCEPTION_EVIDENCE_SCHEMA_VERSION);
+  assert.equal(ordinaryEvidence.operation, "t");
+  assert.equal(ordinaryEvidence.thrown.value.name, "Error");
+  assert.equal(ordinaryEvidence.thrown.value.message, "boom");
 
   const safeError = postcheckError({ field: "baseTree" });
   const safe = buildDispatchToolExceptionDetail("t", safeError);
   assert.deepEqual(Object.keys(safe), [
-    "tool", "error_name", "error_message", "error_message_redactions",
-    "cause_code", "postcheck_mismatch_field", "evidence"
+    "schema_version", "tool", "error_name", "error_message", "error_message_redactions",
+    "cause_code", "postcheck_mismatch_field", "cause_chain", "retained_evidence"
   ]);
   assert.equal(safe.cause_code, SLICE_REVIEW_POSTCHECK_FAILED_CODE);
   assert.equal(safe.postcheck_mismatch_field, "baseTree");
-  assert.equal(safe.evidence.thrown.value.message, safeError.message);
-  assert.equal(safe.evidence.thrown.value.properties.code, SLICE_REVIEW_POSTCHECK_FAILED_CODE);
-  assert.equal(safe.evidence.thrown.value.properties.detail.field, "baseTree");
+  assert.equal(safe.cause_chain[0].code, SLICE_REVIEW_POSTCHECK_FAILED_CODE);
+  const safeEvidence = readOperatorOnlyEvidence(safe.retained_evidence);
+  assert.equal(safeEvidence.thrown.value.message, safeError.message);
+  assert.equal(safeEvidence.thrown.value.properties.code, SLICE_REVIEW_POSTCHECK_FAILED_CODE);
+  assert.equal(safeEvidence.thrown.value.properties.detail.field, "baseTree");
 
   const long = postcheckError({ field: "gitDir" });
   long.message = "x".repeat(5000);

@@ -63,9 +63,16 @@ test("anonymous observation preserves handler identity and truthful timing", asy
   });
   assert.equal(await wrapped(args, extra), result);
   assert.equal(calls, 1);
-  assert.deepEqual(events, ["clock", "handler", "clock", "enqueue"]);
-  assert.equal(writer.records.length, 1);
-  const [metric] = writer.records;
+
+  assert.deepEqual(events, ["clock", "handler", "clock", "enqueue", "enqueue"]);
+  assert.equal(writer.records.length, 2);
+  const [metric, trajectory] = writer.records;
+  assert.equal(validateAnonymousMetricRecord(trajectory), true);
+  assert.equal(trajectory.kind, "trajectory");
+  assert.equal(trajectory.tool, "workspace_read_page");
+
+  assert.equal(trajectory.correlation, "none");
+  assert.equal(trajectory.trajectory, "unobserved");
   assert.equal(validateAnonymousMetricRecord(metric), true);
   assert.equal(metric.tool, "workspace_read_page");
   assert.equal(metric.elapsed_us, 1000);

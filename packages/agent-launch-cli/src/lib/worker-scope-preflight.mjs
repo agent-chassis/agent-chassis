@@ -31,7 +31,7 @@ export const WORKER_SCOPE_LAUNCH_PENDING = Object.freeze([
   "wk_allocation_and_record_snapshot",
   "scope_revalidation_at_provisioned_base",
   "assigned_source_readability",
-  "writable_directory_preparation",
+  "structural_parent_preparation",
   "namespace_projection",
   "runtime_and_sandbox_availability"
 ]);
@@ -52,10 +52,15 @@ function report(status, fields = {}) {
   });
 }
 
-function notEvaluated(reason, message = null) {
+function notEvaluated(reason, message = null, detail = null) {
   return report(WORKER_SCOPE_PREFLIGHT_STATUS.NOT_EVALUATED, {
-    reason: Object.freeze({ code: reason, message })
+    reason: Object.freeze({ code: reason, message, ...(detail === null ? {} : { detail }) })
   });
+}
+
+function prospectiveFailureDetail(failure) {
+  const { ok: _ok, reason: _reason, ...facts } = failure;
+  return Object.keys(facts).length === 0 ? null : Object.freeze(facts);
 }
 
 export const BASE_SELECTION_MISSING_REASON = "scope_existence_base_selection_missing";
@@ -92,10 +97,21 @@ export function preflightWorkerScope({ dir, unitAddress, deps = {} } = {}) {
   } catch (error) {
     return notEvaluated("scope_existence_base_unresolved", error?.message ?? String(error));
   }
+  const evaluate = (resolved) => evaluateAtProspectiveBase({
+    prospective: resolved, mainRepo, unitAddress, record, slice, recordId: match[1], deps
+  });
+
+  return typeof prospective?.then === "function"
+    ? prospective.then(evaluate, (error) =>
+      notEvaluated("scope_existence_base_unresolved", error?.message ?? String(error)))
+    : evaluate(prospective);
+}
+
+function evaluateAtProspectiveBase({ prospective, mainRepo, unitAddress, record, slice, recordId, deps }) {
   if (prospective.ok !== true) {
     return notEvaluated(prospective.reason, prospective.reason === BASE_SELECTION_MISSING_REASON
-      ? baseSelectionMissingPreflightMessage(match[1])
-      : null);
+      ? baseSelectionMissingPreflightMessage(recordId)
+      : null, prospectiveFailureDetail(prospective));
   }
   const base = Object.freeze({
     ref: prospective.scope_existence_base.base_ref,

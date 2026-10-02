@@ -477,8 +477,7 @@ test("registered selected-slice read returns the complete bounded field allowlis
       assert.equal(page.member.total_count, selectedSliceKeys.length);
       assert.deepEqual(page.member.members.map((row) => row.key),
         selectedSliceKeys.slice(0, page.member.returned_count));
-      assert.deepEqual(page.member.members.map(({ next_call: _call, ...row }) => row),
-        memberPages[0].member.members.map(({ next_call: _call, ...row }) => row));
+      assert.deepEqual(page.member.members, memberPages[0].member.members);
       const pageText = JSON.stringify(page);
       for (const forbidden of [PARENT_SENTINEL, SIBLING_SENTINEL, RAW_SENTINEL, SIDECAR_SENTINEL,
         DIAGNOSTIC_SENTINEL, CONTINUATION_SENTINEL, UNKNOWN_ANNOTATION_SENTINEL]) {

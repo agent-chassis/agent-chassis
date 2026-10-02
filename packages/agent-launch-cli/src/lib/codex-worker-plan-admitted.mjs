@@ -3,15 +3,19 @@ import path from "node:path";
 import {
   collectSliceDeclaredWritableFiles,
   isolationWritableDirectoriesForLaunch,
-  planResolvedWritableDirectories,
   planWorkerWriteScopeNewDirectories,
   projectPermissionWritesForResolvedScope,
   projectPermissionWritesForWorkerLaunch
 } from "./codex-worker-write-scope-plan.mjs";
 import { deriveWritableMountsFromResolvedScope } from "./workspace-agent-write-scope.mjs";
+import { projectWorkerScopePreparation } from "./worker-scope-preparation.mjs";
 import { composeWorkerTestRuntime } from "./test-execution/worker-runtime.mjs";
 
-import { resolveDispatchedRoleModel } from "./agent-launch-profiles.mjs";
+import {
+  resolveCarriedModelSelection,
+  resolveDispatchedRoleModel
+} from "./agent-launch-profiles.mjs";
+import { readAgentLaunchConfigSnapshot } from "./agent-launch-role-config.mjs";
 import {
   buildModelUnsetRefusal
 } from "./codex-worker-plan-refusals.mjs";
@@ -48,7 +52,7 @@ export async function buildAdmittedCodexWorkerPlan({
     ? projectPermissionWritesForResolvedScope(resolvedScope)
     : await projectPermissionWritesForWorkerLaunch(repo, writeScope);
   const preparedNewWriteRoots = resolvedScope
-    ? await planResolvedWritableDirectories(repo, resolvedScope)
+    ? projectWorkerScopePreparation(frozenWorkerScopeAuthority)
     : await planWorkerWriteScopeNewDirectories(repo, writeScope);
   const selectedSliceForWritables = sliceId && Array.isArray(loaded.record.slices)
     ? loaded.record.slices.find((slice) => slice && slice.id === sliceId) || null
@@ -65,16 +69,27 @@ export async function buildAdmittedCodexWorkerPlan({
     writableProjectRoots: projectPermissionWrites
   });
 
-  const roleModel = resolveDispatchedRoleModel({ role, resolvedProfile, dir: repo });
-  if (!roleModel.ok) {
+  const carriedSelection = resolvedProfile?.model_selection ?? null;
+  const snapshot = carriedSelection === null ? readAgentLaunchConfigSnapshot({ dir: repo }) : null;
+  const roleModel = resolveDispatchedRoleModel({ role, resolvedProfile, dir: repo, snapshot });
+  const modelSelection = roleModel.ok
+    ? resolveCarriedModelSelection({
+        role,
+        model: roleModel.model,
+        modelSource: roleModel.model_source,
+        carried: carriedSelection,
+        readConfigSnapshot: () => snapshot
+      })
+    : roleModel;
+  if (!modelSelection.ok) {
     return buildModelUnsetRefusal({
       role,
       env,
       repo,
       recordId,
       unitAddress,
-      reason: roleModel.reason,
-      detail: roleModel.detail
+      reason: modelSelection.reason,
+      detail: modelSelection.detail
     });
   }
   const model = roleModel.model;
@@ -113,6 +128,7 @@ export async function buildAdmittedCodexWorkerPlan({
     logPrefix: config.logPrefix,
     verbose: env[config.verboseEnv] === "1",
     model,
+    modelSelection: modelSelection.value,
     argsPrefix: baseArgs,
     prompt,
     terminalStructuredRoleResultMode,

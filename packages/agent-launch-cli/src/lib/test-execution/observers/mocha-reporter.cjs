@@ -1,6 +1,6 @@
 "use strict";
 
-const { createChannel, errorFacts, installReachSink, loadConfig, repositoryPath, sameTitles } =
+const { createChannel, failureDiagnostic, installReachSink, loadConfig, repositoryPath, sameTitles } =
   require("./native-channel.cjs");
 
 const Mocha = require(require.resolve("mocha", { paths: [process.cwd()] }));
@@ -68,31 +68,35 @@ function observeBody(test) {
 
 class LauncherTestProofReporter extends Mocha.reporters.Spec {
   constructor(runner, options) {
+
+    let selected = null;
+    const record = (test, outcome, error = null, hook = null) => {
+      if (!isSelected(test) || selected?.outcome === "failed") return;
+      selected = { titles: test.titlePath(), outcome, assertion: outcome === "failed" && isAssertion(error),
+        diagnostic: outcome === "failed" ? failureDiagnostic(error,
+          hook === null ? {} : { origin: { kind: "hook", name: hook } }) : null };
+    };
+    runner.on(constants.EVENT_TEST_FAIL, (test, error) => {
+      if (test.type === "test") record(test, "failed", error);
+
+      else if (selectedStarted && test.ctx?.currentTest) {
+        const title = test.originalTitle ?? test.title;
+        record(test.ctx.currentTest, "failed", error, typeof title === "string" ? title : null);
+      }
+    });
     super(runner, options);
     channel.emit("session_start", { runner: { name: "mocha", version: Mocha.prototype.version ?? null } });
     runner.once(constants.EVENT_RUN_BEGIN, () => prune(runner.suite));
     runner.on(constants.EVENT_TEST_BEGIN, (test) => {
       if (isSelected(test)) observeBody(test);
     });
-
-    let selected = null;
-    const record = (test, outcome, error = null) => {
-      if (!isSelected(test) || selected?.outcome === "failed") return;
-      selected = { titles: test.titlePath(), outcome, error };
-    };
     runner.on(constants.EVENT_TEST_PASS, (test) => record(test, "passed"));
-    runner.on(constants.EVENT_TEST_FAIL, (test, error) => {
-      if (test.type === "test") record(test, "failed", error);
-
-      else if (selectedStarted && test.ctx?.currentTest) record(test.ctx.currentTest, "failed", error);
-    });
     runner.on(constants.EVENT_TEST_PENDING, (test) => record(test, "skipped"));
     runner.once(constants.EVENT_RUN_END, () => {
       if (selected !== null) {
-        const { titles, outcome, error } = selected;
-        channel.emit("test_result", { file, test: titles, outcome,
-          assertion_failure: outcome === "failed" && isAssertion(error),
-          error: outcome === "failed" ? errorFacts(error, isAssertion(error)) : null });
+        const { titles, outcome, assertion, diagnostic } = selected;
+        channel.emit("test_result", { file, test: titles, outcome, assertion_failure: assertion,
+          ...(outcome === "failed" ? { failure_diagnostic: diagnostic } : {}) });
       }
       channel.emit("session_end");
     });

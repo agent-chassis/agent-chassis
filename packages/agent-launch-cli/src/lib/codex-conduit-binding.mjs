@@ -19,7 +19,6 @@ import {
   projectStdioMcpChannelClientRegistration
 } from "./stdio-mcp-conduit-contract.mjs";
 import {
-  mintTrustedManagedFindingsFrozenReviewBinding,
   mintTrustedStdioMcpConduitAuthority,
   resolveLauncherAgentSessionContract,
   resolveLauncherAgentSessionContractFacts
@@ -43,8 +42,9 @@ export function buildCodexStdioMcpRegistrationOverrides(binding) {
   const relay = projectStdioMcpChannelClientRegistration(binding);
   const command = JSON.stringify(relay.command);
   const args = [...relay.args].map((value) => JSON.stringify(value)).join(",");
+
   return Object.freeze([
-    `mcp_servers={wiki={enabled=true,command=${command},args=[${args}],startup_timeout_sec=${STDIO_MCP_CLIENT_READINESS_TIMEOUT_SEC}}}`
+    `mcp_servers={wiki={enabled=true,required=true,command=${command},args=[${args}],startup_timeout_sec=${STDIO_MCP_CLIENT_READINESS_TIMEOUT_SEC}}}`
   ]);
 }
 
@@ -172,11 +172,8 @@ export function resolveCodexConduitInput({
   worktreeProvisioning = null,
   commitTuple = null,
   completionCredential = null,
-  managedFindings = false,
-  findingsLifecycleContext = null,
-  reviewerLaunchRef = null,
-  reviewerRunId = null,
-  reviewerRetryId = 0,
+  workerAssignment = null,
+  advisoryReviewInput = null,
   launcherEnv = process.env,
   responseStateDir = null,
   requested = null
@@ -189,20 +186,6 @@ export function resolveCodexConduitInput({
     refuse("a Codex conduit binding requires an absolute launcher-resolved workspace");
   }
   const provisioning = worktreeProvisioning ?? null;
-  let reviewerBinding = null;
-  if (managedFindings === true) {
-    reviewerBinding = mintTrustedManagedFindingsFrozenReviewBinding({
-      role: conduitRole,
-      assignedUnit,
-      findingsLifecycleContext,
-      launchRef: reviewerLaunchRef,
-      runId: reviewerRunId,
-      retryId: reviewerRetryId
-    });
-  } else if (findingsLifecycleContext !== null) {
-    refuse("unmanaged Codex launch cannot consume a findings lifecycle context");
-  }
-  const effectiveCommitTuple = reviewerBinding?.commitTuple ?? commitTuple;
 
   const authority = mintTrustedStdioMcpConduitAuthority({
     family: "codex",
@@ -211,8 +194,11 @@ export function resolveCodexConduitInput({
     workspaceDir,
     workerScopeAuthority: conduitRole === "worker" ? workerScopeAuthority : null,
     provisioning,
-    commitTuple: effectiveCommitTuple,
-    frozenReviewContractBinding: reviewerBinding?.binding ?? null
+    commitTuple,
+
+    workerAssignment,
+
+    advisoryReviewInput
   });
 
   const authenticatedCompletionCredential =
@@ -251,8 +237,8 @@ export function resolveCodexConduitInput({
   if (serverEnvironment.responseStateDir !== null) {
     conduitInput.responseStateDir = serverEnvironment.responseStateDir;
   }
-  if (effectiveCommitTuple !== null && effectiveCommitTuple !== undefined) {
-    conduitInput.commitTuple = effectiveCommitTuple;
+  if (commitTuple !== null && commitTuple !== undefined) {
+    conduitInput.commitTuple = commitTuple;
   }
   return conduitInput;
 }

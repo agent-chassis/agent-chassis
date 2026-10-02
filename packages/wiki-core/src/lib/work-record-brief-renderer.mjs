@@ -231,6 +231,9 @@ export function createProjectionCompactionLists(record, kind, options = {}) {
     return {
       omittedFields: ["origin", "migration", "projections"],
       compactedFields: [
+        ...(typeof record.sections?.user_requirements === "string"
+          ? ["sections.user_requirements"]
+          : []),
         "sections.summary",
         "sections.why_it_matters",
         "sections.scope.items",
@@ -264,7 +267,9 @@ export function createProjectionCompactionLists(record, kind, options = {}) {
     "completed",
     "superseded_by",
     "duplicate_of",
-    "deprecated_by"
+    "deprecated_by",
+
+    "sections.user_requirements"
   ];
 
   if (sliceSelected) {
@@ -368,7 +373,7 @@ function renderPresentedScope(scopePresentation) {
   ];
 }
 
-function renderEntryMaterial(entryMaterial) {
+export function renderEntryMaterial(entryMaterial) {
   if (!entryMaterial || entryMaterial.reference_count === 0) return [];
   const lines = ["", renderSectionHeading("Assignment Material"), ""];
   for (const entry of entryMaterial.entries) {

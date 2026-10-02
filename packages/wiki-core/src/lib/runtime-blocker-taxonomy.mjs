@@ -597,6 +597,8 @@ export function isBlockingRuntimeBlocker(code) {
   return entry ? Boolean(entry.blocking) : false;
 }
 
+export const GRAPH_IMPACT_WITHOUT_EVIDENCE_OUTCOME = "proceed_without_graph_evidence";
+
 export function evaluateGraphImpactBlocker(input = {}) {
   const evidence = {
     graph_state: input.graph_state ?? null,
@@ -608,8 +610,10 @@ export function evaluateGraphImpactBlocker(input = {}) {
   for (const rule of rules) {
     if (matchesGraphImpactRule(rule.when ?? {}, evidence)) {
       const result = buildBlockerResult(rule.code, evidence);
+
       return Object.freeze({
         ...result,
+        ...(typeof rule.blocking === "boolean" ? { blocking: rule.blocking } : {}),
         outcome: rule.outcome ?? null
       });
     }

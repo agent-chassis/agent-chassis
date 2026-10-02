@@ -585,12 +585,13 @@ export async function setWorkRecordTaskByUnit({
   }
 
   const replacementText = typeof value === "string" ? value.trim() : "";
-  if (normalizedAction === "replace_text" && !replacementText) {
+  if (normalizedAction === "replace_text" &&
+      (typeof value !== "string" || (!replacementText && value !== ""))) {
     return createEditRefusalResult({
       loaded,
       unit: requestedUnit.unit,
       code: "invalid_task_value",
-      message: "replace_text requires one non-empty replacement text value",
+      message: "replace_text requires one replacement text value: nonempty text, or an explicit empty string",
       fieldPath: "value"
     });
   }

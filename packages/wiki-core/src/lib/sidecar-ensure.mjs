@@ -6,6 +6,7 @@ import {
   updateSidecarIndex
 } from "./sidecar-build.mjs";
 import { classifySidecarPreparation } from "./sidecar-incremental.mjs";
+import { sidecarProviderInputsChangedAtCommit } from "./sidecar-scip-projects.mjs";
 import {
   resolveCommittedHead,
   resolveSidecarRepositoryIdentity
@@ -140,7 +141,8 @@ async function reusablePublication(repoRoot, paths, head) {
   const observed = readSidecarStoreStatus({ repoRoot, cacheDir: paths.cache_dir });
   if (observed.state !== "available" || observed.publication?.repository_commit !== head) return null;
   const decision = await classifySidecarPreparation({
-    publication: observed.publication, requestedCommit: head
+    publication: observed.publication, requestedCommit: head,
+    providerInputsChanged: async () => sidecarProviderInputsChangedAtCommit(observed.publication, process.env)
   });
   return decision.action === "reuse" ? { action: "reused", publication: observed.publication } : null;
 }

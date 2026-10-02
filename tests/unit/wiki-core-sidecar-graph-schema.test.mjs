@@ -319,7 +319,7 @@ test("sidecar parity helpers compare CLI JSON with MCP structured content", () =
     {
       status: "WK-0035",
       build: "WK-0042",
-      impact_paths: "WK-0041",
+      impact: "WK-2535",
       context_for_path: "WK-0041"
     }
   );

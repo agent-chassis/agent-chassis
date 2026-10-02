@@ -121,7 +121,7 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
       'refused, and nothing is saved.',
     additional_verification: 'A genuinely distinct test of the same requirement needs its own verification. ' +
       'Resubmit that requirement in contract_requirements.requirements with unchanged nature, modality, subject ' +
-      'and behavior (query contract_inputs.requirements[].meaning, whose select referents are accepted as ' +
+      'and behavior (query requirements[].meaning, whose select referents are accepted as ' +
       'input), a verification that differs in verifier, observes or fails_when, and no replace_claim_id. The ' +
       'requirement keeps its claim_id; the existing verification, its case and its links are unchanged; ' +
       'requirement_bindings[].verification_claim_id returns the added verification. Link that identity beside ' +
@@ -141,6 +141,13 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
       '{type_term, identity} whose identity is saved under another type_term is refused ' +
       '(duplicate_reference_identity) with the saved and requested reference. Decide the single type of that ' +
       'referent where it is authored; do not rename it through another identity kind or term to pass.',
+
+    module_source: 'A module test binding derives its runtime module path only from the resolved component ' +
+      "identity: a by-value {kind: 'repository_path', repository, path}, or a {reference_id} whose saved " +
+      'reference has that identity, supplies path when it names a module source the schema accepts. A ' +
+      'profile_term or other descriptive identity names meaning, not a source location, and supplies no ' +
+      'module path even when its term mentions a file. Author the actual repository and path; the module ' +
+      'path itself is derived and never authored.',
     identities: 'Query contract_inputs.references lists each saved reference_id, type_term and identity.'
   },
 

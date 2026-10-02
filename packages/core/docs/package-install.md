@@ -46,7 +46,8 @@ The initiative DeepSWE prepared image meets this with a harness-owned Git, which
 separate from the task's own Git. It is built from one checksum-pinned upstream
 release (currently 2.55.0, newer than the supported minimum) into
 `/opt/agent-chassis/git`, and the harness launch scripts put it on the launcher's
-`PATH`. See the [initiative DeepSWE smoke](benchmark-runs/initiative/deepswe-smoke/README.md#retained-containers-and-git)
+`PATH`. See the repository-only initiative DeepSWE smoke record
+(`docs/benchmark-runs/initiative/deepswe-smoke/README.md`, "Retained containers and Git")
 for the checks and for recovering a container that predates it.
 
 ## Package Access

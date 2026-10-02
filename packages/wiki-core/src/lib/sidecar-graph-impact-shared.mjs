@@ -1,28 +1,16 @@
 import path from "node:path";
 
+import { isSidecarCodeLanguagePath, SIDECAR_CODE_EXTENSIONS } from "./sidecar-language-descriptions.mjs";
 import {
   SidecarPathValidationError,
   validateVirtualSidecarPath
 } from "./sidecar-paths.mjs";
 
-const GRAPH_TEXT_EXTENSIONS = new Set([
-  ".cjs",
-  ".cts",
-  ".js",
-  ".jsx",
-  ".json",
-  ".md",
-  ".mjs",
-  ".mts",
-  ".py",
-  ".ts",
-  ".tsx"
-]);
+const GRAPH_TEXT_EXTENSIONS = new Set([...SIDECAR_CODE_EXTENSIONS, ".json", ".md"]);
 
 const GRAPH_PARSED_PATH_PATTERNS = [
   /^docs\/.+\.md$/,
-  /^wiki\/(?:issues|initiatives)\/(?:WK|IN)-\d{4}\.md$/,
-  /\.(?:cjs|cts|js|jsx|mjs|mts|py|ts|tsx)$/
+  /^wiki\/(?:issues|initiatives)\/(?:WK|IN)-\d{4}\.md$/
 ];
 
 export const SIDECAR_GRAPH_IMPACT_DIFF_RAW_PATCH_LIMITS = Object.freeze({
@@ -134,7 +122,8 @@ export function isGraphTextSource(relativePath) {
 }
 
 export function isParsedGraphPath(relativePath) {
-  return GRAPH_PARSED_PATH_PATTERNS.some((pattern) => pattern.test(relativePath));
+  return isSidecarCodeLanguagePath(relativePath) ||
+    GRAPH_PARSED_PATH_PATTERNS.some((pattern) => pattern.test(relativePath));
 }
 
 export function isGraphOverlaySourcePath(relativePath) {

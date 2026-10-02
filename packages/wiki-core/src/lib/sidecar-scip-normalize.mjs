@@ -18,6 +18,14 @@ export const SCIP_INDEXER_SPECS = Object.freeze({
   "scip-python": Object.freeze({
     scheme: "scip-python",
     output: "python.scip"
+  }),
+  "scip-go": Object.freeze({
+    scheme: "scip-go",
+    output: "go.scip"
+  }),
+  "rust-analyzer": Object.freeze({
+    scheme: "rust-analyzer",
+    output: "rust.scip"
   })
 });
 

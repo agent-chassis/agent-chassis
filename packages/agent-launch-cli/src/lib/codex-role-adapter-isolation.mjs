@@ -229,7 +229,9 @@ export function buildCodexRoleBubblewrapPlan(plan, {
 
     installGitStatusWrapper: isCodexOrchestratorRole(plan.role),
     stdioMcpConduit,
-    envPolicy
+    envPolicy,
+
+    launchRole: plan.role
   });
 }
 

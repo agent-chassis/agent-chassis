@@ -154,6 +154,78 @@ test("withTestFixture returns the exact operation value and always cleans up", a
   await assertPathsAbsent([fixturePath]);
 });
 
+test("withTestFixture preserves operation and cleanup failures", async (t) => {
+
+  async function runFixture({ operationThrows, operationFailure, cleanupFailure }) {
+    const observed = { disposals: 0 };
+    try {
+      observed.value = await withTestFixture(async (fixture) => {
+        observed.fixture = fixture;
+        observed.rootPath = fixture.rootPath;
+        fixture.resources.add("probe", () => {
+          observed.disposals += 1;
+          if (cleanupFailure !== undefined) throw cleanupFailure;
+        });
+        if (operationThrows) throw operationFailure;
+        return "operation value";
+      });
+      observed.rejected = false;
+    } catch (error) {
+      observed.rejected = true;
+      observed.error = error;
+    }
+    assert.equal(observed.disposals, 1, "cleanup runs exactly once");
+    await assertPathsAbsent([observed.rootPath]);
+    return observed;
+  }
+
+  async function cleanupFailureOf(fixture) {
+    try {
+      await fixture.dispose();
+    } catch (error) {
+      return error;
+    }
+    assert.fail("fixture disposal was expected to fail");
+  }
+
+  await t.test("an operation-only failure is rethrown unchanged", async () => {
+    for (const operationFailure of [new Error("operation"), undefined, null, 0, "text"]) {
+      const observed = await runFixture({ operationThrows: true, operationFailure });
+      assert.equal(observed.rejected, true, `${String(operationFailure)} must reject`);
+      assert.equal(observed.error, operationFailure);
+    }
+  });
+
+  await t.test("a cleanup-only failure is rethrown unchanged after the root is removed", async () => {
+    const original = new Error("cleanup");
+    const observed = await runFixture({ operationThrows: false, cleanupFailure: original });
+    assert.equal(observed.rejected, true);
+    assert.equal(observed.error, await cleanupFailureOf(observed.fixture));
+    assert.equal(observed.error.errors[0].cause, original);
+  });
+
+  await t.test("simultaneous failures keep both originals, primary first and as cause", async () => {
+    for (const operationFailure of [new Error("operation"), undefined, null]) {
+      const original = new Error("cleanup");
+      const observed = await runFixture({ operationThrows: true, operationFailure, cleanupFailure: original });
+      assert.equal(observed.rejected, true);
+      assert.ok(observed.error instanceof AggregateError);
+      assert.equal(observed.error.errors.length, 2);
+      assert.equal(observed.error.errors[0], operationFailure);
+      assert.equal(observed.error.errors[1], await cleanupFailureOf(observed.fixture));
+      assert.equal(observed.error.errors[1].errors[0].cause, original);
+      assert.ok(Object.hasOwn(observed.error, "cause"));
+      assert.equal(observed.error.cause, operationFailure);
+    }
+  });
+
+  await t.test("success still resolves the exact value after cleanup", async () => {
+    const observed = await runFixture({ operationThrows: false });
+    assert.equal(observed.rejected, false);
+    assert.equal(observed.value, "operation value");
+  });
+});
+
 test("bounded waits probe immediately, never overlap, and return the exact accepted value", async () => {
   let active = 0;
   let maximumActive = 0;

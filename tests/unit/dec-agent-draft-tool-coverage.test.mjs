@@ -248,7 +248,6 @@ test("session-role-tool-access grants reject to orchestrator; ratify/unratify ar
     [
       "workspace_decision_amend_scalar",
       "workspace_decision_amend_section",
-      "workspace_decision_create",
       "workspace_decision_reject"
     ],
     "the MCP decision surface is exactly the proposed lane"
@@ -278,7 +277,6 @@ test("registerKindRecordWriteTools registers the proposed lane without ratify/un
     [
       "workspace_decision_amend_scalar",
       "workspace_decision_amend_section",
-      "workspace_decision_create",
       "workspace_decision_reject"
     ]
   );

@@ -10,7 +10,6 @@ import {
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-behavioral-preservation-evidence.mjs";
 import {
   buildTestProofRuntimeEvidence,
-  digestTestProofEvidence,
   projectBoundaryTraversal,
   projectFalsifierExecution,
   projectTestProofInventory,
@@ -20,6 +19,14 @@ import {
   mintLauncherTestProofAttemptContext,
   mintManagedWorkerTestProofRuntimeAuthority
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs";
+import { observeLauncherNodeTestRun } from
+  "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-node-observation.mjs";
+import {
+  TEST_PROOF_MODULE_FAULT_SCHEMA_VERSION,
+  describeTestProofModuleFaultAttempt
+} from "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-contract.mjs";
+import launcherTestProofReporter from
+  "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-node-reporter.mjs";
 import { mintManagedWorkerTestRunAuthority } from
   "../../packages/agent-launch-cli/src/lib/managed-worker-test-run-authority.mjs";
 import { TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST } from
@@ -27,6 +34,9 @@ import { TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST } from
 import { TEST_PROOF_PROVIDER_CATALOG } from
   "../../packages/controlled-contract/lib/test-proof-provider-registry.mjs";
 
+const SELECTED_TEST_NAME = "pair target";
+const DEPENDENCY_PATH = "pair-dependency.mjs";
+const FAULT_REASON_CODE = "test_proof_fault.dependency_failure.v1";
 const digestBytes = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
 const currentProvider = (providerId, capability) => {
@@ -132,51 +142,104 @@ export async function mintBehavioralPreservationSide(root, {
       bindings: [binding]
     }
   });
-  return { context, attempt: buildAttempt(context, testId, target, verificationId) };
+  return { context, attempt: await buildAttempt(context, worktree, testId, target, verificationId) };
 }
 
-function buildAttempt(context, testId, target, verificationId, identityPatch = {}) {
+const selectedFile = (target) => path.join(process.cwd(), target);
+const selectedOutcome = (target, passed) => ({
+  type: passed ? "test:pass" : "test:fail",
+  data: { file: selectedFile(target), name: SELECTED_TEST_NAME, nesting: 0,
+    details: { type: "test", ...(passed ? {} : { error: { code: "ERR_ASSERTION" } }) } }
+});
+const coverage = (rows) => ({ type: "test:coverage", data: { summary: {
+  workingDirectory: process.cwd(), files: rows.map(([modulePath, functions]) => ({
+    path: path.join(process.cwd(), modulePath), coveredLineCount: 1, functions })) } } });
 
-  const structuredResult = { mechanism: "node_test_structured_events", exit_code: 0,
-    summary: { passed: 1, failed: 0, skipped: 0, cancelled: 0, todo: 0, tests: 1 },
-    pass_events: [{ type: "test:pass", name: "pair target", test_id: testId,
-      file: target, nesting: 0, status: "passed" }], fail_events: [] };
-  const artifacts = [["boundary_trace", { fixture: "c" }], ["falsifier_result", { fixture: "d" }],
-    ["structured_test_result", structuredResult]].map(([kind, payload]) => ({
-    artifact_id: `artifact-${digestTestProofEvidence(payload).slice(7)}`,
-    kind, digest: digestTestProofEvidence(payload), owner: "launcher",
-    payload: structuredClone(payload)
-  }));
+async function observeRun(expectation, events) {
+  const tests = events.filter(({ type }) => type === "test:pass" || type === "test:fail");
+  const failed = tests.filter(({ type }) => type === "test:fail").length;
+  async function* source() {
+    yield* events;
+    yield { type: "test:summary", data: { counts: { passed: tests.length - failed, failed,
+      skipped: 0, cancelled: 0, todo: 0, tests: tests.length } } };
+  }
+  let stdout = "";
+  for await (const chunk of launcherTestProofReporter(source())) stdout += chunk;
+  const observation = observeLauncherNodeTestRun({ stdout, exitCode: failed > 0 ? 1 : 0,
+    expectation });
+  if (observation.valid !== true) {
+    throw new Error(`launcher observation refused the fixture run: ${observation.code}`);
+  }
+  return observation;
+}
+
+async function observeSide(worktree, testId, target) {
+  const candidate = await observeRun({ capability: "candidate_execution", target,
+    target_test_id: testId }, [selectedOutcome(target, true)]);
+  const attempt = describeTestProofModuleFaultAttempt({
+    schema_version: TEST_PROOF_MODULE_FAULT_SCHEMA_VERSION, strategy: "dependency_failure",
+    mechanism: "module_substitution", mutation_id: "mutation-pair",
+    module_path: DEPENDENCY_PATH, failure_reason_code: FAULT_REASON_CODE,
+    attempt_nonce: "a".repeat(64)
+  }, worktree);
+  const falsifier = await observeRun({ capability: "falsifier_execution",
+    falsifier_id: "falsifier-pair", strategy: attempt.configuration.strategy,
+    configuration: structuredClone(attempt.configuration),
+    mutation_attestation_code: attempt.mutation_attestation_code,
+    fault_module_identity: attempt.fault_module_identity,
+    target, target_test_id: testId }, [selectedOutcome(target, false),
+    coverage([[DEPENDENCY_PATH, [{ name: "value", count: 0 }]],
+      [DEPENDENCY_PATH, Object.keys(attempt.witness_names).map((base) => ({
+        name: `${base}_${attempt.witness_identity}`,
+        count: base === "launcherObservedDependencyInvocation" ? 1 : 0 }))]])]);
+  const traversal = await observeRun({ capability: "boundary_traversal", target,
+    target_test_id: testId, module_path: DEPENDENCY_PATH,
+    observation_seam: "node_test_structured_assertion" }, [selectedOutcome(target, true),
+    coverage([[DEPENDENCY_PATH, [{ name: "value", count: 1 }]]])]);
+  return { candidate, falsifier, traversal };
+}
+
+async function buildAttempt(context, worktree, testId, target, verificationId,
+  identityPatch = {}) {
+  const { candidate, falsifier, traversal } = await observeSide(worktree, testId, target);
+  const ids = (artifacts) => artifacts.map(({ artifact_id: id }) => id);
+  const artifacts = [...new Map([...candidate.artifacts, ...falsifier.artifacts,
+    ...traversal.artifacts].map((artifact) => [artifact.artifact_id, artifact])).values()]
+    .map(({ artifact_id: artifactId, kind, digest, payload }) => ({ artifact_id: artifactId,
+      kind, digest, owner: "launcher", payload: structuredClone(payload) }));
   return buildTestProofRuntimeEvidence({
     evidenceIdentity: { ...context.evidence_identity, ...identityPatch },
     contractBinding: context.contract_binding,
-    executionResult: { status: "passed", exit_code: 0,
+    executionResult: { status: candidate.status, exit_code: 0,
       attempt_id: `attempt-${"a".repeat(64)}`,
-      structured_result: structuredClone(structuredResult),
-      evidence_artifact_ids: [artifacts[2].artifact_id],
+      structured_result: structuredClone(candidate.structured_result),
+      evidence_artifact_ids: ids(candidate.artifacts),
       provider: providerFacts("launcher.node-test", "candidate_execution",
         "node_test_structured_events", ["structured_test_result"]) },
     testInventory: projectTestProofInventory({
-      selectedTestId: testId, observedTestIds: [testId],
-      executedTestIds: [testId], skippedTestIds: [] }),
+      selectedTestId: testId, observedTestIds: candidate.test_inventory.observed_test_ids,
+      executedTestIds: candidate.test_inventory.executed_test_ids,
+      skippedTestIds: candidate.test_inventory.skipped_test_ids }),
     boundaryTraversals: [projectBoundaryTraversal({
       boundaryId: "sut-boundary-pair", observableId: "observable-test-result",
-      providerSupport: "supported", authenticated: true, observed: true,
+      providerSupport: "supported", authenticated: true,
+      observed: traversal.traversal_observed,
       boundaryKind: "module", observationMechanism: "node_test_v8_coverage",
       observationSeam: "node_test_structured_assertion",
-      artifactIds: [artifacts[0].artifact_id],
+      artifactIds: ids(traversal.artifacts),
       provider: providerFacts("launcher.node-test-v8-coverage", "boundary_traversal",
         "node_test_v8_coverage", ["boundary_trace", "structured_test_result"]) })],
     falsifierExecutions: [projectFalsifierExecution({
       falsifierId: "falsifier-pair", attemptId: `attempt-${"f".repeat(64)}`,
       targetVerificationId: verificationId,
-      expectedFailureReasonCode: "test_proof_fault.dependency_failure.v1",
-      isolated: true, candidateStatus: "passed", falsifiedStatus: "failed",
-      observedFailureReasonCode: "test_proof_fault.dependency_failure.v1",
+      expectedFailureReasonCode: FAULT_REASON_CODE,
+      isolated: true, candidateStatus: candidate.selected_status,
+      falsifiedStatus: falsifier.status,
+      observedFailureReasonCode: falsifier.failure_reason_code,
       mutation: { mutation_id: "mutation-pair", strategy: "dependency_failure",
         mechanism: "module_substitution", target_kind: "module",
-        module_path: "pair-dependency.mjs" },
-      mutationObserved: true, artifactIds: [artifacts[1].artifact_id],
+        module_path: DEPENDENCY_PATH },
+      mutationObserved: falsifier.mutation_observed, artifactIds: ids(falsifier.artifacts),
       provider: providerFacts("launcher.node-test-module-fault", "falsifier_execution",
         "node_test_structured_events", ["falsifier_result", "structured_test_result"]) })],
     artifacts

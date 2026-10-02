@@ -6,9 +6,17 @@ import {
   readWorkRecordById
 } from "@agent-chassis/wiki-core/src/operations/work-records-store-io.mjs";
 
-import { projectNextActionScalar } from "./mcp-response.mjs";
+import { describeRetentionFailure, projectNextActionScalar, retainOperatorOnlyEvidence }
+  from "./mcp-response.mjs";
+
 import {
-  projectDiagnostic
+  isLauncherTestFailureDiagnostic,
+  projectSelectedTestFailureDiagnostic
+} from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-test-proof-error-diagnostic.mjs";
+import {
+  isDiagnosticValue,
+  projectDiagnostic,
+  STRUCTURED_DIAGNOSTIC_SCHEMA_VERSION
 } from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
 
 import {
@@ -41,11 +49,14 @@ import {
 import {
   buildPublicMechanicalRefusal
 } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
+import { RECOVERY_RESPONSIBLE_ACTORS } from
+  "@agent-chassis/wiki-core/src/lib/refusal-recovery-contract.mjs";
 
 import { createReadySliceInputSchema } from "./work-record-write-tools.mjs";
 import { createProofAuthoringQueryInputSchema } from "./proof-authoring-input-schema.mjs";
 import { z as zodOwner } from "zod";
 import { getPublicFinalResultTextMember } from "./dispatch-final-result-projection.mjs";
+import { workspaceRepoResolutionRefusalOf } from "./workspace-repo-resolution.mjs";
 
 const registeredRequestSchemas = new Map();
 const ownerRequestSchemaScopesByRegistrar = new WeakMap();
@@ -323,6 +334,137 @@ export function registryRecoveryContinuation(code, observedFacts) {
 
 export const NO_SUPPORTED_ROUTE_RECOVERY = Object.freeze({ state: "no_supported_route" });
 
+export function ownedNoRouteRecovery({
+  responsibleActor,
+  prerequisite,
+  missingComponent = null,
+  operatorAction = null,
+  retryCondition = null,
+  explanation = null
+}) {
+  return Object.freeze({
+    state: "no_supported_route",
+    responsible_actor: responsibleActor ?? null,
+    prerequisite,
+    ...(missingComponent === null ? {} : { missing_component: missingComponent }),
+    ...(operatorAction === null ? {} : { operator_action: operatorAction }),
+    ...(retryCondition === null ? {} : { retry_condition: retryCondition }),
+    ...(explanation === null ? {} : { explanation })
+  });
+}
+
+export function producerEstablishedRecovery(detail, { unchanged, retryCondition, unestablished }) {
+  const actor = detail?.responsible_actor;
+  const operatorAction = typeof detail?.operator_action === "string" ? detail.operator_action : null;
+  const prerequisite = typeof detail?.prerequisite === "string" ? detail.prerequisite : null;
+  if (typeof actor === "string" && RECOVERY_RESPONSIBLE_ACTORS.includes(actor) &&
+      (prerequisite !== null || operatorAction !== null)) {
+    return ownedNoRouteRecovery({
+      responsibleActor: actor,
+      prerequisite: prerequisite ?? unchanged,
+      missingComponent: typeof detail.missing_component === "string" ? detail.missing_component : null,
+      operatorAction,
+      retryCondition
+    });
+  }
+  return ownedNoRouteRecovery({
+    responsibleActor: null,
+    prerequisite: unchanged,
+    explanation: unestablished
+  });
+}
+
+export const WORKSPACE_REPO_RESOLUTION_BLOCKER_CODE = "workspace_repo_resolution_invalid";
+
+function workspaceRepoResolutionRecovery(refusal) {
+  const configured = Array.isArray(refusal?.detail?.configured_workspace_repos)
+    ? refusal.detail.configured_workspace_repos : [];
+  const current = typeof refusal?.detail?.current_workspace_repo === "string"
+    ? refusal.detail.current_workspace_repo : null;
+  if (refusal?.category === "invalid_request" && refusal?.reason === "invalid_alias") {
+    return ownedNoRouteRecovery({
+      responsibleActor: "caller_retry",
+      prerequisite: `the repo argument satisfies the alias rule (${refusal.detail?.violated_rule}) ` +
+        "and names a configured workspace repository alias",
+      retryCondition: configured.length === 0
+        ? "no workspace repository is configured; the operator must configure one first"
+        : `re-issue the same call with repo set to one of the configured aliases: ${configured.join(", ")}` +
+          (current === null ? "" : `, or omit repo to use the attached repository ${current}`),
+      explanation: "the intended repository is the caller's choice, so the rejected alias is " +
+        "neither corrected nor substituted"
+    });
+  }
+  if (refusal?.category === "invalid_request" && refusal?.reason === "conflict") {
+    return ownedNoRouteRecovery({
+      responsibleActor: "operator",
+      prerequisite: "each configured workspace alias and directory is configured exactly once",
+      operatorAction: "correct the conflicting workspace repository configuration named in the diagnostics and restart the server",
+      explanation: "no request argument can resolve a conflicting server configuration"
+    });
+  }
+  if (configured.length === 0) {
+    return ownedNoRouteRecovery({
+      responsibleActor: "operator",
+      prerequisite: "the server has at least one configured workspace repository",
+      missingComponent: "workspace_repository_configuration",
+      operatorAction: "start the server with WIKI_MCP_WORKSPACE_DIR or WIKI_MCP_REPOS configured",
+      explanation: "no repo argument can select a repository while none is configured"
+    });
+  }
+  if (current !== null && !configured.includes(current)) {
+    return ownedNoRouteRecovery({
+      responsibleActor: "launcher",
+      prerequisite: `the launcher-minted current workspace alias ${current} is a configured workspace repository`,
+      explanation: "the server's own attached-session identity is inconsistent with its configuration"
+    });
+  }
+  return ownedNoRouteRecovery({
+    responsibleActor: "caller_retry",
+    prerequisite: "the repo argument exactly matches a configured workspace repository alias",
+    retryCondition: `re-issue the same call with repo set to one of the configured aliases: ${configured.join(", ")}`,
+    explanation: "the intended repository is the caller's choice, so no alias is substituted"
+  });
+}
+
+export function dispatchRepoResolutionRefusal(toolName, error) {
+  const envelope = workspaceRepoResolutionRefusalOf(error);
+  if (envelope === null) return null;
+  const refusal = envelope.refusal ?? {};
+  const configured = Array.isArray(refusal.detail?.configured_workspace_repos)
+    ? [...refusal.detail.configured_workspace_repos] : [];
+  const current = refusal.detail?.current_workspace_repo ?? null;
+  const facts = [
+    ["workspace_repo.resolved", false],
+    ["workspace_repo.refusal_reason", refusal.reason ?? null],
+    ["workspace_repo.configured_aliases", configured],
+    ["workspace_repo.current_alias", current],
+    ...(Object.hasOwn(refusal.detail ?? {}, "requested_alias")
+      ? [["workspace_repo.requested_alias", refusal.detail.requested_alias],
+          ["workspace_repo.violated_rule", refusal.detail.violated_rule ?? null]]
+      : [])
+  ];
+  return {
+    blockerCode: WORKSPACE_REPO_RESOLUTION_BLOCKER_CODE,
+    reason: WORKSPACE_REPO_RESOLUTION_BLOCKER_CODE,
+    detail: {
+      schema_version: DISPATCH_FAILURE_DETAIL_SCHEMA_VERSION,
+      tool: toolName,
+      error_name: error instanceof Error ? error.name : null,
+      error_message: typeof error?.message === "string" ? error.message : null,
+      workspace_repo_resolution: structuredClone(envelope)
+    },
+    refusal: buildDispatchMechanicalRefusal({
+      code: WORKSPACE_REPO_RESOLUTION_BLOCKER_CODE,
+      decidingFacts: facts.map(([field, value]) => ({ field, value })),
+      observedFacts: Object.fromEntries(facts),
+      noSupportedRoute: true,
+      recovery: workspaceRepoResolutionRecovery(refusal),
+      route: toolName,
+      carried: { workspace_repo_resolution: structuredClone(envelope) }
+    })
+  };
+}
+
 export function mapBackendRefusalToDispatchCode(code) {
   if (typeof code !== "string") {
     return "launcher_transition.backend_refusal_identity_missing.v1";
@@ -457,8 +599,10 @@ export function summarizeRunStatusFinalResult(finalResult) {
   return {
     kind: finalResult.kind ?? null,
     schema_version: finalResult.schema_version ?? null,
-    writeback_kind: finalResult.writeback?.kind ?? null,
-    missing_result_code: finalResult.missing_result?.code ?? null,
+
+    ...(finalResult.writeback?.kind == null ? {} : { writeback_kind: finalResult.writeback.kind }),
+    ...(finalResult.missing_result?.code == null ? {}
+      : { missing_result_code: finalResult.missing_result.code }),
     full_response_present: Boolean(text),
     full_response_chars: text ? text.length : 0,
     ...(structuredRoleResult?.summary_budget ? {
@@ -508,10 +652,8 @@ function summarizeAdvisoryReview(advisoryReview, finalResult) {
           member: retainedTextMember,
           complete_mode: { include_final_result: true }
         }
-      } : {}),
-      ...(output.available === true && output.source_reference?.ref ? {
-        reusable_source: output.source_reference
       } : {})
+
     },
     schema_observation: {
       adherent: schema.adherent === true,
@@ -751,23 +893,222 @@ export function projectSafePostcheckMismatchField(error) {
   return descriptor.value;
 }
 
-export function buildDispatchToolExceptionDetail(toolName, error) {
-  const diagnostic = projectDiagnostic(error, {
-    fieldPrefix: `${toolName}.thrown_diagnostic`
-  });
+const RAW_OUTPUT_FIELDS = new Set(["stdout", "stderr", "output", "captured_run", "stack",
+  "stdout_tail", "stderr_tail"]);
+const DISTILLED_CAUSE_DEPTH = 4;
+
+const VERBATIM_CARRIER_FIELDS = new Set(["exact_returned_policy"]);
+export const DISPATCH_FAILURE_DETAIL_SCHEMA_VERSION = "dispatch_failure_detail.v1";
+
+function safeRead(target, key) {
+  try { return target?.[key]; } catch { return undefined; }
+}
+
+const isScalar = (value) => value === null || ["string", "number", "boolean"].includes(typeof value);
+const CAUSE_LEVEL_EXCLUDED = new Set([...RAW_OUTPUT_FIELDS, "cause"]);
+
+function causeLevel(name, message, facts) {
+  const level = {};
+  if (typeof name === "string") level.name = name;
+  if (typeof message === "string") level.message = message;
+  for (const [key, value] of Object.entries(facts)) {
+    if (!CAUSE_LEVEL_EXCLUDED.has(key) && !Object.hasOwn(level, key) && isScalar(value)) level[key] = value;
+  }
+  return level;
+}
+
+function ownScalarFacts(value) {
+  const facts = {};
+  let keys = [];
+  try { keys = Object.keys(value); } catch { return facts; }
+  for (const key of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor !== undefined && "value" in descriptor) facts[key] = descriptor.value;
+  }
+  const code = safeRead(value, "code");
+  if (typeof code === "string") facts.code = code;
+  return facts;
+}
+
+function isStructuredDiagnosticCarrier(value) {
+  return value !== null && typeof value === "object" &&
+    safeRead(value, "schema_version") === STRUCTURED_DIAGNOSTIC_SCHEMA_VERSION && isDiagnosticValue(value);
+}
+
+function structuredDiagnosticValue(carrier) {
+  const original = carrier.value;
+  return original !== null && typeof original === "object"
+    ? distillValue(original, ["value"], []) : original;
+}
+
+function distillThrownCauses(error) {
+  const chain = [];
+  const seen = new Set();
+  let current = error;
+  while (current !== null && current !== undefined && chain.length < DISTILLED_CAUSE_DEPTH &&
+      !seen.has(current)) {
+    if (typeof current !== "object" && typeof current !== "function") {
+      chain.push({ value: String(current) });
+      break;
+    }
+    seen.add(current);
+
+    if (isStructuredDiagnosticCarrier(current)) {
+      chain.push({ message: structuredDiagnosticValue(current) });
+      break;
+    }
+    const name = current instanceof Error ? safeRead(current, "name") : undefined;
+    chain.push(causeLevel(name, safeRead(current, "message"), ownScalarFacts(current)));
+    current = safeRead(current, "cause");
+  }
+  return chain;
+}
+
+export function distillCapturedCauses(evidence, { nested = false } = {}) {
+  const chain = [];
+  let current = evidence?.value;
+  while (chain.length < DISTILLED_CAUSE_DEPTH) {
+    if (current === null || typeof current !== "object") {
+      if (chain.length > 0 || current !== undefined) chain.push({ value: current ?? null });
+      break;
+    }
+    const facts = current.properties !== null && typeof current.properties === "object"
+      ? current.properties : current;
+    const level = causeLevel(current.name, current.message, facts);
+    if (nested) {
+      for (const [key, value] of Object.entries(facts)) {
+        if (!CAUSE_LEVEL_EXCLUDED.has(key) && !Object.hasOwn(level, key) && !isScalar(value)) {
+          level[key] = distillValue(value, [key], [], new Set(), true);
+        }
+      }
+    }
+    chain.push(level);
+    if (!Object.hasOwn(current, "cause")) break;
+    current = current.cause;
+  }
+  return chain;
+}
+
+function isCapturedEvidence(value) {
+  return value !== null && typeof value === "object" &&
+    value.schema_version === "agent_launch.diagnostic_evidence.v1";
+}
+
+function distillValue(value, pathParts, withheld, seen = new Set(), nested = false) {
+  if (value === null || typeof value !== "object") return value;
+
+  if (isLauncherTestFailureDiagnostic(value)) return projectSelectedTestFailureDiagnostic(value);
+  if (isCapturedEvidence(value)) {
+    withheld.push(pathParts.join("."));
+    return { cause_chain: distillCapturedCauses(value, { nested }) };
+  }
+  if (seen.has(value)) return { $ref: pathParts.join(".") };
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => distillValue(entry, [...pathParts, index], withheld, seen, nested));
+  }
+  const out = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (VERBATIM_CARRIER_FIELDS.has(key)) {
+      out[key] = structuredClone(entry);
+      continue;
+    }
+    if (RAW_OUTPUT_FIELDS.has(key)) {
+      withheld.push([...pathParts, key].join("."));
+      continue;
+    }
+    out[key] = distillValue(entry, [...pathParts, key], withheld, seen, nested);
+  }
+  return out;
+}
+
+export const DISPATCH_FAILURE_ORIGINALS = Object.freeze({
+  ATTEMPT_JOURNAL: Object.freeze({ retained: true, owner: "managed_worker_attempt_journal" }),
+  LIFECYCLE_FAILURE_RECORD: Object.freeze({ retained: true,
+    owner: "post_worker_lifecycle_failure_record" }),
+  LIFECYCLE_CHECKPOINT: Object.freeze({ retained: true, owner: "post_worker_lifecycle_checkpoint" }),
+  RUN_FINAL_RESULT: Object.freeze({ retained: true, owner: "dispatch_run_final_result" }),
+
+  RUN_STATUS_RETAINED_SOURCE: Object.freeze({ retained: true,
+    owner: "workspace_agent_run_status_retained_source" }),
+  READ_OBSERVATION: Object.freeze({ retained: false, reason: "observed_by_read",
+    meaning: "a read writes nothing; repeating it observes the same failure again" })
+});
+
+function retainedEvidenceFacts(value, withheld, env, original = null) {
+  if (withheld.length === 0) return {};
+  if (original !== null) {
+    return { retained_evidence: { ...original, audience: "operator", fields: withheld } };
+  }
+  try {
+    const retained = retainOperatorOnlyEvidence(value, { env });
+    return { retained_evidence: { retained: true, audience: "operator", ref_id: retained.ref_id,
+      sha256: retained.sha256, byte_count: retained.byte_count, fields: withheld } };
+  } catch (error) {
+
+    return { retained_evidence: {
+      ...describeRetentionFailure(error, {
+        operation: "retain_operator_only_evidence", subject: { fields: withheld } }),
+      fields: withheld
+    } };
+  }
+}
+
+export function distillDispatchFailureDetail(detail, { at = "detail", nested = false } = {}) {
+  if (detail === null || detail === undefined || typeof detail !== "object") {
+    return { detail: detail ?? null, withheld: [] };
+  }
+  const withheld = [];
+  return { detail: distillValue(detail, [at], withheld, new Set(), nested), withheld };
+}
+
+export function projectRecordedFailureDetail(detail, { original, at = "detail", nested = false }) {
+  const { detail: distilled, withheld } = distillDispatchFailureDetail(detail, { at, nested });
+  if (distilled === null || typeof distilled !== "object") return distilled;
+  return { ...distilled, ...retainedEvidenceFacts(detail, withheld, null, original) };
+}
+
+export function retainWithheldOriginal(original, fields, { env = process.env } = {}) {
+  return retainedEvidenceFacts(original, fields, env);
+}
+
+export function projectDispatchFailureDetail(detail, { env = process.env, nested = false } = {}) {
+  const { detail: distilled, withheld } = distillDispatchFailureDetail(detail, { nested });
+  if (distilled === null || typeof distilled !== "object") return distilled;
+  return { ...distilled, ...retainedEvidenceFacts(detail, withheld, env) };
+}
+
+export function buildDispatchToolExceptionDetail(toolName, error, { env = process.env,
+  original = null } = {}) {
 
   const mismatchField = projectSafePostcheckMismatchField(error);
 
   const causeIdentity = isPreservableSemanticIdentity(error?.code) ? error.code : null;
+  const declared = safeRead(error, "envelope");
+  const evidence = captureDispatchToolExceptionEvidence(toolName, error);
+
+  const diagnostic = isStructuredDiagnosticCarrier(error)
+    ? { value: structuredDiagnosticValue(error), redactions: [] }
+    : projectDiagnostic(error);
+  const project = (value) => (original === null
+    ? projectDispatchFailureDetail(value, { env })
+    : projectRecordedFailureDetail(value, { original }));
   return {
+    schema_version: DISPATCH_FAILURE_DETAIL_SCHEMA_VERSION,
     tool: toolName,
     error_name: error instanceof Error ? error.name : null,
     error_message: diagnostic.value,
     error_message_redactions: diagnostic.redactions,
     ...(causeIdentity === null ? {} : { cause_code: causeIdentity }),
     ...(mismatchField === null ? {} : { postcheck_mismatch_field: mismatchField }),
+    cause_chain: distillThrownCauses(error),
 
-    evidence: captureDispatchToolExceptionEvidence(toolName, error)
+    ...(safeRead(error, "details") !== null && typeof safeRead(error, "details") === "object"
+      ? { details: project(error.details) } : {}),
+    ...(declared !== null && typeof declared === "object" && typeof declared.code === "string"
+      ? { declared_envelope: project(declared) } : {}),
+
+    ...retainedEvidenceFacts(evidence, ["thrown"], env, original)
   };
 }
 

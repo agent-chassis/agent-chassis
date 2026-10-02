@@ -53,6 +53,7 @@ import {
   probeRuntimeSymlink
 } from "./workspace-agent-family-adapter-core.mjs";
 import { buildFamilyExecutorBwrapPlan } from "./workspace-agent-family-bwrap-plan.mjs";
+import { resolveLaunchRoleGuideDirectory } from "./launch-isolation-plan.mjs";
 import { assertGitMetadataProjectionComposed } from "./launch-isolation-findings-git-metadata.mjs";
 import { resolveAdvisoryReviewGitMetadataProjection } from
   "./workspace-agent-advisory-review-contract.mjs";
@@ -136,6 +137,10 @@ export function deriveClaudeEditAllowPatterns({ workspaceDir, writeScope } = {})
   return patterns;
 }
 
+function claudeAbsoluteReadPattern(dir) {
+  return `Read(//${dir.replace(/^\/+/, "")}/**)`;
+}
+
 export function buildClaudeNativePermissionSettings({
   workspaceDir,
   writeScope,
@@ -147,10 +152,12 @@ export function buildClaudeNativePermissionSettings({
     typeof workspaceDir === "string" && workspaceDir.length > 0 ? workspaceDir : "."
   );
 
-  const repoReadPattern = `Read(//${repoAbs.replace(/^\/+/, "")}/**)`;
+  const repoReadPattern = claudeAbsoluteReadPattern(repoAbs);
   const implementationWorker = role === "worker";
+  const roleGuideDir = resolveLaunchRoleGuideDirectory(role);
   const allow = [
     repoReadPattern,
+    ...(roleGuideDir === null ? [] : [claudeAbsoluteReadPattern(roleGuideDir)]),
     CLAUDE_NATIVE_COMMAND_TOOL,
     ...(implementationWorker
       ? deriveClaudeEditAllowPatterns({ workspaceDir: repoAbs, writeScope })
@@ -757,6 +764,8 @@ export function defaultBuildClaudeBwrapPlan({
 
   workerScopeAuthority = null,
   workerTestRuntime = null,
+
+  launchRole = null,
   familyRuntimeReadOnlyRoots = CLAUDE_FAMILY_RUNTIME_READ_ONLY_ROOTS,
   familyRuntimeMountPrefixes = null,
   familyRuntimePolicyProfile = null,
@@ -820,6 +829,7 @@ export function defaultBuildClaudeBwrapPlan({
     stdioMcpConduit,
     workerScopeAuthority,
     workerTestRuntime,
+    launchRole,
 
     additionalMaskTmpfsDirs: deriveClaudeSettingsMaskDirs({ workspaceDir }),
     envPolicy: CLAUDE_BWRAP_ENV_POLICY,
@@ -872,6 +882,8 @@ export function createDefaultClaudeBwrapIsolatedSpawn({
 
       workerScopeAuthority: opts?.workerScopeAuthority ?? null,
       workerTestRuntime: opts?.workerTestRuntime ?? null,
+
+      launchRole: opts?.launchRole ?? null,
       nativeRepoWriteMechanism: opts?.nativeRepoWriteMechanism ?? CLAUDE_FAMILY_NATIVE_REPO_WRITE_MECHANISM,
       familyRuntimeReadOnlyRoots,
       credentialsReadOnlyFile,

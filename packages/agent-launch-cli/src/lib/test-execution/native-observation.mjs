@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { isLauncherTestFailureDiagnostic } from "../workspace-agent-test-proof-error-diagnostic.mjs";
 import { launcherArtifact } from "../workspace-agent-test-proof-node-observation.mjs";
 import { nativeRuntimeTestId } from "../workspace-agent-test-proof-runtime-identity.mjs";
 
@@ -17,6 +18,8 @@ const SOURCE_RE = /^[a-z0-9][a-z0-9_.:-]{0,63}$/u;
 const MAX_TEXT = 64 * 1024;
 const MAX_RECORDS = 100000;
 const PROBE_TOKEN_RE = /^[0-9a-f]{32}$/u;
+
+const MAX_RUNNER_ERRORS = 8;
 
 export const NATIVE_OBSERVER_RUNTIME_CODES = Object.freeze([
   "test_proof_native_runner_unsupported",
@@ -58,15 +61,25 @@ function recordShapeValid(record) {
     case "window_end":
       return isStringArray(record.test) && (record.file === undefined || typeof record.file === "string");
     case "test_result":
+
       return isStringArray(record.test) && OUTCOMES.has(record.outcome) &&
         typeof record.assertion_failure === "boolean" &&
         (record.file === undefined || typeof record.file === "string") &&
-        (record.error === null || record.error === undefined ||
-          (typeof record.error === "object" && !Array.isArray(record.error)));
+        !Object.hasOwn(record, "error") && (record.outcome === "failed"
+        ? isLauncherTestFailureDiagnostic(record.failure_diagnostic)
+        : !Object.hasOwn(record, "failure_diagnostic"));
     case "reach":
       return typeof record.token === "string" && PROBE_TOKEN_RE.test(record.token);
     case "runtime_error":
-      return typeof record.code === "string";
+      return typeof record.code === "string" && (!Object.hasOwn(record, "failure_diagnostic") ||
+        isLauncherTestFailureDiagnostic(record.failure_diagnostic));
+    case "session_end":
+      return (!Object.hasOwn(record, "runner_errors") && !Object.hasOwn(record, "runner_error_count")) ||
+        (Array.isArray(record.runner_errors) && record.runner_errors.length > 0 &&
+          record.runner_errors.length <= MAX_RUNNER_ERRORS &&
+          record.runner_errors.every(isLauncherTestFailureDiagnostic) &&
+          Number.isSafeInteger(record.runner_error_count) &&
+          record.runner_error_count >= record.runner_errors.length);
     default:
       return true;
   }
@@ -148,17 +161,76 @@ function selectedIdentityNotObserved(expectation, discovered) {
   });
 }
 
+function reportedSelectedDiagnostic(observed, report) {
+  const diagnosis = selectedReportDiagnosis(observed, report);
+  return report?.unreadable !== true ? diagnosis : { ...diagnosis, issues: [...diagnosis.issues,
+    { path: "/native_report", reason: "native_report_unreadable" }] };
+}
+
+function selectedReportDiagnosis(observed, report) {
+  const reported = report?.selected_failure;
+  if (reported === undefined || reported === null) return observed;
+  if (!isLauncherTestFailureDiagnostic(reported)) {
+    return { ...observed, issues: [...observed.issues,
+      { path: "/native_report/selected_failure", reason: "native_report_unreadable" }] };
+  }
+  if (observed.status === "captured") return observed;
+  if (reported.status === "captured") {
+    return observed.origin === undefined || reported.origin !== undefined ? reported
+      : { ...reported, origin: observed.origin };
+  }
+  return { ...observed, issues: [...observed.issues, ...reported.issues] };
+}
+
+function reportedBuildFailure(records, report) {
+  const build = report?.build_failure;
+  if (!isLauncherTestFailureDiagnostic(build) || records.length > 0) return null;
+  return report.unreadable !== true ? build : { ...build, issues: [...build.issues,
+    { path: "/native_report", reason: "native_report_unreadable" }] };
+}
+
+const RUN_CAUSE_CODES = new Set(["test_proof_structured_test_inventory_incomplete",
+  "test_proof_selected_identity_not_observed", "test_proof_structured_events_exit_status_mismatch"]);
+
+function withRunCause(result, { build = null, runnerErrors = null }) {
+  if (result.valid || !RUN_CAUSE_CODES.has(result.code) || (build === null && runnerErrors === null)) {
+    return result;
+  }
+  const detail = { ...(result.detail ?? {}) };
+  if (detail.failure_diagnostic === undefined) {
+    detail.failure_diagnostic = build ?? runnerErrors.errors[0];
+  }
+  if (runnerErrors !== null) detail.runner_error_count = runnerErrors.count;
+  return { ...result, detail };
+}
+
 export function readNativeObservation({ channelBytes, channelOverflow = false, exitCode,
-  expectation }) {
+  expectation, nativeReport = null }) {
   const authenticated = authenticateNativeEvents({ channelBytes, expectation, channelOverflow });
   if (!authenticated.valid) return authenticated;
   const { records } = authenticated;
   const runtimeError = records.find(({ kind }) => kind === "runtime_error");
   if (runtimeError !== undefined) {
     return NATIVE_OBSERVER_RUNTIME_CODES.includes(runtimeError.code)
-      ? refusal(runtimeError.code, { message: boundedText(runtimeError.message) ?? null })
+      ? refusal(runtimeError.code, { message: boundedText(runtimeError.message) ?? null,
+        ...(runtimeError.failure_diagnostic === undefined ? {}
+          : { failure_diagnostic: runtimeError.failure_diagnostic }) })
       : refusal("test_proof_structured_events_invalid");
   }
+  const sessionEnd = records.find(({ kind }) => kind === "session_end");
+  const causes = {
+    build: reportedBuildFailure(records, nativeReport),
+    runnerErrors: sessionEnd?.runner_errors === undefined ? null
+      : { errors: sessionEnd.runner_errors, count: sessionEnd.runner_error_count }
+  };
+  const observed = readSelectedObservation({ records, exitCode, expectation, channelBytes });
+  if (!observed.valid) return withRunCause(observed, causes);
+  const { selected } = observed;
+  return selected.outcome !== "failed" ? observed : { ...observed, selected: { ...selected,
+    failure_diagnostic: reportedSelectedDiagnostic(selected.failure_diagnostic, nativeReport) } };
+}
+
+function readSelectedObservation({ records, exitCode, expectation, channelBytes }) {
   const selected = expectation.node_id;
   const discovered = new Set(expectation.declared_node_ids ?? []);
   const collectedOnce = new Set();
@@ -250,7 +322,7 @@ export function readNativeObservation({ channelBytes, channelOverflow = false, e
       outcome: result.outcome,
       started: selectedState.started,
       assertion_failure: result.outcome === "failed" && result.assertion_failure === true,
-      error: result.error ?? null
+      ...(result.outcome === "failed" ? { failure_diagnostic: result.failure_diagnostic } : {})
     },
     discovered_node_ids: [...discovered].sort(),
     executed_node_ids: result.outcome === "skipped" ? [] : [selected],
@@ -260,28 +332,18 @@ export function readNativeObservation({ channelBytes, channelOverflow = false, e
   };
 }
 
-function failureDiagnostic(error) {
-  if (error === null || typeof error !== "object") {
-    return { schema_version: "launcher-test-failure-diagnostic.v1", status: "unavailable",
-      root_error: null, errors: [], values: [],
-      issues: [{ path: "root_error", reason: "error_not_supplied" }] };
-  }
-  const entry = { id: "error-0" };
-  for (const field of ["name", "message", "stack", "code"]) {
-    const text = boundedText(error[field]);
-    if (text !== undefined) entry[field] = text;
-  }
-  if (error.assertion === true) entry.operator = "assert";
-  return { schema_version: "launcher-test-failure-diagnostic.v1", status: "captured",
-    root_error: "error-0", errors: [entry], values: [], issues: [] };
-}
-
 function nativeTestId(expectation, nodeId) {
   return candidateFacts(nodeId, expectation).test_id;
 }
 
+function rootErrorCodes(diagnostic) {
+  const root = diagnostic?.errors?.find(({ id }) => id === diagnostic.root_error);
+  return [root?.name, root?.code].filter((value) => typeof value === "string" && value.length > 0)
+    .map((value) => value.slice(0, 256));
+}
+
 function structuredResult(observation, expectation, exitCode) {
-  const { outcome, error, assertion_failure: assertion } = observation.selected;
+  const { outcome, failure_diagnostic: diagnostic, assertion_failure: assertion } = observation.selected;
   const event = {
     type: outcome === "passed" ? "test:pass" : "test:fail",
     test_id: expectation.target_test_id,
@@ -291,9 +353,8 @@ function structuredResult(observation, expectation, exitCode) {
     status: outcome === "passed" ? "passed" : "failed",
     error_codes: outcome === "failed" ? [...new Set([`${expectation.family_id}.test_failure`,
       ...(assertion ? ["assertion_failure"] : []),
-      ...(typeof error?.name === "string" ? [error.name.slice(0, 256)] : []),
-      ...(typeof error?.code === "string" ? [error.code.slice(0, 256)] : [])])] : [],
-    ...(outcome === "failed" ? { failure_diagnostic: failureDiagnostic(error) } : {})
+      ...rootErrorCodes(diagnostic)])] : [],
+    ...(outcome === "failed" ? { failure_diagnostic: diagnostic } : {})
   };
   return {
     mechanism: expectation.candidate_mechanism,
@@ -324,8 +385,9 @@ function aggregateReaches(reaches, instrumentation) {
 }
 
 export function projectNativeObservation({ channelBytes, channelOverflow = false, exitCode,
-  expectation }) {
-  const observation = readNativeObservation({ channelBytes, channelOverflow, exitCode, expectation });
+  expectation, nativeReport = null }) {
+  const observation = readNativeObservation({ channelBytes, channelOverflow, exitCode, expectation,
+    nativeReport });
   if (!observation.valid) return observation;
   const result = structuredResult(observation, expectation, exitCode);
   const structuredArtifact = launcherArtifact("structured_test_result", result);

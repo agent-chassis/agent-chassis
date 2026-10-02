@@ -3,9 +3,13 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-export const REPOSITORY_RUNTIME_CONFIG_FILE = "agent-chassis-runtime.json";
+import { REPOSITORY_RUNTIME_CONFIG_FILE, parseTestEntrypoints, serializeTestEntrypoints } from
+  "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/test-entrypoints.mjs";
 
-export const TEST_RUNTIME_CONFIG_FIELDS = Object.freeze(["runners", "toolchains", "environments"]);
+export { REPOSITORY_RUNTIME_CONFIG_FILE };
+
+export const TEST_RUNTIME_CONFIG_FIELDS = Object.freeze(["runners", "toolchains", "environments",
+  "test_entrypoints"]);
 const ENVIRONMENT_FIELDS = Object.freeze(["virtual_environment"]);
 const PYTHON_ENVIRONMENT_ID = /^python@(?:\.|[^/\s][^\s]*)$/u;
 const RUNNER_FIELDS = Object.freeze(["runner", "project"]);
@@ -39,7 +43,7 @@ export function parseTestRuntimeConfig(text, { source = "<runtime config>" } = {
   }
   closedObject(fail, "the configuration", document, TEST_RUNTIME_CONFIG_FIELDS);
   if (!TEST_RUNTIME_CONFIG_FIELDS.some((field) => Object.hasOwn(document, field))) {
-    fail("the configuration must name runners, toolchains or environments");
+    fail("the configuration must name runners, toolchains, environments or test_entrypoints");
   }
   if (Object.hasOwn(document, "runners") &&
       (!Array.isArray(document.runners) || document.runners.length === 0)) {
@@ -94,7 +98,9 @@ export function parseTestRuntimeConfig(text, { source = "<runtime config>" } = {
       environments[id] = { virtual_environment: entry.virtual_environment };
     }
   }
-  return { runners, toolchains, environments };
+  const testEntrypoints = Object.hasOwn(document, "test_entrypoints")
+    ? parseTestEntrypoints(fail, document.test_entrypoints) : [];
+  return { runners, toolchains, environments, test_entrypoints: testEntrypoints };
 }
 
 export function loadTestRuntimeConfig(file, { cwd = process.cwd() } = {}) {
@@ -112,7 +118,8 @@ export function repositoryRuntimeConfigPath(repositoryRoot) {
   return path.join(repositoryRoot, REPOSITORY_RUNTIME_CONFIG_FILE);
 }
 
-export function serializeTestRuntimeConfig({ runners = [], toolchains, environments = {} }) {
+export function serializeTestRuntimeConfig({ runners = [], toolchains, environments = {},
+  test_entrypoints: testEntrypoints = [] }) {
   const document = runners.length === 0 ? {}
     : { runners: runners.map(({ runner, project }) => ({ runner, project })) };
   const names = Object.keys(toolchains ?? {}).sort();
@@ -127,6 +134,7 @@ export function serializeTestRuntimeConfig({ runners = [], toolchains, environme
     document.environments = Object.fromEntries(ids.map((id) =>
       [id, { virtual_environment: environments[id].virtual_environment }]));
   }
+  if (testEntrypoints.length > 0) document.test_entrypoints = serializeTestEntrypoints(testEntrypoints);
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 

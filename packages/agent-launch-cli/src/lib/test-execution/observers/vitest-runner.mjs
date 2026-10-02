@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { TestRunner } from "vitest";
 
 const channelModule = createRequire(import.meta.url)("./native-channel.cjs");
-const { createChannel, errorFacts, installReachSink, loadConfig, repositoryPath, sameTitles } =
+const { createChannel, failureDiagnostic, installReachSink, loadConfig, repositoryPath, sameTitles } =
   channelModule;
 const config = loadConfig();
 const channel = createChannel(config, "vitest.worker");
@@ -29,6 +29,14 @@ const isSelected = (task) => selectedFile(task) && sameTitles(titlePath(task), c
 
 let selectedResult = null;
 
+function nativeFacts(error, fromSuite) {
+  let diff;
+  try { diff = error?.diff; } catch { diff = undefined; }
+  return { display_operands: true,
+    ...(typeof diff === "string" && diff.length > 0 ? { details: [{ label: "diff", text: diff }] } : {}),
+    ...(fromSuite ? { origin: { kind: "hook" } } : {}) };
+}
+
 export default class LauncherTestProofRunner extends TestRunner {
   onCollected(files) {
     for (const file of files) {
@@ -47,7 +55,7 @@ export default class LauncherTestProofRunner extends TestRunner {
     if (isSelected(test) && test.mode !== "run" && test.mode !== "queued") {
       selectedResult = { test, reported: true };
       channel.emit("test_result", { file: config.selected.file, test: titlePath(test),
-        outcome: "skipped", assertion_failure: false, error: null });
+        outcome: "skipped", assertion_failure: false });
     }
   }
 
@@ -64,7 +72,7 @@ export default class LauncherTestProofRunner extends TestRunner {
   onAfterRunTask(test) {
     if (isSelected(test) && selectedResult?.reported !== true) {
       const state = test.result?.state;
-      selectedResult = { test, reported: false, error: test.result?.errors?.[0] ?? null,
+      selectedResult = { test, reported: false, error: test.result?.errors?.[0] ?? null, fromSuite: false,
         outcome: state === "pass" ? "passed" : state === "fail" ? "failed" : "skipped" };
     }
     return super.onAfterRunTask(test);
@@ -81,14 +89,16 @@ export default class LauncherTestProofRunner extends TestRunner {
       if (encloses && suiteError !== null && recorded.outcome === "passed") {
         recorded.outcome = "failed";
         recorded.error = suiteError;
+        recorded.fromSuite = true;
       }
       if (suite === recorded.test.file) {
         recorded.reported = true;
-        const { outcome, error } = recorded;
+        const { outcome, error, fromSuite } = recorded;
         const assertion = error?.name === "AssertionError";
         channel.emit("test_result", { file: config.selected.file, test: titlePath(recorded.test), outcome,
           assertion_failure: outcome === "failed" && assertion,
-          error: outcome === "failed" ? errorFacts(error, assertion) : null });
+          ...(outcome === "failed"
+            ? { failure_diagnostic: failureDiagnostic(error, nativeFacts(error, fromSuite)) } : {}) });
       }
     }
     return super.onAfterRunSuite?.(suite);

@@ -64,7 +64,8 @@ export async function resolveProofAuthoring(source, context = {}, owners = {}) {
 
   const projectRow = ({ row }) => {
     const result = results.find(entry => entry.obligation_id === row.obligation_id);
-    const { case_id, ...meaning } = row;
+
+    const { case_id, acceptance_criteria: _criteria, proof_opt_out: _optOut, ...meaning } = row;
     if (case_id) meaning.controlled_contract_node_ids = [...new Set([...(meaning.controlled_contract_node_ids ?? []),
       ...linkedNativeTestProofs({ relations: context.contract_relations ?? [], test_proofs: context.test_declarations ?? [] }, row).map(proof => proof.verification_claim_id)])];
 

@@ -13,12 +13,74 @@ export const CAPTURE_CHANNELS = Object.freeze(["stdin", "stdout", "stderr"]);
 
 export const sha = bytes => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 
+export const CARRIER_FINDING_KINDS = Object.freeze({
+  TEXT_MISSING: "text_representation_missing",
+  TEXT_EMPTY: "text_representation_empty",
+  TEXT_DISAGREES: "text_representation_disagrees",
+  TEXT_ADDITIONAL: "text_representation_additional",
+  CONTENT_BESIDE_STRUCTURED: "content_block_beside_structured",
+  STRUCTURED_MEANING_MISSING: "structured_meaning_missing"
+});
+
+const isPlainObject = value => value !== null && typeof value === "object" && !Array.isArray(value);
+
+function parsedText(text) {
+  try {
+    return { parsed: true, value: JSON.parse(text) };
+  } catch {
+    return { parsed: false, value: undefined };
+  }
+}
+
+export function structuredCarrierFindings(result, { permitNonTextBlocks = false } = {}) {
+  const blocks = Array.isArray(result?.content) ? result.content : [];
+  const texts = blocks.filter(block => block?.type === "text");
+  if (!isPlainObject(result?.structuredContent)) {
+    const unstructuredError = result?.isError === true && texts.length > 0 && texts.length === blocks.length;
+    return { structured: false, unstructured_error: unstructuredError, text_bytes: 0,
+      findings: unstructuredError ? [] : [{ kind: CARRIER_FINDING_KINDS.STRUCTURED_MEANING_MISSING }] };
+  }
+  const findings = [];
+  if (!permitNonTextBlocks) {
+    for (const block of blocks.filter(item => item?.type !== "text")) {
+      findings.push({ kind: CARRIER_FINDING_KINDS.CONTENT_BESIDE_STRUCTURED, block_type: block?.type ?? null });
+    }
+  }
+  if (texts.length === 0) findings.push({ kind: CARRIER_FINDING_KINDS.TEXT_MISSING });
+  let textBytes = 0;
+  const expected = JSON.stringify(result.structuredContent);
+  texts.forEach((block, index) => {
+    const text = typeof block.text === "string" ? block.text : "";
+    const bytes = Buffer.byteLength(text);
+    textBytes += bytes;
+    if (index > 0) {
+      findings.push({ kind: CARRIER_FINDING_KINDS.TEXT_ADDITIONAL, text_bytes: bytes });
+      return;
+    }
+    if (text.length === 0) {
+      findings.push({ kind: CARRIER_FINDING_KINDS.TEXT_EMPTY });
+      return;
+    }
+    const parsed = parsedText(text);
+    if (!parsed.parsed || !isDeepStrictEqual(parsed.value, result.structuredContent)) {
+      findings.push({ kind: CARRIER_FINDING_KINDS.TEXT_DISAGREES, reason: "meaning", text_bytes: bytes });
+    } else if (text !== expected) {
+      findings.push({ kind: CARRIER_FINDING_KINDS.TEXT_DISAGREES, reason: "serialization", text_bytes: bytes });
+    }
+  });
+  return { structured: true, unstructured_error: false, text_bytes: textBytes, findings };
+}
+
+export function assertStructuredCarrier(result, options = {}) {
+  const { structured, findings } = structuredCarrierFindings(result, options);
+  assert.ok(structured, `structured tool result must carry structuredContent: ${JSON.stringify(result)}`);
+  assert.deepEqual(findings, [], `structured carrier contract: ${JSON.stringify(findings)}`);
+  return result.structuredContent;
+}
+
 export function channels(raw) {
   assert.ok(raw && typeof raw === "object", `tool result must be an object: ${JSON.stringify(raw)}`);
-  assert.ok(raw.structuredContent !== null && typeof raw.structuredContent === "object",
-    `structured tool result must carry structuredContent: ${JSON.stringify(raw)}`);
-  assert.deepEqual(raw.content, [], "structured tool result must not carry content beside structuredContent");
-  return raw.structuredContent;
+  return assertStructuredCarrier(raw);
 }
 
 export function carrierBytes(message) {
@@ -157,6 +219,7 @@ function tally(events, phases) {
     protocol_calls: origins.protocol ?? 0,
     response_frames: responses.length,
     lost_responses: responses.filter(event => event.withheld_from_consumer).length,
+    substituted_responses: responses.filter(event => event.substitution !== undefined).length,
     unmatched_responses: responses.filter(event =>
       !requestIds.has(`${event.process_index}:${event.request_id}`)).length,
     recovery_calls: requests.filter(event => event.phase === "recovery").length,
@@ -167,6 +230,9 @@ function tally(events, phases) {
     server_response_bytes: sum(responses),
     withheld_response_bytes: sum(responses.filter(event => event.withheld_from_consumer)),
     consumer_response_bytes: sum(responses.filter(event => !event.withheld_from_consumer)),
+
+    substituted_delivery_bytes: responses.reduce((total, event) =>
+      total + (event.substitution?.delivered_byte_count ?? 0), 0),
     content_text_bytes: responses.reduce((total, event) => total + event.carrier_bytes.content_text, 0),
     structured_bytes: responses.reduce((total, event) => total + event.carrier_bytes.structured, 0),
     materialized_logical_result_bytes: sum(requests.filter(event => Number.isSafeInteger(event.materialized_logical_result_bytes)),
@@ -207,8 +273,33 @@ export function accounting(trace, { phases = ["journey"], identities = null,
   };
 }
 
+export function accountingView(trace, { key, phases = ACCOUNTING_PHASES } = {}) {
+  assert.equal(typeof key, "string", "an accounting view names its metadata key");
+  const requests = new Map(trace.filter(event => event.type === "request")
+    .map(event => [`${event.process_index}:${event.request_id}`, event]));
+  const partitionOf = event => {
+    const request = event.type === "request" ? event
+      : requests.get(`${event.process_index}:${event.request_id}`);
+    return String(request?.[key] ?? "unlabelled");
+  };
+  const partitions = [...new Set(trace.filter(event => event.type !== "lifecycle").map(partitionOf))].sort();
+  const complete = tally(trace, phases);
+  const view = Object.fromEntries(partitions.map(name => [name,
+    tally(trace.filter(event => event.type !== "lifecycle" && partitionOf(event) === name), phases)]));
+  for (const field of ["calls", "request_bytes", "server_response_bytes", "response_frames",
+    "substituted_delivery_bytes"]) {
+    const total = Object.values(view).reduce((sum, entry) => sum + entry[field], 0);
+    assert.equal(total, complete[field], `accounting_view_unreconciled: ${key}.${field} ${total} != ${complete[field]}`);
+  }
+  return { key, population: "every request and response frame of the ledger", partitions: view,
+    complete: { calls: complete.calls, request_bytes: complete.request_bytes,
+      server_response_bytes: complete.server_response_bytes, response_frames: complete.response_frames,
+      substituted_delivery_bytes: complete.substituted_delivery_bytes } };
+}
+
 export const CALL_PURPOSES = Object.freeze({
   consumer: "a call the consuming journey needs to act",
+  setup: "scenario setup or an interleaved second writer; never consumer knowledge or consumer cost",
   first_discovery: "initial discovery of a surface the journey has not yet read",
   freshness: "a CAS/currentness read whose digest the next write must carry",
   restart: "re-establishing state after an actual process restart",
@@ -392,6 +483,8 @@ function stableJson(value) {
 
 const DIAGNOSTIC_COLLECTION = /diagnostic|reason|warning|finding|error/iu;
 
+const VALIDATE_PROOF_TOOL = "workspace_validate_proof";
+
 export function responseRepetitions(payload, { minimumSubtreeBytes = 1024 } = {}) {
   const findings = [];
   const subtrees = new Map();
@@ -420,6 +513,90 @@ export function responseRepetitions(payload, { minimumSubtreeBytes = 1024 } = {}
   return findings;
 }
 
+const DIAGNOSIS_SUBJECT_MEMBERS = new Set(["diagnostic_group_id", "semantic_cause_id", "affected_obligation_ids",
+  "affected_obligation_ids_truncated", "affected_obligation_ids_omitted", "affected_obligation_count",
+  "occurrence_count", "global_occurrence_count", "detail_call", "inspection_call", "supported_next_call"]);
+
+const diagnosisMeaning = value => Array.isArray(value) ? value.map(diagnosisMeaning)
+  : value && typeof value === "object" ? Object.fromEntries(Object.entries(value)
+    .filter(([name]) => !DIAGNOSIS_SUBJECT_MEMBERS.has(name)).map(([name, item]) => [name, diagnosisMeaning(item)]))
+    : value;
+
+export function validationDiagnosisSites(payload) {
+  const found = [];
+  const broken = [];
+  const seen = new Set();
+  const diagnostics = payload?.diagnostics;
+  if (diagnostics && typeof diagnostics === "object" && Array.isArray(diagnostics.issues)) {
+    const meanings = Array.isArray(diagnostics.meanings) ? diagnostics.meanings : null;
+    if (meanings === null) broken.push({ path: "/diagnostics/meanings", reason: "meanings_absent" });
+    diagnostics.issues.forEach((issue, index) => {
+      const path = `/diagnostics/issues/${index}`;
+      seen.add(issue);
+      const reference = issue?.meaning;
+      const meaning = meanings !== null && Number.isInteger(reference) ? meanings[reference] : undefined;
+      if (meaning === undefined || meaning === null || typeof meaning !== "object") {
+        broken.push({ path, reason: "meaning_reference_unresolved", reference: reference ?? null });
+        return;
+      }
+      const groupId = issue?.call?.arguments?.diagnostic_group_id ?? null;
+      found.push({ path, meaning_path: `/diagnostics/meanings/${reference}`,
+        diagnosis: { diagnostic_group_id: groupId, ...meaning } });
+    });
+  }
+  if (payload?.selected && typeof payload.selected === "object" &&
+      typeof payload.selected.diagnostic_group_id === "string") {
+    seen.add(payload.selected);
+    found.push({ path: "/selected", diagnosis: payload.selected });
+  }
+  const walk = (value, at) => {
+    if (!value || typeof value !== "object") return;
+    if (!seen.has(value) && typeof value.diagnostic_group_id === "string" &&
+        (Object.hasOwn(value, "code") || Object.hasOwn(value, "reason_codes"))) {
+      found.push({ path: at, diagnosis: value });
+    }
+    for (const [name, item] of Object.entries(value)) walk(item, `${at}/${name}`);
+  };
+  walk(payload, "");
+  return { diagnoses: found, broken };
+}
+
+export function sharedDiagnosisRepetitions(payload, { minimumMeaningBytes }) {
+  assert.ok(Number.isInteger(minimumMeaningBytes) && minimumMeaningBytes > 0, "an explicit meaning floor is required");
+  const findings = [];
+  const groups = new Map();
+  const meanings = new Map();
+  const { diagnoses, broken } = validationDiagnosisSites(payload);
+  for (const entry of broken) findings.push({ kind: "diagnosis_reference_broken", ...entry });
+  const stored = payload?.diagnostics?.meanings;
+  if (Array.isArray(stored)) {
+    const summaries = new Map();
+    stored.forEach((meaning, index) => {
+      const key = stableJson(meaning);
+      const bytes = Buffer.byteLength(key);
+      const first = summaries.get(key);
+      if (first !== undefined && bytes >= minimumMeaningBytes) {
+        findings.push({ kind: "shared_diagnosis_repeated", path: `/diagnostics/meanings/${index}`,
+          first: `/diagnostics/meanings/${first}`, bytes });
+      } else if (first === undefined) summaries.set(key, index);
+    });
+  }
+  for (const { path: at, meaning_path: meaningPath = null, diagnosis } of diagnoses) {
+    const groupId = diagnosis.diagnostic_group_id;
+    const first = typeof groupId === "string" ? groups.get(groupId) : undefined;
+    if (first) findings.push({ kind: "repeated_diagnosis_group", path: at, first, diagnostic_group_id: groupId });
+    else if (typeof groupId === "string") groups.set(groupId, at);
+    const meaning = stableJson(diagnosisMeaning(diagnosis));
+    const bytes = Buffer.byteLength(meaning);
+    const same = meanings.get(meaning);
+
+    if (bytes >= minimumMeaningBytes && same && !first && (meaningPath === null || same.meaning_path !== meaningPath)) {
+      findings.push({ kind: "shared_diagnosis_repeated", path: at, first: same.path, bytes });
+    } else if (!same) meanings.set(meaning, { path: at, meaning_path: meaningPath });
+  }
+  return findings;
+}
+
 const guidanceSelection = entry => {
   const selector = entry.arguments?.input_contract;
   if (entry.tool !== "workspace_tools_describe" || selector?.kind !== "guidance") return null;
@@ -434,10 +611,99 @@ const isPrefix = (prefix, path) => prefix.length <= path.length &&
 const DIGEST_FIELDS = ["content_digest", "source_digest", "current_source_digest"];
 const EXPECTED_FIELDS = ["expected_content_digest", "expected_source_digest"];
 
-export function journeyRedundancy(trace, { minimumSubtreeBytes = 1024, retrievalTools = [] } = {}) {
+const holdsValue = (container, value) => {
+  const wanted = stableJson(value);
+  const walk = node => stableJson(node) === wanted || (node !== null && typeof node === "object" &&
+    Object.values(node).some(walk));
+  return walk(container);
+};
+
+const valueAt = (value, fieldPath) => fieldPath.reduce((current, name) => current?.[name], value);
+
+export function correctionClauseFacts(response) {
+  const facts = new Set();
+  const walk = (value, definitions) => {
+    if (Array.isArray(value)) { value.forEach(item => walk(item, definitions)); return; }
+    if (!value || typeof value !== "object") return;
+    const own = value.corrections && typeof value.corrections === "object" && !Array.isArray(value.corrections)
+      ? value.corrections : definitions;
+    for (const subject of Array.isArray(value.subjects) ? value.subjects : []) {
+      for (const clause of Array.isArray(subject?.corrections) ? subject.corrections : []) {
+        facts.add(stableJson([subject.obligation_id ?? null, clause, own?.[clause]?.field ?? null]));
+      }
+    }
+    for (const item of Object.values(value)) walk(item, own);
+  };
+  walk(response, null);
+  return facts;
+}
+
+export function selectedDiagnosisSuppliedUsedFact(entry, { calls, actions, rules = [], exempt = () => false }) {
+  const byId = new Map(calls.map(call => [call.id, call]));
+  const earlier = calls.filter(call => call.id < entry.id && !exempt(call));
+  const earlierClauses = new Set(earlier.flatMap(call => [...correctionClauseFacts(call.response)]));
+  for (const action of actions) {
+    const request = byId.get(action.request);
+    if (!request || request.id <= entry.id || exempt(request)) continue;
+    for (const antecedent of action.antecedents ?? []) {
+      if (antecedent.source !== entry.id || antecedent.derived !== undefined) continue;
+      const published = valueAt(entry.response, antecedent.source_field ?? []);
+      if (published === undefined || published === null) continue;
+      if (antecedent.rule !== undefined) {
+        const typed = antecedent.rule;
+        const field = valueAt(entry.response, typed.definition ?? []);
+        const subject = valueAt(entry.response, typed.subject ?? []);
+        const written = antecedent.field ?? [];
+        const requestField = written.length > 2 && written[0] === "obligations"
+          ? `obligations[].${written.slice(2).join(".")}` : null;
+        const activated = rules.some(rule => rule.status === "matched" && rule.source === entry.id &&
+          rule.rule === typed.id && isDeepStrictEqual(rule.typed?.member, antecedent.source_field));
+        if (published !== typed.clause || field !== requestField || !activated) continue;
+        if (valueAt(request.arguments, [...written.slice(0, 2), "obligation_id"]) !== subject) continue;
+        if (valueAt(request.arguments, written) === undefined) continue;
+        if (earlierClauses.has(stableJson([subject, published, field]))) continue;
+        return { action: action.action, request: request.id, field: antecedent.field,
+          source_field: antecedent.source_field, kind: "typed_correction_clause" };
+      }
+      if (!isDeepStrictEqual(valueAt(request.arguments, antecedent.field ?? []), published)) continue;
+      if (earlier.some(call => holdsValue(call.response, published) || holdsValue(call.arguments, published))) continue;
+      return { action: action.action, request: request.id, field: antecedent.field,
+        source_field: antecedent.source_field, kind: "copied_value" };
+    }
+  }
+  return null;
+}
+
+export function detailSuppliedUsedFact(entry, { calls, actions, exempt = () => false }) {
+  const byId = new Map(calls.map(call => [call.id, call]));
+  const earlier = calls.filter(call => call.id < entry.id && !exempt(call));
+  for (const action of actions) {
+    const request = byId.get(action.request);
+    if (!request || request.id <= entry.id || exempt(request)) continue;
+    for (const antecedent of action.antecedents ?? []) {
+      if (antecedent.source !== entry.id || antecedent.derived !== undefined) continue;
+      const published = valueAt(entry.response, antecedent.source_field ?? []);
+      if (published === undefined || published === null) continue;
+      if (!isDeepStrictEqual(valueAt(request.arguments, antecedent.field ?? []), published)) continue;
+      if (earlier.some(call => holdsValue(call.response, published))) continue;
+      return { action: action.action, request: request.id, field: antecedent.field, source_field: antecedent.source_field };
+    }
+  }
+  return null;
+}
+
+function followsNewCall(entry, emitter, calls, exempt) {
+  const known = callablesIn(emitter.response);
+  return calls.some(later => later.id > entry.id && later.emitted_by === entry.id && !exempt(later) &&
+    !known.some(call => sameCallable(call, { tool: later.tool, arguments: later.arguments })) &&
+    callablesIn(entry.response).some(call => sameCallable(call, { tool: later.tool, arguments: later.arguments })));
+}
+
+export function journeyRedundancy(trace, { minimumSubtreeBytes = 1024, retrievalTools = [], actions = [],
+  rules = [] } = {}) {
   const findings = [];
   const calls = trace.filter(entry => entry.method === "tools/call" && entry.outcome !== "transport_failure");
-  const exempt = entry => ["restart", "conformance_control"].includes(entry.purpose ?? "consumer");
+  const exempt = entry => ["restart", "conformance_control", "setup"].includes(entry.purpose ?? "consumer");
   const byId = new Map(calls.map(entry => [entry.id, entry]));
   calls.forEach((entry, index) => {
     const earlier = calls.slice(0, index).filter(prior => !exempt(prior));
@@ -472,9 +738,16 @@ export function journeyRedundancy(trace, { minimumSubtreeBytes = 1024, retrieval
         const known = callablesIn(emitter.response).filter(call => call.arguments?.detail === undefined);
         const added = callablesIn(entry.response).filter(call => call.arguments?.detail === undefined &&
           !known.some(prior => sameCallable(prior, call)));
-        if (offered?.recommended === true && added.length === 0) {
+        if (offered?.recommended === true && added.length === 0 &&
+            detailSuppliedUsedFact(entry, { calls, actions, exempt }) === null) {
           findings.push({ kind: "redundant_recommended_detail", ...describe, recommended_by: emitter.id });
         }
+      }
+      if (emitter && entry.tool === VALIDATE_PROOF_TOOL && (typeof entry.arguments?.diagnostic_group_id === "string" ||
+          typeof entry.arguments?.obligation_id === "string") &&
+          selectedDiagnosisSuppliedUsedFact(entry, { calls, actions, rules, exempt }) === null &&
+          !followsNewCall(entry, emitter, calls, exempt)) {
+        findings.push({ kind: "redundant_selected_diagnosis", ...describe, emitted_by: emitter.id });
       }
     }
     if (entry.purpose === "freshness") {

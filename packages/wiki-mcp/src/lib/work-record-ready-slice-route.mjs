@@ -2,7 +2,13 @@
 
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
 import { jsonContent } from "./mcp-response.mjs";
-import { projectPublicationOutcome } from "./work-record-write-route-helpers.mjs";
+import {
+  presentControlledAcceptanceState,
+  projectPublicationOutcome,
+  resolveExpectedSourceDigest,
+  workRecordFreshnessSource
+} from "./work-record-write-route-helpers.mjs";
+import { projectOrdinaryWriteFreshness } from "./write-response-boundary.mjs";
 import {
   readyWorkRecordSliceByUnit
 } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
@@ -619,6 +625,8 @@ function detailedReadySliceSuccessResult({
   return null;
 }
 
+const respond = (value) => jsonContent(projectOrdinaryWriteFreshness(value));
+
 export async function runWorkspaceWorkRecordReadySliceRoute({
   workspaceRepos,
   args,
@@ -639,6 +647,26 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
     loadWorkRecordById;
   const parent = await loadControlledAcceptanceParent({ dir: workspace.dir, id: request.unit })
     .catch(() => null);
+
+  const freshness = await resolveExpectedSourceDigest(request.expected_source_digest ?? null,
+    { load: workRecordFreshnessSource(workspace.dir, request.unit) });
+  if (!freshness.ok) {
+    return respond({
+      ok: false,
+      written: false,
+      contract_persisted: false,
+      no_op: false,
+      selected_unit: { kind: "slice",
+        address: request.slice_id ? `${request.unit}#${request.slice_id}` : request.unit,
+        record_id: request.unit, slice_id: request.slice_id ?? null },
+      diagnostics: [freshness.diagnostic],
+      ...(freshness.stale ? { source_digest: freshness.current_source_digest,
+        expected_source_digest: request.expected_source_digest,
+        current_source_digest: freshness.current_source_digest } : {}),
+      ...(freshness.next_action === undefined ? {} : { next_action: freshness.next_action })
+    });
+  }
+  if (freshness.value !== null) request.expected_source_digest = freshness.value;
   const existingSlice = Array.isArray(parent?.record?.slices) && request.slice_id
     ? parent.record.slices.find(({ id }) => id === request.slice_id) ?? null
     : null;
@@ -674,7 +702,7 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
         source_code: error?.code ?? null,
         source_details: structuredClone(error?.details ?? null)
       });
-      return jsonContent({
+      return respond({
         schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
         selected_unit: { kind: "slice",
           address: request.slice_id ? `${request.unit}#${request.slice_id}` : request.unit,
@@ -709,7 +737,7 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
       const admission = state.semantic.admission;
       const recovery = admission.recovery_capability ?? null;
       const supportedNextCall = admission.supported_next_call ?? null;
-      return jsonContent({
+      return respond({
         schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
         selected_unit: { kind: "slice",
           address: request.slice_id ? `${request.unit}#${request.slice_id}` : request.unit,
@@ -719,7 +747,7 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
         no_op: true,
         source_digest: parent.source_digest ?? null,
         structurally_complete: false,
-        controlled_acceptance_state: state,
+        controlled_acceptance_state: presentControlledAcceptanceState(state),
         checks: [{ check: "controlled_acceptance_state", status: "error",
           path: "proof_posture" }],
         blockers: [{ code, check: "controlled_acceptance_state", status: "error",
@@ -741,10 +769,10 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
   const coreResult = await runCore({ dir: workspace.dir, request, repository: workspace.repo });
 
   if (coreResult?.ok === false && typeof coreResult?.publication_state === "string") {
-    return jsonContent(coreResult);
+    return respond(coreResult);
   }
   if (coreResult?.contract_persisted !== true) {
-    return jsonContent(coreResult);
+    return respond(coreResult);
   }
 
   let reloadDiagnostics = [];
@@ -778,16 +806,16 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
       coreDiagnostics,
       reloadDiagnostics
     });
-    if (detailed !== null) return jsonContent(detailed);
+    if (detailed !== null) return respond(detailed);
 
     const acknowledgement = request.slice_id === undefined
       ? { ok: true, slice_id: coreResult.selected_unit.slice_id }
       : { ok: true };
-    return jsonContent(acknowledgement);
+    return respond(acknowledgement);
   } catch {
     const coreDiagnostics = Array.isArray(coreResult.diagnostics)
       ? coreResult.diagnostics : [];
-    return jsonContent(projectionFailureReadySliceResult(
+    return respond(projectionFailureReadySliceResult(
       coreResult,
       [...coreDiagnostics, ...reloadDiagnostics]
     ));

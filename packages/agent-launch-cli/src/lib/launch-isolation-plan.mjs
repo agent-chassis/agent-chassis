@@ -22,14 +22,20 @@ import {
 } from "./launch-isolation-plan-mounts.mjs";
 import { buildBubblewrapArgs } from "./launch-isolation-bwrap-args.mjs";
 import {
+  resolveAgentRoleGuideDirectory,
+  resolveAgentRoleGuidePath
+} from "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
+import {
   prepareGitStatusWrapperProjection
 } from "./launch-isolation-git-status-wrapper.mjs";
 import {
-  prepareSparseWorkerWritableDirectories,
-  rollbackPreparedWorkerDirectories
+  prepareWorkerStructuralParents,
+  releasePreparedDirectoriesOnRefusal,
+  withPreparationRollback
 } from "./launch-isolation-worker-scope.mjs";
 import {
   pinHarnessInterpreter,
+  planNamespaceOnlyMountpoints,
   prepareWorkerTestRuntimeMounts,
   projectWorkerTestRuntimeEnv
 } from "./launch-isolation-test-runtime-projection.mjs";
@@ -40,13 +46,36 @@ import {
 
 import { assertTrustedStdioMcpConduitBinding } from "./stdio-mcp-conduit-contract.mjs";
 
+const LAUNCH_ROLE_GUIDES = Object.freeze({
+  worker: "managed-worker",
+  reviewer: "reviewer",
+  review: "reviewer",
+  redteam: "reviewer"
+});
+
+export function resolveLaunchRoleGuideDirectory(launchRole) {
+  return Object.hasOwn(LAUNCH_ROLE_GUIDES, launchRole) ? resolveAgentRoleGuideDirectory() : null;
+}
+
+function resolveLaunchRoleGuideGrant(launchRole) {
+  const guideDir = resolveLaunchRoleGuideDirectory(launchRole);
+  if (guideDir === null) return { requiredFiles: [], binds: [] };
+  const guidePath = resolveAgentRoleGuidePath(LAUNCH_ROLE_GUIDES[launchRole]);
+  return {
+    requiredFiles: [guidePath],
+    binds: [
+      Object.freeze({ src: guideDir, dst: guideDir }),
+      Object.freeze({ src: guidePath, dst: guidePath })
+    ]
+  };
+}
+
 export function buildBubblewrapLaunchPlan(options = {}) {
-  const preparation = { rollback: () => null };
+  const preparation = { release: null };
   try {
     return composeBubblewrapLaunchPlan(options, preparation);
   } catch (error) {
-    preparation.rollback();
-    throw error;
+    throw preparation.release === null ? error : preparation.release(error);
   }
 }
 
@@ -77,7 +106,10 @@ function composeBubblewrapLaunchPlan({
 
   tmpfsDirs = [],
 
-  useSystemTmp = false,
+  executionTmpSource = null,
+  executionScratchSource = null,
+
+  namespaceOnlyMountpoints = false,
   maskTmpfsDirs = [],
   provisionedWorktreeGitBinding = null,
   shareNet = true,
@@ -88,8 +120,10 @@ function composeBubblewrapLaunchPlan({
   installGitStatusWrapper = false,
 
   workerTestRuntime = null,
-  stdioMcpConduit = null
-} = {}, preparation = { rollback: () => null }) {
+  stdioMcpConduit = null,
+
+  launchRole = null
+} = {}, preparation = { release: null }) {
   if (
     gitMetadataProjection !== null
     && (provisionedWorktreeGitIdentity !== null || provisionedWorktreeGitBinding !== null)
@@ -109,11 +143,14 @@ function composeBubblewrapLaunchPlan({
   const trustedStdioMcpConduit = stdioMcpConduit === null
     ? null
     : assertTrustedStdioMcpConduitBinding(stdioMcpConduit);
-  const directoryPreparation = prepareSparseWorkerWritableDirectories({
+  const directoryPreparation = prepareWorkerStructuralParents({
     authority: workerScopeAuthority,
     repo
   });
-  preparation.rollback = directoryPreparation.rollback;
+  if (directoryPreparation.entries.length > 0) {
+    preparation.release = (error) => releasePreparedDirectoriesOnRefusal(
+      error, directoryPreparation.entries, directoryPreparation.repo);
+  }
   const {
     repoReal,
     provisionedGitIsolation,
@@ -207,11 +244,9 @@ function composeBubblewrapLaunchPlan({
 
   const testRuntime = prepareWorkerTestRuntimeMounts({ workerTestRuntime, sparseWorkerNamespace,
     repoReal, writableRoots: writable, runtimeRoots: runtime });
-  if (testRuntime !== null && testRuntime.created.length > 0) {
-    preparation.rollback = () => {
-      rollbackPreparedWorkerDirectories(testRuntime.created);
-      return directoryPreparation.rollback();
-    };
+  const preparedDirectories = [...directoryPreparation.entries, ...(testRuntime?.created ?? [])];
+  if (preparedDirectories.length > 0) {
+    preparation.release = (error) => releasePreparedDirectoriesOnRefusal(error, preparedDirectories, repoReal);
   }
 
   assertFindingsRoleGitMetadataReadOnly(findingsRoleGitMetadata, {
@@ -231,18 +266,21 @@ function composeBubblewrapLaunchPlan({
     runtime
   });
 
+  const roleGuideGrant = resolveLaunchRoleGuideGrant(launchRole);
+  const roleGuideReadOnlyBinds = roleGuideGrant.binds;
   const requiredReadOnlyFileEntries = prepareRequiredReadOnlyFiles(
-    requiredReadOnlyFiles,
-    readOnly
+    [...requiredReadOnlyFiles, ...roleGuideGrant.requiredFiles],
+    [...readOnly, ...roleGuideReadOnlyBinds]
   );
 
   const pinnedBwrapPath = isNonEmptyString(bwrapPath)
     ? assertAbsoluteSafePath(bwrapPath, "bwrapPath")
     : null;
 
+  preparation.release = null;
   const writableFilePreparation = prepareWritableFiles(effectiveWritableFiles, repoReal, {
     refuseSymlinks: sparseWorkerNamespace !== null,
-    preparedDirectories: [...directoryPreparation.entries, ...(testRuntime?.created ?? [])],
+    preparedDirectories,
     attemptBinding: sparseWorkerNamespace === null
       ? null
       : Object.freeze({
@@ -252,24 +290,24 @@ function composeBubblewrapLaunchPlan({
         })
   });
   const writableFileEntries = writableFilePreparation.entries;
+  preparation.release = (error) => withPreparationRollback(error, writableFilePreparation.cleanup.cleanup(),
+    { directories: preparedDirectories, repo: repoReal });
 
-  let readOnlyProjectionMountpoints;
-  try {
-    readOnlyProjectionMountpoints = prepareReadOnlyProjectionMountpoints(readOnly, {
-      repoReal,
-      writableRoots: writable,
-      runtimeRoots: runtime,
-      writableFiles: writableFileEntries,
-      sparseWorkerNamespace,
+  const namespaceMountpoints = namespaceOnlyMountpoints === true && sparseWorkerNamespace === null
+    ? planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds: readOnly }) : null;
+  const hostMountpointBinds = namespaceMountpoints === null ? readOnly
+    : readOnly.filter(({ dst }) => !namespaceMountpoints.mountpoints.includes(dst));
+  const readOnlyProjectionMountpoints = prepareReadOnlyProjectionMountpoints(hostMountpointBinds, {
+    repoReal,
+    writableRoots: writable,
+    runtimeRoots: runtime,
+    writableFiles: writableFileEntries,
+    sparseWorkerNamespace,
 
-      launchContext: {
-        role: sparseWorkerNamespace === null ? null : "worker"
-      }
-    });
-  } catch (error) {
-    writableFilePreparation.cleanup.cleanup();
-    throw error;
-  }
+    launchContext: {
+      role: sparseWorkerNamespace === null ? null : "worker"
+    }
+  });
 
   const decisionsReadOnly = composeDecisionsReadOnlyOverlay(decisionsCarveout, {
     writable,
@@ -281,7 +319,9 @@ function composeBubblewrapLaunchPlan({
     systemRoots,
     shareNet,
     newSession,
-    useSystemTmp,
+    executionTmpSource,
+    executionScratchSource,
+    repoNamespaceArgs: namespaceMountpoints?.args ?? null,
     tmpfsDirsResolved,
     sparseWorkerNamespace,
     repoReal,
@@ -303,6 +343,7 @@ function composeBubblewrapLaunchPlan({
     decisionsReadOnly,
     testRuntimeSkeletonDirs: testRuntime?.skeletonDirs ?? [],
     testRuntimeDependencyBinds: testRuntime?.dependencyBinds ?? [],
+    roleGuideReadOnlyBinds,
     policedEnv,
     cwdNormalized,
     resolvedCommand: childCommandResolution,
@@ -360,6 +401,8 @@ function composeBubblewrapLaunchPlan({
     ...(readOnlyProjectionMountpoints.length > 0
       ? { readOnlyProjectionMountpoints }
       : {}),
+    ...(namespaceMountpoints === null ? {}
+      : { namespaceOnlyMountpoints: namespaceMountpoints.mountpoints }),
     decisionsReadOnlyRoots: Object.freeze(decisionsReadOnly.map((b) => Object.freeze({ ...b }))),
     homePolicyReads: Object.freeze(homeReads.map((b) => Object.freeze({ ...b }))),
     homePolicyWritableFiles: Object.freeze(

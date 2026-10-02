@@ -383,10 +383,21 @@ function semantics(requestFacts) {
     replacement: {
       scalar: "replace changes the whole selected scalar value",
       list: "replace supplies the complete replacement array; omitted entries are removed",
+      acceptance_criteria:
+        "acceptance.criteria states the unit's own acceptance criteria; a new work record starts " +
+        "with none. Author criteria that make the intended behavior or invariant explicit and " +
+        "identify the verification plan or regression coverage. Each obligation then declares the " +
+        "criteria it covers in workspace_controlled_contract_obligation_coverage_upsert " +
+        "obligations[].acceptance_criteria",
       acceptance_validation:
         "acceptance.validation replace supplies the complete note list and append adds one note; " +
         "stored executable node_test bindings are preserved after the notes in their existing order, " +
-        "are refused as input, and are authored only by controlled-contract proof operations",
+        "are refused as input, and are authored only by controlled-contract proof operations. " +
+        "Record post-run results and limitations as a NEW workspace_work_record_entry_upsert " +
+        "entry: omit entry_id, pass the record's current source_digest as expected_source_digest, " +
+        "and keep candidate-bound acceptance and existing entries unchanged. Changing " +
+        "acceptance.validation can block candidate publication even when generation_transition " +
+        "is unchanged. A new entry records evidence only and cures no other drift",
       notes:
         "sections.agent_notes replacement replaces the whole notes field; " +
         "include prior notes with {text}, a returned {ref}, or flat {parts} when they " +
@@ -430,6 +441,9 @@ function selectedSemantics(requestFacts, entry) {
 
   if (entry.field === "acceptance.validation") {
     replacement.acceptance_validation = complete.replacement.acceptance_validation;
+  }
+  if (entry.field === "acceptance.criteria") {
+    replacement.acceptance_criteria = complete.replacement.acceptance_criteria;
   }
   return {
     no_op: complete.no_op,

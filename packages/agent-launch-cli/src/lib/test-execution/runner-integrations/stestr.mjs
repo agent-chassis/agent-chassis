@@ -1,18 +1,14 @@
 
 
-import path from "node:path";
-
-function stestr(runtime) {
-  return path.join(runtime.values.venv, "bin", "stestr");
+function stestr(runtime, args) {
+  return { command: runtime.executables.python, args: ["-I", "-B", "-m", "stestr", ...args] };
 }
 
 export default Object.freeze({
   runner_id: "runner.stestr",
-  setupProbe: ({ runtime, projectDir }) => ({ command: stestr(runtime), args: ["--version"],
-    cwd: projectDir }),
+  setupProbe: ({ runtime, projectDir }) => ({ ...stestr(runtime, ["--version"]), cwd: projectDir }),
   invocation: ({ runtime, projectDir, filter, workerPython }) => ({
-    command: stestr(runtime),
-    args: ["--repo-url", `${runtime.scratchRoot}/stestr`, "run", "--concurrency", "1", filter],
+    ...stestr(runtime, ["--repo-url", `${runtime.scratchRoot}/stestr`, "run", "--concurrency", "1", filter]),
     cwd: projectDir,
     directories: [`${runtime.scratchRoot}/stestr`],
     env: { PYTHON: workerPython }

@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/controlled-contract",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "type": "module",
   "license": "Elastic-2.0",
   "repository": {
@@ -96,6 +96,7 @@
     "lib/proof-graph-proposal-v1.mjs",
     "lib/proof-intent-discovery.d.mts",
     "lib/proof-intent-discovery.mjs",
+    "lib/proof-intent-metadata.mjs",
     "lib/proof-discovery-scope.mjs",
     "lib/proof-intent-selection-status.mjs",
     "lib/proof-intent-selection.d.mts",
@@ -298,6 +299,9 @@
     "profiles/proof.state.bounded-interval-nonmutation/4.0.0/parameter-contract.json",
     "profiles/proof.state.bounded-interval-nonmutation/4.0.0/profile.json",
     "proof-intents/catalog.json",
+    "proof-intents/metadata.v1.json",
+    "validators/proof-intent-discovery-result/manifest.json",
+    "validators/proof-intent-discovery-result/validators.cjs",
     "schema/acceptance-coverage-gap-warning.v1.schema.json",
     "schema/controlled-acceptance-contract.v1.schema.json",
     "schema/controlled-acceptance-test-proof-definitions.v1.schema.json",
@@ -450,6 +454,7 @@
   "scripts": {
     "test": "node --test test/*.test.mjs test/runtime/*.test.mjs test/proof-packs/*.test.mjs test/development/*.test.mjs",
     "build:admissions": "node test/support/build-admitted-proof-pack-catalog.mjs",
+    "build:intent-metadata": "node bin/build-proof-intent-metadata.mjs --write",
     "prepare:validators": "node bin/prepare-validator-cache.mjs",
     "verify:validators": "node bin/prepare-validator-cache.mjs --verify",
     "docs:parameters": "node bin/proof-pack-parameter-docs.mjs"

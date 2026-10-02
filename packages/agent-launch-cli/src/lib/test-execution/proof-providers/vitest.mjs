@@ -1,7 +1,7 @@
 
 
 import integration from "../runner-integrations/vitest.mjs";
-import { CHANNEL_ASSET, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
+import { CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
   instrumentJavaScriptAttempt, javascriptLayout, observerAsset } from "./javascript-support.mjs";
 import { nativeProviderImplementation } from "./native-lifecycle.mjs";
 
@@ -13,8 +13,9 @@ export default nativeProviderImplementation({
   runtime_runner: "vitest",
   identity_format: JSON_TITLE_PATH,
   completion: "session_end",
-  assets: [ENTRY, observerAsset("vitest-runner.mjs"), CHANNEL_ASSET,
-    JAVASCRIPT_INSTRUMENTATION_ASSET],
+  assets: [ENTRY, observerAsset("vitest-config.mjs"), observerAsset("vitest-runner.mjs"),
+    ...CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET],
+  runner_options: (attempt) => ({ module_cache: attempt.compilerCache }),
   layout: javascriptLayout,
   instrument: instrumentJavaScriptAttempt,
   invocation: (attempt) => integration.invocation({ runtime: attempt.runtime,

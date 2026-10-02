@@ -529,6 +529,7 @@ export function createLaunchFlow(deps = {}) {
       resolvedBackend,
       resolvedBackendProfile,
       resolvedDefaultEffort,
+      resolvedModelSelection,
       familyExecutor,
       familyExecutorRegistryEntry
     } = selection;
@@ -1187,6 +1188,8 @@ export function createLaunchFlow(deps = {}) {
         backend: resolvedBackend,
         backend_profile: resolvedBackendProfile,
         default_effort: resolvedDefaultEffort,
+
+        model_selection: resolvedModelSelection,
         routeKind,
         applicable,
         launcher_transition_plan: activeTransitionPlan,

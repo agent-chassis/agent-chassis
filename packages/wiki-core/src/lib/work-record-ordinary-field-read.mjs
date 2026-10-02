@@ -12,7 +12,8 @@ import { selectTaskBySelector } from "./work-record-task-selection.mjs";
 import { findSliceById, parseWorkRecordSummaryUnit,
   WORK_RECORD_SLICE_PAGE_DEFAULT_LIMIT, WORK_RECORD_SLICE_PAGE_MAX_LIMIT
 } from "./work-record-summary.mjs";
-import { SHA256_PATTERN } from "./work-record-schema-constants.mjs";
+import { isWorkRecordFreshness, projectWorkRecordFreshness,
+  workRecordFreshnessMatches } from "./work-record-schema-constants.mjs";
 
 export const ORDINARY_FIELD_CODES = Object.freeze({
   INVALID: "selector_ordinary_field_invalid",
@@ -188,8 +189,9 @@ export function projectOrdinaryFieldRead({
   const record = loaded?.record;
   const selectedUnit = typeof unit === "string" ? parseWorkRecordSummaryUnit(unit)
     : unit ?? parseWorkRecordSummaryUnit(record?.id);
+
   const result = { record_id: record?.id ?? loaded?.record_id ?? null,
-    selected_unit: selectedUnit, source_digest: loaded?.source_digest ?? null,
+    selected_unit: selectedUnit, source_digest: projectWorkRecordFreshness(loaded?.source_digest),
     valid: false, ordinary_field: null, diagnostics: loaded?.diagnostics ?? [] };
   const refuse = (code, message, fieldPath, projection = null) => ({ ...result,
     ordinary_field: projection,
@@ -199,10 +201,10 @@ export function projectOrdinaryFieldRead({
   if (!target) return { ...refuse("missing_slice", `Selected slice ${selectedUnit.slice_id} does not exist on ${record.id}`, "unit"), summary: null };
   const issues = ordinaryFieldSelectionIssues(selection, expectedSourceDigest);
   if (issues.length) return { ...result, diagnostics: issues.map(issue => ({ ...issue, severity: "error", authority_limb: "mechanical" })) };
-  if (expectedSourceDigest !== null && !SHA256_PATTERN.test(expectedSourceDigest)) {
-    return refuse("invalid_expected_source_digest", "expected_source_digest must be sha256:<64 lowercase hex>", "expected_source_digest");
+  if (expectedSourceDigest !== null && !isWorkRecordFreshness(expectedSourceDigest)) {
+    return refuse("invalid_expected_source_digest", "expected_source_digest must be the 16 lowercase hex source_digest a read returned", "expected_source_digest");
   }
-  if (expectedSourceDigest !== null && expectedSourceDigest !== result.source_digest) {
+  if (expectedSourceDigest !== null && !workRecordFreshnessMatches(expectedSourceDigest, loaded?.source_digest)) {
     return { ...refuse("stale_source_digest", "source digest does not match the current on-disk record", "expected_source_digest"),
       expected_source_digest: expectedSourceDigest, current_source_digest: result.source_digest };
   }
@@ -222,7 +224,7 @@ export function projectOrdinaryFieldRead({
     }
     const points = Array.from(text);
     const makeRef = referenceFactory({ repository, record, selectedUnit,
-      sourceDigest: result.source_digest, field: entry.field, taskIndex, total: points.length });
+      sourceDigest: loaded.source_digest, field: entry.field, taskIndex, total: points.length });
     if (own(selection, "selection")) {
       const selected = projectExactSelection({ projection, text, selection: selection.selection, makeRef });
       if (!selected.ok) return { ok: false, refusal: refuse(selected.code, selected.message,

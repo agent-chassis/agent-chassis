@@ -17,7 +17,6 @@ export const WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR = "WIKI_MCP_COMMIT_LAUNCH_REF";
 export const WIKI_MCP_COMMIT_RUN_ID_ENV_VAR = "WIKI_MCP_COMMIT_RUN_ID";
 export const WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR = "WIKI_MCP_COMMIT_RETRY_ID";
 export const WIKI_MCP_RESPONSE_STATE_DIR_NAME = "wiki-mcp-response-state";
-export const WIKI_MCP_AGENT_SAFE_TOOL_PROFILE = "agent-safe";
 export const WIKI_MCP_WORKER_TOOL_PROFILE = "worker";
 export const WIKI_MCP_REVIEWER_TOOL_PROFILE = "reviewer";
 export const WIKI_MCP_REDTEAM_TOOL_PROFILE = "redteam";

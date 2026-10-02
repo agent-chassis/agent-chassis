@@ -9,7 +9,7 @@ import {
 } from "./sidecar-committed-preparation.mjs";
 import { readSidecarSymbolSelection } from "./sidecar-store.mjs";
 import { normalizeSidecarNavigationInput } from "./sidecar-navigation-input.mjs";
-import { projectNativeNavigation } from "./sidecar-navigation-projection.mjs";
+import { fitNavigationSummary, projectNativeNavigation } from "./sidecar-navigation-projection.mjs";
 import { resolveNativeNavigation } from "./sidecar-navigation-resolution.mjs";
 import { assembleNativeNavigationResult } from "./sidecar-navigation-source-query.mjs";
 
@@ -76,9 +76,13 @@ function compactSymbolNextAction(result, queryKind, resolutionState) {
   return null;
 }
 
-export function projectSidecarSymbolQueryForMcp(result, { verbose = false } = {}) {
+export function projectSidecarSymbolQueryForMcp(result, { verbose = false, fits = null,
+  limit = MCP_SYMBOL_QUERY_RESULT_LIMIT } = {}) {
   if (verbose) {
     return { ...cloneJson(result), verbose: true };
+  }
+  if (typeof fits === "function") {
+    return fitNavigationSummary((bound) => projectSidecarSymbolQueryForMcp(result, { limit: bound }), fits);
   }
 
   const queryKind = result?.query_kind ?? null;
@@ -103,7 +107,7 @@ export function projectSidecarSymbolQueryForMcp(result, { verbose = false } = {}
       truncated: allResults.length > returned
     },
     next_action: compactSymbolNextAction(result, queryKind, resolutionState)
-  });
+  }, { limit });
 }
 
 function layerFromStore(selection) {

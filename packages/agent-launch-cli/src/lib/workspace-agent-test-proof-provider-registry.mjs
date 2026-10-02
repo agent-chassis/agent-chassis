@@ -130,6 +130,7 @@ export function resolveTestProofProviders(binding) {
   else traversal = Object.freeze({
     mode: "provider",
     provider: resolveExact(binding.traversal_provider, "boundary_traversal", {
+      boundary_id: binding.system_under_test_boundary.boundary_id,
       boundary_kind: binding.system_under_test_boundary.kind,
       module_path: binding.system_under_test_boundary.runtime_module_path,
       observation_mechanism: binding.traversal_provider.observation_mechanism,
@@ -175,6 +176,12 @@ export async function executeLauncherTestProofProvider(resolved, input = {}) {
     TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.CAPABILITY_MISMATCH,
     "the selected test belongs to another provider family");
   return implementation.execute(resolved, input, selectedTest);
+}
+
+export function releaseLauncherTestProofProviderRuntime(resolved, prepared) {
+  assertLauncherResolvedTestProofProvider(resolved, "candidate_execution");
+  const release = implementationFor(resolved).release;
+  if (prepared !== null && typeof release === "function") release(prepared);
 }
 
 export function authenticateUnsupportedTestProofTraversal(binding) {

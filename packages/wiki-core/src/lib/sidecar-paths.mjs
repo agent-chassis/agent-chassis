@@ -1,6 +1,8 @@
 import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 
+import { sidecarLanguageExtensions } from "./sidecar-language-descriptions.mjs";
+
 const UNSUPPORTED_GLOB_SYNTAX = /[?[\]{}]/;
 
 export const SIDECAR_FORBIDDEN_PATH_PATTERNS = Object.freeze([
@@ -369,20 +371,18 @@ export function isUnindexedSidecarSourcePath(relativePath) {
 
 const SIDECAR_SCIP_PROVIDER_INPUTS = Object.freeze({
   "scip-typescript": Object.freeze({
-    extensions: Object.freeze([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"]),
+    extensions: Object.freeze([...sidecarLanguageExtensions(["typescript", "tsx", "javascript"]), ".json"]),
     basenames: Object.freeze(["yarn.lock", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc",
       ".nvmrc", ".node-version"]),
     pattern: null
   }),
   "scip-python": Object.freeze({
-    extensions: Object.freeze([".py", ".pyi"]),
+    extensions: sidecarLanguageExtensions(["python"], { declarations: true }),
     basenames: Object.freeze(["pyproject.toml", "setup.py", "setup.cfg", "Pipfile", "Pipfile.lock",
       "poetry.lock", "uv.lock", "pyrightconfig.json", ".python-version"]),
     pattern: /^requirements.*\.txt$/
   })
 });
-
-export const SIDECAR_SCIP_PROVIDER_NAMES = Object.freeze(Object.keys(SIDECAR_SCIP_PROVIDER_INPUTS));
 
 export function isSidecarScipProviderInputPath(provider, inputPath) {
   const rules = SIDECAR_SCIP_PROVIDER_INPUTS[provider];

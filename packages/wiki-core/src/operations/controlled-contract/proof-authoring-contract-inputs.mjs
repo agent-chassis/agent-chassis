@@ -1,4 +1,5 @@
 import { controlledContractContentDigest } from "../../lib/controlled-contract-tools.mjs";
+import { today } from "../../lib/wiki-shared.mjs";
 import {
   inspectWorkRecordProofPosture
 } from "../../lib/work-record-proof-posture.mjs";
@@ -20,7 +21,7 @@ function contractInput(input, key) {
 export function compileProofAuthoringContractInputs({
   pkg, initial, input, baseContract = initial.contract?.content ?? null,
   retainedReferenceIds = [],
-  now = () => new Date().toISOString()
+  now = today
 }) {
   const requirements = contractInput(input, "contractRequirements");
   const controlledAcceptance = contractInput(input, "controlledAcceptance");

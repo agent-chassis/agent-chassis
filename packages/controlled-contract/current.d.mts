@@ -399,7 +399,8 @@ export interface AcceptanceCoverageGapWarning {
 
 export {
   AcceptanceCoverageIdentityError, BINDING_DIGESTS, criterionIdentityDigest,
-  deriveCriterionIdentitySet, compareCriterionIdentitySets, AcceptanceCoverageError,
+  deriveCriterionIdentities, deriveCriterionIdentitySet, compareCriterionIdentitySets,
+  AcceptanceCoverageError,
   ACCEPTANCE_COVERAGE_STATES
 } from "./current-acceptance-coverage.mjs";
 export type {
@@ -710,3 +711,29 @@ export type {
 export function loadAdmittedProofPackMeaning(profileId: string): Promise<Record<string, any>>;
 export function loadExactAdmittedProofPackMeaning(
   identity: { profileId: string; profileVersion: string }): Promise<Record<string, any>>;
+
+// Proof-verification owners consumed by wiki-core and wiki-mcp.
+export function canonicalDigest(value: unknown): string;
+export function deepFreeze<T>(value: T): T;
+export function createNativeVerificationIndex(contract: Record<string, any>): Record<string, any>;
+export function resolveBehaviorAndVerificationPopulation(row: Record<string, any>,
+  contract: Record<string, any>, indexes?: Record<string, any>): Record<string, any>;
+export function classifyMutationOutcome(outcome: Record<string, any>): string;
+export function countMutationOutcomes(outcomes: readonly string[]): Record<string, number>;
+export const PROOF_OBLIGATION_NOT_EXECUTABLE_CODES: Readonly<Record<string, string>>;
+export class ProofObligationResolutionError extends Error {
+  readonly code: string;
+  readonly details: Record<string, unknown>;
+  constructor(code: string, message: string, details?: Record<string, unknown>);
+}
+export function prepareProofObligationRuntime(input: Record<string, any>): Record<string, any>;
+export function resolveProofObligationRuntime(input: Record<string, any>): Record<string, any>;
+export function buildProofVerificationResult(input: Record<string, any>): Record<string, any>;
+export function buildNotExecutableProofVerificationResult(input: Record<string, any>): Record<string, any>;
+export function canonicalProofVerificationDigest(value: unknown): string;
+export class TestProofEvidenceSemanticKernelError extends Error {
+  readonly code: string;
+  readonly details: Record<string, unknown>;
+  constructor(code: string, message: string, details?: Record<string, unknown>);
+}
+export function evaluateTestProofEvidenceSemantics(input: Record<string, any>): Record<string, any>;

@@ -1,4 +1,5 @@
 import test from "node:test";
+import { projectWorkRecordFreshness } from "../../packages/wiki-core/src/lib/work-record-schema-constants.mjs";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,7 @@ import { z } from "zod";
 import { jsonContent, errorContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import { registerWorkRecordReadTools } from "../../packages/wiki-mcp/src/lib/work-record-read-tools.mjs";
 import { readWorkRecordById } from "../../packages/wiki-core/src/operations/work-records-store-io.mjs";
+import { assertStructuredCarrier } from "../helpers/mcp-journey-accounting.mjs";
 
 function buildRegistration(workspaceDir) {
   const registrations = new Map();
@@ -91,7 +93,7 @@ async function digestOf(root, id) {
   const loaded = await readWorkRecordById({ dir: root, id });
   assert.equal(loaded.valid, true, `${id} fixture must load valid`);
   assert.equal(typeof loaded.source_digest, "string");
-  return loaded.source_digest;
+  return projectWorkRecordFreshness(loaded.source_digest);
 }
 
 function payloadOf(result) {
@@ -146,7 +148,7 @@ test("a record edited after it was read resolves as changed and carries the curr
 
 test("a record absent from disk resolves as absent, not as changed", async () => {
   const root = await setupWorkspace();
-  const observed = `sha256:${"a".repeat(64)}`;
+  const observed = "a".repeat(16);
 
   const handler = buildHandler(root);
   const payload = payloadOf(
@@ -167,7 +169,7 @@ test("a record absent from disk resolves as absent, not as changed", async () =>
 test("a record present but unparsable resolves as unreadable with the loader's diagnostic codes", async () => {
   const root = await setupWorkspace();
   await writeFile(path.join(root, "wiki", "work-records", "WK-9104.json"), "{ not json\n");
-  const observed = `sha256:${"b".repeat(64)}`;
+  const observed = "b".repeat(16);
 
   const handler = buildHandler(root);
   const payload = payloadOf(
@@ -201,7 +203,7 @@ test("a record that parses but fails schema validation resolves as unreadable", 
   const handler = buildHandler(root);
   const payload = payloadOf(
     await handler({
-      entries: [{ id: "WK-9105", observed_source_digest: loaded.source_digest }]
+      entries: [{ id: "WK-9105", observed_source_digest: projectWorkRecordFreshness(loaded.source_digest) }]
     })
   );
 
@@ -250,21 +252,23 @@ test("an over-cap submission reports bounded counts and names every skipped iden
 test("a malformed request refuses instead of returning a partial success envelope", async () => {
   const root = await setupWorkspace();
   const handler = buildHandler(root);
-  const observed = `sha256:${"c".repeat(64)}`;
+  const observed = "c".repeat(16);
 
   const empty = await handler({ entries: [] });
   assert.equal(empty.isError, true);
 
   const badId = await handler({ entries: [{ id: "DEC-0001", observed_source_digest: observed }] });
   assert.equal(badId.isError, true);
-  assert.deepEqual(badId.content, []);
+  assertStructuredCarrier(badId);
   assert.match(JSON.stringify(badId.structuredContent), /WK-####/);
 
-  const tokenAsDigest = await handler({
-    entries: [{ id: "WK-9101", observed_source_digest: "compact-read-token-abc" }]
-  });
-  assert.equal(tokenAsDigest.isError, true);
-  assert.match(JSON.stringify(tokenAsDigest.structuredContent), /compact_read_token/);
+  for (const notFreshness of ["compact-read-token-abc", `sha256:${"c".repeat(64)}`]) {
+    const refused = await handler({
+      entries: [{ id: "WK-9101", observed_source_digest: notFreshness }]
+    });
+    assert.equal(refused.isError, true);
+    assert.match(JSON.stringify(refused.structuredContent), /16 lowercase hex source_digest/);
+  }
 
   const extraField = await handler({
     entries: [{ id: "WK-9101", observed_source_digest: observed, compact_read_token: "x" }]
@@ -282,7 +286,7 @@ test("the registered entries schema rejects a malformed id or digest", async () 
     "entries must be registered as a parseable schema, not an untyped passthrough"
   );
 
-  const digest = `sha256:${"d".repeat(64)}`;
+  const digest = "d".repeat(16);
   assert.equal(
     entriesSchema.safeParse([{ id: "WK-9101", observed_source_digest: digest }]).success,
     true,
@@ -299,6 +303,10 @@ test("the registered entries schema rejects a malformed id or digest", async () 
 
   for (const observedSourceDigest of [
     "compact-read-token-abc",
+    `sha256:${"d".repeat(64)}`,
+    "d".repeat(15),
+    "d".repeat(17),
+    "D".repeat(16),
     `sha256:${"d".repeat(63)}`,
     `sha256:${"d".repeat(65)}`,
     `sha256:${"D".repeat(64)}`,
@@ -311,7 +319,7 @@ test("the registered entries schema rejects a malformed id or digest", async () 
         .safeParse([{ id: "WK-9101", observed_source_digest: observedSourceDigest }])
         .success,
       false,
-      `digest ${JSON.stringify(observedSourceDigest)} is not a raw sha256:<hex> source_digest`
+      `digest ${JSON.stringify(observedSourceDigest)} is not a 16-hex source_digest`
     );
   }
 });

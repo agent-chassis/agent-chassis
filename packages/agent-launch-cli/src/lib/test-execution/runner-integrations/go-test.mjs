@@ -8,7 +8,7 @@ export default Object.freeze({
     args: ["list", "-deps", "-test", "./..."], cwd: projectDir }),
   invocation: ({ runtime, projectDir, packagePath, testName }) => ({
     command: runtime.executables.go,
-    args: ["test", "-count=1", "-v", "-run", `^${escapeRegExp(testName)}$`, packagePath],
+    args: ["test", "-count=1", "-json", "-run", `^${escapeRegExp(testName)}$`, packagePath],
     cwd: projectDir
   })
 });

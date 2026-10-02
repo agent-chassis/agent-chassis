@@ -48,6 +48,7 @@ function convertRequestSchema(z, schema, defs, context) {
     if (schema.maxItems !== undefined) result = result.max(schema.maxItems);
     if (schema.uniqueItems) result = result.refine(items => new Set(items.map(value => JSON.stringify(value))).size === items.length,
       'Values must be unique');
+    if (schema.description) result = result.describe(schema.description);
   }
   else if (schema.type === 'object') {
     if (!schema.properties && schema.additionalProperties === true) result = z.record(z.unknown());

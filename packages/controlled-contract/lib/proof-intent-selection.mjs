@@ -1,37 +1,19 @@
 import { referenceRoleValueMatches } from './proof-parameter-refinements.mjs';
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 
+import { compiledValidatorCacheAvailability } from "./compiled-validator-cache.mjs";
 import {
-  loadAdmittedProofPackMeaning,
-  readProofPackCatalog
-} from "./admitted-proof-packs.mjs";
-import {
-  VOCABULARY_DIGESTS,
-  VOCABULARY_VERSION
-} from "./vocabulary-v1.mjs";
+  ProofIntentSelectionError,
+  assertPackagedProofIntentMetadata,
+  deriveProofIntentSelection,
+  normalizeIntentArtifact,
+  normalizeProofPackCatalog,
+  readPackagedProofIntentMetadata
+} from "./proof-intent-metadata.mjs";
 import { reduceProofIntentSelectionStatus } from
   "./proof-intent-selection-status.mjs";
-
-const packageRoot = new URL("../", import.meta.url);
-const [intentArtifact, proofPackCatalog] = await Promise.all([
-  readJson(new URL("proof-intents/catalog.json", packageRoot)), readProofPackCatalog()
-]);
 import { validateIntentArtifact, validateSelectionResult, validateSelectionResultV2, validateProofPackAuthoringProjection } from "./proof-authoring-schemas.mjs";
 const MAX_AUTHORING_PROJECTION_BYTES = 65_536;
-
-class ProofIntentSelectionError extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
-    this.name = "ProofIntentSelectionError";
-    this.code = code;
-    this.details = structuredClone(details);
-  }
-}
-
-async function readJson(url) {
-  return JSON.parse(await readFile(url, "utf8"));
-}
 
 function compareCodeUnits(left, right) {
   return String(left) < String(right) ? -1 : String(left) > String(right) ? 1 : 0;
@@ -69,125 +51,25 @@ function packKey({ profile_id: profileId, profile_version: version }) {
   return `${profileId}@${version}`;
 }
 
-function normalizeIntentArtifact(value) {
-  const normalized = structuredClone(value);
-  normalized.intents = normalized.intents.map((intent) => ({
-    ...intent,
-    discovery_terms: sortedUnique(intent.discovery_terms),
-    capable_packs: [...intent.capable_packs].sort((left, right) =>
-      compareCodeUnits(packKey(left), packKey(right))
-    ),
-    compatibility: Object.fromEntries(Object.entries(intent.compatibility).map(
-      ([key, values]) => [key, sortedUnique(values)]
-    )),
-    required_evaluation_inputs: sortedUnique(intent.required_evaluation_inputs),
-    distinctions: [...intent.distinctions].sort((left, right) =>
-      compareCodeUnits(left.from_intent_id, right.from_intent_id)
-    )
-  })).sort((left, right) => compareCodeUnits(left.intent_id, right.intent_id));
-  return canonicalValue(normalized);
+const packagedMetadata = readPackagedProofIntentMetadata();
+const PROOF_INTENT_ARTIFACT = deepFreeze(structuredClone(packagedMetadata.selection.intent_artifact));
+const PROOF_INTENT_DIGESTS = deepFreeze(structuredClone(packagedMetadata.selection.digests));
+const validatorCache = compiledValidatorCacheAvailability();
+const derivedSelection = validatorCache.available ? await deriveProofIntentSelection() : null;
+if (derivedSelection !== null) {
+  assertPackagedProofIntentMetadata("selection", packagedMetadata.selection, {
+    intent_artifact: derivedSelection.intent_artifact, digests: derivedSelection.digests });
 }
-
-function normalizeProofPackCatalog(value) {
-  return canonicalValue({
-    ...structuredClone(value),
-    packs: [...value.packs].sort((left, right) =>
-      compareCodeUnits(packKey(left), packKey(right))
-    )
-  });
-}
-
-if (!validateIntentArtifact(intentArtifact)) throw new ProofIntentSelectionError(
-  "proof_intent_artifact_invalid",
-  "the shipped controlled proof-intent artifact is schema-invalid",
-  { diagnostics: structuredClone(validateIntentArtifact.errors) }
-);
-
-const intentIds = intentArtifact.intents.map(({ intent_id: id }) => id);
-if (new Set(intentIds).size !== intentIds.length) throw new ProofIntentSelectionError(
-  "proof_intent_identity_ambiguous",
-  "the shipped proof-intent artifact contains duplicate controlled intent ids"
-);
-const intentIdentitySet = new Set(intentIds);
-for (const intent of intentArtifact.intents) {
-  const capableKeys = intent.capable_packs.map(packKey);
-  if (new Set(capableKeys).size !== capableKeys.length) {
-    throw new ProofIntentSelectionError(
-      "proof_intent_pack_mapping_duplicate",
-      "one controlled proof intent maps the same pack identity more than once",
-      { intent_id: intent.intent_id }
-    );
-  }
-  const distinctionIds = intent.distinctions.map(
-    ({ from_intent_id: id }) => id
-  );
-  if (new Set(distinctionIds).size !== distinctionIds.length ||
-      distinctionIds.some((id) => id === intent.intent_id ||
-        !intentIdentitySet.has(id))) throw new ProofIntentSelectionError(
-    "proof_intent_distinction_invalid",
-    "controlled intent distinctions must be unique references to other known intents",
-    { intent_id: intent.intent_id, distinction_intent_ids: distinctionIds }
-  );
-}
-
-const catalogIdentitySet = new Set(proofPackCatalog.packs.map(packKey));
-const mappedPackIdentitySet = new Set(intentArtifact.intents.flatMap(
-  ({ capable_packs: packs }) => packs.map(packKey)
-));
-for (const identity of catalogIdentitySet) if (!mappedPackIdentitySet.has(identity)) {
-  throw new ProofIntentSelectionError(
-    "proof_intent_catalog_pack_unmapped",
-    "every admitted catalog pack must be discoverable through a controlled intent",
-    { pack_identity: identity }
-  );
-}
-for (const intent of intentArtifact.intents) for (const capable of intent.capable_packs) {
-  if (!catalogIdentitySet.has(packKey(capable))) throw new ProofIntentSelectionError(
-    "proof_intent_pack_not_admitted",
-    "a controlled proof intent references a pack identity absent from the admitted catalog",
-    { intent_id: intent.intent_id, pack: capable }
-  );
-}
-
-const loadedPacks = await Promise.all(proofPackCatalog.packs.map(
-  ({ profile_id: profileId }) => loadAdmittedProofPackMeaning(profileId)
-));
-const packByIdentity = new Map(loadedPacks.map((pack) => [packKey({
+const loadedPacks = derivedSelection?.loadedPacks ?? null;
+const packByIdentity = loadedPacks === null ? null : new Map(loadedPacks.map((pack) => [packKey({
   profile_id: pack.profile.profile_id,
   profile_version: pack.profile.profile_version
 }), pack]));
 
-for (const intent of intentArtifact.intents) for (const capable of intent.capable_packs) {
-  const pack = packByIdentity.get(packKey(capable));
-  const compatibleAdmission = intent.compatibility.admission_schema_versions.includes(
-    pack.admission.schema_version
-  );
-  const compatibleProfile =
-    intent.compatibility.contract_schema_versions.includes(
-      pack.profile.contract_schema_version
-    ) && intent.compatibility.vocabulary_versions.includes(
-      pack.profile.vocabulary_version
-    ) && pack.profile.vocabulary_version === VOCABULARY_VERSION;
-  if (!compatibleAdmission || !compatibleProfile) throw new ProofIntentSelectionError(
-    "proof_intent_pack_compatibility_invalid",
-    "a controlled proof intent is inconsistent with its admitted pack carrier",
-    { intent_id: intent.intent_id, pack: capable }
-  );
+function admittedPacks() {
+  if (loadedPacks === null) throw validatorCache.cause;
+  return { loadedPacks, packByIdentity };
 }
-
-const PROOF_INTENT_ARTIFACT = deepFreeze(normalizeIntentArtifact(intentArtifact));
-const PROOF_INTENT_DIGESTS = deepFreeze({
-  algorithm: "sha256-canonical-json-v1",
-  catalog: canonicalDigest(normalizeProofPackCatalog(proofPackCatalog)),
-  vocabulary: VOCABULARY_DIGESTS.complete,
-  profiles: canonicalDigest(loadedPacks.map((pack) => ({
-    profile_id: pack.profile.profile_id,
-    profile_version: pack.profile.profile_version,
-    profile_digest: pack.profile_digest,
-    admission_digest: pack.admission_digest
-  })).sort((left, right) => compareCodeUnits(packKey(left), packKey(right)))),
-  intent_artifact: canonicalDigest(PROOF_INTENT_ARTIFACT)
-});
 
 function requiredInput(inputId) {
   const mapping = {
@@ -489,13 +371,13 @@ function describeProofPackAuthoring({
       "authoring projection requires an exact profile id and version"
     );
   }
-  const pack = packByIdentity.get(packKey({
+  const pack = admittedPacks().packByIdentity.get(packKey({
     profile_id: profileId,
     profile_version: profileVersion
   }));
   if (!pack) {
 
-    const candidates = loadedPacks.filter(({ profile }) =>
+    const candidates = admittedPacks().loadedPacks.filter(({ profile }) =>
       profile.profile_id === profileId).map((candidate) => {
       const authoring = buildProofPackAuthoringProjection(candidate,
         resolveAuthoringIntentDefinitions(candidate, null));
@@ -583,7 +465,7 @@ function selectProofPacksV2({ contract, requestedIntents, expectedDigests = null
     "one or more requested controlled proof intents are unknown",
     { unknown_intents: unknown }
   );
-  const providedPackByIdentity = new Map(loadedPacks.map((pack) => [packKey({
+  const providedPackByIdentity = new Map(admittedPacks().loadedPacks.map((pack) => [packKey({
     profile_id: pack.profile.profile_id,
     profile_version: pack.profile.profile_version
   }), pack]));

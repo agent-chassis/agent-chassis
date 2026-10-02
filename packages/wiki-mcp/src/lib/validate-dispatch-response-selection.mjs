@@ -25,6 +25,8 @@ const HEADER_MEMBERS = Object.freeze([
   "dispatchable", "decision_code", "reasons_total", "cluster_count"
 ]);
 
+const PRIMARY_CORRECTION = "next_action";
+
 const ESSENTIAL_MEMBERS = Object.freeze([
   "next_action", "graph_impact_failure_code", "auto_recoverable", "recovery", "state"
 ]);
@@ -224,6 +226,8 @@ export function createValidateDispatchResponseSelection({
     ];
     const inlined = [];
     let omitted = [...ordered];
+
+    let deferNavigation = true;
     let derived = {};
     const collections = selectedResponseCollectionCounts(complete);
 
@@ -246,7 +250,9 @@ export function createValidateDispatchResponseSelection({
         members.push(CONTROLLED_ACCEPTANCE_MEMBER);
       }
       const required = new Set(members.slice(1));
-      return [...new Set(members)].map((member) => session.detailCall(binding,
+      const routes = deferNavigation && optional !== null && !required.has(optional) && required.size > 0
+        ? [...required] : [...new Set(members)];
+      return routes.map((member) => session.detailCall(binding,
         { ...selectionForMember(source, complete, member), snapshot_identity: snapshotIdentity },
         { recommended: member !== optional || required.has(member) }));
     };
@@ -287,10 +293,7 @@ export function createValidateDispatchResponseSelection({
     const headerExceeded = () =>
       new RangeError(`${VALIDATE_DISPATCH_ROUTE} readiness header exceeds the complete-frame class`);
 
-    for (const member of ESSENTIAL_MEMBERS.filter(has)) inline(member);
-    for (const [member, name, fields] of DECISION_SCALARS) {
-      if (has(member)) tryDerive(name, scalarFields(complete[member], fields));
-    }
+    if (has(PRIMARY_CORRECTION)) inline(PRIMARY_CORRECTION);
     const reasons = Array.isArray(complete.reasons) ? complete.reasons : [];
     const groups = new Map();
     reasons.forEach((reason, ordinal) => {
@@ -307,14 +310,26 @@ export function createValidateDispatchResponseSelection({
       inline: { complete: listed.length === distinctReasons.length, listed: listed.length }, distinct: listed });
     const callsSummary = (listed) => ({ total: ownerCalls.length,
       inline: { complete: listed.length === callIdentities.length, listed: listed.length }, calls: listed });
-    if (reasons.length > 0 && !tryDerive("reasons", reasonsSummary([]))) throw headerExceeded();
-    if (ownerCalls.length > 0 && !tryDerive("owner_next_calls", callsSummary([]))) throw headerExceeded();
 
-    if (reasons.length > 0 && inline("reasons")) {
-      derived = { ...derived, reasons: { total: reasons.length, distinct_total: distinctReasons.length } };
+    if (reasons.length > 0) {
+      if (inline("reasons")) {
+        derived = { ...derived, reasons: { total: reasons.length, distinct_total: distinctReasons.length } };
+      } else if (!tryDerive("reasons", reasonsSummary([]))) throw headerExceeded();
     }
-    if (ownerCalls.length > 0 && inline("next_calls")) {
-      derived = { ...derived, owner_next_calls: { total: ownerCalls.length } };
+    if (ownerCalls.length > 0) {
+      if (inline("next_calls")) derived = { ...derived, owner_next_calls: { total: ownerCalls.length } };
+      else if (!tryDerive("owner_next_calls", callsSummary([]))) throw headerExceeded();
+    }
+
+    for (const [member, name, fields] of DECISION_SCALARS) {
+      if (has(member)) tryDerive(name, scalarFields(complete[member], fields));
+    }
+
+    deferNavigation = false;
+    if (!fits(summaryFor())) deferNavigation = true;
+
+    for (const member of ESSENTIAL_MEMBERS.filter(has)) {
+      if (member !== PRIMARY_CORRECTION) inline(member);
     }
 
     const definitions = definitionSource;

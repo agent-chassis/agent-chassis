@@ -74,15 +74,18 @@
       "use_when": [
         "An authenticated orchestrator must verify the complete proof population selected by one canonical WK, slice, test-proof, or obligation subject against the configured clean or dirty worktree, or against a shared authenticated private detached materialization of an exact full Git commit.",
         "Read the selected test observation and mutation evidence separately: mutation contributes additional falsification evidence for the same proof, while unavailable mutation leaves the observed test result visible and unchanged.",
-        "A test-proof or obligation ID is saved in more than one source: the bare call refuses and lists every authorized source choice; retry one listed choice, which adds source {unit, focus?} to select exactly that WK or slice source (omitted focus selects the root source) without searching any other source.",
+        "A test-proof or obligation ID is saved in more than one source: supply the intended source {unit, focus?} on execution, or inspect the bare refusal's at most three exact source identities. Root next_calls read those choices through result or recorded_invocation; any retained tuple can be inspected by its exact source, including one outside the preview. Omitted focus selects root. The selected read returns the original execution call without executing it.",
         "An eligible launcher-managed worker or reviewer must execute every exact server-resolved declared test proof selected by one canonical subject.",
         "A proof definition (declarative test selector, boundary, observable, falsifiers, traversal) has been authored and the candidate implementation must now be executed against it; a selected test that does not exist yet is an execution outcome of this call, never an authoring prerequisite.",
-        "Each selected test runs in the setup-prepared environment its saved runner binding and owning installation root select (the target suffix is recorded as a hint), so one call may verify several languages; pass optional environment <ecosystem>@<installation root> (for example npm@. or go_modules@services/api, as setup's readiness lists them) to name one prepared environment, which must serve every selected proof or the call refuses before executing and lists each incompatible target with the valid choices."
+        "Each selected test runs in the setup-prepared environment its saved runner binding and owning installation root select (the target suffix is recorded as a hint), so one call may verify several languages; pass optional environment <ecosystem>@<installation root> (for example npm@. or go_modules@services/api, as setup's readiness lists them) to name one prepared environment, which must serve every selected proof or the call refuses before executing and lists each incompatible target with the valid choices.",
+        "A verification answer named a failed proof: follow its exact next call, workspace_verify_proof with the same result {ref_id, sha256} and that test_proof_id or obligation_id as subject, to read the proof's recorded error, location and call trace from the settled result without executing anything. An owner-supplied authoring query appears separately at root next_calls; it reads current authoring and does not rerun proof execution. A managed worker's answer names recorded_invocation {invocation_id} instead of result; its failure next call reads that worker's own recorded invocation the same way. A single test_proof_id or obligation_id verification that fails returns that diagnosis directly."
       ],
       "do_not_use_when": [
         "A managed worker or reviewer wants to supply git_sha or escape its launcher-bound candidate.",
         "The subject is a WK ID or slice address and a source is also supplied; a population subject already names its source, and source never grants execution or declaration authority.",
-        "The task needs a caller-selected path, command, target, environment variables, executable, root or mount, provider, evaluator, receipt, policy, authority, arbitrary test execution, replay authority, or lifecycle authority; environment names only a setup-published prepared environment."
+        "The task needs a caller-selected path, command, target, environment variables, executable, root or mount, provider, evaluator, receipt, policy, authority, arbitrary test execution, replay authority, or lifecycle authority; environment names only a setup-published prepared environment.",
+        "A result or recorded_invocation read also supplies timeout, environment or git_sha, or both read modes; those configure an execution, and a read executes nothing.",
+        "A session other than the managed worker that made the recorded invocation wants to read it; recorded_invocation reads only the authenticated worker's own attempt."
       ],
       "authoritative_for": [
         "advisory satisfied, unsatisfied, not_executable, or typed-refusal verification of one deterministic, completely preflighted proof population, including separate selected-test observations and additional mutation falsification evidence, with canonical relationship projection, authenticated selected-worktree facts, confined execution, receipt, proof-pack, and evaluator identities"
@@ -198,7 +201,7 @@
           "controlled_contract_proof_authoring"
         ]
       },
-      "notes": "List-only atomic amendment. Omitted fields preserve values; clear_parameters removes named explicit parameters. case supplies component, target/selector, observation and falsification meaning. One case definition lives in the parent obligation source; obligations and slices reference case_id. Missing fields stay absent. Native structures are derived. All affected uses are checked before effects. CAS binds the source closure, canonical facts and target state. Normal receipt is exactly {unit,saved,unchanged,content_digest}; query returns saved semantic cases. A test_execution verification saves its specific meaning -- verifier, observation and falsifying condition -- without verification.runtime_test; supplying runtime_test additionally binds the executable test. An authored case, a native provider selector, an installed executor and a supported falsifier target are execution inputs, never conditions of saving or admitting the plan. No execution or separate preparation route is required."
+      "notes": "List-only amendment; obligation acceptance_criteria takes exact query criterion identity values, never criterion text. Use acceptance_criteria[].identity, never positions or invented labels; omission preserves, [] clears and unknown identities refuse. Other omissions preserve; clear_parameters drops named explicit parameters. case (component, target/selector, observation, falsification) lives once in the parent obligation source; obligations and slices reference case_id. All affected uses are checked before effects. expected_content_digest: current combined content_digest for the same unit/focus (query or still-current save receipt), never a work-record or tool-guidance source_digest; binds the whole work record, source closure, canonical facts and target state. Receipt: exactly {unit,saved,unchanged,content_digest}; query returns saved semantic cases. test_execution saves verifier, observation and falsifier; runtime_test also binds its executable test. Cases, selectors, executors and falsifier targets are execution inputs, not save/admission conditions. obligations[].proof_opt_out:true declines proof, keeps coverage, earns no credit; refuses with a proof selection or case."
     },
     {
       "tool_name": "workspace_controlled_contract_obligation_coverage_remove",
@@ -287,15 +290,18 @@
         "free_local"
       ],
       "docs_refs": [
-        "docs/acceptance-coverage-mcp.md"
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-selected-response-details.md"
       ],
       "source_files": [
         "packages/wiki-core/src/operations/controlled-contract/proof-authoring-source.mjs",
-        "packages/wiki-core/src/operations/controlled-contract/proof-authoring-operations.mjs",
-        "packages/wiki-mcp/src/lib/proof-authoring-tools.mjs"
+        "packages/wiki-core/src/operations/controlled-contract/obligation-coverage-query.mjs",
+        "packages/wiki-mcp/src/lib/proof-authoring-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-query-context.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-query-response.mjs"
       ],
       "use_when": [
-        "Read saved obligations and complete requirement meaning after restart, optionally selecting one obligation or pinned parameter detail, or listing obligation IDs with their statements when they are unknown."
+        "Read saved obligations and complete requirement meaning, with every linked verification, after restart: the whole unit, one known obligation directly, pinned parameter detail, or an inventory of statements when obligation IDs are unknown. A managed worker reads its assigned unit's contract here."
       ],
       "do_not_use_when": [
         "This operation grants no implementation-proof or lifecycle authority."
@@ -314,7 +320,7 @@
           "controlled_contract_authoring"
         ]
       },
-      "notes": "Read saved obligations, exact pins, incomplete linked cases and complete requirement meaning after restart. Selectors resolve against deduplicated canonical references in the response. obligation_id limits requirements and references to associated meaning; counts disclose omissions. inventory answers the unknown-ID case with one compact row per obligation -- authored statement plus factual gap, selection and case indicators -- a contract-input summary and ONE shared detail-read declaration, and is refused alongside obligation_id or parameter_detail; read the whole population unselected instead of walking an inventory row by row. Combined revision is the next CAS. Paging requires no validation or construction."
+      "notes": "One flat result at one combined revision: requirements (meaning.verifications lists linked verifications by claim_id), references, obligations, their parent-owned cases, and global notes and residue. A result within min(8192, the active inline limit) is returned whole; otherwise compact (the default) returns identity, counts and the next_call that starts complete retrieval, and view:\"complete\" starts it at once. detail reads one bounded page of the retained result with only unit and repo; follow next_calls until none remain. obligation_id reads one obligation directly; parameter_detail reports each exact pin as current, unselected, unpinned or stale without refreshing it; inventory lists complete statements and refuses with obligation_id, parameter_detail or view:\"complete\". There is no cursor. Orchestrator and operator read the canonical repository, reviewer and redteam the frozen review materialization, and a managed worker only its assigned unit's closure. The combined revision is the next CAS. acceptance_criteria lists the unit's criteria (identity, position, text, text_sha256) for obligation associations."
     },
     {
       "tool_name": "workspace_validate_proof",
@@ -350,16 +356,19 @@
         "packages/controlled-contract/lib/proof-authoring-diagnostic-groups.mjs",
         "packages/controlled-contract/lib/proof-authoring-resolution.mjs",
         "packages/controlled-contract/lib/proof-contract.mjs",
+        "packages/controlled-contract/lib/proof-executable-map.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/proof-authoring-diagnostic-projection.mjs",
         "packages/wiki-core/src/operations/controlled-contract/proof-authoring-operations.mjs",
         "packages/wiki-core/src/operations/controlled-contract/proof-authoring-readiness-inputs.mjs",
         "packages/wiki-core/src/operations/controlled-contract/proof-authoring-source.mjs",
         "packages/wiki-core/src/operations/controlled-contract/saved-proof-source.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/terminal-gap-classification.mjs",
         "packages/wiki-mcp/src/lib/proof-authoring-tools.mjs"
       ],
       "use_when": [
-        "Explicitly check saved proof inputs against the exact selected route and distinguish blocking, nonblocking and unresolved author-input, canonical-source or system-capability diagnostics without execution or mutation.",
-        "Inspect the authored-semantic verdict separately from selected-route executable-map stages, zero-credit execution status, dispatch-not-assessed status, and supported or explicitly unavailable recovery.",
-        "Retrieve every original occurrence for a returned diagnostic_group_id through the same source-bound validation route."
+        "Explicitly check whether saved proof inputs validate against the exact selected route, with the authored verdict, the selected-route prerequisite stages and zero execution credit kept apart, without execution or mutation.",
+        "Find the blocking and actionable issues through the compact default issue index, whose rows name the owner meaning, subject and occurrence counts, bounded affected obligations and each issue's exact diagnostic_group_id call.",
+        "Read one issue's subjects, typed failed fields, correction clauses and addressed correction call with diagnostic_group_id, or every cause naming one obligation with obligation_id."
       ],
       "do_not_use_when": [
         "This operation grants no implementation-proof or lifecycle authority."
@@ -377,7 +386,7 @@
           "controlled_contract_proof_validation"
         ]
       },
-      "notes": "Explicit design validation of saved obligations, exact pins and pack-owned parameters/construction/dependencies. Root status, input_status and valid/invalid obligation counts report existing authored meaning and currentness; rows without a selected route remain in that denominator. The strict executable-map verdict, exact route stages and route-effect counts stay under selected_route_assessment. diagnostic_group_id selects lossless identity-bound detail. Every resolved-unit response offers workspace_validate_dispatch as an independent assessment regardless of executable-map validity; validation does not invoke it, grant dispatch, execute proofs, mutate authored state or grant readiness authority."
+      "notes": "Explicit design validation of saved obligations, exact pins and pack-owned parameters/construction/dependencies. The compact default (proof-validation-assessment.v2) reports authored validity counts, the separate selected-route assessment and stages, independent owner failures, execution not_started with zero proofs and credit, dispatch not_assessed with the workspace_validate_dispatch call, whole-unit acceptance_coverage counts and correction, named diagnostic totals, and a bounded issue index with exact omissions; per-subject detail is not included and nonblocking or inspection-only observations are counted only. diagnostic_group_id or obligation_id returns a proof-validation-selected-diagnosis.v1 answer at the same combined revision; an oversized selection narrows to an identity-only subject index or states its omissions, and an indivisible answer is refused as proof_validation_answer_exceeds_compact_class. Validation never spills, pages or takes a cursor, never invokes or grants dispatch, executes no proof and mutates nothing."
     }
   ]
 }

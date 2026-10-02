@@ -12,9 +12,12 @@ import {
 } from "../work-record-write-route-helpers.mjs";
 import { graphDerivationRequiredForDispatch } from "./dispatch-admission-policy.mjs";
 import { refuseFindingsOnlyAdmission } from "./findings-only-admission.mjs";
+import { MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE } from
+  "@agent-chassis/wiki-core/src/lib/work-record-dispatch.mjs";
 import {
   boundedRecoveryDetail,
   continuationOrNull,
+  missingInitiativeAssignmentRefusal,
   namedAuthoredReadinessClassification
 } from "./agent-dispatch-refusal-projection.mjs";
 import { orchestrateWorkerReadiness } from "./agent-dispatch-worker-readiness.mjs";
@@ -38,7 +41,8 @@ export async function orchestrateAgentDispatchReadiness({
   buildTransitionRefusal,
   readinessFailure,
   launcherTransitionFailures,
-  jsonContent
+  jsonContent,
+  requestSchemaAuthority = null
 }) {
   const readinessDispatchRole = args.role === "worker" ? "implementation" : "read_only";
   let readiness = null;
@@ -121,6 +125,11 @@ export async function orchestrateAgentDispatchReadiness({
             carried: controlledAcceptanceBlocked ? {
               controlled_acceptance_recovery: readiness.controlled_acceptance_recovery
             } : null,
+            refusal: readinessDecisionCode === MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE
+              ? missingInitiativeAssignmentRefusal({
+                  readiness, code: classification.code, requestSchemaAuthority
+                })
+              : null,
             continuation: continuationOrNull({
               tool: controlledAcceptanceBlocked
                 ? "workspace_controlled_contract_obligation_coverage_query"

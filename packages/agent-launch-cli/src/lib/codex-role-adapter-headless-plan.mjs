@@ -20,7 +20,8 @@ import {
   extractRepoInternalAddDirRoots
 } from "./codex-role-sandbox-args.mjs";
 import {
-  buildCodexReasoningEffortConfigOverrides
+  buildCodexReasoningEffortConfigOverrides,
+  codexModelArgs
 } from "./codex-role-reasoning-effort.mjs";
 import {
   buildCodexFactResolutionRefusalPlan,
@@ -41,6 +42,8 @@ export async function buildHeadlessPlan({
   argsPrefix,
   prompt,
   model = null,
+
+  modelSelection = null,
   writableProjectRoots: explicitWritableProjectRoots = null,
   writableFiles: explicitWritableFiles = null,
   workspaceAlias = null,
@@ -61,7 +64,8 @@ export async function buildHeadlessPlan({
     });
   }
   const runtimeEnv = sanitizeCodexChildEnv(runtimeHomeResult);
-  const modelArgs = typeof model === "string" && model.trim() !== "" ? ["-m", model.trim()] : [];
+  const modelArgs = codexModelArgs({ model, model_selection: modelSelection });
+  const selectionOverrides = buildCodexReasoningEffortConfigOverrides({ role, modelSelection });
 
   const schemaConstraintPath =
     terminalStructuredRoleResultMode === TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED
@@ -120,9 +124,7 @@ export async function buildHeadlessPlan({
       });
   if (verbose) {
     const args = [...argsPrefix, ...modelArgs, ...schemaConstraintArgs, prompt];
-    injectCodexConfigOverridesBeforeFinalPositional(args, [
-      ...buildCodexReasoningEffortConfigOverrides({ role, repo, model })
-    ]);
+    injectCodexConfigOverridesBeforeFinalPositional(args, selectionOverrides);
     return {
       mode: "headless-verbose",
       role,
@@ -132,7 +134,9 @@ export async function buildHeadlessPlan({
       args,
       env: runtimeEnv,
       isolation,
-      worker_scope_authority: workerScopeAuthority
+      worker_scope_authority: workerScopeAuthority,
+      model_selection: modelSelection,
+      model_route_secret_dir: runDirBase
     };
   }
 
@@ -140,9 +144,7 @@ export async function buildHeadlessPlan({
   const finalPath = path.join(runDir, "final.md");
   const logPath = path.join(runDir, "run.log");
   const args = [...argsPrefix, ...modelArgs, "--output-last-message", finalPath, ...schemaConstraintArgs, prompt];
-  injectCodexConfigOverridesBeforeFinalPositional(args, [
-    ...buildCodexReasoningEffortConfigOverrides({ role, repo, model })
-  ]);
+  injectCodexConfigOverridesBeforeFinalPositional(args, selectionOverrides);
   return {
     mode: "headless",
     role,
@@ -156,6 +158,9 @@ export async function buildHeadlessPlan({
     logPath,
     logPrefix,
     isolation,
-    worker_scope_authority: workerScopeAuthority
+    worker_scope_authority: workerScopeAuthority,
+    model_selection: modelSelection,
+
+    model_route_secret_dir: runDirBase
   };
 }

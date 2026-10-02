@@ -3,6 +3,13 @@ import path from "node:path";
 import { resolveModelRuntime } from "./agent-launch-model-registry.mjs";
 import { loadRepoProfileLocalConfig } from "./agent-launch-repo-profile-config.mjs";
 import { buildOrchestratorSettings } from "./orchestrator-launch-settings.mjs";
+import {
+  DEFAULT_AGENT_LAUNCH_DIR_NAME,
+  DEFAULT_REPO_ENV_FILE_NAME
+} from "./workspace-agent-family-bwrap-plan.mjs";
+import {
+  CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
 import { buildClaudeMcpPermissionEntries } from "./workspace-agent-claude-launch-support.mjs";
 
 export const CLAUDE_ORCHESTRATOR_MCP_CONFIG_SCHEMA_VERSION =
@@ -37,17 +44,55 @@ export function isValidClaudeOrchestratorWorkspaceAlias(value) {
   return isNonEmptyString(value) && CLAUDE_ORCHESTRATOR_WORKSPACE_ALIAS_PATTERN.test(value);
 }
 
+export const CLAUDE_ORCHESTRATOR_MANAGED_WORKTREE_EXCLUDED_PATTERNS = Object.freeze([
+  DEFAULT_REPO_ENV_FILE_NAME,
+  `${DEFAULT_AGENT_LAUNCH_DIR_NAME}/**`,
+  `${CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT}/**`
+]);
+
+function absoluteReadPrefix(dir) {
+  return `Read(//${dir.replace(/^\/+/, "")}`;
+}
+
+function assertLauncherOwnedDirectory(value, message) {
+  if (value !== null &&
+      (!isNonEmptyString(value) || !path.isAbsolute(value) || path.resolve(value) !== value)) {
+    throw new Error(`claude-orchestrator: ${message}`);
+  }
+}
+
 export function buildClaudeOrchestratorHeadlessPermissionSettings({
-  mcpToolNames = []
+  mcpToolNames = [],
+  responseStateDir = null,
+  managedWorktreeRoot = null
 } = {}) {
+  if (responseStateDir !== null &&
+      (!isNonEmptyString(responseStateDir) || !path.isAbsolute(responseStateDir))) {
+    throw new Error("claude-orchestrator: the response state Read grant requires an absolute launcher-owned directory");
+  }
+  assertLauncherOwnedDirectory(
+    managedWorktreeRoot,
+    "the managed-worktree Read grant requires the absolute, normalized launcher-derived root"
+  );
   const allow = [
     ...buildClaudeMcpPermissionEntries(mcpToolNames),
-    ...CLAUDE_ORCHESTRATOR_HEADLESS_COORDINATION_EDIT_ALLOW
+    ...CLAUDE_ORCHESTRATOR_HEADLESS_COORDINATION_EDIT_ALLOW,
+    ...(responseStateDir === null
+      ? []
+      : [`${absoluteReadPrefix(path.resolve(responseStateDir))}/**)`]),
+    ...(managedWorktreeRoot === null
+      ? []
+      : [`${absoluteReadPrefix(managedWorktreeRoot)}/**)`])
   ];
+  const managedWorktreeDeny = managedWorktreeRoot === null
+    ? []
+    : CLAUDE_ORCHESTRATOR_MANAGED_WORKTREE_EXCLUDED_PATTERNS.map(
+        (pattern) => `${absoluteReadPrefix(managedWorktreeRoot)}/**/${pattern})`
+      );
   return {
     permissions: {
       allow,
-      deny: [...CLAUDE_ORCHESTRATOR_HEADLESS_DENY_TOOLS],
+      deny: [...CLAUDE_ORCHESTRATOR_HEADLESS_DENY_TOOLS, ...managedWorktreeDeny],
       disableBypassPermissionsMode: "disable"
     }
   };

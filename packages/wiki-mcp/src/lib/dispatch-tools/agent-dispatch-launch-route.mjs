@@ -20,6 +20,20 @@ import {
 import { projectBoundedExactPolicyPayloadIssueReadiness } from
   "./agent-dispatch-cce-admission.mjs";
 import { decideBaseSelectionRecovery } from "./dispatch-base-selection-guidance.mjs";
+import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+
+const RUN_STATUS_TOOL_NAME = "workspace_agent_run_status";
+
+async function advisoryRunStatusCall({ requestContracts, repository, launch }) {
+  const contract = requestContracts?.contractFor?.(RUN_STATUS_TOOL_NAME) ?? null;
+  if (contract === null || typeof launch?.subject !== "string" || typeof launch?.run_id !== "string") {
+    return null;
+  }
+  const args = { repo: repository, subject: launch.subject, attempt_id: launch.run_id };
+  return await contract.acceptsArguments(args) === true
+    ? buildNextCall({ tool: RUN_STATUS_TOOL_NAME, arguments: args, recommended: true })
+    : null;
+}
 
 const DISPATCH_LAUNCH_BACKEND_REASON = "launch_backend_unavailable";
 const DISPATCH_LAUNCH_BACKEND_DETAIL = Object.freeze({
@@ -38,7 +52,8 @@ export async function executeAdvisoryReviewDispatch({
   dispatchBackend,
   dispatchSessionIdentity,
   formalResultContract,
-  jsonContent
+  jsonContent,
+  requestContracts = null
 }) {
   if (typeof dispatchBackend?.startAdvisoryReview !== "function") {
     return jsonContent({
@@ -84,6 +99,7 @@ export async function executeAdvisoryReviewDispatch({
       subject_kind: subjectKind
     });
   }
+  const statusCall = await advisoryRunStatusCall({ requestContracts, repository: workspace.repo, launch });
   return jsonContent({
     ...launch,
     schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
@@ -92,7 +108,8 @@ export async function executeAdvisoryReviewDispatch({
     ...(Object.hasOwn(launch, "final_result")
       ? { final_result: projectPublicFinalResult(launch.final_result) }
       : {}),
-    blocker: null
+    blocker: null,
+    ...(statusCall === null ? {} : { next_calls: [statusCall] })
   });
 }
 
@@ -110,7 +127,8 @@ export async function executeAgentDispatchLaunch({
   projectPublicReadiness,
   jsonContent,
   requestSchemaAuthority = null,
-  reassessmentAvailable = false
+  reassessmentAvailable = false,
+  responseEnv = process.env
 }) {
   const admissionDetail = {
     role: args.role,
@@ -191,7 +209,8 @@ export async function executeAgentDispatchLaunch({
         detail: refusal.detail ?? null
       }
     });
-    const publicBackendDetail = projectPublicBackendDetail(backendClassification, dispatchApp);
+    const publicBackendDetail = projectPublicBackendDetail(backendClassification, dispatchApp,
+      { env: responseEnv });
     const publicBackendCode = publicBackendBlockerCode(backendClassification);
     const settledTransitionPlan = launch?.settled_launcher_transition_plan ??
       launch?.launcher_transition_plan ?? null;

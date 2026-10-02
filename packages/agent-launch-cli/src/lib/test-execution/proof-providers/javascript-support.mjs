@@ -7,7 +7,11 @@ import { instrumentJavaScriptModule } from "../source-instrumentation/javascript
 
 export const OBSERVER_ROOT = fileURLToPath(new URL("../observers/", import.meta.url));
 export const observerAsset = (name) => path.join(OBSERVER_ROOT, name);
-export const CHANNEL_ASSET = observerAsset("native-channel.cjs");
+
+export const DIAGNOSTIC_GRAPH_ASSET = fileURLToPath(
+  new URL("../../workspace-agent-test-proof-diagnostic-graph.cjs", import.meta.url));
+
+export const CHANNEL_ASSETS = Object.freeze([observerAsset("native-channel.cjs"), DIAGNOSTIC_GRAPH_ASSET]);
 export const JAVASCRIPT_INSTRUMENTATION_ASSET = fileURLToPath(
   new URL("../source-instrumentation/javascript.mjs", import.meta.url));
 

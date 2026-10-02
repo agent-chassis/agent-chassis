@@ -8,11 +8,20 @@ import {
 import { assignWorkRecordToInitiativeByUnit as defaultAssignWorkRecordToInitiative } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
 
 import { parseWorkRecordUnitAddress } from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit.mjs";
-import { INITIATIVE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-shared.mjs";
-
-import { createWikiRecord } from "@agent-chassis/wiki-core/src/operations/create.mjs";
+import {
+  ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
+  INITIATIVE_ID_PATTERN
+} from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-shared.mjs";
 
 import { MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
+import { recordOwnerRegisteredRequestSchema } from "./dispatch-tool-helpers.mjs";
+import { WORK_RECORD_FRESHNESS_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
+  kindRecordFreshnessSource,
+  resolveExpectedSourceDigest,
+  workRecordFreshnessSource
+} from "./work-record-write-route-helpers.mjs";
+import { projectOrdinaryWriteFreshness } from "./write-response-boundary.mjs";
 
 function createCompactKindRecordEditResponse(workspaceRepo, id, result) {
   const response = {
@@ -30,13 +39,31 @@ function createCompactKindRecordEditResponse(workspaceRepo, id, result) {
   if (result?.expected_source_digest !== undefined) {
     response.expected_source_digest = result.expected_source_digest;
   }
-  return response;
+  return projectOrdinaryWriteFreshness(response);
+}
+
+function freshnessRefusal(expectedSourceDigest, resolution) {
+  return {
+    ok: false,
+    valid: false,
+    written: false,
+    source_digest: resolution.stale ? resolution.current_source_digest : null,
+    diagnostics: [resolution.diagnostic],
+    ...(resolution.stale
+      ? { expected_source_digest: expectedSourceDigest, current_source_digest: resolution.current_source_digest }
+      : {})
+  };
+}
+
+async function withKindRecordFreshness(args, load, run) {
+  const digest = await resolveExpectedSourceDigest(args.expected_source_digest ?? null, { load });
+  return digest.ok ? run(digest.value) : freshnessRefusal(args.expected_source_digest, digest);
 }
 
 function createCompactInitiativeAssignmentResponse(workspaceRepo, result) {
   const response = {
     workspaceRepo,
-    operation: result?.operation ?? "assign_work_record_to_initiative",
+    operation: result?.operation ?? ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
     unit: result?.selected_unit?.address ?? null,
     initiative: result?.record?.initiative ?? null,
     ok: Boolean(result?.valid && (result?.written || result?.no_op)),
@@ -53,7 +80,7 @@ function createCompactInitiativeAssignmentResponse(workspaceRepo, result) {
   if (result?.expected_source_digest !== undefined) {
     response.expected_source_digest = result.expected_source_digest;
   }
-  return response;
+  return projectOrdinaryWriteFreshness(response);
 }
 
 export const ASSIGNMENT_MISSING_SEMANTIC_IDENTITY_CODE = "missing_semantic_identity";
@@ -117,7 +144,7 @@ function assignmentBoundaryRefusal(workspaceRepo, { code, message, path, extra }
   error.code = code;
   error.envelope = {
     workspaceRepo,
-    operation: "assign_work_record_to_initiative",
+    operation: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
     ok: false,
     valid: false,
     written: false,
@@ -165,7 +192,7 @@ export function registerKindRecordWriteTools({
         id: z.string(),
         section: z.string(),
         value: z.string(),
-        expected_source_digest: z.string().optional()
+        expected_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional()
       })
       .strict();
 
@@ -176,16 +203,7 @@ export function registerKindRecordWriteTools({
         id: z.string(),
         field: z.string(),
         value: z.union([z.string(), z.array(z.string()), z.null()]),
-        expected_source_digest: z.string().optional()
-      })
-      .strict();
-
-  const createInputSchema = () =>
-    z
-      .object({
-        repo: z.string().optional(),
-        title: z.string(),
-        id: z.string().optional()
+        expected_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional()
       })
       .strict();
 
@@ -194,7 +212,7 @@ export function registerKindRecordWriteTools({
       .object({
         repo: z.string().optional(),
         id: z.string(),
-        expected_source_digest: z.string().optional()
+        expected_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional()
       })
       .strict();
 
@@ -206,7 +224,7 @@ export function registerKindRecordWriteTools({
         work_record_id: z.string().optional(),
         initiative: z.string().optional(),
         initiative_id: z.string().optional(),
-        expected_source_digest: z.string().optional()
+        expected_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional()
       })
       .strict();
 
@@ -216,14 +234,20 @@ export function registerKindRecordWriteTools({
   const IN_DRAFT_NOTE =
     "Initiatives have no ratification gate; lifecycle/provenance are server-owned.";
 
+  const assignmentInputSchema = initiativeAssignmentInputSchema();
+  recordOwnerRegisteredRequestSchema({
+    registerTool,
+    toolName: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
+    declaredInput: assignmentInputSchema
+  });
   registerTool(
-    "assign_work_record_to_initiative",
+    ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
     {
 
       writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
         "Assign a record-level WK to an initiative using CAS; writes only WK.initiative. Repeats are no-ops. Conflicting aliases and slice selectors refuse.",
-      inputSchema: initiativeAssignmentInputSchema()
+      inputSchema: assignmentInputSchema
     },
     async (args) => {
       try {
@@ -245,7 +269,7 @@ export function registerKindRecordWriteTools({
           throw assignmentBoundaryRefusal(workspace.repo, {
             code: ASSIGNMENT_MISSING_SEMANTIC_IDENTITY_CODE,
             message:
-              "assign_work_record_to_initiative requires at least one of unit/work_record_id and at least one of " +
+              `${ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION} requires at least one of unit/work_record_id and at least one of ` +
               "initiative/initiative_id",
             path: missing[0].canonicalField,
             extra: {
@@ -278,13 +302,17 @@ export function registerKindRecordWriteTools({
           });
         }
 
-        const result = await assignWorkRecordToInitiative({
+        const assign = (expectedSourceDigest) => assignWorkRecordToInitiative({
           dir: workspace.dir,
           unit: unitPair.value,
           initiative: initiativePair.value,
-          expectedSourceDigest: args.expected_source_digest ?? null,
+          expectedSourceDigest,
           verbose: true
         });
+        const result = identityErrors
+          ? await assign(args.expected_source_digest ?? null)
+          : await withKindRecordFreshness(args,
+            workRecordFreshnessSource(workspace.dir, unitPair.value), assign);
         return jsonContent(createCompactInitiativeAssignmentResponse(workspace.repo, result));
       } catch (error) {
         return errorContent(error);
@@ -305,13 +333,14 @@ export function registerKindRecordWriteTools({
       async (args) => {
         try {
           const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-          const result = await amendKindRecordSection({
-            repoRoot: workspace.dir,
-            id: args.id,
-            section: args.section,
-            value: args.value,
-            expectedSourceDigest: args.expected_source_digest ?? null
-          });
+          const result = await withKindRecordFreshness(args, kindRecordFreshnessSource(workspace.dir, args.id),
+            (expectedSourceDigest) => amendKindRecordSection({
+              repoRoot: workspace.dir,
+              id: args.id,
+              section: args.section,
+              value: args.value,
+              expectedSourceDigest
+            }));
           return jsonContent(createCompactKindRecordEditResponse(workspace.repo, args.id, result));
         } catch (error) {
           return errorContent(error);
@@ -332,13 +361,14 @@ export function registerKindRecordWriteTools({
       async (args) => {
         try {
           const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-          const result = await amendKindRecordScalar({
-            repoRoot: workspace.dir,
-            id: args.id,
-            field: args.field,
-            value: args.value,
-            expectedSourceDigest: args.expected_source_digest ?? null
-          });
+          const result = await withKindRecordFreshness(args, kindRecordFreshnessSource(workspace.dir, args.id),
+            (expectedSourceDigest) => amendKindRecordScalar({
+              repoRoot: workspace.dir,
+              id: args.id,
+              field: args.field,
+              value: args.value,
+              expectedSourceDigest
+            }));
           return jsonContent(createCompactKindRecordEditResponse(workspace.repo, args.id, result));
         } catch (error) {
           return errorContent(error);
@@ -363,45 +393,16 @@ export function registerKindRecordWriteTools({
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const result = await rejectDecisionRecord({
-          repoRoot: workspace.dir,
-          id: args.id,
-          expectedSourceDigest: args.expected_source_digest ?? null
-        });
+        const result = await withKindRecordFreshness(args, kindRecordFreshnessSource(workspace.dir, args.id),
+          (expectedSourceDigest) => rejectDecisionRecord({
+            repoRoot: workspace.dir,
+            id: args.id,
+            expectedSourceDigest
+          }));
         return jsonContent(createCompactKindRecordEditResponse(workspace.repo, args.id, result));
       } catch (error) {
         return errorContent(error);
       }
     }
   );
-
-  const registerCreate = (toolName, type, subjectDescription, birthState, note) =>
-    registerTool(
-      toolName,
-      {
-
-        writeSemantics: MCP_WRITE_SEMANTICS.NONE,
-        description:
-          `Allocate ${subjectDescription}, born ${birthState}, seeded to its required fields, and written as canonical \`.json\` with the \`.md\` projection in lockstep. Identity is server-owned. ${note}`,
-        inputSchema: createInputSchema()
-      },
-      async (args) => {
-        try {
-          const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-          const result = await createWikiRecord({
-            dir: workspace.dir,
-            type,
-            title: args.title,
-            id: args.id ?? null
-          });
-          return jsonContent({
-            workspaceRepo: workspace.repo,
-            id: result.id,
-            created: result.created ?? true
-          });
-        } catch (error) {
-          return errorContent(error);
-        }
-      }
-    );
 }

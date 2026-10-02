@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import channelModule from "./native-channel.cjs";
 
-const { createChannel, errorFacts, installReachSink, loadConfig, repositoryPath } = channelModule;
+const { createChannel, failureDiagnostic, installReachSink, loadConfig, repositoryPath } = channelModule;
 const config = loadConfig();
 const channel = createChannel(config, "ava.worker");
 installReachSink(channel);
@@ -15,6 +15,29 @@ const WRAPPER_SCHEME = "launcher-test-proof-ava:";
 const WRAP_SYMBOL = Symbol.for("launcher.test-proof.ava-chain");
 
 channel.emit("session_start", { runner: { name: "ava", version: null } });
+
+function nativeFacts(serialized) {
+  const facts = {};
+  const source = serialized?.source;
+  if (typeof source?.file === "string" && Number.isSafeInteger(source.line) && source.line > 0) {
+    let file = null;
+    try {
+      file = repositoryPath(config, source.file.startsWith("file:") ? fileURLToPath(source.file) : source.file);
+    } catch { file = null; }
+    if (file !== null) facts.location = { file, line: source.line };
+  }
+  if (typeof serialized?.assertion === "string" && serialized.assertion.length > 0) {
+    facts.operator = serialized.assertion;
+  }
+  const details = (Array.isArray(serialized?.formattedDetails) ? serialized.formattedDetails : [])
+    .filter((entry) => typeof entry?.formatted === "string")
+    .map((entry) => ({ label: typeof entry.label === "string" && entry.label.length > 0 ? entry.label
+      : "details", text: entry.formatted }));
+  if (typeof serialized?.formattedError === "string") {
+    details.push({ label: "formatted_error", text: serialized.formattedError });
+  }
+  return details.length === 0 ? facts : { ...facts, details };
+}
 
 const send = process.send;
 if (typeof send !== "function") {
@@ -29,14 +52,16 @@ if (typeof send !== "function") {
     } else if (title === selectedTitle && event.type === "selected-test" &&
         (event.skip === true || event.todo === true)) {
       channel.emit("test_result", { file, test: [title], outcome: "skipped",
-        assertion_failure: false, error: null });
+        assertion_failure: false });
     } else if (title === selectedTitle && event.type === "test-passed") {
       channel.emit("test_result", { file, test: [title], outcome: "passed",
-        assertion_failure: false, error: null });
+        assertion_failure: false });
     } else if (title === selectedTitle && event.type === "test-failed") {
       const assertion = event.err?.name === "AssertionError";
+      const original = event.err !== null && typeof event.err === "object" &&
+        Object.hasOwn(event.err, "originalError") ? event.err.originalError : undefined;
       channel.emit("test_result", { file, test: [title], outcome: "failed",
-        assertion_failure: assertion, error: errorFacts(event.err, assertion) });
+        assertion_failure: assertion, failure_diagnostic: failureDiagnostic(original, nativeFacts(event.err)) });
     } else if (event?.type === "worker-finished") {
       channel.emit("session_end");
     }

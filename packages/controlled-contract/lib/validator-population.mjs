@@ -15,7 +15,7 @@ export const POPULATION_MODULES = Object.freeze([
   "./native-contract-carrier.mjs",
   "./native-contract-carrier-v1.mjs",
   "./obligation-coverage-carrier.mjs",
-  "./proof-intent-discovery.mjs",
+  "./proof-intent-metadata.mjs",
   "./test-proof-assessment.mjs",
   "./test-proof-runtime-evidence-v2.mjs",
   "./verification-profile-schema-v1.mjs"

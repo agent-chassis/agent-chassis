@@ -74,14 +74,18 @@ test("test-verification questions surface the test proof; non-test properties do
     "jest test covers component",
     "a unit test that fails when the behavior is broken",
     "selected test executes and falsifier is detected"
-  ]) assert.ok(rank(query) >= 0 && rank(query) < 5, `${query}: ${rank(query)}`);
+  ]) {
+    const index = rank(query);
+    assert.ok(index >= 0 && index < 5, `${query}: ${index}`);
+  }
   for (const [query, owner] of [
     ["retry after failure converges", "proof.failure.retry-convergence"],
     ["refuse unauthorized request before side effects", "proof.authorization.refusal-before-effects"],
     ["pagination cursor returns every item", "proof.pagination.versioned-cursor-refusal"]
   ]) {
-    assert.equal(names(discoverProofIntents({ query }))[0], owner, query);
-    const index = rank(query);
+    const ordered = names(discoverProofIntents({ query }));
+    assert.equal(ordered[0], owner, query);
+    const index = ordered.indexOf(TEST_VALIDITY);
     assert.ok(index < 0 || index >= 5, `${query} does not steer a non-test property to test proof (${index})`);
   }
 });
@@ -176,10 +180,10 @@ test("the verification capability of a proof is its own profile's, not a name or
 
   assert.equal(proofVerificationCapability("proof.fixture.unknown"), null);
 
+  const unspecified = names(discoverProofIntents({ query: INCIDENT_PROPERTY }))
+    .map((name) => proofVerificationCapability(name));
   for (const [prefix] of PROVIDER_PHRASINGS) {
     const result = discoverProofIntents({ query: `${prefix} ${INCIDENT_PROPERTY}`.trim() });
-    assert.deepEqual(names(result).map((name) => proofVerificationCapability(name)),
-      names(discoverProofIntents({ query: INCIDENT_PROPERTY }))
-        .map((name) => proofVerificationCapability(name)), prefix);
+    assert.deepEqual(names(result).map((name) => proofVerificationCapability(name)), unspecified, prefix);
   }
 });

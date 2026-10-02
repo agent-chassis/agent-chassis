@@ -168,6 +168,26 @@ test("each in-scope source file reaches a consistent set of named translators", 
   }
 });
 
+test("site maintenance records each relocation or retirement with its commit evidence", () => {
+
+  const current = new Set(census.entries.map((entry) => entry.source_id));
+  const records = census.provenance.site_maintenance ?? [];
+  assert.equal(new Set(records.map((record) => record.source_id)).size, records.length);
+  for (const record of records) {
+    assert.match(record.commit, /^[0-9a-f]{40}$/u, record.source_id);
+    assert.ok(record.evidence.length > 20, record.source_id);
+    assert.equal(current.has(record.source_id), false, `${record.source_id} is still an active entry`);
+    if (record.outcome === "retired") {
+      assert.equal("relocated_to" in record, false, record.source_id);
+    } else {
+      assert.equal(record.outcome, "relocated", record.source_id);
+      for (const target of [record.relocated_to].flat()) {
+        assert.ok(current.has(target), `${record.source_id} relocates to missing entry ${target}`);
+      }
+    }
+  }
+});
+
 test("source identities are ordinal-keyed so the corpus survives line drift", () => {
 
   for (const entry of census.entries) {

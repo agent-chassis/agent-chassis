@@ -1,10 +1,10 @@
 import { proofAuthoringCompletenessSummary, proofAuthoringIncompleteResult } from './proof-authoring-source.mjs';
 import { proofAuthoringCarrierContent as obligationCoverageCarrierContent } from './proof-authoring-source.mjs';
 import { queryControlledContractObligationCoverageOperation } from
-  "./proof-authoring-operations.mjs";
+  "./obligation-coverage-query.mjs";
 export { upsertControlledContractObligationCoverageOperation, removeControlledContractObligationCoverageOperation,
-  queryControlledContractObligationCoverageOperation,
   refuseMalformedControlledContractObligationCoverageRequest } from "./proof-authoring-operations.mjs";
+export { queryControlledContractObligationCoverageOperation } from "./obligation-coverage-query.mjs";
 import { obligationCoverageProjectionCursor, encodeObligationCoverageOperationCursor, decodeObligationCoverageOperationCursor } from "./proof-authoring-persistence.mjs";
 
 import { randomUUID } from "node:crypto";

@@ -229,7 +229,10 @@ Discovery publishes that no follow-up generate/lint chore is returned after a
 check ran. It also publishes the closure route's explicit optional
 `status: "done"`, which composes the authored closure patch and the final
 transition into one validated canonical write; omitted, the same route records
-closure and changes no status. See
+closure and changes no status. A closeout whose findings exceed its bounded
+answer retains its receipt once and names `workspace_work_record_summary` with
+the unit and `receipt` as the read of its findings; lint results carry
+`lint_scope: "repository"`. See
 [MCP Operation Reference](mcp-operation-reference.md#one-call-closeout-with-forge-owned-completion-and-truthful-check-results).
 
 Forge publication is review-independent. `workspace_wk_forge_handoff`
@@ -252,9 +255,15 @@ callable `detail: {kind:"proof_verification"}` read. Discovery publishes three
 facts about it:
 
 - `none_recorded` is not a pass;
-- an `invocation_id` detail reads one complete recorded result;
+- an `invocation_id` detail reads one recorded result's outcome, and adding
+  `proof_subject` reads one proof's recorded error, location and call trace;
 - observation never executes proofs and grants no integration, review or
   lifecycle permission.
+
+A `workspace_verify_proof` answer names the exact read of each returned failed
+proof in its `next_calls`: for a standalone call, the same tool with the
+answer's `result` locator and the proof as subject, which reads the settled
+result and executes nothing.
 
 See
 [MCP Operation Reference](mcp-operation-reference.md#recorded-managed-worker-proof-verification).
@@ -300,10 +309,16 @@ registered with identical role, disposition, audience and tier classification,
 so the consolidation moves no entitlement.
 
 Its default response is compact: one complete frame within the compact class
-with exact totals, a truthful `impact_state`, bounded leading rows, and an
-executable `selected_detail` call over the retained complete answer. `detail`
-reads that retained answer; `verbose:true` runs a new evaluation that returns
-the complete answer. Discovery text makes that compact, detail, and verbose
+with exact totals, a truthful `impact_state`, bounded leading rows, the retained
+answer's opaque `selected_detail.source`, and a top-level `next_calls` entry
+selecting its first affected file. `detail` selects one collection of that
+retained answer by `selector.id`, `path`, `symbol` or `relationship` without
+evaluating the question again. For a selected affected file, `input_path`
+selects its relationships; `lines` selects absolute source lines within one
+retained region or file, and `candidates` exposes ambiguity by symbol and path.
+No cursor, byte range or field path exists. The file
+context and four navigation routes answer the same way, and none of the six has
+a verbose or `full_result` form. Discovery text makes that compact-then-detail
 split explicit so routine agents stay on the bounded path and recover omitted
 detail from the retained answer.
 
@@ -321,8 +336,8 @@ transitively), `covering_test`, `downstream_cli_command`, `downstream_mcp_tool`,
 and `schema_field_contract`. Source text, snapshots, canonical references,
 inferred related code and tests, `docs_contract` and `work_scope_owner`
 relationships, impact explanations, and update hints are omitted by default.
-The complete original answer is retained at `full_result.content_reference`;
-`verbose:true` runs a new evaluation instead of recovering it.
+The complete original answer is retained once as the route's selected-response
+source, and `next_calls` selects its first affected file by path.
 
 Work-record read and summary discovery must make compact WK-level behavior
 discoverable for `workspace_get_record`, `workspace_read_page`, and
@@ -541,8 +556,22 @@ Keep the five policy surfaces distinct:
   with confidence labels and unsupported-gap markers for MCP-specific questions
   the artifacts cannot establish.
 - Live measurement is anonymous numeric metrics written to local files (tool
-  name, hour, outcome, duration, byte counts) -- no provenance, identity,
-  adherence, or misuse verdict, and no query route.
+  name, hour, outcome, duration, byte counts) -- no provenance or identity, and
+  no query route.
+- Sequential trajectory is measured by the same per-connection recorder as a
+  separate closed `kind: "trajectory"` record: the tool, what the previous
+  completed call offered (`router_recommendation`, `emitted_next_calls`,
+  `refusal_replacement` or `none`) and a fixed outcome (`followed`,
+  `allowed_alternative`, `wrong_first_tool`, `ignored_recommendation`,
+  `refusal_recovered`, `refusal_not_recovered`, `refusal_recovery_unassessed`,
+  `concurrent_unknown` or `unobserved`). The recorder keeps only the one
+  previous result's offered calls, compares the next call's tool and arguments
+  as inert data, and evaluates a refusal replacement's declared success
+  predicate with `evaluateSuccessPredicate` against facts the follow-up result
+  itself published. Overlapping calls, results that offered nothing, missing
+  predicates and calls rejected before the handler boundary are unknown or
+  outside the denominator; no intent is inferred from prose and no argument or
+  result is stored.
 
 Anonymous metric files are observability data only. They must not be documented
 as a reason to scrape `.agent-runs`, broad logs, generated views, runtime

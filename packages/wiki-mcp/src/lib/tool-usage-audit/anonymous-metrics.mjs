@@ -48,6 +48,38 @@ export const CALL_RECORD_FIELDS = Object.freeze([
   "representation"
 ]);
 
+export const METRIC_TRAJECTORY_CORRELATIONS = Object.freeze([
+  "router_recommendation", "emitted_next_calls", "refusal_replacement", "none"
+]);
+export const METRIC_TRAJECTORIES = Object.freeze([
+  "followed",
+  "allowed_alternative",
+  "wrong_first_tool",
+  "ignored_recommendation",
+  "refusal_recovered",
+  "refusal_not_recovered",
+  "refusal_recovery_unassessed",
+  "concurrent_unknown",
+  "unobserved"
+]);
+const TRAJECTORY_BY_CORRELATION = Object.freeze({
+  router_recommendation: new Set(["followed", "allowed_alternative", "wrong_first_tool", "concurrent_unknown"]),
+  emitted_next_calls: new Set(["followed", "allowed_alternative", "ignored_recommendation", "concurrent_unknown"]),
+  refusal_replacement: new Set(["refusal_recovered", "refusal_not_recovered", "refusal_recovery_unassessed",
+    "ignored_recommendation", "concurrent_unknown"]),
+  none: new Set(["unobserved", "concurrent_unknown"])
+});
+
+export const TRAJECTORY_RECORD_FIELDS = Object.freeze([
+  "schema_version",
+  "kind",
+  "hour_utc",
+  "clock_status",
+  "tool",
+  "correlation",
+  "trajectory"
+]);
+
 export const HEALTH_RECORD_FIELDS = Object.freeze([
   "schema_version",
   "kind",
@@ -130,6 +162,13 @@ export function validateAnonymousMetricRecord(record) {
       record.token_status === METRIC_TOKEN_STATUS &&
       record.representation === METRIC_REPRESENTATION;
   }
+  if (record.kind === "trajectory") {
+    return hasExactFields(record, TRAJECTORY_RECORD_FIELDS) &&
+      validHour(record) &&
+      isRegistrableMetricToolName(record.tool) &&
+      METRIC_TRAJECTORY_CORRELATIONS.includes(record.correlation) &&
+      TRAJECTORY_BY_CORRELATION[record.correlation]?.has(record.trajectory) === true;
+  }
   if (record.kind === "health") {
     return hasExactFields(record, HEALTH_RECORD_FIELDS) &&
       validHour(record) &&
@@ -166,6 +205,20 @@ export function buildAnonymousMetric({
     output_tokens: null,
     token_status: METRIC_TOKEN_STATUS,
     representation: METRIC_REPRESENTATION
+  };
+  return validateAnonymousMetricRecord(record) ? Object.freeze(record) : null;
+}
+
+export function buildTrajectoryRecord({ tool, registeredToolNames, hour, correlation, trajectory }) {
+  if (!(registeredToolNames instanceof Set) || !registeredToolNames.has(tool)) return null;
+  const record = {
+    schema_version: ANONYMOUS_METRICS_SCHEMA_VERSION,
+    kind: "trajectory",
+    hour_utc: hour?.hour_utc ?? null,
+    clock_status: hour?.clock_status ?? "clock_unavailable",
+    tool,
+    correlation,
+    trajectory
   };
   return validateAnonymousMetricRecord(record) ? Object.freeze(record) : null;
 }

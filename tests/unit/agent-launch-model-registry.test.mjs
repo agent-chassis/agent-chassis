@@ -122,8 +122,24 @@ test("registry exports the array source and model-name set used by the DEC-0114 
       "gpt-6-terra",
       ...addedCodexModels,
       "haiku",
+      "vertex-claude-opus-5-5",
+      "vertex-claude-sonnet-5-5",
       "opus",
       "sonnet"
     ].sort()
   );
+});
+
+test("Vertex-served Claude models are Codex-client entries with declared Vertex mappings", () => {
+  for (const [model, vertexModel, profile] of [
+    ["vertex-claude-opus-5-5", "claude-opus-5-5", "orchestrator"],
+    ["vertex-claude-sonnet-5-5", "claude-sonnet-5-5", "worker"]
+  ]) {
+    assert.equal(resolveModel(model).app, "codex");
+    assert.equal(resolveModel(model).codex_profile, profile);
+    assert.equal(resolveModel(model).vertex_model, vertexModel);
+  }
+  for (const token of ["opus", "sonnet", "haiku", "fable", "gpt-5.4"]) {
+    assert.equal(resolveModel(token).vertex_model, null);
+  }
 });

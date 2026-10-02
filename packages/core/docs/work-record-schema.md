@@ -63,6 +63,19 @@ The public schema distinction is:
 - `sections` carries human-readable summary, scope, tasks, references, agent
   notes, and closure prose. Dispatch-critical facts should be present in the
   structured fields, not only in prose.
+- `sections.user_requirements`, when present, is an optional root-only string:
+  the orchestrator's organized statement of the user's current outcomes,
+  constraints, tasks and clarifications. It is trusted authoring context edited
+  through the ordinary `workspace_work_record_edit` route under normal type,
+  CAS and publication rules, at any ordinary-prose-editable lifecycle state. It
+  is not a controlled-contract generation input, review identity, approval
+  token or proof of semantic coverage, and editing it adds no lifecycle or
+  generation gate. Absent or empty means no current user requirements are
+  recorded; it is never backfilled from derived acceptance or code. The user's
+  original wording and clarifications stay in immutable `sections.entries`
+  versions. Slices have no such field; slice assignments carry the relevant
+  requirements explicitly. Generated Markdown renders the field before derived
+  narrative, search indexes it, and agent briefs list it as omitted.
 - `sections.entries`, when present, is a root- or slice-owned array of durable
   entries. An entry has a WK-wide numeric identity, a current-version pointer,
   and immutable retained versions.
@@ -151,16 +164,20 @@ Work records separate reading context from write authority:
   should stop and report a blocker before changing files outside it.
 
 Scope entries use repository-relative POSIX syntax with host-independent
-`node:path.posix` interpretation. One terminal slash records explicit directory
-intent: `docs/` has canonical lookup path `docs`, while `docs` has no explicit
-directory hint. Authored selectors retain that distinction in authoritative
-scope carriers. Repeated separators, including repeated trailing slashes, are
-invalid, as are absolute paths, backslashes, and paths containing traversal
-components. Glob selectors use Node's `path.posix.matchesGlob()` semantics:
-`*.go` matches only root-level Go files, while `**/*.go` also matches nested Go
-files. A glob grants only paths it matches; its containing directory is not an
-implicit scope grant. Matching never rewrites the authored selector stored in an
-authenticated scope carrier.
+`node:path.posix` interpretation, and each entry in `read_scope`, `repo_paths`,
+and `write_scope` names one individual file, including an intended new write
+file such as `bin/new-tool`. Globs and directory scopes are unsupported:
+`workspace_work_record_ready_slice`, `workspace_work_record_edit`, and slice
+upsert refuse an entry with glob syntax (any component containing `*`, `?`, `[`,
+`]`, `{`, or `}`), a terminal slash, or the repository root (`.` or `./`) with
+diagnostic `unsupported_repository_scope_selector`, whose message names the
+field and entry and says to enumerate each required repository-relative file,
+then retry. Authoring does not inspect a checkout, so a literal entry such as
+`docs` that names a directory is refused by managed admission at the scope base
+instead (see [Enforcement Model](enforcement-model.md)). Repeated separators,
+absolute paths, backslashes, and traversal components keep their generic
+invalid-path diagnostic. When more files are needed, correct the canonical
+assignment through these routes; no selector is expanded on the author's behalf.
 
 Canonical persistence accepts `read_scope` directly and rejects an enumerable
 obsolete `docs` property at record or slice level before filesystem effects. It

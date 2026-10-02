@@ -17,13 +17,19 @@ import {
 import {
   buildSelectedRecordMemberCall,
   projectSelectedRecordMember,
-  SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS
+  projectSelectedRecordMembers,
+  SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS,
+  SELECTED_RECORD_MEMBERS_MAX
 } from "@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs";
 import {
   WORK_RECORD_ENTRY_BODY_PAGE_MAX_SCALARS,
   WORK_RECORD_ENTRY_METADATA_PAGE_MAX
 } from "@agent-chassis/wiki-core/src/lib/work-record-entry-schema.mjs";
-import { SHA256_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
+  projectWorkRecordFreshness,
+  WORK_RECORD_FRESHNESS_PATTERN,
+  workRecordFreshnessMatches
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import {
   loadKindRecordById as loadCanonicalKindRecordById,
   loadKindRecordByPath as loadCanonicalKindRecordByPath
@@ -486,15 +492,12 @@ export function workRecordDetailSelectorSchemaShape(z, toolFamily) {
           "filtered and unfiltered totals side by side."
       ),
 
-    expected_source_digest: () => z.string().optional()
+    expected_source_digest: () => z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional()
       .describe(
-        (toolFamily === SUMMARY_TOOL_FAMILY
-          ? "A source_digest a prior read returned, for a slice enumeration (with slice_offset, " +
-            "slice_limit or slice_status) or an ordinary_field read. "
-          : "The source_digest a prior slice page returned; requires slice_offset, slice_limit or " +
-            "slice_status. ") +
-          "A differing digest reports the mismatch instead of continuing against a changed record. " +
-          "A member read pins member.expected_source_digest instead; not combinable with member."
+        "16-hex source_digest pinning " + (toolFamily === SUMMARY_TOOL_FAMILY
+          ? "slice paging, ordinary_field or members"
+          : toolFamily === READ_PAGE_TOOL_FAMILY ? "members" : "slice paging or members") +
+          "; a changed record refuses. Not for member."
       )
   };
   const shape = {};
@@ -502,6 +505,9 @@ export function workRecordDetailSelectorSchemaShape(z, toolFamily) {
     const build = byArgument[argument];
     if (build) shape[argument] = build();
   }
+
+  shape.members = selectedRecordMembersSchema(z);
+  shape.expected_source_digest ??= byArgument.expected_source_digest();
   return shape;
 }
 
@@ -528,7 +534,7 @@ export function projectLoadedRecordContractFields({ toolFamily, recordId, loaded
     record_id: recordId,
     valid: true,
     selected_record: true,
-    source_digest: loaded?.source_digest ?? null
+    source_digest: projectWorkRecordFreshness(loaded?.source_digest)
   };
   const overhead = Buffer.byteLength(
     JSON.stringify({
@@ -568,10 +574,10 @@ export function projectLoadedSliceEnumeration({ toolFamily, recordId, request, l
   if (!isObject(record) || loaded?.valid === false) {
     throwSelectedIdentityError(toolFamily);
   }
-  const sourceDigest = loaded?.source_digest ?? null;
+  const sourceDigest = projectWorkRecordFreshness(loaded?.source_digest);
 
   if (request.expected_source_digest !== null &&
-      request.expected_source_digest !== sourceDigest) {
+      !workRecordFreshnessMatches(request.expected_source_digest, loaded?.source_digest)) {
     return buildSliceEnumerationDigestMismatch({
       toolFamily,
       recordId,
@@ -596,21 +602,36 @@ export function projectLoadedSliceEnumeration({ toolFamily, recordId, request, l
 
 const MAX_MEMBER_REFUSAL_DIAGNOSTICS = 5;
 
+function memberSelectionShape(z) {
+  return {
+    path: z.array(z.union([z.string(), z.number().int().nonnegative()]))
+      .max(SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS),
+    offset: z.number().int().nonnegative().optional(),
+    limit: z.number().int().positive().max(WORK_RECORD_ENTRY_METADATA_PAGE_MAX).optional(),
+    length: z.number().int().positive().max(WORK_RECORD_ENTRY_BODY_PAGE_MAX_SCALARS).optional()
+  };
+}
+
 export function selectedRecordMemberSchema(z) {
   return z.object({
-    path: z.array(z.union([z.string(), z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)]))
-      .max(SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS),
-    offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
-    limit: z.number().int().positive().max(WORK_RECORD_ENTRY_METADATA_PAGE_MAX).optional(),
-    length: z.number().int().positive().max(WORK_RECORD_ENTRY_BODY_PAGE_MAX_SCALARS).optional(),
-    expected_source_digest: z.string().regex(SHA256_PATTERN).optional()
+    ...memberSelectionShape(z),
+    expected_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional()
   }).strict().optional().describe(
-    "One canonical member by exact path (object keys as strings, array indexes as integers; [] is the record " +
-      "or selected slice): a bounded page of its immediate members (limit at most " +
-      `${WORK_RECORD_ENTRY_METADATA_PAGE_MAX}) or one exact string range. member.expected_source_digest pins ` +
-      "the source_digest a member read returned; returned calls carry it. Combines with no other selection: " +
-      "include_body, ordinary_field, details, selected_record, slice enumeration or top-level " +
-      "expected_source_digest."
+    "One member by exact key/index path ([] is the record or slice): a page of immediate members or one " +
+      "string range, pinned by its 16-hex source_digest. Takes no other selection."
+  );
+}
+
+export function selectedRecordMembersSchema(z) {
+  const index = () => z.number().int();
+  return z.array(z.object({
+    path: z.array(z.union([z.string(), index()])),
+    offset: index().optional(),
+    limit: index().optional(),
+    length: index().optional()
+  }).strict()).optional().describe(
+    `1-${SELECTED_RECORD_MEMBERS_MAX} member selections of this record or slice in one bounded response, ` +
+      "pinned by top-level expected_source_digest. Takes no other selection."
   );
 }
 
@@ -634,19 +655,21 @@ export async function runSelectedRecordMember({
   workRecord = true,
   sliceId = null,
   identity,
-  member,
+  member = null,
+  members = null,
+  expectedSourceDigest = null,
   readWorkRecordById,
   loadKindRecordById = loadCanonicalKindRecordById,
   loadKindRecordByPath = loadCanonicalKindRecordByPath
 }) {
 
   const unitNamesSlice = typeof identity?.unit === "string" && identity.unit.includes("#");
-  const buildCall = (selector) => buildSelectedRecordMemberCall({
+  const buildCall = (selection) => buildSelectedRecordMemberCall({
     tool: toolFamily,
     repository: workspaceRepo,
     identity,
     selectedSlice: toolFamily === SUMMARY_TOOL_FAMILY || unitNamesSlice ? null : sliceId,
-    member: selector
+    selection
   });
 
   const loaded = workRecord
@@ -660,12 +683,12 @@ export async function runSelectedRecordMember({
     if (diagnostics.length === 0) throwSelectedIdentityError(toolFamily);
     return memberRefusal({
       recordId: loaded?.record_id ?? recordId,
-      sourceDigest: loaded?.source_digest ?? null,
+      sourceDigest: projectWorkRecordFreshness(loaded?.source_digest),
       diagnostics
     });
   }
   if (workRecord && record.id !== recordId) throwSelectedIdentityError(toolFamily);
-  const sourceDigest = loaded.source_digest ?? null;
+  const sourceDigest = projectWorkRecordFreshness(loaded.source_digest);
   const root = sliceId === null ? record : findSliceById(record, sliceId);
   if (!root) {
     return memberRefusal({ recordId: record.id, sourceDigest, diagnostics: [{
@@ -675,8 +698,10 @@ export async function runSelectedRecordMember({
       path: "selected_slice"
     }] });
   }
+  const batch = members !== null;
+  const pinned = batch ? expectedSourceDigest : member.expected_source_digest ?? null;
 
-  if (member.expected_source_digest !== undefined && member.expected_source_digest !== sourceDigest) {
+  if (pinned !== null && !workRecordFreshnessMatches(pinned, loaded.source_digest)) {
     return memberRefusal({
       recordId: record.id,
       sourceDigest,
@@ -685,31 +710,36 @@ export async function runSelectedRecordMember({
         severity: "error",
         authority_limb: "mechanical",
         message: "canonical generation changed since the pinned member page",
-        path: "member.expected_source_digest"
+        path: batch ? "expected_source_digest" : "member.expected_source_digest"
       }],
-      extra: { expected_source_digest: member.expected_source_digest, current_source_digest: sourceDigest },
-      nextCalls: [buildCall({ path: member.path })]
+      extra: { expected_source_digest: pinned, current_source_digest: sourceDigest },
+      nextCalls: [buildCall(batch
+        ? { members: members.map(({ path }) => ({ path })) }
+        : { member: { path: member.path } })]
     });
   }
-  const projected = projectSelectedRecordMember({
-    value: root,
-    member,
-    sourceDigest,
-    envelope: {
-      ok: true,
-      record_id: record.id,
-      ...(sliceId === null ? {} : { selected_slice: sliceId }),
-      source_digest: sourceDigest
-    },
-    buildCall
-  });
+  const envelope = {
+    ok: true,
+    record_id: record.id,
+    ...(sliceId === null ? {} : { selected_slice: sliceId }),
+    source_digest: sourceDigest
+  };
+  if (batch) {
+    const projected = projectSelectedRecordMembers({ value: root, members, sourceDigest, envelope, buildCall });
+    if (!projected.ok) {
+      return memberRefusal({ recordId: record.id, sourceDigest, diagnostics: projected.diagnostics,
+        nextCalls: projected.next_calls });
+    }
+    return publishWorkRecordReadPayload(projected.result);
+  }
+  const projected = projectSelectedRecordMember({ value: root, member, sourceDigest, envelope, buildCall });
   if (!projected.ok) {
     const recovery = projected.diagnostic.recovery_member_path;
     return memberRefusal({
       recordId: record.id,
       sourceDigest,
       diagnostics: [projected.diagnostic],
-      nextCalls: Array.isArray(recovery) ? [buildCall({ path: recovery })] : []
+      nextCalls: Array.isArray(recovery) ? [buildCall({ member: { path: recovery } })] : []
     });
   }
   return publishWorkRecordReadPayload(projected.result);

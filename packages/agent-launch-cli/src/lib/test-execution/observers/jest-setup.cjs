@@ -1,6 +1,6 @@
 "use strict";
 
-const { createChannel, errorFacts, installReachSink, loadConfig, repositoryPath, sameTitles } =
+const { createChannel, failureDiagnostic, installReachSink, loadConfig, repositoryPath, sameTitles } =
   require("./native-channel.cjs");
 
 const config = loadConfig();
@@ -19,6 +19,19 @@ function titlePath(block, leaf = []) {
 function firstError(errors) {
   const [entry] = errors ?? [];
   return Array.isArray(entry) ? entry[0] : entry;
+}
+
+function nativeFacts(error, hook) {
+  const facts = hook === null ? {} : { origin: { kind: "hook", name: hook } };
+  let result;
+  try { result = error?.matcherResult; } catch { result = undefined; }
+  if (result === null || typeof result !== "object") return facts;
+  const operands = {};
+  for (const key of ["expected", "actual"]) {
+    if (Object.hasOwn(result, key)) operands[key] = result[key];
+  }
+  return { ...facts, ...(Object.keys(operands).length === 0 ? {} : { operands }),
+    ...(typeof result.name === "string" ? { operator: result.name } : {}) };
 }
 
 function isAssertion(error) {
@@ -45,17 +58,24 @@ if (!Array.isArray(handlers)) {
     if (event.name === "hook_failure" && event.hook?.type === "afterAll") {
       if (selected?.started && selected.error === null && encloses(event.describeBlock, selected.test)) {
         selected.error = event.error;
+        selected.hook = "afterAll";
       }
+      return;
+    }
+    if (event.name === "hook_failure" && selected !== null && event.test === selected.test &&
+        firstError(selected.test.errors) === event.error) {
+
+      selected.hook = event.hook?.type ?? null;
       return;
     }
     if (event.name === "run_finish") {
       if (selected?.titles !== undefined) {
-        const { titles, error, outcome } = selected;
+        const { titles, error, outcome, hook } = selected;
         const failed = outcome === "failed" || error !== null;
         channel.emit("test_result", { file, test: titles,
           outcome: failed ? "failed" : outcome,
           assertion_failure: failed && isAssertion(error),
-          error: failed ? errorFacts(error, isAssertion(error)) : null });
+          ...(failed ? { failure_diagnostic: failureDiagnostic(error, nativeFacts(error, hook)) } : {}) });
       }
       return;
     }
@@ -72,15 +92,14 @@ if (!Array.isArray(handlers)) {
       return;
     }
     if (!isSelected) return;
-    selected ??= { test, titles: undefined, started: false, outcome: null, error: null };
+    selected ??= { test, titles: undefined, started: false, outcome: null, error: null, hook: null };
     if (event.name === "test_fn_start") {
       selected.started = true;
       channel.emit("test_start", { file, test: titles });
     } else if (event.name === "test_fn_success" || event.name === "test_fn_failure") {
       channel.emit("window_end", { file, test: titles });
     } else if (event.name === "test_skip" || event.name === "test_todo") {
-      channel.emit("test_result", { file, test: titles, outcome: "skipped", assertion_failure: false,
-        error: null });
+      channel.emit("test_result", { file, test: titles, outcome: "skipped", assertion_failure: false });
     } else if (event.name === "test_done") {
 
       selected.titles = titles;

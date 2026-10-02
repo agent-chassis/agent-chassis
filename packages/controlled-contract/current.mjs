@@ -215,6 +215,7 @@ export {
   BINDING_DIGESTS,
   compareCriterionIdentitySets,
   criterionIdentityDigest,
+  deriveCriterionIdentities,
   deriveCriterionIdentitySet
 } from "./lib/acceptance-coverage-identity.mjs";
 export {
@@ -362,3 +363,19 @@ export { PROOF_AUTHORING_DIAGNOSTIC_GROUPS_VERSION, PROOF_AUTHORING_SHARED_CONST
 
 export { NATIVE_TEST_CASE_SCHEMA, NATIVE_TEST_CASE_AMENDMENT_SCHEMA, NATIVE_TEST_CASE_AUTHORING_GUIDANCE, applyNativeTestProofCase, projectAuthoredTestCase, authoredCaseRevision, authoredCaseVerificationId, deriveAuthoredTestCases, emptyCaseContract, linkedNativeTestProofs } from "./lib/native-test-proof-authoring.mjs";
 export { validateNativeTestProofAuthoringContract } from "./lib/test-proof-contract-v1.mjs";
+
+export { canonicalDigest, deepFreeze } from "./lib/deterministic-projection-primitives.mjs";
+export { createNativeVerificationIndex, resolveBehaviorAndVerificationPopulation }
+  from "./lib/proof-native-verification-graph.mjs";
+export { classifyMutationOutcome, countMutationOutcomes } from "./lib/test-proof-mutation-outcome.mjs";
+export {
+  PROOF_OBLIGATION_NOT_EXECUTABLE_CODES,
+  ProofObligationResolutionError,
+  buildNotExecutableProofVerificationResult,
+  buildProofVerificationResult,
+  canonicalProofVerificationDigest,
+  prepareProofObligationRuntime,
+  resolveProofObligationRuntime
+} from "./lib/proof-obligation-runtime-resolver.mjs";
+export { TestProofEvidenceSemanticKernelError, evaluateTestProofEvidenceSemantics }
+  from "./lib/test-proof-evidence-semantic-kernel.mjs";

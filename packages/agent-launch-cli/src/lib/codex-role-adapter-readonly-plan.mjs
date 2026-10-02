@@ -80,6 +80,7 @@ export async function buildReadOnlyPlan({
       "--ignore-rules"
     ],
     model,
+    modelSelection: resolvedProfile?.model_selection ?? null,
     prompt,
     workspaceAlias,
     workspaceDir,

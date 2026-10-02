@@ -1,12 +1,17 @@
-import { buildNotExecutableProofVerificationResult, buildProofVerificationResult, canonicalProofVerificationDigest } from "../../../controlled-contract/lib/proof-obligation-runtime-resolver.mjs";
-import { evaluateTestProofEvidenceSemantics } from "../../../controlled-contract/lib/test-proof-evidence-semantic-kernel.mjs";
-import { VerifyProofOperationError, parseVerifyProofTimeout, resolveVerifyProofOperation } from "../../../wiki-core/src/operations/controlled-contract/verify-proof-operations.mjs";
+import { buildNotExecutableProofVerificationResult, buildProofVerificationResult, canonicalProofVerificationDigest } from "@agent-chassis/controlled-contract";
+import { evaluateTestProofEvidenceSemantics } from "@agent-chassis/controlled-contract";
+import { VerifyProofOperationError, resolveVerifyProofOperation, verifyProofTimeoutRefusal } from "../../../wiki-core/src/operations/controlled-contract/verify-proof-operations.mjs";
+import { parseExecutionTimeout } from "../../../wiki-core/src/lib/execution-timeout.mjs";
 import { executeLauncherVerifyProofReceiptPopulation } from "../../../agent-launch-cli/src/lib/workspace-agent-verify-proof-capability.mjs";
 import { deriveLauncherTestProofRuntimeTestIdentity, mintLauncherTestProofAttemptContext } from "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs";
 import { mintTestProofExecutionBudget, runWorkspaceAgentTestProofAttempt } from "../../../agent-launch-cli/src/lib/workspace-agent-validation-runner.mjs";
 import { validateTestProofEnvironmentSelection } from "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-provider-registry.mjs";
 import { extractTestProofRuntimeEvidenceReceipt } from "../../../agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs";
 import { captureDiagnosticEvidence } from "../../../agent-launch-cli/src/lib/diagnostic-evidence.mjs";
+import { attachAttemptObservation } from
+  "../../../agent-launch-core/src/lib/workspace-agent-verify-proof-capability.mjs";
+import { bindTestProofExecutionTimings, notStartedTestProofTiming, testProofExecutionTimingRow } from
+  "../../../agent-launch-core/src/lib/test-proof-timing.mjs";
 import { VERIFY_PROOF_TOOL_NAME, projectProofAuthoringRecoveryCall, projectObservedEvidence,
   projectVerifyProofFailure, verifyProofFailureContinuationFacts } from "./verify-proof-public-result.mjs";
 
@@ -27,10 +32,23 @@ const EXECUTION_INTERRUPTIONS = Object.freeze({
   })
 });
 
+const QUALIFYING_VERIFICATION_AMBIGUOUS = "verify_proof.qualifying_verification_ambiguous.v1";
 const DEFINITION_BLOCKER_ACTIONS = Object.freeze({
   "verify_proof.test_selector_invalid.v1":
-    "author_a_valid_declarative_test_selector_then_retry"
+    "author_a_valid_declarative_test_selector_then_retry",
+  [QUALIFYING_VERIFICATION_AMBIGUOUS]:
+    "read_the_obligation_and_link_one_verification_then_retry"
 });
+
+function expectedRecoveryContext(reasonCode, { resolution, proof, blocker }) {
+  if (reasonCode !== QUALIFYING_VERIFICATION_AMBIGUOUS) return { wkId: resolution.wk_id };
+  const binding = resolution.execution_source_binding;
+  const obligationId = blocker?.obligation_id;
+  if (binding?.wk_id !== resolution.wk_id || typeof obligationId !== "string" ||
+      !proof.relationships.some(({ obligation_id: id }) => id === obligationId)) return null;
+  return { source: { wkId: binding.wk_id, selectedUnit: binding.selected_unit ?? null,
+    focus: binding.focus ?? null }, obligationId };
+}
 
 function aggregateStatus(statuses) {
   if (!statuses.length) return "not_executable";
@@ -40,7 +58,7 @@ function aggregateStatus(statuses) {
 }
 
 function aggregateResult({ resolution, runtime, proofResults, reasonCode = null,
-  diagnostics = [], requestedEnvironment = null }) {
+  diagnostics = [], requestedEnvironment = null, executionTimings = null }) {
   const statuses = proofResults.map(({ status }) => status);
   const status = reasonCode === null ? aggregateStatus(statuses) : "not_executable";
   const counts = {
@@ -78,7 +96,15 @@ function aggregateResult({ resolution, runtime, proofResults, reasonCode = null,
     downstream_authority: Object.freeze({ review: false, admission: false,
       closure: false, merge: false, lifecycle: false })
   };
-  return Object.freeze({ ...body, result_digest: canonicalProofVerificationDigest(body) });
+  const result = Object.freeze({ ...body, result_digest: canonicalProofVerificationDigest(body) });
+  return executionTimings === null ? result : bindTestProofExecutionTimings(result, executionTimings);
+}
+
+export function withVerifyProofInvocationTiming(result, timing) {
+  const { result_digest: _digest, recovery, ...body } = result;
+  const timed = { ...body, timing };
+  return Object.freeze({ ...timed, result_digest: canonicalProofVerificationDigest(timed),
+    ...(recovery === undefined ? {} : { recovery }) });
 }
 
 const DEFINITION_REPAIR_REQUIRED_ANSWERS = Object.freeze({
@@ -111,8 +137,10 @@ export function buildUnavailableProofResult({ resolution, runtime, proof, blocke
     const ready = readinessStatus === null ? blocker === null : readinessStatus === "ready";
     const unavailableReason = reasonCode ?? blocker?.reason_code ?? "verify_proof.proof_unavailable.v1";
     const definitionBlocked = Object.hasOwn(DEFINITION_BLOCKER_ACTIONS, unavailableReason);
-    const recoveryCall = definitionBlocked
-      ? projectProofAuthoringRecoveryCall(blocker?.details?.recovery_call, resolution.wk_id) : null;
+    const expectedRecovery = definitionBlocked
+      ? expectedRecoveryContext(unavailableReason, { resolution, proof, blocker }) : null;
+    const recoveryCall = expectedRecovery === null ? null
+      : projectProofAuthoringRecoveryCall(blocker?.details?.recovery_call, expectedRecovery);
     if (definitionBlocked && recoveryCall === null) throw new VerifyProofOperationError(
       "verify_proof.runtime_recovery_projection_invalid.v1",
       "definition recovery must name the ordinary query and server-resolved unit"
@@ -158,8 +186,9 @@ function preflightFailureResult(resolution, runtime, requestedEnvironment) {
     return buildUnavailableProofResult({ resolution, runtime, proof, blockers,
       reasonCode: blockers[0]?.reason_code ?? "verify_proof.proof_unavailable.v1" });
   });
+
   return aggregateResult({ resolution, runtime, proofResults,
-    reasonCode: resolution.reason_code, diagnostics, requestedEnvironment });
+    reasonCode: resolution.reason_code, diagnostics, requestedEnvironment, executionTimings: [] });
 }
 
 function individualResolution(population, proof, relationship) {
@@ -319,7 +348,8 @@ function interruptedRunFacts(error) {
     if (typeof blocker === "string" && STABLE_CODE_RE.test(blocker)) {
       const stage = current.detail.execution_stage;
       return { run_blocker_code: blocker,
-        ...(["candidate", "falsifier", "traversal"].includes(stage) ? { interrupted_stage: stage } : {}) };
+        ...(["preparation", "candidate", "falsifier", "traversal"].includes(stage)
+          ? { interrupted_stage: stage } : {}) };
     }
   }
   return {};
@@ -350,7 +380,7 @@ export async function executeVerifyProofForContext({
   const resolveOperation = deps.resolveVerifyProofOperation ?? resolveVerifyProofOperation;
   if (typeof runtime?.assertCurrentIdentity !== "function") throw new VerifyProofOperationError(
     "verify_proof.currentness_check_unavailable.v1", "Execution requires an invocation-bound currentness check");
-  const timeout = parseVerifyProofTimeout(args?.timeout);
+  const timeout = parseExecutionTimeout(args?.timeout, verifyProofTimeoutRefusal);
   await runtime.assertCurrentIdentity();
   const resolution = resolveOperation({ args, context: resolutionContext });
   const eligible = resolution.eligible ?? (resolution.status === "executable" ? resolution.proofs : []);
@@ -419,7 +449,7 @@ export async function executeVerifyProofForContext({
 async function executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
   completeSelection, budget, timeout, requestedEnvironment }) {
   const evidenceByExecution = new Map();
-  const runtimeEnvironmentByExecution = new Map();
+  const attemptObservationByExecution = new Map();
   const mintAttemptContext = deps.mintAttemptContext ?? mintLauncherTestProofAttemptContext;
 
   const unavailableProofs = new Set(ineligible);
@@ -431,8 +461,21 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
   };
   const attempted = new Set();
   const localUnavailable = new Map();
+
+  const attemptObservation = (error) => {
+    const seen = new Set();
+    for (let current = error; current && typeof current === "object" && !seen.has(current);
+      current = current.cause) {
+      seen.add(current);
+      if (current.attempt_observation !== undefined) return current.attempt_observation;
+    }
+    return null;
+  };
   const interrupted = new Map();
   const unstarted = new Map();
+
+  const executionIndex = new Map();
+  const executionTiming = new Map();
   for (const proof of eligible) {
     if (attempted.has(proof.execution_key)) continue;
     attempted.add(proof.execution_key);
@@ -441,6 +484,7 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       unstarted.set(proof.execution_key, pending);
       continue;
     }
+    executionIndex.set(proof.execution_key, executionIndex.size + 1);
     await runtime.assertCurrentIdentity();
     const target = proof.declared_target.target;
     try {
@@ -459,12 +503,21 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       assertCurrentIdentity: runtime.assertCurrentIdentity
     });
       evidenceByExecution.set(proof.execution_key, executed.evidence_by_target[target] ?? []);
-      runtimeEnvironmentByExecution.set(proof.execution_key,
-        executed.runtime_environments_by_target?.[target]?.[0] ?? null);
-      await runtime.assertCurrentIdentity();
+      const observation = executed.attempt_observations_by_target?.[target]?.[0] ?? null;
+      attemptObservationByExecution.set(proof.execution_key, observation);
+      executionTiming.set(proof.execution_key, observation?.timing ?? null);
+
+      try {
+        await runtime.assertCurrentIdentity();
+      } catch (error) {
+        throw attachAttemptObservation(error, observation);
+      }
     } catch (error) {
 
       const interruption = budget.interruption();
+      if (!executionTiming.has(proof.execution_key)) {
+        executionTiming.set(proof.execution_key, attemptObservation(error)?.timing ?? null);
+      }
       if (interruption !== null && !evidenceByExecution.has(proof.execution_key) &&
           budgetInterruptionCause(error)) {
 
@@ -478,7 +531,8 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       if (continuation?.verification_id === proof.verification_id && continuation.target === target) {
         await runtime.assertCurrentIdentity();
         localUnavailable.set(proof.execution_key, { projected,
-          executionStatus: continuation.execution_status });
+          executionStatus: continuation.execution_status,
+          selectedObservation: continuation.selected_observation });
         continue;
       }
       throw error;
@@ -502,7 +556,13 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       executionStatus: phase === "interrupted" ? "interrupted" : "not_started",
       recovery: { action: outcome.action, retry_operation: VERIFY_PROOF_TOOL_NAME, facts } });
   };
-  const proofResults = resolution.proofs.map((proof) => {
+  const timingRow = (proof) => {
+    const index = executionIndex.get(proof.execution_key);
+    return index === undefined ? notStartedTestProofTiming()
+      : testProofExecutionTimingRow(index, executionTiming.get(proof.execution_key) ?? null);
+  };
+  const proofResults = resolution.proofs.map((proof) => ({ ...proofResult(proof), timing: timingRow(proof) }));
+  function proofResult(proof) {
     if (unavailableProofs.has(proof)) return unavailableResult(proof);
     const stopped = interrupted.get(proof.execution_key);
     if (stopped !== undefined) return interruptionResult(proof, stopped, "interrupted");
@@ -511,17 +571,27 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       return interruptionResult(proof, { interruption: notReached }, "unstarted");
     }
 
+    const selectedIdentity = () => {
+      const selected = (deps.deriveRuntimeTestIdentity ??
+        deriveLauncherTestProofRuntimeTestIdentity)({
+        binding: proof.test_proof, target: proof.declared_target.target
+      });
+      return { test_id: selected.test_id, file: selected.file,
+        name: selected.name, nesting: selected.nesting,
+        ...(selected.node_id === undefined ? {} : { node_id: selected.node_id,
+          provider_id: selected.provider_id, provider_version: selected.provider_version }) };
+    };
     const local = localUnavailable.get(proof.execution_key);
-    if (local !== undefined) return buildUnavailableProofResult({ resolution, runtime, proof,
+    if (local !== undefined) return { ...buildUnavailableProofResult({ resolution, runtime, proof,
       blockers: local.projected.diagnostics ?? [], reasonCode: local.projected.reason_code,
       readinessStatus: "ready", recovery: local.projected.recovery,
-      executionStatus: local.executionStatus });
-    const receipts = evidenceByExecution.get(proof.execution_key);
+      executionStatus: local.executionStatus }), selected_test: selectedIdentity(),
 
-    const selectedTest = (deps.deriveRuntimeTestIdentity ??
-      deriveLauncherTestProofRuntimeTestIdentity)({
-      binding: proof.test_proof, target: proof.declared_target.target
-    });
+    ...(local.selectedObservation === undefined ? {} : {
+      selected_observation: structuredClone(local.selectedObservation) }) };
+    const receipts = evidenceByExecution.get(proof.execution_key);
+    const selectedTest = selectedIdentity();
+    const observation = attemptObservationByExecution.get(proof.execution_key) ?? null;
     const relationshipResults = proof.relationships.map((relationship) => {
       const one = individualResolution(resolution, proof, relationship);
       const semanticFacts = (deps.evaluateSemantics ?? evaluateTestProofEvidenceSemantics)({
@@ -565,19 +635,17 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
         ? "verify_proof.relationship_evaluation_incomplete.v1" : null,
       subject_binding_ref: "aggregate.subject_binding",
       declared_target: structuredClone(proof.declared_target),
-      selected_test: {
-        test_id: selectedTest.test_id, file: selectedTest.file,
-        name: selectedTest.name, nesting: selectedTest.nesting,
-        ...(selectedTest.node_id === undefined ? {} : { node_id: selectedTest.node_id,
-          provider_id: selectedTest.provider_id, provider_version: selectedTest.provider_version })
-      },
+      selected_test: selectedTest,
       observed_evidence: projectObservedEvidence(
         receipts[0], proof.declared_target.target, selectedTest.test_id
       ),
-      runtime_environment: structuredClone(runtimeEnvironmentByExecution.get(proof.execution_key) ?? null),
+      runtime_environment: structuredClone(observation?.runtime_environment ?? null),
+
+      ...(observation === null ? {} : { attempt_diagnostics: captureDiagnosticEvidence(observation,
+        { publishedFields: { runtime_environment: observation.runtime_environment } }) }),
       relationship_results: relationshipResults
     };
-  });
+  }
   await runtime.assertCurrentIdentity();
   const interruption = budget.interruption();
   const aggregateDiagnostics = [...(resolution.diagnostics ?? []),
@@ -591,7 +659,8 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
         unstarted_execution_count: unstarted.size }
     }])];
   return aggregateResult({ resolution, runtime, proofResults,
-    diagnostics: aggregateDiagnostics, requestedEnvironment });
+    diagnostics: aggregateDiagnostics, requestedEnvironment,
+    executionTimings: [...executionIndex.keys()].map((key) => executionTiming.get(key) ?? null) });
 }
 
 export { aggregateResult, VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION };

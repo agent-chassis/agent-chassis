@@ -69,6 +69,7 @@ test("guarded bindings retain their exact current witnesses", async () => {
       "ref-wk2359-witness-internal-exception",
       "ref-wk2359-witness-response-dedup",
       "ref-wk2359-witness-compact-read",
+      "ref-wk2359-witness-settled-readiness",
       "ref-wk2391-preflight-witness"
     ]],
     ["WK-2382", [

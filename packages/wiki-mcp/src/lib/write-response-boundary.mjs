@@ -3,6 +3,8 @@
 import { types as nodeUtilTypes } from "node:util";
 import { serializeWorkRecordDiagnosticValue } from
   "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
+import { projectWorkRecordFreshness } from
+  "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 
 const VERBOSE_NEXT_ACTION = "Re-call this tool with verbose:true to inspect suppressed write detail";
 
@@ -355,7 +357,58 @@ function enforceCompactDiagnosticBoundary(response) {
   return response;
 }
 
-export function shapeWriteResponse(result, options = {}) {
+const ORDINARY_WRITE_FRESHNESS_KEYS = Object.freeze([
+  "source_digest",
+  "expected_source_digest",
+  "current_source_digest",
+  "use_as_expected_source_digest"
+]);
+
+function projectFreshnessValue(value) {
+  return projectWorkRecordFreshness(value) ?? value;
+}
+
+function projectNextCallFreshness(call) {
+  const callArguments = call?.arguments;
+  if (!isPlainObject(call) || !isPlainObject(callArguments) ||
+      !hasOwn(callArguments, "expected_source_digest")) {
+    return call;
+  }
+  return { ...call, arguments: { ...callArguments,
+    expected_source_digest: projectFreshnessValue(callArguments.expected_source_digest) } };
+}
+
+function ownDataValue(value, key) {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && hasOwn(descriptor, "value") ? { present: true, value: descriptor.value } : { present: false };
+}
+
+export function projectOrdinaryWriteFreshness(result) {
+  if (!isPlainObject(result) || isProxyFailClosed(result)) return result;
+  const replacements = {};
+  for (const key of ORDINARY_WRITE_FRESHNESS_KEYS) {
+    const field = ownDataValue(result, key);
+    if (field.present && projectFreshnessValue(field.value) !== field.value) {
+      replacements[key] = projectFreshnessValue(field.value);
+    }
+  }
+  const nextCalls = ownDataValue(result, "next_calls");
+  if (nextCalls.present && Array.isArray(nextCalls.value) && !isProxyFailClosed(nextCalls.value)) {
+    const projectedCalls = nextCalls.value.map(projectNextCallFreshness);
+    if (projectedCalls.some((call, index) => call !== nextCalls.value[index])) {
+      replacements.next_calls = projectedCalls;
+    }
+  }
+  if (Object.keys(replacements).length === 0) return result;
+  const projected = Object.defineProperties({}, Object.getOwnPropertyDescriptors(result));
+  for (const [key, value] of Object.entries(replacements)) {
+    Object.defineProperty(projected, key, { value, enumerable: true, writable: true, configurable: true });
+  }
+  return projected;
+}
+
+export function shapeWriteResponse(unprojectedResult, options = {}) {
+  const result = projectOrdinaryWriteFreshness(unprojectedResult);
   if (!result) {
     return {
       ok: false,

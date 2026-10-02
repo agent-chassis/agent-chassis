@@ -2,8 +2,7 @@
 
 import path from "node:path";
 import {
-  compileRepositoryScopePath,
-  repositoryScopeGlobIndex
+  parseRepositoryScopeFileSelector
 } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
 
 const EXACT_OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
@@ -138,64 +137,32 @@ export function createWorkerScopeTreeReader({ runGit, mainRepo, baseSha } = {}) 
     throw new Error("scope-path existence resolution did not classify a terminal component");
   }
 
-  const fileListings = new Map();
-  function regularFiles(treeOid) {
-    if (!fileListings.has(treeOid)) {
-      const stdout = probeOrThrow(
-        runGit, mainRepo, ["ls-tree", "-r", "-z", "--full-tree", treeOid],
-        `scope-path recursive tree listing probe for ${treeOid}`
-      );
-      if (stdout.length > 0 && !stdout.endsWith("\0")) {
-        throw new Error(`scope-path recursive tree listing of ${treeOid} is malformed`);
-      }
-      const files = [];
-      for (const record of stdout.length === 0 ? [] : stdout.slice(0, -1).split("\0")) {
-        const match = record.match(LS_TREE_RECORD_RE);
-        if (match === null || match[4].split("/").includes("")) {
-          throw new Error(`scope-path recursive tree listing of ${treeOid} carries an unparsable entry`);
-        }
-        if (match[2] === "blob" && REGULAR_BLOB_MODES.includes(match[1])) files.push(match[4]);
-      }
-      fileListings.set(treeOid, files);
-    }
-    return fileListings.get(treeOid);
-  }
-
   function resolveMembership(selectors, { exclusions = [] } = {}) {
     const files = new Set();
-    const directories = new Set();
     const missing = new Set();
+    const absentParents = new Set();
     const excluded = (candidate) => excludedFromScope(exclusions, candidate);
     for (const raw of selectors) {
-      const compiled = compileRepositoryScopePath(raw);
-      if (!compiled.ok) throw new Error(`scope selector is not canonical: ${JSON.stringify(raw)}`);
-      const selector = compiled.value;
-      const globIndex = repositoryScopeGlobIndex(selector);
-      if (globIndex === -1) {
-        const { kind, index } = resolve(selector.components);
-        const members = index !== selector.components.length - 1 ? null
-          : kind === SCOPE_TREE_PATH_KINDS.DIRECTORY ? directories
-            : kind === SCOPE_TREE_PATH_KINDS.FILE && !selector.directory_hint ? files
-              : kind === SCOPE_TREE_PATH_KINDS.ABSENT ? (selector.directory_hint ? directories : missing) : null;
-        if (members !== null && !excluded(selector.canonical_path)) members.add(selector.canonical_path);
-        continue;
+      const parsed = parseRepositoryScopeFileSelector(raw);
+      if (!parsed.ok) {
+        throw new Error(`scope selector is not an individual repository file: ${JSON.stringify(raw)}`);
       }
-      const prefix = selector.components.slice(0, globIndex);
-      let tree = rootTree;
-      for (const name of prefix) {
-        const entry = tree === null ? undefined : listing(tree).get(name);
-        tree = entry?.type === "tree" && entry.mode === TREE_MODE ? entry.oid : null;
-      }
-      if (tree === null) continue;
-      for (const relative of regularFiles(tree)) {
-        const candidate = [...prefix, relative].join("/");
-        if (selector.matches(candidate) && !excluded(candidate)) files.add(candidate);
+      const selector = parsed.value;
+      const { kind, index } = resolve(selector.components);
+      const final = index === selector.components.length - 1;
+      const members = kind === SCOPE_TREE_PATH_KINDS.ABSENT ? missing
+        : final && kind === SCOPE_TREE_PATH_KINDS.FILE ? files : null;
+      if (members === null || excluded(selector.canonical_path)) continue;
+      members.add(selector.canonical_path);
+      for (let depth = index + 1; depth < selector.components.length; depth += 1) {
+        absentParents.add(selector.components.slice(0, depth).join("/"));
       }
     }
     return Object.freeze({
       files: Object.freeze([...files].sort()),
-      directories: Object.freeze([...directories].sort()),
-      missing: Object.freeze([...missing].sort())
+      directories: Object.freeze([]),
+      missing: Object.freeze([...missing].sort()),
+      absent_parents: Object.freeze([...absentParents].sort(compareShallowestFirst))
     });
   }
 
@@ -205,8 +172,32 @@ export function createWorkerScopeTreeReader({ runGit, mainRepo, baseSha } = {}) 
 export function resolveWritableScopeCoverage(reader, writeScope, { exclusions = [] } = {}) {
   const writable = reader.resolveMembership(writeScope, { exclusions });
   const files = Object.freeze([...new Set([...writable.files, ...writable.missing])].sort());
+  const fileSet = new Set(files);
+  const conflicts = [];
+  for (const file of files) {
+    const components = file.split("/");
+    for (let depth = 1; depth < components.length; depth += 1) {
+      const ancestor = components.slice(0, depth).join("/");
+      if (fileSet.has(ancestor)) {
+        conflicts.push(Object.freeze({ path: file, component: ancestor }));
+        break;
+      }
+    }
+  }
   const covers = resolvedMembershipCoverage({ files, directories: writable.directories }, { exclusions });
-  return Object.freeze({ files, directories: writable.directories, covers });
+  return Object.freeze({
+    files,
+    directories: writable.directories,
+    covers,
+    preparation_directories: writable.absent_parents,
+    conflicts: Object.freeze(conflicts)
+  });
+}
+
+export function compareShallowestFirst(left, right) {
+  const depth = left.split("/").length - right.split("/").length;
+  if (depth !== 0) return depth;
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 export function resolvedMembershipCoverage({ files, directories }, { exclusions = [] } = {}) {

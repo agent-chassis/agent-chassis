@@ -9,7 +9,10 @@ export function buildBubblewrapArgs({
   systemRoots,
   shareNet,
   newSession,
-  useSystemTmp,
+  executionTmpSource = null,
+  executionScratchSource = null,
+
+  repoNamespaceArgs = null,
   tmpfsDirsResolved,
   sparseWorkerNamespace,
   repoReal,
@@ -31,6 +34,7 @@ export function buildBubblewrapArgs({
   decisionsReadOnly = [],
   testRuntimeSkeletonDirs = [],
   testRuntimeDependencyBinds = [],
+  roleGuideReadOnlyBinds = [],
   policedEnv,
   cwdNormalized,
   resolvedCommand,
@@ -40,7 +44,7 @@ export function buildBubblewrapArgs({
 
   const bwrapArgs = [];
   bwrapArgs.push(...buildSystemBaselineArgs({ systemReadOnlyRoots: systemRoots, shareNet,
-    newSession, tmpfsDirs: tmpfsDirsResolved, useSystemTmp }));
+    newSession, tmpfsDirs: tmpfsDirsResolved, executionTmpSource, executionScratchSource }));
   if (stdioMcpConduit !== null) {
     bwrapArgs.push(...projectStdioMcpChannelNamespaceArgs(stdioMcpConduit));
   }
@@ -49,7 +53,9 @@ export function buildBubblewrapArgs({
     bwrapArgs.push("--dir", dir);
   }
   const provisionedGitBinds = provisionedGitIsolation?.readOnlyBinds ?? [];
-  if (sparseWorkerNamespace === null) {
+  if (sparseWorkerNamespace === null && repoNamespaceArgs !== null) {
+    bwrapArgs.push(...repoNamespaceArgs);
+  } else if (sparseWorkerNamespace === null) {
     bwrapArgs.push("--ro-bind", repoReal, repoReal);
   } else {
 
@@ -128,6 +134,10 @@ export function buildBubblewrapArgs({
   }
 
   for (const { src, dst } of testRuntimeDependencyBinds) {
+    bwrapArgs.push("--ro-bind", src, dst);
+  }
+
+  for (const { src, dst } of roleGuideReadOnlyBinds) {
     bwrapArgs.push("--ro-bind", src, dst);
   }
 

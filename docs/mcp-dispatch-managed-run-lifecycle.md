@@ -83,9 +83,12 @@ request rather than a chore handed back to the caller.
 - **The original result is retained, not replayed.** A closeout call asks its
   executor for the complete result, not a default page of it, and retains the
   complete permitted receipt once through the same response owner an oversized
-  result already uses. The bounded frame carries that retained answer's
-  authenticated content reference in `full_result`, and
-  `workspace_read_mcp_content_reference` reads it back. Retrieval is a read: it
+  result already uses. The bounded frame carries that receipt's locator in
+  `receipt.source` and its exact read, `workspace_work_record_summary` with
+  `receipt: {ref_id, sha256, finding_id?}`, which lists the receipt's findings
+  or returns one original finding with the receipt's effects. The public
+  ranged content reader refuses those retained bytes and returns that read
+  instead. Retrieval is a read: it
   performs no second write and runs no second check. Re-calling the mutation is
   never the route to the detail, because the mutation has already landed and
   repeating it is a no-op that runs nothing and returns no findings. The
@@ -433,7 +436,13 @@ The result event contains the complete normalized managed-worker report,
 including original response and existing provenance and write-scope evidence.
 Capture is synchronous; publication precedes any claim of crash durability and
 precedes post-worker settlement consumption. Publication failure remains
-explicit while hot captured bytes stay retryable. Lifecycle failures receive one
+explicit while hot captured bytes stay retryable. The exception is a missing or
+mismatched authenticated execution tuple: the tuple is bound when the run starts
+and cannot be supplied, minted or rebound afterwards, so settlement attempts no
+publication and records a `repair_required` owned by the launcher
+(`retryable: false`), which monitoring publishes as a required correction rather
+than a retry (see
+[monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md#full-final-result-and-compact-advisory-reference-contract)). Lifecycle failures receive one
 invocation id at the shared invocation seam and are recorded once per actual
 failed invocation. A retained failure that a later request does not re-attempt
 records no further event, so the journal keeps one event per real attempt. Only
@@ -511,6 +520,16 @@ for append, reauthentication, retry, replacement, or another review. A new revie
 is dispatched only when the coordinator independently decides new review work is
 needed.
 
+Original findings outlive that registry only once saved. An accepted findings
+dispatch returns one exact status call for its run, and completed WK root or
+slice findings status offers one entry-upsert call that saves the exact original
+text with its run provenance, or the pinned read of a matching capture already on
+that unit. The coordinator attaches the returned immutable entry reference to the
+next unit's `material_refs`; frozen assignment materialization then delivers the
+exact text without the original run. Status neither saves nor selects or
+dispatches the next unit. See
+[Durable work-record entries](mcp-operation-reference.md#durable-work-record-entries).
+
 Logs and optional result metadata are action-local observations. Their absence,
 loss, corruption, or capture failure cannot block a later action. Findings never
 allocate or adopt persistent WK identity, persist a generation, integrate, mutate
@@ -549,9 +568,9 @@ incomplete launcher-retirement step is mechanical recovery; advice to activate a
 parent, integrate a slice, remediate findings, or redispatch solely because of a
 status tuple is policy and is not launcher-owned.
 
-Under [decision](../wiki/decisions/decision.md), historical runs and results are
+Under `decision` (repository-only: `wiki/decisions/decision.md`), historical runs and results are
 evidence rather than gates for a current execution generation. Under
-[decision](../wiki/decisions/decision.md), findings-only output remains advisory
+`decision` (repository-only: `wiki/decisions/decision.md`), findings-only output remains advisory
 and grants no lifecycle authority. Public projections preserve the exact owning
 boundary: CCE policy recovery is forwarded without local invention, while a
 mechanical refusal reports only its exact launcher-owned recovery.
@@ -752,15 +771,47 @@ The eight and only eight typed codes are:
 - `agent_launch.terminal_wk_candidate.candidate_ref_disagrees.v1`
 - `agent_launch.terminal_wk_candidate.binding_mismatch.v1`
 
-Typed `detail` is `null` except that `git_failed` may carry exactly
+Typed `detail` is `null` except that `git_failed` may carry
 `{"git_operation":"<operation>","git_status":<status>}` and `base_invalid` may
-carry exactly `{"git_operation":"merge-base","git_status":<status>}`. The
-closed operation domain is `rev-parse`, `rev-list`, `cat-file`, `commit-tree`,
-`for-each-ref`, `update-ref`, or `merge-base`. The status domain is `null` or an
-integer from 0 through 255 inclusive. At the typed-error projection boundary,
-invalid, incomplete, or inapplicable internal detail collapses to `null`. At the
-public backend boundary, an incoming projected value with invalid detail or any
-other schema defect is replaced by the unknown projection rather than forwarded.
+carry `{"git_operation":"merge-base","git_status":<status>}`, each optionally
+with `git_diagnosis` (Git's own explanation of that invocation, below), and
+`candidate_ref_disagrees` carries `ref_disagreements` -- one `{ref, expected,
+actual}` record per ref whose observed value contradicted the write, `null` for
+an absent ref -- plus the operation, status and diagnosis of the failed write when
+Git ran it. The closed operation domain is `rev-parse`, `rev-list`, `cat-file`,
+`commit-tree`, `for-each-ref`, `update-ref`, or `merge-base`. The status domain
+is `null` or an integer from 0 through 255 inclusive. At the typed-error
+projection boundary, invalid, incomplete, or inapplicable internal detail
+collapses to `null`. At the public backend boundary, an incoming projected value
+with invalid detail or any other schema defect is replaced by the unknown
+projection rather than forwarded. This closed coordinator projection carries no
+native spawn facts; a failure's signal, output overflow and native error are
+published by the post-worker lifecycle's `candidate_failure.detail` and its
+evidence cause chain (below).
+
+A failed candidate ref write (`update-ref`) keeps its own Git failure --
+invocation, status, whole stderr, Trace2 capture and diagnosis -- whatever the
+re-observation that follows finds. Another writer's exactly intended value
+converges. A different value observed on the written ref, or a verified ref that
+moved, is `candidate_ref_disagrees` with those `ref_disagreements`; with nothing
+conflicting observed, the failure is the write's own `git_failed`, never a
+disagreement nobody observed. When the re-observation itself fails, its typed
+failure keeps its own classification and carries the failed write whole as
+`detail.write_failure`. One reading of a `merge-base --is-ancestor` result serves
+both ancestry checks (construction's `base_invalid` and existing-candidate
+inspection's `non_ancestor` fact). Exit 1 is a proven negative answer only when
+the comparison completed and Git's Trace2 capture reports no error event
+(`none_emitted`); a runner that does not capture Trace2 keeps the exit-status
+reading. Git also exits 1 when it cannot complete the walk and reports its own
+error event (for example that it could not read a required object): that, or a
+capture that cannot say (`unavailable`, `malformed`, `incomplete`, `overflow`,
+`capture_failed`), is `git_failed` for `merge-base` -- the ancestry comparison
+could not be completed -- with the actual status and Git's diagnosis unchanged,
+never a negative relationship and never a claim beyond what Git reported. Another
+exit status, a signal, a timeout or a spawn failure is likewise `git_failed`. Every
+outcome keeps the queried base and tip. The rule reads the exit status, the
+runner's fault facts and the capture state, never message text, and applies only
+to ancestry: a successful command with a warning event is still a success.
 
 The unknown form is the following byte-stable projection; its compact serialized
 bytes and key order are exactly:
@@ -772,13 +823,65 @@ bytes and key order are exactly:
 Only an actual `TerminalWkCandidateError` can produce the typed form at the
 runtime boundary. Unknown exceptions, non-errors, copied prefixes, lookalikes,
 caller-supplied projection shapes, and malformed backend carriers collapse to the
-fixed unknown form. Neither form returns Git arguments, stdout, stderr, exception
-or subprocess prose, arbitrary fields or strings, names, stacks, causes,
-credentials or other secrets, filesystem paths, environment content, caller
-fields, or unvalidated object IDs or refs. No internal error instance crosses the
-projection boundary. The post-worker lifecycle publishes this projection as
-classification only; the original exception accompanies it as evidence
-(see [post-worker lifecycle failure reporting](#post-worker-lifecycle-failure-reporting)).
+fixed unknown form. Neither form returns Git arguments, stdout, stderr, whole
+Trace2 records, exception prose, arbitrary fields or strings, names, stacks,
+causes, environment content, caller fields, or unvalidated object IDs or refs.
+Git's own diagnosis is published unchanged even when its message names a path:
+a semantic diagnostic is not a raw log, and nothing is masked for hypothetical
+sensitivity. No internal error instance crosses the projection boundary. The projection is classification only; the original
+exception accompanies it as evidence. A leaf typed failure that reaches the
+post-worker lifecycle unwrapped publishes, in `candidate_failure.detail`, only
+the invocation's own typed facts: `git_args`, the logical `git_operation`, the
+subject it read (`git_ref`, `git_path`, `git_oid`), `git_status`, `git_signal`,
+`git_output_overflow` when the runner's output bound overflowed,
+`git_native_error` (the spawn error's `code`, `errno`, `syscall` and `path`) and
+`git_stderr_bytes` (how many stderr bytes Git emitted; absent when an output
+overflow discarded the capture and the size is unknown). Git's stderr text stays
+on the thrown error, which the lifecycle records whole and within the runner's
+capture bound uncut, and a native spawn error is that error's `cause`, unchanged.
+An exit status and a stderr size are not a diagnosis: nothing infers a missing
+executable, a permission or a content conflict from a generic nonzero exit, and
+nothing parses stderr.
+
+Git's own explanation comes from Git's
+[Trace2 event stream](https://git-scm.com/docs/api-trace2). The candidate runner
+(`defaultTerminalCandidateRunGit` in `terminal-wk-candidate.mjs`) enables the
+internal `trace2Diagnostics` option of the shared `runGitAsync` owner, which binds
+`GIT_TRACE2_EVENT` to a dedicated descriptor of the same invocation (an ambient
+target cannot redirect it) and decodes the captured JSON records. Every other
+`runGitAsync` caller is unchanged. A typed Git failure minted from that runner's
+own result registers, by error identity, `git_diagnosis`: the capture state and
+every Trace2 `error` event's exact `msg` and `fmt`, in Git's order. One shared
+semantic projection carries it beside the operation and status: the lifecycle's
+`candidate_failure.detail`, for an unwrapped leaf failure and for the
+coordinator's authenticated wrapper, and the coordinator's own disclosure
+projection published by cold-recovery, forge and advisory-review refusals as
+`recovery_detail`. The coordinator computes that projection, diagnosis included,
+once when it mints its wrapper, from the leaf's identity registration for the
+exact error it classified (same code, operation and status), and holds it only in
+its private lookup; a later change to the wrapper's `cause` cannot select another
+invocation's diagnosis, and the wrapper carries no copied projection property.
+Copies, prototype lookalikes, proxies and injected runners, including one that
+delegates to the production runner, carry no diagnosis and gain no authority. Git
+also reports warnings as `error` events, so a diagnosis never decides an outcome:
+success with a warning stays success, and a completed negative ancestry answer
+keeps its domain meaning. The capture states are `captured`, `none_emitted` (Git traced and
+reported no error event), `unavailable` (the descriptor delivered nothing),
+`malformed` and `incomplete` (diagnostics decoded before the defect are kept),
+`capture_failed` (the descriptor errored; the bytes delivered before the error,
+their decoded diagnostics and the native error are kept), `overflow` (the capture
+exceeded the runner bound and was
+discarded while Git ran to its own outcome) and `not_started` (Git never ran). A
+capture problem never replaces the Git failure beside it. The complete capture,
+including records naming argv, worktree and process ancestry, stays on the thrown
+error's detail as a non-enumerable `git_trace2`, which evidence capture records
+whole; public reads publish the recorded projection and never execute Git. A Git
+failure that emits no `error` event reports its honest capture state
+(`none_emitted`) with no diagnostics; nothing is invented. A long diagnosis is
+never clipped; a diagnosis too large for a complete response is an unresolved
+limit, not a reason to cut it
+(see [post-worker lifecycle failure reporting](#post-worker-lifecycle-failure-reporting)
+and [original-cause preservation](#terminal-candidate-original-cause-preservation)).
 
 Shape is validation, never provenance. The terminal-candidate runtime records the
 exact error identities it originates in one module-private `WeakMap`, together
@@ -791,11 +894,13 @@ identity may mint typed membership; explicitly passing that exact function is
 equivalent to using the default. An injected, wrapped, bound, proxied, copied,
 lookalike, or otherwise substituted runner does not receive membership regardless of its
 name, source text, properties, symbols, prefixes, or caller assertions. Its failure
-is replaced by fixed launcher-owned transport data and crosses the public boundary
-only as the byte-stable unknown projection. Structural validity remains defense in
+is replaced by fixed launcher-owned transport data and is classified at the public
+boundary only as the byte-stable unknown projection; what it threw, or the
+coordinator's own verdict, is kept as that transport's diagnostic `cause` and
+grants nothing. Structural validity remains defense in
 depth, not provenance, and no request, prompt, callback, dependency object, error
-property, symbol, token, or code prefix can select or replace the lookup. Copying
-`terminal_candidate_failure`, reproducing all five fields, or
+property, symbol, token, or code prefix can select or replace the lookup. Setting a
+`terminal_candidate_failure` property, reproducing all five fields, or
 wrapping either a projection or carrier in a transparent or trapping proxy grants
 no membership and therefore yields the exact unknown projection. The backend
 still validates the returned shape defensively, but never reads an error property
@@ -813,10 +918,60 @@ transport/control-flow reason remains in the forge refusal, while
 `detail.recovery_detail` carries the exact module-originated five-field projection.
 An exact-shaped exception without module membership carries the fixed unknown form.
 The typed projection is appended only after generic forge-detail
-sanitization, so its required fixed `message` key survives without making arbitrary
-exception messages, Git arguments, stdout, stderr, paths, secrets, stacks, or
-causes public. The runner-identity provenance gate does not alter this forge
-recovery retention behavior.
+sanitization, so its required fixed `message` key survives without adopting any
+exception text as classification. The original failure travels beside it as the
+refusal's `detail.evidence`, which the forge routes publish through the shared
+dispatch failure projection as a `cause_chain` and retain whole for the operator.
+The runner-identity provenance gate does not alter this forge recovery retention
+behavior.
+
+#### Terminal-candidate original-cause preservation
+
+Classification authority and diagnostic evidence are separate for every
+terminal-candidate construction and recovery failure, in hot preparation and in
+cold recovery alike. The coordinator never discards what was thrown:
+
+- The transport error it throws carries the original thrown value — an `Error`,
+  a typed candidate error, a string, `null`, a proxy — as its standard `cause`,
+  by identity, before any classification. This holds for the production runner
+  and for an injected or otherwise untrusted runner. An untrusted runner's
+  deliberate recovery verdict (for example
+  `terminal_candidate_recovery_no_deterministic_match`) is kept the same way, as
+  a plain error naming the verdict.
+- The cause is never read for authority. The typed projection, the recovery
+  reason, and the recovery diagnostic come only from the private membership
+  lookup, so an unrecognized, copied, forged, proxied, or injected-runner error
+  stays `unknown_cause` / `terminal_candidate_recovery_failed` while its
+  original message, code, details, and nested causes survive.
+- A missing controlled-contract generation still refuses candidate preparation
+  and recovery, and nothing is manufactured. Its cause names the affected WK:
+  `current controlled-contract generation is absent for <WK>`.
+- An unparseable exact WK-bound contract keeps its underlying failure as `cause`.
+
+Each consumer captures that transport, cause chain included, with the one
+diagnostic-evidence encoder and publishes it through an existing owner:
+
+- Post-worker preparation: the lifecycle seam's evidence holds the transport and
+  its cause; `evidence_summary.cause_chain` names each level, so the retained
+  `latest_failure` in default status names the real cause. The journaled failure
+  history keeps the complete evidence, and reading it back after a restart
+  summarizes the recorded bytes without executing or re-recording anything.
+- Reviewer cold recovery: the backend refusal adds `detail.evidence` (the
+  `cause_chain`) and `detail.retained_evidence` (the complete capture, retained
+  once for the operator) beside `recovery_code`, `recovery_detail`, and
+  `recovery_diagnostic`. An unreadable current-candidate ref refusal carries the
+  same pair.
+- Forge candidate resolution and handoff observation: the refusal's
+  `detail.evidence` is the complete capture; the forge route publishes its
+  `cause_chain` and retains it once. The read-only landing-status route publishes
+  the same `cause_chain` and retains nothing (see
+  [Pure failure observation](#pure-failure-observation)).
+
+Public diagnosis is each level's name, message, code, and scalar facts. Traces,
+nested objects, and raw process output stay in the retained capture. Nothing is
+redacted because of what its text looks like. A post-worker lifecycle failure's
+own evidence is the one exception to "scalar facts only": its levels also publish
+their structured facts (below).
 
 work record removes the diagnostic suppression on the reviewer side of that same
 lookup. The reviewer backend previously hardcoded `detail.reason` to
@@ -855,10 +1010,15 @@ candidate contract or its existing authority boundaries.
 
 ### Post-worker lifecycle failure reporting
 
-A post-worker lifecycle rejection publishes two separate things on
-`slice_lifecycle`: a closed classification and the unredacted evidence of what
-was thrown. The evidence is complete only when its `thrown.capture_failures`
-list is empty; anything the encoder could not capture is listed there.
+A post-worker lifecycle rejection records two separate things: a closed
+classification and the unredacted evidence of what was thrown. Both are recorded
+with the failure (the run's lifecycle checkpoint and the attempt journal's
+`lifecycle_failure_recorded` event). `slice_lifecycle` publishes the
+classification and the evidence's pure semantic projection; the complete
+evidence is never published (see
+[Pure failure observation](#pure-failure-observation)). The recorded evidence is
+complete only when its `thrown.capture_failures` list is empty; anything the
+encoder could not capture is listed there.
 
 The classification is `error_code`, `error_message`, and, where a seam supplies
 them, `candidate_failure` and `failure_cause`. A
@@ -869,11 +1029,15 @@ rejection at a named lifecycle seam publishes that seam's code and fixed message
 by the seam, by launcher-private brands, and by identity attribution. It is never
 selected by reading the thrown value.
 
-The evidence is `slice_lifecycle.evidence`. Every failure envelope carries it,
-and a compact `evidence_summary` travels with it (operation, value type, name,
-code, message, and the number of capture failures). Evidence is captured at the
-originating boundary, before any wrapping. It is never redacted, and nothing is
-dropped without a `capture_failures` entry:
+The recorded evidence is the failure envelope's `evidence`. Every failure
+envelope carries it, and a compact `evidence_summary` travels with it (operation, value type, name,
+code, message, the number of capture failures, and `cause_chain`: each level of
+the thrown value's cause chain by name, message, code, and scalar facts, as the
+shared dispatch failure projection reduces captured evidence; a non-object level
+is a final `{ "value": ... }`). The summary reads only the encoded evidence, so a
+retained failure re-read from the journal summarizes identically. Evidence is captured at the
+originating boundary, before any wrapping. The recorded encoding is never
+redacted, and nothing is dropped without a `capture_failures` entry:
 
 - `operation` names where the failure was observed: `seam:<seam>` for a named
   seam, `post_worker_slice_lifecycle_invocation` for any other rejection.
@@ -913,7 +1077,13 @@ A closed lifecycle failure carrier holds the same evidence on `evidence`. It
 also exposes it as `detail.evidence`, the slot restart recovery reports as
 `recovery_failure.detail`. Its `stack` is its own header, the seam, and then
 `Caused by:` followed by the original stack, so the wrapper never replaces the
-origin.
+origin. `workspace_agent_run_status` publishes that `recovery_failure` through
+the shared dispatch failure projection: its facts, effects and returned policy
+cross unchanged, its evidence becomes a `cause_chain` whose levels keep their
+structured facts (a missing fork ref, a refusal reason), and the complete carrier
+is retained once for the operator and named by `retained_evidence`. Cold recovery
+is not latched, so each status that re-attempts it and fails is a new failure at
+that seam and retains its own original.
 
 Producers keep their facts at the point of failure:
 
@@ -928,8 +1098,9 @@ Producers keep their facts at the point of failure:
   authorization call.
 - The launcher-composed direct adapter forwards the complete non-integrated
   result, not only its nested refusal.
-- The lifecycle's own refusals carry the facts they were decided on: bound and
-  expected identities, Git arguments, status, and stderr. A missing delivery also
+- The lifecycle's own refusals record the facts they were decided on: bound and
+  expected identities, Git arguments, status, and stderr (the stderr stays in the
+  record; the public projection names that it was withheld). A missing delivery also
   carries why the exact retirement could not be established. A continuation
   mismatch carries each mismatched field with its actual and expected value.
 - A retirement exception during delivery finalization is kept as
@@ -953,27 +1124,100 @@ Producers keep their facts at the point of failure:
   created. The exact-review receipt store rethrows that refusal with the
   complete refusal as `cause`, and the proof-verification detail read carries it
   in `cause_diagnostic`.
-- The `workspace_agent_run_status` exception boundary keeps its existing rendered
-  `error_message` (including a producer's declared-sensitive redactions) and adds
-  the thrown value itself as `blocker.detail.evidence`, unredacted.
+- The `workspace_agent_run_status` exception boundary keeps its rendered
+  `error_message` (a structured diagnostic's original value, unmasked) and
+  publishes each cause level's name, code, message and scalar facts as
+  `cause_chain`. The thrown value itself is retained once, unredacted, for the
+  operator; `blocker.detail.retained_evidence` names its identity, and the
+  public reader refuses it with no route.
 
 The failure is recorded once per invocation, at the shared invocation seam,
-however many callers observe it. The same envelope, evidence included, is
-published on `slice_lifecycle` and journaled as that invocation's durable
-`lifecycle_failure_recorded` event. `workspace_agent_run_status` with
-`detail: { kind: "failure_history" }` returns those journaled envelopes. The
-bounded retained-failure ring (`latest_failure`, `retained_failures`) is a
-preview: it keeps the classification and the `evidence_summary`, not the full
-evidence. A response too large to inline is spilled like any other tool
-response. Its complete content is read back through
-`workspace_read_mcp_content_reference`.
+however many callers observe it, and journaled whole as that invocation's durable
+`lifecycle_failure_recorded` event. `slice_lifecycle` publishes its pure
+projection. `workspace_agent_run_status` with
+`detail: { kind: "failure_history" }` returns the same projection of each
+journaled envelope beside its journal `sequence` and `digest`. The bounded
+retained-failure ring (`latest_failure`, `retained_failures`) is a preview: it
+keeps the classification and the `evidence_summary`.
+
+#### Pure failure observation
+
+Observing a recorded failure is a read. Compact status, `include_final_result`,
+the selected failure history, a status after a server restart, the
+proof-journal-unavailable diagnosis, a landing observation and final-result
+publication all publish one pure projection
+(`distillDispatchFailureDetail` / `projectRecordedFailureDetail` in
+`dispatch-tool-helpers.mjs`), and none of them retains, records, executes or
+launches anything to do so:
+
+- Each captured exception becomes its `cause_chain`: every level's name, message,
+  code and scalar facts. For a post-worker lifecycle failure's evidence, and for
+  every other captured exception inside a lifecycle envelope (a record
+  reconciliation's write failure, a retirement exception, a retry assessment's
+  `assessment_evidence`, a durability defect's `publication_result` or
+  `read_result`), each level also keeps its structured facts: an integration
+  refusal's reason, offending paths and checked scope, and a merge-tree witness's
+  typed facts (`argv`, identities, `process.status`, `process.signal`,
+  `process.stderr_truncated`, `process.stderr_bytes`, `capability.name` and
+  `capability.state`).
+- Raw process capture is withheld wherever it appears: `stdout`, `stderr`,
+  `output`, `captured_run`, `stdout_tail`, `stderr_tail`, and captured `stack`
+  traces of this server's own code. A native spawn result keeps its own facts
+  (argv, status, signal, errno, syscall); only its captured output is withheld.
+- A captured test-failure diagnostic (`launcher-test-failure-diagnostic.v1`,
+  validated by its schema owner) is the failing test's semantic answer, not a
+  server capture: wherever it appears it is published through that owner's
+  selected presentation, its message, location and call trace (`stack`)
+  exactly. A field merely named `stack` anywhere else is still withheld.
+- Each projection that withheld anything names it in `retained_evidence`:
+  `{ retained, owner, audience: "operator", fields }`. The owner is the existing
+  holder of the complete original — `post_worker_lifecycle_failure_record` for a
+  published lifecycle envelope, `managed_worker_attempt_journal` for a history
+  entry, `post_worker_lifecycle_checkpoint` for a resolution diagnostic,
+  `dispatch_run_final_result` for a final result. A failure the read itself
+  observed (an unavailable proof journal, a landing observation, an unavailable
+  run detail, a refused recorded-verification read) is `retained: false` with
+  reason `observed_by_read`: the read writes nothing, and repeating it observes
+  the same failure again.
+- The complete original stays byte-for-byte where its producer recorded it. The
+  operator reads it internally (the attempt journal, `readOperatorOnlyEvidence`
+  for a retained capture). No public route serves it: the generic content
+  reader refuses operator-only retained captures, and a missing agent diagnosis
+  is reported as the capture owner's gap, never substituted by an evidence read.
+
+Only a failure's original recording seam retains a capture, once
+(`projectDispatchFailureDetail` / `retainWithheldOriginal`): a dispatch launch
+refusal's `originating_detail`, the explicit integration and forge-handoff
+refusals, a failed cold recovery, and the dispatch and identity-contract route
+handler exceptions. Every one binds to the one response environment the
+composition root passes `registerDispatchTools` (`responseEnv`; the server
+passes its process environment), never to an ambient default. A
+`workspace_agent_run_status` or landing-status handler exception is a read's
+failure: it is published with `retained_evidence.retained: false` and reason
+`observed_by_read`, and nothing is retained, recorded or retried. A recorded failure is never copied into a second
+artifact. Documented status-driven lifecycle advancement (the retry assessment
+and its capability probe, record-only reconciliation) still runs; observing the
+same settled failure or reading its history repeats no lifecycle work, appends no
+journal event, executes no proof and launches no process. A complete answer too
+large to inline is still spilled by the generic response owner; it carries no
+raw capture. At the smallest supported inline limit (8192 bytes) an
+unsupported-capability failure's compact status and its selected failure history
+are each delivered inline and together carry the cause, subject, typed facts and
+correction; its complete answer (about 9.4 KB of logical content) still spills.
+That generic spill and its byte reader remain a transport gap: no semantic
+selector yet serves the retry assessment's probe diagnostic apart from the
+complete answer (owner: the `workspace_agent_run_status` `detail` kinds in
+`dispatch-run-monitor-routes.mjs`).
 
 Evidence is diagnostic content only. Nothing in it selects a code, a
 `failure_cause`, a phase, terminality, `next_action`, retry, or any integration,
 continuation, or policy outcome. A thrown value or refusal that claims success,
 authority, or a classification is published as evidence and classified exactly
-as before. The explicit `workspace_integrate_committed_slice` route is unchanged:
-it returns an integration refusal with its typed code, reason, and public blocker.
+as before. The explicit `workspace_integrate_committed_slice` route returns an
+integration refusal with its typed code, reason and public blocker, plus the
+admission owner's own facts (for `trusted_commit_scope_mismatch`: the offending
+paths, checked write scope, commits and counts) and the admission exception's
+`cause_chain`; its capture is retained once for the operator.
 
 #### Seam-keyed lifecycle failure codes
 
@@ -1012,8 +1256,10 @@ Everything else publishes the fixed unknown form. That includes copied
 `terminal_candidate_failure` or `code` properties, spread or inherited copies,
 proxies around a real wrapper, code strings, diagnostic text, and failures from an
 injected-runner coordinator. The carrier republishes only the closed code and the
-approved Git detail keys. A coordinator projection's `git_status` survives, and its
-`git_operation` is not republished.
+approved Git detail keys: a coordinator projection's `git_operation`,
+`git_status`, `git_diagnosis` and `ref_disagreements` survive unchanged, so the
+lifecycle publishes exactly what the coordinator's forge, recovery and advisory
+refusals publish for the same failure.
 
 The pre-integration seams cover the launcher-owned binding resolution and the
 lifecycle's exact subject and WK-ref checks over it; each resolution of the
@@ -1034,6 +1280,20 @@ without another integration request (see
 [slice integration](mcp-dispatch-slice-integration.md)). A refusal at a later seam,
 such as terminal candidate preparation, publishes that seam's code while the
 envelope keeps `integrated: true` and the installed integration.
+
+A completed integration stays authenticated after a later slice's legitimate
+integration advances the WK. The integration result is immutable and names the
+WK tip that integration produced; the live WK tip may since have moved. When an
+earlier slice's original monitor is first observed after that movement, the
+process that retained the completion does not compare the two tips. It
+authenticates the same exact delivery and the same integration marker through the
+read-only integrated-delivery observation at one current, bounded WK observation,
+and installs that observation — current WK tip included — beside the retained
+result. A cold observer after restart reaches the same observation through durable
+recovery. Neither path re-integrates, dispatches, or moves a ref. A WK tip that no
+longer carries that marker (rewound, rewritten, or unrelated history), a different
+run tuple, or WK movement during the lookup refuses with the continuation
+authority's existing reasons, and a failed Git read keeps its own classification.
 
 #### Pre-integration failure cause
 

@@ -211,27 +211,37 @@ function resolveProofObligationRuntime({ prepared, obligationId, resolvedRow, re
     obligationId, NOT_EXECUTABLE.MANDATORY_BEHAVIOR_COVERAGE_INCOMPLETE,
     { missing_behavior_claim_ids: missingMandatory }
   );
+
+  const selection = graph.selected === null ? {} : { case_id: row.case_id,
+    selected_verification_ids: graph.selected, eligible_verification_ids: graph.eligible };
+  if (graph.selected?.length === 0) return notExecutable(obligationId, NOT_EXECUTABLE.TEST_PROOF_BINDING_MISSING,
+    { ...selection, verification_id: null, arity: 0, owner_code: "stable_test_proof_missing",
+      join_kind: "test_proof", path: "/test_proofs" });
   if (graph.qualifying.length === 0) return notExecutable(
-    obligationId, NOT_EXECUTABLE.QUALIFYING_VERIFICATION_MISSING);
+    obligationId, NOT_EXECUTABLE.QUALIFYING_VERIFICATION_MISSING, selection);
   if (graph.qualifying.length > 1) return notExecutable(
     obligationId, NOT_EXECUTABLE.QUALIFYING_VERIFICATION_AMBIGUOUS,
-    { verification_ids: graph.qualifying }
+    { verification_ids: graph.qualifying, ...selection }
   );
   const verificationId = graph.qualifying[0];
-  if (graph.explicitVerifications.length > 0 &&
-      (graph.explicitVerifications.length !== 1 ||
-       graph.explicitVerifications[0] !== verificationId)) {
+
+  const explicitDisagrees = graph.selected === null
+    ? graph.explicitVerifications.length > 0 && (graph.explicitVerifications.length !== 1 ||
+      graph.explicitVerifications[0] !== verificationId)
+    : graph.explicitVerifications.length > 0 && !graph.explicitVerifications.includes(verificationId);
+  if (explicitDisagrees) {
     throw new ProofObligationResolutionError(
       "verify_proof.explicit_verification_disagreement.v1",
       "explicit verification nodes disagree with the derived verification",
-      { explicit: graph.explicitVerifications, derived: verificationId }
+      { explicit: graph.explicitVerifications, derived: verificationId, ...selection }
     );
   }
-  if (graph.explicitRelations.some((id) => !graph.relationIds.includes(id))) {
+
+  if (graph.explicitRelations.some((id) => !graph.eligibleRelationIds.includes(id))) {
     throw new ProofObligationResolutionError(
       "verify_proof.explicit_relation_disagreement.v1",
       "explicit relation nodes disagree with qualifying verifies relations",
-      { explicit: graph.explicitRelations, derived: graph.relationIds }
+      { explicit: graph.explicitRelations, derived: graph.eligibleRelationIds }
     );
   }
   const nativeBinding = resolveNativeProofBinding(graph, prepared.nativeIndex);

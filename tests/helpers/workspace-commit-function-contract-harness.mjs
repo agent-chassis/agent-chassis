@@ -40,7 +40,10 @@ function fakeZodNode() {
 }
 
 function buildStubModuleSource() {
+
   return `
+import { structuredToolResult } from ${JSON.stringify(pathToFileURL(
+    path.join(REPO_ROOT, "packages/wiki-mcp/src/lib/mcp-response.mjs")).href)};
 const zNode = (${fakeZodNode.toString()})();
 const getState = () => globalThis.__WK1429_COMMIT_CONTRACT_TEST_STATE__;
 
@@ -83,7 +86,7 @@ export function createCompactValidateDispatchResponse(_workspaceRepo, result) { 
 export function validateOptionalExpectedSourceDigest() { return true; }
 export function runWorkspaceWorkRecordAdmissionRefreshRoute() { return {}; }
 export function jsonContent(value) {
-  return { structuredContent: value, content: [] };
+  return structuredToolResult(value);
 }
 export function errorContent(error) {
   return {
@@ -114,7 +117,7 @@ export function createStdioShutdownController() {
 }
 export function installProcessErrorGuards() {}
 export function readSpilledMcpContentReference() { return {}; }
-export function parseToolProfile() { return "full"; }
+export function parseToolProfile() { return "operator"; }
 export function shouldExposeTool() { return true; }
 export function resolveRegisteredTier() { return "paid_cce"; }
 // WK-1721: the registerTool closure moved out of server.mjs into
@@ -485,7 +488,7 @@ export function installIdentityStoreEnv(t, binding = exactSliceBinding(), assign
   process.env.WIKI_MCP_COMMIT_LAUNCH_REF = binding.launch_ref;
   process.env.WIKI_MCP_COMMIT_RUN_ID = binding.run_id;
   process.env.WIKI_MCP_COMMIT_RETRY_ID = String(binding.retry_id);
-  process.env.WIKI_MCP_TOOL_PROFILE = "full";
+  process.env.WIKI_MCP_TOOL_PROFILE = "operator";
 }
 
 export function installState(overrides = {}) {
@@ -579,7 +582,7 @@ export function installRequestTuple(t, { launchRef, runId, retryId }, assignedUn
   process.env.WIKI_MCP_COMMIT_LAUNCH_REF = launchRef;
   process.env.WIKI_MCP_COMMIT_RUN_ID = runId;
   process.env.WIKI_MCP_COMMIT_RETRY_ID = String(retryId);
-  process.env.WIKI_MCP_TOOL_PROFILE = "full";
+  process.env.WIKI_MCP_TOOL_PROFILE = "operator";
 }
 
 export async function assertCommitFailsClosedBeforeGit(t, binding, label, { requestTuple = null } = {}) {

@@ -32,6 +32,7 @@ import {
   validateWorkRecordReadySliceRequest
 } from "../lib/work-record-contract-edit.mjs";
 import { computeReviewedUnitSourceDigest } from "../lib/work-record-review-attestation.mjs";
+import { ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION } from "../lib/work-record-contract-edit-shared.mjs";
 import { setWorkRecordTaskByUnit, writeValidatedWorkRecord } from "./work-records.mjs";
 import {
   computeWorkRecordPersistenceSnapshotDigest,
@@ -46,8 +47,7 @@ import {
 
 export { WORK_RECORD_CONTRACT_EDIT_OPERATIONS };
 
-export const ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION =
-  "assign_work_record_to_initiative";
+export { ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION };
 export const EDIT_WORK_RECORD_OPERATION = "edit_work_record";
 
 function todayDateString() {
@@ -204,7 +204,7 @@ export async function assignWorkRecordToInitiativeByUnit({
         {
           code: "unsupported_slice_selector",
           severity: "error",
-          message: "assign_work_record_to_initiative accepts record-level WK selectors only",
+          message: `${operation} accepts record-level WK selectors only`,
           path: "unit"
         }
       ],
@@ -728,13 +728,16 @@ async function editWorkRecordWithResolvedContent(options) {
       }
       return refusal;
     }
+    const taskMinLength = entry.kind === "task" ? entry.value_schema[edit.action]?.min_length ?? 0 : 0;
     if (entry.kind === "task" &&
-        (resolved.value.length === 0 || resolved.value.trim() !== resolved.value)) {
+        (resolved.value.length < taskMinLength || resolved.value.trim() !== resolved.value)) {
       return contentEditInputRefusal({ parsed, diagnostic: {
         code: "work_record_content_destination_normalization_refused",
         severity: "error",
         authority_limb: "mechanical",
-        message: "task text must be nonempty and have no leading or trailing whitespace; destination normalization would alter the exact content",
+        message: taskMinLength > 0
+          ? `${edit.action} task text must be nonempty and have no leading or trailing whitespace; destination normalization would alter the exact content`
+          : `${edit.action} task text must have no leading or trailing whitespace; destination normalization would alter the exact content`,
         path: "value"
       }, expectedSourceDigest: expected });
     }

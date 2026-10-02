@@ -321,7 +321,9 @@ export function createRegisterTool({
   mcpToolTierRegistrationPolicy,
   toolUsageAuditBoundary,
   registeredToolNames,
-  structuredLog
+  structuredLog,
+
+  responseEnv = process.env
 }) {
 
   const requestContracts = createRegisteredToolRequestContractStore();
@@ -456,6 +458,7 @@ export function createRegisterTool({
       guardToolHandler(registrationHandler, {
         name,
         log: structuredLog,
+        env: responseEnv,
         outputSchema: effectiveConfig?.outputSchema ?? null
       })
     );

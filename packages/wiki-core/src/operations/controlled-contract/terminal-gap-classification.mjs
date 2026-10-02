@@ -356,6 +356,48 @@ export function classifyControlledContractTerminalGaps({ workbench,
   });
 }
 
+export function semanticCauseMeaning(group) {
+  return Object.freeze({
+    owner: group.diagnostic_owner ?? null,
+    gap_class: group.gap_class,
+    reason_codes: Object.freeze([...group.reason_codes]),
+    recovery: group.recovery.status,
+    reason: group.recovery.explanation
+  });
+}
+
+const isTypedEvidence = (value) => value === null ||
+  ["string", "number", "boolean"].includes(typeof value) ||
+  (Array.isArray(value) && value.length <= 16 &&
+    value.every((item) => ["string", "number"].includes(typeof item)));
+
+export function semanticCauseSubject(occurrence) {
+  const evidence = occurrence.evidence !== null && typeof occurrence.evidence === "object" &&
+    !Array.isArray(occurrence.evidence)
+    ? Object.fromEntries(Object.entries(occurrence.evidence).filter(([, value]) =>
+      isTypedEvidence(value)).map(([name, value]) => [name, structuredClone(value)]))
+    : {};
+  return Object.freeze({
+    obligation_id: occurrence.semantic_identity?.obligation_id ?? null,
+    row_id: occurrence.row_id ?? null,
+    semantic_identity: structuredClone(occurrence.semantic_identity ?? null),
+    ...(occurrence.non_actionable_reason === null ||
+      occurrence.non_actionable_reason === undefined
+      ? {} : { non_actionable_reason: occurrence.non_actionable_reason }),
+    ...(Object.keys(evidence).length === 0 ? {} : { evidence })
+  });
+}
+
+export function semanticCauseCorrection(group) {
+  const correction = group.recovery?.correction ?? null;
+  return correction === null ? null : Object.freeze({
+    semantic_owner: correction.semantic_owner,
+    read_tool: correction.read_tool,
+    write_tool: correction.write_tool,
+    validation_tool: correction.validation_tool
+  });
+}
+
 export function projectControlledContractTerminalGapDetails({ workbench } = {}) {
   const rows = [
     ...workbench.actionable_rows.map((row) =>

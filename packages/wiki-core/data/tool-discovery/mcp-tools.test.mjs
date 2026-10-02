@@ -48,7 +48,7 @@ const FRAGMENT_EXPECTATIONS = {
     'workspace_tool_router_recommend',
   ],
   'mcp-work-record-tools.json': [
-    'assign_work_record_to_initiative',
+    'workspace_assign_work_record_to_initiative',
     'workspace_decision_amend_scalar',
     'workspace_decision_amend_section',
 
@@ -407,23 +407,8 @@ test('WK-1438 hot MCP tools carry compact routing guidance metadata', async () =
       requires_prior_state: [
         'known repo-relative Markdown path, exact registered canonical record path, or known WK plus selected_slice selector',
       ],
-      replacement_for_misuse: [
-        {
-          misuse_code: 'full_read_without_selected_resource',
-          routing_intent: 'selected_work_record_context',
-          use_instead: 'workspace_work_record_summary',
-        },
-        {
-          misuse_code: 'high_output_option_without_compact_first',
-          routing_intent: 'selected_slice_detail',
-          use_instead: 'workspace_work_record_summary',
-        },
-        {
-          misuse_code: 'bulk_sampling_without_lens',
-          routing_intent: 'initiative_status',
-          use_instead: 'workspace_initiative_status',
-        },
-      ],
+
+      replacement_for_misuse: [],
     },
     workspace_get_record: {
       use_when: [

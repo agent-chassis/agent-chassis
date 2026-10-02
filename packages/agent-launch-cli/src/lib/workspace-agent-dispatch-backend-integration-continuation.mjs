@@ -235,23 +235,63 @@ export function createBackendIntegrationContinuation(ctx) {
     );
     if (completed === undefined) return null;
     const completedIntegration = await completed;
-    const liveWkTip = await resolveLiveCommit(wkRef, "live_wk_ref_unavailable");
     const target = completedIntegration?.boundary_authorization?.target;
     if (completedIntegration?.integrated !== true ||
         completedIntegration.delivery_sha !== deliverySha ||
         completedIntegration.slice_ref !== sliceRef ||
         completedIntegration.wk_ref !== wkRef ||
-        completedIntegration.wk_sha !== liveWkTip ||
         target?.subject !== subject || target?.slice_ref !== sliceRef ||
         target?.reviewed_sha !== deliverySha || target?.diff_base_sha !== deliveryBase ||
         typeof target?.committed_target_digest !== "string") {
       continuationRefusal("warm_completed_integration_mismatch");
     }
+    const liveWkTip = await resolveLiveCommit(wkRef, "live_wk_ref_unavailable");
+    if (completedIntegration.wk_sha === liveWkTip) {
+      return brandedContinuation({
+        requested: true,
+        completed: true,
+        reviewed_sha: deliverySha,
+        integration: completedIntegration
+      });
+    }
+
+    const observed = await observeIntegratedSliceDelivery({
+      mainRepo: worktreeProvisioningConfig.mainRepo,
+      unitAddress: pair.slice_binding.unit_address,
+      sliceRef,
+      wkRef,
+      deps: { runGit: postWorkerLifecycleRunGit }
+    });
+    if (observed === null || observed.integrated !== true ||
+        observed.delivery_sha !== deliverySha ||
+        observed.slice_sha !== completedIntegration.slice_sha ||
+        observed.slice_ref !== sliceRef || observed.wk_ref !== wkRef ||
+        observed.empty_delivery !== completedIntegration.empty_delivery) {
+      continuationRefusal("warm_completed_integration_mismatch", {
+        integration_result_sha: completedIntegration.slice_sha ?? null,
+        integrated_wk_sha: completedIntegration.wk_sha ?? null,
+        live_wk_tip: liveWkTip,
+        observed_integration_sha: observed?.slice_sha ?? null
+      });
+    }
+    const confirmedWkTip = await resolveLiveCommit(wkRef, "live_wk_ref_unavailable");
+    const confirmedSliceTip = await resolveLiveCommit(sliceRef, "live_slice_ref_unavailable");
+    if (observed.wk_sha !== liveWkTip || confirmedWkTip !== liveWkTip ||
+        confirmedSliceTip !== deliverySha) {
+      continuationRefusal("continuation_authority_changed_during_lookup", {
+        expected_wk_tip: liveWkTip,
+        observed_wk_tip: observed.wk_sha,
+        actual_wk_tip: confirmedWkTip,
+        expected_slice_tip: deliverySha,
+        actual_slice_tip: confirmedSliceTip
+      });
+    }
     return brandedContinuation({
       requested: true,
       completed: true,
       reviewed_sha: deliverySha,
-      integration: completedIntegration
+      integration: observed,
+      completed_integration: completedIntegration
     });
   }
 

@@ -12,6 +12,8 @@ import {
   BASE_SELECTION_MISSING_LAUNCH_REASON
 } from "@agent-chassis/agent-launch-cli/src/lib/backend-provisioning-refusal-projection.mjs";
 import { AGENT_DISPATCH_TOOL_NAME } from "../dispatch-tool-constants.mjs";
+import { projectWorkRecordFreshness } from
+  "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import { buildDispatchMechanicalRefusal } from "../dispatch-tool-helpers.mjs";
 import {
   buildDispatchGuidanceRefusal,
@@ -225,7 +227,8 @@ export async function decideBaseSelectionRecovery({
       base_selection: Object.freeze({
         repository: workspace.repo,
         root_unit: wkId,
-        root_source_digest: loaded.source_digest,
+
+        root_source_digest: projectWorkRecordFreshness(loaded.source_digest),
         cas_argument: "expected_source_digest",
         editor: BASE_SELECTION_EDITOR,
         edit_actor: editorAvailable ? "caller" : "authorized_operator_session",
@@ -241,6 +244,6 @@ export async function decideBaseSelectionRecovery({
     refusal: noRoute({ classification, facts: [["work_record.root", wkId],
       ["work_record.base_branch", null]], reason: "field_guidance_unavailable",
     missing: built.unavailable.missing, owner: built.unavailable.owner,
-    extra: { root_source_digest: loaded.source_digest } })
+    extra: { root_source_digest: projectWorkRecordFreshness(loaded.source_digest) } })
   };
 }

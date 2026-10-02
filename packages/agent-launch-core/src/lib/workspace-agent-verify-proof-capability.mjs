@@ -18,8 +18,19 @@ class VerifyProofExecutionError extends Error {
   }
 }
 
-function fail(code, message, details = {}, cause = null) {
-  throw new VerifyProofExecutionError(code, message, details, cause);
+function attachAttemptObservation(error, observation) {
+  if (observation !== null && typeof observation === "object" &&
+      error !== null && typeof error === "object" && Object.isExtensible(error) &&
+      !Object.hasOwn(error, "attempt_observation")) {
+    Object.defineProperty(error, "attempt_observation",
+      { value: observation, enumerable: true, writable: false, configurable: false });
+  }
+  return error;
+}
+
+function fail(code, message, details = {}, cause = null, observation = null) {
+  throw attachAttemptObservation(new VerifyProofExecutionError(code, message, details, cause),
+    observation);
 }
 
 async function executeVerifyProofReceiptPopulation(input = {}) {
@@ -52,7 +63,7 @@ async function executeVerifyProofReceiptPopulation(input = {}) {
   );
   const receiptsByTarget = {};
   const evidenceByTarget = {};
-  const runtimeEnvironmentsByTarget = {};
+  const attemptObservationsByTarget = {};
   for (const target of targets) {
     const verificationIds = validationBindings[target] ?? Object.freeze([]);
     if (!Array.isArray(verificationIds) || verificationIds.some((id) =>
@@ -78,7 +89,7 @@ async function executeVerifyProofReceiptPopulation(input = {}) {
     }
     const receipts = [];
     const evidence = [];
-    const runtimeEnvironments = [];
+    const attemptObservations = [];
     for (const verificationId of verificationIds) {
       let context;
       try {
@@ -104,30 +115,37 @@ async function executeVerifyProofReceiptPopulation(input = {}) {
           "verify-proof candidate, falsifier, or traversal execution failed",
           { target, verification_id: verificationId }, error);
       }
+      const observation = attempt?.attempt_observation ?? null;
       try {
         receipt = extractReceipt(attempt);
       } catch (error) {
         fail(VERIFY_PROOF_EXECUTION_FAILURE_CODES.RECEIPT_INCOMPLETE,
           "verify-proof attempt did not yield complete authenticated runtime evidence",
-          { target, verification_id: verificationId }, error);
+          { target, verification_id: verificationId }, error, observation);
       }
-      if (assertCurrentIdentity !== null) await assertCurrentIdentity();
+      if (assertCurrentIdentity !== null) {
+        try {
+          await assertCurrentIdentity();
+        } catch (error) {
+          throw attachAttemptObservation(error, observation);
+        }
+      }
       if (receipt?.evidence_identity?.verification_id !== verificationId ||
           receipt?.evidence_identity?.command_target !== target ||
           (attempt?.evidence !== undefined &&
             attempt.evidence?.evidence_identity?.verification_id !== verificationId)) {
         fail(VERIFY_PROOF_EXECUTION_FAILURE_CODES.RECEIPT_CROSS_BOUND,
           "verify-proof receipt is bound to a different verification or target",
-          { target, verification_id: verificationId });
+          { target, verification_id: verificationId }, null, observation);
       }
       receipts.push(receipt);
       if (attempt?.evidence !== undefined) evidence.push(attempt.evidence);
 
-      runtimeEnvironments.push(attempt?.runtime_environment ?? null);
+      attemptObservations.push(observation);
     }
     receiptsByTarget[target] = Object.freeze(receipts);
     evidenceByTarget[target] = Object.freeze(evidence);
-    runtimeEnvironmentsByTarget[target] = Object.freeze(runtimeEnvironments);
+    attemptObservationsByTarget[target] = Object.freeze(attemptObservations);
   }
   return Object.freeze({
     schema_version: VERIFY_PROOF_EXECUTION_SCHEMA_VERSION,
@@ -138,11 +156,12 @@ async function executeVerifyProofReceiptPopulation(input = {}) {
     lifecycle_effect: "none",
     receipts_by_target: Object.freeze(receiptsByTarget),
     evidence_by_target: Object.freeze(evidenceByTarget),
-    runtime_environments_by_target: Object.freeze(runtimeEnvironmentsByTarget)
+    attempt_observations_by_target: Object.freeze(attemptObservationsByTarget)
   });
 }
 
 export {
+  attachAttemptObservation,
   VERIFY_PROOF_EXECUTION_FAILURE_CODES,
   VERIFY_PROOF_EXECUTION_SCHEMA_VERSION,
   VerifyProofExecutionError,

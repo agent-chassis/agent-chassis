@@ -172,11 +172,24 @@ export async function withTestFixture(operation, options) {
       "withTestFixture operation must be a function");
   }
   const fixture = await createTestFixture(options);
+  let value;
+  let operationFailed = false;
+  let operationFailure;
   try {
-    return await operation(fixture);
-  } finally {
-    await fixture.dispose();
+    value = await operation(fixture);
+  } catch (error) {
+    operationFailed = true;
+    operationFailure = error;
   }
+  try {
+    await fixture.dispose();
+  } catch (cleanupFailure) {
+    if (!operationFailed) throw cleanupFailure;
+    throw new AggregateError([operationFailure, cleanupFailure],
+      "test fixture operation and cleanup both failed", { cause: operationFailure });
+  }
+  if (operationFailed) throw operationFailure;
+  return value;
 }
 
 function waitDetail(startedAt, timeoutMs, intervalMs, attempts) {

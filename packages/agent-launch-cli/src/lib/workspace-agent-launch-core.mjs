@@ -9,6 +9,8 @@ import {
   normalizeFinalResult
 } from "./workspace-agent-dispatch-backend.mjs";
 
+import { workerScopePreparationDefect } from "./worker-scope-preparation.mjs";
+
 import {
   deriveTerminalStatus,
   normalizeExitEnvelope,
@@ -128,6 +130,8 @@ export function assertFrozenWorkerScopeAuthority(authority, {
   if (!sameFrozenStringArray(authority.readable_scope, readable)) {
     throw scopeAuthorityError("worker scope authority readable_scope mismatches frozen R");
   }
+  const preparationDefect = workerScopePreparationDefect(authority);
+  if (preparationDefect !== null) throw scopeAuthorityError(preparationDefect);
   const sliceBinding = worktreeProvisioning?.slice_binding ?? null;
   if (sliceBinding !== null) {
     for (const [field, expected] of [

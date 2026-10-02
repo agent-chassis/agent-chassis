@@ -19,7 +19,9 @@ import {
   isReservedControlledContractAssessmentEnvelope,
   jsonContent,
   measureMcpInlineResultBytes,
-  readSpilledMcpContentReference
+  readRetainedArtifactBytes,
+  retainedArtifactNotFoundError,
+  RETAINED_ARTIFACT_READ_FAILURES
 } from "./mcp-response.mjs";
 import { projectZodRequestContract } from "./zod-request-contract-projection.mjs";
 
@@ -124,8 +126,19 @@ function assertBinding(binding) {
     unit: binding.unit,
     query_identity: binding.query_identity === undefined ? null : canonicalJson(binding.query_identity),
     observation_identity: binding.observation_identity === undefined
-      ? null : canonicalJson(binding.observation_identity)
+      ? null : canonicalJson(binding.observation_identity),
+
+    ...(binding.authority_identity === undefined || binding.authority_identity === null
+      ? {} : { authority_identity: canonicalJson(binding.authority_identity) })
   });
+}
+
+function authorityIdentityDigest(identity) {
+  return sha256Hex(JSON.stringify(canonicalJson(identity)));
+}
+
+function hasAuthorityIdentity(identity) {
+  return identity !== undefined && identity !== null;
 }
 
 export function projectSelectedResponseCollections(carrier) {
@@ -165,6 +178,9 @@ function retainedSourceSummary(binding, source) {
     unit: binding.unit,
     query_identity_sha256: binding.query_identity === null
       ? null : sha256Hex(JSON.stringify(binding.query_identity)),
+
+    ...(Object.hasOwn(binding, "authority_identity")
+      ? { authority_identity_sha256: authorityIdentityDigest(binding.authority_identity) } : {}),
     ...(inlineObservation
       ? { observation_identity: observation }
       : { observation_identity_sha256: observation === null
@@ -204,7 +220,20 @@ export function selectedResponseQueryInvalidError(route, reason, details = {}) {
   return queryInvalid(route, reason, details);
 }
 
-function queryInvalid(route, reason, details = {}) {
+const FIELD_SELECTION_CORRECTIONS = Object.freeze({
+  field_requires_exact_row_identity: Object.freeze({
+    prerequisite: "a field_path read selects one exact row by selector.id",
+    success_condition: "the call returns this retained collection's rows without selecting one, " +
+      "exposing their ids and valid field paths; it does not return the requested field"
+  }),
+  field_unknown: Object.freeze({
+    prerequisite: "field_path names a field the selected row carries",
+    success_condition: "the call returns this retained row without the invalid field_path, " +
+      "exposing its valid field paths; it does not return the requested field"
+  })
+});
+
+function queryInvalid(route, reason, details = {}, correction = null) {
   const facts = [
     { field: "selected_response.query_valid", value: false },
     { field: "selected_response.invalid_reason", value: reason }
@@ -212,24 +241,61 @@ function queryInvalid(route, reason, details = {}) {
   if (Object.keys(details).length > 0) {
     facts.push({ field: "selected_response.invalid_details", value: canonicalJson(details) });
   }
+  if (correction === null) {
+    return refusalError(`selected-response query is invalid: ${reason}`,
+      buildPublicMechanicalRefusal({
+        code: SELECTED_RESPONSE_QUERY_INVALID_CODE,
+        deciding_facts: facts,
+        no_supported_route: true,
+        recovery: { state: "no_supported_route" },
+        route,
+        observed_facts: factsObject(facts)
+      }));
+  }
+  const predicate = { fact: "selected_response.query_valid", operator: "is_true" };
+  const { prerequisite, success_condition: successCondition } = FIELD_SELECTION_CORRECTIONS[reason];
   return refusalError(`selected-response query is invalid: ${reason}`,
     buildPublicMechanicalRefusal({
       code: SELECTED_RESPONSE_QUERY_INVALID_CODE,
       deciding_facts: facts,
-      no_supported_route: true,
-      recovery: { state: "no_supported_route" },
+      next_calls: [buildNextCall({
+        tool: route,
+        arguments: correction.arguments,
+        recommended: true,
+        success_predicate: predicate,
+        prerequisite_predicate: predicate
+      })],
+      recovery: {
+        state: "callable",
+        prerequisite,
+        operation: route,
+        success_condition: successCondition,
+        success_predicate: predicate,
+        selected_from: ["selected_response.invalid_reason"]
+      },
       route,
-      observed_facts: factsObject(facts)
+      observed_facts: factsObject(facts),
+      request_schemas: { [route]: correction.requestSchema }
     }));
 }
 
-export function retainSelectedResponseSource({ binding, carrier }, { env = process.env } = {}) {
+export function retainSelectedResponseSource({ binding, carrier, ownerCall = null,
+  ownerRequestSchema = null }, { env = process.env, responseOwner = null } = {}) {
   const envelope = {
     schema_version: SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION,
     binding: assertBinding(binding),
     carrier: canonicalJson(carrier)
   };
-  const retained = jsonContent(envelope, { env, forceSpill: true }).structuredContent;
+  if (ownerCall !== null && (typeof ownerCall !== "function" ||
+      ownerRequestSchema === null || typeof ownerRequestSchema !== "object")) {
+    throw new TypeError("a protected selected-response source requires its owner call and request schema");
+  }
+  const options = { forceSpill: true,
+    ...(ownerCall === null ? {} : { selectedAccess: (locator) => ({
+      owner_call: ownerCall(Object.freeze({ ...locator })), request_schema: ownerRequestSchema }) }) };
+  const retained = (responseOwner === null
+    ? jsonContent(envelope, { env, ...options })
+    : responseOwner(envelope, options))?.structuredContent;
   const reference = retained?.content_reference;
   if (retained?.response_spilled !== true || typeof reference?.ref_id !== "string") {
     throw refusalError("selected-response source could not be retained", retained);
@@ -237,28 +303,17 @@ export function retainSelectedResponseSource({ binding, carrier }, { env = proce
   return Object.freeze({ ref_id: reference.ref_id, sha256: reference.sha256 });
 }
 
-export function readSelectedResponseSource(source, { env = process.env, expected }) {
-  const route = expected.route;
-  const { maxReferenceReadBytes } = getResponseSpillConfig(env);
-  const chunks = [];
-  let offset = 0;
-  while (offset !== null) {
-    let page;
-    try {
-      page = readSpilledMcpContentReference(
-        { ref_id: source.ref_id, offset, length: maxReferenceReadBytes }, { env });
-    } catch (error) {
-      if (error?.envelope) throw error;
+export function readSelectedResponseSource(source, { env = process.env, expected,
+  route = expected.route }) {
+  let bytes;
+  try {
+    bytes = readRetainedArtifactBytes(source, { stateDir: getResponseSpillConfig(env).stateDir });
+  } catch (error) {
+    if (error.reason === RETAINED_ARTIFACT_READ_FAILURES.INVALID_REFERENCE) {
       throw queryInvalid(route, "source_locator_invalid");
     }
-    if (page.sha256 !== source.sha256) {
-      throw retainedSourceUnreadable(route, "content_reference_digest_mismatch");
-    }
-    chunks.push(Buffer.from(page.data_base64, "base64"));
-    offset = page.next_offset;
-  }
-  const bytes = Buffer.concat(chunks);
-  if (sha256Hex(bytes) !== source.sha256) {
+
+    if (error.reason === RETAINED_ARTIFACT_READ_FAILURES.NOT_READABLE) throw retainedArtifactNotFoundError();
     throw retainedSourceUnreadable(route, "content_reference_digest_mismatch");
   }
   let envelope;
@@ -296,6 +351,11 @@ export function createSelectedResponseSession({
   buildDetailArguments,
   assertEmittedPage = () => {},
   resolveCurrentObservationIdentity = null,
+  requireAuthorityIdentity = false,
+
+  navigationReserveBytes = 0,
+
+  pageAppendsNavigation = () => true,
   env = process.env,
   now = undefined,
   capacity = undefined,
@@ -306,8 +366,18 @@ export function createSelectedResponseSession({
     throw new TypeError("selected-response session requires route, requestSchema and buildDetailArguments");
   }
   const maximumBytes = selectedResponseDeliveryBound(env);
+  if (!Number.isSafeInteger(navigationReserveBytes) || navigationReserveBytes < 0 ||
+      navigationReserveBytes >= maximumBytes / 2) {
+    throw new TypeError("selected-response navigation reserve must be a small non-negative integer");
+  }
+  if (typeof pageAppendsNavigation !== "function") {
+    throw new TypeError("selected-response pageAppendsNavigation must be a function");
+  }
+
+  const pageBytes = maximumBytes - navigationReserveBytes;
   const maximumScalarRangeBytes = selectedResponseMaximumScalarRangeBytes(env);
-  const sourceIdentity = (source) => ({ route, ref_id: source.ref_id, sha256: source.sha256 });
+
+  const sourceIdentity = (source) => ({ ref_id: source.ref_id, sha256: source.sha256 });
 
   const argumentsFor = (retained, selection) => buildDetailArguments(Object.freeze({
     repository: retained.repository,
@@ -351,7 +421,7 @@ export function createSelectedResponseSession({
     let low = 1;
     let high = Math.min(maximumScalarRangeBytes, page.total - offset);
     const fits = (length) =>
-      rangeFrameBytes(page, selectionBase, offset, length) <= maximumBytes - RANGE_DIGIT_MARGIN_BYTES;
+      rangeFrameBytes(page, selectionBase, offset, length) <= pageBytes - RANGE_DIGIT_MARGIN_BYTES;
     if (high < 1 || !fits(1)) {
       throw new TaskResultSnapshotError("invalid", "scalar_range_frame_exceeds_delivery_bound", null);
     }
@@ -416,7 +486,8 @@ export function createSelectedResponseSession({
   const measure = (page) => containsReservedAssessmentEnvelope(page.value) ||
     containsReservedAssessmentEnvelope(page.items)
     ? Number.POSITIVE_INFINITY
-    : measureMcpInlineResultBytes(projectResponse(page, MEASURED_OBSERVATION_STATE));
+    : measureMcpInlineResultBytes(projectResponse(page, MEASURED_OBSERVATION_STATE)) +
+      (pageAppendsNavigation(page) ? navigationReserveBytes : 0);
 
   const registry = createTaskResultSnapshotRegistry({
     ...(now === undefined ? {} : { now }),
@@ -476,14 +547,15 @@ export function createSelectedResponseSession({
     });
   }
 
-  function refusalFor(error, request, rehydratable) {
+  function refusalFor(error, request, rehydratable, correction = null) {
     if (error?.envelope) return error;
     if (!(error instanceof TaskResultSnapshotError)) throw error;
     const reason = error.details?.reason ?? "unknown";
     if (error.kind !== "unavailable") {
       const { changed: _changed, reason: _reason, caller_correctable: _correctable,
         recovery: _recovery, ...details } = error.details ?? {};
-      return queryInvalid(route, reason, details);
+      return queryInvalid(route, reason, details,
+        correction === null ? null : { arguments: correction, requestSchema });
     }
     const facts = [
       { field: "selected_response.snapshot_available", value: false },
@@ -539,6 +611,58 @@ export function createSelectedResponseSession({
     }
   }
 
+  function assertServedPage(page, expected, detail) {
+    if (page.collection !== detail.collection ||
+        !isDeepStrictEqual(page.selector ?? null, detail.selector ?? null)) {
+      throw new TaskResultSnapshotError("invalid", "cursor_selection_mismatch", null);
+    }
+    for (const field of Object.keys(expected)) {
+      if (field === "route") continue;
+      if (!Object.hasOwn(page.retained_source, field)) continue;
+      if (!isDeepStrictEqual(page.retained_source[field], expected[field])) {
+        throw queryInvalid(route, "source_binding_mismatch", { binding_field: field });
+      }
+    }
+    if (requireAuthorityIdentity) {
+
+      if (!Object.hasOwn(page.retained_source, "authority_identity_sha256")) {
+        throw queryInvalid(route, "authority_identity_missing", { boundary: "retained" });
+      }
+      if (page.retained_source.authority_identity_sha256 !==
+          authorityIdentityDigest(expected.authority_identity)) {
+        throw queryInvalid(route, "source_binding_mismatch", { binding_field: "authority_identity" });
+      }
+    }
+    assertEmittedPage(page);
+  }
+
+  async function fieldSelectionCorrection(error, { detail, expected, servedIdentity }) {
+    const reason = error instanceof TaskResultSnapshotError && error.kind === "invalid"
+      ? error.details?.reason : undefined;
+    if (servedIdentity === null || detail.cursor !== undefined ||
+        !Object.hasOwn(FIELD_SELECTION_CORRECTIONS, reason) ||
+        (reason === "field_unknown") !== (detail.selector !== undefined)) return null;
+    const selection = {
+      source: { ref_id: detail.source.ref_id, sha256: detail.source.sha256 },
+      ...(detail.snapshot_identity === undefined ? {} : { snapshot_identity: detail.snapshot_identity }),
+      collection: detail.collection,
+      ...(reason === "field_unknown" ? { selector: canonicalJson(detail.selector) } : {})
+    };
+    try {
+      const page = await registry.query({ domain: route, identity: servedIdentity,
+        collection: selection.collection, selector: selection.selector ?? null,
+        expectedSourceIdentity: sourceIdentity(detail.source), recovery: { source: detail.source } });
+      assertServedPage(page, expected, selection);
+    } catch (refused) {
+
+      if (refused?.envelope || refused instanceof TaskResultSnapshotError) return null;
+      throw refused;
+    }
+    return buildDetailArguments(Object.freeze({
+      repository: expected.repository, unit: expected.unit ?? null
+    }), selection);
+  }
+
   async function seek(first, ordinal, expectedSourceIdentity, recovery) {
     let page = first;
     while (page.offset < ordinal) {
@@ -568,9 +692,12 @@ export function createSelectedResponseSession({
       if (canonicalBinding.route !== route) {
         throw new TypeError("selected-response binding route must be the session route");
       }
+      if (requireAuthorityIdentity && !hasAuthorityIdentity(canonicalBinding.authority_identity)) {
+        throw queryInvalid(route, "authority_identity_missing", { boundary: "retention" });
+      }
       const canonicalCarrier = canonicalJson(carrier);
-      const source = retainSelectedResponseSource(
-        { binding: canonicalBinding, carrier: canonicalCarrier }, { env });
+      const source = retainSelectedResponseSource({ binding: canonicalBinding, carrier: canonicalCarrier },
+        { env });
       const snapshotIdentity = put({ binding: canonicalBinding, carrier: canonicalCarrier }, source);
       return Object.freeze({ source, snapshot_identity: snapshotIdentity });
     },
@@ -593,6 +720,11 @@ export function createSelectedResponseSession({
         }), selection)
       };
       const hasIdentity = detail.snapshot_identity !== undefined || detail.cursor !== undefined;
+      if (requireAuthorityIdentity && !hasAuthorityIdentity(expected.authority_identity)) {
+        throw queryInvalid(route, "authority_identity_missing", { boundary: "expected" });
+      }
+
+      let servedIdentity = null;
       try {
         if (detail.ordinal !== undefined &&
             (detail.field_path !== undefined && (detail.offset !== undefined || detail.length !== undefined))) {
@@ -604,6 +736,7 @@ export function createSelectedResponseSession({
         if (!hasIdentity) {
           const envelope = readSelectedResponseSource(detail.source, { env, expected });
           const identity = put(envelope, detail.source);
+          servedIdentity = identity;
           page = await registry.query({ domain: route, identity, collection: detail.collection,
             selector: detail.selector ?? null, fieldPath: detail.field_path ?? null,
             offset: detail.offset ?? null, length: detail.length ?? null,
@@ -619,6 +752,7 @@ export function createSelectedResponseSession({
               { ordinal: detail.ordinal });
           }
         } else {
+          servedIdentity = detail.snapshot_identity;
           page = await registry.query({ domain: route, identity: detail.snapshot_identity,
             collection: detail.collection, selector: detail.selector ?? null,
             fieldPath: detail.field_path ?? null, offset: detail.offset ?? null,
@@ -627,25 +761,15 @@ export function createSelectedResponseSession({
             page = await seek(page, detail.ordinal, expectedSourceIdentity, recovery);
           }
         }
-        if (page.collection !== detail.collection ||
-            !isDeepStrictEqual(page.selector ?? null, detail.selector ?? null)) {
-          throw new TaskResultSnapshotError("invalid", "cursor_selection_mismatch", null);
-        }
-        for (const field of Object.keys(expected)) {
-          if (field === "route") continue;
-          if (!Object.hasOwn(page.retained_source, field)) continue;
-          if (!isDeepStrictEqual(page.retained_source[field], expected[field])) {
-            throw queryInvalid(route, "source_binding_mismatch", { binding_field: field });
-          }
-        }
-        assertEmittedPage(page);
+        assertServedPage(page, expected, detail);
         const response = projectResponse(page, await observationState(page.retained_source));
         if (measureMcpInlineResultBytes(response) > maximumBytes) {
           throw new TaskResultSnapshotError("invalid", "projection_exceeds_delivery_bound", null);
         }
         return response;
       } catch (error) {
-        throw refusalFor(error, request, hasIdentity);
+        throw refusalFor(error, request, hasIdentity,
+          await fieldSelectionCorrection(error, { detail, expected, servedIdentity }));
       }
     }
   });

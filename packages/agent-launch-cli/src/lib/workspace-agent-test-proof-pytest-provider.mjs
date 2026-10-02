@@ -6,11 +6,17 @@ import { accessSync, constants, readdirSync, readFileSync, realpathSync, statSyn
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isLauncherTestFailureDiagnostic } from "./workspace-agent-test-proof-error-diagnostic.mjs";
 import { launcherArtifact } from "./workspace-agent-test-proof-node-observation.mjs";
 import { nativeRuntimeTestId } from "./workspace-agent-test-proof-runtime-identity.mjs";
 
 export const PYTEST_PROOF_PLUGIN_PATH = fileURLToPath(
   new URL("./workspace_agent_test_proof_pytest.py", import.meta.url));
+
+export const PYTHON_DIAGNOSTIC_GRAPH_ASSET = fileURLToPath(
+  new URL("./workspace_agent_test_proof_diagnostic_graph.py", import.meta.url));
+
+export const PYTEST_PROOF_ASSETS = Object.freeze([PYTEST_PROOF_PLUGIN_PATH, PYTHON_DIAGNOSTIC_GRAPH_ASSET]);
 export const PYTEST_PROOF_PROTOCOL_SCHEMA_VERSION = "workspace-agent-test-proof-pytest-events.v1";
 export const PYTEST_PROOF_CONFIGURATION_SCHEMA_VERSION =
   "workspace-agent-test-proof-pytest-configuration.v1";
@@ -127,7 +133,8 @@ function measureRuntimeInputs({ interpreter, interpreterVersion, runtimePackages
     schema_version: PYTEST_RUNTIME_INPUTS_SCHEMA_VERSION,
     interpreter_version: interpreterVersion,
     interpreter_digest: fileDigest(interpreter),
-    provider_asset_digest: fileDigest(PYTEST_PROOF_PLUGIN_PATH),
+    provider_asset_digest: sha256Digest(JSON.stringify(PYTEST_PROOF_ASSETS.map((asset) =>
+      [path.basename(asset), fileDigest(asset)]))),
     runtime_package_digests: Object.fromEntries(Object.entries(runtimePackages)
       .map(([name, absolute]) => [name, treeDigest(absolute)]))
   };
@@ -245,7 +252,7 @@ export async function resolveInstalledPytestRuntime({ executionBudget = null, co
   const runtimePaths = [...new Set(Object.values(runtimePackages).map((entry) => path.dirname(entry)))].sort();
 
   const hostBinds = [
-    ...Object.values(runtimePackages).sort(), path.dirname(interpreter), PYTEST_PROOF_PLUGIN_PATH
+    ...Object.values(runtimePackages).sort(), path.dirname(interpreter), ...PYTEST_PROOF_ASSETS
   ].filter((absolute, index, all) => !underSystemRoot(absolute) && all.indexOf(absolute) === index)
     .map((absolute) => Object.freeze({ src: absolute, dst: absolute }));
   const configuredBinds = (configured?.read_only_binds ?? [])
@@ -354,14 +361,29 @@ function refusal(code, detail = null) {
   return { valid: false, code, ...(detail === null ? {} : { detail }) };
 }
 
-function selectedIdentityNotObserved(expectation, collected) {
-  const candidates = collected.map((nodeId) => {
-    const separator = nodeId.indexOf("::");
-    const file = separator < 0 ? null : nodeId.slice(0, separator);
-    return { test_id: nativeRuntimeTestId({ provider_id: expectation.provider_id,
-      provider_version: expectation.provider_version, path: file ?? expectation.target, node_id: nodeId }),
-    file, name: nodeId, nesting: null, status: "skipped", error_codes: [] };
-  });
+function observedIdentity(expectation, nodeId, facts) {
+  const separator = nodeId.indexOf("::");
+  const file = separator < 0 ? null : nodeId.slice(0, separator);
+  return { test_id: nativeRuntimeTestId({ provider_id: expectation.provider_id,
+    provider_version: expectation.provider_version, path: file ?? expectation.target, node_id: nodeId }),
+  file, name: nodeId, nesting: null, ...facts };
+}
+
+function collectionFailures(expectation, errors) {
+  return (Array.isArray(errors) ? errors : []).filter((entry) => typeof entry?.nodeid === "string" &&
+    entry.nodeid.length > 0 && isLauncherTestFailureDiagnostic(entry.failure_diagnostic))
+    .map(({ nodeid, failure_diagnostic: diagnostic }) => {
+      const root = diagnostic.errors.find(({ id }) => id === diagnostic.root_error);
+      return observedIdentity(expectation, nodeid, { status: "failed",
+        error_codes: ["pytest.phase.collect", ...(typeof root?.name === "string" ? [root.name] : [])],
+        failure_diagnostic: diagnostic });
+    });
+}
+
+function selectedIdentityNotObserved(expectation, collected, collectionErrors = []) {
+  const candidates = collected.map((nodeId) => observedIdentity(expectation, nodeId,
+    { status: "skipped", error_codes: [] }));
+  const failures = collectionFailures(expectation, collectionErrors);
   return refusal("test_proof_selected_identity_not_observed", {
     expected_test_id: expectation.target_test_id,
     target: expectation.target,
@@ -371,9 +393,16 @@ function selectedIdentityNotObserved(expectation, collected) {
     observed_identity_candidates: candidates,
     file_wrapper_status: null,
     file_wrapper_error_codes: [],
-    observed_failures: [],
-    observed_failure_count: 0
+    observed_failures: failures,
+    observed_failure_count: failures.length
   });
+}
+
+function runtimeErrorDetail(runtimeError) {
+  return { runtime_error_code: typeof runtimeError?.code === "string" ? runtimeError.code : null,
+    message: typeof runtimeError?.message === "string" ? runtimeError.message : null,
+    ...(isLauncherTestFailureDiagnostic(runtimeError?.failure_diagnostic)
+      ? { failure_diagnostic: runtimeError.failure_diagnostic } : {}) };
 }
 
 export function authenticateLauncherPytestEnvelope({
@@ -410,7 +439,7 @@ export function authenticateLauncherPytestEnvelope({
     return refusal("test_proof_structured_events_binding_mismatch");
   }
   if (payload.runtime_error?.code === "pytest_unavailable") {
-    return refusal(PYTEST_PROVIDER_ERROR_CODES.RUNTIME_UNAVAILABLE);
+    return refusal(PYTEST_PROVIDER_ERROR_CODES.RUNTIME_UNAVAILABLE, runtimeErrorDetail(payload.runtime_error));
   }
 
   if (payload.import_policy?.cached_bytecode !== "ignored" ||
@@ -430,7 +459,9 @@ export function authenticateLauncherPytestEnvelope({
   if (payload.fault?.status === "unsupported") {
     return refusal("test_proof_python_fault_unsupported", { reason: payload.fault.reason ?? null });
   }
-  if (payload.runtime_error !== null) return refusal("test_proof_structured_events_invalid");
+  if (payload.runtime_error !== null) {
+    return refusal("test_proof_structured_events_invalid", runtimeErrorDetail(payload.runtime_error));
+  }
   const collected = payload.collection?.collected_node_ids;
   const phases = payload.phases;
   if (!Array.isArray(collected) || !Array.isArray(phases) ||
@@ -441,7 +472,7 @@ export function authenticateLauncherPytestEnvelope({
     return refusal("test_proof_structured_test_identity_duplicate");
   }
   if (!collected.includes(expectation.node_id)) {
-    return selectedIdentityNotObserved(expectation, collected);
+    return selectedIdentityNotObserved(expectation, collected, payload.collection?.errors);
   }
   if (phases.some((phase) => phase?.nodeid !== expectation.node_id)) {
     return refusal("test_proof_structured_events_unselected_execution");

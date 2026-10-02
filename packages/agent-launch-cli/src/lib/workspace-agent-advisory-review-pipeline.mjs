@@ -184,7 +184,6 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
     let selectedBase = diffBaseSha;
     let selectedReviewed = reviewedSha;
     let reviewUnit = Object.freeze({ subject });
-    let designCapture = null;
 
     if (hasBase) {
       selector = "explicit_sha_range";
@@ -214,28 +213,19 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
         record_id: context.record_id,
         slice_id: context.slice_id
       });
-    } else {
-      designCapture = await captureCanonicalDesignReviewInputs({
-        mainRepo,
-        recordId: context.record_id,
-        initiallyAuthenticatedRecord: context.record,
-        selectedSliceId: context.slice_id,
-        repository: materialRepository()
-      });
+    }
+
+    const designCapture = await captureCanonicalDesignReviewInputs({
+      mainRepo,
+      recordId: context.record_id,
+      initiallyAuthenticatedRecord: context.record,
+      selectedSliceId: context.slice_id,
+      repository: materialRepository()
+    });
+    if (selector === "canonical_design") {
       const current = currentCommitRange(runGit, mainRepo);
       selectedBase = current.diff_base_sha;
       selectedReviewed = current.reviewed_sha;
-    }
-
-    if (designCapture === null && ((context.record.sections?.material_refs?.length ?? 0) > 0 ||
-        (context.selected.sections?.material_refs?.length ?? 0) > 0)) {
-      designCapture = await captureCanonicalDesignReviewInputs({
-        mainRepo,
-        recordId: context.record_id,
-        initiallyAuthenticatedRecord: context.record,
-        selectedSliceId: context.slice_id,
-        repository: materialRepository()
-      });
     }
 
     const normalized = resolveImmutableAdvisoryReviewTarget({
@@ -247,9 +237,7 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
       allowEmpty: !hasBase && selector === "canonical_design",
       runGit
     });
-    const frozenInputPaths = designCapture === null
-      ? []
-      : designCapture.files.map(({ path: inputPath }) => inputPath);
+    const frozenInputPaths = designCapture.files.map(({ path: inputPath }) => inputPath);
     const resolved = Object.freeze({
       context,
       normalized_target: normalized,
@@ -284,7 +272,7 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
         subject,
         parent: resolvedMaterial.context.record,
         selected: resolvedMaterial.context.selected,
-        entryMaterial: resolvedMaterial.design_capture?.entry_material ?? null
+        entryMaterial: resolvedMaterial.design_capture.entry_material
       }),
       formalResultContract: input.formal_result_contract ?? null,
       materialPaths: resolvedMaterial.material_paths
@@ -296,12 +284,10 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
     });
     let launched;
     try {
-      if (resolvedMaterial.design_capture !== null) {
-        materializeCanonicalDesignReviewInputs({
-          capture: resolvedMaterial.design_capture,
-          checkoutPath: materialized.private_snapshot.worktree_path
-        });
-      }
+      materializeCanonicalDesignReviewInputs({
+        capture: resolvedMaterial.design_capture,
+        checkoutPath: materialized.private_snapshot.worktree_path
+      });
       const reviewInput = createAdvisoryReviewInput({
         descriptor,
         checkoutRoot: materialized.private_snapshot.worktree_path,

@@ -69,6 +69,19 @@ async function amendRow(content, rowIndex, obligationId, changes, owners) {
     if (key === 'mechanism' && changes[key] === null) delete row[key];
     else row[key] = structuredClone(changes[key]);
   }
+  if (Object.hasOwn(changes, 'acceptance_criteria')) {
+    if (changes.acceptance_criteria.length === 0) delete row.acceptance_criteria;
+    else {
+      if (typeof owners.criteria !== 'function') throw new ProofAuthoringError('request_invalid',
+        'Acceptance-criterion associations need the selected unit\'s criteria', { phase: 'request',
+          field: 'acceptance_criteria' });
+      row.acceptance_criteria = owners.criteria(changes.acceptance_criteria, obligationId);
+    }
+  }
+  if (Object.hasOwn(changes, 'proof_opt_out')) {
+    if (changes.proof_opt_out === true) row.proof_opt_out = true;
+    else delete row.proof_opt_out;
+  }
   if (changes.refresh_proof_version === true && !(changes.proof_name ?? row.selection?.proof_name)) {
     throw new ProofAuthoringError('proof_unselected', 'Select a proof name before refreshing its version', { phase: 'request' });
   }
@@ -87,6 +100,15 @@ async function amendRow(content, rowIndex, obligationId, changes, owners) {
     for (const key of changes.clear_parameters ?? []) delete selection.parameters[key];
     row.selection = selection;
   }
+  if (row.proof_opt_out === true && (row.selection !== undefined || row.case_id !== undefined)) {
+    throw new ProofAuthoringError('proof_opt_out_conflict',
+      'An obligation cannot both decline proof and keep a proof selection or case', {
+        phase: 'request', field: 'proof_opt_out', obligation_id: obligationId,
+        correction: 'Remove the selection with workspace_controlled_contract_obligation_coverage_remove ' +
+          'removal_scope "selection" before supplying proof_opt_out true, or supply proof_opt_out false ' +
+          'with the proof selection.'
+      });
+  }
   return row;
 }
 
@@ -101,7 +123,7 @@ export async function upsertProofAuthoringSelection(source, obligations, owners 
   const batchOwners = { pin: async name => {
     if (!pins.has(name)) pins.set(name, pinProofSelection(name, owners));
     return pins.get(name);
-  } };
+  }, criteria: owners.criteria };
   for (const item of obligations) {
     const { obligation_id, ...changes } = item;
     await amendRow(content, rowIndex, obligation_id, changes, batchOwners);

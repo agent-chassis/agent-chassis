@@ -40,6 +40,10 @@ import {
 import { createTrustedFrozenReviewContract } from
   "../../packages/agent-launch-cli/src/lib/backend-review-identity.mjs";
 import {
+  createAdvisoryReviewDescriptor,
+  createAdvisoryReviewInput
+} from "../../packages/agent-launch-cli/src/lib/workspace-agent-advisory-review-contract.mjs";
+import {
   createFrozenReviewContractSnapshot
 } from "../../packages/agent-launch-cli/src/lib/frozen-review-contract-snapshot.mjs";
 import {
@@ -475,7 +479,8 @@ test("WK-1678: the launcher plan module has no cyclic conduit dependency", async
 test("WK-1678: exact role profiles keep worker delivery-only and findings roles read-only", () => {
 
   assert.deepEqual(resolveLauncherRoleToolNames("worker"),
-    ["commit", "workspace_verify_proof"]);
+    ["commit", "workspace_controlled_contract_obligation_coverage_query",
+      "workspace_read_mcp_content_reference", "workspace_read_page", "workspace_verify_proof"]);
   for (const role of ["reviewer", "redteam"]) {
     const tools = resolveLauncherRoleToolNames(role);
     assert.equal(tools.includes("commit"), false);
@@ -625,6 +630,73 @@ test("WK-2203#SLICE-053: contract provenance, serialization, and identity tuple 
       family: "codex", role: "reviewer", assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO,
       provisioning: provisioningCarrier(), commitTuple, frozenReviewContractBinding: binding
     }), (error) => error?.code === STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID);
+  }
+});
+
+const ADVISORY_REVIEW_CHECKOUT = "/srv/review-worktrees/.immutable-candidates/candidate-1/checkout";
+
+function advisoryReviewInput({ role = "reviewer", subject = AUTH_UNIT, repository = AUTH_REPO,
+  checkoutRoot = ADVISORY_REVIEW_CHECKOUT } = {}) {
+  const descriptor = createAdvisoryReviewDescriptor({
+    role, subject, repository, materialKind: "explicit_sha_range",
+    diffBaseSha: "1".repeat(40), reviewedSha: "2".repeat(40), reviewedTreeSha: "3".repeat(40),
+    immutableSourceIdentity: Object.freeze({ kind: "git_range" }),
+    reviewBrief: Object.freeze({ role, subject, instructions: "Review.", material: Object.freeze({}) })
+  });
+  return createAdvisoryReviewInput({ descriptor, checkoutRoot, toolProfile: role });
+}
+
+test("WK-2672: the authenticated advisory input is the sole producer of the review read source", () => {
+  for (const [family, role] of [["codex", "reviewer"], ["claude", "redteam"]]) {
+    const authority = mintTrustedStdioMcpConduitAuthority({
+      family, role, assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO,
+      advisoryReviewInput: advisoryReviewInput({ role })
+    });
+    assert.equal(authority.reviewMaterializationDir, ADVISORY_REVIEW_CHECKOUT);
+
+    assert.equal(authority.workspaceDir, AUTH_REPO);
+    const env = __testing.buildServerEnv({ assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO, authority }, role);
+    assert.equal(env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR, ADVISORY_REVIEW_CHECKOUT);
+    assert.equal(env.WIKI_MCP_WORKSPACE_DIR, AUTH_REPO);
+  }
+
+  const frozenOnly = mintTrustedStdioMcpConduitAuthority({
+    family: "codex", role: "reviewer", assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO,
+    provisioning: provisioningCarrier(), frozenReviewContractBinding: frozenReviewBinding(),
+    commitTuple: { launchRef: "refs/agent-launch/WK-1678", runId: "run-1", retryId: 0 }
+  });
+  assert.equal(frozenOnly.reviewMaterializationDir, null);
+  const unbound = mintTrustedStdioMcpConduitAuthority({
+    family: "claude", role: "reviewer", assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO
+  });
+  assert.equal(unbound.reviewMaterializationDir, null);
+  assert.equal("WIKI_MCP_REVIEW_MATERIALIZATION_DIR" in __testing.buildServerEnv(
+    { assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO, authority: unbound }, "reviewer"), false);
+
+  assert.equal("WIKI_MCP_REVIEW_MATERIALIZATION_DIR" in __testing.buildServerEnv({
+    assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO,
+    authority: { reviewMaterializationDir: ADVISORY_REVIEW_CHECKOUT }
+  }, "reviewer"), false);
+});
+
+test("WK-2672: copied, plain, and mismatched advisory inputs refuse at the shared authority", () => {
+  const genuine = advisoryReviewInput();
+  const cases = [
+    ["copied", "reviewer", { ...genuine }],
+    ["frozen copy", "reviewer", Object.freeze({ ...genuine })],
+    ["plain", "reviewer", { private_checkout_root: ADVISORY_REVIEW_CHECKOUT }],
+    ["role mismatch", "redteam", genuine],
+    ["subject mismatch", "reviewer", advisoryReviewInput({ subject: "WK-9999#SLICE-001" })],
+    ["repository mismatch", "reviewer", advisoryReviewInput({ repository: "/srv/repos/elsewhere" })],
+    ["relative checkout", "reviewer", advisoryReviewInput({ checkoutRoot: "relative/checkout" })],
+    ["worker role", "worker", genuine]
+  ];
+  for (const [label, role, input] of cases) {
+    assert.throws(() => mintTrustedStdioMcpConduitAuthority({
+      family: "codex", role, assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO,
+      ...(role === "worker" ? { canonicalWriteScope: [] } : {}),
+      advisoryReviewInput: input
+    }), (error) => error?.code === STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID, `${label} must refuse`);
   }
 });
 

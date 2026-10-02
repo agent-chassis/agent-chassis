@@ -4,8 +4,9 @@ import {
   classifyControlledContractPrivatePathEntry
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
 import {
-  compileRepositoryScopePath,
-  repositoryScopeGlobIndex
+  UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
+  parseRepositoryScopeFileSelector,
+  repositoryScopeSelectorRefusalMessage
 } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
 
 export function deriveCanonicalUnitScope(entries, label, recordPath, {
@@ -19,7 +20,12 @@ export function deriveCanonicalUnitScope(entries, label, recordPath, {
   }
   const normalized = [];
   for (const entry of entries) {
-    const parsed = compileRepositoryScopePath(entry);
+    const parsed = parseRepositoryScopeFileSelector(entry);
+    if (!parsed.ok && parsed.diagnostic.code === UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR) {
+      invalid(`${repositoryScopeSelectorRefusalMessage(label, entry)} (${recordPath})`,
+        { field: label, path: entry, kind: "unsupported_selector",
+          selector_kind: parsed.diagnostic.selector_kind });
+    }
     if (!parsed.ok) {
       invalid(`${label} contains a non-canonical repository-relative path in ${recordPath}: ${JSON.stringify(entry)}`,
         { field: label, path: entry, kind: "non_canonical" });
@@ -31,12 +37,8 @@ export function deriveCanonicalUnitScope(entries, label, recordPath, {
     normalized.push(entry);
   }
 
-  const privateLiteral = (entry) => {
-    const selector = compileRepositoryScopePath(entry).value;
-    const globIndex = repositoryScopeGlobIndex(selector);
-    const literal = globIndex === -1 ? entry : selector.components.slice(0, globIndex).join("/");
-    return ["exact", "directory"].includes(classifyControlledContractPrivatePathEntry(literal).match_kind);
-  };
+  const privateLiteral = (entry) =>
+    ["exact", "directory"].includes(classifyControlledContractPrivatePathEntry(entry).match_kind);
   return Object.freeze([...new Set(normalized)].sort().filter((entry) => !privateLiteral(entry)));
 }
 

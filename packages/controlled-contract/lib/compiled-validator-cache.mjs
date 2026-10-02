@@ -881,7 +881,30 @@ export async function compiledValidators(groupId, declaration) {
   if (activeGenerationSink) {
     return activeGenerationSink(normalizeDeclaration(groupId, declaration));
   }
+  const availability = compiledValidatorCacheAvailability();
+  if (!availability.available) {
+    return unresolvedRootValidators(normalizeDeclaration(groupId, declaration),
+      availability.cause);
+  }
   return productionCache().compiledValidators(groupId, declaration);
+}
+
+export function compiledValidatorCacheAvailability() {
+  try {
+    productionCache();
+    return Object.freeze({ available: true, cause: null });
+  } catch (error) {
+    if (!(error instanceof CompiledValidatorCacheError) ||
+        error.code !== "validator_cache_root_unresolved") throw error;
+    return Object.freeze({ available: false, cause: error });
+  }
+}
+
+function unresolvedRootValidators(normalized, cause) {
+  const refuse = () => fail(cause.code, cause.message,
+    { ...cause.details, group_id: normalized.groupId });
+  return Object.freeze(Object.fromEntries(normalized.names.map((name) =>
+    [name, Object.defineProperty(() => refuse(), "name", { value: name })])));
 }
 
 export async function loadCompiledValidatorCache() {
@@ -894,6 +917,65 @@ export function compiledValidatorCacheStatus() {
 
 export function compiledValidatorCacheRoot() {
   return productionCache().cacheRoot;
+}
+
+function packagedGroupDirectory(directoryUrl) {
+  return path.resolve(fileURLToPath(directoryUrl));
+}
+
+async function packagedGroupArtifact(groupId, declaration) {
+  const normalized = normalizeDeclaration(groupId, declaration);
+  const { toolchain, toolchainDigest } = await toolchainIdentity();
+  const generated = compileDeclarationGroup(normalized, await loadAjv());
+  const manifest = {
+    cache_format_version: CACHE_FORMAT_VERSION,
+    toolchain_digest: toolchainDigest,
+    toolchain,
+    group_id: normalized.groupId,
+    schema_digest: normalized.schemaDigest,
+    file: CODE_FILENAME,
+    code_bytes: generated.code.length,
+    code_sha256: sha256Hex(Buffer.from(generated.code, "utf8")),
+    validators: normalized.validators.map(({ name, exportName }) =>
+      ({ name, export: exportName }))
+  };
+  return { manifest: `${JSON.stringify(manifest, null, 2)}\n`, code: generated.code };
+}
+
+export async function buildPackagedCompiledValidators(groupId, declaration, directoryUrl,
+  { write = false } = {}) {
+  const directory = packagedGroupDirectory(directoryUrl);
+  const expected = await packagedGroupArtifact(groupId, declaration);
+  const read = (name) => readFile(path.join(directory, name), "utf8").catch((error) => {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  });
+  const current = await read(MANIFEST_FILENAME) === expected.manifest &&
+    await read(CODE_FILENAME) === expected.code;
+  if (write && !current) {
+    await mkdir(directory, { recursive: true });
+    await writeFile(path.join(directory, CODE_FILENAME), expected.code, "utf8");
+    await writeFile(path.join(directory, MANIFEST_FILENAME), expected.manifest, "utf8");
+  }
+  return Object.freeze({ current });
+}
+
+export async function packagedCompiledValidators(groupId, declaration, directoryUrl,
+  { rebuildCommand }) {
+  const normalized = normalizeDeclaration(groupId, declaration);
+  const directory = packagedGroupDirectory(directoryUrl);
+  const { toolchainDigest } = await toolchainIdentity();
+  const loaded = await loadPublishedGroup(path.dirname(directory), directory, {
+    toolchainDigest, groupId: normalized.groupId, schemaDigest: normalized.schemaDigest
+  });
+  if (!loaded) fail(
+    "validator_packaged_artifact_unavailable",
+    "the package-built validator artifact is missing or does not match this schema " +
+      `and toolchain; rebuild it with ${rebuildCommand}`,
+    { group_id: normalized.groupId, directory, schema_digest: normalized.schemaDigest,
+      toolchain_digest: toolchainDigest, rebuild_command: rebuildCommand }
+  );
+  return instantiateGroup(loaded);
 }
 
 export async function prepareCompiledValidatorCache(options = {}) {

@@ -124,7 +124,9 @@ any explicit Python environment selection at the repository root as
 }
 ```
 
-All fields are optional, but a document names at least one. `runners`, when
+All fields are optional, but a document names at least one. `test_entrypoints`
+is described under
+[Test-entrypoint associations](#test-entrypoint-associations). `runners`, when
 present, is a non-empty explicit selection; each entry names a runner and, by
 default, the repository root. Each `toolchains` entry requires `executable`
 and may require an exact `version`. Each `environments` entry is keyed by a
@@ -134,6 +136,52 @@ absolute path; no other ecosystem takes an explicit selection here (see
 unknown field, a wrong type or a selection listed twice is refused outright. There is no
 configuration include, inheritance, variable expansion or global/local layering,
 and a saved file that is not this shape is reported rather than ignored.
+
+### Test-entrypoint associations
+
+`test_entrypoints`, when present, is a non-empty list of test-entrypoint
+associations that you author by hand; setup never writes or derives one. Each
+association has exactly one of these shapes, with every field required:
+
+```json
+{
+  "test_entrypoints": [
+    {
+      "runner": "lib0-testing",
+      "project": ".",
+      "target": "test/example.test.mjs",
+      "entrypoint": "test/run-tests.mjs"
+    },
+    {
+      "runner": "node-test",
+      "project": ".",
+      "adapter": "node-test-wrapper",
+      "entrypoint": "tests/run-tests.mjs"
+    }
+  ]
+}
+```
+
+A `lib0-testing` association names the test `target` that one repository
+`entrypoint` runs; a `node-test` association names the repository test wrapper
+(`adapter` `node-test-wrapper`) that runs a project's Node tests. `project`
+names the environment the association belongs to: it is the environment's
+installation root (`.` for the repository root), not a base for the other
+paths, and nested projects are distinct environments. Every path is a canonical
+repository-relative path with forward slashes: no absolute, drive or UNC path,
+backslash, empty, `.` or `..` segment, NUL or glob character. `target` and
+`entrypoint` name files, so they are never `.` and never end with `/`. A
+`lib0-testing` association is unique by `runner`, `project` and `target`, and a
+`node-test` association by `runner` and `project`; several targets may share one
+entrypoint.
+
+Paths are checked as spelling only: setup does not look for the files, resolve
+links or run anything. Associations are separate from `runners`: they neither
+select nor suppress a runner, and a document holding only associations leaves
+the inventory automatic. Whenever setup saves this file, it keeps the saved
+associations exactly as they were. Stored associations currently have no effect
+on what setup detects or on how tests run; they are host-local configuration,
+not verified source and not readiness.
 
 Setup never saves its inventory: every run inventories the repository again, so
 a project added later is detected by the next run instead of being hidden by an
@@ -159,6 +207,7 @@ otherwise leave it out of version control and let each host write its own.
   against any requirement. An invalid, unavailable, incomplete or mismatched
   location fails the run (`test_runtime_toolchain_executable_invalid`,
   `test_runtime_toolchain_executable_unavailable`,
+  `test_runtime_toolchain_lookup_failed` for other filesystem failures,
   `test_runtime_toolchain_incomplete`, `test_runtime_version_mismatch`),
   publishes no readiness, and reports the exact correction. Setup never quietly
   falls back to `PATH` or to any other installation, and it never changes the
@@ -179,7 +228,7 @@ agent-chassis setup --test-runtimes
 | --- | --- |
 | `--runner <name>[@<project>]` | Detect exactly this runner's environment at a repository-relative installation root (default `.`) instead of the inventory. Repeatable. |
 | `--toolchain <name>=<x.y.z>` | Require an exact installed version of `node`, `python`, `go`, `rust` or `deno`. |
-| `--runtime-config <file>` | Read an explicit runner selection, explicit toolchain executable locations and/or explicit Python environment selections from one JSON file in the shape above, resolved against the invocation directory. It replaces the repository's saved configuration for this run and is never written back. Not combinable with `--runner` or `--toolchain`. |
+| `--runtime-config <file>` | Read an explicit runner selection, explicit toolchain executable locations, explicit Python environment selections and/or test-entrypoint associations from one JSON file in the shape above, resolved against the invocation directory. It is temporary: it replaces the repository's saved configuration for this run only and is never written back, so the saved file, its associations included, is left unchanged. Not combinable with `--runner` or `--toolchain`. |
 | `--dry-run` | Detect and validate everything without the sandbox proof or changing readiness. |
 | `--json` | Print the structured result, including `environments`, `excluded` and the report lines. |
 
@@ -210,6 +259,15 @@ records where it came from (`configured` or `host`). No marker, cache or
 AgentChassis-made installation is needed: any installation that is complete and
 reports a satisfying version is used as found.
 
+Executable lookup checks absolute `PATH` entries in order and skips empty or
+relative entries. Only a missing path (`ENOENT` or `ENOTDIR`) permits the next
+candidate; denied access, a symlink loop or a nonregular file fails with the
+offending path and operation (`test_runtime_toolchain_lookup_failed`). A
+configured path is checked alone. Its absence reports
+`test_runtime_toolchain_executable_unavailable`; an invalid location or missing
+execute permission reports `test_runtime_toolchain_executable_invalid`.
+Lookup observes current file identity but does not prove later readiness.
+
 A version is required only by the repository or the operator:
 
 1. a supported project pin (`.nvmrc`/`.node-version`, `.python-version`, a
@@ -235,6 +293,62 @@ executable and its expected path. Rust needs a system `cc` linker under a
 system root (`test_runtime_native_prerequisite_missing` otherwise). Supported
 platform: Linux x86_64 (`test_runtime_platform_unsupported` otherwise).
 
+Wiki-core owns the installed-toolchain descriptions: executable roles, paths,
+populations, root rules and version-text parsers. Launcher recipes add project
+pin readers, version acceptance and native prerequisite policy.
+
+Wiki-core also owns installation observation: from one located executable it
+finds the root (Rust asks `rustc --print sysroot`; Python describes itself in
+isolated mode), checks the components the caller requires, and asks for the
+version. It runs no process itself. The caller injects its bounded process
+runner and supplies the working directory, base probe environments and a
+timeout applied to each probe. For the version probe, the observer puts the
+probed executable's directory first on `PATH` and sets `RUSTC` to the checked
+`rustc` path, or to an empty string when none was checked. The returned
+executables are the required roles plus the version-probe role. Setup injects
+its host runner with a 60-second timeout and requests every recipe role, so Go
+still needs `gofmt`. An observation asked only for Go's `go` role does not.
+
+Observation failures keep distinct codes and their evidence:
+`runtime_input_installation_components_missing` (absent components),
+`runtime_input_installation_component_lookup_failed` (a component path that
+cannot be read or executed), `runtime_input_installation_probe_failed` (a
+timed-out, cancelled, overflowing, unstartable or failing probe, with its
+outcome), `runtime_input_installation_output_invalid` (unusable probe output,
+such as non-JSON, a relative path or unrecognized version text) and
+`runtime_input_installation_invalid` (a malformed request or unknown role).
+Setup reports an unreadable root or Python description, or missing components,
+as `test_runtime_toolchain_incomplete`; a failed or unrecognized version as
+`test_runtime_toolchain_unusable`; and an unreadable component as
+`test_runtime_toolchain_lookup_failed`. Each attaches the observation.
+
+### Setup host process outcomes and bounds
+
+Host-side setup commands (version and installation-root checks, dependency
+cache lookups) run directly on the host, unlike the sandbox probes described
+under [Verification and readiness](#verification-and-readiness). Each runs its
+executable with literal arguments and no shell, in the caller's working
+directory and environment, and setup owns only that direct child: it tracks no
+process group and cleans up no descendants.
+
+Each command's result names the command and exactly one outcome. It succeeds
+only when the command exits with code 0 and nothing stopped it. A command that
+could not start reports its errno (for example `ENOENT`), and a nonzero exit or
+signal keeps its code or signal. Three conditions stop the child with `SIGKILL`:
+
+* the setup timeout expires (`timed_out`);
+* the caller cancels (`cancelled`); a cancellation that already happened
+  starts no process at all;
+* a stream exceeds 1 MiB (`output_overflow` names `stdout` or `stderr`).
+
+Output of exactly 1 MiB per stream is accepted. At most 1 MiB per stream is
+kept, and output beyond it fails the command even when it then exits with
+code 0, so truncated output is never parsed. The first stopping condition is
+the recorded outcome; later events never replace it or turn it into success.
+Every failed outcome's diagnostic starts with the command, the outcome and the
+correction, even when the command wrote nothing, and then includes the retained
+output's tail.
+
 ## Project dependencies
 
 For each environment setup resolves the dependency installation that already
@@ -245,17 +359,44 @@ vendors dependencies into a replacement location, and never writes into the
 installation. Lockfiles are required inputs and are never created or
 rewritten.
 
+Wiki-core owns population content digests, currentness fingerprints and named
+input-file digests in its runtime-inputs population-identity module. Launcher
+setup and readiness consume those measurements from that single owner. Its
+runtime-inputs Go module likewise owns the offline Go module environment and
+the module-cache population of a listed graph, shared by go-modules setup and
+the code index; setup keeps its own `go env GOMODCACHE` selection and
+`GOWORK=off` policy. Its runtime-inputs Cargo module owns the offline Cargo
+settings (`CARGO_NET_OFFLINE`, `CARGO_TERM_COLOR`), the Cargo home selection
+(`CARGO_HOME`, else `$HOME/.cargo`), a recorded toolchain's `RUSTC`/`RUSTDOC`
+and the Cargo configuration-file lookup, shared by cargo setup and the code
+index; setup keeps its source selection, vendored-directory checks and binding
+policy.
+
 | Ecosystem | Required inputs | Installation used, in precedence order | Validation | Attempt binding |
 | --- | --- | --- | --- | --- |
 | npm | `package.json` and each workspace member's `package.json`, plus `package-lock.json` when any dependency or member is declared | the installation root's own `node_modules` (a link to an installation elsewhere is that installation) | every `dependencies`/`devDependencies` name of the root and members is present; workspace-member links only | read-only, with each workspace member linked to its own source |
 | python | `requirements.txt`, `test-requirements.txt` and/or `requirements-dev.txt` | 1. the explicitly selected `virtual_environment`; 2. the nearest `.venv` or `venv` holding `pyvenv.cfg`, from the project directory up to the repository root; 3. the detected interpreter's own site packages | the environment's interpreter is the detected Python; every named requirement (following `-r` includes) is an installed distribution | read-only environment |
 | go modules | `go.mod` (and `go.sum`) | the module cache `go env GOMODCACHE` names under the operator's own Go configuration | the module graph lists with module lookup disabled (`GOPROXY=off`) | read-only `GOMODCACHE`, `GOPROXY=off` |
 | cargo | `Cargo.toml` and each workspace member's `Cargo.toml`, `Cargo.lock` | 1. a configured directory (vendored) replacement of crates.io; 2. otherwise the registry and git stores of `CARGO_HOME` (`$CARGO_HOME`, else `~/.cargo`) | every locked crate is present (vendored with its checksum file, or downloaded and extracted), and the sandbox probe `cargo metadata --frozen` resolves the whole lock from that source | read-only vendored directory, or read-only registry/git stores; offline |
-| deno | `deno.json`/`deno.jsonc`, `deno.lock` | the cache `deno info --json` reports (`DENO_DIR`, otherwise the runtime's own default) | the cache's remote/npm stores exist, and the sandbox probe `deno check --cached-only --frozen` type-checks every locked dependency from that cache | read-only `DENO_DIR`, `--frozen --cached-only` |
+| deno | `deno.json`/`deno.jsonc`, `deno.lock` | the cache `deno info --json` reports (`DENO_DIR`, otherwise the runtime's own default) | the cache's remote/npm stores exist, and the sandbox probe `deno check --cached-only --frozen` type-checks every locked dependency from that cache | read-only `DENO_DIR` for setup probes and worker commands; for `deno test` proofs, the persistent writable `DENO_DIR` with links to the cache's `remote`/`npm` stores, bound read-only at their own paths; `--frozen --cached-only` |
 
 A project with no locked dependencies (an npm package that declares none, a Go
 module whose graph needs no module, a Cargo or Deno lock with no external
 packages) needs no installation.
+
+Compiler output is not a dependency installation. Go, Cargo, Deno and Vitest
+proofs keep their native compiler caches (`GOCACHE`, `CARGO_TARGET_DIR`, Deno's
+check and analysis state in its `DENO_DIR`, Vitest's native module cache of
+transformed modules) in persistent directories below
+`.cache/test-proof-native/` of the main repository, which the native tools
+maintain themselves across proofs, calls and launcher restarts (see
+[Test-proof runtime identity](test-proof-runtime-identity.md#persistent-native-compiler-caches-go-cargo-deno-and-vitest)).
+For an environment with such a cache, setup adds the exact
+`/.cache/test-proof-native/` exclusion to the repository-local Git exclude
+file (`git rev-parse --git-path info/exclude`), keeping existing lines, and
+refuses with `test_runtime_native_cache_exclusion_failed` when Git tracks any
+file below that directory. Setup neither creates nor validates the caches
+themselves, and they never hold dependency stores.
 
 The sandbox probes run with the network denied and every dependency location
 read-only, so they can only confirm what is already installed. For a JSR
@@ -292,7 +433,10 @@ virtual environment, `go mod download`, `cargo fetch --locked` or `cargo vendor`
 `deno install --frozen`), which the operator runs. A missing lockfile refuses
 with `test_runtime_dependency_lock_missing`. Runner packages such as Jest,
 Vitest, Mocha, AVA, lib0, pytest and stestr must be declared and installed by
-the project itself. Only the dependency locations named here are ever bound;
+the project itself. stestr runs as the installed package's module under the
+detected environment's interpreter (`<python> -I -B -m stestr`), so a selected
+or discovered virtual environment and the interpreter's own site packages serve
+it alike; no environment script or ambient `PATH` lookup is used. Only the dependency locations named here are ever bound;
 for Cargo, `CARGO_HOME` credentials and other files are never bound, and a
 `CARGO_HOME` configuration file is bound only when it declares the vendored
 source.

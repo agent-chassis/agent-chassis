@@ -4,10 +4,12 @@ const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
+const { captureTestFailureDiagnostic, unavailableTestFailureDiagnostic } =
+  require("../../workspace-agent-test-proof-diagnostic-graph.cjs");
+
 const CONFIG_ENV = "LAUNCHER_TEST_PROOF_CONFIG";
 const CONFIG_SCHEMA_VERSION = "launcher-test-proof-observer-config.v1";
 const REACH_SYMBOL = Symbol.for("launcher.test-proof.reach");
-const MAX_TEXT = 64 * 1024;
 
 function loadConfig(configPath = process.env[CONFIG_ENV]) {
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
@@ -39,26 +41,13 @@ function repositoryPath(config, absolute) {
     : relative.split(path.sep).join("/");
 }
 
-const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : undefined);
-
-function errorFacts(error, assertion) {
-  if (error === null || error === undefined) return null;
-  const facts = { assertion: assertion === true };
-  if (typeof error === "object" || typeof error === "function") {
-    for (const field of ["name", "message", "stack"]) {
-      try {
-        const value = text(error[field]);
-        if (value !== undefined) facts[field] = value;
-      } catch {   }
-    }
-    try {
-      const code = error.code;
-      if (typeof code === "string") facts.code = text(code);
-    } catch {   }
-  } else {
-    facts.message = text(String(error));
+function failureDiagnostic(error, native = {}) {
+  try {
+    return captureTestFailureDiagnostic(error, native);
+  } catch {
+    return unavailableTestFailureDiagnostic([{ path: "/error", reason: "source_value_unreadable" }],
+      { origin: native.origin });
   }
-  return facts;
 }
 
 function sameTitles(left, right) {
@@ -78,7 +67,7 @@ function installReachSink(channel) {
 module.exports = {
   CONFIG_ENV,
   createChannel,
-  errorFacts,
+  failureDiagnostic,
   installReachSink,
   loadConfig,
   repositoryPath,

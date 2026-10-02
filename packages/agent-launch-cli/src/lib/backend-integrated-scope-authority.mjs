@@ -12,7 +12,12 @@ import { deepFreezeCanonicalSnapshot } from "./backend-scope-authority-shared.mj
 import { readCanonicalWorkRecord } from "./backend-worker-scope-authority.mjs";
 import { resolveFrozenSliceReviewReceiptContract } from "./backend-slice-review-authority.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
-import { resolveAuthenticatedExactSliceDeliveryBase } from "./slice-integration-authorization.mjs";
+import {
+  authenticateIntegratedDeliveryCandidate,
+  INTEGRATED_DELIVERY_AUTHENTICATION_STATES,
+  LITERAL_INCLUSION_STATES,
+  observeLiteralInclusionAboveFork
+} from "./slice-integration-authorization.mjs";
 
 export const INTEGRATED_DELIVERY_AUTHENTICATION_FAILED_CODE =
   "agent_launch.integrated_delivery.authentication_failed.v1";
@@ -53,100 +58,13 @@ function exactGit(runGit, mainRepo, args, reason, consequence) {
   return result.stdout;
 }
 
-function literalCommitIdentity(runGit, mainRepo, oid, reason) {
-  if (typeof oid !== "string" || !INTEGRATED_DELIVERY_OID_RE.test(oid)) {
-    integratedDeliveryAuthenticationFailure(
-      reason,
-      "the integration-written delivery identity cannot be verified",
-      { oid: typeof oid === "string" ? oid : null }
-    );
-  }
-  const raw = exactGit(
-    runGit,
-    mainRepo,
-    ["--no-replace-objects", "cat-file", "commit", oid],
-    reason,
-    "the producer-owned delivery receipt cannot be read from the canonical object store"
-  );
-  const separator = raw.indexOf("\n\n");
-  if (separator < 0) {
-    integratedDeliveryAuthenticationFailure(
-      reason,
-      "the producer-owned delivery receipt is malformed"
-    );
-  }
-  const headers = raw.slice(0, separator).split("\n");
-  const trees = headers.filter((line) => line.startsWith("tree "));
-  const parents = headers.filter((line) => line.startsWith("parent "));
-  if (trees.length !== 1 || parents.length !== 1) {
-    integratedDeliveryAuthenticationFailure(
-      reason,
-      "the producer-owned delivery receipt does not have one exact tree and sole parent"
-    );
-  }
-  const tree = trees[0].slice(5);
-  const parent = parents[0].slice(7);
-  if (!INTEGRATED_DELIVERY_OID_RE.test(tree) || !INTEGRATED_DELIVERY_OID_RE.test(parent)) {
-    integratedDeliveryAuthenticationFailure(
-      reason,
-      "the producer-owned delivery receipt carries a malformed object identity"
-    );
-  }
-  return Object.freeze({ oid, tree, parent, message: raw.slice(separator + 2) });
-}
-
-function rawDeliveryDelta(runGit, mainRepo, commit, reason) {
-  return exactGit(
-    runGit,
-    mainRepo,
-    [
-      "--no-replace-objects", "-c", "core.quotePath=true", "-c", "color.ui=false",
-      "diff-tree", "--raw", "-r", "--no-renames", "--no-abbrev",
-      "--ignore-submodules=none", "--no-ext-diff", "--no-textconv", "--no-color",
-      commit.parent, commit.oid
-    ],
-    reason,
-    "the integration-written delivery delta cannot be compared with its producer receipt"
-  );
-}
-
-function exactDeliveryMessage(subject, baseSha) {
-  return `agent-launch worker delivery: ${subject} (base ${baseSha.slice(0, 12)})\n\n` +
-    `Wk-Slice: ${subject}\n`;
-}
-
-function zeroDeltaReceiptMatches({
-  runGit, mainRepo, integrated, reviewed, subject, reviewedBase
-}) {
-  const expected = `agent-launch zero-delta integration evidence: ${subject}\n\n` +
-    `Wk-Slice: ${subject}\n` +
-    "Wk-Slice-Integration: v1\n" +
-    `Wk-Slice-Delivery: ${reviewed.oid}\n` +
-    `Wk-Slice-Base: ${reviewedBase}\n` +
-    `Wk-Slice-Wk-Parent: ${integrated.parent}\n` +
-    "Wk-Slice-Empty: true\n";
-  return integrated.message === expected &&
-    rawDeliveryDelta(
-      runGit,
-      mainRepo,
-      integrated,
-      "zero_delta_evidence_delta_unreadable"
-    ) === "";
-}
-
-function producerReceiptMatches({ runGit, mainRepo, integrated, reviewed, subject, reviewedBase }) {
-  if (reviewed.parent !== reviewedBase ||
-      reviewed.message !== exactDeliveryMessage(subject, reviewedBase)) {
-    return false;
-  }
-  if (integrated.oid === reviewed.oid) return true;
-  if (zeroDeltaReceiptMatches({
-    runGit, mainRepo, integrated, reviewed, subject, reviewedBase
-  })) return true;
-  return integrated.message === reviewed.message &&
-    rawDeliveryDelta(runGit, mainRepo, integrated, "integrated_delivery_delta_unreadable") ===
-      rawDeliveryDelta(runGit, mainRepo, reviewed, "reviewed_delivery_delta_unreadable");
-}
+const TERMINAL_UNREADABLE_DELIVERY_REASONS = Object.freeze({
+  retained_delivery_unreadable: "reviewed_delivery_receipt_unreadable",
+  retained_delivery_delta_unreadable: "reviewed_delivery_receipt_unreadable",
+  integrated_candidate_unreadable: "integrated_delivery_receipt_unreadable",
+  integrated_candidate_delta_unreadable: "integrated_delivery_receipt_unreadable",
+  zero_delta_evidence_unreadable: "zero_delta_evidence_delta_unreadable"
+});
 
 function targetIntegratedDeliveryTransition(historical, currentProjection, sliceId) {
   const historicalIndex = historical.slices.findIndex((entry) => entry?.id === sliceId);
@@ -225,57 +143,43 @@ function mintIntegrationAuthenticatedIntegratedDeliveryProof({
     return sha;
   };
   const deliverySha = readSliceDelivery("reviewed_delivery_receipt_unreadable");
-  let deliveryBase = null;
-  try {
-    deliveryBase = resolveAuthenticatedExactSliceDeliveryBase({
-      runGit,
-      mainRepo,
-      subject,
-      deliverySha
-    });
-  } catch {
-    deliveryBase = null;
-  }
-  if (typeof deliveryBase !== "string" || !INTEGRATED_DELIVERY_OID_RE.test(deliveryBase)) {
-    integratedDeliveryAuthenticationFailure(
-      "producer_receipt_delivery_mismatch",
-      "the retained slice delivery is not one exact launcher delivery on its authenticated base"
-    );
-  }
-  const integrated = literalCommitIdentity(
+
+  const authentication = authenticateIntegratedDeliveryCandidate({
     runGit,
     mainRepo,
-    transition.to,
-    "integrated_delivery_receipt_unreadable"
-  );
-  const reviewed = literalCommitIdentity(
-    runGit,
-    mainRepo,
-    deliverySha,
-    "reviewed_delivery_receipt_unreadable"
-  );
-  if (!producerReceiptMatches({
-    runGit,
-    mainRepo,
-    integrated,
-    reviewed,
     subject,
-    reviewedBase: deliveryBase
-  })) {
+    candidateSha: transition.to,
+    deliverySha
+  });
+  if (authentication.state !== INTEGRATED_DELIVERY_AUTHENTICATION_STATES.AUTHENTICATED) {
+    const unreadable = TERMINAL_UNREADABLE_DELIVERY_REASONS[authentication.reason] ?? null;
     integratedDeliveryAuthenticationFailure(
-      "producer_receipt_delivery_mismatch",
-      "the live delivery identity is not the exact producer-integrated reviewed delivery"
+      authentication.state === INTEGRATED_DELIVERY_AUTHENTICATION_STATES.INDETERMINATE &&
+        unreadable !== null ? unreadable : "producer_receipt_delivery_mismatch",
+      "the live delivery identity is not the exact producer-integrated reviewed delivery",
+      { authentication_reason: authentication.reason,
+        ...(authentication.failure === undefined || authentication.failure === null
+          ? {} : { authentication_failure: authentication.failure }) }
     );
   }
-  const reachable = runGit({
-    repo: mainRepo,
-    args: ["merge-base", "--is-ancestor", transition.to, currentW]
+
+  const inclusion = observeLiteralInclusionAboveFork({
+    runGit,
+    mainRepo,
+    tipSha: currentW,
+    forkSha: null,
+    targetSha: transition.to
   });
-  if (!reachable || reachable.ok !== true) {
+  if (inclusion.state !== LITERAL_INCLUSION_STATES.INCLUDED) {
     integratedDeliveryAuthenticationFailure(
       "integrated_delivery_not_reachable_from_current_w",
       "the canonical delivery field cannot prove that the producer result is in the exact current WK tip",
-      { integrated_delivery_sha: transition.to, current_w: currentW }
+      {
+        integrated_delivery_sha: transition.to,
+        current_w: currentW,
+        inclusion_state: inclusion.state,
+        inclusion_reason: inclusion.reason
+      }
     );
   }
   const reobservedW = exactGit(
@@ -310,8 +214,8 @@ function mintIntegrationAuthenticatedIntegratedDeliveryProof({
     change_kind: transition.change_kind,
     historical_value: transition.from,
     integrated_delivery_sha: transition.to,
-    reviewed_delivery_sha: reviewed.oid,
-    reviewed_delivery_base_sha: reviewed.parent,
+    reviewed_delivery_sha: authentication.delivery_sha,
+    reviewed_delivery_base_sha: authentication.base_sha,
     wk_ref: expectedWkRef,
     current_w: currentW,
     failure_consequence:

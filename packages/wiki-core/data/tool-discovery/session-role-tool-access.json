@@ -14,13 +14,12 @@
   "role_descriptions": {
     "orchestrator": "Coordinator surface: all CONTENT reads plus the process/dispatch-measurement reads (validate_dispatch, coordination_preflight, initiative_status, integration_status, agent_run_status, node_engine_admission_runtime_diagnostic), the authenticated workspace_verify_proof route, and the action/authority tools (dispatch, work_record_* setters, create_record, generate_and_lint/lint/docs hygiene, review-recording). Not commit, not submit_for_review.",
     "reviewer": "Findings-only reviewer: broad CONTENT read/inspect/navigation surface, launcher-bound workspace_verify_proof, plus workspace_submit_for_review. No process-measurement, mutation, or authority tools.",
-    "worker": "Managed implementation worker: the closed-input commit primitive plus launcher-bound workspace_verify_proof; their unit and worktree are bound from the dispatched run rather than caller input and the verifier result is advisory (the worker still reads via its sandboxed filesystem, not wiki-mcp); trusted integration freezes the later review target.",
+    "worker": "Managed implementation worker: the closed-input commit primitive, launcher-bound workspace_verify_proof, an assignment-only workspace_read_page ({assignment:true} plus member continuations) that serves the launcher-published frozen assignment and refuses every ordinary page, entry, spill or search selector, workspace_read_mcp_content_reference to follow the content references its responses return (opaque server-minted ref_ids resolved in the serving process's configured response state directory, which may be shared and enforces no per-session ownership; it grants no page, entry, record, search or path read), and workspace_controlled_contract_obligation_coverage_query limited to its assigned unit's controlled-contract closure; their unit and worktree are bound from the dispatched run rather than caller input and the verifier result is advisory (apart from these routes the worker reads via its sandboxed filesystem, and private controlled-contract carriers stay excluded from it); trusted integration freezes the later review target.",
     "redteam": "Findings-only redteam: same broad CONTENT read surface as reviewer plus workspace_submit_for_review. No process-measurement, mutation, or authority tools.",
     "operator": "Every policy-granted operator route, including cache writers and operator observability; launcher-managed role-bound capabilities may exclude operator."
   },
   "dispositions": {
     "allocate_id": ["operator_recovery_only"],
-    "assign_work_record_to_initiative": ["direct"],
     "bootstrap_repo": ["operator_recovery_only"],
     "build_search_index": ["operator_recovery_only"],
     "commit": ["direct"],
@@ -36,6 +35,7 @@
     "workspace_agent_dispatch": ["direct"],
     "workspace_agent_dispatch_identity_contract": ["direct"],
     "workspace_agent_run_status": ["direct"],
+    "workspace_assign_work_record_to_initiative": ["direct"],
     "workspace_authoring_ergonomics_report": ["direct"],
     "workspace_authoring_ergonomics_report_query": ["direct"],
     "workspace_autofix_docs_backlinks": ["direct"],
@@ -106,10 +106,6 @@
     "allocate_id": [
       "operator"
     ],
-    "assign_work_record_to_initiative": [
-      "orchestrator",
-      "operator"
-    ],
     "bootstrap_repo": [
       "operator"
     ],
@@ -161,6 +157,10 @@
       "operator"
     ],
     "workspace_agent_run_status": [
+      "orchestrator",
+      "operator"
+    ],
+    "workspace_assign_work_record_to_initiative": [
       "orchestrator",
       "operator"
     ],
@@ -234,6 +234,7 @@
     "workspace_controlled_contract_obligation_coverage_query": [
       "orchestrator",
       "reviewer",
+      "worker",
       "redteam",
       "operator"
     ],
@@ -336,11 +337,13 @@
     "workspace_read_mcp_content_reference": [
       "orchestrator",
       "reviewer",
+      "worker",
       "redteam",
       "operator"
     ],
     "workspace_read_page": [
       "orchestrator",
+      "worker",
       "reviewer",
       "redteam",
       "operator"

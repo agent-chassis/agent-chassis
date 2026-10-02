@@ -11,12 +11,23 @@ import {
   prepareSidecarIncrementalDelta,
   SIDECAR_EXTRACTION_BASIS
 } from "./sidecar-incremental.mjs";
-import { filterSidecarSourcePaths, isSidecarScipProviderInputPath } from "./sidecar-paths.mjs";
+import { filterSidecarSourcePaths } from "./sidecar-paths.mjs";
+import { compareSidecarProviderInputRecords } from "./sidecar-scip-project-inputs.mjs";
+import { SIDECAR_RUST_CRATE_SET_CANDIDATE, sidecarRustCrates } from "./sidecar-graph-rust-imports.mjs";
+import { isSidecarRustManifest, SIDECAR_RUST_INDEXER } from "./sidecar-scip-rust-projects.mjs";
 import {
+  isSidecarGoProjectFile,
+  observeSidecarProviderRecordAgain,
+  planSidecarProviderProjects,
+  sidecarGoModules
+} from "./sidecar-scip-projects.mjs";
+import {
+  describeSidecarRustProjectsAtCommit,
   discoverSidecarScipProjects,
   runScipProjectsFromCommittedSnapshot,
   SCIP_STATUS_EXTRACTED,
   SCIP_STATUS_NOT_APPLICABLE,
+  SidecarScipProvisionError,
   snapshotScipOptions
 } from "./sidecar-scip-provision.mjs";
 import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
@@ -31,6 +42,8 @@ import { publishSidecarGraphCandidate } from "./sidecar-store.mjs";
 import { publishPreparedDeltaInDatabase } from "./sidecar-store-publication.mjs";
 import { binaryCompare } from "./sidecar-store-queries.mjs";
 import { SIDECAR_STORE_SCHEMA_VERSION } from "./sidecar-store-schema.mjs";
+
+export const SCIP_STATUS_PROVIDERS_INACTIVE = "scip_providers_inactive";
 
 const ZERO_METRICS = Object.freeze({
   parsed_files: 0, affected_units: 0, file_upserts: 0, file_deletes: 0,
@@ -65,6 +78,7 @@ async function collectTrackedSources(repoRoot, commit) {
       path: value, mode, blob_oid, input_identity: `${blob_oid}:${mode}`
     }));
   return {
+    tracked: tracked.filter((entry) => entry.type === "blob"),
     tracked_paths: tracked.map(({ path: value }) => value),
     tracked_count: tracked.length,
     files,
@@ -90,6 +104,22 @@ async function readPreparedSources(repoRoot, files, selectedPaths) {
     return { path: file.path, content: entry.bytes.toString("utf8"),
       input_identity: file.input_identity };
   });
+}
+
+async function readProjectFiles(repoRoot, tracked) {
+  const selected = tracked.filter(({ path: value }) => isSidecarGoProjectFile(value) ||
+    isSidecarRustManifest(value));
+  const bytes = await readCommittedBlobBytes({ repoRoot,
+    objectIds: [...new Set(selected.map(({ blob_oid }) => blob_oid))] });
+  return new Map(selected.map((file) => {
+    const entry = bytes.get(file.blob_oid.toLowerCase());
+    if (entry?.state !== "available") {
+      const error = new Error(`committed project file is unavailable: ${file.path}`);
+      error.code = entry?.reason ?? "committed_blob_unavailable";
+      throw error;
+    }
+    return [file.path, entry.bytes.toString("utf8")];
+  }));
 }
 
 function symbolValue(nodeId) {
@@ -150,27 +180,55 @@ function providerCoverageEntry(project, layer, inputCommit) {
     covered_document_count: coverage.covered_document_count ?? 0,
     occurrence_count: coverage.occurrence_count ?? 0,
     symbol_count: coverage.symbol_count ?? 0,
+
+    uncovered_documents: coverage.uncovered_documents ?? [],
+    unattributed_reference_count: coverage.unattributed_reference_count ?? 0,
     call_graph_available: coverage.call_graph_available === true
   };
 }
 
-function providerCoverage(entries) {
+function inactiveCoverageEntry({ project, record }) {
   return {
-    state: "complete",
-    projects: entries,
-    scip_available: entries.length > 0,
-    graph_available: entries.some(({ symbol_count }) => symbol_count > 0),
-    call_graph_available: entries.some(({ call_graph_available }) => call_graph_available),
-    status_reason: entries.length > 0 ? SCIP_STATUS_EXTRACTED : SCIP_STATUS_NOT_APPLICABLE
+    key: project.key, indexer: project.indexer, project: project.project,
+    reason: "provider_not_installed",
+    missing_executables: record.tool.filter(({ status }) => status === "absent").map(({ role }) => role),
+
+    ...(project.membership ? { membership: project.membership } : {})
   };
 }
 
-function providerInputIdentity(head, generatorIdentity, entries) {
+function providerCoverage(entries, inactive) {
+  return {
+    state: "complete",
+    projects: entries,
+    inactive_projects: inactive,
+    scip_available: entries.length > 0,
+    graph_available: entries.some(({ symbol_count }) => symbol_count > 0),
+    call_graph_available: entries.some(({ call_graph_available }) => call_graph_available),
+    status_reason: entries.length > 0 ? SCIP_STATUS_EXTRACTED
+      : inactive.length > 0 ? SCIP_STATUS_PROVIDERS_INACTIVE : SCIP_STATUS_NOT_APPLICABLE
+  };
+}
+
+function providerInputIdentity(head, generatorIdentity, entries, records) {
   return {
     index_head: head,
     generator_identity: generatorIdentity,
-    projects: Object.fromEntries(entries.map(({ key, input_commit }) => [key, input_commit]))
+    projects: Object.fromEntries(entries.map(({ key, input_commit }) => [key, input_commit])),
+    records
   };
+}
+
+function recheckCapturedInputs(records) {
+  for (const [key, record] of Object.entries(records)) {
+    const comparison = compareSidecarProviderInputRecords(record,
+      observeSidecarProviderRecordAgain(record, process.env));
+    if (!comparison.equal) {
+      throw new SidecarScipProvisionError(
+        `SCIP provider inputs of ${key} changed during preparation: ${comparison.changed.join(", ")}`,
+        { code: "scip_provider_inputs_changed" });
+    }
+  }
 }
 
 export function createSidecarBuildEnvelope({ cacheDir, git, publication, action, metrics }) {
@@ -230,11 +288,27 @@ export async function updateSidecarIndex({
       .generator_identity;
     return generator;
   };
+  const sources = await collectTrackedSources(repoRoot, head);
+  const projectFiles = await readProjectFiles(repoRoot, sources.tracked);
+  const goFiles = new Map([...projectFiles].filter(([value]) => isSidecarGoProjectFile(value)));
+  const rustProjects = await describeSidecarRustProjectsAtCommit({ sourceRepoRoot: repoRoot, committedHead: head,
+    trackedPaths: sources.tracked_paths, deadlineMs: providerDeadlineMs });
+  throwIfSidecarPreparationCancelled(signal);
+  const projects = discoverSidecarScipProjects(sources.tracked_paths, { goFiles, rustProjects });
+
+  const rustMappings = Object.assign({}, ...rustProjects.map(({ dependency_mapping }) => dependency_mapping ?? {}));
+  const rustCrates = sidecarRustCrates(new Map([...projectFiles].filter(([value]) => isSidecarRustManifest(value))))
+    .map((entry) => ({ ...entry, dependencies: Object.hasOwn(rustMappings, entry.dir) ? rustMappings[entry.dir] : null }));
+  const priorRecords = publication?.provider_input_identity?.records ?? {};
+  const plan = planSidecarProviderProjects({ projects, entries: sources.tracked, head, env: process.env,
+    priorRecords });
   const classification = await classifySidecarPreparation({
     publication, requestedCommit: head, mode, generatorIdentity,
     compare: () => compareSidecarCommittedTrees({
       repoRoot, fromCommit: publication.repository_commit, toCommit: head
-    })
+    }),
+    providerInputsChanged: async () => plan.some(({ current }) => !current) ||
+      Object.keys(priorRecords).some((key) => !projects.some((project) => project.key === key))
   });
   if (classification.action === "reuse") {
     return { action: "coalesced", publication, metrics: ZERO_METRICS };
@@ -242,51 +316,67 @@ export async function updateSidecarIndex({
   throwIfSidecarPreparationCancelled(signal);
   const clean = classification.action === "clean";
   const records = classification.comparison?.records ?? [];
-  const sources = await collectTrackedSources(repoRoot, head);
+
+  const mappingIdentity = (byKey) => JSON.stringify(Object.keys(byKey).sort()
+    .filter((key) => byKey[key]?.provider === SIDECAR_RUST_INDEXER)
+    .map((key) => [key, byKey[key].settings?.dependency_mapping ?? null]));
+  const mappingChanged = mappingIdentity(priorRecords) !==
+    mappingIdentity(Object.fromEntries(plan.map(({ project, record }) => [project.key, record])));
   const generatorValue = publication?.repository_commit === head
     ? publication.generator_identity
     : await generatorIdentity();
   const baseRecords = clean ? [] : records.filter((change) =>
     recordPaths(change).some(isSidecarBaseInputPath));
 
-  const projects = discoverSidecarScipProjects(sources.tracked_paths);
+  const failed = plan.find(({ activation }) => activation === "failed");
+  if (failed) {
+    throw new SidecarScipProvisionError(`required SCIP provider ${failed.project.key} failed: ${
+      failed.failure.message}`, { code: failed.failure.code });
+  }
   const priorCoverage = !clean && publication?.provider_coverage?.state === "complete"
     ? publication.provider_coverage : null;
   const priorProjects = new Map((priorCoverage?.projects ?? []).map((entry) => [entry.key, entry]));
+  const active = plan.filter(({ activation }) => activation === "active");
+  const inactive = plan.filter(({ activation }) => activation === "inactive");
   const reused = [];
   const rerun = [];
-  for (const project of projects) {
-    const prior = priorProjects.get(project.key);
-    const changed = records.some((change) => recordPaths(change).some((value) =>
-      isSidecarScipProviderInputPath(project.indexer, value)));
-    if (prior && !changed) reused.push(prior);
-    else rerun.push(project);
+  for (const item of active) {
+    const prior = priorProjects.get(item.project.key);
+    if (prior && item.unchanged) reused.push(item);
+    else rerun.push(item);
   }
   const removedKeys = [...priorProjects.keys()].filter((key) =>
-    !projects.some((project) => project.key === key));
+    !active.some(({ project }) => project.key === key));
 
   if ((clean || baseRecords.length > 0) && typeof buildHooks?.beforeGraphExtraction === "function") {
     await buildHooks.beforeGraphExtraction();
   }
   throwIfSidecarPreparationCancelled(signal);
   const layers = await runScipProjectsFromCommittedSnapshot({
-    sourceRepoRoot: repoRoot, committedHead: head, projects: rerun,
+    sourceRepoRoot: repoRoot, committedHead: head,
+    projects: rerun.map(({ project, record }) => ({ ...project, record })),
     baseFileNodeIds: new Set(sources.files.map(({ path: value }) => `file:${value}`)),
     deadlineMs: providerDeadlineMs
   });
   throwIfSidecarPreparationCancelled(signal);
   const entries = [
-    ...reused,
-    ...rerun.map((project) => providerCoverageEntry(project, layers.get(project.key), head))
+    ...reused.map(({ project }) => priorProjects.get(project.key)),
+    ...rerun.map(({ project }) => providerCoverageEntry(project, layers.get(project.key), head))
   ].sort((left, right) => binaryCompare(left.key, right.key));
+  const inputRecords = Object.fromEntries([
+    ...reused.map(({ project, record }) => [project.key, record]),
+    ...rerun.map(({ project }) => [project.key, layers.get(project.key).input_record]),
+    ...inactive.map(({ project, record }) => [project.key, record])
+  ].sort(([left], [right]) => binaryCompare(left, right)));
+  recheckCapturedInputs(inputRecords);
 
   let providerData = null;
   if (rerun.length > 0 || removedKeys.length > 0 || priorCoverage === null) {
-    const rows = rerun.map((project) => providerRows(project, layers.get(project.key)));
+    const rows = rerun.map(({ project }) => providerRows(project, layers.get(project.key)));
     providerData = {
 
-      ...(priorCoverage ? { provider_keys: [...rerun.map(({ key }) => key), ...removedKeys] } : {}),
-      providers: rerun.map((project) => ({
+      ...(priorCoverage ? { provider_keys: [...rerun.map(({ project }) => project.key), ...removedKeys] } : {}),
+      providers: rerun.map(({ project }) => ({
         provider_id: project.key, descriptor: layers.get(project.key).provider_descriptor,
         input_identity: head, coverage: entries.find(({ key }) => key === project.key)
       })),
@@ -303,8 +393,8 @@ export async function updateSidecarIndex({
       source_count: sources.source_count, rejected_source_count: sources.rejected.length,
       regular_file_count: sources.files.filter(({ mode }) => mode !== "120000").length,
       symlink_count: sources.symlink_count, gitlink_count: sources.gitlink_count },
-    provider_input_identity: providerInputIdentity(head, generatorValue, entries),
-    provider_coverage: providerCoverage(entries),
+    provider_input_identity: providerInputIdentity(head, generatorValue, entries, inputRecords),
+    provider_coverage: providerCoverage(entries, inactive.map(inactiveCoverageEntry)),
     published_at: new Date().toISOString()
   };
   const selected = clean
@@ -313,16 +403,18 @@ export async function updateSidecarIndex({
   const preparedSources = await readPreparedSources(repoRoot, sources.files, selected);
   throwIfSidecarPreparationCancelled(signal);
 
-  let plan = null;
+  let prepared = null;
   let published;
   try {
     published = await publishSidecarGraphCandidate({
       paths, lock, signal, basis: clean || publication === null ? "empty" : "published",
       apply: async (graph) => {
-        plan = await prepareSidecarIncrementalDelta({ graph, target, clean,
-          sources: preparedSources, diffRecords: baseRecords, providerData });
+        prepared = await prepareSidecarIncrementalDelta({ graph, target, clean,
+          sources: preparedSources, diffRecords: baseRecords, providerData,
+          goModules: sidecarGoModules(goFiles), rustCrates,
+          candidateKeys: mappingChanged ? [SIDECAR_RUST_CRATE_SET_CANDIDATE] : [] });
         throwIfSidecarPreparationCancelled(signal);
-        return publishPreparedDeltaInDatabase(graph, plan.delta);
+        return publishPreparedDeltaInDatabase(graph, prepared.delta);
       }
     });
   } catch (error) {
@@ -336,7 +428,7 @@ export async function updateSidecarIndex({
   return {
     action: clean ? (publication ? "rebuild" : "build") : classification.action,
     publication: published,
-    metrics: { ...plan.metrics, provider_projects_run: rerun.length,
+    metrics: { ...prepared.metrics, provider_projects_run: rerun.length,
       provider_projects_reused: reused.length }
   };
 }

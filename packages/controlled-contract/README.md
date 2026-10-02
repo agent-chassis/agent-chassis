@@ -730,6 +730,38 @@ mutable storage. Caller input, prompt text, `HOME`, `XDG_*`, `TMPDIR`, `PATH`, a
 environment-selected policy take no part in root selection, and caches at the
 retired package-installation location are neither read nor migrated.
 
+Outside any writing repository there is no cache root. Declaring a group still
+succeeds, so importing the package, `--help` and repository-independent
+description work from any directory; each declared validator refuses, when it is
+called, with `validator_cache_root_unresolved`. Nothing is read, compiled or
+published, and there is no alternate root.
+
+The proof-intent metadata that the package exports as constants
+(`PROOF_INTENT_ARTIFACT`, `PROOF_INTENT_DIGESTS`,
+`PROOF_INTENT_DISCOVERY_CATALOG`, its digest and `PROOF_VERIFICATION_CAPABILITIES`)
+is validated when the package is built, not at import. `npm run
+build:intent-metadata` derives it through the same validators and writes
+`proof-intents/metadata.v1.json`, which records the sha256 of every package input
+it was derived from. Import reads that file and checks those bindings without
+validating or compiling; a changed input refuses with
+`proof_intent_metadata_stale` and an absent file with
+`proof_intent_metadata_missing`, each naming the rebuild command. Inside a
+writing repository the import also derives the metadata itself and refuses a
+packaged file that disagrees.
+
+Read-only catalog search (`discoverProofIntents`) is repository-independent. The
+metadata also carries the admitted discovery population, and every discovery
+result is checked by one package-built validator group: the same command
+generates it through the cache's own compiler and writes it to
+`validators/proof-intent-discovery-result/`, and `packagedCompiledValidators`
+loads it through the cache's verified load path -- toolchain and schema identity
+and code digest -- inside and outside Git. It never compiles or writes at load;
+a missing or stale artifact refuses with `validator_packaged_artifact_unavailable`
+and a corrupt one with the verifier's own code. This is the only package-built
+group, not a second cache. Pack selection and authoring projections read the
+admitted pack meanings, which only the in-repository derivation loads, so they
+still need the repository-bound cache.
+
 Cache identity is split in two, and a group is reused only when both halves
 match. *Toolchain identity* is shared by every group: the Ajv package and version
 and its runtime helper bytes, the effective `strict`, `allErrors`, and

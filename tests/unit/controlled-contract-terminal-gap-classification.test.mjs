@@ -6,7 +6,10 @@ import {
   CONTROLLED_CONTRACT_TERMINAL_GAP_CLASSES,
   classifyControlledContractTerminalGapCode,
   classifyControlledContractTerminalGaps,
-  projectControlledContractTerminalGapDetails
+  projectControlledContractTerminalGapDetails,
+  semanticCauseCorrection,
+  semanticCauseMeaning,
+  semanticCauseSubject
 } from
   "../../packages/wiki-core/src/operations/controlled-contract/terminal-gap-classification.mjs";
 
@@ -309,4 +312,46 @@ test("bounded cause previews have lossless source-bound detail for every group a
     assert.equal(group.recovery.actor_recovery, "none");
     assert.equal(group.occurrences[0].evidence.competing_values.length, 2);
   }
+});
+
+test("a semantic cause publishes its meaning, typed subjects and correction route from its own owner", () => {
+  const subject = { wk_id: "WK-2667", selected_unit: null, focus: null,
+    generation_id: "generation-one", manifest_digest: `sha256:${"b".repeat(64)}` };
+  const inspected = { ...row("cross_owner_consistency:0", {
+    reasons: ["cause_0_missing"], nonActionable: "no_single_incumbent_semantic_transition" }),
+  semantic_identity: { obligation_id: "OBL-0", claim_id: "claim-0" },
+  evidence: { missing_fields: ["field_0"], competing_values: ["left", "right"],
+    dossier: { nested: { owner_details: "retained by the owner" } } },
+  diagnostic_provenance: { owner: "deriveControlledContractDesignWorkbench" },
+  repair_authority: { status: "unavailable", semantic_owner: null } };
+  const authored = { ...row("authoring_stage:0", { reasons: ["proof_authoring_required"],
+    forms: ["advance_authoring"] }),
+  semantic_identity: { stage: "proof_authoring_required" },
+  diagnostic_provenance: { owner: "deriveControlledContractAuthoringState" },
+  repair_authority: { status: "authenticated", semantic_owner: "proof_authoring" },
+  recovery_guidance: { read_tool: "workspace_controlled_contract_obligation_coverage_query",
+    write_tool: "workspace_controlled_contract_obligation_coverage_upsert",
+    validation_tool: "workspace_validate_proof" } };
+  const details = projectControlledContractTerminalGapDetails({
+    workbench: { subject, actionable_rows: [authored], non_actionable_rows: [inspected] } });
+  const byOwner = owner => details.groups.find(group => group.diagnostic_owner === owner);
+  const inspection = byOwner("deriveControlledContractDesignWorkbench");
+  assert.deepEqual(semanticCauseMeaning(inspection), { owner: "deriveControlledContractDesignWorkbench",
+    gap_class: inspection.gap_class, reason_codes: ["cause_0_missing"], recovery: "inspection_only",
+    reason: inspection.recovery.explanation });
+  assert.deepEqual(semanticCauseSubject(inspection.occurrences[0]), {
+    obligation_id: "OBL-0", row_id: "cross_owner_consistency:0",
+    semantic_identity: { obligation_id: "OBL-0", claim_id: "claim-0" },
+    non_actionable_reason: "no_single_incumbent_semantic_transition",
+    evidence: { missing_fields: ["field_0"], competing_values: ["left", "right"] } },
+  "typed evidence is published; nested dossiers stay with the owner");
+  assert.equal(semanticCauseCorrection(inspection), null);
+  const correction = byOwner("deriveControlledContractAuthoringState");
+  assert.equal(semanticCauseMeaning(correction).recovery, "authored_correction_available");
+  assert.deepEqual(semanticCauseCorrection(correction), { semantic_owner: "proof_authoring",
+    read_tool: "workspace_controlled_contract_obligation_coverage_query",
+    write_tool: "workspace_controlled_contract_obligation_coverage_upsert",
+    validation_tool: "workspace_validate_proof" });
+  assert.equal(semanticCauseSubject(correction.occurrences[0]).obligation_id, null,
+    "a population-level cause names no obligation");
 });

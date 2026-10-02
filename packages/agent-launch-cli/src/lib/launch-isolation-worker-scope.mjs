@@ -1,11 +1,12 @@
 import path from "node:path";
-import { lstatSync, mkdirSync, realpathSync, rmdirSync } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, realpathSync, rmdirSync } from "node:fs";
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   fail,
   isNonEmptyString,
   isWithinRepo
 } from "./launch-isolation-errors.mjs";
+import { workerScopePreparationDefect } from "./worker-scope-preparation.mjs";
 
 function relativeAuthorityPathToAbsolute(entry, label, repoReal) {
   if (!isNonEmptyString(entry) || path.isAbsolute(entry) || path.normalize(entry) !== entry ||
@@ -160,6 +161,10 @@ function assertIsolationWorkerScopeAuthority(authority) {
       "worker scope authority readable_scope mismatches frozen R"
     );
   }
+  const preparationDefect = workerScopePreparationDefect(authority);
+  if (preparationDefect !== null) {
+    fail(BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID, preparationDefect);
+  }
   return authority;
 }
 
@@ -178,23 +183,92 @@ function sameDirectoryIdentity(absolute, identity) {
     String(stat.dev) === identity.dev && String(stat.ino) === identity.ino;
 }
 
+const RMDIR_NOT_ELIGIBLE = new Set(["ENOENT", "ENOTEMPTY", "EEXIST", "ENOTDIR"]);
+
 export function rollbackPreparedWorkerDirectories(entries) {
   const removed = [];
   const preserved = [];
+  const failed = [];
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
+    if (!sameDirectoryIdentity(entry.real, entry.identity)) {
+      preserved.push(entry.real);
+      continue;
+    }
     try {
-      if (!sameDirectoryIdentity(entry.real, entry.identity)) {
-        preserved.push(entry.real);
-        continue;
-      }
       rmdirSync(entry.real);
       removed.push(entry.real);
-    } catch {
-      preserved.push(entry.real);
+    } catch (error) {
+      if (RMDIR_NOT_ELIGIBLE.has(error?.code)) preserved.push(entry.real);
+      else failed.push(Object.freeze({ real: entry.real, kind: "directory", errno: error?.code ?? null }));
     }
   }
-  return Object.freeze({ removed: Object.freeze(removed), preserved: Object.freeze(preserved) });
+  return Object.freeze({
+    removed: Object.freeze(removed),
+    preserved: Object.freeze(preserved),
+    failed: Object.freeze(failed)
+  });
+}
+
+function stillReleasableDirectory(entry) {
+  try {
+    const stat = lstatSync(entry.real);
+    return stat.isDirectory() && !stat.isSymbolicLink() &&
+      String(stat.dev) === entry.identity.dev && String(stat.ino) === entry.identity.ino &&
+      readdirSync(entry.real).length === 0;
+  } catch {
+    return false;
+  }
+}
+
+export function retainedPrecreatedResourceFailure({ directories = [], outcome = null, repo = null } = {}) {
+  const where = (real) => typeof repo === "string" ? path.relative(repo, real) : "<host-path>";
+  const files = (outcome?.failed ?? []).filter((entry) => entry.kind !== "directory")
+    .map((entry) => Object.freeze({
+      code: "attempt_owned_file_retained",
+      message: `retained ${where(entry.real)}${entry.errno ? ` (${entry.errno})` : ""}`
+    }));
+  const retained = directories.filter(stillReleasableDirectory).map((entry) => Object.freeze({
+    code: "attempt_owned_directory_retained",
+    message: `retained ${where(entry.real)}`
+  }));
+  const failures = [...files, ...retained];
+  if (failures.length === 0) return null;
+  const directoriesOnly = files.length === 0;
+  const error = new Error(directoriesOnly
+    ? `${retained.length} attempt-owned empty directories could not be removed`
+    : `${failures.length} attempt-owned precreated resources could not be removed`);
+  error.code = directoriesOnly ? "attempt_owned_directory_retained" : "attempt_owned_resource_retained";
+  error.detail = Object.freeze({ failures: Object.freeze(failures) });
+  return error;
+}
+
+const CLEANUP_FAILURE_LIMIT = 8;
+
+export function withPreparationRollback(error, outcome, { directories = [], repo = null } = {}) {
+  const failure = retainedPrecreatedResourceFailure({ directories, outcome, repo });
+  if (failure === null || error === null || typeof error !== "object") return error;
+  const failures = failure.detail.failures;
+  const evidence = Object.freeze({
+    reason: "writable_file_precreation_cleanup_failed",
+    code: failure.code,
+    message: failure.message,
+    failures: Object.freeze(failures.slice(0, CLEANUP_FAILURE_LIMIT)),
+    failure_count: failures.length
+  });
+  const detail = error.detail;
+  error.detail = Object.freeze({
+    ...(detail !== null && typeof detail === "object" && !Array.isArray(detail)
+      ? detail
+      : detail === undefined ? {} : { primary_detail: detail }),
+    precreation_cleanup_failure: evidence
+  });
+  return error;
+}
+
+export function releasePreparedDirectoriesOnRefusal(error, entries, repo) {
+  return withPreparationRollback(error, rollbackPreparedWorkerDirectories(entries),
+    { directories: entries, repo });
 }
 
 export function createMissingDirectoryLeaf(absolute, label, repoReal, scopeMember) {
@@ -263,8 +337,12 @@ export function createMissingDirectoryLeaf(absolute, label, repoReal, scopeMembe
   return Object.freeze({ real: absolute, kind: "directory", identity: directoryIdentity(st) });
 }
 
-export function prepareSparseWorkerWritableDirectories({ authority = null, repo } = {}) {
-  const none = Object.freeze({ entries: Object.freeze([]), rollback: () => rollbackPreparedWorkerDirectories([]) });
+export function prepareWorkerStructuralParents({ authority = null, repo } = {}) {
+  const none = Object.freeze({
+    entries: Object.freeze([]),
+    repo: null,
+    rollback: () => rollbackPreparedWorkerDirectories([])
+  });
   if (authority === null || authority === undefined) return none;
   const frozenAuthority = assertIsolationWorkerScopeAuthority(authority);
   if (!isNonEmptyString(repo) || !path.isAbsolute(repo)) {
@@ -276,30 +354,24 @@ export function prepareSparseWorkerWritableDirectories({ authority = null, repo 
   } catch (err) {
     fail(BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.REPO_INVALID, `repo realpath failed: ${repo}`, { errno: err?.code ?? null });
   }
-  const exclusions = frozenAuthority.scope_exclusions ?? [];
+  const files = frozenAuthority.resolved_scope.writable.files;
   const created = [];
   try {
-    for (const [index, entry] of frozenAuthority.resolved_scope.writable.directories.entries()) {
-      const label = `workerScopeAuthority.resolved_scope.writable.directories[${index}]`;
-      if (exclusions.some((root) => entry === root || entry.startsWith(`${root}/`))) {
-        fail(
-          BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
-          `${label} lies inside a launcher-excluded family: ${entry}`,
-          { field: "writable.directories", index, path: entry }
-        );
-      }
+    for (const [position, entry] of frozenAuthority.scope_preparation.directories.entries()) {
+      const label = `workerScopeAuthority.scope_preparation.directories[${position}]`;
+
+      const index = files.findIndex((file) => file.startsWith(`${entry}/`));
       const prepared = createMissingDirectoryLeaf(
         relativeAuthorityPathToAbsolute(entry, label, repoReal), label, repoReal,
-        Object.freeze({ access: "writable", member_kind: "directories", index, path: entry })
+        Object.freeze({ access: "writable", member_kind: "files", index, path: files[index] })
       );
       if (prepared !== null) created.push(prepared);
     }
   } catch (error) {
-    rollbackPreparedWorkerDirectories(created);
-    throw error;
+    throw releasePreparedDirectoriesOnRefusal(error, created, repoReal);
   }
   const entries = Object.freeze(created);
-  return Object.freeze({ entries, rollback: () => rollbackPreparedWorkerDirectories(entries) });
+  return Object.freeze({ entries, repo: repoReal, rollback: () => rollbackPreparedWorkerDirectories(entries) });
 }
 
 export function buildSparseWorkerNamespace({

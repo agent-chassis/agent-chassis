@@ -1,9 +1,20 @@
-import { loadProofDiscoveryPopulation, discoveryLimitation } from "./proof-discovery-scope.mjs";
-import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 
-import { loadAdmittedProofPackMeaning } from "./admitted-proof-packs.mjs";
+import { discoveryLimitation, discoverySourceIdentity } from "./proof-discovery-scope.mjs";
 
-import { compiledValidators } from "./compiled-validator-cache.mjs";
+import { compiledValidatorCacheAvailability, packagedCompiledValidators }
+  from "./compiled-validator-cache.mjs";
+import {
+  PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR,
+  ProofIntentDiscoveryError,
+  assertPackagedProofIntentMetadata,
+  deriveProofIntentDiscovery,
+  packagedDiscovery,
+  normalizeProofIntentDiscoveryCatalog,
+  normalizeSearchText,
+  readPackagedProofIntentMetadata,
+  validateProofIntentCatalog
+} from "./proof-intent-metadata.mjs";
 import { TEST_PROOF_PROVIDER_AUTHORING_FACTS } from "./test-proof-provider-registry.mjs";
 import {
   canonicalDigest,
@@ -13,32 +24,10 @@ import {
   deepFreeze
 } from "./deterministic-projection-primitives.mjs";
 
-const packageRoot = new URL("../", import.meta.url);
-const [rawCatalog, catalogSchema, discoverySchema] = await Promise.all([
-  readJson(new URL("proof-intents/catalog.json", packageRoot)),
-  readJson(new URL(
-    "schema/controlled-contract-proof-intent-catalog.v2.schema.json",
-    packageRoot
-  )),
-  readJson(new URL(
-    "schema/controlled-contract-proof-intent-discovery.v1.schema.json",
-    packageRoot
-  ))
-]);
-
 const MAX_DISCOVERY_QUERY_BYTES = 1_024;
 
 const MAX_DISCOVERY_RESULT_BYTES = null;
 const MAX_DISCOVERY_RETURNED_INTENTS = 256;
-const {
-  validateProofIntentCatalog,
-  validateProofIntentDiscoveryResult
-} = await compiledValidators("controlled-contract.proof-intent-discovery.v1", {
-  validators: {
-    validateProofIntentCatalog: catalogSchema,
-    validateProofIntentDiscoveryResult: discoverySchema
-  }
-});
 
 const PROOF_INTENT_DISCOVERY_QUERY_POLICY = deepFreeze({
   measurement: "utf8_bytes",
@@ -46,32 +35,8 @@ const PROOF_INTENT_DISCOVERY_QUERY_POLICY = deepFreeze({
   accepted_form: `nonempty query text of at most ${MAX_DISCOVERY_QUERY_BYTES} UTF-8 bytes`
 });
 
-class ProofIntentDiscoveryError extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
-    this.name = "ProofIntentDiscoveryError";
-    this.code = code;
-    this.details = structuredClone(details);
-  }
-}
-
-async function readJson(url) {
-  return JSON.parse(await readFile(url, "utf8"));
-}
-
-function packKey({ profile_id: profileId, profile_version: profileVersion }) {
-  return `${profileId}@${profileVersion}`;
-}
-
 function sortedUnique(values) {
   return [...new Set(values)].sort(compareCodeUnits);
-}
-
-function normalizeSearchText(value) {
-  return value.normalize("NFKC").toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim()
-    .replace(/\s+/gu, " ");
 }
 
 function truncateUtf8(value, maximumBytes) {
@@ -118,89 +83,28 @@ function isProofIntentDiscoveryQueryWithinLimit(query) {
     Buffer.byteLength(query, "utf8") <= MAX_DISCOVERY_QUERY_BYTES;
 }
 
-function normalizeProofIntentDiscoveryCatalog(value) {
-  const normalized = structuredClone(value);
-  normalized.intents = normalized.intents.map((intent) => ({
-    ...intent,
-    discovery_terms: sortedUnique(intent.discovery_terms),
-    capable_packs: [...intent.capable_packs].sort((left, right) =>
-      compareCodeUnits(packKey(left), packKey(right))
-    ),
-    compatibility: canonicalValue(Object.fromEntries(
-      Object.entries(intent.compatibility).map(([key, values]) => [
-        key, sortedUnique(values)
-      ])
-    )),
-    required_evaluation_inputs: sortedUnique(intent.required_evaluation_inputs),
-    distinctions: [...intent.distinctions].sort((left, right) =>
-      compareCodeUnits(left.from_intent_id, right.from_intent_id)
-    )
-  })).sort((left, right) => compareCodeUnits(left.intent_id, right.intent_id));
-  return canonicalValue(normalized);
+const packagedMetadata = readPackagedProofIntentMetadata();
+const PROOF_INTENT_DISCOVERY_CATALOG = deepFreeze(structuredClone(packagedMetadata.discovery.catalog));
+const PROOF_INTENT_DISCOVERY_CATALOG_DIGEST = packagedMetadata.discovery.catalog_digest;
+
+const PROOF_VERIFICATION_CAPABILITIES = deepFreeze(structuredClone(
+  packagedMetadata.discovery.verification_capabilities));
+if (compiledValidatorCacheAvailability().available) {
+  assertPackagedProofIntentMetadata("discovery", packagedMetadata.discovery,
+    packagedDiscovery(await deriveProofIntentDiscovery()));
 }
+const { validateProofIntentDiscoveryResult } = await packagedCompiledValidators(
+  PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.groupId,
+  PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.declaration,
+  PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.directory,
+  { rebuildCommand: PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.rebuildCommand });
+const discoveryPopulation = Object.freeze({
+  population: deepFreeze(structuredClone(packagedMetadata.discovery.population)),
+  sourceIdentity: deepFreeze(structuredClone(packagedMetadata.discovery.source_identity)),
 
-function assertCatalogSemantics(catalog) {
-  const ids = catalog.intents.map(({ intent_id: intentId }) => intentId);
-  const idSet = new Set(ids);
-  if (idSet.size !== ids.length) throw new ProofIntentDiscoveryError(
-    "proof_intent_discovery_catalog_identity_ambiguous",
-    "the shipped proof-intent catalog contains duplicate controlled intent ids"
-  );
-  for (const intent of catalog.intents) {
-    const normalizedTerms = intent.discovery_terms.map(normalizeSearchText);
-    if (normalizedTerms.some((term) => term.length === 0) ||
-        new Set(normalizedTerms).size !== normalizedTerms.length) {
-      throw new ProofIntentDiscoveryError(
-        "proof_intent_discovery_terms_invalid",
-        "controlled discovery terms must remain unique and nonempty after normalization",
-        { intent_id: intent.intent_id }
-      );
-    }
-    const capableKeys = intent.capable_packs.map(packKey);
-    if (new Set(capableKeys).size !== capableKeys.length) {
-      throw new ProofIntentDiscoveryError(
-        "proof_intent_discovery_pack_identity_ambiguous",
-        "one controlled intent maps the same pack identity more than once",
-        { intent_id: intent.intent_id }
-      );
-    }
-    const distinctionIds = intent.distinctions.map(
-      ({ from_intent_id: intentId }) => intentId
-    );
-    if (new Set(distinctionIds).size !== distinctionIds.length ||
-        distinctionIds.some((intentId) => intentId === intent.intent_id ||
-          !idSet.has(intentId))) {
-      throw new ProofIntentDiscoveryError(
-        "proof_intent_discovery_distinction_invalid",
-        "controlled intent distinctions must uniquely reference other catalog intents",
-        { intent_id: intent.intent_id }
-      );
-    }
-  }
-}
-
-if (!validateProofIntentCatalog(rawCatalog)) throw new ProofIntentDiscoveryError(
-  "proof_intent_discovery_catalog_invalid",
-  "the shipped controlled proof-intent catalog is schema-invalid",
-  { diagnostics: structuredClone(validateProofIntentCatalog.errors) }
-);
-assertCatalogSemantics(rawCatalog);
-
-const PROOF_INTENT_DISCOVERY_CATALOG = deepFreeze(
-  normalizeProofIntentDiscoveryCatalog(rawCatalog)
-);
-const PROOF_INTENT_DISCOVERY_CATALOG_DIGEST = canonicalDigest(
-  PROOF_INTENT_DISCOVERY_CATALOG
-);
-
-const discoveryPopulation = await loadProofDiscoveryPopulation(PROOF_INTENT_DISCOVERY_CATALOG, canonicalDigest(rawCatalog));
-
-const PROOF_VERIFICATION_CAPABILITIES = deepFreeze(Object.fromEntries(
-  (await Promise.all(discoveryPopulation.population.map(async ({ proof_name: proofName }) => [
-    proofName,
-    (await loadAdmittedProofPackMeaning(proofName)).profile.stable_capabilities?.test_validity ?? null
-  ]))).filter(([, capability]) => capability !== null)
-));
+  currentSourceIdentity: discoverySourceIdentity(PROOF_INTENT_DISCOVERY_CATALOG,
+    JSON.parse(readFileSync(new URL("../profiles/catalog.json", import.meta.url), "utf8")))
+});
 
 function proofVerificationCapability(proofName) {
   return PROOF_VERIFICATION_CAPABILITIES[proofName] ?? null;
@@ -407,8 +311,9 @@ function discoverProofIntentsInternal(options, unexpectedArguments, { completeSe
   const prepared = prepareRequest(validateOptions(options, unexpectedArguments));
   const request = completeSearch && prepared.mode === "search"
     ? { ...prepared, limit: null } : prepared;
-  const current = discoveryPopulation.currentSourceIdentity();
-  if (canonicalDigest(current) !== canonicalDigest(discoveryPopulation.sourceIdentity)) {
+  const population = discoveryPopulation;
+  const current = population.currentSourceIdentity();
+  if (canonicalDigest(current) !== canonicalDigest(population.sourceIdentity)) {
     throw new ProofIntentDiscoveryError("proof_discovery_source_changed",
       "The loaded discovery definitions changed; reload the package/server before fresh discovery.",
       { changed: false, source_identity: current });
@@ -416,12 +321,12 @@ function discoverProofIntentsInternal(options, unexpectedArguments, { completeSe
   const provider = providerContext(request.queryTerms);
   const propertySearch = request.mode === "search" &&
     provider.provider_terms.length < request.queryTerms.length;
-  let matches = propertySearch ? rankProofIntentCandidates(discoveryPopulation.population, {
+  let matches = propertySearch ? rankProofIntentCandidates(population.population, {
     queryTerms: request.queryTerms,
     providerTerms: provider.provider_terms,
     limit: null,
     searchIndex: productionSearchIndex
-  }) : discoveryPopulation.population.map(candidate => {
+  }) : population.population.map(candidate => {
     const ranking = request.mode === "search" ? null :
       { match_kind: "catalog_entry", relevance_score: 0, matched_terms: [], unmatched_terms: [],
         provider_terms: [], semantic_terms: [], match_reasons: [] };
@@ -444,12 +349,12 @@ function discoverProofIntentsInternal(options, unexpectedArguments, { completeSe
     status: matches.length ? "match" : "no_match",
     catalog_intent_count: PROOF_INTENT_DISCOVERY_CATALOG.intents.length,
     evaluated_intent_count: PROOF_INTENT_DISCOVERY_CATALOG.intents.length,
-    candidate_count: discoveryPopulation.population.length,
+    candidate_count: population.population.length,
     total_match_count: matches.length, returned_count: candidates.length,
     omitted_count: matches.length - candidates.length,
     truncated: candidates.length < matches.length, result_limit: request.limit,
     provider_context: provider,
-    candidates, source_identity: discoveryPopulation.sourceIdentity,
+    candidates, source_identity: population.sourceIdentity,
     catalog_digest: PROOF_INTENT_DISCOVERY_CATALOG_DIGEST,
     selection_performed: false, pack_invocation_performed: false,
     pack_admission_performed: false, authority: "non_authoritative"

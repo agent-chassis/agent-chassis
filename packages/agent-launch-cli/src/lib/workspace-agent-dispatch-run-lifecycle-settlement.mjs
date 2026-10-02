@@ -591,6 +591,44 @@ function captureTerminalObservation(record, observed) {
       );
 }
 
+export const MANAGED_RUN_PUBLICATION_REPAIR_SCHEMA_VERSION =
+  "managed-run-result-publication-repair.v1";
+
+function executionIdentityRepairRequirement(record, dispatchTuple) {
+  const expected = [
+    ["assigned_unit", record.subject],
+    ["launch_ref", record.monitor_handle],
+    ["run_id", record.run_id]
+  ];
+  const mismatched = dispatchTuple === null ? [] : expected
+    .filter(([field, value]) => dispatchTuple[field] !== value)
+    .map(([field, value]) => Object.freeze({
+      field,
+      expected: value ?? null,
+      observed: typeof dispatchTuple[field] === "string" ? dispatchTuple[field] : null
+    }));
+  return Object.freeze({
+    schema_version: MANAGED_RUN_PUBLICATION_REPAIR_SCHEMA_VERSION,
+    defect: dispatchTuple === null ? "execution_tuple_missing" : "execution_tuple_mismatch",
+    retryable: false,
+    responsible_actor: "launcher",
+    subject: Object.freeze({
+      assigned_unit: record.subject,
+      launch_ref: record.monitor_handle,
+      run_id: record.run_id
+    }),
+    mismatched_fields: Object.freeze(mismatched),
+    requirement: "the launcher binds this run to its authenticated managed execution tuple " +
+      "(assigned_unit, launch_ref, run_id) when it starts the run; the tuple cannot be " +
+      "supplied, minted or rebound after the result is captured",
+    durability: "unavailable",
+    effects: "no durable publication was attempted: the captured final result is held only " +
+      "by this process and is not in the run journal",
+    uncertainty: "the captured result is lost if this process restarts; no post-worker " +
+      "lifecycle step consumes it while it is not durable"
+  });
+}
+
 async function publishCapturedManagedRunResult(record, publisher) {
   if (record.role !== "worker" || !record.terminal || record.final_result === null ||
       typeof publisher !== "function" || record.final_result_durability === "durable") return;
@@ -598,10 +636,12 @@ async function publishCapturedManagedRunResult(record, publisher) {
   if (dispatchTuple === null || dispatchTuple.assigned_unit !== record.subject ||
       dispatchTuple.launch_ref !== record.monitor_handle ||
       dispatchTuple.run_id !== record.run_id) {
+    const repair = executionIdentityRepairRequirement(record, dispatchTuple);
     record.final_result_durability = "unavailable";
     record.final_result_publication_failure = Object.freeze({
       code: "managed_run_execution_identity_unavailable",
-      reason: null
+      reason: repair.defect,
+      repair_required: repair
     });
     return;
   }

@@ -195,10 +195,13 @@ in `code-index-tools.mjs`; route-specific subjects and exact compact/detail
 semantics remain distinct.
 
 The list response follows the structured-result contract: its value is
-published once, in `structuredContent`, with `content: []`. The wiki-core
-projection owns row and structured-payload admission; the MCP adapter measures
-the complete serialized result frame, so transport cost is measured without
-copying selection prose into the compact model-visible rows.
+published in `structuredContent` with exactly one generated text block holding
+the compact JSON serialization of that value. The wiki-core projection owns row
+and structured-payload admission; the MCP adapter measures the complete
+serialized result frame — both representations — through the shared
+`measureMcpInlineResultBytes` owner, without shaping or persisting a spill as a
+probe, so transport cost is measured without copying selection prose into the
+compact model-visible rows.
 
 `total_count` is the exact complete role/tier-visible population,
 `returned_count` is the current page, and `truncated_count` is the remaining

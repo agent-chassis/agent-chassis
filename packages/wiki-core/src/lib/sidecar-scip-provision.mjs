@@ -1,12 +1,31 @@
 
 
 import { execFile, spawn } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify, types as utilTypes } from "node:util";
 
+import { goModuleCachePopulation } from "./runtime-inputs/ecosystem-inputs-go.mjs";
+import { observeSidecarProviderDependencies } from "./sidecar-scip-project-inputs.mjs";
+import { sidecarLanguageExtensions } from "./sidecar-language-descriptions.mjs";
+import {
+  describeSidecarRustProjects,
+  isSidecarRustManifest,
+  SIDECAR_RUST_INDEXER,
+  sidecarRustProcessEnvironment
+} from "./sidecar-scip-rust-projects.mjs";
+import {
+  discoverSidecarGoProjects,
+  materializeSidecarProviderArgs,
+  observeSidecarProjectTools,
+  SCIP_TYPESCRIPT_PROJECT_CONFIG,
+  SIDECAR_SCIP_PROVIDER_ADAPTERS,
+  sidecarGoProcessEnvironment,
+  sidecarProjectArgs,
+  sidecarProjectSettings
+} from "./sidecar-scip-projects.mjs";
 import {
   decodeScipIndex,
   normalizeScipIndex,
@@ -29,12 +48,11 @@ export const SCIP_STATUS_NOT_APPLICABLE = "scip_not_applicable";
 export const SCIP_INDEXER_DEFAULT_DEADLINE_MS = 300_000;
 export const SCIP_INDEXER_MIN_DEADLINE_MS = 1_000;
 export const SCIP_INDEXER_MAX_DEADLINE_MS = 3_600_000;
-export const SCIP_INDEXER_RESOLUTION_DEADLINE_MS = 5_000;
 export const SCIP_INDEXER_STDERR_LIMIT_BYTES = 64 * 1024;
 export const SCIP_INDEXER_SIGTERM_GRACE_MS = 500;
 export const SCIP_INDEXER_SIGKILL_GRACE_MS = 500;
 
-export const SCIP_TYPESCRIPT_PROJECT_CONFIG = "tsconfig.json";
+export const SCIP_INDEXER_STDOUT_LIMIT_BYTES = 4 * 1024 * 1024;
 
 export function resolveScipProviderDeadlineMs(value) {
   const resolved = value ?? SCIP_INDEXER_DEFAULT_DEADLINE_MS;
@@ -45,42 +63,6 @@ export function resolveScipProviderDeadlineMs(value) {
     );
   }
   return resolved;
-}
-
-async function resolveInstalledIndexer(indexer, timeoutMs) {
-  let stdout;
-  try {
-    ({ stdout } = await promisify(execFile)("which", [indexer], {
-      maxBuffer: 64 * 1024,
-      timeout: timeoutMs,
-      killSignal: "SIGKILL"
-    }));
-  } catch (cause) {
-    const outputExceeded = cause?.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
-    const timedOut = !outputExceeded &&
-      (cause?.killed === true || cause?.signal === "SIGKILL");
-    throw new SidecarScipProvisionError(
-      timedOut
-        ? `${indexer} executable resolution exceeded ${timeoutMs}ms`
-        : outputExceeded
-          ? `${indexer} executable resolution exceeded 65536 output bytes`
-          : `${indexer} executable resolution failed: ${cause?.message ?? cause}`,
-      {
-        code: timedOut
-          ? "scip_indexer_resolution_timeout"
-          : outputExceeded
-            ? "scip_indexer_resolution_output_limit"
-            : "scip_indexer_resolution_failed",
-        cause
-      }
-    );
-  }
-  const executable = stdout.trim().split("\n")[0];
-  if (!path.isAbsolute(executable)) {
-    throw new Error(`${indexer} resolved to a non-absolute executable path`);
-  }
-  await access(executable, fsConstants.X_OK);
-  return executable;
 }
 
 function signalScipProcessTree(child, signal) {
@@ -136,8 +118,8 @@ function boundedStderrAppend(chunks, chunk, retainedBytes) {
   return retainedBytes + bytes.length;
 }
 
-export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath,
-  timeoutMs = SCIP_INDEXER_DEFAULT_DEADLINE_MS, spawnProcess = spawn } = {}) {
+export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath, env = undefined,
+  captureStdout = false, timeoutMs = SCIP_INDEXER_DEFAULT_DEADLINE_MS, spawnProcess = spawn } = {}) {
   if (process.platform === "win32") {
     return Promise.reject(new SidecarScipProvisionError(
       "SCIP provider process-tree ownership is unavailable on win32",
@@ -151,7 +133,8 @@ export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath
         cwd,
         shell: false,
         detached: true,
-        stdio: ["ignore", "ignore", "pipe"]
+        ...(env === undefined ? {} : { env }),
+        stdio: ["ignore", captureStdout ? "pipe" : "ignore", "pipe"]
       });
     } catch (cause) {
       reject(new SidecarScipProvisionError(
@@ -163,6 +146,8 @@ export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath
 
     const stderrChunks = [];
     let stderrBytes = 0;
+    const stdoutChunks = [];
+    let stdoutBytes = 0;
     let terminalReason = null;
     let settled = false;
     let deadlineTimer = null;
@@ -174,6 +159,7 @@ export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath
       child.removeListener("error", onError);
       child.removeListener("close", onClose);
       child.stderr?.removeListener?.("data", onStderr);
+      child.stdout?.removeListener?.("data", onStdout);
     };
     const finish = (operation) => {
       if (settled) return;
@@ -210,6 +196,18 @@ export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath
         ));
       }
     };
+    const onStdout = (chunk) => {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      stdoutBytes += bytes.length;
+      if (stdoutBytes > SCIP_INDEXER_STDOUT_LIMIT_BYTES) {
+        beginTermination(new SidecarScipProvisionError(
+          `SCIP provider stdout exceeded ${SCIP_INDEXER_STDOUT_LIMIT_BYTES} bytes`,
+          { code: "scip_indexer_stdout_limit_exceeded" }
+        ));
+        return;
+      }
+      stdoutChunks.push(bytes);
+    };
     const onError = (cause) => {
       beginTermination(new SidecarScipProvisionError(
         `SCIP provider process failed: ${cause?.message ?? cause}`,
@@ -227,7 +225,7 @@ export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath
       }
       clearTimeout(deadlineTimer);
       void terminateScipProcessGroup(child).then(
-        () => readFile(outputPath).then(
+        () => (captureStdout ? Promise.resolve(Buffer.concat(stdoutChunks)) : readFile(outputPath)).then(
           (bytes) => finish(() => resolve(bytes)),
           (cause) => finish(() => reject(new SidecarScipProvisionError(
             `SCIP provider produced no output at ${outputPath}: ${cause.message}`,
@@ -243,6 +241,7 @@ export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath
     };
 
     child.stderr?.on?.("data", onStderr);
+    if (captureStdout) child.stdout?.on?.("data", onStdout);
     child.on("error", onError);
     child.on("close", onClose);
     process.once("exit", emergencyCleanup);
@@ -255,33 +254,8 @@ export function runBoundedScipIndexerProcess({ executable, args, cwd, outputPath
   });
 }
 
-async function defaultRunIndexer({ repoRoot, indexer, spec, cacheDir, tsconfigPath, committedHead,
-  deadlineMs }) {
-  const startedAt = Date.now();
-  const executable = await resolveInstalledIndexer(indexer,
-    Math.min(SCIP_INDEXER_RESOLUTION_DEADLINE_MS, deadlineMs));
-  const remainingMs = deadlineMs - (Date.now() - startedAt);
-  if (remainingMs <= 0) {
-    throw new SidecarScipProvisionError(
-      `SCIP provider exceeded ${deadlineMs}ms during executable resolution`,
-      { code: "scip_indexer_timeout" }
-    );
-  }
-  const outputPath = path.join(repoRoot, cacheDir, spec.output);
-
-  const projectDir = path.dirname(tsconfigPath) || ".";
-  if (indexer === "scip-python" && !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(committedHead)) {
-    throw new Error("scip-python requires the captured commit as its project version");
-  }
-  const args =
-    indexer === "scip-typescript"
-      ? ["index", "--cwd", repoRoot, "--output", outputPath, projectDir]
-      : [
-          "index", "--cwd", repoRoot, "--output", outputPath, "--quiet",
-          "--project-version", committedHead
-        ];
-  return runBoundedScipIndexerProcess({ executable, args, cwd: repoRoot,
-    outputPath, timeoutMs: remainingMs });
+async function defaultRunIndexer({ executable, args, cwd, env, outputPath, deadlineMs }) {
+  return runBoundedScipIndexerProcess({ executable, args, cwd, env, outputPath, timeoutMs: deadlineMs });
 }
 export function snapshotScipOptions(rawOptions, entries, label) {
   if (rawOptions !== undefined && utilTypes.isProxy(rawOptions)) throw new TypeError(`${label} options must not be a Proxy`);
@@ -296,7 +270,9 @@ export function snapshotScipOptions(rawOptions, entries, label) {
   return options;
 }
 
-export function discoverSidecarScipProjects(trackedPaths) {
+const PYTHON_SYNTAX = new Set(sidecarLanguageExtensions(["python"], { declarations: true }));
+
+export function discoverSidecarScipProjects(trackedPaths, { goFiles = new Map(), rustProjects = [] } = {}) {
   if (!Array.isArray(trackedPaths)) {
     throw new TypeError("SCIP project discovery requires the committed tracked paths");
   }
@@ -305,10 +281,27 @@ export function discoverSidecarScipProjects(trackedPaths) {
     projects.push(Object.freeze({ key: `scip-typescript#${SCIP_TYPESCRIPT_PROJECT_CONFIG}`,
       indexer: "scip-typescript", project: SCIP_TYPESCRIPT_PROJECT_CONFIG }));
   }
-  if (trackedPaths.some((value) => /\.pyi?$/.test(value))) {
+  if (trackedPaths.some((value) => PYTHON_SYNTAX.has(path.posix.extname(value)))) {
     projects.push(Object.freeze({ key: "scip-python#.", indexer: "scip-python", project: "." }));
   }
-  return projects;
+  return [...projects, ...discoverSidecarGoProjects(trackedPaths, goFiles), ...rustProjects];
+}
+
+export async function describeSidecarRustProjectsAtCommit({ sourceRepoRoot, committedHead, trackedPaths,
+  env = process.env, deadlineMs = SCIP_INDEXER_DEFAULT_DEADLINE_MS }) {
+  const manifests = trackedPaths.filter(isSidecarRustManifest);
+  if (manifests.length === 0) return [];
+  const timeoutMs = resolveScipProviderDeadlineMs(deadlineMs);
+  try {
+    return await describeSidecarRustProjects({ manifests, env, timeoutMs,
+      withSnapshot: (operation) => withCommittedSnapshot(sourceRepoRoot, committedHead, operation),
+      run: (request) => runBoundedScipIndexerProcess(request) });
+  } catch (error) {
+    if (error instanceof SidecarScipProvisionError) throw error;
+    throw new SidecarScipProvisionError(
+      `committed Rust project description failed: ${String(error?.message ?? error).slice(0, 500)}`,
+      { code: "scip_rust_description_failed", cause: error });
+  }
 }
 
 async function removeSnapshotSymlinks(directory) {
@@ -351,6 +344,96 @@ async function withCommittedSnapshot(sourceRepoRoot, committedHead, operation) {
   return result;
 }
 
+function projectExecutables(project, required) {
+  const tool = project.record?.tool ?? observeSidecarProjectTools(project, process.env);
+  const unusable = tool.find(({ status }) => status !== "found");
+  if (unusable && required) {
+    throw new SidecarScipProvisionError(unusable.status === "absent"
+      ? `${project.key} executable ${unusable.role} is not installed`
+      : `${project.key} executable ${unusable.role} lookup failed: ${unusable.message}`,
+    { code: unusable.status === "absent" ? "scip_indexer_absent" : "scip_indexer_resolution_failed" });
+  }
+  return tool;
+}
+
+async function observeGoDependencies({ tool, env, cwd, timeoutMs, prior }) {
+  const go = tool.find(({ role }) => role === "go").resolved_path;
+  let stdout;
+  try {
+    stdout = await runBoundedScipIndexerProcess({ executable: go, cwd, env, captureStdout: true, timeoutMs,
+      args: ["list", "-deps", "-test", "-f",
+        "{{with .Module}}{{.Path}}\t{{.Version}}\t{{.Dir}}\t{{.GoMod}}{{end}}", "./..."] });
+  } catch (cause) {
+    throw new SidecarScipProvisionError(
+      `Go packages or dependencies are unavailable offline: ${String(cause?.message ?? cause).slice(0, 500)}`,
+      { code: cause?.code === "scip_indexer_timeout" ? cause.code : "scip_go_dependencies_unavailable", cause });
+  }
+  const population = env.GOMODCACHE
+    ? goModuleCachePopulation(stdout.toString("utf8"), env.GOMODCACHE, existsSync) : [];
+  return observeSidecarProviderDependencies(population, { prior });
+}
+
+function rebaseDocuments(decoded, projectDir) {
+  if (projectDir === ".") return decoded;
+  for (const document of decoded.documents ?? []) {
+    if (typeof document?.relativePath === "string") {
+      document.relativePath = path.posix.normalize(path.posix.join(projectDir, document.relativePath));
+    }
+  }
+  return decoded;
+}
+
+async function runProject({ project, spec, snapshotRoot, committedHead, deadline, baseFileNodeIds,
+  runIndexer }) {
+  const startedAt = Date.now();
+  const adapter = SIDECAR_SCIP_PROVIDER_ADAPTERS[project.indexer];
+  const tool = projectExecutables(project, runIndexer === defaultRunIndexer || project.indexer === "scip-go" ||
+    project.indexer === SIDECAR_RUST_INDEXER);
+  const outputPath = path.join(snapshotRoot, SCIP_DEFAULT_CACHE_DIR, spec.output);
+  let env;
+  let cwd = snapshotRoot;
+  let dependencies = null;
+  if (project.indexer === "scip-go") {
+    env = sidecarGoProcessEnvironment({ tool,
+      settings: project.record?.settings ?? sidecarProjectSettings(project, process.env),
+      snapshotRoot, privateRoot: path.dirname(snapshotRoot) });
+    cwd = path.join(snapshotRoot, project.project);
+    dependencies = await observeGoDependencies({ tool, env, cwd, timeoutMs: deadline,
+      prior: project.record?.dependencies ?? null });
+    if (dependencies.state === "unavailable") {
+      throw new SidecarScipProvisionError(
+        `Go dependency population ${dependencies.population.join(", ")} could not be measured: ${dependencies.code}`,
+        { code: "scip_go_dependencies_unavailable" });
+    }
+  } else if (project.indexer === SIDECAR_RUST_INDEXER) {
+
+    env = sidecarRustProcessEnvironment({ settings: project.record.settings,
+      privateRoot: path.dirname(snapshotRoot) });
+    cwd = path.join(snapshotRoot, project.project);
+    dependencies = project.record.dependencies;
+  }
+  const remaining = deadline - (Date.now() - startedAt);
+  if (remaining <= 0) {
+    throw new SidecarScipProvisionError(`SCIP provider exceeded ${deadline}ms`, { code: "scip_indexer_timeout" });
+  }
+  const resolved = (role) => tool.find((entry) => entry.role === role)?.resolved_path ?? null;
+  const args = materializeSidecarProviderArgs(project.record?.invocation.args ?? sidecarProjectArgs(project),
+    { snapshotRoot, outputPath, committedHead });
+
+  const launch = adapter.runtime
+    ? { executable: resolved(adapter.runtime), args: [resolved("indexer"), ...args] }
+    : { executable: resolved("indexer"), args };
+  const bytes = await runIndexer({
+    repoRoot: snapshotRoot, indexer: project.indexer, spec, cacheDir: SCIP_DEFAULT_CACHE_DIR,
+    tsconfigPath: project.indexer === "scip-typescript" ? project.project : SCIP_TYPESCRIPT_PROJECT_CONFIG,
+    committedHead, deadlineMs: adapter.dependencies ? remaining : deadline,
+    ...launch, cwd, env, outputPath
+  });
+  const layer = normalizeScipIndex(rebaseDocuments(await decodeScipIndex(bytes), cwd === snapshotRoot
+    ? "." : project.project), { indexer: project.indexer, baseFileNodeIds });
+  return { ...layer, input_record: project.record ? { ...project.record, dependencies } : null };
+}
+
 export async function runScipProjectsFromCommittedSnapshot(rawOptions) {
   const {
     sourceRepoRoot, committedHead, projects, baseFileNodeIds, deadlineMs, runIndexer
@@ -380,14 +463,8 @@ export async function runScipProjectsFromCommittedSnapshot(rawOptions) {
           throw new TypeError(`unsupported SCIP project: ${JSON.stringify(project)}`);
         }
         try {
-          const bytes = await runIndexer({
-            repoRoot: snapshotRoot, indexer: project.indexer, spec, cacheDir: SCIP_DEFAULT_CACHE_DIR,
-            tsconfigPath: project.indexer === "scip-typescript"
-              ? project.project : SCIP_TYPESCRIPT_PROJECT_CONFIG,
-            committedHead, deadlineMs: deadline
-          });
-          layers.set(project.key, normalizeScipIndex(await decodeScipIndex(bytes),
-            { indexer: project.indexer, baseFileNodeIds }));
+          layers.set(project.key, await runProject({ project, spec, snapshotRoot, committedHead,
+            deadline, baseFileNodeIds, runIndexer }));
         } catch (cause) {
           throw new SidecarScipProvisionError(
             `required SCIP provider ${project.key} failed: ${String(cause?.message ?? cause).slice(0, 500)}`,

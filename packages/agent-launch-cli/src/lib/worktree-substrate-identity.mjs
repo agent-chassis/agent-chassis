@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import {
   computeWorkRecordSourceDigest
 } from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
-import { compileRepositoryScopePath } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
+import { parseRepositoryScopePath } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
 import { isCanonicalWorkRecordBaseBranch } from
   "@agent-chassis/wiki-core/src/lib/work-record-base-branch.mjs";
 
@@ -279,7 +279,7 @@ function classifySliceCheckoutMode(binding) {
 }
 
 function isNormalizedRepoPath(value) {
-  return compileRepositoryScopePath(value).ok;
+  return parseRepositoryScopePath(value).ok;
 }
 
 function isCanonicalRepoPathArray(value, { nonEmpty = false } = {}) {

@@ -9,17 +9,24 @@ const WORKSPACE_ALIAS_PATTERN = /^[A-Za-z0-9._-]+$/;
 const WORKSPACE_REPO_RESOLUTION_SCHEMA_VERSION = "workspace-repo-resolution.v1";
 const WORKSPACE_DECLARATION_RELATIVE_PATH = "wiki/.wiki-mcp.json";
 
-function normalizeWorkspaceAlias(alias) {
+function checkWorkspaceAlias(alias) {
   const normalized = String(alias || "").trim();
   if (!normalized) {
-    throw new Error("Workspace repo alias cannot be empty");
+    return { rule: "non_empty", message: "Workspace repo alias cannot be empty" };
   }
   if (!WORKSPACE_ALIAS_PATTERN.test(normalized)) {
-    throw new Error(
-      `Workspace repo alias must match ${WORKSPACE_ALIAS_PATTERN}: ${normalized}`
-    );
+    return {
+      rule: `pattern ${WORKSPACE_ALIAS_PATTERN}`,
+      message: `Workspace repo alias must match ${WORKSPACE_ALIAS_PATTERN}: ${normalized}`
+    };
   }
-  return normalized;
+  return { alias: normalized };
+}
+
+function normalizeWorkspaceAlias(alias) {
+  const checked = checkWorkspaceAlias(alias);
+  if (checked.alias === undefined) throw new Error(checked.message);
+  return checked.alias;
 }
 
 function normalizeWorkspaceRoot(dir) {
@@ -35,6 +42,15 @@ async function canonicalizeWorkspaceRoot(dir) {
   }
 }
 
+const OWNED_RESOLUTION_ERRORS = new WeakSet();
+
+function workspaceRepoResolutionRefusalOf(error) {
+  if (error === null || typeof error !== "object" || !OWNED_RESOLUTION_ERRORS.has(error)) {
+    return null;
+  }
+  return error.envelope;
+}
+
 function createWorkspaceRepoResolutionError(
   message,
   currentWorkspaceRepo,
@@ -42,6 +58,7 @@ function createWorkspaceRepoResolutionError(
   diagnostics = []
 ) {
   const error = new Error(message);
+  OWNED_RESOLUTION_ERRORS.add(error);
   error.schema_version = WORKSPACE_REPO_RESOLUTION_SCHEMA_VERSION;
   error.diagnostics = Array.isArray(diagnostics) ? diagnostics : [];
   error.envelope = {
@@ -58,6 +75,28 @@ function createWorkspaceRepoResolutionError(
       }
     }
   };
+  return error;
+}
+
+function createWorkspaceRepoAliasSyntaxError(requestedAlias, violation, workspaces) {
+  const error = createWorkspaceRepoResolutionError(
+    violation.message,
+    workspaces.currentAlias ?? null,
+    [...workspaces.repos.keys()],
+    [
+      {
+        code: "workspace_repo_alias_invalid",
+        severity: "error",
+        message: violation.message,
+        path: "repo",
+        source: "request"
+      }
+    ]
+  );
+  error.envelope.refusal.category = "invalid_request";
+  error.envelope.refusal.reason = "invalid_alias";
+  error.envelope.refusal.detail.requested_alias = requestedAlias;
+  error.envelope.refusal.detail.violated_rule = violation.rule;
   return error;
 }
 
@@ -318,7 +357,14 @@ function resolveWorkspaceRepo(workspaces, alias = null) {
     );
   }
 
-  const requestedAlias = alias ? normalizeWorkspaceAlias(alias) : null;
+  let requestedAlias = null;
+  if (alias) {
+    const checked = checkWorkspaceAlias(alias);
+    if (checked.alias === undefined) {
+      throw createWorkspaceRepoAliasSyntaxError(alias, checked, workspaces);
+    }
+    requestedAlias = checked.alias;
+  }
   if (!requestedAlias) {
     const currentAlias = workspaces.currentAlias;
     if (!currentAlias) {
@@ -360,7 +406,8 @@ export {
   normalizeWorkspaceAlias,
   normalizeWorkspaceRoot,
   parseWorkspaceRepos,
-  resolveWorkspaceRepo
+  resolveWorkspaceRepo,
+  workspaceRepoResolutionRefusalOf
 };
 
 export default {
@@ -372,5 +419,6 @@ export default {
   normalizeWorkspaceAlias,
   normalizeWorkspaceRoot,
   parseWorkspaceRepos,
-  resolveWorkspaceRepo
+  resolveWorkspaceRepo,
+  workspaceRepoResolutionRefusalOf
 };

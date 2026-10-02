@@ -24,14 +24,16 @@ test("the closed shape carries the selection and any explicit toolchain location
   }), {
     runners: [{ runner: "go-test", project: "." }],
     toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } },
-    environments: {}
+    environments: {},
+    test_entrypoints: []
   });
 
   const minimal = parse({ runners: [{ runner: "pytest" }, { runner: "go-test", project: "svc/api" }] });
   assert.deepEqual(minimal, {
     runners: [{ runner: "pytest", project: "." }, { runner: "go-test", project: "svc/api" }],
     toolchains: {},
-    environments: {}
+    environments: {},
+    test_entrypoints: []
   });
 
   const unversioned = parse({ runners: [{ runner: "deno" }],
@@ -41,7 +43,8 @@ test("the closed shape carries the selection and any explicit toolchain location
 
 test("toolchain locations alone are a complete document: the inventory decides the environments", () => {
   assert.deepEqual(parse({ toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } } }),
-    { runners: [], toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } }, environments: {} });
+    { runners: [], toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } }, environments: {},
+      test_entrypoints: [] });
 });
 
 test("an explicitly selected Python virtual environment is a closed, absolute, per-environment choice", () => {
@@ -70,7 +73,7 @@ test("malformed documents are refused rather than partially applied", () => {
       /the configuration must be an object/u);
   }
   refuses({ runners: [{ runner: "go-test" }], extra: true }, /unknown field extra/u);
-  refuses({}, /the configuration must name runners, toolchains or environments/u);
+  refuses({}, /the configuration must name runners, toolchains, environments or test_entrypoints/u);
   refuses({ runners: [] }, /runners must be a nonempty array/u);
   refuses({ runners: {} }, /runners must be a nonempty array/u);
 });
@@ -124,7 +127,8 @@ test("the parser resolves nothing: unknown names reach the launcher-owned setup"
 test("what setup saves is exactly what it reads back", () => {
   assert.equal(REPOSITORY_RUNTIME_CONFIG_FILE, "agent-chassis-runtime.json");
   const resolved = { runners: [{ runner: "go-test", project: "go" }],
-    toolchains: { go: { executable: "/usr/local/go/bin/go", version: null } }, environments: {} };
+    toolchains: { go: { executable: "/usr/local/go/bin/go", version: null } }, environments: {},
+    test_entrypoints: [] };
   const text = serializeTestRuntimeConfig(resolved);
   assert.equal(text, `{
   "runners": [
@@ -149,11 +153,127 @@ test("what setup saves is exactly what it reads back", () => {
   const bare = serializeTestRuntimeConfig({ runners: [{ runner: "pytest", project: "." }],
     toolchains: {} });
   assert.deepEqual(parseTestRuntimeConfig(bare, { source: "runtime.json" }),
-    { runners: [{ runner: "pytest", project: "." }], toolchains: {}, environments: {} });
+    { runners: [{ runner: "pytest", project: "." }], toolchains: {}, environments: {}, test_entrypoints: [] });
 
   const located = serializeTestRuntimeConfig({ runners: [],
     toolchains: { node: { executable: "/usr/bin/node", version: null } } });
   assert.equal(located, '{\n  "toolchains": {\n    "node": {\n      "executable": "/usr/bin/node"\n    }\n  }\n}\n');
   assert.deepEqual(parseTestRuntimeConfig(located, { source: "runtime.json" }),
-    { runners: [], toolchains: { node: { executable: "/usr/bin/node", version: null } }, environments: {} });
+    { runners: [], toolchains: { node: { executable: "/usr/bin/node", version: null } }, environments: {},
+      test_entrypoints: [] });
+});
+
+test("runtime entrypoint associations validate and round-trip", () => {
+  const lib0 = { runner: "lib0-testing", project: ".", target: "test/example.test.mjs",
+    entrypoint: "test/run-tests.mjs" };
+  const wrapper = { runner: "node-test", project: ".", adapter: "node-test-wrapper",
+    entrypoint: "tests/run-tests.mjs" };
+
+  const associationsOnly = parse({ test_entrypoints: [lib0, wrapper] });
+  assert.deepEqual(associationsOnly,
+    { runners: [], toolchains: {}, environments: {}, test_entrypoints: [lib0, wrapper] });
+  const associationsOnlyText = serializeTestRuntimeConfig(associationsOnly);
+  assert.deepEqual(JSON.parse(associationsOnlyText), { test_entrypoints: [lib0, wrapper] });
+  assert.deepEqual(parseTestRuntimeConfig(associationsOnlyText, { source: "runtime.json" }), associationsOnly);
+
+  assert.deepEqual(parse({ runners: [{ runner: "node-test" }] }).test_entrypoints, []);
+  assert.equal(serializeTestRuntimeConfig({ runners: [{ runner: "node-test", project: "." }], toolchains: {},
+    test_entrypoints: [] }), '{\n  "runners": [\n    {\n      "runner": "node-test",\n      "project": "."\n    }\n  ]\n}\n');
+
+  const full = {
+    runners: [{ runner: "go-test", project: "go" }],
+    toolchains: { go: { executable: "/usr/local/go/bin/go", version: "1.27.1" },
+      node: { executable: "/usr/bin/node", version: null } },
+    environments: { "python@.": { virtual_environment: "/srv/app/.venv" } },
+    test_entrypoints: [wrapper, lib0]
+  };
+  const fullText = serializeTestRuntimeConfig(full);
+  assert.deepEqual(parseTestRuntimeConfig(fullText, { source: "runtime.json" }), full);
+  assert.deepEqual(Object.keys(JSON.parse(fullText)), ["runners", "toolchains", "environments", "test_entrypoints"]);
+
+  const reordered = parse({ test_entrypoints: [{ entrypoint: "t/run.mjs", target: "t/a.test.mjs",
+    project: "pkg", runner: "lib0-testing" }] });
+  assert.equal(serializeTestRuntimeConfig(reordered).replace(/\s+/gu, ""),
+    '{"test_entrypoints":[{"runner":"lib0-testing","project":"pkg","target":"t/a.test.mjs","entrypoint":"t/run.mjs"}]}');
+
+  const shared = parse({ test_entrypoints: [lib0,
+    { ...lib0, target: "test/other.test.mjs" },
+    { ...lib0, project: "packages/a" },
+    { ...lib0, project: "packages/a/nested" },
+    wrapper,
+    { ...wrapper, project: "packages/a" },
+    { ...wrapper, project: "packages/a/nested", entrypoint: "packages/a/nested/run.mjs" }] });
+  assert.equal(shared.test_entrypoints.length, 7);
+  assert.deepEqual(shared.test_entrypoints.map(({ project }) => project),
+    [".", ".", "packages/a", "packages/a/nested", ".", "packages/a", "packages/a/nested"]);
+
+  refuses({ test_entrypoints: [lib0, { ...lib0, entrypoint: "test/other-runner.mjs" }] },
+    /test_entrypoints associates lib0-testing \. test\/example\.test\.mjs more than once/u);
+  refuses({ test_entrypoints: [wrapper, { ...wrapper, entrypoint: "scripts/run.mjs" }] },
+    /test_entrypoints associates node-test \. more than once/u);
+
+  refuses({ test_entrypoints: [] }, /test_entrypoints must be a nonempty array/u);
+  refuses({ test_entrypoints: {} }, /test_entrypoints must be a nonempty array/u);
+  refuses({ test_entrypoints: lib0 }, /test_entrypoints must be a nonempty array/u);
+  refuses({ test_entrypoints: [null] }, /test_entrypoints\[0\] must be an object/u);
+  refuses({ test_entrypoints: ["lib0-testing"] }, /test_entrypoints\[0\] must be an object/u);
+  refuses({ test_entrypoints: [[lib0]] }, /test_entrypoints\[0\] must be an object/u);
+
+  for (const runner of ["jest", "node-test-wrapper", "Lib0-testing", "toString", 7, null, undefined,
+    ["lib0-testing"], ["node-test"], [["lib0-testing"]], { toString: () => "lib0-testing" }]) {
+    refuses({ test_entrypoints: [{ ...lib0, runner }] },
+      /test_entrypoints\[0\]\.runner must be one of lib0-testing, node-test/u);
+  }
+  for (const adapter of ["node-test", "tap", "", 7, null]) {
+    refuses({ test_entrypoints: [{ ...wrapper, adapter }] },
+      /test_entrypoints\[0\]\.adapter must be one of node-test-wrapper/u);
+  }
+  refuses({ test_entrypoints: [{ ...lib0, adapter: "node-test-wrapper" }] },
+    /test_entrypoints\[0\] has unknown field adapter/u);
+  refuses({ test_entrypoints: [{ ...wrapper, target: "tests/a.test.mjs" }] },
+    /test_entrypoints\[0\] has unknown field target/u);
+  refuses({ test_entrypoints: [{ ...wrapper, mode: "auto" }] },
+    /test_entrypoints\[0\] has unknown field mode/u);
+  for (const field of ["project", "target", "entrypoint"]) {
+    const { [field]: _omitted, ...rest } = lib0;
+    refuses({ test_entrypoints: [rest] }, new RegExp(`test_entrypoints\\[0\\]\\.${field} is required`, "u"));
+  }
+  for (const field of ["project", "adapter", "entrypoint"]) {
+    const { [field]: _omitted, ...rest } = wrapper;
+    refuses({ test_entrypoints: [rest] }, new RegExp(`test_entrypoints\\[0\\]\\.${field} is required`, "u"));
+  }
+
+  const rejected = [
+    [7, "it is not a string"], [null, "it is not a string"], [["a"], "it is not a string"],
+    [{}, "it is not a string"], [true, "it is not a string"],
+    ["", "it is empty"],
+    ["a\0b", "it contains NUL"],
+    ["a\\b", "it contains a backslash"], ["\\\\server\\share", "it contains a backslash"],
+    ["/abs/path", "it is absolute"], ["//server/share", "it is absolute"],
+    ["C:/x", "it names a drive"], ["c:x", "it names a drive"],
+    ["a/*.mjs", "it contains a glob character"], ["a/?.mjs", "it contains a glob character"],
+    ["a/[ab].mjs", "it contains a glob character"], ["a/{b,c}.mjs", "it contains a glob character"],
+    ["a//b", "it has an empty segment"], ["a/", "it has an empty segment"],
+    ["./a", "it has a \\. segment"], ["a/./b", "it has a \\. segment"],
+    ["../a", "it has a \\.\\. segment"], ["a/..", "it has a \\.\\. segment"]
+  ];
+  for (const [base, fields] of [[lib0, ["project", "target", "entrypoint"]],
+    [wrapper, ["project", "entrypoint"]]]) {
+    for (const field of fields) {
+      for (const [value, reason] of rejected) {
+        refuses({ test_entrypoints: [{ ...base, [field]: value }] }, new RegExp(
+          `test_entrypoints\\[0\\]\\.${field} must be a canonical repository-relative path: ${reason}`, "u"));
+      }
+      if (field !== "project") {
+        refuses({ test_entrypoints: [{ ...base, [field]: "." }] }, new RegExp(
+          `test_entrypoints\\[0\\]\\.${field} must be a canonical repository-relative path: ` +
+          "it names the repository root, not a file", "u"));
+      }
+    }
+  }
+
+  assert.deepEqual(parse({ test_entrypoints: [{ ...lib0, project: "no/such/project",
+    target: "no/such.test.mjs", entrypoint: "no/such-runner.mjs" }] }).test_entrypoints,
+  [{ runner: "lib0-testing", project: "no/such/project", target: "no/such.test.mjs",
+    entrypoint: "no/such-runner.mjs" }]);
 });

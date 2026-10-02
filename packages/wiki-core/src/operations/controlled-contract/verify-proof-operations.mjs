@@ -1,4 +1,4 @@
-import { deepFreeze, canonicalDigest } from "../../../../controlled-contract/lib/deterministic-projection-primitives.mjs";
+import { deepFreeze, canonicalDigest } from "@agent-chassis/controlled-contract";
 
 import {
   buildStableTestProofRecoveryCall,
@@ -6,10 +6,10 @@ import {
 } from "@agent-chassis/controlled-contract";
 import { TEST_RUNTIME_ENVIRONMENT_ID_RE } from "@agent-chassis/controlled-contract/test-proof";
 
-import { assertProofAuthoringDraft } from "../../../../controlled-contract/lib/proof-contract.mjs";
+import { assertProofAuthoringDraft } from "@agent-chassis/controlled-contract";
 import { prepareProofObligationRuntime, PROOF_OBLIGATION_NOT_EXECUTABLE_CODES,
   ProofObligationResolutionError, resolveProofObligationRuntime } from
-  "../../../../controlled-contract/lib/proof-obligation-runtime-resolver.mjs";
+  "@agent-chassis/controlled-contract";
 import {
   resolveAuthorizedDeclaredTestTarget,
   resolveNativeCaseDeclaredTestTarget
@@ -18,14 +18,13 @@ import {
 import { controlledContractFocusCause, isControlledContractFocus } from
   "../../lib/controlled-contract-tools.mjs";
 import { parseProofSourceUnitAddress as parseProofAuthoringUnitAddress } from "./saved-proof-source.mjs";
+import { obligationCoverageQueryCall } from "./coverage-recovery-guidance.mjs";
+import { executionTimeoutInputSchema, parseExecutionTimeout } from "../../lib/execution-timeout.mjs";
 
 const PUBLIC_KEYS = new Set(["environment", "git_sha", "repo", "source", "subject", "timeout"]);
 
 const SOURCE_KEYS = new Set(["focus", "unit"]);
 
-const VERIFY_PROOF_TIMEOUT_PRESET_SECONDS = Object.freeze({ short: 30, medium: 300, long: 1800 });
-const VERIFY_PROOF_DEFAULT_TIMEOUT = "medium";
-const VERIFY_PROOF_TIMEOUT_MAX_SECONDS = 2147483;
 const VERIFY_PROOF_TIMEOUT_DESCRIPTION =
   "Optional proof/test execution budget: short=30s, medium=300s (default), long=1800s, or {seconds:N} with integer N in 1..2147483. One monotonic budget starts after canonical proof population and runtime binding resolution and is shared by provider preparation and every candidate, falsifier and traversal attempt; expiry or request cancellation interrupts the active attempt and starts no further attempt.";
 const FORBIDDEN_AUTHORITY_KEYS = Object.freeze([
@@ -57,32 +56,12 @@ class VerifyProofOperationError extends Error {
 
 const compare = (a, b) => String(a).localeCompare(String(b));
 
-function parseVerifyProofTimeout(value) {
-  const accepted = (kind, label, seconds) => Object.freeze({ kind, label, seconds,
-    milliseconds: seconds * 1000 });
-  if (value === undefined) return accepted("preset", VERIFY_PROOF_DEFAULT_TIMEOUT,
-    VERIFY_PROOF_TIMEOUT_PRESET_SECONDS[VERIFY_PROOF_DEFAULT_TIMEOUT]);
-  if (typeof value === "string" && Object.hasOwn(VERIFY_PROOF_TIMEOUT_PRESET_SECONDS, value)) {
-    return accepted("preset", value, VERIFY_PROOF_TIMEOUT_PRESET_SECONDS[value]);
-  }
-  if (value !== null && typeof value === "object" && !Array.isArray(value) &&
-      Object.getPrototypeOf(value) === Object.prototype &&
-      Object.keys(value).length === 1 && Object.hasOwn(value, "seconds") &&
-      Number.isSafeInteger(value.seconds) && value.seconds >= 1 &&
-      value.seconds <= VERIFY_PROOF_TIMEOUT_MAX_SECONDS) {
-    return accepted("custom", null, value.seconds);
-  }
-  throw new VerifyProofOperationError("verify_proof.timeout_invalid.v1",
-    "timeout must be short, medium, long, or a closed { seconds } object with an integer from 1 to 2147483",
-    { accepted_presets: { ...VERIFY_PROOF_TIMEOUT_PRESET_SECONDS },
-      maximum_seconds: VERIFY_PROOF_TIMEOUT_MAX_SECONDS });
+function verifyProofTimeoutRefusal(message, facts) {
+  return new VerifyProofOperationError("verify_proof.timeout_invalid.v1", message, facts);
 }
 
 function verifyProofTimeoutInputSchema(z) {
-  return z.union([
-    z.enum(Object.keys(VERIFY_PROOF_TIMEOUT_PRESET_SECONDS)),
-    z.object({ seconds: z.number().int().min(1).max(VERIFY_PROOF_TIMEOUT_MAX_SECONDS) }).strict()
-  ]).optional().describe(VERIFY_PROOF_TIMEOUT_DESCRIPTION);
+  return executionTimeoutInputSchema(z, VERIFY_PROOF_TIMEOUT_DESCRIPTION);
 }
 
 function verifyProofPopulationSubject(subject) {
@@ -150,7 +129,7 @@ function assertVerifyProofCallerShape(args, { authenticatedRole } = {}) {
       args.subject.length > 512) throw new VerifyProofOperationError(
     "verify_proof.subject_invalid.v1", "subject is required and must be a bounded canonical identity"
   );
-  if (Object.hasOwn(args, "timeout")) parseVerifyProofTimeout(args.timeout);
+  if (Object.hasOwn(args, "timeout")) parseExecutionTimeout(args.timeout, verifyProofTimeoutRefusal);
   if (Object.hasOwn(args, "environment") && (typeof args.environment !== "string" ||
       args.environment.length > 512 || !TEST_RUNTIME_ENVIRONMENT_ID_RE.test(args.environment))) {
     throw new VerifyProofOperationError("verify_proof.environment_invalid.v1",
@@ -377,6 +356,11 @@ function resolveVerifyProofOperation({ args, context }) {
       if (resolution.reason_code === 'verify_proof.test_selector_invalid.v1') {
         diagnostic.details.recovery_call = buildStableTestProofRecoveryCall({ wkId, focus: source.focus });
       }
+
+      if (resolution.reason_code === PROOF_OBLIGATION_NOT_EXECUTABLE_CODES.QUALIFYING_VERIFICATION_AMBIGUOUS) {
+        diagnostic.details.recovery_call = obligationCoverageQueryCall({ wkId, focus: source.focus,
+          selectedUnit: source.selected_unit, obligationId: row.obligation_id });
+      }
       proofs.set(failureKey, { test_proof_id: proof?.test_proof_id ?? null, verification_id: verificationId,
         declared_target: target, relationships: [{ obligation_id: row.obligation_id,
           relation_ids: declaredRelationIds, selected_definition: resolved.definition,
@@ -434,7 +418,6 @@ function resolveVerifyProofOperation({ args, context }) {
 
 export { FORBIDDEN_AUTHORITY_KEYS as VERIFY_PROOF_FORBIDDEN_AUTHORITY_KEYS,
   RESOLUTION_SCHEMA_VERSION as VERIFY_PROOF_POPULATION_RESOLUTION_SCHEMA_VERSION,
-  VERIFY_PROOF_DEFAULT_TIMEOUT, VERIFY_PROOF_TIMEOUT_MAX_SECONDS, VERIFY_PROOF_TIMEOUT_PRESET_SECONDS,
   VerifyProofOperationError, assertVerifyProofCallerShape, parseVerifyProofSource,
-  parseVerifyProofTimeout, resolveVerifyProofOperation, verifyProofPopulationSubject,
-  verifyProofTimeoutInputSchema };
+  resolveVerifyProofOperation, verifyProofPopulationSubject, verifyProofTimeoutInputSchema,
+  verifyProofTimeoutRefusal };

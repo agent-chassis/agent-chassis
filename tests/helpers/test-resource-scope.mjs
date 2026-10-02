@@ -95,7 +95,7 @@ export function createTestResourceScope({ label = "test-resource-scope", fixture
   }
 
   function beginAttempt(entry) {
-    const attempt = { label: entry.label, cause: undefined };
+    const attempt = { label: entry.label, failed: false, cause: undefined };
     attempts.push(attempt);
     return attempt;
   }
@@ -111,6 +111,7 @@ export function createTestResourceScope({ label = "test-resource-scope", fixture
     try {
       result = entry.disposer();
     } catch (error) {
+      attempt.failed = true;
       attempt.cause = error;
       entry.status = "early-failed";
       throw error;
@@ -129,6 +130,7 @@ export function createTestResourceScope({ label = "test-resource-scope", fixture
         retire(entry);
       },
       (error) => {
+        attempt.failed = true;
         attempt.cause = error;
         entry.status = "early-failed";
         throw error;
@@ -187,17 +189,19 @@ export function createTestResourceScope({ label = "test-resource-scope", fixture
           return value;
         }
 
+        let cleanupFailed = false;
         let cleanupFailure;
         try {
           await invokeEarlyDisposer(entry);
         } catch (error) {
+          cleanupFailed = true;
           cleanupFailure = error;
         }
         const raceError = new TestResourceScopeError(
           TEST_RESOURCE_SCOPE_ERROR_CODES.ACQUISITION_DISPOSAL_RACE,
           `test resource acquisition completed after disposal began: ${label}`
         );
-        if (cleanupFailure === undefined) throw raceError;
+        if (!cleanupFailed) throw raceError;
         throw new AggregateError([
           raceError,
           labelledCleanupError(label, cleanupFailure)
@@ -242,6 +246,7 @@ export function createTestResourceScope({ label = "test-resource-scope", fixture
         discardSuccessfulAttempt(attempt);
         retire(entry);
       } catch (error) {
+        attempt.failed = true;
         attempt.cause = error;
         entry.status = "retired";
         entries.delete(entry.label);
@@ -249,7 +254,7 @@ export function createTestResourceScope({ label = "test-resource-scope", fixture
     }
 
     state = "disposed";
-    const failures = attempts.filter((attempt) => attempt.cause !== undefined);
+    const failures = attempts.filter((attempt) => attempt.failed);
     if (failures.length > 0) {
       throw new AggregateError(
         failures.map(({ label, cause }) => labelledCleanupError(label, cause)),

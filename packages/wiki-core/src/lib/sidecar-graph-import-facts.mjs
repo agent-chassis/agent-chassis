@@ -4,6 +4,12 @@ import path from "node:path";
 
 import { Language, Parser } from "web-tree-sitter";
 
+import { collectRustImportFacts } from "./sidecar-graph-rust-imports.mjs";
+import {
+  SIDECAR_LANGUAGE_DESCRIPTIONS,
+  sidecarLanguageForPath
+} from "./sidecar-language-descriptions.mjs";
+
 const PYTHON_RELATIVE_IMPORT_PREFIX = /^\.+/;
 const WASM_GRAMMAR_PACKAGE_NAME = "@vscode/tree-sitter-wasm";
 const require = createRequire(import.meta.url);
@@ -18,51 +24,13 @@ const WASM_GRAMMAR_PACKAGE_VERSION = readPackageVersion(
   path.join(WASM_GRAMMAR_ROOT, "package.json")
 );
 
-const LANGUAGE_SPECS = Object.freeze({
-  javascript: {
-    language: "javascript",
-    grammar: "tree-sitter-javascript",
-    grammarVersion: "0.25.0",
-    wasmFile: "tree-sitter-javascript.wasm",
-    constructs: ["import", "require", "re_export_from", "dynamic_import"]
-  },
-  python: {
-    language: "python",
-    grammar: "tree-sitter-python",
-    grammarVersion: "0.25.0",
-    wasmFile: "tree-sitter-python.wasm",
-    constructs: ["import", "from_import"]
-  },
-  tsx: {
-    language: "tsx",
-    grammar: "tree-sitter-tsx",
-    grammarVersion: "0.23.2",
-    wasmFile: "tree-sitter-tsx.wasm",
-    constructs: ["import", "require", "re_export_from", "dynamic_import"]
-  },
-  typescript: {
-    language: "typescript",
-    grammar: "tree-sitter-typescript",
-    grammarVersion: "0.23.2",
-    wasmFile: "tree-sitter-typescript.wasm",
-    constructs: ["import", "require", "re_export_from", "dynamic_import"]
-  }
-});
+const LANGUAGE_SPECS = SIDECAR_LANGUAGE_DESCRIPTIONS;
 
 let treeSitterProviderPromise = null;
 
 function readPackageVersion(packageJsonPath) {
   const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8"));
   return parsed.version;
-}
-
-function languageKeyForPath(relativePath) {
-  const extension = path.posix.extname(relativePath);
-  if (extension === ".py") return "python";
-  if (extension === ".tsx") return "tsx";
-  if ([".ts", ".mts", ".cts"].includes(extension)) return "typescript";
-  if ([".cjs", ".js", ".jsx", ".mjs"].includes(extension)) return "javascript";
-  return null;
 }
 
 function wasmGrammarPath(wasmFile) {
@@ -114,7 +82,7 @@ export function coverageForLanguage(languageKey) {
   return {
     language: spec.language,
     status: "parsed",
-    constructs: spec.constructs
+    constructs: [...spec.constructs]
   };
 }
 
@@ -268,8 +236,28 @@ function collectPythonImportFacts({ rootNode, text, languageKey }) {
   return facts.sort((left, right) => left.index - right.index);
 }
 
+function collectGoImportFacts({ rootNode, text, languageKey }) {
+  const facts = [];
+  function visit(node) {
+    if (node.type === "import_spec") {
+      const pathNode = node.childForFieldName("path");
+      const content = pathNode ? firstNamedChildOfType(pathNode, "interpreted_string_literal_content") : null;
+      const raw = pathNode ? textForNode(text, pathNode) : "";
+      const specifier = content ? textForNode(text, content)
+        : pathNode?.type === "raw_string_literal" ? raw.slice(1, -1) : null;
+      if (specifier) {
+        facts.push({ construct: "import", dynamic: false, index: node.startIndex, languageKey, specifier });
+      }
+      return;
+    }
+    for (const child of namedChildren(node)) visit(child);
+  }
+  visit(rootNode);
+  return facts.sort((left, right) => left.index - right.index);
+}
+
 export function parseImportFacts({ provider, relativePath, text }) {
-  const languageKey = languageKeyForPath(relativePath);
+  const languageKey = sidecarLanguageForPath(relativePath);
   const language = provider.languages.get(languageKey);
   if (!languageKey || !language) {
     return { facts: [], unavailable: true, reason: "unsupported_language" };
@@ -280,9 +268,10 @@ export function parseImportFacts({ provider, relativePath, text }) {
   try {
     parser.setLanguage(language);
     tree = parser.parse(text);
-    const facts = languageKey === "python"
-      ? collectPythonImportFacts({ rootNode: tree.rootNode, text, languageKey })
-      : collectJavaScriptImportFacts({ rootNode: tree.rootNode, text, languageKey });
+    const collect = languageKey === "python" ? collectPythonImportFacts
+      : languageKey === "go" ? collectGoImportFacts
+        : languageKey === "rust" ? collectRustImportFacts : collectJavaScriptImportFacts;
+    const facts = collect({ rootNode: tree.rootNode, text, languageKey });
     return { facts, unavailable: false };
   } catch (error) {
     return {

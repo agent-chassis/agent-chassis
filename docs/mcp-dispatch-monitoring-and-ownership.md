@@ -33,9 +33,27 @@ explicit timeout is an integer from 1 through 300000 milliseconds and returns
 public list and wait operations, global filters, obsolete status parameters, and
 handle-only continuations are not accepted compatibility surfaces.
 
+A `repo` the repository-resolution owner cannot resolve refuses with
+`workspace_repo_resolution_invalid` before any backend call, on this route and on
+`workspace_agent_dispatch`, `workspace_agent_dispatch_identity_contract`,
+`workspace_integrate_committed_slice`, `workspace_wk_forge_handoff` and
+`workspace_wk_landing_status`. The shared dispatch projection publishes only a
+refusal that owner minted: `blocker.detail.workspace_repo_resolution` is its
+envelope unchanged (the `not_in_repo`/`wrong_session` or conflict diagnosis, the
+configured aliases and the current alias), and the carrier's no-route recovery
+names the actor its facts establish: the caller when the alias is syntactically
+invalid (`invalid_request`/`invalid_alias`, with the rejected `requested_alias`
+and the `violated_rule`; re-issue with a configured alias or omit `repo`) or
+names no configured repository (re-issue with a configured alias) when
+repositories are configured, the operator when none is or the
+configuration conflicts, and the launcher when its own attached alias is not
+configured. No alias is substituted and no call is offered, and the refusal
+retains and writes nothing. Any other thrown value remains
+`mcp_response.handler_exception.v1`.
+
 `detail` is `{kind:"failure_history",cursor?,limit?}`,
 `{kind:"attempts",cursor?,limit?}`, or
-`{kind:"proof_verification",cursor?,limit?,invocation_id?}`. The default limit is
+`{kind:"proof_verification",cursor?,limit?,invocation_id?,proof_subject?,source?}`. The default limit is
 20 and the accepted range is 1 through 100. Detail plus timeout refuses before
 effects, and `invocation_id` refuses when combined with `cursor` or `limit`.
 Detail reads are snapshot-paged from the immutable journal prefix and never
@@ -63,37 +81,53 @@ Accepted-status observation of a managed worker slice carries a compact
   never reported as an empty record.
 
 In default status `last_recorded_invocation` is compact: its `invocation_id`,
-`sequence`, `outcome`, `status`, `reason_code`, `result_digest`,
-`coverage_scope`, `detail_call`, the tested source's `selected_unit`,
-`source_snapshot_digest` and `contract_generation`, and an `outcome` built from
-the recorder's retained summary. `outcome` has the `status`, `proof_counts`,
-diagnostic counts and codes, and, in the recorder's order, the rows that fit a
-1024-byte budget (at least one). Each row keeps its status, execution and
-selected-test status, declared target, mutation outcome, capability limitations,
-obligations and reason key. `reasons` keeps each referenced reason's stable code.
-Rows not carried are counted in `proofs_omitted`. Recovery text, proof and test
-identifiers and the complete tested-source binding are read through the
-invocation's `detail_call`. `include_final_result:true` publishes the whole
-recorded `outcome_summary`.
+`sequence`, `status`, `reason_code` (when not null), `result_digest`,
+`coverage_scope`, the tested source's `source_snapshot_digest`, and an
+`outcome` built from the recorder's retained summary. `outcome` has the
+`proof_counts` outcome counts (`total`, `proven`, `unproven`,
+`not_executable`), diagnostic counts and codes when there are any, and, in the
+recorder's order, the rows that fit a 384-byte budget (at least one). Each row
+keeps its status, execution and selected-test status, capability limitations and
+reason key. `reasons` keeps each referenced reason's stable code. Rows not
+carried are counted in `proofs_omitted`. The compact observation carries one
+`detail_call`, the invocation list, whose row for the latest invocation names
+that invocation's own detail call; its declared targets, mutation evidence,
+obligations, readiness counts, recovery text, proof and test identifiers and the
+complete tested-source binding are read there. `include_final_result:true`
+publishes the whole recorded observation, including the journal `snapshot` and
+the `outcome_summary`.
 
 `detail: {kind:"proof_verification"}` lists every recorded call with its
 server-minted `invocation_id`. Adding that `invocation_id` reads the one
 recorded call:
 
-- An aggregate comes back with one evidence locator, `detail.evidence`: a
-  fresh evidence reference readable through
-  `workspace_read_mcp_content_reference` in the observing session.
-  `detail.evidence_retrieval` beside it names the first read and the reader's
-  page protocol
-  ([Oversized MCP Response References](mcp-repository-model.md#oversized-mcp-response-references))
-  followed by UTF-8 JSON decoding, with the expected byte count, `sha256` and
-  `result_digest`. `detail.outcome_summary`
-  (`workspace-verify-proof-outcome-summary.v1`) is the selected outcome
+- An aggregate comes back as `detail.outcome_summary`
+  (`workspace-verify-proof-outcome-summary.v1`): the selected outcome
   re-projected from that exact retained aggregate by the direct verifier's own
-  outcome core and bounded by the ordinary delivery budget; it carries no
-  evidence locator of its own. The direct `workspace_verify_proof` summary is
-  unchanged.
+  outcome core and bounded by the ordinary delivery budget. Every returned
+  proof that is not proven carries its exact next call: the same detail with
+  `proof_subject` (a `test_proof_id` or `obligation_id` in that invocation).
+  That read returns `detail.selected_detail`, the selected proof's own
+  diagnosis through the same projection the direct verifier uses, from the
+  same cached record; an identity the invocation does not hold refuses with
+  `proof_verification_selection_unknown` and lists its choices. No evidence
+  locator, byte reader or re-spill is involved, and nothing re-executes.
 - A modeled refusal comes back inline.
+- A retained source ambiguity keeps its complete original choice population
+  in the invocation. The ordinary detail shows at most three exact source
+  identities, exact total/displayed/undisplayed counts and root `next_calls`
+  that read them. `detail.source:{unit,focus?}` with `invocation_id` reads one
+  exact retained tuple, including an undisplayed one; omitted focus means
+  root. The root next call is the original source-qualified verification call,
+  which would be a new execution if followed. `source` cannot accompany
+  `proof_subject`, cannot omit `invocation_id`, and is removed before the
+  journal observer receives the detail. Inspection changes no journal, cache,
+  retained artifact or proof credit.
+- The coordinator reads here; the managed worker that made the call reads its
+  own recorded invocation through `workspace_verify_proof` with
+  `recorded_invocation`, which the worker's own answer names
+  ([MCP Operation Reference](mcp-operation-reference.md)). No `run_status`
+  grant is added for workers.
 - `detail.summary.last_recorded_invocation` omits the latest invocation's
   recorded `outcome_summary`, since the detail already carries the selected
   outcome. When the latest invocation is a different `invocation_id` from the
@@ -160,14 +194,15 @@ provider execution or recording entrypoints. The caller cannot supply a durable
 state root. The invocation path remains the sole owner of authentication,
 execution, result persistence and later journal publication.
 
-An unavailable observation keeps its compact state and code, plus the complete
+An unavailable observation keeps its compact state and code, plus the
 diagnostic from the failed journal observation with the operation, stage,
-subject and attempt identity. The ordinary response boundary delivers that
-diagnostic inline or through its existing content-reference spill path. An
-invocation-detail delivery failure similarly preserves the failed persistence
-result and invocation identity, and advertises no evidence reference when no
-readable reference was created. Unknown producer codes do not remove the
-captured message, stack, path, metadata or nested cause.
+subject and attempt identity, projected by the pure dispatch failure projection:
+the returned failure record and each cause level's name, code, message and scalar
+facts are published. The observation is a read, so it retains nothing:
+`retained_evidence` is `{ retained: false, reason: "observed_by_read", ... }` and
+names the withheld capture, and repeating the status observes the same failure
+again without writing an artifact. Unknown producer codes do not remove a cause
+level.
 
 Observation, restart and lifecycle settlement never execute, repeat or schedule
 verification. A recorded result covers only its requested selection. It is
@@ -219,7 +254,7 @@ non-slice subject — `terminal` equals `child_terminal` and no
 | `settled` | whether this observation call settled before its explicit bound; it is separate from child/run terminality |
 | `exit`, `final_result`/`final_result_summary`, `review_result` | **child** completion evidence; none of it contradicts `terminal:false` |
 | `updated_at` | backend-reported update time for the **child** run; lifecycle progress does not advance it |
-| `next_action` | `retry_wait_or_check_status` — observe the same subject and optional attempt again; never relaunch — for in-flight, publication-retry and other unresolved states without a retained failure. A retained failure instead publishes the one next step its `retry_assessment` implies, identical to `lifecycle_resolution.next_action` (see [Retained failures](#retained-failures-and-retry-eligibility)) |
+| `next_action` | `retry_wait_or_check_status` — observe the same subject and optional attempt again; never relaunch — for in-flight, retryable publication and other unresolved states without a retained failure. A result publication blocked by a missing or mismatched execution identity instead publishes `launcher_repair_result_publication_identity` with its `required_correction` (see [publication durability](#full-final-result-and-compact-advisory-reference-contract)). A retained failure instead publishes the one next step its `retry_assessment` implies, identical to `lifecycle_resolution.next_action` (see [Retained failures](#retained-failures-and-retry-eligibility)) |
 
 Unresolved runs also carry a `lifecycle_resolution` projection
 (`workspace-agent-run-lifecycle-resolution.v1`) with `resolved:false`, the exact
@@ -230,6 +265,7 @@ and an actionable lifecycle `next_action`
 (`resolve_lifecycle_failure_then_retry_run_status`,
 `repair_retry_assessment_then_check_status`, `escalate_missing_retry_capability`,
 `delivery_requires_new_generation_work`,
+`launcher_repair_result_publication_identity`,
 `retry_run_status_after_exact_slice_commit`, or `retry_wait_or_check_status`).
 `integration_complete:false` holds in *every* unresolved projection whatever
 intermediate Git state a diagnostic envelope reports: an unresolved run never
@@ -325,9 +361,13 @@ Projection changes neither advisory usability nor lifecycle, enforcement,
 provenance, digest, or formal-attestation facts. It does not authenticate or
 recompute evidence, mutate internal settled results, perform I/O, or make
 backend calls. If the shared MCP response-size boundary spills a complete
-logical response, `workspace_read_mcp_content_reference` still reconstructs
-those already-projected JSON bytes exactly; transport spill references are
-separate from both reference forms above.
+logical response, `workspace_read_mcp_content_reference` still returns those
+already-projected JSON bytes; transport spill references are separate from both
+reference forms above. A final result's `missing_result` keeps the launcher's
+diagnosis (its code, reason, exit, path and byte facts) and withholds a captured
+child `stderr_tail`/`stdout_tail`: that tail is process output, not authored
+content, it never fills an authored slot, and it stays in the run's recorded
+final result (`retained_evidence.owner: "dispatch_run_final_result"`).
 
 For a managed worker, synchronous terminal capture precedes the journal
 publication await. The complete normalized report, original response,
@@ -338,6 +378,21 @@ explicit and leaves the captured hot bytes available for retry; cold observation
 with no committed report returns report unavailable rather than fabricating
 completion. Immediate and bounded observations report the same durability facts,
 so neither feeds an unpublished report into post-worker settlement.
+
+A missing or mismatched authenticated execution tuple is not a retryable
+publication failure. Settlement publishes nothing and reports
+`final_result_publication_failure` with code
+`managed_run_execution_identity_unavailable`, `reason`
+`execution_tuple_missing` or `execution_tuple_mismatch`, and the owner's
+`repair_required` (`retryable: false`, `responsible_actor: "launcher"`, the run's
+`subject` tuple, any `mismatched_fields` with expected and observed values, the
+requirement, and the durability, effect and uncertainty facts). No later
+observation can supply that identity and nothing mints or rebinds one, so status
+publishes `next_action: "launcher_repair_result_publication_identity"` (top level
+and on `lifecycle_resolution`) with the same facts as `required_correction`
+instead of `retry_wait_or_check_status`, and a bounded request stops waiting on
+it. The run stays `terminal:false` with `integration_complete:false`, and the
+captured result is never fed to post-worker settlement.
 
 A transient lifecycle failure is retained on the run's checkpoint, so it does
 not disappear from the projection on a later poll that happens to succeed into
@@ -375,28 +430,110 @@ its path:
 - every scalar member of the envelope and of `integration`, so a newly added
   scalar lifecycle fact is published rather than suppressed;
 - `cleanup` and `failure_cause` unchanged, and the scalar members of
-  `integration.review_target`, `integration.transition`,
-  `integration.record_reconciliation` and `integration.cleanup`;
+  `integration.transition`, `integration.record_reconciliation` and
+  `integration.cleanup` (`integration.review_target` restates the integration's
+  WK ref and SHAs as the review range and is omitted);
 - the terminal candidate's identity: `canonical_wk_id`, `base_ref`, `base`,
-  `wk_ref`, `wk_tip`, `candidate`, `candidate_tree`, `candidate_ref`,
-  `version_identity` and `version_ref` from its binding,
-  `materialization_verified`, and the designated `review_unit`'s `record_id`,
-  `slice_id` and `subject`, or `null`.
+  `wk_ref` (only when it differs from `integration.wk_ref`), `wk_tip`,
+  `candidate`, `candidate_tree`, `candidate_ref`, `version_identity` and
+  `version_ref` from its binding, `materialization_verified`, and the designated
+  `review_unit`'s `record_id` and `slice_id` (and its `subject` only when that
+  is not `record_id#slice_id`), or `null`.
 
 `omitted_members` names every member not shown in full, such as `evidence`,
-`integration.boundary_authorization`, `integration.transition.written_record`,
-`terminal_candidate.binding` and `terminal_candidate.materialization`.
-`complete.call` is the same observation with `include_final_result:true`, which
-publishes the complete envelope, including the document projections below.
+`integration.boundary_authorization`, `integration.review_target`,
+`integration.transition.written_record` and `terminal_candidate`, which is shown
+only by that identity. `complete` holds one `call`: the same observation with
+`include_final_result:true`, which publishes the complete envelope, including
+the document projections below. A final-result summary leaves out a null
+`writeback_kind` or `missing_result_code`. Both result channels count toward the
+8,192-byte default budget, so the compact answer publishes each fact once and
+leaves diagnosis to these reads.
+
+The complete result is bounded too. It is returned whole whenever its frame fits
+the active inline limit. When it does not, each member that already has a
+selected read is published by that read instead, in this order, until the frame
+fits: the lifecycle resolution's retained-failure ring, its mirrored
+correction and the retry assessment's probe diagnostic (the compact resolution
+below), and then the lifecycle failure's `evidence`, which is the latest
+failure-history item's own projection. `bounded_complete` lists every moved
+member with `read_by`, the member or call that serves it
+(`lifecycle_resolution.failure_history_call`, `required_correction` or the root
+`next_calls` retry-assessment read), and `fits`. Nothing is clipped or
+re-derived, and authored worker and reviewer text is kept whole. A frame that
+still exceeds the limit is returned with `fits: false`; the transport then
+spills it, and that remaining member has no selected read yet.
 
 `lifecycle_resolution` keeps the latest retained failure, the attempt counts,
 the retry assessment's decision facts and the next action. It replaces the
 retained-failure ring with `retained_failure_count` and a
 `failure_history_call` to the failure-history detail. The retry assessment's
-whole probe diagnostic (`assessment_evidence`) stays in the complete result. The
+probe diagnostic (`assessment_evidence`) is read through the retry-assessment
+detail below, whose exact call is the response's root `next_calls` entry. While
+that read is published, the compact `retry_assessment` keeps the assessment's
+decision facts (`decision`, `failure_class`, `reason`, `code`, `boundary`,
+`attempt_withheld`, `attempt_permitted_by`, `grants_authority`) and names each
+other member it serves whole in `omitted_members` (`retry_assessment.meaning`,
+`retry_assessment.correction_condition`, …); the
+complete result also carries it as its pure projection: typed facts published,
+raw output withheld (see
+[Pure failure observation](mcp-dispatch-managed-run-lifecycle.md#pure-failure-observation)). The
 required correction is published once, as the top-level `required_correction`.
 `lifecycle_resolution.omitted_members` names each of these members. The complete
 result keeps all of them and mirrors the correction on `lifecycle_resolution`.
+
+#### The retry-assessment detail
+
+An assessment that carries a probe diagnostic is retained ONCE, when the
+lifecycle creates it, through the incumbent
+[selected-response source](mcp-selected-response-details.md#retained-source):
+one `selected-response-source.v1` envelope bound to the resolved repository,
+the subject, the exact attempt and the question `retry_assessment`, holding the
+complete assessment, the retained failure's own `failure_cause`, and the
+`next_action` and `required_correction` that assessment implies. The source is
+protected: the public byte reader refuses it and names the owner read.
+Retention is memoized on the exact retained content, so a later explicit request
+that reaches the identical assessment reuses the locator instead of retaining
+again; a different assessment retains its own. A retention failure is published
+on `lifecycle_resolution.retry_assessment_detail` with its actual cause, and no
+read is offered.
+
+`workspace_agent_run_status` with `attempt_id` and `detail: {kind:
+"retry_assessment", source: {ref_id, sha256}}` answers from that original only:
+the decision, boundary, cause, subject, typed probe facts (the assessment
+evidence through the pure projection, `retained_evidence.owner:
+"workspace_agent_run_status_retained_source"`) and the supported correction,
+within the selected-response delivery bound. It runs no assessor, Git, recovery,
+lifecycle or retention, a newer assessment never substitutes for it, and a
+restarted server reads the same original. A read without `attempt_id` refuses
+(`retained_detail_requires_attempt_id`); a source bound to another repository,
+subject, attempt or question refuses `source_binding_mismatch`; missing and
+corrupt originals refuse with the byte reader's own
+`content_reference_not_found` and integrity causes.
+
+#### Candidate-bound verification call
+
+When the session's launcher-minted role is `orchestrator` and the observed
+lifecycle is a finalized integration whose terminal candidate materialized and
+verified (`materialization.verified`, with the binding's `candidate` and
+`canonical_wk_id` matching both the materialization and the observed subject's
+WK), compact and complete status carry one root `next_calls` entry, after any
+other root call:
+
+```json
+{"tool": "workspace_verify_proof",
+ "arguments": {"repo": "<resolved alias>", "subject": "<parent WK>", "git_sha": "<binding.candidate>"}}
+```
+
+It is built once from the observed binding, never from the worker delivery, WK
+tip, a ref or `HEAD`, and stays pinned to that commit; it does not claim the
+candidate is still current. It is optional: status executes no verification,
+the lifecycle `next_action` is unchanged, and constructing it reads no Git,
+filesystem or proof population. Operator, worker, reviewer and redteam sessions,
+and an absent, unverified, mismatched or unfinalized candidate, receive no such
+call. Without `git_sha` the same subject runs against the configured current
+checkout instead (see
+[Saved-proof verification](mcp-operation-reference.md#saved-proof-verification)).
 
 ### Terminal-candidate authored contracts are published as identity
 
@@ -410,8 +547,8 @@ state, and neither was ever governed by `include_final_result`.
 
 `slice_lifecycle.terminal_candidate.review_unit` therefore publishes their
 **identity plus the read that reproduces them** in the complete result. The
-compact default answer names `terminal_candidate.review_unit` as omitted and
-publishes neither body:
+compact default answer names `terminal_candidate` as omitted and publishes
+neither body:
 
 ```json
 {
@@ -440,8 +577,7 @@ publishes neither body:
     "retrieval": {
       "state": "retained",
       "source_schema_version": "selected-response-source.v1",
-      "ref_id": "resp-...",
-      "sha256": "...",
+      "source": { "ref_id": "resp-...", "sha256": "..." },
       "binding": {
         "route": "workspace_agent_run_status",
         "repository": "agent-chassis",
@@ -453,10 +589,15 @@ publishes neither body:
         }
       },
       "carrier_members": ["canonical_parent_wk_contract", "review_unit_contract"],
-      "reconstruction": ["…"],
-      "retained_source_read": {
-        "tool": "workspace_read_mcp_content_reference",
-        "arguments": { "ref_id": "resp-...", "offset": 0 }
+      "document_calls": {
+        "canonical_parent_wk_contract": {
+          "tool": "workspace_agent_run_status",
+          "arguments": { "repo": "agent-chassis", "subject": "work record",
+            "attempt_id": "...", "detail": { "kind": "authored_document",
+              "source": { "ref_id": "resp-...", "sha256": "..." },
+              "document": "canonical_parent_wk_contract" } }
+        },
+        "review_unit_contract": { "…": "the same read for the review-unit contract" }
       }
     },
     "current_candidate_status_observation": {
@@ -482,32 +623,68 @@ The observation retains the two strings **verbatim** through the incumbent
 [selected-response source](mcp-selected-response-details.md#retained-source)
 transport: one `selected-response-source.v1` envelope whose `carrier` holds them
 under their own member names, and whose `binding` pins the server-resolved
-repository, the observed unit, and the exact attempt and candidate this
-observation saw. `retrieval.retained_source_read` is that envelope's first byte
-range through `workspace_read_mcp_content_reference`; following its own
-`next_offset` until it is null, base64-decoding **each page separately**,
-concatenating the decoded bytes in page order, verifying their byte count and
-`sha256`, and parsing the result yields `carrier.<member>` byte-for-byte, Unicode included.
-Each page is encoded on its own, so a non-final page whose byte length is not a
-multiple of three carries its own padding: joining the encoded strings and
-decoding once corrupts the source. `retrieval.reconstruction` states these steps
-in the response. The call names no `length`:
-the reader applies its own per-call bound and reports `total_bytes` and
-`max_length` on its first page, so how many ranges the source takes comes from
-that owner rather than from a second copy of its configuration. Each omitted
-row's `utf8_bytes` already says what the document itself costs.
+repository, the observed unit, the question `authored_documents`, and the exact
+attempt and candidate this observation saw. The source is protected: the public
+byte reader refuses its bytes and names the document read instead, so the bytes
+are never reassembled by a caller.
+
+`retrieval.document_calls` publishes, per omitted document, the one read that
+answers it: `workspace_agent_run_status` with the observed subject and attempt
+and `detail: {kind: "authored_document", source, document}`. The server reads
+every retained byte, verifies the digest, checks the binding against the
+server-resolved repository, the requested subject and attempt, parses the
+document and answers a question about it within the selected-response delivery
+bound. The four document meanings are closed: `canonical_parent_wk_contract`,
+`review_unit_contract`, `terminal_candidate_controlled_generation` and
+`integration_transition_record`. A caller narrows with the document's own
+identities and nothing else:
+
+| Selection | Applies to | Selects |
+| --- | --- | --- |
+| `unit` | the parent contract and the written record | the root WK (`WK-…`, without its slices) or one slice (`WK-…#SLICE-…`) |
+| `section` | the three work-record documents; a decoded carrier | a named contract section of the unit (`acceptance`, `write_scope`, …, or `sections.<name>`); a top-level member of the carrier |
+| `criterion` | the three work-record documents | one acceptance criterion by its controlled-contract identity (`typed_identity`, else `derived:` plus its position/text digest) |
+| `entry` | the three work-record documents | one coordination entry by its `id` |
+| `carrier`, `focus` | the controlled generation | one carrier by its descriptor path or its focus, decoded from base64 and verified against its `content_digest` and `byte_length` on the server |
+| `obligation` | a decoded carrier | the rows of its top-level collections whose `obligation_id` is the one named |
+
+The answer (`workspace-agent-run-status-authored-document-detail.v1`) carries
+the source, the retained binding, the document's digest and size, the selection
+and a `presentation`. A selected value that fits is returned whole
+(`complete`). Otherwise the answer is a `summary` — the document's units, a
+unit's small scalars and sized sections, a section's criteria or entries by
+identity, a generation's identity, counts and carrier choices, or a carrier's
+sections and obligations — with the narrower reads in root `next_calls`, in
+document order while the frame fits, and `narrower_selections` stating how many
+exist and how many are offered. The first narrower read is reserved before the
+listing is fitted, so a summary offers at least one read whenever one fits; a
+read not offered is the offered read with that listed identity. A listing
+larger than the frame keeps each row's
+identity and size, and then an original-order prefix with `listed` giving the
+exact total. A controlled generation's own level is never returned whole: its
+carriers are base64 bytes and are decoded one carrier at a time. A single value
+larger than the bound that no narrower selection names — for example one very
+long authored string — is refused as `selected_value_exceeds_delivery_bound`
+with its exact size; nothing is clipped, paged or assembled from fragments.
+There is no field path, ordinal, cursor or byte range.
 
 Retrieval reads only those retained bytes. It re-reads no canonical record and
 resolves no candidate, so a later candidate, a re-authored record or a moved WK
 tip cannot be substituted for them: a later observation retains its own source
-and the earlier locator keeps answering with the earlier bytes. A retained
-artifact is an ignored transport file, not canonical evidence, review material
-or lifecycle authority, and it carries only the durability the response-spill
-state directory already provides — no restart guarantee is added. A missing,
-evicted or corrupt reference produces that reader's own registered refusal
-(`mcp_response.content_reference_ranged_read_unavailable.v1`), never a
-substitution from current state, and the published `sha256` makes tampering
-detectable by the caller.
+and the earlier locator keeps answering from the earlier bytes, across a server
+restart too. A retained artifact is an ignored transport file, not canonical
+evidence, review material or lifecycle authority, and it carries only the
+durability the response-spill state directory already provides. A document the
+source does not hold refuses `document_not_retained`; a read without
+`attempt_id` refuses `retained_detail_requires_attempt_id`; a source bound to
+another repository, subject, attempt or question refuses
+`source_binding_mismatch`; a missing, evicted or corrupt reference refuses with
+the verified reader's own cause (`content_reference_not_found`,
+`content_reference_digest_mismatch`), never a substitution from current state; a
+document or carrier that does not parse or verify refuses
+`retained_document_unparseable`, `retained_carrier_undecodable` or
+`retained_carrier_integrity_mismatch`. A read retains nothing and drives no
+lifecycle.
 
 One observed state retains one artifact: retention is memoized per registration
 on the repository, unit, attempt, candidate and the digests of the two strings,
@@ -602,14 +779,15 @@ compact default answer publishes neither and does not grow with descriptors.
 `omitted.digest` and `omitted.utf8_bytes` describe the exact `JSON.stringify`
 serialization of the observed generation object. That text is retained as
 `carrier.terminal_candidate_controlled_generation` in the same
-`selected-response-source.v1` envelope as the other omitted documents.
-Following `retrieval.retained_source_read` as described above, then
-`JSON.parse` of that carrier member, returns the exact historical generation:
-every member, descriptor order, path association, manifest descriptor, digest
-and base64 string. The guarantee covers the carried bytes, not the whitespace of
+`selected-response-source.v1` envelope as the other omitted documents, and
+`retrieval.document_calls.terminal_candidate_controlled_generation` reads it as
+described above: the generation's identity, counts and one choice per carrier
+and manifest descriptor (path, focus, kind, content digest and byte length),
+then each carrier by its path or focus, decoded, verified and returned as its
+original JSON. The guarantee covers the carried bytes, not the whitespace of
 whatever file the generation was first read from. A changed generation under
 the same candidate has a different digest, so it is retained as distinct
-content. The earlier locator keeps returning the earlier generation.
+content. The earlier locator keeps answering from the earlier generation.
 
 A candidate binding with no generation object is published exactly as it
 arrived, with no placeholder summary. A `controlled_generation` member that is
@@ -701,9 +879,10 @@ transition wrote. When retention is unavailable, `retrieval.state` is
 Measured over a reproduced four-slice record, the default settled response falls
 from 149,328 to 17,464 complete-frame bytes (88.3%); over the same fixture with
 63KB of additional unrelated authored text it falls from 485,520 to 17,468
-(96.4%) — the default answer does not scale with authored text at all. The cost
-is moved, not removed: a caller that asks for the complete omitted record pays
-for it through the ranged reader, in base64 across two channels.
+(96.4%) — the default answer does not scale with authored text at all. A caller
+that needs part of the written record asks for it through
+`retrieval.document_calls.integration_transition_record` and pays for that
+answer, not for the record.
 
 The original live worker monitor recognizes the coordinator's completed
 integration by the immutable delivery identity shared by review and integration
@@ -877,9 +1056,13 @@ the restart, and the next request makes an attempt. That attempt is not reported
 as a proven first attempt. A backend with no attempt journal has no durable
 history to read.
 
-Failure history and the other `detail` pages stay read-only, and the counts they
-report track real attempts: a retained failure returned without a new attempt
-adds no event and does not advance `failure_attempts`.
+Failure history and the other `detail` pages — including the retry-assessment
+and authored-document reads — stay read-only, and the counts they report track
+real attempts: a retained failure returned without a new attempt
+adds no event and does not advance `failure_attempts`. Each history item keeps
+its journal `sequence` and `digest` and publishes the same pure projection as
+`slice_lifecycle`, with `retained_evidence.owner:
+"managed_worker_attempt_journal"`; the journal bytes are never rewritten.
 
 ## Monitor calls are bounded; lifecycle attempts are not interrupted
 

@@ -1,7 +1,7 @@
-import { TestProofEvidenceSemanticKernelError } from "../../../controlled-contract/lib/test-proof-evidence-semantic-kernel.mjs";
-import { ProofObligationResolutionError } from "../../../controlled-contract/lib/proof-obligation-runtime-resolver.mjs";
-import { ProofAuthoringError } from "../../../controlled-contract/lib/proof-contract.mjs";
-import { AdmittedProofPackError } from "../../../controlled-contract/lib/admitted-proof-packs.mjs";
+import { TestProofEvidenceSemanticKernelError } from "@agent-chassis/controlled-contract";
+import { ProofObligationResolutionError } from "@agent-chassis/controlled-contract";
+import { ProofAuthoringError } from "@agent-chassis/controlled-contract";
+import { AdmittedProofPackError } from "@agent-chassis/controlled-contract";
 import { projectPublicDiagnostic } from "./verify-proof-result-detail.mjs";
 import { VerifyProofOperationError } from
   "../../../wiki-core/src/operations/controlled-contract/verify-proof-operations.mjs";
@@ -26,6 +26,7 @@ import { captureDiagnosticEvidence } from
 import {
   VERIFY_PROOF_SUMMARY_SCHEMA_VERSION
 } from "./mcp-response.mjs";
+import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 export { VERIFY_PROOF_SUMMARY_SCHEMA_VERSION };
 
 export const VERIFY_PROOF_TOOL_NAME = "workspace_verify_proof";
@@ -43,14 +44,17 @@ import {
   VERIFY_PROOF_REFUSAL_SCHEMA_VERSION,
   VERIFY_PROOF_EXECUTION_CODES,
   VERIFY_PROOF_EXECUTION_FAILURES,
+  infrastructureCorrection,
   VERIFY_PROOF_OPERATION_FAILURES,
   VERIFY_PROOF_SOURCE_SELECTION_FAILURES,
+  dependencyProjectionCorrection,
   isVerifyProofSourceSelectionFailure,
   projectObservedEvidence,
   projectVerifyProofSourceRetryCalls,
   projectedSourceSelectionDetail,
   projectedEvidenceFailure,
   projectedExecutionDetail,
+  projectedDependencyProjectionFacts,
   projectedOperationDetail,
   projectedProviderFailure,
   proofLocalContinuationFacts
@@ -60,7 +64,7 @@ export { projectObservedEvidence, projectProofAuthoringRecoveryCall } from
   "./verify-proof-failure-detail.mjs";
 
 export function projectVerifyProofFailure(error, { subject = null, continuation = false,
-  request = null } = {}) {
+  request = null, timing = null } = {}) {
 
   const originalEvidence = captureDiagnosticEvidence(error);
   const chain = [];
@@ -84,7 +88,8 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
         details };
       executionContext = details;
       deepestFailure = {
-        recovery_action: VERIFY_PROOF_EXECUTION_FAILURES[current.code]
+        recovery_action: VERIFY_PROOF_EXECUTION_FAILURES[current.code],
+        ...infrastructureCorrection(current.code)
       };
     } else if (current instanceof TestProofEvidenceError) {
       const failure = projectedEvidenceFailure(current, executionContext ?? {
@@ -170,17 +175,22 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
         break projection;
       }
       const details = { selector };
+      let correction = null;
       if (current.code === ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.EXACT_DEPENDENCY_PROJECTION) {
         if (typeof current.detail?.cause_code !== "string" ||
             !STABLE_CODE_RE.test(current.detail.cause_code)) {
           break projection;
         }
         details.cause_code = current.detail.cause_code;
+        const facts = projectedDependencyProjectionFacts(current.detail);
+        if (facts === null) break projection;
+        Object.assign(details, facts);
+        correction = dependencyProjectionCorrection(details, subject);
       }
       node = { code: current.code,
         owning_boundary: "agent-launch-cli.workspace-agent-orchestrator-test-proof-runtime",
         details };
-      deepestFailure = {
+      deepestFailure = correction ?? {
         recovery_action: ORCHESTRATOR_RUNTIME_FAILURES[current.code]
       };
     } else if (current instanceof TerminalCandidateValidationError &&
@@ -263,16 +273,18 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
   if (deepestFailure === null) return null;
   const deepest = chain.at(-1);
   const detail = deepest.details ?? {};
-  const redactions = [...(deepestFailure.redactions ?? [])];
+
+  const redactions = [];
   const recoveryFacts = {};
   for (const key of ["outer_wrapper_code", "deepest_stable_cause_code", "declared_target", "verification_id", "test_proof_id",
     "expected_test_id", "observed_count", "returned_count", "omitted_count",
     "observed_identity_candidates", "file_wrapper_status", "file_wrapper_error_codes",
     "observed_failures", "observed_failure_count", "ran", "exit_code", "signal",
-    "filesystem_error_code", "structured_observation_code", "output_truncated", "output_elided_bytes",
+    "filesystem_error_code", "spawn_error_code", "structured_observation_code", "failure_diagnostic",
+    "output_truncated", "output_elided_bytes",
     "execution_stage", "timed_out", "disposition", "blocker_code", "reason",
     "provider_id", "provider_version", "structured_observation_detail",
-    "selector", "cause_code", "expected_commit", "observed_commit", "expected_tree",
+    "selector", "cause_code", "candidate_commit", "validator_cache", "expected_commit", "observed_commit", "expected_tree",
     "observed_tree", "diagnostic_count", "returned_diagnostic_count",
     "omitted_diagnostic_count", "match_count", "choice_count", "field",
     "unsupported_keys", "accepted_form", "source_unit", "requested_environment", "incompatible",
@@ -292,22 +304,25 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     reason_code: deepest.code,
     diagnostics: projectPublicDiagnostic(chain, "diagnostics", redactions),
     diagnostic_redactions: redactions,
+    next_calls: detail.recovery_call === undefined ? [] : [buildNextCall({
+      ...detail.recovery_call, recommended: true
+    })],
     recovery: Object.freeze({
       action: deepestFailure.recovery_action,
 
       ...(deepestFailure.retry === false ? {
         correction_owner: deepestFailure.correction_owner,
-        condition: deepestFailure.condition
+        condition: deepestFailure.condition,
+        ...(deepestFailure.correction === undefined ? {} : {
+          correction: structuredClone(deepestFailure.correction) })
       } : { retry_operation: VERIFY_PROOF_TOOL_NAME }),
-      ...(detail.recovery_call === undefined ? {} : {
-        recovery_call: structuredClone(detail.recovery_call)
-      }),
       ...(deepestFailure.choices === undefined ? {} : {
         choices: Object.freeze([...deepestFailure.choices]),
         choice_count: deepestFailure.choices.length
       }),
       ...(Object.keys(recoveryFacts).length === 0 ? {} : { facts: recoveryFacts })
-    })
+    }),
+    ...(timing === null ? {} : { timing: structuredClone(timing) })
   };
   const local = continuation && causeTraversalComplete
     ? proofLocalContinuationFacts(chain) : null;
@@ -315,6 +330,9 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
   if (local !== null) CONTINUATION_FACTS.set(frozen, local);
   return frozen;
 }
+
+export { projectPublicVerifyProofRefusal, selectedVerifyProofSourceChoice,
+  verifyProofSourceAmbiguityChoices } from "./dispatch-run-proof-verification.mjs";
 
 export { projectPublicVerifyProofAggregate } from "./verify-proof-result-detail.mjs";
 export { projectVerifyProofSummary } from "./verify-proof-result-summary.mjs";

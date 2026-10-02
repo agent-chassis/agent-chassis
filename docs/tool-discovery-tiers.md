@@ -5,9 +5,8 @@ Backlink: [Tool Discovery v1](tool-discovery.md).
 
 This page is the canonical reference for tool discovery as a registered-tier
 projection: the `free_local` / `paid_cce` / `operator_only` vocabulary, canonical
-tier resolution, per-tier prose, and how the compatibility-named `agent-safe`
-audience gate composes
-with tier exposure.
+tier resolution, per-tier prose, and how the session-role gate composes with tier
+exposure.
 
 ## Registered-Tier Exposure And Projection
 
@@ -32,8 +31,10 @@ Exposure composes as a mechanically closed superset: a free/local registration s
 `free_local` entries; a CCE registration sees `free_local` plus `paid_cce`
 entries. An entry with missing or unknown tier metadata is visible to **no** tier —
 missing classification yields no exposure rather than defaulting to free/agent-visible.
-A tool is exposed only when **both** the selected role profile (`full`,
-`agent-safe`, `worker`) and the resolved tier allow it; role profile alone is never
+A tool is exposed only when **both** the launcher-minted session role (`operator`,
+`orchestrator`, `worker`, `reviewer` or `redteam`) and the resolved tier allow it.
+Any other `WIKI_MCP_TOOL_PROFILE` value, including the retired `full` and
+`agent-safe` names, refuses server startup and exposes nothing. The role alone is never
 authority to expose a higher-tier surface. `tier_visibility` composes with, and does
 not replace, `audience`, `recommended_route`, `runtime_posture`, and
 `side_effects`.
@@ -80,11 +81,10 @@ base notes and the historical raw-notes aggregate.
 
 ### `agent-safe` / `agent-authoritative` are not tier labels
 
-`agent-safe` and `agent-authoritative` are compatibility labels for
-structured-route/profile routing, not security classifications or product-tier
-availability. They may be used only when clearly qualified;
-registered-tier metadata remains the sole authority for tier exposure. Do not read
-either label as a free-tier availability signal.
+`agent-safe` and `agent-authoritative` are descriptive routing prose, not session
+profiles, security classifications or product-tier availability. They may be used
+only when clearly qualified; registered-tier metadata remains the sole authority
+for tier exposure. Do not read either label as a free-tier availability signal.
 
 MCP runtime exposure is derived from actual registration, the launcher-minted
 session role, `session-role-tool-access.json`, the registered tier,

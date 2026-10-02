@@ -1,10 +1,14 @@
 
 
-import { activeMcpInlineByteLimit, measureMcpInlineResultBytes,
-  persistVerifyProofEvidenceReference } from "./mcp-response.mjs";
-import { VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION, projectVerifyProofOutcomeCore,
-  verifyProofEvidenceRetrieval } from "./verify-proof-result-summary.mjs";
-import { buildDispatchContinuation } from "./dispatch-tool-helpers.mjs";
+import { activeMcpInlineByteLimit, measureMcpInlineResultBytes } from "./mcp-response.mjs";
+import { selectedResponseDeliveryBound } from "./selected-response-snapshot.mjs";
+import { AGENT_RUN_STATUS_SCHEMA_VERSION } from "./dispatch-tool-constants.mjs";
+import { VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION, projectVerifyProofOutcomeCore, selectableSubject }
+  from "./verify-proof-result-summary.mjs";
+import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { projectVerifyProofSelectedDetail } from "./verify-proof-result-detail.mjs";
+import { buildDispatchContinuation, DISPATCH_FAILURE_ORIGINALS, projectRecordedFailureDetail }
+  from "./dispatch-tool-helpers.mjs";
 import { captureDiagnosticEvidence } from
   "../../../agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { readVerifyProofRunRecord } from "./verify-proof-run-record-reader.mjs";
@@ -13,10 +17,85 @@ import { recordedProofVerificationOutcomeSummary } from
 
 export const RUN_PROOF_VERIFICATION_OBSERVATION_SCHEMA_VERSION = "run-proof-verification-observation.v1";
 export const RUN_PROOF_VERIFICATION_DETAIL_KIND = "proof_verification";
+export const RUN_PROOF_VERIFICATION_SELECTION_UNKNOWN_CODE = "proof_verification_selection_unknown";
 const ROUTE = "workspace_agent_run_status";
 
-function detailCall(subject, attemptId, detail) {
+const SELECTION_CHOICE_LIMIT = 50;
+const VERIFY_PROOF_REFUSAL_SCHEMA = "workspace-verify-proof-refusal.v1";
+const VERIFY_PROOF_TOOL = "workspace_verify_proof";
+
+export function verifyProofSourceAmbiguityChoices(refusal) {
+  if (refusal?.schema_version !== VERIFY_PROOF_REFUSAL_SCHEMA ||
+      !["verify_proof.subject_ambiguous.v1", "verify_proof.source_tuple_ambiguous.v1"]
+        .includes(refusal.reason_code) ||
+      refusal.recovery?.action !== "select_source" ||
+      !Array.isArray(refusal.recovery.choices) || refusal.recovery.choices.length === 0 ||
+      refusal.recovery.choice_count !== refusal.recovery.choices.length) return null;
+  const subject = refusal.subject?.requested;
+  if (typeof subject !== "string" || subject.length === 0) return null;
+  const choices = refusal.recovery.choices;
+  if (choices.some((choice) => choice?.tool !== VERIFY_PROOF_TOOL ||
+      choice.arguments?.subject !== subject || choice.arguments?.source?.unit === undefined)) return null;
+  return choices;
+}
+
+export function selectedVerifyProofSourceChoice(refusal, source) {
+  const choices = verifyProofSourceAmbiguityChoices(refusal);
+  if (choices === null) return null;
+  const canonical = { unit: source.unit, ...(source.focus === undefined ? {} : { focus: source.focus }) };
+  return choices.find((choice) => JSON.stringify(choice.arguments.source) === JSON.stringify(canonical)) ?? null;
+}
+
+export function projectPublicVerifyProofRefusal(refusal, { readCall = null, selectedSource = null,
+  fits = null, retentionFailed = false } = {}) {
+  if (refusal === null || typeof refusal !== "object" || !Array.isArray(refusal.diagnostics)) return refusal;
+  const publicRefusal = {
+    ...refusal,
+    diagnostics: Object.freeze(refusal.diagnostics.map((node) => {
+      if (node === null || typeof node !== "object" || node.details === null ||
+          typeof node.details !== "object" || !Object.hasOwn(node.details, "evidence")) return node;
+      const { evidence: _capture, ...details } = node.details;
+      return Object.freeze({ ...node, details: Object.freeze(details) });
+    }))
+  };
+  const choices = verifyProofSourceAmbiguityChoices(refusal);
+  if (choices === null) return Object.freeze(publicRefusal);
+  if (selectedSource !== null && selectedVerifyProofSourceChoice(refusal, selectedSource) === null) {
+    throw new TypeError("selected source is not in the retained ambiguity");
+  }
+  const { choices: _originalChoices, ...recovery } = publicRefusal.recovery;
+  const selection = (shown, selected = null) => Object.freeze({
+    ...publicRefusal,
+    recovery: Object.freeze(recovery),
+    source_selection: Object.freeze({ choice_count: choices.length,
+      returned_count: shown.length, not_shown_count: choices.length - shown.length,
+      ...(selected === null ? {} : { selected_source: selected }),
+      choices: shown.map((choice) => Object.freeze({ ...choice.arguments.source })) }),
+    next_calls: selected === null
+      ? shown.map((choice) => readCall(choice.arguments.source))
+      : [buildNextCall({ ...selectedVerifyProofSourceChoice(refusal, selected), recommended: false })]
+  });
+  if (selectedSource !== null) {
+    const candidate = selection([selectedVerifyProofSourceChoice(refusal, selectedSource)], selectedSource);
+    if (typeof fits !== "function" || !fits(candidate)) {
+      throw new RangeError("selected source execution call exceeds the selected response bound");
+    }
+    return candidate;
+  }
+  if (retentionFailed) return selection([]);
+  if (typeof readCall !== "function" || typeof fits !== "function") {
+    throw new TypeError("source ambiguity public projection requires a bounded read context");
+  }
+  for (let count = Math.min(3, choices.length); count >= 1; count -= 1) {
+    const candidate = selection(choices.slice(0, count));
+    if (fits(candidate)) return candidate;
+  }
+  throw new RangeError("one complete source inspection call exceeds the selected response bound");
+}
+
+function detailCall(subject, attemptId, detail, { recommended = true } = {}) {
   return buildDispatchContinuation({
+    recommended,
     tool: ROUTE,
     arguments: { subject, ...(attemptId === null ? {} : { attempt_id: attemptId }), detail },
     successPredicate: { fact: "monitor.proof_verification_detail_read", operator: "is_true" }
@@ -57,15 +136,19 @@ export async function observeRunProofVerification({ dispatchBackend, callerSessi
   if (page?.ok !== true) {
     const failure = Object.hasOwn(page ?? {}, "observation_failure")
       ? page.observation_failure : page;
+
     return Object.freeze({ ...base, state: "unavailable",
       code: page?.code ?? page?.refusal?.code ?? "run_detail_unavailable",
-      diagnostic: Object.freeze({
+      diagnostic: Object.freeze(projectRecordedFailureDetail({
         operation: "read_managed_run_proof_verification_observation",
         stage: "attempt_journal_observation",
         subject: status.subject,
         attempt_id: status.run_id,
+
+        ...(failure !== null && typeof failure === "object" && !(failure instanceof Error)
+          ? { failure } : {}),
         evidence: captureDiagnosticEvidence(failure)
-      }) });
+      }, { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION })) });
   }
   const recorded = page.summary.recorded_count;
   const attemptId = page.attempt_id ?? status.run_id;
@@ -104,12 +187,27 @@ function projectListedItem({ subject, attemptId, item }) {
     tested_source: verification.tested_source,
     coverage_scope: verification.coverage_scope,
     grants_authority: false,
-    evidence_call: detailCall(subject, attemptId,
+    detail_call: detailCall(subject, attemptId,
       { kind: RUN_PROOF_VERIFICATION_DETAIL_KIND, invocation_id: item.invocation_id })
   });
 }
 
-export function projectRunProofVerificationDetail({ subject, detail, workspaceDir, responseEnv = process.env }) {
+function selectionUnknown({ subject, attemptId, invocationId, proofSubject, record }) {
+  const proofs = record.proof_results ?? [];
+  const choices = [...new Set([
+    ...proofs.map(({ test_proof_id: id }) => id),
+    ...proofs.flatMap((proof) => (proof.relationship_results ?? []).map(({ obligation_id: id }) => id))
+  ])].sort();
+  return Object.assign(new Error("recorded verification holds no proof or obligation by that identity"), {
+    code: RUN_PROOF_VERIFICATION_SELECTION_UNKNOWN_CODE, details: {
+      subject, attempt_id: attemptId, invocation_id: invocationId, proof_subject: proofSubject,
+      choices: choices.slice(0, SELECTION_CHOICE_LIMIT),
+      choice_count: choices.length
+    } });
+}
+
+export function projectRunProofVerificationDetail({ subject, detail, workspaceDir, proofSubject = null,
+  source = null, responseEnv = process.env }) {
   const attemptId = detail.attempt_id ?? null;
   const items = detail.items.map((item) => projectListedItem({ subject, attemptId, item }));
   const projected = { ...detail, items, grants_authority: false };
@@ -136,46 +234,83 @@ export function projectRunProofVerificationDetail({ subject, detail, workspaceDi
       last_recorded_invocation: projectLastRecordedInvocation({ subject, attemptId,
         item: detail.summary.last_recorded_invocation, selectedInvocationId: detail.invocation_id }) });
   }
-  if (kind === "refusal") return Object.freeze({ ...projected, refusal: record });
-  const persisted = persistVerifyProofEvidenceReference({ evidence: record, evidenceIdentity: record.result_digest },
-    { env: responseEnv });
-  if (persisted.status !== "persisted") {
-    const failure = persisted.result;
-    throw Object.assign(new Error("recorded verification evidence could not be delivered", {
-      cause: failure
-    }), { code: "verify_proof_cache.evidence_delivery_failed.v1", details: {
-      authority_limb: "mechanical_failure",
-      operation: "project_run_proof_verification_detail",
-      stage: "evidence_reference_delivery",
-      subject,
-      attempt_id: attemptId,
-      invocation_id: detail.invocation_id,
-      delivery_failure: captureDiagnosticEvidence(failure)
-    } });
+
+  if (kind === "refusal") {
+    const choices = verifyProofSourceAmbiguityChoices(record);
+    if (source !== null && (choices === null ||
+        selectedVerifyProofSourceChoice(record, source) === null)) {
+      throw Object.assign(new Error("source is not an exact choice of this recorded ambiguity"), {
+        code: RUN_PROOF_VERIFICATION_SELECTION_UNKNOWN_CODE,
+        details: { subject, attempt_id: attemptId, invocation_id: detail.invocation_id,
+          reason: "source_not_in_result" }
+      });
+    }
+    if (choices === null) {
+      return Object.freeze({ ...projected, refusal: projectPublicVerifyProofRefusal(record) });
+    }
+    const readCall = (choice) => detailCall(subject, attemptId, {
+      kind: RUN_PROOF_VERIFICATION_DETAIL_KIND, invocation_id: detail.invocation_id,
+      source: choice
+    }, { recommended: false });
+    const fit = (candidate) => {
+      const { next_calls: nextCalls, ...refusal } = candidate;
+      return measureMcpInlineResultBytes({
+        schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION, accepted: true, subject,
+        attempt_id: projected.attempt_id ?? null,
+        detail: { ...projected, refusal }, next_calls: nextCalls
+      }) <= selectedResponseDeliveryBound(responseEnv);
+    };
+    const { next_calls: nextCalls, ...refusal } = projectPublicVerifyProofRefusal(record, {
+      readCall, selectedSource: source, fits: fit });
+    return Object.freeze({ ...projected, refusal, next_calls: nextCalls });
+  }
+  if (source !== null) {
+    throw Object.assign(new Error("source selection requires a retained source ambiguity"), {
+      code: RUN_PROOF_VERIFICATION_SELECTION_UNKNOWN_CODE,
+      details: { subject, attempt_id: attemptId, invocation_id: detail.invocation_id,
+        reason: "source_selection_not_available" }
+    });
+  }
+  const selectCall = (proof, options) => detailCall(subject, attemptId, {
+    kind: RUN_PROOF_VERIFICATION_DETAIL_KIND, invocation_id: detail.invocation_id, proof_subject: proof
+  }, options);
+  const inlineByteLimit = activeMcpInlineByteLimit(responseEnv);
+  if (proofSubject !== null) {
+
+    const answerBytes = (candidate) => measureMcpInlineResultBytes({
+      schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION, accepted: true, subject,
+      attempt_id: projected.attempt_id ?? null, detail: { ...projected, selected_detail: candidate } });
+    const bound = selectedResponseDeliveryBound(responseEnv);
+    const selected = projectVerifyProofSelectedDetail(record, proofSubject, {
+      fits: (candidate) => answerBytes(candidate) <= bound });
+    if (selected === null) {
+      throw selectionUnknown({ subject, attemptId, invocationId: detail.invocation_id, proofSubject, record });
+    }
+    return Object.freeze({ ...projected, selected_detail: selected });
   }
 
-  const inlineByteLimit = activeMcpInlineByteLimit(responseEnv);
   const outcomeSummary = projectVerifyProofOutcomeCore(record, {
     fits: (candidate) => measureMcpInlineResultBytes(candidate) <= inlineByteLimit,
-    decorate: (core) => ({ schema_version: VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION, ...core })
+    decorate: (core, kept) => ({ schema_version: VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION, ...core,
+      next_calls: kept.filter((row) => row.status !== "proven").map(selectableSubject)
+        .filter((proof) => proof !== null)
+        .map((proof, index) => selectCall(proof, { recommended: index === 0 })) })
   });
-  return Object.freeze({ ...projected, evidence: persisted.reference,
-    evidence_retrieval: verifyProofEvidenceRetrieval(persisted.reference),
-    outcome_summary: outcomeSummary });
+  return Object.freeze({ ...projected, outcome_summary: outcomeSummary });
 }
 
-export const COMPACT_PROOF_ROWS_BYTE_BUDGET = 1024;
+export const COMPACT_PROOF_ROWS_BYTE_BUDGET = 384;
+
 const COMPACT_INVOCATION_FACTS = Object.freeze([
   "invocation_id", "sequence", "outcome", "status", "reason_code", "result_digest",
-  "coverage_scope", "detail_call"
+  "coverage_scope"
 ]);
 const COMPACT_PROOF_ROW_FACTS = Object.freeze([
-  "status", "execution_status", "selected_status", "declared_target", "mutation_evidence",
-  "capability_limitations", "reason"
+  "status", "execution_status", "selected_status", "capability_limitations", "reason"
 ]);
-const COMPACT_TESTED_SOURCE_FACTS = Object.freeze([
-  "selected_unit", "source_snapshot_digest", "contract_generation"
-]);
+const COMPACT_TESTED_SOURCE_FACTS = Object.freeze(["source_snapshot_digest"]);
+
+const COMPACT_PROOF_COUNT_FACTS = Object.freeze(["total", "proven", "unproven", "not_executable"]);
 
 function pickFacts(value, fields) {
   return Object.fromEntries(fields.filter((field) => Object.hasOwn(value ?? {}, field))
@@ -187,20 +322,17 @@ function compactOutcome(summary) {
   const rows = [];
   let bytes = 0;
   for (const row of summary.proofs ?? []) {
-    const compact = { ...pickFacts(row, COMPACT_PROOF_ROW_FACTS),
-      obligations: (row.obligations ?? []).map((obligation) =>
-        pickFacts(obligation, ["obligation_id", "status", "reason"])) };
+    const compact = pickFacts(row, COMPACT_PROOF_ROW_FACTS);
     const size = Buffer.byteLength(JSON.stringify(compact), "utf8");
     if (rows.length > 0 && bytes + size > COMPACT_PROOF_ROWS_BYTE_BUDGET) break;
     rows.push(compact);
     bytes += size;
   }
   const carried = summary.proofs?.length ?? 0;
-  const referenced = new Set(rows.flatMap((row) =>
-    [row.reason, ...row.obligations.map((obligation) => obligation.reason)]).filter(Boolean));
+  const referenced = new Set(rows.map((row) => row.reason).filter(Boolean));
   return Object.freeze({
-    status: summary.status,
-    ...(summary.counts?.proofs === undefined ? {} : { proof_counts: summary.counts.proofs }),
+    ...(summary.counts?.proofs === undefined ? {} : {
+      proof_counts: pickFacts(summary.counts.proofs, COMPACT_PROOF_COUNT_FACTS) }),
     proofs: rows,
     proofs_returned: rows.length,
     proofs_omitted: (Number.isInteger(summary.proofs_omitted) ? summary.proofs_omitted : 0) +
@@ -208,9 +340,10 @@ function compactOutcome(summary) {
 
     reasons: Object.fromEntries(Object.entries(summary.reasons ?? {})
       .filter(([key]) => referenced.has(key))
-      .map(([key, reason]) => [key, pickFacts(reason, ["reason_code", "diagnostic_count",
-        "diagnostic_codes", "diagnostic_codes_omitted"])])),
-    ...pickFacts(summary, ["diagnostic_count", "diagnostic_codes", "diagnostic_codes_omitted"])
+      .map(([key, reason]) => [key, pickFacts(reason, ["reason_code", ...(reason.diagnostic_count > 0
+        ? ["diagnostic_count", "diagnostic_codes", "diagnostic_codes_omitted"] : [])])])),
+    ...(summary.diagnostic_count > 0
+      ? pickFacts(summary, ["diagnostic_count", "diagnostic_codes", "diagnostic_codes_omitted"]) : {})
   });
 }
 
@@ -218,10 +351,13 @@ export function projectCompactRunProofVerification(observation) {
   const latest = observation?.last_recorded_invocation;
   if (latest === null || typeof latest !== "object") return observation;
   const outcome = compactOutcome(latest.outcome_summary);
+
+  const { snapshot: _snapshot, ...facts } = observation;
   return Object.freeze({
-    ...observation,
+    ...facts,
     last_recorded_invocation: Object.freeze({
-      ...pickFacts(latest, COMPACT_INVOCATION_FACTS),
+      ...Object.fromEntries(Object.entries(pickFacts(latest, COMPACT_INVOCATION_FACTS))
+        .filter(([, value]) => value !== null)),
       ...(latest.tested_source === null || typeof latest.tested_source !== "object" ? {} : {
         tested_source: pickFacts(latest.tested_source, COMPACT_TESTED_SOURCE_FACTS)
       }),

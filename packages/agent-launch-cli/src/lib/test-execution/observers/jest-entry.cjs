@@ -2,7 +2,7 @@
 
 const path = require("node:path");
 
-const { createChannel, loadConfig } = require("./native-channel.cjs");
+const { createChannel, failureDiagnostic, loadConfig } = require("./native-channel.cjs");
 
 const config = loadConfig(process.argv[2]);
 const channel = createChannel(config, "jest.entry");
@@ -39,5 +39,8 @@ async function main() {
 
 main().catch((error) => {
   process.stderr.write(`${error?.stack ?? error}\n`);
+  channel.emit("runtime_error", { code: "test_proof_native_runner_unavailable",
+    message: "Jest could not be loaded or started",
+    failure_diagnostic: failureDiagnostic(error) });
   process.exitCode = 3;
 });

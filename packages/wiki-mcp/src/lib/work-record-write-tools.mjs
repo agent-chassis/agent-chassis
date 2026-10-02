@@ -13,12 +13,16 @@ import {
 import {
   compactGenerationTransition,
   projectPublicationOutcome,
-  validateOptionalExpectedSourceDigest
+  parseWorkRecordUnitAddress,
+  resolveExpectedSourceDigest,
+  workRecordFreshnessSource,
+  workRecordUnitStatus
 } from "./work-record-write-route-helpers.mjs";
 import { runWorkspaceWorkRecordReadySliceRoute } from
   "./work-record-ready-slice-route.mjs";
 import {
   WORK_RECORD_COMPLETION_POLICY_VALUES,
+  WORK_RECORD_FRESHNESS_PATTERN,
   WORK_RECORD_REVIEW_PURPOSE_VALUES,
   WORK_RECORD_STATUS_VALUES
 } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
@@ -95,7 +99,7 @@ export function createReadySliceInputSchema(z) {
       slice_id: z.string().regex(/^SLICE-[0-9]{3}$/).optional(),
       expected_source_digest: z
         .string()
-        .regex(/^sha256:[0-9a-f]{64}$/)
+        .regex(WORK_RECORD_FRESHNESS_PATTERN)
         .optional(),
       shaping_mode: z.enum(READY_SHAPING_MODE_VALUES).optional(),
       verbose: z.boolean().optional(),
@@ -128,6 +132,13 @@ export function createReadySliceInputSchema(z) {
         .max(WORK_RECORD_MATERIAL_REFERENCE_LIMIT).optional()
     })
     .strict();
+}
+
+function staleUnitFacts(unitAddress, resolution) {
+  return resolution.stale
+    ? { record_id: resolution.record?.id ?? null, selected_unit: parseWorkRecordUnitAddress(unitAddress),
+      source_digest: resolution.current_source_digest }
+    : { record_id: null, selected_unit: null, source_digest: null };
 }
 
 export function registerWorkRecordWriteTools({
@@ -186,26 +197,26 @@ export function registerWorkRecordWriteTools({
           repo: z.string().optional(),
           unit: z.string(),
           status: z.enum(WORK_RECORD_STATUS_VALUES),
-          expected_source_digest: z.string().optional(),
-          verbose: z.boolean().optional()
+          expected_source_digest: z.string().optional()
         })
         .strict()
     },
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const digestValidation = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
+        const digestValidation = await resolveExpectedSourceDigest(args.expected_source_digest ?? null,
+          { load: workRecordFreshnessSource(workspace.dir, args.unit) });
         if (!digestValidation.ok) {
           const result = {
+            ...staleUnitFacts(args.unit, digestValidation),
             valid: false,
             written: false,
             no_op: false,
             changed_fields: [],
             status: null,
             task: null,
-            source_digest: null,
             expected_source_digest: args.expected_source_digest ?? null,
-            current_source_digest: null,
+            current_source_digest: digestValidation.current_source_digest ?? null,
             diagnostics: [digestValidation.diagnostic]
           };
           return composeCloseoutResponse({
@@ -214,7 +225,9 @@ export function registerWorkRecordWriteTools({
               result,
               transitionApplicable: CLOSEOUT_LINT_STATUS_TRIGGER_VALUES.includes(args.status)
             }),
-            verbose: Boolean(args.verbose),
+            operation: WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME,
+            repository: workspace.repo,
+            unit: args.unit,
             jsonContent,
             shapeWriteResponse
           });
@@ -237,7 +250,9 @@ export function registerWorkRecordWriteTools({
           payload: response,
           closeoutLint,
           publicationState: result.publication_state ?? null,
-          verbose: Boolean(args.verbose),
+          operation: WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME,
+          repository: workspace.repo,
+          unit: args.unit,
           jsonContent,
           shapeWriteResponse
         });
@@ -269,8 +284,7 @@ export function registerWorkRecordWriteTools({
             .strict(),
 
           status: z.literal("done").optional(),
-          expected_source_digest: z.string().optional(),
-          verbose: z.boolean().optional()
+          expected_source_digest: z.string().optional()
         })
         .strict()
     },
@@ -278,26 +292,29 @@ export function registerWorkRecordWriteTools({
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
 
-        const digestValidation = validateOptionalExpectedSourceDigest(
-          args.expected_source_digest ?? null
-        );
+        const digestValidation = await resolveExpectedSourceDigest(args.expected_source_digest ?? null,
+          { load: workRecordFreshnessSource(workspace.dir, args.unit) });
         if (!digestValidation.ok) {
           const refusal = {
+            ...staleUnitFacts(args.unit, digestValidation),
             valid: false,
             written: false,
             no_op: false,
             changed_fields: [],
-            status: null,
+
+            status: digestValidation.stale ? workRecordUnitStatus(digestValidation.record, args.unit) : null,
             closure: null,
-            source_digest: null,
             expected_source_digest: args.expected_source_digest ?? null,
-            current_source_digest: null,
-            diagnostics: [digestValidation.diagnostic]
+            current_source_digest: digestValidation.current_source_digest ?? null,
+            diagnostics: [digestValidation.diagnostic],
+            ...(digestValidation.next_action === undefined ? {} : { next_action: digestValidation.next_action })
           };
           return composeCloseoutResponse({
-            payload: { workspaceRepo: workspace.repo, record_id: null, selected_unit: null, ...refusal },
+            payload: { workspaceRepo: workspace.repo, ...refusal },
             closeoutLint: buildDeferredCloseoutLint({ result: refusal, transitionApplicable: true }),
-            verbose: Boolean(args.verbose),
+            operation: "workspace_work_record_set_closure",
+            repository: workspace.repo,
+            unit: args.unit,
             jsonContent,
             shapeWriteResponse
           });
@@ -335,7 +352,9 @@ export function registerWorkRecordWriteTools({
           payload: closurePayload,
           closeoutLint,
           publicationState: result.publication_state ?? null,
-          verbose: Boolean(args.verbose),
+          operation: "workspace_work_record_set_closure",
+          repository: workspace.repo,
+          unit: args.unit,
           jsonContent,
           shapeWriteResponse
         });
@@ -350,7 +369,7 @@ export function registerWorkRecordWriteTools({
     {
       writeSemantics: MCP_WRITE_SEMANTICS.WHOLE_FIELD_REPLACEMENT,
       description:
-        "Clean update or semantic no-op returns exactly {ok:true}; clean creation also returns slice_id (actual server-allocated ID). A new slice must explicitly define read_scope, repo_paths, write_scope, depends_on, acceptance.criteria, and acceptance.validation; there is no parent inheritance, and depends_on:[] explicitly means no dependencies. Partial updates preserve already-authored fields. Optional summary, why_it_matters and agent_notes use the shared text/ref/parts carrier and persist resolved strings. It acknowledges persisted caller-authored data only and grants no authority. Actionable warnings, refusals, nonclean publication outcomes, effect certainty, and supported recovery remain detailed. Read details and current source_digest via workspace_work_record_summary or workspace_read_page with selected_slice. Implementation needs complete or opted-out proof posture.",
+        "Clean update or semantic no-op returns exactly {ok:true}; clean creation also returns slice_id (actual server-allocated ID). New slices explicitly set read_scope, repo_paths, write_scope, depends_on and acceptance.{criteria,validation}; no parent inheritance; depends_on:[] means none. Omitted update fields keep authored values. Implementation shaping requires nonempty write_scope and expected_edit_targets. It also needs complete or opted-out proof posture. Optional summary, why_it_matters and agent_notes take text/ref/parts carriers and persist resolved strings. It acknowledges persisted caller-authored data only and grants no authority. Actionable warnings, refusals, nonclean publication outcomes, effect certainty, and supported recovery remain detailed. Read details/current source_digest via workspace_work_record_summary or workspace_read_page with selected_slice.",
       inputSchema: createReadySliceInputSchema(z)
     },
     async (args) => {
@@ -373,7 +392,7 @@ export function registerWorkRecordWriteTools({
         repo: z.string().optional(),
         unit: canonicalWorkRecordUnitAddress(z),
         slice: upsertSliceBodyContractDeclaration(z),
-        expected_source_digest: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+        expected_source_digest: z.string().regex(WORK_RECORD_FRESHNESS_PATTERN).optional(),
         verbose: z.boolean().optional()
       })
       .strict(),
@@ -438,7 +457,8 @@ export function registerWorkRecordWriteTools({
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const digestValidation = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
+        const digestValidation = await resolveExpectedSourceDigest(args.expected_source_digest ?? null,
+          { load: workRecordFreshnessSource(workspace.dir, args.unit) });
         if (!digestValidation.ok) {
           return jsonContent(
             shapeWriteResponse(
@@ -449,7 +469,13 @@ export function registerWorkRecordWriteTools({
                 no_op: false,
                 changed_fields: [],
                 diagnostics: [digestValidation.diagnostic],
-                next_action: "supply a valid expected_source_digest (sha256:<64 lowercase hex>) or omit the field"
+
+                ...(digestValidation.stale ? {
+                  source_digest: digestValidation.current_source_digest,
+                  expected_source_digest: args.expected_source_digest,
+                  current_source_digest: digestValidation.current_source_digest
+                } : {}),
+                next_action: digestValidation.next_action ?? null
               }),
               { verbose: Boolean(args.verbose) }
             )
@@ -497,7 +523,8 @@ export function registerWorkRecordWriteTools({
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const digestValidation = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
+        const digestValidation = await resolveExpectedSourceDigest(args.expected_source_digest ?? null,
+          { load: workRecordFreshnessSource(workspace.dir, args.unit) });
         if (!digestValidation.ok) {
           return jsonContent(
             shapeWriteResponse(
@@ -508,7 +535,13 @@ export function registerWorkRecordWriteTools({
                 no_op: false,
                 changed_fields: [],
                 diagnostics: [digestValidation.diagnostic],
-                next_action: "supply a valid expected_source_digest (sha256:<64 lowercase hex>) or omit the field"
+
+                ...(digestValidation.stale ? {
+                  source_digest: digestValidation.current_source_digest,
+                  expected_source_digest: args.expected_source_digest,
+                  current_source_digest: digestValidation.current_source_digest
+                } : {}),
+                next_action: digestValidation.next_action ?? null
               }),
               { verbose: Boolean(args.verbose) }
             )
@@ -556,7 +589,8 @@ export function registerWorkRecordWriteTools({
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const digestValidation = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
+        const digestValidation = await resolveExpectedSourceDigest(args.expected_source_digest ?? null,
+          { load: workRecordFreshnessSource(workspace.dir, args.unit) });
         if (!digestValidation.ok) {
           return jsonContent(
             shapeWriteResponse(
@@ -567,7 +601,13 @@ export function registerWorkRecordWriteTools({
                 no_op: false,
                 changed_fields: [],
                 diagnostics: [digestValidation.diagnostic],
-                next_action: "supply a valid expected_source_digest (sha256:<64 lowercase hex>) or omit the field"
+
+                ...(digestValidation.stale ? {
+                  source_digest: digestValidation.current_source_digest,
+                  expected_source_digest: args.expected_source_digest,
+                  current_source_digest: digestValidation.current_source_digest
+                } : {}),
+                next_action: digestValidation.next_action ?? null
               }),
               { verbose: Boolean(args.verbose) }
             )

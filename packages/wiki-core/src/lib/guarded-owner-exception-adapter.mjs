@@ -208,8 +208,58 @@ function exportedFunctionBoundary(node, source) {
   return false;
 }
 
+const FUNCTION_NODE_TYPES = new Set([
+  "function_declaration", "function_expression", "arrow_function", "method_definition",
+  "generator_function", "generator_function_declaration"
+]);
+
+function bindingMayChange(body, name, source) {
+  const mentions = new RegExp(`(?:^|[^\\w$])${name.replaceAll("$", "\\$")}(?:$|[^\\w$])`, "u");
+  let changed = false;
+  walk(body, (node) => {
+    if (changed) return;
+    let binding = null;
+    if (node.type === "assignment_expression" || node.type === "augmented_assignment_expression") {
+      binding = node.childForFieldName("left");
+    } else if (node.type === "variable_declarator") {
+      binding = node.childForFieldName("name");
+    } else if (node.type === "catch_clause") {
+      binding = node.childForFieldName("parameter");
+    } else if (node.type === "formal_parameters") {
+      binding = node;
+    }
+    if (binding && mentions.test(nodeText(binding, source))) changed = true;
+  });
+  return changed;
+}
+
+function propagatesCaughtValue(identifier, source) {
+  const name = nodeText(identifier, source);
+  let cursor = identifier.parent;
+  while (cursor && cursor.type !== "program" && !FUNCTION_NODE_TYPES.has(cursor.type)) {
+    if (cursor.type === "catch_clause") {
+      const parameter = cursor.childForFieldName("parameter");
+      if (parameter?.type === "identifier" && nodeText(parameter, source) === name) {
+        const body = cursor.childForFieldName("body");
+        return Boolean(body) && identifier.startIndex >= body.startIndex &&
+          !bindingMayChange(body, name, source);
+      }
+    }
+    cursor = cursor.parent;
+  }
+  return false;
+}
+
 function rawErrorValue(node, source) {
   if (!node) return true;
+  if (node.type === "parenthesized_expression") {
+    return rawErrorValue(node.namedChildren.find((child) => child.type !== "comment") ?? null, source);
+  }
+  if (node.type === "ternary_expression") {
+    return rawErrorValue(node.childForFieldName("consequence"), source) ||
+      rawErrorValue(node.childForFieldName("alternative"), source);
+  }
+  if (node.type === "identifier") return !propagatesCaughtValue(node, source);
   if (node.type !== "new_expression") return true;
   const constructor = node.childForFieldName("constructor");
   return !constructor || nodeText(constructor, source) === "Error";

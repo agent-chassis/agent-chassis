@@ -58,6 +58,11 @@ import {
 } from "./work-record-compact-read-gate.mjs";
 import { isWorkRecordNavigationResult, toolVisibleToSession } from "./work-record-read-navigation.mjs";
 import { canonicalProjectionReadRecoveryCall } from "./work-record-canonical-read-recovery.mjs";
+import { guardManagedAssignmentRead, readManagedAssignment } from "./managed-assignment-read.mjs";
+import {
+  WIKI_MCP_AGENT_SESSION_CONTRACT_ENV_VAR,
+  resolveLauncherAgentSessionContract
+} from "./launcher-run-credential.mjs";
 
 import {
   createToolInputValidationError,
@@ -85,12 +90,52 @@ function isGraphEvidenceSidecarReadPath(value) {
   );
 }
 
+export const WORKSPACE_READ_REVIEW_SOURCE_UNAVAILABLE =
+  "workspace_read_review_source_unavailable";
+
+function reviewSourceUnavailable(message) {
+  const error = new Error(`${message}; report this blocker instead of reading another source`);
+  error.code = WORKSPACE_READ_REVIEW_SOURCE_UNAVAILABLE;
+  return error;
+}
+
+function assertNoManagedFindingsSession(role) {
+  if (role !== "reviewer" && role !== "redteam") return;
+  if (String(process.env[WIKI_MCP_AGENT_SESSION_CONTRACT_ENV_VAR] ?? "") === "") return;
+  let contract;
+  try {
+    contract = resolveLauncherAgentSessionContract(process.env);
+  } catch (error) {
+    throw reviewSourceUnavailable(
+      `launcher findings session is unauthenticated (${error?.code ?? "unknown"})`);
+  }
+  if (contract.role === "reviewer" || contract.role === "redteam") {
+    throw reviewSourceUnavailable(
+      "launcher findings session has no bound review source");
+  }
+}
+
 export function createWorkspaceReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo }) {
+  const resolve = createBoundReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo });
   return function resolveWorkspaceReadPageRepo(args) {
+    const resolved = resolve(args);
+    const currentAlias = typeof workspaceRepos?.currentAlias === "string"
+      ? workspaceRepos.currentAlias.trim()
+      : "";
+    return { repo: resolved.repo, dir: resolved.dir,
+      call_repository: resolved.frozen === true || (currentAlias !== "" && resolved.repo === currentAlias)
+        ? null
+        : resolved.repo };
+  };
+}
+
+function createBoundReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo }) {
+  return function resolveBoundReadRepo(args) {
     const frozenReviewRoot = String(
       process.env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR ?? ""
     ).trim();
     const role = String(process.env.WIKI_MCP_TOOL_PROFILE ?? "").trim();
+    if (frozenReviewRoot === "") assertNoManagedFindingsSession(role);
     if (frozenReviewRoot !== "") {
       if ((role !== "reviewer" && role !== "redteam") ||
           !path.isAbsolute(frozenReviewRoot)) {
@@ -115,7 +160,7 @@ export function createWorkspaceReadRepoResolver({ workspaceRepos, resolveWorkspa
       if (canonical.repo !== frozenRepository) {
         throw new Error("launcher-frozen review repository binding is invalid");
       }
-      return { repo: frozenRepository, dir: path.resolve(frozenReviewRoot) };
+      return { repo: frozenRepository, dir: path.resolve(frozenReviewRoot), frozen: true };
     }
     if (args.repo || workspaceRepos?.currentAlias) {
       return resolveWorkspaceRepo(workspaceRepos, args.repo);
@@ -198,9 +243,8 @@ export function registerWikiCoreTools({
     profile: z.string().optional(),
     extensionNamespaces: extensionNamespacesSchema,
     include_body: z.boolean().optional().describe(
-      "Markdown page bodies only. A canonical WK/IN/DEC record or its generated page refuses it; read " +
-        "record content with member:{path}, and one WK entry body with entry:{entry_id,include_body:true}. " +
-        "Not combinable with member, entry or content_reference."
+      "Markdown page bodies only. A canonical WK/IN/DEC record or its page refuses it; read its content " +
+        "with member:{path} or members, a WK entry body with entry:{entry_id,include_body:true}. No other selection."
     ),
     member: selectedRecordMemberSchema(z),
     entry: createWorkRecordEntryReadSchema(z).optional(),
@@ -213,10 +257,27 @@ export function registerWikiCoreTools({
   };
   const ordinaryReadPageFields = Object.keys(ordinaryReadPageShape)
     .filter((field) => !["path", "repo"].includes(field));
+
+  const assignmentReadShape = {
+    assignment: z.literal(true).optional().describe(
+      "Managed workers only: the launcher-published frozen assignment, alone first, then with the " +
+        "continuations it returns."
+    )
+  };
   const workspaceReadPageInputSchema = z.object({
     ...ordinaryReadPageShape,
-    ...searchSelectedReadSchemaShape(z)
+    ...searchSelectedReadSchemaShape(z),
+    ...assignmentReadShape
   }).strict().superRefine((args, context) => {
+    if (args.assignment !== undefined) {
+      const conflicting = Object.keys(args).filter((key) =>
+        !["assignment", "member", "members", "expected_source_digest"].includes(key));
+      if (conflicting.length > 0) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["assignment"],
+          message: `assignment takes no other selector: ${conflicting.join(", ")}` });
+      }
+      return;
+    }
     const issues = isSearchSelectedRead(args)
       ? getSearchSelectedReadValidationIssues(args, ordinaryReadPageFields)
       : [...getSearchSelectedReadValidationIssues(args, ordinaryReadPageFields),
@@ -235,8 +296,20 @@ export function registerWikiCoreTools({
     .filter((field) => selectorDeclaresSourceDigest(ordinaryReadPageShape[field]));
 
   const projectReadPageInputFailure = async ({ args, validationError, tool }) => {
-    const misplaced = validationError.issues.some((issue) => issue.code === "unrecognized_keys" &&
-      issue.path.length === 0 && issue.keys.includes("expected_source_digest"));
+
+    let access;
+    try {
+      access = guardManagedAssignmentRead(args);
+    } catch (error) {
+      return { terminal_result: errorContent(error) };
+    }
+    if (access.route === "assignment") {
+      return { terminal_result: errorContent(createToolInputValidationError({ tool, validationError })) };
+    }
+
+    const misplaced = args !== null && typeof args === "object" &&
+      Object.hasOwn(args, "expected_source_digest") &&
+      !Object.hasOwn(args, "members");
     if (!misplaced) return projectCanonicalProjectionReadFailure({ args, validationError, tool });
     const selectedRead = readPageDigestSelectors.find((field) => args[field] !== undefined) ?? null;
     const { expected_source_digest: _misplaced, ...withoutDigest } = args;
@@ -253,8 +326,8 @@ export function registerWikiCoreTools({
             applied: false,
             selected_read: selectedRead,
             pinned_by: selectedRead === null ? null : `${selectedRead}.expected_source_digest`,
-            accepted_placements: readPageDigestSelectors.map((field) =>
-              `${field}.expected_source_digest`),
+            accepted_placements: [...readPageDigestSelectors.map((field) =>
+              `${field}.expected_source_digest`), "expected_source_digest with members"],
             statement: selectedRead === null
               ? "This read takes no source digest. A digest pins only a read selected through one of " +
                 "accepted_placements, using the source_digest that kind of read returned."
@@ -278,7 +351,7 @@ export function registerWikiCoreTools({
     } catch {
       return null;
     }
-    const call = await canonicalProjectionReadRecoveryCall({ toolFamily: tool, workspaceRepo: workspace.repo,
+    const call = await canonicalProjectionReadRecoveryCall({ toolFamily: tool, workspaceRepo: workspace.call_repository,
       workspaceDir: workspace.dir, args, diagnostics: projection.envelope?.diagnostics });
     return call === null ? null : { projection, next_calls: [call] };
   };
@@ -528,12 +601,16 @@ export function registerWikiCoreTools({
     "workspace_read_page",
     {
       description:
-        "Read workspace Markdown, canonical records or graph sidecars. Address one page by path, or a canonical record by id or unit; entry reads one exact entry of that unit and content_reference reads one retained spill. Compact first; selected_slice narrows WKs, member:{path} pages one canonical WK/IN/DEC field, include_body reads Markdown bodies. No whole-record mode or caller root. Sidecars grant no dispatch authority.",
+        "Read workspace Markdown, canonical records or graph sidecars. Address a page by path or a canonical record by id or unit; entry reads one entry of that unit, content_reference one retained spill. Compact first; selected_slice narrows WKs, member:{path} or members:[...] (1-16) read WK/IN/DEC fields, include_body reads Markdown bodies. No whole-record mode or caller root. Sidecars grant no dispatch authority. A managed worker reads only its frozen assignment: {assignment:true}, then the calls it returns.",
       inputSchema: workspaceReadPageInputSchema,
       inputValidationErrorProjector: projectReadPageInputFailure
     },
     async (args) => {
       try {
+
+        if (guardManagedAssignmentRead(args).route === "assignment") {
+          return jsonContent(readManagedAssignment(args));
+        }
         const workspace = resolveWorkspaceReadPageRepo(args);
         if (isSearchSelectedRead(args)) {
           return jsonContent({
@@ -561,16 +638,17 @@ export function registerWikiCoreTools({
         if (args.entry !== undefined) {
           const entryResult = boundedEntryReadResult(await readWorkRecordEntry(
             workRecordEntryReadArguments({ dir: workspace.dir, repository: workspace.repo,
-              unit: args.unit ?? args.id, selector: args.entry })
+              callRepository: workspace.call_repository, unit: args.unit ?? args.id, selector: args.entry })
           ));
           return jsonContent(projectEntryCallsForOrdinaryReader(entryResult, {
             tool: "workspace_read_page",
             identity: args.unit === undefined ? { id: args.id } : { unit: args.unit },
-            repo: args.repo
+            repo: workspace.call_repository ?? undefined
           }));
         }
         const result = await runWorkRecordReadWithCompactGate({
           workspaceRepo: workspace.repo,
+          callRepository: workspace.call_repository,
           workspaceDir: workspace.dir,
           args,
           toolFamily: "workspace_read_page",
@@ -618,7 +696,7 @@ export function registerWikiCoreTools({
     "workspace_get_record",
     {
       description:
-        "Read a canonical wiki record by ID. Compact first; selected_slice narrows WKs and member:{path} pages one canonical WK/IN/DEC field. No whole-record mode or caller root.",
+        "Read a canonical wiki record by ID. Compact first; selected_slice narrows WKs, member:{path} pages one canonical WK/IN/DEC field and members:[...] reads 1-16 in one call. No whole-record mode or caller root.",
       inputSchema: workspaceGetRecordInputSchema
     },
     async (args) => {
@@ -627,6 +705,7 @@ export function registerWikiCoreTools({
         const workspace = resolveWorkspaceReadPageRepo(args);
         const result = await runWorkRecordReadWithCompactGate({
           workspaceRepo: workspace.repo,
+          callRepository: workspace.call_repository,
           workspaceDir: workspace.dir,
           args,
           toolFamily: "workspace_get_record",

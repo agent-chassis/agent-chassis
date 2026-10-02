@@ -345,9 +345,11 @@ function admissibilityOverlayDecisionCode(outcome) {
 export function foldNodeEngineAdmissibilityIntoReadiness(readiness, outcome) {
   const structuralDispatchable = readiness.dispatchable === true;
   const exactPolicyPayloadAuthenticated = outcome.exact_policy_payload_authenticated === true;
-  const boundedReasons = projectBoundedPublicReasons(
-    outcome.ordinary_reason_projection_input ?? outcome.reasons
-  );
+
+  const boundedReasons =
+    exactPolicyPayloadAuthenticated && Array.isArray(outcome.ordinary_reason_projection_input)
+      ? outcome.ordinary_reason_projection_input.map((reason) => ({ ...reason }))
+      : projectBoundedPublicReasons(outcome.ordinary_reason_projection_input ?? outcome.reasons);
   const isNeedsReview = outcome.status === "needs_review";
   const recoveryProjectionState = outcome.recovery_projection_state ?? null;
 

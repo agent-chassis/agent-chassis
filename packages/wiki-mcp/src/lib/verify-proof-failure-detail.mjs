@@ -1,16 +1,23 @@
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { coverageUnitArguments } from
+  "../../../wiki-core/src/operations/controlled-contract/coverage-recovery-guidance.mjs";
 import { projectObservedIdentity } from "./verify-proof-result-detail.mjs";
-import { PROVIDER_REFUSAL_PRECEDENCE } from "../../../controlled-contract/current.mjs";
+import { PROVIDER_REFUSAL_PRECEDENCE } from "@agent-chassis/controlled-contract";
 import { VERIFY_PROOF_EXECUTION_FAILURE_CODES } from
   "../../../agent-launch-cli/src/lib/workspace-agent-verify-proof-capability.mjs";
 import { ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES } from
   "../../../agent-launch-cli/src/lib/workspace-agent-orchestrator-test-proof-runtime.mjs";
+import { TEST_PROOF_SELECTED_TEST_SKIPPED_CODE } from
+  "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-node-observation.mjs";
 import { TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES } from
   "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-provider-registry.mjs";
-import {
-  TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE,
-  projectTestProofForcedInvocationIdentityFailure
-} from "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-contract.mjs";
+import { TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE } from
+  "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-contract.mjs";
+import { isLauncherTestFailureDiagnostic, projectSelectedTestFailureDiagnostic } from
+  "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-error-diagnostic.mjs";
+import { publicRunFacts } from
+  "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-run-facts.mjs";
 import { parseProofSourceUnitAddress as parseProofAuthoringUnitAddress } from
   "../../../wiki-core/src/operations/controlled-contract/saved-proof-source.mjs";
 import { isControlledContractFocus } from
@@ -34,11 +41,36 @@ export const VERIFY_PROOF_EXECUTION_FAILURES = Object.freeze({
   [VERIFY_PROOF_EXECUTION_FAILURE_CODES.RECEIPT_CROSS_BOUND]:
     "repair_the_receipt_provider_binding_then_retry"
 });
+
+const INFRASTRUCTURE_CORRECTION_OWNERS = Object.freeze({
+  [VERIFY_PROOF_EXECUTION_FAILURE_CODES.INPUT_INVALID]: "verify_proof_server",
+  [VERIFY_PROOF_EXECUTION_FAILURE_CODES.ATTEMPT_CONTEXT]: "launcher_verify_proof_execution",
+  [VERIFY_PROOF_EXECUTION_FAILURE_CODES.ATTEMPT_EXECUTION]: "launcher_verify_proof_execution",
+  [VERIFY_PROOF_EXECUTION_FAILURE_CODES.RECEIPT_INCOMPLETE]: "launcher_test_proof_provider",
+  [VERIFY_PROOF_EXECUTION_FAILURE_CODES.RECEIPT_CROSS_BOUND]: "launcher_test_proof_provider",
+  test_proof_caller_executor_forbidden: "verify_proof_server",
+  test_proof_artifact_untrusted: "launcher_test_proof_provider",
+  test_proof_evidence_identity_invalid: "launcher_test_proof_provider",
+  test_proof_receipt_projection_digest_mismatch: "launcher_test_proof_provider",
+  test_proof_receipt_projection_invalid: "launcher_test_proof_provider",
+  test_proof_runtime_evidence_invalid: "launcher_test_proof_provider",
+  test_proof_native_import_policy_unenforced: "launcher_test_proof_provider",
+  [TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.EXECUTION_UNTRUSTED]: "launcher_test_proof_provider"
+});
+
+export function infrastructureCorrection(condition) {
+  if (typeof condition !== "string" ||
+      !Object.hasOwn(INFRASTRUCTURE_CORRECTION_OWNERS, condition)) return null;
+  return { retry: false, correction_owner: INFRASTRUCTURE_CORRECTION_OWNERS[condition], condition };
+}
+
 const TEST_PROOF_EVIDENCE_FAILURES = Object.freeze({
   test_proof_artifact_untrusted: "repair_the_receipt_provider_protocol_then_retry",
   test_proof_bound_identity_mismatch: "repair_the_reporter_identity_binding_then_retry",
   test_proof_selected_identity_not_observed:
     "repair_the_declared_test_startup_or_reporter_observation_then_retry",
+
+  test_proof_selected_test_skipped: "remove_the_selected_test_skip_then_retry",
   test_proof_caller_executor_forbidden:
     "repair_the_server_owned_verify_proof_execution_input_then_retry",
   test_proof_candidate_execution_error: null,
@@ -72,6 +104,68 @@ export const ORCHESTRATOR_RUNTIME_FAILURES = Object.freeze({
   [ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.EXACT_DEPENDENCY_PROJECTION]:
     "repair_the_authenticated_exact_candidate_dependency_projection_then_retry"
 });
+
+const OID_RE = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
+export function projectedDependencyProjectionFacts(detail) {
+  const facts = {};
+  if (detail?.candidate_commit !== undefined) {
+    if (typeof detail.candidate_commit !== "string" || !OID_RE.test(detail.candidate_commit)) return null;
+    facts.candidate_commit = detail.candidate_commit;
+  }
+  if (detail?.validator_cache !== undefined) {
+    const cache = detail.validator_cache;
+    if (cache === null || typeof cache !== "object" || Array.isArray(cache) ||
+        Object.keys(cache).some((key) => key !== "cache_root" && key !== "path") ||
+        Object.values(cache).some((value) => typeof value !== "string" ||
+          !path.isAbsolute(value) || value.length > 4096 || /[\u0000-\u001f\u007f]/u.test(value))) {
+      return null;
+    }
+    if (Object.keys(cache).length > 0) facts.validator_cache = { ...cache };
+  }
+  return facts;
+}
+
+const VALIDATOR_CACHE_CONTAINMENT_CODE = "validator_cache_containment_violation";
+const VERIFY_PROOF_TOOL_NAME = "workspace_verify_proof";
+export function dependencyProjectionCorrection(details, subject) {
+  if (details.cause_code !== VALIDATOR_CACHE_CONTAINMENT_CODE) return null;
+  const unreported = [
+    ...(typeof subject === "string" && subject.length > 0 ? [] : ["requested_subject"]),
+    ...(details.candidate_commit === undefined ? ["candidate_commit"] : []),
+    ...(details.validator_cache === undefined ? ["validator_cache_location"] : [])
+  ];
+  return {
+    recovery_action: "operator_corrects_the_validator_cache_containment_then_verify_again",
+    retry: false,
+    correction_owner: "operator",
+    condition: VALIDATOR_CACHE_CONTAINMENT_CODE,
+    correction: {
+      actor: "operator",
+      affected: {
+        ...(unreported.includes("requested_subject") ? {} : { subject }),
+        ...(details.candidate_commit === undefined ? {} : { candidate_commit: details.candidate_commit }),
+        ...(details.validator_cache === undefined ? {} : { validator_cache: { ...details.validator_cache } })
+      },
+      known_effects: { proof_execution: "not_started", validator_cache_writes_by_verification: "none" },
+      uncertainty: {
+        validator_cache_contents: "unknown_whether_written_by_another_actor",
+        ...(unreported.length === 0 ? {} : { unreported_facts: unreported })
+      },
+      steps: [
+        "remove_the_affected_validator_cache_root_or_group",
+        "investigate_who_redirected_or_made_the_cache_writable",
+        "republish_the_cache_with_prepare_validator_cache"
+      ],
+      runbook: "the project documentation#recovering-a-bad-artifact",
+      agent_capability: "none: verification never chmods, deletes or rebuilds the cache",
+      ...(unreported.includes("requested_subject") || details.candidate_commit === undefined ? {} : {
+        verify_after_correction: { tool: VERIFY_PROOF_TOOL_NAME,
+          arguments: { subject, git_sha: details.candidate_commit } }
+      })
+    }
+  };
+}
+
 export const IMMUTABLE_CANDIDATE_RECOVERIES = Object.freeze({
   repository_invalid: "repair_the_launcher_configured_repository_identity",
   locator_width_mismatch: "supply_the_complete_exact_commit_identity",
@@ -282,20 +376,27 @@ const DIGEST_RE = /^sha256:[a-f0-9]{64}$/u;
 const WK_ID_RE = /^WK-[0-9]{4}$/u;
 const FOCUS_RE = /^(?!wk-[0-9])(?!slice-[0-9]+$)[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
-export function projectProofAuthoringRecoveryCall(call, expectedWkId = null) {
+export function projectProofAuthoringRecoveryCall(call, { wkId = null, source = null,
+  obligationId = null } = {}) {
   const callKeys = call && typeof call === "object" && !Array.isArray(call)
     ? Object.keys(call) : [];
-  const argumentKeys = call?.arguments && typeof call.arguments === "object" &&
-      !Array.isArray(call.arguments) ? Object.keys(call.arguments) : [];
+  const args = call?.arguments;
   if (call?.tool !== "workspace_controlled_contract_obligation_coverage_query" ||
       callKeys.length !== 2 || !callKeys.includes("tool") || !callKeys.includes("arguments") ||
-      !argumentKeys.includes("unit") ||
+      args === null || typeof args !== "object" || Array.isArray(args)) return null;
+  if (obligationId !== null) {
+    if (typeof obligationId !== "string" || !WK_ID_RE.test(source?.wkId ?? "")) return null;
+    const expected = { ...coverageUnitArguments({ wkId: source.wkId, focus: source.focus ?? null,
+      selectedUnit: source.selectedUnit ?? null }), obligation_id: obligationId };
+    return isDeepStrictEqual({ ...args }, expected) ? structuredClone(call) : null;
+  }
+  const argumentKeys = Object.keys(args);
+  if (!argumentKeys.includes("unit") ||
       argumentKeys.some((key) => !["unit", "focus"].includes(key)) ||
-      !WK_ID_RE.test(call.arguments.unit ?? "") ||
-      (expectedWkId !== null && call.arguments.unit !== expectedWkId) ||
-      (Object.hasOwn(call.arguments, "focus") &&
-        (typeof call.arguments.focus !== "string" ||
-          !FOCUS_RE.test(call.arguments.focus)))) return null;
+      !WK_ID_RE.test(args.unit ?? "") ||
+      (wkId !== null && args.unit !== wkId) ||
+      (Object.hasOwn(args, "focus") &&
+        (typeof args.focus !== "string" || !FOCUS_RE.test(args.focus)))) return null;
   return structuredClone(call);
 }
 
@@ -340,10 +441,10 @@ export const TEST_PROOF_FAILURES = Object.freeze({
     detail(detail) {
       return typeof detail?.path === "string" && detail.path.length > 0 &&
         detail.path.length <= 4096 && !path.isAbsolute(detail.path)
-        ? { entry_kind: "symbolic_link", path_disclosed: false }
+
+        ? { entry_kind: "symbolic_link", path: detail.path }
         : null;
-    },
-    redactions: [{ field: "details.path", reason: "internal_identifier" }]
+    }
   },
   test_proof_exact_candidate_dependency_projection_unavailable: {
     recovery_action: "repair_the_authenticated_exact_candidate_dependency_projection_then_retry",
@@ -360,7 +461,7 @@ export const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
 const SAFE_WRAPPER_ERROR_CODE_RE = /^[A-Za-z0-9._-]{1,160}$/u;
 const SAFE_IDENTITY_RE = /^[A-Za-z0-9#._:-]{1,512}$/u;
 const SAFE_EXECUTION_STAGES = Object.freeze([
-  "candidate", "falsifier", "traversal", "receipt"
+  "preparation", "candidate", "falsifier", "traversal", "receipt"
 ]);
 
 function safeDeclaredTarget(value) {
@@ -394,97 +495,6 @@ export function projectedExecutionDetail(error, subject) {
   return projected;
 }
 
-const REJECTED_RECORD_TEXT_KEYS = Object.freeze(["provider_id", "provider_version",
-  "selected_node_id", "observed_node_id", "record_kind", "observed_outcome", "selected_outcome",
-  "writer"]);
-const REJECTED_RECORD_COUNT_KEYS = Object.freeze(["sequence", "record_index", "record_count",
-  "exit_code"]);
-
-function projectRejectedRecordContext(detail) {
-  if (detail === null || typeof detail !== "object" || Array.isArray(detail) ||
-      typeof detail.selected_node_id !== "string") return null;
-  const context = {};
-  for (const key of REJECTED_RECORD_TEXT_KEYS) {
-    if (typeof detail[key] === "string" && detail[key].length <= 4096 &&
-        !/[\u0000-\u001f\u007f]/u.test(detail[key])) context[key] = detail[key];
-  }
-  for (const key of REJECTED_RECORD_COUNT_KEYS) {
-    if (Number.isSafeInteger(detail[key])) context[key] = detail[key];
-  }
-  return context;
-}
-
-function projectedRunFacts(run) {
-  if (run === null || typeof run !== "object" || Array.isArray(run)) return null;
-  const facts = {};
-  if (Object.hasOwn(run, "ran")) {
-    if (typeof run.ran !== "boolean") return null;
-    facts.ran = run.ran;
-  }
-  if (Object.hasOwn(run, "disposition")) {
-    if (!["passed", "failed", "not_run"].includes(run.disposition)) return null;
-    facts.disposition = run.disposition;
-  }
-  if (Object.hasOwn(run, "exit_code")) {
-    if (run.exit_code !== null && (!Number.isSafeInteger(run.exit_code) ||
-        Math.abs(run.exit_code) > 2_147_483_647)) return null;
-    facts.exit_code = run.exit_code;
-  }
-  if (Object.hasOwn(run, "timed_out")) {
-    if (typeof run.timed_out !== "boolean") return null;
-    facts.timed_out = run.timed_out;
-  }
-  if (Object.hasOwn(run, "signal")) {
-    if (run.signal !== null && (typeof run.signal !== "string" ||
-        !/^SIG[A-Z0-9]{1,32}$/u.test(run.signal))) return null;
-    facts.signal = run.signal;
-  }
-  if (Object.hasOwn(run, "blocker_code")) {
-    if (typeof run.blocker_code !== "string" || !STABLE_CODE_RE.test(run.blocker_code)) {
-      return null;
-    }
-    facts.blocker_code = run.blocker_code;
-  }
-  if (typeof run.refusal_code === "string" && STABLE_CODE_RE.test(run.refusal_code)) {
-    facts.blocker_code = run.refusal_code;
-    facts.ran = false;
-    facts.disposition = "not_run";
-    if (typeof run.detail?.errno === "string" && STABLE_CODE_RE.test(run.detail.errno.toLowerCase())) {
-      facts.filesystem_error_code = run.detail.errno;
-    }
-  }
-  const observationCode = run.test_proof_observation?.code;
-  if (observationCode !== undefined) {
-    if (typeof observationCode !== "string" || !STABLE_CODE_RE.test(observationCode)) {
-      return null;
-    }
-    facts.structured_observation_code = observationCode;
-
-    if (LAUNCHER_ATTRIBUTION_OBSERVATION_CODES.has(observationCode)) {
-      const rejected = projectRejectedRecordContext(run.test_proof_observation.detail);
-      if (rejected !== null) facts.structured_observation_detail = rejected;
-    }
-
-    if (observationCode === TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.code) {
-      const identityFailure = projectTestProofForcedInvocationIdentityFailure(
-        run.test_proof_observation.detail);
-      if (identityFailure === null) return null;
-      facts.forced_invocation_identity_failure = identityFailure;
-    }
-  }
-  if (Object.hasOwn(run, "output_truncated")) {
-    if (typeof run.output_truncated !== "boolean") return null;
-    facts.output_truncated = run.output_truncated;
-  }
-  if (Object.hasOwn(run, "output_elided_bytes")) {
-    if (!Number.isSafeInteger(run.output_elided_bytes) || run.output_elided_bytes < 0) {
-      return null;
-    }
-    facts.output_elided_bytes = run.output_elided_bytes;
-  }
-  return facts;
-}
-
 const NATIVE_SOURCE_OBSERVATION_CODES = new Set([
   "test_proof_native_dependency_population_unsupported",
   "test_proof_native_instrumentation_unsupported",
@@ -515,6 +525,33 @@ const LAUNCHER_ATTRIBUTION_OBSERVATION_CODES = new Set([
 const LAUNCHER_OBSERVATION_DEFECT_ACTION = "report_the_launcher_selected_test_observation_defect";
 const LAUNCHER_OBSERVATION_CORRECTION_OWNER = "launcher_test_proof_provider";
 
+const NATIVE_INSTRUMENTATION_UNSUPPORTED_CODE = "test_proof_native_instrumentation_unsupported";
+const SELECTED_TEST_CORRECTIONS = Object.freeze({
+  selected_test_not_observable: Object.freeze({
+    action: "author_the_named_selected_test_or_correct_the_saved_selection",
+    correction_owner: "proof_author"
+  }),
+  selected_test_shape_unsupported: Object.freeze({
+    action: "report_the_launcher_provider_selected_test_shape_limitation",
+    correction_owner: LAUNCHER_OBSERVATION_CORRECTION_OWNER
+  })
+});
+
+function selectedTestCorrection(details) {
+  return details.structured_observation_code === NATIVE_INSTRUMENTATION_UNSUPPORTED_CODE
+    ? SELECTED_TEST_CORRECTIONS[details.structured_observation_detail?.reason] ?? null : null;
+}
+
+function noRetryCorrection(recoveryAction, details) {
+  if (recoveryAction === LAUNCHER_OBSERVATION_DEFECT_ACTION) {
+    return { correction_owner: LAUNCHER_OBSERVATION_CORRECTION_OWNER,
+      condition: details.structured_observation_code };
+  }
+  const selection = selectedTestCorrection(details);
+  return selection?.action === recoveryAction ? { correction_owner: selection.correction_owner,
+    condition: details.structured_observation_detail.reason } : null;
+}
+
 function evidenceExecutionRecovery(details) {
 
   if (details.structured_observation_code === TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.code) {
@@ -525,6 +562,8 @@ function evidenceExecutionRecovery(details) {
       runtimeSetupCode(details.blocker_code)) {
     return "run_local_test_runtime_setup_then_retry";
   }
+  const selection = selectedTestCorrection(details);
+  if (selection !== null) return selection.action;
 
   if (NATIVE_SOURCE_OBSERVATION_CODES.has(details.structured_observation_code)) {
     return "repair_the_declared_native_proof_source_then_retry";
@@ -544,6 +583,18 @@ function evidenceExecutionRecovery(details) {
   return "repair_the_launcher_execution_prerequisite_then_retry";
 }
 
+function publicObservedIdentity(event) {
+  const { failure_diagnostic: cause, ...identity } = projectObservedIdentity(event);
+  if (cause === undefined) return identity;
+  if (!isLauncherTestFailureDiagnostic(cause)) return null;
+  return { ...identity, failure_diagnostic: projectSelectedTestFailureDiagnostic(cause) };
+}
+
+function publicObservedIdentities(events) {
+  const projected = events.map(publicObservedIdentity);
+  return projected.includes(null) ? null : projected;
+}
+
 function projectedBoundIdentityMismatch(detail) {
   if (detail === null || typeof detail !== "object" || Array.isArray(detail) ||
       !TEST_ID_RE.test(detail.expected_test_id) ||
@@ -553,7 +604,8 @@ function projectedBoundIdentityMismatch(detail) {
       detail.returned_count + detail.omitted_count !== detail.observed_count ||
       !Array.isArray(detail.observed_identity_candidates) ||
       detail.observed_identity_candidates.length !== detail.returned_count) return null;
-  const candidates = detail.observed_identity_candidates.map(projectObservedIdentity);
+  const candidates = publicObservedIdentities(detail.observed_identity_candidates);
+  if (candidates === null) return null;
   return {
     expected_test_id: detail.expected_test_id,
     observed_count: detail.observed_count,
@@ -717,15 +769,32 @@ function projectedSelectedIdentityNotObserved(detail, executionContext) {
       ) || !Array.isArray(detail.file_wrapper_error_codes) ||
       detail.file_wrapper_error_codes.some((code) =>
         typeof code !== "string" || !SAFE_WRAPPER_ERROR_CODE_RE.test(code))) return null;
+  const observedFailures = publicObservedIdentities(detail.observed_failures);
+  if (observedFailures === null) return null;
   return {
     ...projected,
     target: detail.target,
     file_wrapper_status: detail.file_wrapper_status,
     file_wrapper_error_codes: [...detail.file_wrapper_error_codes],
-    observed_failures: detail.observed_failures.map(projectObservedIdentity),
+    observed_failures: observedFailures,
     observed_failure_count: detail.observed_failure_count
   };
 }
+
+function projectedSelectedSkip(detail) {
+  const event = detail?.selected_event;
+  if (event === null || typeof event !== "object" || Array.isArray(event) ||
+      detail.execution_stage !== "candidate") return null;
+  const identity = publicObservedIdentity(event);
+  if (identity === null || identity.test_id !== detail.expected_test_id ||
+      identity.status !== "skipped") return null;
+  return { test_id: identity.test_id, file: identity.file, name: identity.name,
+    nesting: identity.nesting, status: identity.status };
+}
+
+const SELECTED_OBSERVATION_CODES = new Set([
+  "test_proof_selected_identity_not_observed", TEST_PROOF_SELECTED_TEST_SKIPPED_CODE
+]);
 
 export function projectedEvidenceFailure(error, executionContext) {
   if (!Object.hasOwn(TEST_PROOF_EVIDENCE_FAILURES, error.code)) return null;
@@ -736,12 +805,17 @@ export function projectedEvidenceFailure(error, executionContext) {
     deepest_stable_cause_code: error.code
   };
   if (error.code === "test_proof_bound_identity_mismatch" ||
-      error.code === "test_proof_selected_identity_not_observed") {
+      SELECTED_OBSERVATION_CODES.has(error.code)) {
     const mismatch = error.code === "test_proof_bound_identity_mismatch"
       ? projectedBoundIdentityMismatch(detail)
       : projectedSelectedIdentityNotObserved(detail, executionContext);
     if (mismatch === null) return null;
     Object.assign(projected, mismatch);
+  }
+  if (error.code === TEST_PROOF_SELECTED_TEST_SKIPPED_CODE) {
+    const selectedObservation = projectedSelectedSkip(detail);
+    if (selectedObservation === null) return null;
+    projected.selected_observation = selectedObservation;
   }
   if (detail?.test_proof_id !== undefined) {
     if (!SAFE_IDENTITY_RE.test(detail.test_proof_id)) return null;
@@ -764,9 +838,10 @@ export function projectedEvidenceFailure(error, executionContext) {
     projected.provider_version = detail.provider.provider_version;
   }
   const executionFailure = TEST_PROOF_EVIDENCE_FAILURES[error.code] === null;
-  if (executionFailure || error.code === "test_proof_selected_identity_not_observed") {
+  if (executionFailure || SELECTED_OBSERVATION_CODES.has(error.code)) {
     if (!SAFE_EXECUTION_STAGES.includes(projected.execution_stage)) return null;
-    const runFacts = projectedRunFacts(detail?.run);
+    const runFacts = publicRunFacts(detail?.run,
+      { attributionCodes: LAUNCHER_ATTRIBUTION_OBSERVATION_CODES });
     if (runFacts === null) return null;
     Object.assign(projected, runFacts);
   }
@@ -779,14 +854,12 @@ export function projectedEvidenceFailure(error, executionContext) {
   const recoveryAction = executionFailure
     ? evidenceExecutionRecovery(projected)
     : TEST_PROOF_EVIDENCE_FAILURES[error.code];
+  const correction = noRetryCorrection(recoveryAction, projected) ??
+    infrastructureCorrection(executionFailure ? projected.structured_observation_code : error.code);
   return {
     details: projected,
     recovery_action: recoveryAction,
-    ...(recoveryAction === LAUNCHER_OBSERVATION_DEFECT_ACTION ? {
-      retry: false,
-      correction_owner: LAUNCHER_OBSERVATION_CORRECTION_OWNER,
-      condition: projected.structured_observation_code
-    } : {})
+    ...(correction === null ? {} : { ...correction, retry: false })
   };
 }
 
@@ -802,7 +875,8 @@ export function projectedProviderFailure(error, executionContext) {
     recovery_action: error.code ===
       TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.EXECUTION_UNTRUSTED
       ? "repair_the_launcher_execution_prerequisite_then_retry"
-      : "repair_the_canonical_proof_provider_binding_then_retry"
+      : "repair_the_canonical_proof_provider_binding_then_retry",
+    ...infrastructureCorrection(error.code)
   };
 }
 
@@ -919,6 +993,7 @@ export const LOCAL_ATTEMPT_CAUSE_CODES = new Set([
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.PROVIDER_UNKNOWN,
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.PROVIDER_STALE,
   "test_proof_selected_identity_not_observed",
+  TEST_PROOF_SELECTED_TEST_SKIPPED_CODE,
   "test_proof_falsifier_provider_missing",
   "test_proof_candidate_execution_error",
   "test_proof_candidate_inventory_missing",
@@ -939,7 +1014,10 @@ export function proofLocalContinuationFacts(chain) {
   if (execution === undefined || causes.length === 0 ||
       causes.some((code) => !LOCAL_ATTEMPT_CAUSE_CODES.has(code))) return null;
   const { verification_id: verificationId, declared_target: target } = execution.details ?? {};
+  const selectedObservation = chain.at(-1)?.details?.selected_observation;
   return typeof verificationId === "string" && typeof target === "string"
     ? Object.freeze({ verification_id: verificationId, target,
-      execution_status: localExecutionStatus(chain.at(-1)?.details) }) : null;
+      execution_status: localExecutionStatus(chain.at(-1)?.details),
+      ...(selectedObservation === undefined ? {} : {
+        selected_observation: structuredClone(selectedObservation) }) }) : null;
 }

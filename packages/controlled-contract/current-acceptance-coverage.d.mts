@@ -46,6 +46,10 @@ export class AcceptanceCoverageIdentityError extends Error {
 
 export const BINDING_DIGESTS: readonly (keyof AcceptanceCoverageBindings)[];
 export function criterionIdentityDigest(position: number, text: string): string;
+export function deriveCriterionIdentities(criteria: readonly (string | Readonly<{
+  text: string;
+  typed_identity?: string;
+}>)[]): readonly AcceptanceCoverageCriterionIdentity[];
 export function deriveCriterionIdentitySet(input: {
   criteria: readonly (string | Readonly<{
     text: string;

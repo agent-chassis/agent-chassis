@@ -49,7 +49,8 @@ export const LIFECYCLE_RESOLUTION_NEXT_ACTIONS = Object.freeze({
   RETRY: "retry_wait_or_check_status",
   REPAIR_RETRY_ASSESSMENT: "repair_retry_assessment_then_check_status",
   ESCALATE_MISSING_RETRY_CAPABILITY: "escalate_missing_retry_capability",
-  REQUIRES_NEW_GENERATION: "delivery_requires_new_generation_work"
+  REQUIRES_NEW_GENERATION: "delivery_requires_new_generation_work",
+  REPAIR_RESULT_PUBLICATION_IDENTITY: "launcher_repair_result_publication_identity"
 });
 
 export const LIFECYCLE_RETRY_DECISIONS = Object.freeze({
@@ -124,6 +125,10 @@ const REQUIRED_CORRECTIONS = new Map([
     retry_alone_repairs: false
   })]
 ]);
+
+export function producerConditionRequiredCorrection(condition) {
+  return REQUIRED_CORRECTIONS.get(condition) ?? null;
+}
 
 export function retryAssessmentRequiredCorrection(assessment) {
   if (assessment?.failure_class !== LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC ||
@@ -329,7 +334,23 @@ export function adoptDurableLifecycleFailures(checkpoint, failures) {
   return true;
 }
 
+function publicationRepairCorrection(lifecycle) {
+  const repair = lifecycle?.publication_repair_required;
+  if (repair === null || typeof repair !== "object" || repair.retryable !== false) return null;
+  const { schema_version: _schema, retryable: _retryable, ...facts } = repair;
+  return Object.freeze({
+    schema_version: LIFECYCLE_REQUIRED_CORRECTION_SCHEMA_VERSION,
+    grants_authority: false,
+    kind: "result_publication_execution_identity",
+    ...facts,
+    retry_alone_repairs: false
+  });
+}
+
 function resolveLifecycleNextAction(phase, latestFailure, lifecycle = null, retryAssessment = null) {
+  if (publicationRepairCorrection(lifecycle) !== null) {
+    return LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RESULT_PUBLICATION_IDENTITY;
+  }
   if (lifecycle?.publication_retry_required === true) {
     return LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY;
   }
@@ -357,10 +378,12 @@ export function projectLifecycleResolution({ lifecycle, checkpoint = null } = {}
   const phase = typeof lifecycle.phase === "string" ? lifecycle.phase : null;
   const nextAction = resolveLifecycleNextAction(phase, latestFailure, lifecycle,
     checkpoint?.retry_assessment ?? null);
-  const requiredCorrection = latestFailure !== null &&
-    nextAction === LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE
-    ? retryAssessmentRequiredCorrection(checkpoint?.retry_assessment)
-    : null;
+  const requiredCorrection = nextAction ===
+      LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RESULT_PUBLICATION_IDENTITY
+    ? publicationRepairCorrection(lifecycle)
+    : latestFailure !== null && nextAction === LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE
+      ? retryAssessmentRequiredCorrection(checkpoint?.retry_assessment)
+      : null;
   return Object.freeze({
     schema_version: RUN_LIFECYCLE_RESOLUTION_SCHEMA_VERSION,
     resolved: false,

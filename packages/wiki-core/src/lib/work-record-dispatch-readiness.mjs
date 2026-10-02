@@ -45,7 +45,10 @@ import {
   compactAcceptedEscalation,
   createReadinessEnvelope
 } from "./work-record-dispatch-readiness-shape.mjs";
-import { evaluateGraphImpactBlocker } from "./runtime-blocker-taxonomy.mjs";
+import {
+  evaluateGraphImpactBlocker,
+  GRAPH_IMPACT_WITHOUT_EVIDENCE_OUTCOME
+} from "./runtime-blocker-taxonomy.mjs";
 
 const GRAPH_IMPACT_TAXONOMY_STATE_VALUES = new Set([
   "available",
@@ -224,7 +227,9 @@ export function buildReadinessFromRecord({
     graphBearingSubjectPaths
   );
   const graphImpactDisposition = evaluateGraphImpactBlocker(effectiveGraphState);
-  const graphImpactOperatorBlocked = graphImpactDisposition?.blocking === true;
+
+  const graphImpactEvidenceUnavailable =
+    graphImpactDisposition?.outcome === GRAPH_IMPACT_WITHOUT_EVIDENCE_OUTCOME;
   const dirtyOverlayDegradedGraphImpact =
     structuredGraphImpactMatches &&
     isDirtyOverlayCompatibleGraphState(effectiveGraphState) &&
@@ -235,7 +240,7 @@ export function buildReadinessFromRecord({
   const graphImpactEvidenceConsumable =
     structuredGraphImpactMatches &&
     effectiveGraphState.graph_available === true &&
-    !graphImpactOperatorBlocked &&
+    !graphImpactEvidenceUnavailable &&
     !effectiveGraphStateHasUnavailableSubjectPaths &&
     (dirtyOverlayDegradedGraphImpact ||
       !["stale", "rebuild_required", "missing"].includes(effectiveGraphState.staleness));
@@ -251,7 +256,7 @@ export function buildReadinessFromRecord({
 
   const storedEvidenceFresh =
     structuredGraphImpactMatches &&
-    !graphImpactOperatorBlocked &&
+    !graphImpactEvidenceUnavailable &&
     (dirtyOverlayDegradedGraphImpact ||
       !["stale", "rebuild_required", "missing", "unknown"].includes(
         effectiveGraphState.staleness
@@ -259,7 +264,7 @@ export function buildReadinessFromRecord({
   const effectiveStateFresh =
     effectiveGraphState.staleness === "fresh" &&
     effectiveGraphState.graph_available === true &&
-    !graphImpactOperatorBlocked &&
+    !graphImpactEvidenceUnavailable &&
     !effectiveGraphStateHasUnavailableSubjectPaths;
 
   const graphDependent = requiresGraphImpact || graphBearingImplementationWriteScope.length >= 2;

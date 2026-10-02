@@ -32,9 +32,11 @@ import {
   WK_ID,
   authoredRecord,
   finalizedLifecycle,
-  followRetrievalCall,
+  followDocumentCall,
   observationBackend,
   observe,
+  readRetainedDocument,
+  readRetainedEnvelope,
   retainedArtifacts,
   retrievalRegistry,
   terminalCandidate,
@@ -103,9 +105,11 @@ test("WK-2691: the reproduced leak — the integration receipt publishes the wri
     const retrieval = receipt.retrieval;
     assert.equal(retrieval.state, "retained");
     assert.equal(retrieval.source_schema_version, SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION);
-    assert.equal(retrieval.retained_source_read.tool, "workspace_read_mcp_content_reference");
-    assert.deepEqual(retrieval.retained_source_read.arguments,
-      { ref_id: retrieval.ref_id, offset: 0 });
+    const call = retrieval.document_calls[INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER];
+    assert.equal(call.tool, "workspace_agent_run_status");
+    assert.deepEqual(call.arguments.detail, { kind: "authored_document", source: retrieval.source,
+      document: INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER });
+    assert.equal(Object.hasOwn(retrieval, "retained_source_read"), false);
     assert.equal(retrieval.binding.route, "workspace_agent_run_status");
     assert.equal(retrieval.binding.repository, "agent-chassis");
     assert.equal(retrieval.binding.unit, SUBJECT);
@@ -171,10 +175,10 @@ test("WK-2691: the receipt does not grow with unrelated authored text, and both 
       "review_unit_contract",
       INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER
     ]);
-    assert.equal(
-      receiptOf(lean.structured).retrieval.ref_id,
+    assert.deepEqual(
+      receiptOf(lean.structured).retrieval.source,
       lean.structured.slice_lifecycle.terminal_candidate.review_unit
-        .authored_contracts.retrieval.ref_id,
+        .authored_contracts.retrieval.source,
       "both projections publish the one locator this observation minted");
 
     assert.notEqual(receiptOf(padded.structured).omitted.digest,
@@ -208,40 +212,45 @@ test("WK-2691: the receipt does not grow with unrelated authored text, and both 
   }
 });
 
-test("WK-2691: following the emitted read reconstructs the written record exactly", async () => {
+test("WK-2716: the emitted read answers the written record from its exact original", async () => {
   const scope = createTestResourceScope();
   try {
 
     const record = authoredRecord({ padding: " — ünïcodé ✓ 日本語 контракт " });
     const candidate = terminalCandidate(record);
-    const { tools } = await retrievalRegistry(scope, "receipt-exact", observationBackend({
+    const { tools, env, dir } = await retrievalRegistry(scope, "receipt-exact", observationBackend({
       status: terminalWorkerStatus(),
       lifecycle: finalizedLifecycle(candidate, { transitionRecord: record })
     }));
 
     const observed = await observe(tools, COMPLETE);
     const receipt = receiptOf(observed.structured);
-    const { bytes, pages, readerDigest } = await followRetrievalCall(tools, receipt.retrieval);
-    assert.ok(pages >= 2, `a source larger than one range needs continuation; pages=${pages}`);
-    assert.equal(readerDigest, receipt.retrieval.sha256);
 
-    const envelope = JSON.parse(bytes.toString("utf8"));
-    assert.equal(envelope.schema_version, SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION);
-    const carried = envelope.carrier[INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER];
-
+    const carried = readRetainedEnvelope(env, receipt.retrieval)
+      .carrier[INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER];
     assert.equal(carried, JSON.stringify(record));
-    assert.deepEqual(JSON.parse(carried), record);
     assert.equal(Buffer.byteLength(carried, "utf8"), receipt.omitted.utf8_bytes);
     assert.equal(
       `sha256:${createHash("sha256").update(carried, "utf8").digest("hex")}`,
       receipt.omitted.digest);
+    const artifacts = retainedArtifacts(dir);
 
-    assert.match(JSON.parse(carried).proof_posture.classification_rationale,
+    const overview = await readRetainedDocument(tools, receipt.retrieval,
+      INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER);
+    assert.equal(overview.structured.detail.summary.record.status, "review");
+    assert.deepEqual(overview.structured.detail.summary.units.map((row) => row.unit),
+      [WK_ID, ...record.slices.map((slice) => `${WK_ID}#${slice.id}`)]);
+    const posture = await readRetainedDocument(tools, receipt.retrieval,
+      INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER, { unit: WK_ID, section: "proof_posture" });
+    assert.deepEqual(posture.structured.detail.value, record.proof_posture);
+    assert.match(posture.structured.detail.value.classification_rationale,
       /Operator-authorized expedited exception/u);
-
-    const carrierStep = receipt.retrieval.reconstruction.at(-1);
-    assert.match(carrierStep, new RegExp(INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER, "u"));
-    assert.match(carrierStep, /JSON\.parse/u);
+    for (const call of overview.structured.next_calls.slice(1)) {
+      const unit = (await followDocumentCall(tools, call)).structured.detail;
+      assert.deepEqual(unit.value, record.slices.find((slice) =>
+        `${WK_ID}#${slice.id}` === call.arguments.detail.unit), call.arguments.detail.unit);
+    }
+    assert.deepEqual(retainedArtifacts(dir), artifacts, "document reads retain nothing");
   } finally {
     await scope.dispose();
   }
@@ -277,11 +286,11 @@ test("WK-2691: repeated and concurrent observation add no lifecycle effect and n
     assert.ok(complete.bytes > first.bytes,
       "requested complete evidence still costs more than the compact answer");
 
-    const { bytes } = await followRetrievalCall(tools, receiptOf(complete.structured).retrieval);
-    assert.deepEqual(
-      JSON.parse(JSON.parse(bytes.toString("utf8"))
-        .carrier[INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER]),
-      record);
+    const read = await readRetainedDocument(tools, receiptOf(complete.structured).retrieval,
+      INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER, { unit: WK_ID, section: "acceptance" });
+    assert.deepEqual(read.structured.detail.value, record.acceptance);
+    assert.equal(retainedArtifacts(dir).length, 1);
+    assert.equal(lifecycleCalls, 1);
   } finally {
     await scope.dispose();
   }

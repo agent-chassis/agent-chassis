@@ -5,6 +5,9 @@ import {
   TERMINAL_STRUCTURED_ROLE_RESULT_MODES
 } from "../../packages/agent-launch-core/src/lib/work-record-launch-prompt.mjs";
 import {
+  renderAgentRoleGuideReadReference
+} from "../../packages/agent-launch-core/src/lib/agent-role-guides.mjs";
+import {
   reviewPrompt,
   redteamPrompt
 } from "../../packages/agent-launch-cli/src/lib/codex-role-prompts.mjs";
@@ -28,8 +31,10 @@ const ACCEPTANCE_VALIDATION = Object.freeze([
   "node --test tests/unit/launcher-findings-prompt-budget.test.mjs"
 ]);
 
+const REVIEWER_GUIDE_READ_LINE_BYTES = Buffer.byteLength(
+  `${renderAgentRoleGuideReadReference("reviewer")}\n\n`, "utf8");
 const PROMPT_BYTE_BUDGETS = Object.freeze({
-  reviewer: 2630,
+  reviewer: 1330 + REVIEWER_GUIDE_READ_LINE_BYTES,
   redteam: 4096
 });
 
@@ -37,7 +42,7 @@ function bytes(value) {
   return Buffer.byteLength(value, "utf8");
 }
 
-function assertTaskSpecificContract(prompt, role, { schemaConstrained }) {
+function assertTaskSpecificContract(prompt, role, { schemaConstrained, family }) {
   assert.ok(prompt.includes(SUBJECT), `${role}: exact subject must be retained`);
   for (const body of [...ACCEPTANCE_CRITERIA, ...ACCEPTANCE_VALIDATION]) {
     assert.ok(!prompt.includes(body), `${role}: mutable inline contract body must be omitted`);
@@ -52,8 +57,11 @@ function assertTaskSpecificContract(prompt, role, { schemaConstrained }) {
   assert.match(prompt, /selected_slice is only the bare slice id/u);
   assert.match(prompt, /Follow returned member calls for criteria and validation/u);
   assert.doesNotMatch(prompt, /workspace_frozen_review_contract_query|read its index|paging|cursor|omitted=0/u);
-  assert.match(prompt, /Report findings by severity with file\/line references/u);
-  if (schemaConstrained) {
+  assert.ok(prompt.includes(renderAgentRoleGuideReadReference("reviewer")), `${role}: reviewer guide is referenced`);
+
+  assert.doesNotMatch(prompt, /Report findings by severity|Findings only\. Do not modify files|Do not expand the selected unit's scope/u);
+
+  if (schemaConstrained && family === "codex") {
     assert.match(prompt, /Return exactly one raw JSON object matching the launcher-supplied schema/u);
     assert.ok(
       prompt.includes(`Set \`reported_subject\` to exactly \`${SUBJECT}\`.`),
@@ -61,7 +69,9 @@ function assertTaskSpecificContract(prompt, role, { schemaConstrained }) {
     );
   } else {
     assert.match(prompt, /## Review findings/u);
-    assert.doesNotMatch(prompt, /Terminal structured role result|agent-role-result\.v1/u);
+
+    assert.doesNotMatch(prompt, /## Terminal structured role result|End your final answer with exactly one/u);
+    assert.match(prompt, /`agent-role-result\.v1` object is optional/u);
   }
 
   for (const duplicatedPolicyFragment of [
@@ -153,7 +163,7 @@ for (const family of ["codex", "claude"]) {
         const prompt = family === "codex"
           ? renderCodex(role, { schemaConstrained })
           : renderClaude(role, { schemaConstrained });
-        assertTaskSpecificContract(prompt, role, { schemaConstrained });
+        assertTaskSpecificContract(prompt, role, { schemaConstrained, family });
         assert.ok(
           bytes(prompt) <= PROMPT_BYTE_BUDGETS[role],
           `${family} ${role}: ${bytes(prompt)} bytes exceeds ${PROMPT_BYTE_BUDGETS[role]}-byte budget`
@@ -163,10 +173,9 @@ for (const family of ["codex", "claude"]) {
   }
 }
 
-test("redteam keeps only concise adversarial and scope-exclusion guidance", () => {
+test("redteam carries no launcher-authored adversarial or scope-exclusion guidance", () => {
   for (const prompt of [renderCodex("redteam"), renderClaude("redteam")]) {
-    assert.match(prompt, /adversarial, non-authoritative input/u);
-    assert.match(prompt, /Do not expand the selected unit's scope/u);
+    assert.doesNotMatch(prompt, /adversarial|Do not expand the selected unit's scope/u);
     assert.doesNotMatch(prompt, /use structured wiki search/u);
     assert.doesNotMatch(prompt, /interactive session|headless session/u);
   }

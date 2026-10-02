@@ -105,27 +105,51 @@ time. Every other declared path resolves at the base commit.
 
 At the base commit, a blob is a file, a tree is a directory, and modes `120000`
 (symlink) and `160000` (gitlink) are refused at both terminal and intermediate
-positions. A missing leaf is allowed only for an exact writable target, or a read
-entry the resolved write assignment already covers; a missing intermediate
-component always refuses. Glob selectors are accepted in read and write scope; only
-their pre-glob literal prefix is existence-checked, and a glob never lends the
-missing-leaf exception.
+positions. A missing path is allowed only for an exact writable target, or a
+read entry naming that same covered target. The absent component may be the leaf
+or an earlier component beneath real directories: an exact output file may sit
+beneath parents that do not exist yet. Any other missing read refuses as
+`missing_leaf`, or `missing_intermediate` when an earlier component is absent. A
+read of a directory an output needs is never directory access; it refuses the
+same way. Two writable targets where one would need the other as a directory,
+such as `a` and `a/b`, refuse as `type_conflict`.
+
+Every `read_scope`, `repo_paths`, and `write_scope` entry names one individual
+repository-relative file. Glob selectors (any component containing `*`, `?`, `[`,
+`]`, `{`, or `}`), directory intent (a terminal slash), and the repository root
+(`.` or `./`) are unsupported and refuse with cause `glob_selector` or
+`directory_scope`; that syntax decision needs no tree, so managed dispatch makes it
+before any WK allocation, worktree, or attempt event. An entry spelled without a
+slash that names a directory at the base commit is no more a file than its
+slash-named spelling and refuses at the base tree with cause `directory_scope`. The
+refusal message names the field and entry and tells the author to enumerate each
+required repository-relative file, including intended new write files, then retry.
+Nothing expands a selector or enumerates a directory on the author's behalf.
 
 The same base tree derives the ephemeral `resolved_scope` the authority carries
-beside its unchanged authored selectors. A glob selects exactly the regular files
-that exist at the base and match `node:path.posix.matchesGlob()`: a file absent at
-the base or created later is not a member, zero matches select nothing, symlinks
-and gitlinks are never members, and the containing directory is never granted. An
-existing directory is a directory grant whether spelled `docs` or `docs/`. Members
-at or under `wiki/contracts` are subtracted; a wildcard selector itself is kept.
-The sparse namespace, writable mounts, and Codex and Claude plans project only this
+beside its unchanged authored entries: the regular files that exist at the base,
+and the eligible exact missing writable files. No directory is ever a member, so
+`resolved_scope.readable.directories` and `resolved_scope.writable.directories` are
+empty, and a file grant never covers its parent or siblings. Symlinks and gitlinks
+are never members. Members at or under `wiki/contracts` are subtracted. The sparse
+namespace, writable mounts, and Codex and Claude plans project only this
 assignment, and the isolation layer refuses a member whose checkout type changed.
+The same resolution derives the required frozen `scope_preparation`
+`{ base_sha, directories }` beside it: the unique absent parent prefixes of the
+eligible missing writable files, ordered shallowest first and then by code unit,
+derived after excluded families are subtracted. These are preparation facts,
+never members or grants. One family-neutral owner validates them for both frozen
+authority validators and projects them for read-only reporting.
 Exact commit resolves the same membership at the binding's authenticated base:
-changes to members (deletions included), eligible exact missing writable leaves,
-and paths beneath directory members are contained; every other path is refused.
-A changed path carries no directory intent, so a path that IS a granted directory
-is a replacement of that directory and is refused rather than read as the
-directory's own grant.
+changes to members (deletions included) and eligible exact missing writable
+files, including new files beneath new parents, are contained; every other path
+is refused. Existing Git delivery stages untracked paths with standard ignore
+rules, so an output that is ignored in the prepared checkout is not delivered.
+This limitation applies whether or not its parents were prepared; the launcher
+neither evaluates ignore rules nor force-stages. A retained attempt binding is never
+rewritten; one whose authored scope carries a glob or directory selector can no
+longer resolve membership, so its commit and committed-slice admission refuse and
+the author corrects the canonical scope before a new attempt.
 
 Committed-slice review and integration admission own no scope interpretation of
 their own. They project the canonical slice contract's declared `write_scope`
@@ -136,12 +160,13 @@ convenience — and decide every changed path with the same commit containment
 matcher. A selector one of these gates accepts is therefore accepted by all of
 them, and the admitted identity's effective write scope is the same array the
 exact-unit worktree binding froze, which is what lets the original worker
-recognize its own completed integration.
+recognize its own completed integration. A glob or directory selector refuses
+there as a malformed canonical write scope, and a literal entry that names a
+directory at the diff base grants nothing.
 
 Excluded families are re-applied to every CANDIDATE, at the commit and admission
-gates as well as at launch: an ancestor of `wiki/contracts` is a legitimate
-directory member, and a descendant inside the family is not covered by it. The
-enforced namespace's family overlay is a separate mechanism and is not that
+gates as well as at launch, so no member covers a descendant inside the family.
+The enforced namespace's family overlay is a separate mechanism and is not that
 proof.
 
 Every refusal from this resolution is a typed path verdict:
@@ -157,25 +182,28 @@ the shared resolved write coverage, and so do the closed-input commit gate and
 committed-slice admission; that one owner subtracts excluded families on every
 query. Public `workspace_validate_dispatch` runs this same resolution read-only
 at the prospective base (the WK tip, or the configured base for a first slice)
-and reports what it evaluated and what remains for launch. Launch still resolves
-membership again at the base it provisions, so a pass never certifies launch.
+and reports what it evaluated and what remains for launch, including
+`structural_parent_preparation`. Launch still resolves membership again at the
+base it provisions, so a pass never certifies launch.
 
-Resolved writable directories that are absent from the checkout are prepared
-once by the shared bubblewrap planner, the path Codex and Claude both use,
-immediately before the namespace is inspected. Preparation consumes only
-`resolved_scope.writable.directories`. It creates only the missing leaf, and
-only when every parent is already a real directory. It refuses a missing,
-replaced, or symlinked parent and any member inside an excluded family. Missing
-exact file members stay file targets and are never created as directories, and
-no name is classified by its spelling. A preparation refusal names the scope
-member and its failing component by repository-relative path, in the same
-`scope_member` shape namespace projection uses. If planning later refuses, the created
-directories are rolled back. Once planning succeeds they join the attempt-owned
-precreation cleanup, which removes only a still-empty directory with an
-unchanged identity. A refused launch releases them before any child exists.
-A managed Claude child keeps them until its termination is observed; see
+Missing resolved writable files are prepared once by the shared bubblewrap
+planner, the path Codex and Claude both use, before the namespace is inspected.
+The planner first creates the frozen `scope_preparation.directories` in the
+allocated checkout, one component at a time and shallowest first, then
+precreates each missing exact file as an empty file. An extensionless file such
+as `bin/new-tool` is a file, never a directory. A parent that existed at the
+base but has disappeared from the checkout is never recreated. A planned parent
+already present as a real directory is used but not owned. A missing, replaced,
+or symlinked ancestor refuses. A preparation refusal names the scope member and
+its failing component by repository-relative path, in the same `scope_member`
+shape namespace projection uses. Created parents and files join the
+attempt-owned precreation cleanup. A refused launch releases them before any
+child exists, and a release failure is reported as secondary evidence beside the
+primary refusal; see
 [Agent-launch write-scope preparation](agent-launch-write-scope-preparation.md).
-Preparation never widens a mount to a parent or sibling.
+Prepared parents stay read-only skeleton in the namespace. Preparation never
+widens a mount to a parent or sibling, and it makes no claim of atomicity against
+arbitrary host races.
 
 This is a scope-freezing authority only. `inspectAuthorityPath` in the isolation
 layer remains an independent second filesystem check over the checkout produced
@@ -257,6 +285,20 @@ derived from **role policy**, never composed from the subject unit:
 - **Orchestrator — the full repository read with its separate role-specific
   coordination write policy.** Unchanged by this split except for the same
   enforced private-family overlay.
+
+The private family stays out of every filesystem namespace; controlled-contract
+MEANING reaches sessions through `workspace_controlled_contract_obligation_coverage_query`,
+whose source follows the same role split from launcher startup state, never a
+request field. A managed worker reads its assigned unit's contract: the
+identity-store exact-slice binding selects its worktree, and the query returns
+only that unit's obligations with their requirement, reference and parent-owned
+case closure plus all global notes and residue. Reviewer and redteam read only the
+frozen review materialization, authenticated by the frozen review artifact, with
+repository-read entitlement and no live-main fallback. Orchestrator and operator
+read the canonical repository. The worker grant is that query alone: no raw
+private-file access and no generic content-reference reader. Retained query detail
+re-resolves and compares the caller's authority identity on every read (see
+[Acceptance Coverage MCP](acceptance-coverage-mcp.md)).
 
 Operator confinement follows the same enforced subtraction. The phrase "full
 repository" in this section therefore means the role's ordinary repository
@@ -540,7 +582,7 @@ network behavior remains `shareNet: true` as described above.
 
 | Executor family | What it may write | Write-scope enforcement | What is sandboxed | What is not sandboxed / known caveats | Network posture |
 | --- | --- | --- | --- | --- | --- |
-| Codex | The assigned implementation `write_scope` for workers; reviewer/redteam subjects must have `write_scope: []`. | The outer bubblewrap plan mounts the repo read-only, then emits exact `--bind <file> <file>` entries for file scopes and writable root binds only for directory scopes. Paths are realpath-normalized and must remain inside the repo; repo root and `.git` writable roots fail closed. Codex CLI `-s workspace-write` / `--add-dir` records directory-level intent only, so the bwrap file bind is the file-level boundary. Worker launches keep the Codex `exec_command` tool inside that boundary. | The dispatched child runs under bwrap with system/read-only roots, env filtered through the launcher policy, and write binds derived from canonical record state. Workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. | The Codex CLI sandbox itself is not the file-level guarantee; do not read `--add-dir` as per-file enforcement. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
+| Codex | The assigned implementation `write_scope` for workers; reviewer/redteam subjects must have `write_scope: []`. | The outer bubblewrap plan mounts the repo read-only, then emits exact `--bind <file> <file>` entries for the declared scope's individual files; a declared scope never yields a writable directory bind. Launcher-owned `runtime_roots` are bound separately and are not declared scope. Paths are realpath-normalized and must remain inside the repo; repo root and `.git` writable roots fail closed. Codex CLI `-s workspace-write` / `--add-dir` records directory-level intent only, so the bwrap file bind is the file-level boundary. Worker launches keep the Codex `exec_command` tool inside that boundary. | The dispatched child runs under bwrap with system/read-only roots, env filtered through the launcher policy, and write binds derived from canonical record state. Workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. | The Codex CLI sandbox itself is not the file-level guarantee; do not read `--add-dir` as per-file enforcement. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
 | Claude | The assigned implementation `write_scope` for managed workers; reviewer/redteam are read-only and receive `Bash` with native edit tools denied so they can run read-only Git inspection. | Managed workers receive exact `W` writable mounts over a sparse `R union W` namespace. `Bash` is present in `permissions.allow` and `--allowedTools`, and absent from both deny layers. Native WebFetch/WebSearch and delegation/spawn tools remain denied. | The settings root is read-only, repository content visibility is exactly `R union W`, and workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. The real host OAuth credential leaf is writable for normal implementation workers so Claude can persist token refresh; exact findings roles bind it read-only. | Legacy non-managed native-edit composition may retain directory-scoped native editing, but managed-worker shell authority comes from bwrap, not command parsing or native edit permissions. Post-run changed-path containment remains a backstop. | `shareNet: true`; shell-visible network binaries may use the shared network. Native WebFetch/WebSearch denial is not network confinement. |
 | Agy | Unsupported; no repository writes. | No executor or write-scope projection is created. | No role sandbox is spawned. | No Gemini state, credential, config, or wiki-MCP transport is mounted. | No launch; fails closed. |
 
@@ -864,6 +906,15 @@ own gates. A stale reference therefore no longer hides later failures behind the
 first mismatch. Default output prints each gating diagnostic's details; `--json`
 remains the complete deterministic result. `--help` prints usage; exit status is
 0 with no gating diagnostic, 1 with one, and 2 for a usage error.
+
+A raw public throw is a value constructed at the public boundary that is not a
+typed error: a builtin `Error`, a non-construction value, or either arm of a
+conditional that is one. Propagation is not construction: rethrowing the
+enclosing catch clause's own parameter, never rebound in that handler, carries
+the producer's value with its identity intact and is judged at the producer's
+construction site instead. A rebound or shadowed name, a value from another
+catch, or a call's result stays raw, because the lint cannot prove what it
+carries.
 
 Owner-proof digests record the bytes that were *validated* as the proof. A
 digest is repinned only after its registered selector has been run and shown to

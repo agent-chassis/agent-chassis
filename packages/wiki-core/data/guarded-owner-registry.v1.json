@@ -39,56 +39,63 @@
       "reference_id": "ref-wk2359-witness-dispatch-ergonomics",
       "reference_kind": "owner_proof",
       "path": "tests/integration/dispatch-tools-ergonomics.test.mjs",
-      "content_digest": "sha256:104ab44db0b318a5aca4088f5d974023b9cd14d46f5e598e9c410a22a78a57c5",
+      "content_digest": "sha256:ae4a05d7e9785ac7c5c3707a3566b43cf589a69227ad8692f5abf9e596c30e5f",
       "selector": "node --test tests/integration/dispatch-tools-ergonomics.test.mjs"
     },
     {
       "reference_id": "ref-wk2359-witness-backend-routing",
       "reference_kind": "owner_proof",
       "path": "tests/integration/workspace-agent-advisory-review-production-composition.test.mjs",
-      "content_digest": "sha256:4615c03ddc3bf3a7c368f28ec972fa6cbe5960fe9182370a5e63f9387f9d77b6",
+      "content_digest": "sha256:3f9d97171d4a30cd97017733eb5cde48d261b8fb7eae698f9152d0954cf78b7b",
       "selector": "node --test tests/integration/workspace-agent-advisory-review-production-composition.test.mjs"
     },
     {
       "reference_id": "ref-wk2359-witness-internal-exception",
       "reference_kind": "owner_proof",
       "path": "tests/unit/controlled-contract-refusal-internal-exception.test.mjs",
-      "content_digest": "sha256:2ebc1f662e3bfe66e31e49f859cdba18ae57c3d2eb40579c8d1404483e0f1225",
+      "content_digest": "sha256:4e13ea1a0d0b462ad07a692cc139dbece1467194de37293be285ddefc58ba3da",
       "selector": "node --test tests/unit/controlled-contract-refusal-internal-exception.test.mjs"
     },
     {
       "reference_id": "ref-wk2359-witness-response-dedup",
       "reference_kind": "owner_proof",
       "path": "tests/unit/mcp-response-content-deduplication.test.mjs",
-      "content_digest": "sha256:c6ee844b97a6a670fba260d951a377fdf664bcf5c86203fb99ad8769607bb8c6",
+      "content_digest": "sha256:a32e2a8d6830f619099465645384d7e3357ee1523e2c58ab450a83150846632e",
       "selector": "node --test tests/unit/mcp-response-content-deduplication.test.mjs"
     },
     {
       "reference_id": "ref-wk2359-witness-compact-read",
       "reference_kind": "owner_proof",
       "path": "tests/unit/work-record-compact-read-gate.test.mjs",
-      "content_digest": "sha256:6bbe8bf1ddd8ea5e2532896d73aad2d658ae93b472d1c1c5520571b1013e2c5b",
+      "content_digest": "sha256:cb36710f6a21ab2f411f8e5c83dd5d6f468690febdb2003d491261b592ce564a",
       "selector": "node --test tests/unit/work-record-compact-read-gate.test.mjs"
+    },
+    {
+      "reference_id": "ref-wk2359-witness-settled-readiness",
+      "reference_kind": "owner_proof",
+      "path": "tests/unit/workspace-agent-dispatch-corrective-status-recovery.test.mjs",
+      "content_digest": "sha256:78370dbf13516bf53d7bbcffebad141048b2982dafaad23948eb2c92850cf2ee",
+      "selector": "node --test tests/unit/workspace-agent-dispatch-corrective-status-recovery.test.mjs"
     },
     {
       "reference_id": "ref-wk2382-witness-census",
       "reference_kind": "owner_proof",
       "path": "tests/unit/async-failure-census.test.mjs",
-      "content_digest": "sha256:b723a283108d438ac9eb233c88bf527c68687bcd7a843dca31584cd2b80e59b8",
+      "content_digest": "sha256:cf262139ce4f23c63cbc19c483aacf3fb2d4b9cd8fe48b3196b7a6629c3b9b68",
       "selector": "node --test tests/unit/async-failure-census.test.mjs"
     },
     {
       "reference_id": "ref-wk2382-witness-handler-boundary",
       "reference_kind": "owner_proof",
       "path": "tests/unit/wiki-mcp-tool-handler-error-boundary.test.mjs",
-      "content_digest": "sha256:1109f466e91e4a51dc94309775f0ce3468224163044625a5edd3d7fb68b14354",
+      "content_digest": "sha256:6b7eef225cae7f27c077db32f37bb476630710da8918c2e6d3f9823e2b4f5309",
       "selector": "node --test tests/unit/wiki-mcp-tool-handler-error-boundary.test.mjs"
     },
     {
       "reference_id": "ref-wk2391-preflight-witness",
       "reference_kind": "owner_proof",
       "path": "tests/unit/coordination-preflight.test.mjs",
-      "content_digest": "sha256:f13fdb995ea82f1fe48d95fff59d38b3cce8baa86a8f1c52a4dd9bc74abb25b6",
+      "content_digest": "sha256:e6b878c56e1e8fa11588a7235f79ee64fca5b9e8910259e81b8e796bf724bd4e",
       "selector": "node --test tests/unit/coordination-preflight.test.mjs"
     },
     {
@@ -102,14 +109,14 @@
       "reference_id": "ref-wk2428-recovery-witness",
       "reference_kind": "owner_proof",
       "path": "tests/integration/dispatch-tools-ergonomics.test.mjs",
-      "content_digest": "sha256:104ab44db0b318a5aca4088f5d974023b9cd14d46f5e598e9c410a22a78a57c5",
+      "content_digest": "sha256:ae4a05d7e9785ac7c5c3707a3566b43cf589a69227ad8692f5abf9e596c30e5f",
       "selector": "node --test tests/integration/dispatch-tools-ergonomics.test.mjs"
     },
     {
       "reference_id": "ref-wk2257-preservation-witness",
       "reference_kind": "owner_proof",
       "path": "tests/unit/workspace-agent-behavioral-preservation-evidence.test.mjs",
-      "content_digest": "sha256:073ab586293f4e541d10655568d049bb32165d91487f6e1d2a3a7994fd6ef3b1",
+      "content_digest": "sha256:c2249c4ec9957acb9f5eab1e62f7b1f0ff4bc0264556a6678c012ce96a824377",
       "selector": "node --test tests/unit/workspace-agent-behavioral-preservation-evidence.test.mjs"
     }
   ],
@@ -198,6 +205,7 @@
         "ref-wk2359-witness-internal-exception",
         "ref-wk2359-witness-response-dedup",
         "ref-wk2359-witness-compact-read",
+        "ref-wk2359-witness-settled-readiness",
         "ref-wk2391-preflight-witness"
       ],
       "discovery_rule": {

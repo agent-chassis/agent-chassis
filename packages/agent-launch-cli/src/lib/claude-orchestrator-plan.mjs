@@ -19,7 +19,8 @@ import {
 import {
   WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
   ensureWikiMcpResponseStateDir,
-  resolveLauncherConfiguredWorkspaceAlias
+  resolveLauncherConfiguredWorkspaceAlias,
+  resolveWikiMcpResponseStateDir
 } from "./codex-role-mcp-env.mjs";
 import {
   titleFromPage
@@ -70,7 +71,9 @@ import {
 import {
   buildInteractiveOrchestratorLaunchPlan,
   buildHeadlessOrchestratorBwrapPlan,
+  prepareLauncherOwnedDispatchWorktreeRoot,
   probeOrchestratorBwrapAvailability,
+  resolveLauncherOwnedDispatchWorktreeRoot,
   ORCHESTRATOR_ISOLATION_MODES,
   OPERATOR_DIRECT_MODE_WARNING
 } from "./orchestrator-launch-isolation.mjs";
@@ -325,7 +328,13 @@ export async function buildClaudeOrchestratorPlan({
   const headlessSettings = isHeadless
     ? buildClaudeOrchestratorHeadlessPermissionSettings({
 
-        mcpToolNames: resolveLauncherRoleToolNames("orchestrator")
+        mcpToolNames: resolveLauncherRoleToolNames("orchestrator"),
+        responseStateDir,
+
+        managedWorktreeRoot: resolveLauncherOwnedDispatchWorktreeRoot({
+          repo,
+          dispatchWorktreeRoot
+        })
       })
     : null;
   const headlessSettingsPath = isHeadless
@@ -655,9 +664,20 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
         launchPlan.runtimeDir,
         CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR
       );
+      const managedWorktreeRoot = prepareLauncherOwnedDispatchWorktreeRoot({
+        repo: launchPlan.repo,
+        dispatchWorktreeRoot: launchPlan.dispatchWorktreeRoot ?? null
+      });
 
       const buildSettings = () => buildClaudeOrchestratorHeadlessPermissionSettings({
-        mcpToolNames: conduit.toolNames
+        mcpToolNames: conduit.toolNames,
+
+        responseStateDir: resolveWikiMcpResponseStateDir({
+          runtimeDir: launchPlan.runtimeDir,
+          workspaceDir: launchPlan.repo
+        }),
+
+        managedWorktreeRoot
       });
       const minted = await mintNativePermissionSettings({
         workspaceDir: launchPlan.repo,

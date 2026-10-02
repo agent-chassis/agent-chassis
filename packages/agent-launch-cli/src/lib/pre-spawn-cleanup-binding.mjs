@@ -1,8 +1,8 @@
-import { lstatSync, readdirSync } from "node:fs";
-import path from "node:path";
-
 import { boundedCleanupFailure, withSecondaryCleanupFailure } from "./launch-failure-cause.mjs";
-import { rollbackPreparedWorkerDirectories } from "./launch-isolation-worker-scope.mjs";
+import {
+  retainedPrecreatedResourceFailure,
+  rollbackPreparedWorkerDirectories
+} from "./launch-isolation-worker-scope.mjs";
 
 const WRITABLE_FILE_PRECREATION_CLEANUP_SCHEMA_VERSION =
   "writable-file-precreation-cleanup.v1";
@@ -61,31 +61,6 @@ export function bindAttemptOwnedPreSpawnCleanup({
   });
 }
 
-function stillReleasableDirectory(entry) {
-  try {
-    const stat = lstatSync(entry.real);
-    return stat.isDirectory() && !stat.isSymbolicLink() &&
-      String(stat.dev) === entry.identity.dev && String(stat.ino) === entry.identity.ino &&
-      readdirSync(entry.real).length === 0;
-  } catch {
-    return false;
-  }
-}
-
-function retainedDirectoryFailure(entries, repo) {
-  const retained = entries.filter(stillReleasableDirectory);
-  if (retained.length === 0) return null;
-  const error = new Error(`${retained.length} attempt-owned empty directories could not be removed`);
-  error.code = "attempt_owned_directory_retained";
-  error.detail = Object.freeze({
-    failures: retained.map((entry) => Object.freeze({
-      code: "attempt_owned_directory_retained",
-      message: `retained ${typeof repo === "string" ? path.relative(repo, entry.real) : "<host-path>"}`
-    }))
-  });
-  return error;
-}
-
 function cleanupFailureEvidence(controller, reason, error) {
   return Object.freeze({
     reason,
@@ -100,8 +75,8 @@ export function compensatePreSpawnRefusal(controller, refusal, { directories = [
   if (controller === null || controller === undefined) return refusal;
   let failure = null;
   try {
-    controller.cleanupOnce();
-    failure = retainedDirectoryFailure(directories, repo);
+    const outcome = controller.cleanupOnce();
+    failure = retainedPrecreatedResourceFailure({ directories, outcome, repo });
   } catch (error) {
     failure = error;
   }
@@ -151,7 +126,7 @@ export function createAttemptPrecreatedResourceOwner({ role, subject, runId } = 
     let failure = null;
     try {
       rollbackPreparedWorkerDirectories(directories);
-      failure = retainedDirectoryFailure(directories, repo);
+      failure = retainedPrecreatedResourceFailure({ directories, repo });
     } catch (error) {
       failure = error;
     }

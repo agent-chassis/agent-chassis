@@ -115,7 +115,7 @@ function mapMaybeAsync(value, onFulfilled, onRejected = null) {
   }
 }
 
-function runMaybeAsyncGenerator(factory) {
+export function runMaybeAsyncGenerator(factory) {
   const iterator = factory();
   const advance = (method, value) => {
     let step;
@@ -212,16 +212,20 @@ export function buildZeroDeltaIntegrationEvidenceMessage({
     "Wk-Slice-Empty: true\n";
 }
 
+function canonicalWorkerDeliveryMessage(subject, baseSha) {
+  return `agent-launch worker delivery: ${subject} (base ${baseSha.slice(0, 12)})\n\n` +
+    `${buildWkSliceMarkerTrailer(subject)}\n`;
+}
+
+function isCanonicalWorkerDelivery(delivery, subject, deliverySha, baseSha) {
+  return delivery.parents.length === 1 && delivery.parents[0] === baseSha &&
+    OID_RE.test(delivery.tree ?? "") && delivery.tree.length === deliverySha.length &&
+    delivery.message === canonicalWorkerDeliveryMessage(subject, baseSha);
+}
+
 function exactReviewedDeliveryIdentity(runGit, mainRepo, subject, deliverySha, baseSha, cache = new Map()) {
-  return mapMaybeAsync(readLiteralCommit(runGit, mainRepo, deliverySha, cache), (delivery) => {
-    if (delivery === null) return false;
-    const expectedMessage =
-      `agent-launch worker delivery: ${subject} (base ${baseSha.slice(0, 12)})\n\n` +
-      `${buildWkSliceMarkerTrailer(subject)}\n`;
-    return delivery.parents.length === 1 && delivery.parents[0] === baseSha &&
-      OID_RE.test(delivery.tree ?? "") && delivery.tree.length === deliverySha.length &&
-      delivery.message === expectedMessage;
-  });
+  return mapMaybeAsync(readLiteralCommit(runGit, mainRepo, deliverySha, cache), (delivery) =>
+    delivery !== null && isCanonicalWorkerDelivery(delivery, subject, deliverySha, baseSha));
 }
 
 export function resolveAuthenticatedExactSliceDeliveryBase({
@@ -254,7 +258,8 @@ function classifyExactZeroDeltaEvidence({
   subject,
   deliverySha = null,
   expectedBaseSha = null,
-  cache = new Map()
+  cache = new Map(),
+  reportUnreadable = null
 }) {
   return runMaybeAsyncGenerator(function* classifyEvidenceSteps() {
   const parsedObject = yield readLiteralCommit(runGit, mainRepo, candidate, cache);
@@ -288,10 +293,15 @@ function classifyExactZeroDeltaEvidence({
       ))) {
     return null;
   }
-  let parentTree;
+  const parentRead = yield readLiteralCommitOutcome(runGit, mainRepo, wkParentSha, cache);
+  if (parentRead.commit === null) {
+    reportUnreadable?.(Object.freeze({ ...parentRead.failure, reason: "zero_delta_wk_parent_unreadable",
+      literal_reason: parentRead.failure.reason }));
+    return null;
+  }
+  const parentTree = parentRead.commit.tree;
   let empty;
   try {
-    parentTree = (yield readLiteralCommit(runGit, mainRepo, wkParentSha, cache))?.tree ?? null;
     empty = yield sliceHasNoRemainingDelta({
       runGit,
       mainRepo,
@@ -299,7 +309,20 @@ function classifyExactZeroDeltaEvidence({
       commit: encodedDeliverySha,
       wkTip: wkParentSha
     });
-  } catch {
+  } catch (error) {
+
+    if (error?.code !== SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_CONFLICT) {
+      const processFacts = error?.detail?.merge_tree?.process ?? null;
+      reportUnreadable?.(Object.freeze({
+        reason: "zero_delta_remaining_delta_unobservable",
+        code: typeof error?.code === "string" ? error.code : null,
+        object: encodedDeliverySha,
+        read: distillGitReadFailure("merge-tree", encodedDeliverySha, processFacts === null
+          ? { outcome: "faulted", error: error?.message ?? String(error) }
+          : { outcome: "failed", ...processFacts,
+            error: typeof processFacts.error === "string" ? processFacts.error : null })
+      }));
+    }
     return null;
   }
   if (object.tree !== parentTree || !empty) {
@@ -324,34 +347,6 @@ function classifyExactZeroDeltaEvidence({
   });
 }
 
-export function authenticateZeroDeltaIntegrationEvidenceCandidate({
-  runGit,
-  mainRepo,
-  evidenceSha,
-  subject,
-  deliverySha = null,
-  baseSha = null
-}) {
-  assertOid(evidenceSha, "zero-delta evidence candidate");
-  assertEvidenceSubject(subject);
-  if (deliverySha !== null) assertOid(deliverySha, "zero-delta evidence delivery");
-  if (baseSha !== null) assertOid(baseSha, "zero-delta evidence base");
-  if (deliverySha !== null && baseSha !== null && deliverySha.length !== baseSha.length) return null;
-  try {
-    const classified = classifyExactZeroDeltaEvidence({
-      runGit,
-      mainRepo,
-      candidate: evidenceSha,
-      subject,
-      deliverySha,
-      expectedBaseSha: baseSha
-    });
-    return mapMaybeAsync(classified, (value) => value, () => null);
-  } catch {
-    return null;
-  }
-}
-
 export function authenticateZeroDeltaIntegrationEvidenceCommit({
   runGit,
   mainRepo,
@@ -373,6 +368,80 @@ export function authenticateZeroDeltaIntegrationEvidenceCommit({
     }),
     (match) => match !== null && match.wk_parent_sha === wkParentSha ? match : null
   );
+}
+
+export const INTEGRATED_DELIVERY_AUTHENTICATION_STATES = Object.freeze({
+  AUTHENTICATED: "authenticated",
+  MISMATCH: "mismatch",
+  INDETERMINATE: "indeterminate"
+});
+
+export function authenticateIntegratedDeliveryCandidate({
+  runGit,
+  mainRepo,
+  subject,
+  candidateSha,
+  deliverySha,
+  cache = new Map()
+}) {
+  const STATES = INTEGRATED_DELIVERY_AUTHENTICATION_STATES;
+  const indeterminate = (reason, failure = null) =>
+    Object.freeze({ state: STATES.INDETERMINATE, reason, candidate_sha: candidateSha ?? null,
+      delivery_sha: deliverySha ?? null, failure });
+  const mismatch = (reason) => Object.freeze({ state: STATES.MISMATCH, reason,
+    candidate_sha: candidateSha, delivery_sha: deliverySha });
+  if (typeof subject !== "string" || !EXACT_SLICE_SUBJECT_RE.test(subject)) {
+    return indeterminate("delivery_subject_malformed");
+  }
+  for (const [label, value] of [["candidate", candidateSha], ["delivery", deliverySha]]) {
+    if (typeof value !== "string" || !OID_RE.test(value) || /^0+$/u.test(value)) {
+      return indeterminate(`${label}_identity_malformed`);
+    }
+  }
+  if (candidateSha.length !== deliverySha.length) return indeterminate("object_format_mismatch");
+  return runMaybeAsyncGenerator(function* authenticateCandidateSteps() {
+    const retained = yield readLiteralCommitOutcome(runGit, mainRepo, deliverySha, cache);
+    if (retained.commit === null) return indeterminate("retained_delivery_unreadable", retained.failure);
+    const delivery = retained.commit;
+    const baseSha = delivery.parents.length === 1 ? delivery.parents[0] : null;
+    if (baseSha === null || !isCanonicalWorkerDelivery(delivery, subject, deliverySha, baseSha)) {
+      return mismatch("retained_delivery_not_canonical");
+    }
+    const authenticated = (kind) => Object.freeze({ state: STATES.AUTHENTICATED, kind,
+      candidate_sha: candidateSha, delivery_sha: deliverySha, base_sha: baseSha });
+    if (candidateSha === deliverySha) return authenticated("direct");
+    const read = yield readLiteralCommitOutcome(runGit, mainRepo, candidateSha, cache);
+    if (read.commit === null) return indeterminate("integrated_candidate_unreadable", read.failure);
+    const candidate = read.commit;
+    if (candidate.parents.length !== 1) return mismatch("integrated_candidate_not_single_parent");
+    if (candidate.message === delivery.message) {
+      const retainedDelta = yield readParentRelativeStructuralDelta(runGit, mainRepo, baseSha, deliverySha);
+      if (retainedDelta.delta === null) return indeterminate("retained_delivery_delta_unreadable",
+        retainedDelta.failure);
+      const candidateDelta = yield readParentRelativeStructuralDelta(runGit, mainRepo,
+        candidate.parents[0], candidateSha);
+      if (candidateDelta.delta === null) return indeterminate("integrated_candidate_delta_unreadable",
+        candidateDelta.failure);
+      return structuralDeltasEqual(candidateDelta.delta, retainedDelta.delta)
+        ? authenticated("replay")
+        : mismatch("replay_structural_delta_mismatch");
+    }
+    let zeroDelta = null;
+    let unreadable = null;
+    try {
+      zeroDelta = yield classifyExactZeroDeltaEvidence({
+        runGit, mainRepo, candidate: candidateSha, subject, deliverySha, expectedBaseSha: baseSha, cache,
+        reportUnreadable: (failure) => { unreadable ??= failure; }
+      });
+    } catch {
+      zeroDelta = null;
+    }
+    if (zeroDelta !== null) return authenticated("zero_delta");
+
+    return unreadable === null
+      ? mismatch("integrated_candidate_not_delivery")
+      : indeterminate("zero_delta_evidence_unreadable", unreadable);
+  });
 }
 
 export function resolveZeroDeltaIntegrationEvidence({
@@ -570,7 +639,10 @@ function authorityProbe(runGit, mainRepo, args) {
         status: typeof resolved.status === "number" ? resolved.status : null,
         signal: resolved.signal ?? null,
         error: resolved.error ?? null,
-        stdout: typeof resolved.stdout === "string" ? resolved.stdout : ""
+        ...(resolved.timed_out === true ? { timed_out: true } : {}),
+        ...(resolved.overflow === true ? { overflow: true } : {}),
+        stdout: typeof resolved.stdout === "string" ? resolved.stdout : "",
+        stderr: typeof resolved.stderr === "string" ? resolved.stderr : null
       };
     }
     const stdout = resolved.stdout ?? "";
@@ -581,24 +653,158 @@ function authorityProbe(runGit, mainRepo, args) {
   }, (error) => ({ outcome: "faulted", error: error?.message ?? String(error) }));
 }
 
+const DISTILLED_TEXT_BOUND = 240;
+
+function distilledLine(value) {
+  if (typeof value !== "string") return null;
+  const line = value.split(/\r?\n/u).map((entry) => entry.trim()).find((entry) => entry.length > 0);
+  return line === undefined ? null : line.slice(0, DISTILLED_TEXT_BOUND);
+}
+
+export function distillGitReadFailure(operation, object, probe) {
+  return Object.freeze({
+    operation,
+    object,
+    outcome: probe?.outcome ?? "faulted",
+    status: typeof probe?.status === "number" ? probe.status : null,
+    signal: typeof probe?.signal === "string" ? probe.signal : null,
+    error: distilledLine(typeof probe?.error === "string" ? probe.error : null),
+    timed_out: probe?.timed_out === true,
+    overflow: probe?.overflow === true,
+    stderr_line: distilledLine(probe?.stderr)
+  });
+}
+
 function parseLiteralCommit(raw, oid) {
-  const parsed = parseLiteralCommitObject(raw, oid);
-  return parsed.ok ? parsed.commit : null;
+  return parseLiteralCommitObject(raw, oid);
+}
+
+export function readLiteralCommitOutcome(runGit, mainRepo, oid, cache) {
+  if (typeof oid !== "string" || !OID_RE.test(oid) || /^0+$/u.test(oid)) {
+    return Object.freeze({ commit: null, failure: Object.freeze({
+      reason: "literal_object_id_invalid", object: typeof oid === "string" ? oid : null }) });
+  }
+  if (cache.has(oid)) return Object.freeze({ commit: cache.get(oid), failure: null });
+  return runMaybeAsyncGenerator(function* readCommitSteps() {
+    const type = yield authorityProbe(runGit, mainRepo, ["cat-file", "-t", oid]);
+    if (type.outcome !== "ok") {
+      return Object.freeze({ commit: null, failure: Object.freeze({ reason: "literal_commit_read_failed",
+        object: oid, read: distillGitReadFailure("cat-file -t", oid, type) }) });
+    }
+    if (type.stdout !== "commit\n") {
+      return Object.freeze({ commit: null, failure: Object.freeze({ reason: "literal_object_not_commit",
+        object: oid }) });
+    }
+    const body = yield authorityProbe(runGit, mainRepo, ["cat-file", "commit", oid]);
+    if (body.outcome !== "ok") {
+      return Object.freeze({ commit: null, failure: Object.freeze({ reason: "literal_commit_read_failed",
+        object: oid, read: distillGitReadFailure("cat-file commit", oid, body) }) });
+    }
+    const parsed = parseLiteralCommit(body.stdout, oid);
+    if (!parsed.ok) {
+      return Object.freeze({ commit: null, failure: Object.freeze({ reason: "literal_commit_malformed",
+        object: oid, parse_reason: parsed.reason }) });
+    }
+    cache.set(oid, parsed.commit);
+    return Object.freeze({ commit: parsed.commit, failure: null });
+  });
 }
 
 function readLiteralCommit(runGit, mainRepo, oid, cache) {
-  if (!OID_RE.test(oid) || /^0+$/u.test(oid)) return null;
-  if (cache.has(oid)) return cache.get(oid);
-  return runMaybeAsyncGenerator(function* readCommitSteps() {
-    const type = yield authorityProbe(runGit, mainRepo, ["cat-file", "-t", oid]);
-    if (type.outcome !== "ok" || type.stdout !== "commit\n") return null;
-    const body = yield authorityProbe(runGit, mainRepo, ["cat-file", "commit", oid]);
-    if (body.outcome !== "ok") return null;
-    const commit = parseLiteralCommit(body.stdout, oid);
-    if (commit === null) return null;
-    cache.set(oid, commit);
-    return commit;
+  return mapMaybeAsync(readLiteralCommitOutcome(runGit, mainRepo, oid, cache),
+    (outcome) => outcome.commit);
+}
+
+function parseGitQuotedPath(token) {
+  if (typeof token !== "string" || token.length === 0) return null;
+  const bytes = [];
+  if (!token.startsWith('"')) {
+    for (const character of token) {
+      const code = character.codePointAt(0);
+      if (code < 0x20 || code > 0x7e || character === '"' || character === "\\") return null;
+      bytes.push(code);
+    }
+  } else {
+    if (token.length < 2 || !token.endsWith('"')) return null;
+    const body = token.slice(1, -1);
+    const namedEscapes = Object.freeze({
+      a: 0x07,
+      b: 0x08,
+      t: 0x09,
+      n: 0x0a,
+      v: 0x0b,
+      f: 0x0c,
+      r: 0x0d,
+      '"': 0x22,
+      "\\": 0x5c
+    });
+    for (let index = 0; index < body.length; index += 1) {
+      const character = body[index];
+      const code = character.codePointAt(0);
+      if (character !== "\\") {
+        if (code < 0x20 || code > 0x7e || character === '"') return null;
+        bytes.push(code);
+        continue;
+      }
+      const escaped = body[index + 1];
+      if (Object.prototype.hasOwnProperty.call(namedEscapes, escaped)) {
+        bytes.push(namedEscapes[escaped]);
+        index += 1;
+        continue;
+      }
+      const octal = body.slice(index + 1, index + 4);
+      if (!/^[0-7]{3}$/u.test(octal)) return null;
+      const value = Number.parseInt(octal, 8);
+      if (value > 0xff) return null;
+      bytes.push(value);
+      index += 3;
+    }
+  }
+  if (bytes.length === 0 || bytes.includes(0)) return null;
+  return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function parseRawObjectDelta(stdout, oidLength) {
+  if (typeof stdout !== "string" || stdout.includes("�")) return null;
+  if (stdout.length === 0) return Object.freeze([]);
+  if (!stdout.endsWith("\n")) return null;
+  const records = [];
+  for (const line of stdout.slice(0, -1).split("\n")) {
+    const match = line.match(
+      /^:([0-7]{6}) ([0-7]{6}) ([0-9a-f]+) ([0-9a-f]+) ([ADMT])\t(.+)$/u
+    );
+    if (match === null || match[3].length !== oidLength || match[4].length !== oidLength) return null;
+    const pathHex = parseGitQuotedPath(match[6]);
+    if (pathHex === null) return null;
+    records.push(`${match[1]} ${match[2]} ${match[3]} ${match[4]} ${match[5]} ${pathHex}`);
+  }
+  records.sort();
+  if (new Set(records).size !== records.length) return null;
+  return Object.freeze(records);
+}
+
+export function readParentRelativeStructuralDelta(runGit, mainRepo, parent, commit) {
+  return mapMaybeAsync(authorityProbe(runGit, mainRepo, [
+    "-c", "core.quotePath=true",
+    "-c", "color.ui=false",
+    "diff-tree", "--raw", "-r", "--no-renames", "--no-abbrev",
+    "--ignore-submodules=none", "--no-ext-diff", "--no-textconv", "--no-color",
+    parent, commit
+  ]), (result) => {
+    if (result.outcome !== "ok") {
+      return Object.freeze({ delta: null, failure: Object.freeze({ reason: "structural_delta_read_failed",
+        object: commit, read: distillGitReadFailure("diff-tree", commit, result) }) });
+    }
+    const delta = parseRawObjectDelta(result.stdout, commit.length);
+    return delta === null
+      ? Object.freeze({ delta: null, failure: Object.freeze({ reason: "structural_delta_malformed",
+        object: commit }) })
+      : Object.freeze({ delta, failure: null });
   });
+}
+
+function structuralDeltasEqual(left, right) {
+  return left.length === right.length && left.every((record, index) => record === right[index]);
 }
 
 function observationFailure(reason, message, detail = null) {
@@ -644,6 +850,10 @@ function recordDigestIdentity(recordSourceDigest, wkId) {
   if (SHA256_DIGEST_RE.test(recordSourceDigest ?? "")) return recordSourceDigest;
 
   return sha256(Buffer.from(`unbound-canonical-record\0${wkId}`, "utf8"));
+}
+
+export function sameCanonicalContractGeneration(left, right) {
+  return sameContractGeneration(left, right);
 }
 
 function sameContractGeneration(left, right) {
@@ -808,7 +1018,8 @@ export function resolveFixedWkForkCommit({ runGit, mainRepo, initiative, wkId })
       {
         fork_ref: ref,
         status: observed.status ?? null,
-        stderr: observed.error ?? null
+        stderr: observed.stderr ?? null,
+        error: observed.error ?? null
       }
     );
   }
@@ -838,6 +1049,99 @@ export function resolveFixedWkForkCommit({ runGit, mainRepo, initiative, wkId })
   }
   return Object.freeze({ ref, sha: fields[1] });
   });
+}
+
+const POST_FORK_FAILURE_MESSAGES = Object.freeze({
+  history_bound_exhausted: "bounded post-fork history exceeded the fixed literal-commit bound",
+  history_object_invalid: "bounded post-fork history contains a missing or malformed commit",
+  fixed_fork_unreachable: "a bounded post-fork parent path terminated before the fixed fork",
+  history_cycle: "bounded post-fork history contains a literal parent cycle"
+});
+
+function* postForkRegionSteps({ runGit, mainRepo, tipSha, forkSha, cache, targetSha = null }) {
+  const ordered = [];
+  const result = (extra) => ({ ordered, failure: null, included: false, relation: null, ...extra });
+  const failed = (reason, detail) => result({ failure: { reason, detail } });
+
+  const target = forkSha !== null && targetSha === forkSha ? null : targetSha;
+  if (targetSha !== null && target === null) return result({});
+  if (target !== null && tipSha === target) return result({ included: true, relation: "equal" });
+  if (forkSha !== null && tipSha === forkSha) return result({});
+  const states = new Map();
+  const stack = [{ oid: tipSha, nextParent: 0 }];
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1];
+    const state = states.get(frame.oid) ?? 0;
+    if (state === 0) {
+      if (states.size >= MAX_LITERAL_COMMITS) {
+        return failed("history_bound_exhausted", { bound: MAX_LITERAL_COMMITS });
+      }
+      const read = yield readLiteralCommitOutcome(runGit, mainRepo, frame.oid, cache);
+      if (read.commit === null) {
+        return failed("history_object_invalid", { oid: frame.oid, read_failure: read.failure });
+      }
+
+      if (read.commit.parents.length === 0 && forkSha !== null) {
+        return failed("fixed_fork_unreachable", { oid: frame.oid });
+      }
+      states.set(frame.oid, 1);
+      ordered.push(frame.oid);
+      if (target !== null && read.commit.parents.includes(target)) {
+        return result({ included: true, relation: frame.oid === tipSha ? "direct_parent" : "ancestor" });
+      }
+    } else if (state === 2) {
+      stack.pop();
+      continue;
+    }
+    const commit = cache.get(frame.oid);
+    if (frame.nextParent >= commit.parents.length) {
+      states.set(frame.oid, 2);
+      stack.pop();
+      continue;
+    }
+    const parent = commit.parents[frame.nextParent];
+    frame.nextParent += 1;
+    if (parent === forkSha) continue;
+    const parentState = states.get(parent) ?? 0;
+    if (parentState === 1) return failed("history_cycle", { oid: parent });
+    if (parentState === 0) stack.push({ oid: parent, nextParent: 0 });
+  }
+  return result({});
+}
+
+export const LITERAL_INCLUSION_STATES = Object.freeze({
+  INCLUDED: "included",
+  NOT_INCLUDED: "not_included",
+  INDETERMINATE: "indeterminate"
+});
+
+export function observeLiteralInclusionAboveFork({
+  runGit, mainRepo, tipSha, forkSha, targetSha, cache = new Map()
+}) {
+  for (const value of forkSha === null ? [tipSha, targetSha] : [tipSha, forkSha, targetSha]) {
+    if (typeof value !== "string" || !OID_RE.test(value) || /^0+$/u.test(value)) {
+      return Object.freeze({ state: LITERAL_INCLUSION_STATES.INDETERMINATE,
+        reason: "inclusion_identity_malformed", relation: null, detail: null });
+    }
+  }
+  return runMaybeAsyncGenerator(function* inclusionSteps() {
+    const walked = yield* postForkRegionSteps({ runGit, mainRepo, tipSha, forkSha, cache, targetSha });
+    if (walked.failure !== null) {
+      return Object.freeze({ state: LITERAL_INCLUSION_STATES.INDETERMINATE,
+        reason: walked.failure.reason, relation: null, detail: walked.failure.detail });
+    }
+    return Object.freeze({
+      state: walked.included ? LITERAL_INCLUSION_STATES.INCLUDED : LITERAL_INCLUSION_STATES.NOT_INCLUDED,
+      reason: null,
+      relation: walked.relation,
+      detail: null,
+      commits_read: walked.ordered.length
+    });
+  });
+}
+
+export function readCanonicalRepositoryIdentity(mainRepo) {
+  return canonicalRepositoryIdentity(mainRepo);
 }
 
 export function boundedWkLifecycleObservation({
@@ -871,56 +1175,14 @@ export function boundedWkLifecycleObservation({
     observationFailure("fixed_fork_object_invalid",
       "the launcher-owned fixed WK fork is not one readable literal commit");
   }
-  const ordered = [];
-  const states = new Map();
-  if (wkTipSha !== firstFork.sha) {
-    const stack = [{ oid: wkTipSha, nextParent: 0 }];
-    while (stack.length > 0) {
-      const frame = stack[stack.length - 1];
-      const state = states.get(frame.oid) ?? 0;
-      if (state === 0) {
-        if (states.size >= MAX_LITERAL_COMMITS) {
-          observationFailure("history_bound_exhausted",
-            "bounded post-fork history exceeded the fixed literal-commit bound", {
-              bound: MAX_LITERAL_COMMITS
-            });
-        }
-        const commit = yield readLiteralCommit(runGit, mainRepo, frame.oid, cache);
-        if (commit === null) {
-          observationFailure("history_object_invalid",
-            "bounded post-fork history contains a missing or malformed commit", {
-              oid: frame.oid
-            });
-        }
-        if (commit.parents.length === 0) {
-          observationFailure("fixed_fork_unreachable",
-            "a bounded post-fork parent path terminated before the fixed fork", {
-              oid: frame.oid
-            });
-        }
-        states.set(frame.oid, 1);
-        ordered.push(frame.oid);
-      } else if (state === 2) {
-        stack.pop();
-        continue;
-      }
-      const commit = cache.get(frame.oid);
-      if (frame.nextParent >= commit.parents.length) {
-        states.set(frame.oid, 2);
-        stack.pop();
-        continue;
-      }
-      const parent = commit.parents[frame.nextParent];
-      frame.nextParent += 1;
-      if (parent === firstFork.sha) continue;
-      const parentState = states.get(parent) ?? 0;
-      if (parentState === 1) {
-        observationFailure("history_cycle",
-          "bounded post-fork history contains a literal parent cycle", { oid: parent });
-      }
-      if (parentState === 0) stack.push({ oid: parent, nextParent: 0 });
-    }
+  const walked = yield* postForkRegionSteps({
+    runGit, mainRepo, tipSha: wkTipSha, forkSha: firstFork.sha, cache
+  });
+  if (walked.failure !== null) {
+    observationFailure(walked.failure.reason, POST_FORK_FAILURE_MESSAGES[walked.failure.reason],
+      walked.failure.detail);
   }
+  const ordered = walked.ordered;
   const secondFork = yield resolveFixedWkForkCommit({ runGit, mainRepo, initiative, wkId });
   if (secondFork.sha !== firstFork.sha || secondFork.ref !== firstFork.ref) {
     observationFailure("fixed_fork_moved",

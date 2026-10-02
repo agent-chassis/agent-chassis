@@ -6,6 +6,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { POST_WORKER_LIFECYCLE_CHECKPOINT } from
+  "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
+
 import {
   createResumableLifecycleHarness,
   createDispatchToolRegistry,
@@ -39,9 +42,12 @@ import {
   controlledGeneration,
   controlledGenerationIdentity,
   finalizedLifecycle,
-  followRetrievalCall,
+  followDocumentCall,
   observationBackend,
   observe,
+  publicByteRead,
+  readRetainedDocument,
+  readRetainedEnvelope,
   retainedArtifacts,
   retrievalRegistry,
   sha256Hex,
@@ -65,6 +71,7 @@ import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
 import { createAuthoredContractRetention } from
   "../../packages/wiki-mcp/src/lib/dispatch-run-status-authored-contract-retention.mjs";
 import { measureMcpInlineResultBytes } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import { criterionIdentityDigest } from "../../packages/controlled-contract/current.mjs";
 
 function authoredContractsOf(structured) {
   return structured.slice_lifecycle.terminal_candidate.review_unit.authored_contracts;
@@ -115,10 +122,18 @@ test("WK-2691: the reproduced leak — run status publishes the authored contrac
   const retrieval = projection.retrieval;
   assert.equal(retrieval.state, "retained");
   assert.equal(retrieval.source_schema_version, SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION);
-  assert.equal(retrieval.retained_source_read.tool, "workspace_read_mcp_content_reference");
-  assert.deepEqual(retrieval.retained_source_read.arguments,
-    { ref_id: retrieval.ref_id, offset: 0 });
-  assert.equal(typeof retrieval.retained_source_read.success_predicate.fact, "string");
+  assert.deepEqual(Object.keys(retrieval.document_calls),
+    ["canonical_parent_wk_contract", "review_unit_contract"]);
+  for (const [member, call] of Object.entries(retrieval.document_calls)) {
+    assert.equal(call.tool, "workspace_agent_run_status");
+    assert.deepEqual(call.arguments, { repo: "agent-chassis", subject: SUBJECT,
+      attempt_id: "run-worker-2691", detail: { kind: "authored_document", source: retrieval.source,
+        document: member } });
+    assert.equal(call.success_predicate.fact, "monitor.authored_document_detail_read");
+  }
+  for (const forbidden of ["retained_source_read", "reconstruction", "ref_id", "sha256"]) {
+    assert.equal(Object.hasOwn(retrieval, forbidden), false, `no ${forbidden}`);
+  }
   assert.deepEqual(retrieval.binding, {
     route: "workspace_agent_run_status",
     repository: "agent-chassis",
@@ -187,9 +202,10 @@ test("WK-2691/WK-2671: omitted and false publish the compact view, true the comp
   assert.deepEqual(explicitFalse.structured, omitted.structured);
   const view = omitted.structured.slice_lifecycle;
   assert.equal(view.view, "workspace-agent-run-status-compact-lifecycle.v1");
-  assert.ok(view.omitted_members.includes("terminal_candidate.review_unit"));
-  assert.deepEqual(view.terminal_candidate.review_unit,
-    { record_id: WK_ID, slice_id: SLICE_ID, subject: SUBJECT });
+
+  assert.ok(view.omitted_members.includes("terminal_candidate"));
+  assert.deepEqual(view.terminal_candidate.review_unit, { record_id: WK_ID, slice_id: SLICE_ID });
+  assert.equal(`${WK_ID}#${SLICE_ID}`, SUBJECT);
   assert.deepEqual(view.complete.call.arguments,
     { ...COMPLETE, attempt_id: omitted.structured.attempt_id });
   assert.equal(authoredContractsOf(explicitTrue.structured).omitted_member_count, 2);
@@ -242,8 +258,10 @@ test("WK-2691: compact status does not grow with unrelated parent and sibling au
       const clone = structuredClone(observed.structured);
       const projection = authoredContractsOf(clone);
       projection.omitted[0] = "erased";
-      for (const key of ["ref_id", "sha256"]) projection.retrieval[key] = "erased";
-      projection.retrieval.retained_source_read.arguments = "erased";
+      projection.retrieval.source = "erased";
+      for (const call of Object.values(projection.retrieval.document_calls)) {
+        call.arguments.detail.source = "erased";
+      }
       return clone;
     };
     assert.deepEqual(erase(paddedObserved), erase(leanObserved));
@@ -346,12 +364,17 @@ test("WK-2691: a typed integration-pending failure keeps its exact facts through
     backend: {
       getRunStatus: async () => harness.status,
       waitForRunStatus: async () => harness.status,
-      runPostWorkerSliceLifecycle: harness.invoke,
+      runPostWorkerSliceLifecycle: (input) => {
+
+        checkpoint = input.status[POST_WORKER_LIFECYCLE_CHECKPOINT];
+        return harness.invoke(input);
+      },
       readManagedRunObservation: async (input) => input?.detail === undefined
         ? unfailedAttemptSelection(harness.status)
         : ({ ok: false, code: "run_detail_unavailable" })
     }
   });
+  let checkpoint = null;
 
   const observed = await observe(tools, { subject: harness.status.subject, include_final_result: true });
   assert.equal(observed.structured.terminal, false);
@@ -361,8 +384,17 @@ test("WK-2691: a typed integration-pending failure keeps its exact facts through
   assert.equal(observed.structured.slice_lifecycle.error_code,
     "agent_launch.slice_lifecycle.terminal_candidate_preparation_failed.v1");
   assert.deepEqual(observed.structured.slice_lifecycle.integration, harness.integrationResult);
-  assert.equal(observed.structured.slice_lifecycle.evidence.thrown.value.message,
-    "injected terminal candidate preparation failure");
+
+  const publicEvidence = observed.structured.slice_lifecycle.evidence;
+  assert.ok(publicEvidence.thrown.cause_chain.some((level) =>
+    level.message === "injected terminal candidate preparation failure"),
+  JSON.stringify(publicEvidence.thrown));
+  assert.deepEqual(publicEvidence.retained_evidence, { retained: true,
+    owner: "post_worker_lifecycle_failure_record", audience: "operator", fields: ["evidence.thrown"] });
+  assert.equal(JSON.stringify(observed.structured).includes("\"stack\""), false);
+  const original = checkpoint.retained_failure.evidence.thrown.value;
+  assert.match(original.stack, /injected terminal candidate preparation failure/u);
+  assert.ok(JSON.stringify(original).includes("injected terminal candidate preparation failure"));
   assert.equal(observed.structured.next_action, "retry_wait_or_check_status");
 
   assert.equal(observed.structured.proof_verification.state, "unavailable");
@@ -413,7 +445,7 @@ test("WK-2691: the projection replaces two named members and passes everything e
   assert.equal(unretained.retrieval.state, "unavailable");
   assert.equal(unretained.retrieval.code, "authored_contract_source_not_retained");
   assert.equal(Object.hasOwn(unretained.retrieval, "retained_source_read"), false);
-  assert.match(unretained.retrieval.meaning, /not retrievable/u);
+  assert.match(unretained.retrieval.meaning, /not readable/u);
 
   const failedRetention = projectPublishedSliceLifecycle(lifecycle, {
     retention: { state: "unavailable", code: "mcp_response.spill_persistence_failed.v1" }
@@ -444,13 +476,52 @@ test("WK-2691: the projection replaces two named members and passes everything e
   assert.equal(oddProjection.authored_contracts.returned_member_count, 1);
 });
 
-test("WK-2691: following the emitted read reconstructs both omitted documents exactly, Unicode included", async () => {
+const LISTED_SELECTIONS = Object.freeze({ units: "unit", entries: "entry", criteria: "criterion",
+  carriers: "carrier", obligations: "obligation", sections: "section" });
+function everyNarrowerRead(answer, label) {
+  const { detail, next_calls: offered } = answer.structured;
+  assert.ok(offered.length >= 1, `${label}: at least one narrower read is offered`);
+  assert.equal(detail.narrower_selections.offered, offered.length, label);
+  if (offered.length === detail.narrower_selections.total) return offered;
+  const varying = Object.entries(LISTED_SELECTIONS).find(([listing, field]) =>
+    Array.isArray(detail.summary[listing]) &&
+    offered.every((call) => call.arguments.detail[field] !== undefined));
+  assert.ok(varying !== undefined, `${label}: the unoffered identities are listed`);
+  const [listing, field] = varying;
+
+  const inline = new Set(Object.keys(detail.summary.scalars ?? {}));
+  const identities = detail.summary[listing].map((row) => row[field])
+    .filter((identity) => identity !== null && !inline.has(identity));
+  assert.equal(identities.length, detail.narrower_selections.total, `${label}: every narrower identity is listed`);
+  assert.deepEqual(offered.map((call) => call.arguments.detail[field]),
+    identities.slice(0, offered.length), `${label}: offered reads are a document-order prefix`);
+  return identities.map((identity, index) => index < offered.length ? offered[index]
+    : { ...offered[0], arguments: { ...offered[0].arguments,
+      detail: { ...offered[0].arguments.detail, [field]: identity } } });
+}
+
+function assertDocumentAnswer(observed, retrieval, label) {
+  const { structured } = observed;
+  assert.equal(structured.accepted, true, `${label}: ${JSON.stringify(structured).slice(0, 1500)}`);
+  assert.ok(measureMcpInlineResultBytes(structured) <= 8192, `${label}: fits the delivery bound`);
+  assert.equal(Object.hasOwn(structured, "response_spilled"), false, label);
+  assert.deepEqual(structured.detail.source, retrieval.source, label);
+  assert.deepEqual(structured.detail.retained_source.observation_identity,
+    retrieval.binding.observation_identity, label);
+  const wire = JSON.stringify(structured);
+  for (const forbidden of ["data_base64", "next_offset", "bytes_base64", "content_reference"]) {
+    assert.equal(wire.includes(forbidden), false, `${label}: no ${forbidden}`);
+  }
+  return structured.detail;
+}
+
+test("WK-2716: the emitted document read answers both omitted documents from their exact originals, Unicode included", async () => {
   const scope = createTestResourceScope();
   try {
 
     const record = authoredRecord({ padding: " — ünïcodé ✓ 日本語 контракт " });
     const candidate = terminalCandidate(record);
-    const { tools } = await retrievalRegistry(scope, "exact", observationBackend({
+    const { tools, dir, env } = await retrievalRegistry(scope, "exact", observationBackend({
       status: terminalWorkerStatus(),
       lifecycle: finalizedLifecycle(candidate)
     }));
@@ -462,48 +533,98 @@ test("WK-2691: following the emitted read reconstructs both omitted documents ex
     assert.ok(/[^\x00-\x7F]/u.test(candidate.contracts.canonical_parent_wk_contract) ||
       candidate.contracts.canonical_parent_wk_contract.includes("\\u"),
       "the fixture must carry non-ASCII authored text");
+    const artifactsBefore = retainedArtifacts(dir);
 
-    const { bytes, pages, readerDigest, totalBytes, maxLength, encodedPages } =
-      await followRetrievalCall(tools, retrieval);
-    assert.ok(pages >= 2, `a source larger than one range needs continuation; pages=${pages}`);
-
-    assert.equal(bytes.byteLength, totalBytes);
-    assert.ok(bytes.byteLength > maxLength);
-    assert.equal(sha256Hex(bytes), retrieval.sha256);
-    assert.equal(readerDigest, retrieval.sha256);
-
-    const decodeStep = retrieval.reconstruction.findIndex((step) => /decode/u.test(step));
-    const concatenateStep = retrieval.reconstruction.findIndex(
-      (step) => /concatenate/u.test(step));
-    const verifyStep = retrieval.reconstruction.findIndex((step) => /sha256/u.test(step));
-    assert.ok(decodeStep >= 0 && concatenateStep > decodeStep && verifyStep >= concatenateStep,
-      `guidance must decode, then concatenate, then verify: ${JSON.stringify(retrieval.reconstruction)}`);
-    assert.match(retrieval.reconstruction[decodeStep], /each page/u);
-    assert.match(retrieval.reconstruction[concatenateStep], /decoded bytes/u);
-    assert.equal(retrieval.reconstruction.some((step) => /concatenate the base64/u.test(step)),
-      false, "guidance must never tell a caller to concatenate encoded pages");
-
-    const joinedEncoded = Buffer.from(encodedPages.join(""), "base64");
-    assert.ok(encodedPages.length > 1);
-    assert.notEqual(sha256Hex(joinedEncoded), retrieval.sha256);
-
-    const envelope = JSON.parse(bytes.toString("utf8"));
-    assert.equal(envelope.schema_version, SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION);
-
+    const envelope = readRetainedEnvelope(env, retrieval);
     assert.equal(envelope.carrier.canonical_parent_wk_contract,
       candidate.contracts.canonical_parent_wk_contract);
     assert.equal(envelope.carrier.review_unit_contract, candidate.contracts.slice_review_contract);
-
     for (const row of projection.omitted) {
       const text = envelope.carrier[row.member];
       assert.equal(Buffer.byteLength(text, "utf8"), row.utf8_bytes);
       assert.equal(`sha256:${sha256Hex(Buffer.from(text, "utf8"))}`, row.digest);
     }
+    const refusedResult = await publicByteRead(tools, retrieval);
+    assert.equal(refusedResult.isError, true);
+    const refused = refusedResult.structuredContent;
+    assert.equal(refused.accepted, false);
+    assert.equal(refused.limb, "selected_access");
+    assert.equal(JSON.stringify(refused).includes("parent criterion"), false);
+    assert.deepEqual(refused.refusal.next_calls.map((call) => call.tool), ["workspace_agent_run_status"]);
+    assert.deepEqual(refused.refusal.next_calls[0].arguments.detail.source, retrieval.source);
 
-    assert.deepEqual(envelope.binding.observation_identity, retrieval.binding.observation_identity);
-    assert.equal(envelope.binding.repository, retrieval.binding.repository);
-    assert.equal(envelope.binding.unit, retrieval.binding.unit);
-    assert.equal(envelope.binding.route, "workspace_agent_run_status");
+    const slice = await readRetainedDocument(tools, retrieval, "review_unit_contract");
+    const sliceDetail = assertDocumentAnswer(slice, retrieval, "review unit contract");
+    assert.equal(sliceDetail.presentation, "complete");
+    assert.deepEqual(sliceDetail.value, JSON.parse(candidate.contracts.slice_review_contract));
+    assert.deepEqual(sliceDetail.document_identity, { digest: projection.omitted[1].digest,
+      utf8_bytes: projection.omitted[1].utf8_bytes });
+
+    const parent = JSON.parse(candidate.contracts.canonical_parent_wk_contract);
+    const summary = await readRetainedDocument(tools, retrieval, "canonical_parent_wk_contract");
+    const summaryDetail = assertDocumentAnswer(summary, retrieval, "parent summary");
+    assert.deepEqual(summaryDetail.document_identity, { digest: projection.omitted[0].digest,
+      utf8_bytes: projection.omitted[0].utf8_bytes });
+    const units = [parent.id, ...parent.slices.map((unit) => `${parent.id}#${unit.id}`)];
+    assert.equal(summaryDetail.presentation, "summary");
+    assert.deepEqual(summaryDetail.summary.units.map((row) => row.unit), units);
+    const unitReads = everyNarrowerRead(summary, "parent summary");
+    assert.deepEqual(unitReads.map((call) => call.arguments.detail.unit), units,
+      "one executable read per unit, in document order");
+
+    const { slices, ...root } = parent;
+    const original = (selection) => {
+      const unit = selection.unit === undefined || selection.unit === parent.id ? root
+        : slices.find((candidateUnit) => `${parent.id}#${candidateUnit.id}` === selection.unit);
+      if (selection.entry !== undefined) {
+        return unit.sections.entries.find((entry) => entry.id === selection.entry);
+      }
+      if (selection.section !== undefined) {
+        return selection.section.startsWith("sections.")
+          ? unit.sections[selection.section.slice("sections.".length)] : unit[selection.section];
+      }
+      return unit;
+    };
+    const leaves = new Set();
+    const verify = async (call) => {
+      const { detail: selection } = call.arguments;
+      const answer = await followDocumentCall(tools, call);
+      const detail = assertDocumentAnswer(answer, retrieval, JSON.stringify(selection));
+      if (detail.presentation === "complete") {
+        assert.deepEqual(detail.value, original(selection), JSON.stringify(selection));
+        leaves.add(JSON.stringify(selection));
+        return;
+      }
+      assert.equal(detail.presentation, "summary");
+
+      for (const next of everyNarrowerRead(answer, JSON.stringify(selection))) await verify(next);
+    };
+    for (const call of unitReads) await verify(call);
+
+    for (const entry of root.sections.entries) {
+      assert.ok(leaves.has(JSON.stringify({ kind: "authored_document", source: retrieval.source,
+        document: "canonical_parent_wk_contract", unit: parent.id, entry: entry.id })),
+      `entry ${entry.id} is readable by its identity`);
+    }
+
+    const position = parent.acceptance.criteria.length - 1;
+    const criterion = parent.acceptance.criteria[position];
+    const identity = typeof criterion?.typed_identity === "string" ? criterion.typed_identity
+      : `derived:${criterionIdentityDigest(position, typeof criterion === "string" ? criterion : criterion.text)}`;
+    const criterionRead = assertDocumentAnswer(await readRetainedDocument(tools, retrieval,
+      "canonical_parent_wk_contract", { criterion: identity }), retrieval, "parent criterion");
+    assert.deepEqual([criterionRead.presentation, criterionRead.value, criterionRead.identity],
+      ["complete", criterion, { criterion: identity, position }]);
+    const sectionRead = assertDocumentAnswer(await readRetainedDocument(tools, retrieval,
+      "canonical_parent_wk_contract", { unit: parent.id, section: "sections.summary" }), retrieval,
+    "parent summary section");
+    assert.deepEqual(sectionRead.value, parent.sections.summary);
+    const unknown = (await readRetainedDocument(tools, retrieval, "canonical_parent_wk_contract",
+      { criterion: "derived:sha256:unknown" })).structured;
+    assert.equal(unknown.accepted, false);
+    assert.equal(unknown.blocker.reason, "criterion_unknown");
+
+    assert.deepEqual(retainedArtifacts(dir), artifactsBefore, "document reads retain nothing");
   } finally {
     await scope.dispose();
   }
@@ -536,23 +657,29 @@ test("WK-2691: a later candidate and a re-authored record do not move the retain
     servedLifecycle = finalizedLifecycle(laterCandidate);
     const later = authoredContractsOf((await observe(tools, COMPLETE)).structured);
 
-    assert.notEqual(later.retrieval.ref_id, captured.retrieval.ref_id,
+    assert.notEqual(later.retrieval.source.ref_id, captured.retrieval.source.ref_id,
       "a different candidate over different text retains its own source");
     assert.notEqual(later.omitted[0].digest, captured.omitted[0].digest);
     assert.equal(later.retrieval.binding.observation_identity.candidate, "d".repeat(40));
 
-    const { bytes } = await followRetrievalCall(tools, captured.retrieval);
-    const envelope = JSON.parse(bytes.toString("utf8"));
-    assert.equal(envelope.carrier.canonical_parent_wk_contract,
-      original.contracts.canonical_parent_wk_contract);
-    assert.equal(envelope.binding.observation_identity.candidate, CANDIDATE);
-    assert.equal(envelope.carrier.canonical_parent_wk_contract.includes("REAUTHORED"), false);
+    const originalParent = JSON.parse(original.contracts.canonical_parent_wk_contract);
+    const read = await readRetainedDocument(tools, captured.retrieval, "canonical_parent_wk_contract",
+      { unit: WK_ID, section: "sections.summary" });
+    assert.equal(read.structured.accepted, true, JSON.stringify(read.structured).slice(0, 1500));
+    assert.deepEqual(read.structured.detail.value, originalParent.sections.summary);
+    assert.equal(read.structured.detail.retained_source.observation_identity.candidate, CANDIDATE);
+    assert.equal(JSON.stringify(read.structured).includes("REAUTHORED"), false);
+    const call = captured.retrieval.document_calls.canonical_parent_wk_contract;
+    const borrowed = await observe(tools, { ...call.arguments, attempt_id: "run-worker-2691-later" });
+    assert.equal(borrowed.structured.accepted, false);
+    assert.equal(borrowed.structured.blocker.reason, "source_binding_mismatch");
+    assert.equal(JSON.stringify(borrowed.structured).includes("REAUTHORED"), false);
   } finally {
     await scope.dispose();
   }
 });
 
-test("WK-2691: a missing or tampered retained source refuses precisely and substitutes nothing", async () => {
+test("WK-2691: a missing, tampered or foreign retained source refuses precisely and substitutes nothing", async () => {
   const scope = createTestResourceScope();
   try {
     const candidate = terminalCandidate(authoredRecord());
@@ -562,46 +689,52 @@ test("WK-2691: a missing or tampered retained source refuses precisely and subst
     }));
     const retrieval = authoredContractsOf(
       (await observe(tools, COMPLETE)).structured).retrieval;
-    const reader = tools.get("workspace_read_mcp_content_reference").handler;
-    const sourcePath = path.join(dir, `${retrieval.ref_id}.json`);
+    const call = retrieval.document_calls.review_unit_contract;
+    const sourcePath = path.join(dir, `${retrieval.source.ref_id}.json`);
     const originalBytes = readFileSync(sourcePath);
+    const refusal = async (args, label) => {
+      const observed = await observe(tools, args);
+      assert.equal(observed.structured.accepted, false, `${label}: ${JSON.stringify(observed.structured)}`);
+      const wire = JSON.stringify(observed.structured);
+      assert.equal(wire.includes("parent criterion"), false, `${label}: nothing current is served`);
+      assert.equal(wire.includes("slice 4 criterion"), false, `${label}: nothing retained is served`);
+      return observed.structured;
+    };
 
     assert.throws(
-      () => readSelectedResponseSource(
-        { ref_id: retrieval.ref_id, sha256: retrieval.sha256 },
+      () => readSelectedResponseSource(retrieval.source,
         { env, expected: { route: "workspace_agent_run_status", repository: "another-repo" } }),
       (error) => error?.envelope?.code === "selected_response_query_invalid");
+    const foreignSubject = await refusal({ ...call.arguments, subject: `${WK_ID}#SLICE-001` },
+      "foreign subject");
+    assert.equal(foreignSubject.blocker.reason, "source_binding_mismatch");
+    const foreignQuestion = await refusal({ ...call.arguments,
+      detail: { kind: "retry_assessment", source: retrieval.source } }, "retry-assessment read");
+    assert.equal(foreignQuestion.blocker.reason, "source_binding_mismatch");
+    const noAttempt = await refusal({ ...call.arguments, attempt_id: undefined }, "no attempt");
+    assert.equal(noAttempt.blocker.reason, "retained_detail_requires_attempt_id");
+    const unknownDocument = await refusal({ ...call.arguments,
+      detail: { ...call.arguments.detail, document: "integration_transition_record" } }, "absent member");
+    assert.equal(unknownDocument.blocker.reason, "document_not_retained");
 
-    const authenticated = readSelectedResponseSource(
-      { ref_id: retrieval.ref_id, sha256: retrieval.sha256 },
-      { env, expected: { route: "workspace_agent_run_status", repository: "agent-chassis",
-        unit: SUBJECT } });
-    assert.equal(authenticated.carrier.canonical_parent_wk_contract,
-      candidate.contracts.canonical_parent_wk_contract);
+    const authenticated = await observe(tools, call.arguments);
+    assert.equal(authenticated.structured.accepted, true);
 
     const tampered = Buffer.from(originalBytes);
     tampered[tampered.length - 2] = tampered[tampered.length - 2] === 0x20 ? 0x21 : 0x20;
     writeFileSync(sourcePath, tampered);
-    const afterTamper = await followRetrievalCall(tools, retrieval);
-    assert.notEqual(sha256Hex(afterTamper.bytes), retrieval.sha256);
-    assert.throws(
-      () => readSelectedResponseSource(
-        { ref_id: retrieval.ref_id, sha256: retrieval.sha256 },
-        { env, expected: { route: "workspace_agent_run_status", repository: "agent-chassis" } }),
-      (error) => error?.envelope?.code ===
-        "mcp_response.content_reference_ranged_read_unavailable.v1");
+    const afterTamper = await refusal(call.arguments, "tampered");
+    assert.equal(afterTamper.refusal.code, "mcp_response.content_reference_ranged_read_unavailable.v1");
+    assert.equal(afterTamper.blocker.reason, "content_reference_digest_mismatch");
 
     writeFileSync(sourcePath, originalBytes.subarray(0, originalBytes.length - 64));
-    const truncated = await reader({ ...retrieval.retained_source_read.arguments });
-    assert.equal(truncated.isError, true);
-    assert.match(JSON.stringify(truncated), /content_reference_metadata_byte_count_mismatch/u);
+    const truncated = await refusal(call.arguments, "truncated");
+    assert.equal(truncated.refusal.code, "mcp_response.content_reference_ranged_read_unavailable.v1");
 
     rmSync(sourcePath);
-    const missing = await reader({ ...retrieval.retained_source_read.arguments });
-    assert.equal(missing.isError, true);
-    const missingText = JSON.stringify(missing);
-    assert.match(missingText, /content_reference_not_found/u);
-    assert.equal(missingText.includes("parent criterion"), false);
+    const missing = await refusal(call.arguments, "missing");
+    assert.equal(missing.refusal.code, "mcp_response.content_reference_ranged_read_unavailable.v1");
+    assert.match(JSON.stringify(missing), /content_reference_not_found/u);
   } finally {
     await scope.dispose();
   }
@@ -634,15 +767,17 @@ test("WK-2691: repeat and concurrent observation reuse one retained artifact and
     assert.equal(third.bytes, first.bytes);
     assert.deepEqual(complete.structured.slice_lifecycle, first.structured.slice_lifecycle);
 
-    const { bytes } = await followRetrievalCall(tools, authoredContractsOf(third.structured).retrieval);
-    assert.equal(JSON.parse(bytes.toString("utf8")).carrier.review_unit_contract,
-      candidate.contracts.slice_review_contract);
+    const read = await readRetainedDocument(tools, authoredContractsOf(third.structured).retrieval,
+      "review_unit_contract");
+    assert.deepEqual(read.structured.detail.value, JSON.parse(candidate.contracts.slice_review_contract));
+    assert.equal(retainedArtifacts(dir).length, 1);
+    assert.equal(lifecycleCalls, 1);
   } finally {
     await scope.dispose();
   }
 });
 
-test("WK-2691: measured cost of the default answer and of the complete retrieval that follows it", async () => {
+test("WK-2691: measured cost of the default answer and of a document question that follows it", async () => {
   const scope = createTestResourceScope();
   try {
     const candidate = terminalCandidate(authoredRecord({ padding: "y".repeat(21000) }));
@@ -656,34 +791,26 @@ test("WK-2691: measured cost of the default answer and of the complete retrieval
     const observed = await observe(tools, { subject: SUBJECT });
     const complete = await observe(tools, COMPLETE);
     const before = unprojectedBytes(complete, candidate);
-    const defaultTotal = observed.requestBytes + observed.bytes;
     defaultFrame(observed, `default status over a ${authoredBytes}-byte parent contract`);
     assert.ok((before - observed.bytes) / before >= 0.7);
 
     const retrieval = authoredContractsOf(complete.structured).retrieval;
-    const reader = tools.get("workspace_read_mcp_content_reference").handler;
-    let callArguments = { ...retrieval.retained_source_read.arguments };
-    let retrievalTotal = 0;
-    let pages = 0;
-    let sourceBytes = 0;
-    let maxLength = 0;
-    for (;;) {
-      const result = await reader(callArguments);
-      retrievalTotal += Buffer.byteLength(JSON.stringify(callArguments), "utf8") +
-        Buffer.byteLength(JSON.stringify(result), "utf8");
-      pages += 1;
-      const page = readStructuredResult(result);
-      sourceBytes = page.total_bytes;
-      maxLength = page.max_length;
-      if (page.next_offset === null) break;
-      callArguments = { ...callArguments, offset: page.next_offset };
-    }
+    const summary = await readRetainedDocument(tools, retrieval, "canonical_parent_wk_contract");
+    assert.equal(summary.structured.detail.presentation, "summary");
+    const padded = await followDocumentCall(tools, summary.structured.next_calls[1]);
+    const unit = padded.structured.detail;
+    assert.ok(measureMcpInlineResultBytes(padded.structured) <= 8192);
+    assert.equal(unit.selection.unit, `${WK_ID}#SLICE-001`);
 
-    assert.ok(sourceBytes >= authoredBytes);
-    assert.ok(retrievalTotal > sourceBytes);
-    assert.equal(pages, Math.ceil(sourceBytes / maxLength));
-    assert.ok(defaultTotal + retrievalTotal > before,
-      "the projection moves the cost off the default answer; it does not make the bytes smaller");
+    assert.equal(unit.presentation, "summary");
+    const notes = unit.summary.sections.find((row) => row.section === "notes");
+    assert.equal(notes.utf8_bytes, Buffer.byteLength("y".repeat(21000), "utf8"));
+    const oversized = await readRetainedDocument(tools, retrieval, "canonical_parent_wk_contract",
+      { unit: `${WK_ID}#SLICE-001`, section: "notes" });
+    assert.equal(oversized.structured.accepted, false);
+    assert.equal(oversized.structured.blocker.reason, "selected_value_exceeds_delivery_bound");
+    assert.ok(summary.bytes + padded.bytes < authoredBytes,
+      "a document question costs its answer, not the document");
   } finally {
     await scope.dispose();
   }
@@ -744,7 +871,7 @@ test("WK-2671: a generation without a review unit is summarized, not echoed, for
     assert.equal(view.candidate, candidate.binding.candidate);
     assert.equal(view.base, candidate.binding.base);
     assert.equal(view.wk_tip, candidate.binding.wk_tip);
-    assert.ok(omitted.structured.slice_lifecycle.omitted_members.includes("terminal_candidate.binding"));
+    assert.ok(omitted.structured.slice_lifecycle.omitted_members.includes("terminal_candidate"));
     defaultFrame(omitted, "generation without a review unit");
     assert.equal(Object.hasOwn(omitted.structured, "final_result"), false);
     assert.equal(explicitTrue.structured.final_result.full_response.text,
@@ -886,15 +1013,15 @@ test("WK-2671: the summary is bounded as bodies and inventory grow; the version-
   }
 });
 
-test("WK-2671: the emitted read reconstructs the exact historical generation, and a later one does not move it", async () => {
+test("WK-2716: the emitted read answers the exact historical generation carrier by carrier, and a later one does not move it", async () => {
   const scope = createTestResourceScope();
   try {
     const generation = controlledGeneration({
-      descriptorCount: 5, body: "ünïcodé ✓ 日本語 контракт ".repeat(600)
+      descriptorCount: 5, body: "ünïcodé ✓ 日本語 контракт ".repeat(20)
     });
     let servedStatus = terminalWorkerStatus();
     let servedLifecycle = generationLifecycle({ generation }).lifecycle;
-    const { tools } = await retrievalRegistry(scope, "generation-exact", {
+    const { tools, dir, env } = await retrievalRegistry(scope, "generation-exact", {
       getRunStatus: async () => ({ ...servedStatus }),
       waitForRunStatus: async () => ({ ...servedStatus }),
       runPostWorkerSliceLifecycle: async () => servedLifecycle,
@@ -906,42 +1033,96 @@ test("WK-2671: the emitted read reconstructs the exact historical generation, an
     assert.equal(captured.retrieval.state, "retained");
     assert.equal(captured.retrieval.binding.observation_identity.candidate, CANDIDATE);
     assert.equal(captured.retrieval.binding.observation_identity.candidate_version, null);
+    const member = "terminal_candidate_controlled_generation";
 
-    const reconstruct = async (summary) => {
-      const { bytes, readerDigest } = await followRetrievalCall(tools, summary.retrieval);
-      assert.equal(sha256Hex(bytes), summary.retrieval.sha256);
-      assert.equal(readerDigest, summary.retrieval.sha256);
-      const envelope = JSON.parse(bytes.toString("utf8"));
-      assert.equal(envelope.schema_version, SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION);
-      const text = envelope.carrier.terminal_candidate_controlled_generation;
-      assert.equal(`sha256:${sha256Hex(Buffer.from(text, "utf8"))}`, summary.omitted.digest);
-      assert.equal(Buffer.byteLength(text, "utf8"), summary.omitted.utf8_bytes);
-      assert.deepEqual(envelope.binding.observation_identity,
-        summary.retrieval.binding.observation_identity);
-      return JSON.parse(text);
+    const text = readRetainedEnvelope(env, captured.retrieval).carrier[member];
+    assert.equal(`sha256:${sha256Hex(Buffer.from(text, "utf8"))}`, captured.omitted.digest);
+    assert.deepEqual(JSON.parse(text), generation);
+
+    const answer = async (retrieval, selection = {}) => {
+      const observed = await readRetainedDocument(tools, retrieval, member, selection);
+      assert.equal(observed.structured.accepted, true, JSON.stringify(observed.structured).slice(0, 1500));
+      assert.ok(measureMcpInlineResultBytes(observed.structured) <= 8192);
+      assert.equal(JSON.stringify(observed.structured).includes("bytes_base64"), false);
+      return observed.structured;
     };
-    const restored = await reconstruct(captured);
-    assert.deepEqual(restored, generation);
-    for (const key of ["descriptors", "manifest_descriptors"]) {
-      restored[key].forEach((descriptor, index) => {
-        const expected = generation[key][index];
-        assert.equal(descriptor.path, expected.path);
-        assert.ok(Buffer.from(descriptor.bytes_base64, "base64")
-          .equals(Buffer.from(expected.bytes_base64, "base64")), expected.path);
-        assert.equal(`sha256:${sha256Hex(Buffer.from(descriptor.bytes_base64, "base64"))}`,
-          expected.content_digest);
-      });
-    }
+    const verify = async (retrieval, expectedGeneration) => {
+      const overview = await answer(retrieval);
+      assert.equal(overview.detail.presentation, "summary");
+      assert.deepEqual(overview.detail.summary.identity.generation_digest,
+        expectedGeneration.generation_digest);
+      assert.deepEqual(overview.detail.summary.counts, { descriptors: 5, manifest_descriptors: 1 });
+      const expectedCarriers = [...expectedGeneration.descriptors, ...expectedGeneration.manifest_descriptors];
 
+      assert.deepEqual(overview.detail.summary.carriers.map((row) => row.carrier),
+        expectedCarriers.map((descriptor) => descriptor.path));
+      for (const [index, row] of overview.detail.summary.carriers.entries()) {
+        if (row.content_digest !== undefined) {
+          assert.equal(row.content_digest, expectedCarriers[index].content_digest);
+        }
+      }
+      const carrierReads = everyNarrowerRead({ structured: overview }, "generation overview");
+      assert.deepEqual(carrierReads.map((call) => call.arguments.detail.carrier),
+        expectedCarriers.map((descriptor) => descriptor.path));
+      for (const call of carrierReads) {
+        const carrier = (await followDocumentCall(tools, call)).structured.detail;
+        const descriptor = expectedCarriers.find((entry) => entry.path === call.arguments.detail.carrier);
+        assert.equal(carrier.presentation, "complete", descriptor.path);
+        assert.deepEqual(carrier.value,
+          JSON.parse(Buffer.from(descriptor.bytes_base64, "base64").toString("utf8")), descriptor.path);
+      }
+
+      const [first] = expectedGeneration.descriptors;
+      const focused = await answer(retrieval, { focus: first.focus });
+      assert.deepEqual(focused.detail.value, JSON.parse(Buffer.from(first.bytes_base64, "base64").toString("utf8")));
+    };
+    await verify(captured.retrieval, generation);
+
+    const artifacts = retainedArtifacts(dir).length;
     const laterGeneration = controlledGeneration({ descriptorCount: 5, body: "REWRITTEN " });
     servedStatus = terminalWorkerStatus({ run_id: "run-worker-2671-later" });
     servedLifecycle = generationLifecycle({ generation: laterGeneration }).lifecycle;
     const later = generationSummaryOf((await observe(tools, COMPLETE)).structured);
-    assert.notEqual(later.retrieval.ref_id, captured.retrieval.ref_id);
+    assert.notEqual(later.retrieval.source.ref_id, captured.retrieval.source.ref_id);
     assert.notEqual(later.omitted.digest, captured.omitted.digest);
-    assert.deepEqual(await reconstruct(later), laterGeneration);
+    assert.equal(retainedArtifacts(dir).length, artifacts + 1, "the later observation retains its own");
+    await verify(later.retrieval, laterGeneration);
 
-    assert.deepEqual(await reconstruct(captured), generation);
+    await verify(captured.retrieval, generation);
+    assert.equal(retainedArtifacts(dir).length, artifacts + 1, "reads retain nothing");
+
+    const unknown = (await readRetainedDocument(tools, captured.retrieval, member,
+      { carrier: "wiki/contracts/absent.json" })).structured;
+    assert.deepEqual([unknown.accepted, unknown.blocker.reason], [false, "carrier_unknown"]);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2716: an indivisible carrier value larger than one answer is reported exactly, never paged", async () => {
+  const scope = createTestResourceScope();
+  try {
+    const generation = controlledGeneration({ descriptorCount: 1,
+      body: "ünïcodé ✓ 日本語 контракт ".repeat(600) });
+    const { lifecycle } = generationLifecycle({ generation });
+    const { tools } = await retrievalRegistry(scope, "generation-indivisible",
+      observationBackend({ status: terminalWorkerStatus(), lifecycle }));
+    const retrieval = generationSummaryOf((await observe(tools, COMPLETE)).structured).retrieval;
+    const member = "terminal_candidate_controlled_generation";
+    const [descriptor] = generation.descriptors;
+    const carrier = (await readRetainedDocument(tools, retrieval, member,
+      { carrier: descriptor.path })).structured;
+    assert.equal(carrier.detail.presentation, "summary");
+    const body = carrier.detail.summary.sections.find((row) => row.section === "body");
+    const decoded = JSON.parse(Buffer.from(descriptor.bytes_base64, "base64").toString("utf8"));
+    assert.equal(body.utf8_bytes, Buffer.byteLength(decoded.body, "utf8"));
+    assert.deepEqual(carrier.detail.summary.scalars, { schema_version: decoded.schema_version,
+      wk_id: decoded.wk_id, slice: decoded.slice });
+    const refused = (await followDocumentCall(tools, carrier.next_calls.find((call) =>
+      call.arguments.detail.section === "body"))).structured;
+    assert.equal(refused.accepted, false);
+    assert.equal(refused.blocker.reason, "selected_value_exceeds_delivery_bound");
+    assert.match(JSON.stringify(refused.refusal), new RegExp(String(body.utf8_bytes), "u"));
   } finally {
     await scope.dispose();
   }
@@ -955,7 +1136,7 @@ test("WK-2671: review contracts, integration record and generation share one ret
       reviewUnit: true, transitionRecord: record
     });
     let lifecycleCalls = 0;
-    const { tools, dir } = await retrievalRegistry(scope, "generation-combined", observationBackend({
+    const { tools, dir, env } = await retrievalRegistry(scope, "generation-combined", observationBackend({
       status: terminalWorkerStatus(),
       lifecycle,
       onLifecycle: () => { lifecycleCalls += 1; }
@@ -981,11 +1162,13 @@ test("WK-2671: review contracts, integration record and generation share one ret
       lifecycleView.integration.transition.written_record.retrieval
     ];
     for (const retrieval of retrievals) {
-      assert.equal(retrieval.ref_id, retrievals[0].ref_id);
+      assert.deepEqual(retrieval.source, retrievals[0].source);
       assert.deepEqual(retrieval.carrier_members, members);
     }
-    const { bytes } = await followRetrievalCall(tools, retrievals[1]);
-    const envelope = JSON.parse(bytes.toString("utf8"));
+
+    assert.deepEqual(retrievals.map((retrieval) => Object.keys(retrieval.document_calls)),
+      [members.slice(0, 2), [members[2]], [members[3]]]);
+    const envelope = readRetainedEnvelope(env, retrievals[1]);
     assert.deepEqual(Object.keys(envelope.carrier), members);
     const retainedGeneration = JSON.parse(envelope.carrier.terminal_candidate_controlled_generation);
     assert.deepEqual(retainedGeneration, generation);
@@ -994,6 +1177,11 @@ test("WK-2671: review contracts, integration record and generation share one ret
     assert.equal(envelope.binding.repository, REPOSITORY);
     assert.equal(envelope.carrier.review_unit_contract, candidate.contracts.slice_review_contract);
     assert.deepEqual(JSON.parse(envelope.carrier.integration_transition_record), record);
+
+    const written = (await readRetainedDocument(tools, retrievals[2], "integration_transition_record",
+      { unit: `${WK_ID}#${SLICE_ID}` })).structured.detail;
+    assert.deepEqual(written.value, record.slices.find((slice) => slice.id === SLICE_ID));
+    assert.equal(retainedArtifacts(dir).length, 1);
   } finally {
     await scope.dispose();
   }
@@ -1073,18 +1261,20 @@ test("WK-2671: unavailable retention and a missing or corrupt artifact stay trut
       observationBackend({ status: terminalWorkerStatus(), lifecycle }));
     const retrieval = generationSummaryOf((await observe(tools, COMPLETE)).structured)
       .retrieval;
-    const sourcePath = path.join(dir, `${retrieval.ref_id}.json`);
+    const call = retrieval.document_calls.terminal_candidate_controlled_generation;
+    const sourcePath = path.join(dir, `${retrieval.source.ref_id}.json`);
     const originalBytes = readFileSync(sourcePath);
     const tampered = Buffer.from(originalBytes);
     tampered[tampered.length - 2] = tampered[tampered.length - 2] === 0x20 ? 0x21 : 0x20;
     writeFileSync(sourcePath, tampered);
-    const afterTamper = await followRetrievalCall(tools, retrieval);
-    assert.notEqual(sha256Hex(afterTamper.bytes), retrieval.sha256);
+    const afterTamper = (await observe(tools, call.arguments)).structured;
+    assert.equal(afterTamper.accepted, false);
+    assert.equal(afterTamper.blocker.reason, "content_reference_digest_mismatch");
+    assert.equal(JSON.stringify(afterTamper).includes("bytes_base64"), false);
 
     rmSync(sourcePath);
-    const missing = await tools.get("workspace_read_mcp_content_reference")
-      .handler({ ...retrieval.retained_source_read.arguments });
-    assert.equal(missing.isError, true);
+    const missing = (await observe(tools, call.arguments)).structured;
+    assert.equal(missing.accepted, false);
     const missingText = JSON.stringify(missing);
     assert.match(missingText, /content_reference_not_found/u);
     assert.equal(missingText.includes("bytes_base64"), false);
@@ -1201,8 +1391,7 @@ test("WK-2671: the compact default answer carries the populated facts within the
       assert.notEqual(rest.reduce((node, key) => node?.[key], complete.structured.slice_lifecycle[head]),
         undefined, `the complete result carries ${member}`);
     }
-    for (const omitted of ["terminal_candidate.binding", "terminal_candidate.materialization",
-      "terminal_candidate.version_decision", "terminal_candidate.review_unit",
+    for (const omitted of ["terminal_candidate", "integration.review_target",
       "integration.transition.written_record"]) {
       assert.ok(view.omitted_members.includes(omitted), omitted);
     }
@@ -1266,10 +1455,8 @@ test("WK-2671: the default-answer oracles detect bloat, lost facts, false claims
     const asFrame = (structured) => ({ raw: { content: [], structuredContent: structured },
       entry: { id: "control" } });
 
-    const complete = await observe(tools, COMPLETE);
     const restored = clone();
-    restored.slice_lifecycle.terminal_candidate.binding =
-      complete.structured.slice_lifecycle.terminal_candidate.binding;
+    restored.slice_lifecycle.terminal_candidate.binding = shape.candidate.binding;
     assert.throws(() => assertDefaultStatusFrame([asFrame(restored)], "restored binding"),
       /output_budget_exceeded/u);
 
@@ -1328,6 +1515,143 @@ test("WK-2671: the default-answer oracles detect bloat, lost facts, false claims
     await observe(replaying, { subject: SUBJECT, detail: { kind: "proof_verification" } });
     assert.throws(() => assert.equal(lifecycleCalls, lifecycleBefore, "a replaying read"),
       assert.AssertionError);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+const WK2670_DELIVERY = "d".repeat(40);
+
+function candidateBoundObservation(options = {}) {
+  const shape = populatedObservation(options);
+  shape.candidate.binding.canonical_wk_id = WK_ID;
+  shape.candidate.materialization = { ...shape.candidate.materialization,
+    canonical_wk_id: WK_ID, candidate: CANDIDATE, verified: true };
+  shape.lifecycle.terminal_candidate = { ...shape.lifecycle.terminal_candidate,
+    materialization: shape.candidate.materialization };
+  shape.lifecycle.integration.delivery_sha = WK2670_DELIVERY;
+  shape.lifecycle.integration.slice_sha = WK2670_DELIVERY;
+  return shape;
+}
+
+async function roleRegistry(scope, label, backend, role) {
+  const dir = await scope.acquire(`${label}-spill`,
+    () => mkdtempSync(path.join(os.tmpdir(), "wk2670-status-")),
+    (created) => rmSync(created, { recursive: true, force: true }));
+  return createDispatchToolRegistry({ backend, responseEnv: { ...process.env,
+    WIKI_MCP_RESPONSE_STATE_DIR: dir, WIKI_MCP_TOOL_PROFILE: role } });
+}
+
+const verifyCallsOf = (structured) =>
+  (structured.next_calls ?? []).filter(({ tool }) => tool === "workspace_verify_proof");
+
+const sameRetention = (value) => JSON.parse(JSON.stringify(value)
+  .replace(/"ref_id":"resp-[^"]+"/gu, '"ref_id":"<retained>"'));
+const withoutVerifyCalls = (structured) => {
+  const { next_calls: calls = [], ...rest } = structured;
+  const kept = calls.filter(({ tool }) => tool !== "workspace_verify_proof");
+  return sameRetention(kept.length === 0 ? rest : { ...rest, next_calls: kept });
+};
+
+test("WK-2670: an orchestrator gets one candidate-bound verify call, identical in compact and complete status", async (t) => {
+  const scope = createTestResourceScope();
+  try {
+    const shape = candidateBoundObservation();
+
+    const effects = { orchestrator: { lifecycle: 0, detail: 0 }, operator: { lifecycle: 0, detail: 0 } };
+    const backend = (role) => observationBackend({ status: shape.status, lifecycle: shape.lifecycle,
+      recordedCount: shape.recordedCount, lastRecordedInvocation: shape.invocation,
+      onLifecycle: () => { effects[role].lifecycle += 1; },
+      onDetail: () => { effects[role].detail += 1; } });
+    const orchestrator = await roleRegistry(scope, "orchestrator", backend("orchestrator"), "orchestrator");
+    const operator = await roleRegistry(scope, "operator", backend("operator"), "operator");
+    const compact = await observe(orchestrator, { subject: SUBJECT });
+    const complete = await observe(orchestrator, COMPLETE);
+    const expected = { tool: "workspace_verify_proof",
+      arguments: { repo: REPOSITORY, subject: WK_ID, git_sha: CANDIDATE } };
+    for (const [label, observed] of [["compact", compact], ["complete", complete]]) {
+      assert.deepEqual(verifyCallsOf(observed.structured), [expected], label);
+
+      assert.equal(JSON.stringify(observed.structured).split("\"workspace_verify_proof\"").length, 2,
+        `${label}: one occurrence`);
+    }
+
+    const { arguments: args } = verifyCallsOf(compact.structured)[0];
+    for (const other of [BASE, TIP, WK2670_DELIVERY]) assert.notEqual(args.git_sha, other);
+    assert.equal(compact.structured.slice_lifecycle.integration.delivery_sha, WK2670_DELIVERY);
+    assert.equal(compact.structured.slice_lifecycle.terminal_candidate.wk_tip, TIP);
+    assert.equal(compact.structured.slice_lifecycle.terminal_candidate.candidate, CANDIDATE);
+
+    const operatorCompact = await observe(operator, { subject: SUBJECT });
+    const operatorComplete = await observe(operator, COMPLETE);
+    assert.deepEqual(verifyCallsOf(operatorCompact.structured), []);
+    assert.deepEqual(verifyCallsOf(operatorComplete.structured), []);
+    assert.deepEqual(withoutVerifyCalls(compact.structured), sameRetention(operatorCompact.structured));
+    assert.deepEqual(withoutVerifyCalls(complete.structured), sameRetention(operatorComplete.structured));
+
+    assert.deepEqual(effects.orchestrator, effects.operator);
+    const again = await observe(orchestrator, { subject: SUBJECT });
+    assert.deepEqual(again.structured, compact.structured);
+    assert.equal(orchestrator.has("workspace_verify_proof"), false, "status registers no verifier");
+
+    const structuredBytes = (observed) => Buffer.byteLength(JSON.stringify(observed.structured));
+    const compactDelta = structuredBytes(compact) - structuredBytes(operatorCompact);
+    const completeDelta = structuredBytes(complete) - structuredBytes(operatorComplete);
+    assert.ok(compactDelta <= 320, `compact grew ${compactDelta} bytes`);
+    assert.ok(completeDelta <= 320, `complete grew ${completeDelta} bytes`);
+    assert.deepEqual(responseRepetitions(compact.structured), []);
+    t.diagnostic(`WK-2670 structured increment: compact +${compactDelta}, complete +${completeDelta}; ` +
+      `transport: compact ${operatorCompact.bytes} -> ${compact.bytes}, complete ` +
+      `${operatorComplete.bytes} -> ${complete.bytes}`);
+    defaultFrame(compact, "candidate-bound orchestrator compact default");
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2670: a non-orchestrator session or an incomplete candidate is offered no verify call", async () => {
+  const scope = createTestResourceScope();
+  try {
+    const observeWith = async (label, shape, role = "orchestrator") => {
+      const tools = await roleRegistry(scope, label, observationBackend({ status: shape.status,
+        lifecycle: shape.lifecycle }), role);
+      return [await observe(tools, { subject: SUBJECT }), await observe(tools, COMPLETE)];
+    };
+    const assertNone = (label, observations) => {
+      for (const observed of observations) {
+        assert.deepEqual(verifyCallsOf(observed.structured), [], label);
+        assert.equal(JSON.stringify(observed.structured).includes("workspace_verify_proof"), false, label);
+      }
+    };
+
+    const [control] = await observeWith("control", candidateBoundObservation());
+    assert.equal(verifyCallsOf(control.structured).length, 1);
+    for (const role of ["operator", "worker", "reviewer", "redteam", ""]) {
+      assertNone(`role ${role || "unbound"}`,
+        await observeWith(`role-${role || "unbound"}`, candidateBoundObservation(), role));
+    }
+    const variants = {
+      "materialization unverified": (shape) => { shape.lifecycle.terminal_candidate.materialization =
+        { ...shape.candidate.materialization, verified: false }; },
+      "materialization absent": (shape) => { delete shape.lifecycle.terminal_candidate.materialization; },
+      "materialized another commit": (shape) => { shape.lifecycle.terminal_candidate.materialization =
+        { ...shape.candidate.materialization, candidate: TIP }; },
+      "candidate for another WK": (shape) => { shape.lifecycle.terminal_candidate = {
+        ...shape.lifecycle.terminal_candidate,
+        binding: { ...shape.candidate.binding, canonical_wk_id: "WK-9999" },
+        materialization: { ...shape.candidate.materialization, canonical_wk_id: "WK-9999" } }; },
+      "candidate absent": (shape) => { delete shape.lifecycle.terminal_candidate; },
+      "binding without a commit": (shape) => { shape.lifecycle.terminal_candidate = {
+        ...shape.lifecycle.terminal_candidate,
+        binding: { ...shape.candidate.binding, candidate: "HEAD" } }; },
+      "integration not finalized": (shape) => { shape.lifecycle.phase = "integrated"; },
+      "not integrated": (shape) => { shape.lifecycle.integrated = false; }
+    };
+    for (const [label, mutate] of Object.entries(variants)) {
+      const shape = candidateBoundObservation();
+      mutate(shape);
+      assertNone(label, await observeWith(label.replaceAll(" ", "-"), shape));
+    }
   } finally {
     await scope.dispose();
   }

@@ -51,7 +51,45 @@ export declare function typedBindingFailurePaths(
   diagnostic: Readonly<Record<string, unknown>>
 ): string[];
 
+export type OccurrenceCorrectionClause = "component" | "association" | "case_content";
+
+export interface OccurrenceCorrectionClauseDefinition {
+  readonly field: string;
+  readonly guidance: string;
+}
+
+export declare const OCCURRENCE_CORRECTION_CLAUSES: Readonly<
+  Record<OccurrenceCorrectionClause, OccurrenceCorrectionClauseDefinition>>;
+
+export interface OccurrenceFailedField {
+  readonly keyword: string | null;
+  readonly path: string;
+}
+
+export interface OccurrenceRecoveryFacts {
+  readonly failed_fields: readonly OccurrenceFailedField[];
+  readonly association_correction: boolean;
+  readonly module_source_correction: boolean;
+  readonly corrections: readonly OccurrenceCorrectionClause[];
+}
+
+/** Null for every code other than obligation_coverage_native_binding_case_incomplete. */
+export declare function occurrenceRecoveryFacts(
+  diagnostic: Readonly<Record<string, unknown>> | null | undefined
+): OccurrenceRecoveryFacts | null;
+
 export declare function occurrenceRecoverySummary(
   diagnostic: Readonly<Record<string, unknown>>,
-  recovery: Readonly<Record<string, unknown>> & { readonly summary: string }
+  recovery: Readonly<Record<string, unknown>> & { readonly summary: string },
+  options?: { readonly failedFields?: "owner_diagnostics" | "public" }
 ): string;
+
+export interface OccurrencePublicRecovery {
+  readonly explanation: string | null;
+  readonly instructions: string | null;
+}
+
+/** Null when the occurrence carries no route-assessment recovery. */
+export declare function occurrencePublicRecovery(
+  diagnostic: Readonly<Record<string, unknown>> | null | undefined
+): OccurrencePublicRecovery | null;

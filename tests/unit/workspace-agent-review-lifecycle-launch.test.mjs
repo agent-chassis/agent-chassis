@@ -6,9 +6,6 @@ import { createLaunchFlow } from
 import { createDispatchRunLifecycle } from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-lifecycle.mjs";
 import {
-  ADMISSION_REVIEW_TARGET_IDENTITY_REFUSAL_CODES
-} from "../../packages/wiki-core/src/lib/agent-dispatch-identity.mjs";
-import {
   computeWorkRecordSourceDigest
 } from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
 
@@ -402,22 +399,4 @@ test("findings execution does not require an alternate canonical resolver", asyn
     caller_session_id: "session-wk2363"
   });
   assert.equal(Object.hasOwn(status, "admission_review_target_identity"), false);
-});
-
-test("caller-reconstructed review-target identity is refused without any canonical resolver", async () => {
-  let spawned = false;
-  const executor = async () => {
-    spawned = true;
-    return { accepted: true, status: "launching", probe: async () => ({ status: "running" }) };
-  };
-  const { startLaunch } = admissionLifecycle({ resolver: null, executor });
-  const result = await startLaunch(admissionLaunchInput({
-    admission_review_target_identity: Object.freeze({ record_id: REVIEW_RECORD_ID })
-  }));
-  assert.equal(result.accepted, false, JSON.stringify(result));
-  assert.equal(
-    result.refusal.reason,
-    ADMISSION_REVIEW_TARGET_IDENTITY_REFUSAL_CODES.CALLER_RECONSTRUCTED
-  );
-  assert.equal(spawned, false);
 });

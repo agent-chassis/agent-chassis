@@ -3,13 +3,14 @@
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import { testRuntimeRunner } from "@agent-chassis/controlled-contract/test-proof";
 
 import {
-  NODE_TEST_PROOF_FAULT_LOADER_PATH,
-  NODE_TEST_PROOF_REPORTER_PATH
+  NODE_TEST_PROOF_LAUNCHER_ASSETS,
+  launcherNodeTestFaultLoaderUrl,
+  launcherNodeTestReporterUrl
 } from "../../workspace-agent-test-proof-node-observation.mjs";
 import { TEST_PROOF_MODULE_FAULT_SCHEMA_VERSION, buildTestProofFaultModuleRegistrationSource,
   describeTestProofModuleFaultAttempt } from "../../workspace-agent-test-proof-module-fault-contract.mjs";
@@ -35,8 +36,12 @@ import { runtimeInputsDigest } from "./native-lifecycle.mjs";
 
 const NODE_TEST_RUNNER = testRuntimeRunner({ name: "node-test" });
 
-const NODE_TEST_PROVIDER_ASSET_DIGEST = `sha256:${createHash("sha256")
-  .update(readFileSync(fileURLToPath(import.meta.url))).digest("hex")}`;
+function nodeTestProviderAssetDigest() {
+  return `sha256:${createHash("sha256").update(JSON.stringify(
+    [fileURLToPath(import.meta.url), ...NODE_TEST_PROOF_LAUNCHER_ASSETS].map((asset) =>
+      [path.basename(asset), createHash("sha256").update(readFileSync(asset)).digest("hex")])))
+    .digest("hex")}`;
+}
 
 function resolvePreparedNodeRuntime(input, worktree) {
   const repositoryRoot = input.authority.main_repo;
@@ -54,8 +59,10 @@ function resolvePreparedNodeRuntime(input, worktree) {
     return { ok: false, code: runtime.code, detail: { failure: "configured_runtime_not_ready",
       readiness_code: runtime.code, recovery: runtime.recovery ?? null, route: located.route } };
   }
+  const providerAssetDigest = nodeTestProviderAssetDigest();
   return { ok: true, project: located.project, route: located.route, runtime,
-    runtime_inputs_digest: runtimeInputsDigest(runtime, NODE_TEST_PROVIDER_ASSET_DIGEST) };
+    provider_asset_digest: providerAssetDigest,
+    runtime_inputs_digest: runtimeInputsDigest(runtime, providerAssetDigest) };
 }
 
 async function prepare(resolved, input) {
@@ -84,7 +91,7 @@ async function prepare(resolved, input) {
       environment: runtime.identity.environment,
       route: located.route,
       readiness_digest: runtime.identity.readiness_digest,
-      provider_asset_digest: NODE_TEST_PROVIDER_ASSET_DIGEST,
+      provider_asset_digest: located.provider_asset_digest,
       runtime_inputs_digest: located.runtime_inputs_digest,
       dependency_population: Object.freeze({ source: "launcher_readiness",
         readiness_digest: runtime.identity.readiness_digest, environment: runtime.identity.environment,
@@ -113,15 +120,8 @@ function preparedNodeRuntime(input, worktree) {
     mountpoints: Object.freeze([...runtime.mountpoints]) });
 }
 
-function launcherModuleUrl(worktree, relativePath) {
-  return pathToFileURL(path.join(worktree, relativePath)).href;
-}
-
-function launcherReporterUrl(worktree) {
-  const reporterUrl = new URL(launcherModuleUrl(worktree, NODE_TEST_PROOF_REPORTER_PATH));
-  reporterUrl.searchParams.set("launcher_protocol_fd", "3");
-  return reporterUrl.href;
-}
+const NODE_TEST_ASSET_BINDS = Object.freeze(NODE_TEST_PROOF_LAUNCHER_ASSETS.map((asset) =>
+  Object.freeze({ src: asset, dst: asset })));
 
 function nodeTestSelectionArguments(selectedTest) {
   const literalName = selectedTest.name
@@ -156,10 +156,10 @@ async function execute(resolved, input, selectedTest) {
   if (input.preparedRuntime !== undefined) assertPreparedRuntime(input.preparedRuntime, resolved);
   const nodeRuntime = preparedNodeRuntime(input, launcherWorktree);
   const mint = (nodeArguments, expectation) =>
-    mintProviderExecution(resolved, nodeArguments, expectation, null, nodeRuntime);
+    mintProviderExecution(resolved, nodeArguments, expectation, null, nodeRuntime, NODE_TEST_ASSET_BINDS);
   const provider = providerEvidence(resolved, resolved.capability);
+  const reporterUrl = launcherNodeTestReporterUrl();
   if (resolved.capability === "candidate_execution") {
-    const reporterUrl = launcherReporterUrl(launcherWorktree);
     const run = await runDeclaredTest(input, mint([
       "--test-isolation=none", `--test-reporter=${reporterUrl}`, ...selectedArguments
     ], { capability: "candidate_execution", target: input.target,
@@ -185,15 +185,9 @@ async function execute(resolved, input, selectedTest) {
       attempt_nonce: randomBytes(32).toString("hex")
     }, launcherWorktree);
     const configuration = attempt.configuration;
-    const reporterUrl = launcherReporterUrl(launcherWorktree);
-    const loaderUrl = new URL(launcherModuleUrl(launcherWorktree,
-      NODE_TEST_PROOF_FAULT_LOADER_PATH));
-    loaderUrl.searchParams.set("configuration", Buffer.from(JSON.stringify(
-      configuration
-    )).toString("base64url"));
     const registrationUrl = `data:text/javascript;base64,${Buffer.from(
-      buildTestProofFaultModuleRegistrationSource(configuration, loaderUrl.href,
-        launcherWorktree)
+      buildTestProofFaultModuleRegistrationSource(configuration,
+        launcherNodeTestFaultLoaderUrl(configuration), launcherWorktree)
     ).toString("base64")}`;
     const expectation = { capability: "falsifier_execution",
       falsifier_id: selection.falsifier_id, strategy: configuration.strategy, configuration,
@@ -212,7 +206,6 @@ async function execute(resolved, input, selectedTest) {
       artifacts: Object.freeze(observation?.artifacts ?? []) });
   }
   const selection = resolved.selection;
-  const reporterUrl = launcherReporterUrl(launcherWorktree);
   const run = await runDeclaredTest(input, mint([
     "--test-isolation=none", `--test-reporter=${reporterUrl}`,
     ...nodeDeclaredCoverageArguments([selection.module_path]), ...selectedArguments

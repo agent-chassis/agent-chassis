@@ -17,14 +17,22 @@ function unavailable(code, owner) {
   throw error;
 }
 
-export function buildUnavailableProofExecutionTestComposition() {
+function brandedComposition(executorAvailability) {
   const composition = Object.freeze({
     schema_version: PROOF_EXECUTION_TEST_COMPOSITION_SCHEMA_VERSION,
-    executor_availability: "unavailable",
+    executor_availability: executorAvailability,
     provider_availability: "unavailable"
   });
   COMPOSITIONS.add(composition);
   return composition;
+}
+
+export function buildUnavailableProofExecutionTestComposition() {
+  return brandedComposition("unavailable");
+}
+
+export function buildProviderUnavailableProofExecutionTestComposition() {
+  return brandedComposition("available");
 }
 
 export function assertProofExecutionTestComposition(composition) {
@@ -38,8 +46,10 @@ export function assertProofExecutionTestComposition(composition) {
 export function proofExecutionTestCompositionDeps(composition) {
   if (assertProofExecutionTestComposition(composition) === null) return Object.freeze({});
   return Object.freeze({
-    withOrchestratorTestProofRuntime: async () => unavailable(
-      PROOF_EXECUTOR_TEST_UNAVAILABLE_CODE, "orchestrator proof executor"),
+    ...(composition.executor_availability === "available" ? {} : {
+      withOrchestratorTestProofRuntime: async () => unavailable(
+        PROOF_EXECUTOR_TEST_UNAVAILABLE_CODE, "orchestrator proof executor")
+    }),
     executeLauncherVerifyProofReceiptPopulation: async () => unavailable(
       PROOF_PROVIDER_TEST_UNAVAILABLE_CODE, "launcher proof provider")
   });

@@ -19,11 +19,12 @@ import {
   planTombstoneCleanup,
   runCrashDurablePlanSync
 } from "@agent-chassis/wiki-core/src/lib/crash-durable-state.mjs";
+import { digestNamedFiles, fingerprintPopulation } from
+  "@agent-chassis/wiki-core/src/lib/runtime-inputs/population-identity.mjs";
 
 import { captureProcessIdentity, confirmedDead, defaultLivenessDeps } from "../worktree-lease.mjs";
 
 import { DEPENDENCY_ECOSYSTEMS } from "./ecosystems.mjs";
-import { digestNamedFiles, fingerprintPopulation } from "./tree-identity.mjs";
 
 export const TEST_RUNTIME_READINESS_SCHEMA_VERSION = "agent-launch-test-runtime-readiness.v3";
 export const TEST_RUNTIME_READINESS_RELATIVE_PATH =

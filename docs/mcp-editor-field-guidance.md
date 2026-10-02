@@ -13,6 +13,14 @@ list, task, notes, and acceptance fields each receive only their applicable
 replacement/value-carrier rule. Notes and task examples retain their existing
 `{text}`, `{ref}`, or `parts` carrier requirements.
 
+Selected `acceptance.criteria` guidance also carries its authoring rule. A new
+work record starts with no acceptance criteria; its author supplies real ones
+that make the intended behavior or invariant explicit and identify the
+verification plan or regression coverage. Each obligation then declares the
+criteria it covers through the obligation-coverage upsert (see
+[Author-declared criterion coverage](acceptance-coverage-mcp.md#author-declared-criterion-coverage)).
+Dispatch readiness continues to refuse a unit with no acceptance criteria.
+
 The complete field inventory remains available through
 `input_contract: { kind: "fields" }`. The complete editor input schema remains
 available through the verbose `workspace_tools_describe` path. See

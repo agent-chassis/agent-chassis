@@ -62,14 +62,20 @@ interpreter, package tree, dependency installation, or wiki-MCP runtime.
 
 ## Result channels
 
-A structured tool result carries its complete value once, in
-`structuredContent`, with `content: []`. No serialized JSON copy, abbreviated
-copy or textual pointer to the value is published beside it; the repository
-supports only this current contract and keeps no text mirror for clients that
-read only rendered text. Structured error envelopes, translated thrown errors,
-input-recovery refusals, spill references, persistence refusals and
+A structured tool result carries its final public value in
+`structuredContent` and exactly one generated text block whose text is the
+compact `JSON.stringify` serialization of that same value; parsing the text
+yields the structured value. The text is a serialization, never a separately
+authored summary, abbreviation, pointer, generic error or empty placeholder,
+and it serializes only the public value — never the enclosing result, retained
+evidence or internal captured streams. This is the one current delivery
+contract for every client: there is no client detection, compatibility switch,
+fallback parser or second retrieval route. Consumers read `structuredContent`
+directly. Structured error envelopes, translated thrown errors, input-recovery
+refusals, declared-output failures, spill references, persistence refusals and
 continuation pages obey exactly the same shaping, and error results
-additionally retain `isError: true`. An unstructured thrown error is translated into the registered
+additionally retain `isError: true`, so a refusal's specific cause, subject and
+correction are readable from the text alone. An unstructured thrown error is translated into the registered
 public mechanical refusal envelope. Its ordinary diagnostic remains separate
 from deciding identities and is preserved byte-for-byte. Diagnostic/free-form/
 untrusted text is not inherently sensitive; only an explicit structured
@@ -82,19 +88,23 @@ result a registered handler returns passes through the guard, so a handler that
 shapes its own result — or that mutates a helper-produced `structuredContent`
 afterwards, as tool discovery does when it re-attaches `package_versions` and the
 work-record write routes do when they re-attach `selected_unit` — leaves on the
-structured contract: any text block beside `structuredContent` is removed,
-independently meaningful non-text blocks (resource, image, audio) and top-level
-protocol metadata such as `_meta` are preserved, and the final frame is admitted
-or spilled as below. Normalization is idempotent: a result already in that form
-whose complete serialization fits is returned untouched. A result with no
+structured contract: any handler text block — stale, conflicting or
+additional — is discarded and the one text block is regenerated from the final
+value, independently meaningful non-text blocks (resource, image, audio) are
+preserved after it, top-level protocol metadata such as `_meta` is preserved,
+and the final frame is admitted or spilled as below. A declared-output failure
+leaves through the same normalization. Normalization is idempotent: a result
+already in that form whose complete serialization fits is returned untouched. A result with no
 `structuredContent` — an ordinary unstructured text result or the SDK's own
 request-validation refusal — passes through unchanged.
 
 Inline admission is decided on the UTF-8 byte size of the complete prospective
-`CallToolResult` as serialized — the compact structured value with its string
-escaping, the frame keys, and preserved top-level result metadata such as
-`_meta`. `measureMcpInlineResultBytes` is the one measurement owner; route pagers
-use it to make the same decision without probing persistence. Nothing is added
+`CallToolResult` as serialized — both representations (the compact structured
+value and its text serialization, escaped again as a JSON string), the frame
+keys, `isError`, and preserved top-level result metadata such as `_meta`.
+`measureMcpInlineResultBytes` is the one measurement owner; route pagers and tool
+discovery use it to make the same decision without probing persistence. No
+representation is omitted to fit and the limits are unchanged. Nothing is added
 to the frame afterwards, so no inline result exceeds the configured limit.
 
 A result that does not fit is persisted once to the existing file-backed
@@ -106,14 +116,28 @@ through `workspace_read_mcp_content_reference` reconstructs the original envelop
 byte-for-byte. A spill or refusal envelope is terminal — it is never spilled a
 second time.
 
+One response environment governs a server's admission limit and response
+state end to end. The composition root passes it to `createRegisterTool`
+(`responseEnv`), whose final guard normalizes returned results and shapes thrown
+errors through it, and to the dispatch family, whose routes retain originals
+through it; no part of that chain falls back to the ambient process environment.
+
+The headless Claude orchestrator's settings add exactly one native rule for this
+state (beside the managed-worktree rule described in
+[write-scope preparation](agent-launch-write-scope-preparation.md)):
+`Read(//<runtimeDir>/wiki-mcp-response-state/**)`, derived by the launcher
+from its own runtime directory (already mounted) in both the plan projection and
+the actual settings mint. It grants no write, no other root and no tool; it lets
+the orchestrator read the error log an oversized forge-handoff refusal names.
+
 ### The spill envelope names two different byte quantities
 
 `total_bytes` and `inline_byte_limit` are **not comparable**, and an envelope in
 which `total_bytes` is smaller than `inline_byte_limit` is not a contradiction:
 
 - `inline_byte_limit` is compared against the complete serialized
-  `CallToolResult` described above — compact `structuredContent`, the frame keys
-  and any preserved protocol metadata.
+  `CallToolResult` described above — both representations, the frame keys and
+  any preserved protocol metadata.
 - `total_bytes` measures the **retained payload alone**, as persisted: one
   two-space-indented JSON document with no frame. Indentation and frame overhead
   differ, so either quantity can be the larger.
@@ -150,13 +174,34 @@ When persistence itself fails, the boundary returns one deterministic bounded
 structured refusal rather than the oversized original or a generic unstructured
 fallback:
 
-- `isError: true`, the refusal in `structuredContent`, and `content: []`.
+- `isError: true`, the refusal in `structuredContent`, and its one generated
+  text serialization in `content`.
 - `schema_version: mcp-response-refusal.v1` and
   `code: mcp_response.spill_persistence_failed.v1`.
 - `reason`, `inline_byte_limit`, and `total_bytes` describing what could not be
-  admitted, plus `cause_diagnostic` and `cause_diagnostic_redactions`. The text
-  is uncapped; only structured sensitive components are removed.
+  admitted, plus `cause_diagnostic` and `cause_diagnostic_redactions`.
+  `cause_diagnostic` is the original persistence failure serialized by the
+  shared diagnostic owner (message, errno code, syscall and path included);
+  nothing is removed, so `cause_diagnostic_redactions` is always empty.
 - No content reference and no continuation, because nothing was persisted.
+
+A route whose operation already settled and that retains an original only as a
+supplement (a standalone `workspace_verify_proof` result or refusal, a closeout
+receipt, dispatch operator evidence) reports a failed retention with
+`describeRetentionFailure`: `retained: false`, `failed_operation`, `subject`,
+`cause_code` and `cause`, the thrown value serialized by the same owner. A
+retention refused by this boundary keeps its original filesystem cause at
+`cause.envelope.cause_diagnostic`. The settled outcome and effects are reported
+unchanged, no locator is advertised, nothing is replayed, and reporting the
+failure retains nothing further. Captured process output is never part of
+`cause`.
+
+Every diagnostic this boundary projects, including an untyped throw's
+`diagnostic`, goes through the shared `projectDiagnostic` owner. A valid
+`structured-diagnostic.v1` carrier projects to its original string or nested
+value exactly; its producer-declared `sensitive_values` are validated, never
+applied, and `diagnostic_redactions` is always empty. A malformed carrier is
+refused.
 
 Task-specific compact projections and pagination run before this common shaping;
 the response boundary does not change projections, authority decisions, tool
@@ -514,14 +559,19 @@ keeps its recorded snapshot.
 
 `workspace_code_index_status` is strictly read-only and reports independent
 base and `scip_state` freshness without running the builder or providers.
-Provider execution is a backend setup boundary: preparation resolves the fixed
-installed `scip-typescript` and `scip-python` names to absolute executable paths
-and spawns them with `shell:false` in the committed snapshot. Query arguments do
-not select executables, install or acquire packages, or alter environment
-authority. The Python invocation receives the validated captured commit as its
-explicit `--project-version`; it does not infer a version from archive metadata,
-guess one, or add `.git` to the snapshot. Provider failures remain explicit and
-may coexist with independent partial evidence.
+Provider execution is a backend setup boundary: preparation looks up the fixed
+installed `scip-typescript`, `scip-python`, `scip-go` (with `go`) and `rustc`
+names on the server's `PATH` and spawns the resolved absolute executables with
+`shell:false` in the committed snapshot; for Rust it runs the selected
+toolchain's own `rust-analyzer`, `cargo` and `rustc` offline, and
+already-available build scripts and procedural macros run inside that
+snapshot. Query arguments do not select executables, install or acquire
+packages, modules, crates or toolchains, or alter environment authority. The Python and Go invocations receive the validated captured commit
+as their explicit `--project-version` and `--module-version`; they do not infer
+a version from archive metadata, guess one, or add `.git` to the snapshot. A
+provider that is not installed leaves its project as explicit inactive coverage;
+a failed lookup or provider failure fails preparation and keeps the prior
+publication.
 
 The shared SCIP decoder uses the official `@scip-code/scip` generated bindings.
 Its provider publication stores native `symbol_occurrences` independently of
@@ -532,13 +582,15 @@ column zero exclude that final producer line. Coverage reports invalid or
 unsupported ranges; adapters must not treat these regions as precise cursor
 selection or synthesize relationships from proximity.
 
-Provider availability is independent of committed-input freshness. A partial or
-unavailable overlay remains fresh and reusable while its committed HEAD and
-generator identity match, so provisioning followed only by a normal query does
-not replace it. After provisioning, an operator must request a one-time rebuild
-with SCIP enabled through a runtime surface that exposes that capability, then
-retry. The current role may not expose such a rebuild route; status remains
-read-only and cannot perform this recovery.
+Provider availability is part of provider-input freshness. Each publication
+records the executables, their installed content, settings and dependency
+content its providers used, and the same-commit reuse check observes them
+again without starting a process. Installing, removing or replacing a provider,
+or changing its dependencies, therefore makes the next normal query prepare the
+affected projects automatically; no manual rebuild is required. Status stays
+read-only and reports `scip_provider_inputs_changed` until then. The complete
+contract is in
+[MCP Operation Reference](mcp-operation-reference.md#code-index-provider-activation-and-input-identity).
 
 ## Authoring-ergonomics evidence boundary
 
@@ -858,6 +910,16 @@ content. Retired package-installation caches are not read or migrated, and no
 cached code runs before its identity, containment, file type, and code digest are
 verified.
 
+Outside a writing repository, declaring validators still succeeds and each
+refuses when called with `validator_cache_root_unresolved`, so importing the
+packages, `--help`, and repository-independent discovery work from any directory.
+The proof-intent metadata the controlled-contract package exports is validated
+when the package is built and ships as `proof-intents/metadata.v1.json`, bound to
+the sha256 of its inputs; import checks that binding and refuses a stale or
+missing artifact rather than validating or compiling. Read-only proof catalog
+search uses that packaged population and one package-built, digest-verified
+result validator, so it answers identically inside and outside Git.
+
 Managed dispatch ensures that same cache immediately before it invokes the
 family executor, so a launch never pays schema compilation inside the spawn.
 
@@ -866,12 +928,14 @@ byte forwarding, authentication, generation ownership, client timeouts, retries,
 and close classification under `decision` are untouched. Operators who want to
 warm the cache ahead of a launch, or to diagnose one, use
 `node packages/controlled-contract/bin/prepare-validator-cache.mjs` as described
-in `the project documentation`.
+in the repository-only runbook
+`the project documentation`.
 
 ## Transport
 
 MCP clients receive a stdio command. For confined Claude and Codex roles,
-[decision](../wiki/decisions/decision.md) requires a launcher-owned private
+`decision` (repository-only: `wiki/decisions/decision.md`) requires a
+launcher-owned private
 Unix-domain socket adapter. Each command invocation opens one independent
 connection and, after authentication, receives one fresh host wiki-MCP process,
 protocol session, readiness observer, and lifecycle settlement. Connections may
@@ -992,6 +1056,30 @@ Namespace and teardown failures use
 family-neutral terminal projection `stdio_mcp_cleanup_failed`. Some retained
 identifiers contain `fifo` or `relay`; their names do not establish a supported
 FIFO transport. Production composition selects the local socket channel.
+
+## Tool-call names
+
+A `tools/call` name that is registered in the session is used exactly. Otherwise
+a nonempty name without the `workspace_` prefix resolves once to
+`workspace_<name>` when that tool is registered in the session, so `tools_list`
+calls `workspace_tools_list`. The server rewrites only the incoming request name
+at its transport, before the SDK lookup; the canonical tool's schema validation,
+role and tier exposure, and handler apply unchanged. Names are not trimmed,
+case-folded, or prefixed twice, and an unknown or unregistered target keeps the
+SDK's ordinary `Tool <name> not found` rejection. `tools/list`, discovery, and
+grants name only canonical tools.
+
+The adapter serves servers, not clients: a client that admits only names its
+`tools/list` returned never sends an unlisted spelling. Every recommendation
+therefore names the listed canonical tool. The WK.initiative assignment is
+registered once, as `workspace_assign_work_record_to_initiative`; discovery,
+role grants, the `initiative_assignment` router intent, and recovery all name
+it. A worker dispatch refused with `missing_initiative_ref_namespace` keeps that
+cause and carries the assignment for the parent WK with `initiative` as a
+required caller-supplied argument. Its guidance reads the assignment contract
+through `workspace_tools_describe`; it never recommends slice shaping or
+supplies an initiative, and dispatch re-evaluates every other readiness
+condition after the assignment.
 
 ## Anonymous metrics
 
@@ -1128,7 +1216,7 @@ by `authority_binding_unratified` or another worker-only condition.
 
 Use `workspace_create_record` for allocator-backed record creation in a configured workspace. Creating a `WK-*` produces the canonical inbox template only; the route accepts no caller filesystem root and no birth-time controlled contract, proof bundle, slice graph, readiness claim, or lifecycle status. Its response names ordinary obligation-coverage query as the next call so the caller can obtain the combined revision before authoring contract requirements and explicit controlled-acceptance disposition through ordinary upsert.
 
-Continue through the [design-first operating model](../AGENTS.md#wk-first-work): design and review disposition precede semantic controlled-contract/proof authoring, and `workspace_work_record_ready_slice` shapes independently executable units. CCE alone owns lifecycle sequencing and admissibility. The MCP server does not implement a local readiness gate or recovery protocol for an unregistered creation operation.
+Continue through the design-first operating model (repository-only: `AGENTS.md`, "WK-First Work"): design and review disposition precede semantic controlled-contract/proof authoring, and `workspace_work_record_ready_slice` shapes independently executable units. CCE alone owns lifecycle sequencing and admissibility. The MCP server does not implement a local readiness gate or recovery protocol for an unregistered creation operation.
 
 The durable operation details are in [Work-record allocation and post-allocation authoring](mcp-operation-reference.md#work-record-allocation-and-post-allocation-authoring).
 

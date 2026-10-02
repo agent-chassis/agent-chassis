@@ -123,7 +123,8 @@ function parseReviewContract(reviewUnit, scopeSource) {
     invalid: (_message, facts = null) => fail("canonical_write_scope_malformed", {
       write_scope: slice.write_scope,
       path: facts?.path ?? null,
-      kind: facts?.kind ?? null
+      kind: facts?.kind ?? null,
+      selector_kind: facts?.selector_kind ?? null
     })
   });
   return { slice, writeScope };

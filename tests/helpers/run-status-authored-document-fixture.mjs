@@ -18,6 +18,7 @@ import {
 import { registerMcpContentReferenceTools } from
   "../../packages/wiki-mcp/src/lib/mcp-content-reference-tools.mjs";
 import { errorContent, jsonContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import { readSelectedResponseSource } from "../../packages/wiki-mcp/src/lib/selected-response-snapshot.mjs";
 
 export const WK_ID = "WK-1537";
 export const SLICE_ID = "SLICE-004";
@@ -427,28 +428,25 @@ export function retainedArtifacts(dir) {
   return readdirSync(dir).filter((name) => !name.endsWith(".meta.json"));
 }
 
-export async function followRetrievalCall(tools, retrieval) {
-  const reader = tools.get("workspace_read_mcp_content_reference").handler;
-  let callArguments = { ...retrieval.retained_source_read.arguments };
-  const chunks = [];
-  let pages = 0;
-  let readerDigest = null;
-  let totalBytes = null;
-  let maxLength = null;
-  const encodedPages = [];
-  for (;;) {
-    const page = readStructuredResult(await reader(callArguments));
-    encodedPages.push(page.data_base64);
+export async function readRetainedDocument(tools, retrieval, member, selection = {}) {
+  const call = retrieval.document_calls[member];
+  return observe(tools, { ...call.arguments,
+    detail: { ...call.arguments.detail, ...selection } });
+}
 
-    chunks.push(Buffer.from(page.data_base64, "base64"));
-    pages += 1;
-    readerDigest = page.sha256;
-    totalBytes = page.total_bytes;
-    maxLength = page.max_length;
-    if (page.next_offset === null) break;
-    callArguments = { ...callArguments, offset: page.next_offset };
-  }
-  return { bytes: Buffer.concat(chunks), pages, readerDigest, totalBytes, maxLength, encodedPages };
+export async function followDocumentCall(tools, call) {
+  return observe(tools, call.arguments);
+}
+
+export function readRetainedEnvelope(env, retrieval) {
+  return readSelectedResponseSource(retrieval.source, { env, expected: {
+    route: "workspace_agent_run_status", repository: retrieval.binding.repository,
+    unit: retrieval.binding.unit } });
+}
+
+export async function publicByteRead(tools, retrieval) {
+  return tools.get("workspace_read_mcp_content_reference").handler({ ref_id: retrieval.source.ref_id,
+    offset: 0 });
 }
 
 export function sha256Hex(bytes) {

@@ -11,6 +11,8 @@ import { WORK_RECORD_AMBIGUITY_DEFAULT_CHOICES,
   validateWorkRecordEntryTitle, validateSelectionLiteral,
   validateWorkRecordEntryContent } from "../lib/work-record-entry-schema.mjs";
 import { fitReadPagePopulation } from "../lib/work-record-read-page-budget.mjs";
+import { isWorkRecordFreshness, projectWorkRecordFreshness,
+  workRecordFreshnessMatches } from "../lib/work-record-schema-constants.mjs";
 
 const READ_TOOL = "workspace_work_record_entry_read";
 const CHOICE_PREFIX = "wkchoice.v2";
@@ -29,7 +31,7 @@ const lengthRefusal=(loaded,lengths)=>({ok:false,valid:false,written:false,sourc
 const readCall=args=>({tool:READ_TOOL,arguments:args});
 
 function bodyArguments({repository,unit,entryId,version,offset=0,length,expectedSourceDigest}){
-  return {repo:repository,unit,entry_id:entryId,...(version===undefined?{}:{version}),include_body:true,
+  return {...(repository===null?{}:{repo:repository}),unit,entry_id:entryId,...(version===undefined?{}:{version}),include_body:true,
     ...(offset>0?{offset}:{}),...(length===undefined?{}:{length}),
     ...(expectedSourceDigest===undefined?{}:{expected_source_digest:expectedSourceDigest})};
 }
@@ -220,9 +222,8 @@ function selectorIssue(selectors, branch) {
   if(!nonnegative(selectors.offset))return invalid("offset must be a nonnegative safe integer","offset");
 
   if(!positive(selectors.length))return invalid("length must be a positive safe integer","length");
-  if(selectors.expectedSourceDigest!==undefined&&(typeof selectors.expectedSourceDigest!=="string"||
-      selectors.expectedSourceDigest.length===0))return invalid(
-    "expected_source_digest must be the source_digest a read returned","expected_source_digest");
+  if(selectors.expectedSourceDigest!==undefined&&!isWorkRecordFreshness(selectors.expectedSourceDigest))return invalid(
+    "expected_source_digest must be the 16-hex source_digest a read returned","expected_source_digest");
   if(!positive(selectors.limit)||selectors.limit>WORK_RECORD_ENTRY_METADATA_PAGE_MAX)return invalid(
     `limit must be between 1 and ${WORK_RECORD_ENTRY_METADATA_PAGE_MAX}`,"limit");
   if(selectors.view!==undefined&&selectors.view!=="history")return invalid("view must be \"history\"","view");
@@ -237,7 +238,9 @@ function selectorIssue(selectors, branch) {
 
 export async function readWorkRecordEntry({dir=".",repository,unit,entryId,version,view,
   includeBody=false,referenceOnly=false,offset,length,limit,expectedSourceDigest,selection,continuation,
-  loadWorkRecord=readWorkRecordById}={}){
+  loadWorkRecord=readWorkRecordById,callRepository=repository}={}){
+
+  const callRepo=callRepository===null?{}:{repo:callRepository};
   const parsed=parseUnit(unit);
   if(!parsed)return refusal("work_record_entry_unit_invalid","unit must be WK-#### or WK-#####SLICE-###","unit");
   const selectors={entryId,version,view,includeBody:includeBody===true?true:undefined,
@@ -255,25 +258,27 @@ export async function readWorkRecordEntry({dir=".",repository,unit,entryId,versi
   const loaded=await loadWorkRecord({dir,id:parsed.id});
   if(!loaded?.valid||!loaded.record){
     if(Array.isArray(loaded?.diagnostics)&&loaded.diagnostics.length>0)return{ok:false,valid:false,written:false,
-      source_digest:loaded.source_digest??null,diagnostics:loaded.diagnostics};
+      source_digest:projectWorkRecordFreshness(loaded.source_digest),diagnostics:loaded.diagnostics};
     return refusal("work_record_entry_target_missing","target record is unavailable","unit");
   }
   const owner=selectUnit(loaded.record,parsed);
   if(!owner)return refusal("work_record_entry_unit_missing","selected unit is unavailable","unit");
   const entries=owner.sections?.entries??[];
-  const sourceDigest=loaded.source_digest;
 
-  if(branch.name==="body"&&expectedSourceDigest!==undefined&&expectedSourceDigest!==sourceDigest){
+  const sourceDigest=projectWorkRecordFreshness(loaded.source_digest);
+  const stale=expectedSourceDigest!==undefined&&!workRecordFreshnessMatches(expectedSourceDigest,loaded.source_digest);
+
+  if(branch.name==="body"&&stale){
     return refusal("stale_source_digest","canonical generation changed since the pinned body page","expected_source_digest",
       {expected_source_digest:expectedSourceDigest,current_source_digest:sourceDigest,
-        next_calls:[readCall(bodyArguments({repository,unit,entryId,version,offset,length}))]});
+        next_calls:[readCall(bodyArguments({repository:callRepository,unit,entryId,version,offset,length}))]});
   }
   const listLimit=limit??WORK_RECORD_ENTRY_METADATA_PAGE_DEFAULT;
-  const pageArguments=(fields,end)=>({repo:repository,unit,...fields,offset:end,
+  const pageArguments=(fields,end)=>({...callRepo,unit,...fields,offset:end,
     ...(listLimit!==WORK_RECORD_ENTRY_METADATA_PAGE_DEFAULT?{limit:listLimit}:{}),expected_source_digest:sourceDigest});
   const metadataPage=({fields,population,row,key})=>{
-    const fresh={repo:repository,unit,...fields};
-    if(expectedSourceDigest!==undefined&&expectedSourceDigest!==sourceDigest)return refusal("stale_source_digest",
+    const fresh={...callRepo,unit,...fields};
+    if(stale)return refusal("stale_source_digest",
       "canonical generation changed during metadata paging","expected_source_digest",
       {expected_source_digest:expectedSourceDigest,current_source_digest:sourceDigest,next_calls:[readCall(fresh)]});
     const start=offset??0;
@@ -293,7 +298,7 @@ export async function readWorkRecordEntry({dir=".",repository,unit,entryId,versi
     return metadataPage({fields:{},population:entries,key:"entries",row:retained=>{
       const current=retained.versions.find(value=>value.id===retained.current_version);
       return {entry_id:retained.id,version_id:current.id,title:current.title,kind:current.kind,
-        next_call:readCall(bodyArguments({repository,unit,entryId:retained.id,version:current.id}))};
+        next_call:readCall(bodyArguments({repository:callRepository,unit,entryId:retained.id,version:current.id}))};
     }});
   }
 
@@ -302,7 +307,7 @@ export async function readWorkRecordEntry({dir=".",repository,unit,entryId,versi
   if(branch.name==="history"){
     return metadataPage({fields:{entry_id:entry.id,view:"history"},population:entry.versions,key:"versions",
       row:value=>({version_id:value.id,title:value.title,kind:value.kind,
-        next_call:readCall(bodyArguments({repository,unit,entryId:entry.id,version:value.id}))})});
+        next_call:readCall(bodyArguments({repository:callRepository,unit,entryId:entry.id,version:value.id}))})});
   }
 
   const selectedVersion=entry.versions.find(value=>value.id===(version??entry.current_version));
@@ -324,9 +329,9 @@ export async function readWorkRecordEntry({dir=".",repository,unit,entryId,versi
   if(branch.name==="metadata"){
     return {ok:true,...identity,source_digest:sourceDigest,title:selectedVersion.title,kind:selectedVersion.kind,
       scalar_length:total,utf8_bytes:lengths.utf8_bytes,next_calls:[
-        readCall(bodyArguments({repository,unit,entryId:entry.id,version:selectedVersion.id})),
-        readCall({repo:repository,unit,entry_id:entry.id,version:selectedVersion.id,reference_only:true}),
-        readCall({repo:repository,unit,entry_id:entry.id,view:"history"})]};
+        readCall(bodyArguments({repository:callRepository,unit,entryId:entry.id,version:selectedVersion.id})),
+        readCall({...callRepo,unit,entry_id:entry.id,version:selectedVersion.id,reference_only:true}),
+        readCall({...callRepo,unit,entry_id:entry.id,view:"history"})]};
   }
 
   if(branch.name==="reference"){
@@ -349,7 +354,7 @@ export async function readWorkRecordEntry({dir=".",repository,unit,entryId,versi
     const end=start+span;
     return {ok:true,...identity,source_digest:sourceDigest,
       body:{value:resolved.value,offset:start,length:span,total},
-      next_calls:end<total?[readCall(bodyArguments({repository,unit,entryId:entry.id,version:selectedVersion.id,
+      next_calls:end<total?[readCall(bodyArguments({repository:callRepository,unit,entryId:entry.id,version:selectedVersion.id,
         offset:end,length,expectedSourceDigest:sourceDigest}))]:[]};
   }
 
@@ -375,7 +380,7 @@ export async function readWorkRecordEntry({dir=".",repository,unit,entryId,versi
   if(occurrence===undefined&&data.total_count>1){
     if(data.choices.length===0)return refusal("work_record_entry_continuation_invalid",
       "choice offset is past the last occurrence","continuation",{source_digest:sourceDigest});
-    const choiceCall=fields=>readCall({repo:repository,unit,continuation:encodeChoice(repository,unit,
+    const choiceCall=fields=>readCall({...callRepo,unit,continuation:encodeChoice(repository,unit,
       {entry:entry.id,version:selectedVersion.id,literalLength:data.literal_length,...fields})});
     const build=count=>{
       const choices=data.choices.slice(0,count).map((matchOffset,index)=>({occurrence:choiceOffset+index,

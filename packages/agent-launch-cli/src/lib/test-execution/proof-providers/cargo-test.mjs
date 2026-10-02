@@ -6,12 +6,57 @@ import { fileURLToPath } from "node:url";
 import integration from "../runner-integrations/cargo-test.mjs";
 import { finishRustFile, instrumentRustModule, instrumentRustTestFile }
   from "../source-instrumentation/rust.mjs";
+import { nativeRecordFailureDiagnostic } from "../../workspace-agent-test-proof-error-diagnostic.mjs";
 import { nativeProviderImplementation, refuseAttempt } from "./native-lifecycle.mjs";
 
 const RUST_INSTRUMENTATION_ASSET = fileURLToPath(new URL("../source-instrumentation/rust.mjs",
   import.meta.url));
 const CUSTOM_LAYOUT_RE = /^\s*(?:\[lib\]|\[\[test\]\]|\[\[bin\]\]|autotests\s*=|autolib\s*=)/mu;
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+
+const MAX_COMPILER_ERRORS = 16;
+
+function compilerRecord(message) {
+  const primary = (Array.isArray(message.spans) ? message.spans : []).find((span) => span?.is_primary === true);
+  const details = [
+    ...(typeof primary?.label === "string" && primary.label.length > 0
+      ? [{ label: "primary_span", text: primary.label }] : []),
+    ...(Array.isArray(message.children) ? message.children : [])
+      .filter((child) => typeof child?.level === "string" && typeof child?.message === "string")
+      .map((child) => ({ label: child.level, text: child.message }))
+  ];
+  return {
+    name: message.level,
+    ...(typeof message.message === "string" ? { message: message.message } : {}),
+    ...(typeof message.code?.code === "string" ? { code: message.code.code } : {}),
+    ...(typeof primary?.file_name === "string" && Number.isSafeInteger(primary.line_start)
+      ? { location: { file: primary.file_name, line: primary.line_start } } : {}),
+    ...(details.length === 0 ? {} : { details })
+  };
+}
+
+export function cargoTestReport() {
+  const records = [];
+  const issues = [];
+  return {
+    stream: "stdout",
+    line(text) {
+      if (!text.startsWith("{")) return;
+      let event;
+      try { event = JSON.parse(text); } catch { return; }
+      if (event?.reason !== "compiler-message" || event.message?.level !== "error") return;
+      if (records.length === MAX_COMPILER_ERRORS) {
+        if (issues.length === 0) issues.push({ path: "/native_report", reason: "capture_budget_exceeded" });
+        return;
+      }
+      records.push(compilerRecord(event.message));
+    },
+    finish() {
+      return { build_failure: records.length === 0 ? null
+        : nativeRecordFailureDiagnostic({ records, issues }) };
+    }
+  };
+}
 
 function libraryModulePath(relative) {
   const inner = relative.slice("src/".length, -".rs".length).split("/");
@@ -96,5 +141,6 @@ export default nativeProviderImplementation({
   layout,
   instrument,
   invocation: (attempt, { target, exactName }) => integration.invocation({
-    runtime: attempt.runtime, projectDir: attempt.workProject, target, exactName })
+    runtime: attempt.runtime, projectDir: attempt.workProject, target, exactName }),
+  report: () => cargoTestReport()
 });

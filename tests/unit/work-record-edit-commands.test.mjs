@@ -600,7 +600,8 @@ test("write failures return structured diagnostics instead of escaping", async (
     assert.equal(result.json.valid, true);
     assert.equal(result.json.written, false);
     assert.equal(result.json.diagnostics[0].code, "work_record_write_failed");
-    assert.equal(result.json.diagnostics[0].message, "failed to write canonical work record JSON");
+    assert.equal(result.json.diagnostics[0].message,
+      "canonical work-record persistence failed during staging");
 
     const textResult = await runWikiText(
       ["work-records", "set-status", "--unit", "WK-9203", "--status", "active"],

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { decodeCommittedSource, selectCommittedSourceRegion } from
+import { decodeCommittedSource, selectCommittedSourceRegion, selectRetainedSourceLines } from
   "../../packages/wiki-core/src/lib/sidecar-source-regions.mjs";
 
 const TEXT = "class Box {\n  method() {\n    return 1;\n  }\n}\nconst tail = 2;";
@@ -102,4 +102,16 @@ test("uses explicit complete-file reasons without fabricating source", () => {
   assert.deepEqual(select({ start_line: 1, end_line: 1 }, [],
     { state: "unavailable", reason: "invalid_utf8" }),
   { state: "unavailable", reason: "invalid_utf8" });
+});
+
+test("retained absolute line selection preserves BOM, Unicode and CRLF without clamping", () => {
+  const region = { source_text: "\ufeff雪\r\n🙂 line\r\ntail", start_line: 20, end_line: 22 };
+  assert.equal(selectRetainedSourceLines(region, { start_line: 20, end_line: 21 }),
+    "\ufeff雪\r\n🙂 line\r\n");
+  assert.equal(selectRetainedSourceLines(region, { start_line: 22, end_line: 22 }), "tail");
+  for (const lines of [{ start_line: 19, end_line: 20 }, { start_line: 22, end_line: 23 },
+    { start_line: 21, end_line: 20 }]) {
+    assert.throws(() => selectRetainedSourceLines(region, lines), RangeError);
+  }
+  assert.equal(region.source_text, "\ufeff雪\r\n🙂 line\r\ntail");
 });

@@ -56,8 +56,10 @@ export function collectDedupedSrcBinds(entries, label, validate = null) {
   return out;
 }
 
+export const PROOF_SCRATCH_DESTINATION = "/agent-validation-tmp";
+
 export function buildSystemBaselineArgs({ systemReadOnlyRoots, shareNet, newSession = true,
-  tmpfsDirs = [], useSystemTmp = false }) {
+  tmpfsDirs = [], executionTmpSource = null, executionScratchSource = null }) {
   const args = [
     "--unshare-user-try",
     "--unshare-ipc",
@@ -71,8 +73,27 @@ export function buildSystemBaselineArgs({ systemReadOnlyRoots, shareNet, newSess
     args.push("--new-session");
   }
   args.push("--clearenv", "--proc", "/proc", "--dev", "/dev");
-  if (useSystemTmp) args.push("--bind", "/tmp", "/tmp");
-  else args.push("--tmpfs", "/tmp");
+
+  if (executionTmpSource !== null) {
+    const source = assertAbsoluteSafePath(executionTmpSource, "executionTmpSource");
+    if (source === "/tmp" || !source.startsWith("/tmp/")) {
+      fail(BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
+        "an execution /tmp must be one owned directory below the host /tmp, never the host /tmp itself");
+    }
+    args.push("--bind", source, "/tmp");
+  } else {
+    args.push("--tmpfs", "/tmp");
+  }
+
+  if (executionScratchSource !== null) {
+    const source = assertAbsoluteSafePath(executionScratchSource, "executionScratchSource");
+    if (executionTmpSource === null ||
+        path.dirname(source) !== path.dirname(executionTmpSource) || source === executionTmpSource) {
+      fail(BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
+        "an execution scratch mapping requires a sibling child of the same owned execution root");
+    }
+    args.push("--bind", source, PROOF_SCRATCH_DESTINATION);
+  }
 
   if (!Array.isArray(tmpfsDirs)) {
     fail(
@@ -92,6 +113,11 @@ export function buildSystemBaselineArgs({ systemReadOnlyRoots, shareNet, newSess
   }
   return args;
 }
+
+export const BWRAP_SPAWN_OPERATIONS = Object.freeze({
+  VERSION_PROBE: "bwrap_version_probe",
+  CONFINED_CHILD: "bwrap_confined_child_spawn"
+});
 
 function resolveBwrapFromEnv(env) {
   const view = env && typeof env === "object" ? env : {};
@@ -239,14 +265,22 @@ export function assertBubblewrapAvailable({ env = process.env, bwrapPath = null 
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_SPAWN_FAILED,
       `bwrap version probe failed to spawn: ${candidate}`,
-      { errno: err?.code ?? null, message: err?.message ?? null }
+      {
+        errno: err?.code ?? null,
+        message: err?.message ?? null,
+        operation: BWRAP_SPAWN_OPERATIONS.VERSION_PROBE
+      }
     );
   }
   if (probe.error) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_SPAWN_FAILED,
       `bwrap version probe error: ${candidate}`,
-      { errno: probe.error.code ?? null, message: probe.error.message ?? null }
+      {
+        errno: probe.error.code ?? null,
+        message: probe.error.message ?? null,
+        operation: BWRAP_SPAWN_OPERATIONS.VERSION_PROBE
+      }
     );
   }
   if (probe.status !== 0) {

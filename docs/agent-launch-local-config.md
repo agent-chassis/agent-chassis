@@ -72,7 +72,7 @@ resolves into a denied credential or config directory (`~/.claude`, `~/.config`,
 `~/gcp-credentials`) is refused even if it would otherwise sit under an approved
 prefix, because deny is evaluated first. Sandbox read-only binds and the
 pre-spawn executable-identity check bind the configured executable. The full
-resolver contract lives in
+resolver contract lives in the repository-only design
 `the project documentation`.
 
 ### Refusals

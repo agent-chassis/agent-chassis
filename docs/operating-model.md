@@ -385,14 +385,27 @@ review-attestation authority.
 
 ### Operator forge merge
 
-An operator may run `agent-launch forge-merge WK-####` once the WK's canonical
-closeout is recorded. Review is an independent consumer and is not a
-prerequisite. The CLI launcher mints the workspace binding from its
+An operator may run `agent-launch forge-merge WK-#### [--checkout <path>]` once
+the WK's canonical closeout is recorded. Review is an independent consumer and is
+not a prerequisite. The CLI launcher mints the workspace binding from its
 operator-resolved working directory before composing the operation. The command
-accepts only the WK id. Its trusted composition binds the forge-handoff authority
-owner's read-only existing-publication observer and the canonical work-record
-validator; candidate, repository, branch, review, proposed change head,
-configured base branch, and merge authority are never caller-supplied.
+accepts the WK id and, for a local or Git handoff only, an optional checkout
+location. Its trusted composition binds the forge-handoff authority owner's
+read-only existing-publication observer and the canonical work-record validator;
+candidate, repository, branch, review, proposed change head, handoff
+destination, configured base branch, and merge authority are never
+caller-supplied, and the checkout location selects none of them.
+
+The authenticated handoff's destination selects the landing. A hosted handoff
+merges its exact pull request as described below. A local or Git handoff has no
+proposal: the command, run by the human Git actor, stages the WK's matching
+coordination files, applies the authenticated review-to-done change to a live
+closeout record, and fast-forwards a base-branch checkout with an ordinary
+`git merge --ff-only`, as described in
+[Handoff destinations and landing observation](mcp-dispatch-terminal-review.md#handoff-destinations-and-landing-observation).
+It never pushes. A local handoff succeeds only when the landing observer reports
+it landed; for a Git handoff a local fast-forward is local completion and remote
+landing is reported pending until the destination's base carries the handoff.
 
 Before initial publication, forge handoff appends the two WK-only commits
 (decision's closeout record `K` and the completion state `D`) to the unchanged
@@ -401,7 +414,10 @@ handoff branch, so the initially published pull request already carries the
 owning WK at parent status `done`. That `done` is branch-local: the canonical
 parent on the base branch stays in `review` until a confirmed merge. The chain is
 prepared only while the handoff branch is absent; a repeated handoff recovers the
-published chain and appends nothing. Merge authenticates that existing
+published chain and appends nothing, or, when the canonical record carries
+permitted coordination changes, replaces that same publication with a rebuilt
+`C -> K2 -> D2` under its expected old head (see
+[Repeat handoff](mcp-dispatch-terminal-review.md#repeat-handoff-refreshes-the-same-publication)). Merge authenticates that existing
 publication afresh in its own process: the handoff owner re-observes the exact
 selected candidate, its version and its required squashed worktree from durable
 authority, resolves the same repository/base/branch identity the publisher binds,

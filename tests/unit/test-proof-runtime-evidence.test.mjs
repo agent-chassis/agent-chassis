@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createRequire } from "node:module";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
@@ -38,7 +39,10 @@ import { observeLauncherNodeTestRun } from
 import { currentProviderBinding } from "../helpers/verify-proof-runtime-fixture.mjs";
 import launcherTestProofReporter from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-node-reporter.mjs";
-import { captureTestFailureDiagnostic, isLauncherTestFailureDiagnostic } from
+import * as diagnosticOwner from
+  "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-error-diagnostic.mjs";
+import { SELECTED_TEST_FAILURE_DETAIL_INLINE_BYTES, captureTestFailureDiagnostic, isLauncherTestFailureDiagnostic,
+  nativeRecordFailureDiagnostic, projectSelectedTestFailureDiagnostic, unavailableTestFailureDiagnostic } from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-error-diagnostic.mjs";
 import { extractTestProofRuntimeEvidenceReceipt } from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs";
@@ -185,6 +189,120 @@ test("failure capture preserves nested errors and a complete cyclic assertion-va
     undefined);
   const sparse = values.get(actualProperties.get("values"));
   assert.deepEqual(sparse.elements.map(({ index }) => index), [0, 2]);
+});
+
+const requireLauncher = createRequire(new URL("../../packages/agent-launch-cli/src/lib/", import.meta.url));
+
+test("CommonJS observers, ES modules and both Python observers share one graph owner each", async () => {
+  const leaf = requireLauncher("./workspace-agent-test-proof-diagnostic-graph.cjs");
+  for (const name of ["captureTestFailureDiagnostic", "isLauncherTestFailureDiagnostic",
+    "nativeRecordFailureDiagnostic", "unavailableTestFailureDiagnostic",
+    "LAUNCHER_TEST_FAILURE_DIAGNOSTIC_SCHEMA_VERSION"]) {
+    assert.equal(diagnosticOwner[name], leaf[name], `${name} is the leaf's own export`);
+  }
+
+  const channel = requireLauncher("./test-execution/observers/native-channel.cjs");
+  assert.equal(Object.hasOwn(channel, "errorFacts"), false);
+  const thrown = Object.assign(new Error("channel failure"), { code: "ERR_CHANNEL" });
+  assert.deepEqual(channel.failureDiagnostic(thrown, { origin: { kind: "hook", name: "afterAll" } }),
+    captureTestFailureDiagnostic(thrown, { origin: { kind: "hook", name: "afterAll" } }));
+  const lib = new URL("../../packages/agent-launch-cli/src/lib/", import.meta.url);
+  const owner = await readFile(new URL("workspace-agent-test-proof-error-diagnostic.mjs", lib), "utf8");
+  assert.equal(/function (?:graphCapture|validDiagnosticValue|descriptor)\b/u.test(owner), false,
+    "the ES module owner keeps no second capture or validator body");
+
+  for (const observer of ["workspace_agent_test_proof_pytest.py", "test-execution/observers/stestr_observer.py"]) {
+    const source = await readFile(new URL(observer, lib), "utf8");
+    assert.match(source, /"workspace_agent_test_proof_diagnostic_graph\.py"/u, observer);
+    assert.equal(/class DiagnosticGraph|def _error_facts|traceback\.format_exception/u.test(source), false,
+      observer);
+    assert.equal(/sys\.path\.(?:insert|append)\([^)]*diagnostic/u.test(source), false, observer);
+  }
+});
+
+test("native location, display details and origin are closed graph facts, never typed guesses", () => {
+  const thrown = Object.assign(new Error("expected 43 to be 42"), { name: "AssertionError",
+    expected: "42", actual: "43", diff: "- 43\n+ 42" });
+
+  const display = captureTestFailureDiagnostic(thrown, { display_operands: true,
+    details: [{ label: "diff", text: thrown.diff }], location: { file: "vitest/answer.test.ts", line: 19 },
+    origin: { kind: "hook" } });
+  assert.equal(isLauncherTestFailureDiagnostic(display), true);
+  const [root] = display.errors;
+  assert.deepEqual([root.expected, root.actual, display.values], [undefined, undefined, []]);
+  assert.deepEqual(root.native_details, [{ label: "expected", text: "42" }, { label: "actual", text: "43" },
+    { label: "diff", text: "- 43\n+ 42" }]);
+  assert.deepEqual([root.location, display.origin], [{ file: "vitest/answer.test.ts", line: 19 }, { kind: "hook" }]);
+
+  const typed = captureTestFailureDiagnostic(new Error("toBe"), { operands: { expected: 42, actual: 43 },
+    operator: "toBe" });
+  assert.deepEqual(typed.values.map(({ type, value }) => [type, value]), [["number", 42], ["number", 43]]);
+  assert.equal(typed.errors[0].operator, "toBe");
+
+  const badLocation = captureTestFailureDiagnostic(new Error("x"), { location: { file: "", line: 3 } });
+  assert.equal(Object.hasOwn(badLocation.errors[0], "location"), false);
+  assert.deepEqual(badLocation.issues, [{ path: "/native/location", reason: "unsupported_value_type" }]);
+  assert.throws(() => captureTestFailureDiagnostic(new Error("x"), { origin: { kind: "sibling" } }), TypeError);
+
+  assert.deepEqual(unavailableTestFailureDiagnostic(undefined, { origin: { kind: "step", name: "declared" } }), {
+    schema_version: "launcher-test-failure-diagnostic.v1", status: "unavailable", root_error: null,
+    errors: [], values: [], issues: [{ path: "/error", reason: "error_not_supplied" }],
+    origin: { kind: "step", name: "declared" } });
+
+  const mutate = (edit) => { const copy = structuredClone(display); edit(copy); return copy; };
+  for (const [label, edit] of [
+    ["column zero", (copy) => { copy.errors[0].location.column = 0; }],
+    ["fractional line", (copy) => { copy.errors[0].location.line = 1.5; }],
+    ["location extra key", (copy) => { copy.errors[0].location.function = "f"; }],
+    ["empty details", (copy) => { copy.errors[0].native_details = []; }],
+    ["detail without label", (copy) => { copy.errors[0].native_details[0].label = ""; }],
+    ["typed detail", (copy) => { copy.errors[0].native_details[0].text = 42; }],
+    ["unknown origin", (copy) => { copy.origin = { kind: "sibling" }; }],
+    ["origin extra key", (copy) => { copy.origin.test = "x"; }],
+    ["metadata bag", (copy) => { copy.errors[0].metadata = { any: true }; }],
+    ["unknown issue", (copy) => { copy.issues.push({ path: "/x", reason: "guessed" }); }]
+  ]) assert.equal(isLauncherTestFailureDiagnostic(mutate(edit)), false, label);
+});
+
+test("native records become one graph, and every capture loss is explicit", () => {
+  const records = [{ message: "first", location: { file: "a_test.go", line: 3 } },
+    { message: "second\ncontinued", location: { file: "a_test.go", line: 9 }, details: [{ label: "note", text: "n" }] }];
+  const one = nativeRecordFailureDiagnostic({ root: { name: "testing.T failure" }, records: records.slice(0, 1),
+    origin: { kind: "subtest", name: "TestA/sub" } });
+  assert.deepEqual(one.errors, [{ id: "error-0", name: "testing.T failure", message: "first",
+    location: { file: "a_test.go", line: 3 } }]);
+  const many = nativeRecordFailureDiagnostic({ root: { name: "testing.T failure" }, records });
+  assert.equal(isLauncherTestFailureDiagnostic(many), true);
+  assert.deepEqual(many.errors[0], { id: "error-0", name: "testing.T failure", aggregate_errors: ["error-1", "error-2"] });
+  assert.deepEqual(many.errors[2].native_details, [{ label: "note", text: "n" }]);
+  assert.equal(nativeRecordFailureDiagnostic({ records: [{ message: "x", location: { file: "a", line: -1 } }] })
+    .issues[0].reason, "unsupported_value_type");
+
+  const huge = "x".repeat(300 * 1024);
+  const dropped = captureTestFailureDiagnostic(Object.assign(new Error("small message"), { expected: huge, actual: 1 }));
+  assert.equal(isLauncherTestFailureDiagnostic(dropped), true);
+  assert.deepEqual([dropped.status, dropped.errors[0].message, dropped.values], ["captured", "small message", []]);
+  assert.deepEqual(dropped.issues.map(({ path, reason }) => [path, reason]),
+    [["/errors/0/expected", "capture_budget_exceeded"], ["/errors/0/actual", "capture_budget_exceeded"]]);
+  const oversized = captureTestFailureDiagnostic(new Error(huge));
+  assert.deepEqual([oversized.status, oversized.issues], ["unavailable",
+    [{ path: "/error", reason: "capture_budget_exceeded" }]]);
+});
+
+test("the selected projection presents native location, details and origin, deferring large details", () => {
+  const large = "d".repeat(SELECTED_TEST_FAILURE_DETAIL_INLINE_BYTES + 1);
+  const diagnostic = captureTestFailureDiagnostic(new Error("mismatch"), { location: { file: "t.mjs", line: 4, column: 2 },
+    details: [{ label: "diff", text: "- 1\n+ 2" }, { label: "large", text: large }], origin: { kind: "phase", name: "call" } });
+  const projected = projectSelectedTestFailureDiagnostic(diagnostic);
+  assert.deepEqual(projected.origin, { kind: "phase", name: "call" });
+  assert.deepEqual(projected.error.location, { file: "t.mjs", line: 4, column: 2 });
+  assert.deepEqual(projected.error.native_details, [{ label: "diff", text: "- 1\n+ 2" },
+    { label: "large", deferred: true, utf8_bytes: large.length }]);
+  assert.deepEqual(projectSelectedTestFailureDiagnostic(unavailableTestFailureDiagnostic(undefined,
+    { origin: { kind: "condition", name: "unexpected_success" } })), {
+    schema_version: "launcher-test-failure-diagnostic-selection.v1", status: "unavailable",
+    origin: { kind: "condition", name: "unexpected_success" },
+    issues: [{ path: "/error", reason: "error_not_supplied" }] });
 });
 
 test("failure capture explicitly represents an unavailable reporter error", () => {
@@ -511,6 +629,56 @@ test("file termination before the selected assertion is a complete distinct obse
       file_wrapper_error_codes: ["ERR_FIXTURE_TERMINATED"]
     });
   });
+
+async function skipObservation({ selectedStatus = "skip", sibling = null,
+  capability = "candidate_execution" } = {}) {
+  const relativeFile = "tests/integration/selected-skip.test.mjs";
+  const file = path.join(process.cwd(), relativeFile);
+  const selectedId = stableRuntimeTestId(`${relativeFile} :: 0 :: selected proof`);
+  const events = [];
+  if (selectedStatus !== null) {
+    events.push({ type: "test:pass", data: { file, name: "selected proof", nesting: 0,
+      [selectedStatus]: "H10 partial-population control", details: { type: "test" } } });
+  }
+  if (sibling !== null) {
+    events.push({ type: "test:pass", data: { file, name: "sibling proof", nesting: 0,
+      [sibling]: "sibling control", details: { type: "test" } } });
+  }
+  events.push({ type: "test:summary", data: { counts: { passed: 0, failed: 0,
+    skipped: events.filter(({ data }) => data.skip !== undefined).length, cancelled: 0,
+    todo: events.filter(({ data }) => data.todo !== undefined).length, tests: events.length } } });
+  const observation = observeLauncherNodeTestRun({ stdout: await reporterStdout(events), exitCode: 0,
+    expectation: { capability, target: relativeFile, target_test_id: selectedId } });
+  return { observation, selectedId, relativeFile };
+}
+
+test("an authenticated skip of the exact selected candidate test is its own observation", async () => {
+  const { observation, selectedId, relativeFile } = await skipObservation();
+  assert.equal(observation.valid, false, "a skipped test is not an executed observation");
+  assert.equal(observation.code, "test_proof_selected_test_skipped");
+  assert.deepEqual(observation.detail.selected_event, { test_id: selectedId, file: relativeFile,
+    name: "selected proof", nesting: 0, status: "skipped", error_codes: [] });
+
+  assert.equal(observation.detail.expected_test_id, selectedId);
+  assert.deepEqual(observation.detail.observed_identity_candidates.map(({ test_id: id, status }) =>
+    [id, status]), [[selectedId, "skipped"]]);
+  assert.equal(observation.detail.observed_failure_count, 0);
+});
+
+test("a sibling skip, a selected todo and a later-stage skip keep the not-observed diagnosis", async () => {
+  const sibling = await skipObservation({ selectedStatus: null, sibling: "skip" });
+  assert.equal(sibling.observation.code, "test_proof_selected_identity_not_observed");
+  assert.equal(Object.hasOwn(sibling.observation.detail, "selected_event"), false);
+  const todo = await skipObservation({ selectedStatus: "todo" });
+  assert.equal(todo.observation.code, "test_proof_selected_identity_not_observed");
+  const traversal = await skipObservation({ capability: "boundary_traversal" });
+  assert.equal(traversal.observation.code, "test_proof_selected_identity_not_observed",
+    "only candidate execution classifies a selected skip");
+
+  const both = await skipObservation({ sibling: "skip" });
+  assert.equal(both.observation.code, "test_proof_selected_test_skipped");
+  assert.equal(both.observation.detail.selected_event.test_id, both.selectedId);
+});
 
 test("failure diagnostics are covered by reporter authentication", async () => {
   const stdout = await reporterStdout([{
@@ -911,6 +1079,32 @@ test("runtime evidence refuses malformed and dangling failure diagnostic graphs"
   const malformedBytesValidation = controlledContractCurrent
     .validateTestProofRuntimeEvidenceV2(malformedBytes);
   assert.equal(malformedBytesValidation.schema_valid, false);
+
+  const nativeFacts = structuredResult("failed");
+  nativeFacts.fail_events[0].failure_diagnostic = captureTestFailureDiagnostic(
+    Object.assign(new Error("native failure"), { expected: "x".repeat(300 * 1024) }), {
+      location: { file: "provider-target.test.mjs", line: 3, column: 5 },
+      details: [{ label: "diff", text: "- a\n+ b" }], origin: { kind: "subtest", name: "child" } });
+  const nativeArtifact = structuredArtifact("failed", nativeFacts);
+  const nativeEvidence = buildTestProofRuntimeEvidence({
+    evidenceIdentity: identity(), contractBinding: contractBinding(),
+    executionResult: { status: "failed", exit_code: 1, attempt_id: attemptId("a"),
+      structured_result: nativeFacts, evidence_artifact_ids: [nativeArtifact.artifact_id],
+      provider: provider("launcher.node-test", "candidate_execution",
+        "node_test_structured_events", ["structured_test_result"]) },
+    testInventory: inventory(), boundaryTraversals: [traversal()],
+    falsifierExecutions: [falsifier({ candidateStatus: "failed" })],
+    artifacts: [...artifacts.filter(({ kind }) => kind !== "structured_test_result"), nativeArtifact]
+  }).evidence;
+  assert.equal(controlledContractCurrent.validateTestProofRuntimeEvidenceV2(nativeEvidence).valid, true);
+  for (const edit of [(graph) => { graph.origin.kind = "sibling"; },
+    (graph) => { graph.errors[0].location.line = 0; },
+    (graph) => { graph.errors[0].native_details = []; },
+    (graph) => { graph.issues[0].reason = "guessed"; }]) {
+    const refused = structuredClone(nativeEvidence);
+    edit(refused.execution_result.structured_result.fail_events[0].failure_diagnostic);
+    assert.equal(controlledContractCurrent.validateTestProofRuntimeEvidenceV2(refused).schema_valid, false);
+  }
 
   const tamperedArtifact = structuredClone(evidence);
   const artifact = tamperedArtifact.artifacts.find(({ kind }) => kind === "structured_test_result");

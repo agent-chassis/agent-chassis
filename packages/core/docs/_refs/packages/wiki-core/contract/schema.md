@@ -122,6 +122,8 @@ Current and migrated work records are canonical JSON records under `wiki/work-re
 
 Shared tooling should validate `WK-*` records against the canonical JSON schema and use `wiki/issues/` only for legacy Markdown, generated projections, migration compatibility, or historical fixtures.
 
+A work record may carry the optional root-only `sections.user_requirements` string: organized current user requirements, maintained as ordinary trusted prose. It confers no contract, review or dispatch authority, and slices do not carry it.
+
 ### Initiative
 
 Required:

@@ -26,6 +26,7 @@ import {
   consumeAdvisoryReviewInput,
   renderFamilyNeutralAdvisoryReviewInput
 } from "./workspace-agent-advisory-review-contract.mjs";
+import { resolveManagedAssignmentDelivery } from "./managed-assignment-read-artifact.mjs";
 import {
   LAUNCHER_WRITE_POSTURES
 } from "./workspace-agent-family-policy.mjs";
@@ -207,13 +208,15 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       }
     }
 
-    const prompt = advisoryReviewInput !== null
-      ? renderFamilyNeutralAdvisoryReviewInput(advisoryReviewInput)
-      : managedAssignment !== null
-        ? managedAssignment.prompt
-        : (typeof promptForSubject === "function"
-            ? promptForSubject({ role, subject, workspaceDir })
-            : null);
+    const assignmentDelivery = resolveManagedAssignmentDelivery({
+      advisoryReviewInput,
+      workerAssignment: managedAssignment,
+      renderAdvisoryReviewStartup: renderFamilyNeutralAdvisoryReviewInput,
+      unmanagedPrompt: () => (typeof promptForSubject === "function"
+        ? promptForSubject({ role, subject, workspaceDir })
+        : null)
+    });
+    const prompt = assignmentDelivery.prompt;
 
     const requestedModel = typeof input?.model === "string" && input.model.length > 0
       ? input.model
@@ -317,7 +320,10 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
           completionCredential: input?.completion_credential ?? null,
           completionTransport: input?.completion_transport ?? null,
-          canonicalRepo: advisoryExecution ? canonicalRepo : null
+          canonicalRepo: advisoryExecution ? canonicalRepo : null,
+          workerAssignment: assignmentDelivery.conduitWorkerAssignment,
+
+          advisoryReviewInput
         });
       } catch (err) {
 
@@ -483,6 +489,8 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
         workerScopeAuthority,
         workerTestRuntime,
+
+        launchRole: role,
         nativeRepoWriteMechanism: effectiveNativeRepoWriteMechanism,
 
         runtimeRoots,

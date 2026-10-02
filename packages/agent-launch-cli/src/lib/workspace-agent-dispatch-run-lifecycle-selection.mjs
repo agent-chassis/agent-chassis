@@ -13,8 +13,10 @@ import { DISPATCH_FORBIDDEN_ENVELOPE_TOKENS } from "./dispatch-envelope-policy.m
 import {
   resolveDispatchedRoleModel,
   resolveExplicitOverrideSelection,
-  resolveModelOverrideBindingPermission
+  resolveModelOverrideBindingPermission,
+  resolveRoleModelSelection
 } from "./agent-launch-profiles.mjs";
+import { readAgentLaunchConfigSnapshot } from "./agent-launch-role-config.mjs";
 import { resolveModelRuntime } from "./agent-launch-model-registry.mjs";
 import { dispatchRefusal } from "./workspace-agent-dispatch-refusal.mjs";
 
@@ -48,7 +50,8 @@ export function resolveDispatchSelection({
   target_role = null,
   subject = null,
   workspaceDir,
-  configRootDir = null
+  configRootDir = null,
+  modelRegistry = undefined
 }) {
   const appToken = typeof app === "string" && app.trim().length > 0 ? app.trim() : null;
   const modelToken = typeof model === "string" && model.trim().length > 0 ? model.trim() : null;
@@ -72,11 +75,14 @@ export function resolveDispatchSelection({
     ? configRootDir
     : workspaceDir;
   let roleSelection;
+
+  let snapshot;
   try {
+    snapshot = readAgentLaunchConfigSnapshot({ dir: modelConfigDir });
 
     roleSelection = modelToken !== null
       ? resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken })
-      : resolveDispatchedRoleModel({ role, dir: modelConfigDir });
+      : resolveDispatchedRoleModel({ role, dir: modelConfigDir, snapshot });
   } catch (error) {
       const refusalRole = role;
       return {
@@ -131,6 +137,16 @@ export function resolveDispatchSelection({
       };
     }
   }
+  const launchSelection = resolveRoleModelSelection({
+    role,
+    model: runtime.model,
+    modelSource: roleValue?.model_source ?? null,
+    snapshot,
+    registry: modelRegistry
+  });
+  if (!launchSelection.ok) {
+    return { ...launchSelection, detail: refusalDetail(launchSelection.detail) };
+  }
   return {
     ok: true,
     ...targetProjection,
@@ -139,7 +155,8 @@ export function resolveDispatchSelection({
     backend: runtime.backend,
     backend_profile: runtime.backend_profile,
     default_effort: runtime.default_effort,
-    model_spec: runtime.model_spec
+    model_spec: runtime.model_spec,
+    model_selection: launchSelection.value
   };
 }
 
@@ -241,7 +258,8 @@ export function resolveLaunchSelection({
     };
   }
   const { app, model: resolvedModel, backend: resolvedBackend,
-    backend_profile: resolvedBackendProfile, default_effort: resolvedDefaultEffort } = selection;
+    backend_profile: resolvedBackendProfile, default_effort: resolvedDefaultEffort,
+    model_selection: resolvedModelSelection } = selection;
 
   const familyExecutor = executors[app] ?? null;
   if (typeof familyExecutor !== "function") {
@@ -305,6 +323,7 @@ export function resolveLaunchSelection({
     resolvedBackend,
     resolvedBackendProfile,
     resolvedDefaultEffort,
+    resolvedModelSelection,
     familyExecutor,
     familyExecutorRegistryEntry
   };

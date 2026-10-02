@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { mintManagedWorkerTestRunAuthority } from
@@ -22,6 +22,8 @@ const DETECTED_FALSIFIER_FACTS = normalizeFalsifierFacts({ declaredFalsifierIds:
     failure_reason_code: "assertion_failed", mutation: { observed: true } }],
   declaredUnsupported: false });
 const digest = value => `sha256:${sha256(value)}`;
+const SOURCE_LAUNCHER = Object.freeze({ mintManagedWorkerTestRunAuthority,
+  mintManagedWorkerTestProofRuntimeAuthority, mintLauncherTestProofAttemptContext });
 
 export function currentProviderBinding(providerId, capability) {
   const descriptor = TEST_PROOF_PROVIDER_CATALOG.providers.find(
@@ -34,7 +36,8 @@ export function currentProviderBinding(providerId, capability) {
 
 export function runtimeFixture(t, source, { selector = { name: "selected", nesting: 1 },
   dependencySource = "export function value() { return 42; }\n",
-  dependencyPath = "dependency.mjs", falsificationSupport = "provider" } = {}) {
+  dependencyPath = "dependency.mjs", falsificationSupport = "provider",
+  consumerFiles = {}, launcher = SOURCE_LAUNCHER } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "wk2516-attempt-"));
   const mainRepo = path.join(root, "main");
   const worktree = path.join(root, "worktree");
@@ -46,12 +49,9 @@ export function runtimeFixture(t, source, { selector = { name: "selected", nesti
   writeFileSync(path.join(worktree, target), source);
   mkdirSync(path.dirname(path.join(worktree, dependencyPath)), { recursive: true });
   writeFileSync(path.join(worktree, dependencyPath), dependencySource);
-  const launcherLib = "packages/agent-launch-cli/src/lib";
-  mkdirSync(path.join(worktree, launcherLib), { recursive: true });
-  for (const name of ["workspace-agent-test-proof-error-diagnostic.mjs",
-    "workspace-agent-test-proof-node-reporter.mjs",
-    "workspace-agent-test-proof-module-fault-loader.mjs", "workspace-agent-test-proof-module-fault-contract.mjs"]) {
-    writeFileSync(path.join(worktree, launcherLib, name), readFileSync(path.join(process.cwd(), launcherLib, name)));
+  for (const [relative, content] of Object.entries(consumerFiles)) {
+    mkdirSync(path.dirname(path.join(worktree, relative)), { recursive: true });
+    writeFileSync(path.join(worktree, relative), content);
   }
   const filename = "WK-2516.controlled-acceptance.json";
   const content = "{}\n";
@@ -103,11 +103,12 @@ export function runtimeFixture(t, source, { selector = { name: "selected", nesti
     controlled_contract_generation_schema_version: generation.schema_version,
     controlled_contract_generation_carrier_count: 1, controlled_contract_generation_carriers: [carrier],
     contract_schema_version: "controlled-acceptance-contract.v1", bindings: [binding] };
-  const authority = mintManagedWorkerTestProofRuntimeAuthority({ authority: mintManagedWorkerTestRunAuthority({
-    mainRepo, commitBinding: { subject: "WK-2516#SLICE-003", write_scope_source: "wiki/work-records/WK-2516.json#SLICE-003",
-      worktree_path: worktree, source_digest: digest("commit"), launch_ref: "refs/heads/slice/IN-0038/WK-2516/SLICE-003", run_id: "run-wk2516-fixture" }
-  }) });
-  const context = mintLauncherTestProofAttemptContext({ authority, target, authorizedTargets: [target],
+  const authority = launcher.mintManagedWorkerTestProofRuntimeAuthority({
+    authority: launcher.mintManagedWorkerTestRunAuthority({
+      mainRepo, commitBinding: { subject: "WK-2516#SLICE-003", write_scope_source: "wiki/work-records/WK-2516.json#SLICE-003",
+        worktree_path: worktree, source_digest: digest("commit"), launch_ref: "refs/heads/slice/IN-0038/WK-2516/SLICE-003", run_id: "run-wk2516-fixture" }
+    }) });
+  const context = launcher.mintLauncherTestProofAttemptContext({ authority, target, authorizedTargets: [target],
     controlledContractSelection: selection, verificationId: "claim-verification-fixture" });
   return { context, target, selectedId, worktree, binding, selection, authority,
     definition_digest: digest(JSON.stringify(binding)) };

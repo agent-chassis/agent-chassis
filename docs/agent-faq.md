@@ -67,9 +67,10 @@ expected/actual/operator values, and nested cause or aggregate-error links. The
 same complete result associates each event stream with its candidate,
 falsifier, or traversal artifact. The compact summary continues to name only
 the evidence reference; callers retrieve its ranges without rerunning
-verification. Exact producer-declared protected strings use the existing closed
-redaction reasons and field signals. Undeclared diagnostic values are not
-suppressed by guessed sensitive-key, stack, path, or message rules.
+verification. A `structured-diagnostic.v1` carrier crosses as its original
+value; its producer-declared sensitive values are validated but never replace
+data. No diagnostic value is suppressed by sensitive-key, stack, path, or
+message rules.
 The same entry covers `test_proof_selected_identity_not_observed`: compare its
 expected ID with the bounded target, file-wrapper status/error codes,
 observed/returned/omitted counts, and at most eight safe

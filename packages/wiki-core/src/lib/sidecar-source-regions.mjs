@@ -16,6 +16,23 @@ function decodedLineStarts(sourceText) {
   return starts;
 }
 
+export function selectRetainedSourceLines({ source_text: sourceText, start_line: startLine,
+  end_line: endLine }, lines) {
+  if (typeof sourceText !== "string" || !Number.isSafeInteger(startLine) ||
+      !Number.isSafeInteger(endLine) || !Number.isSafeInteger(lines?.start_line) ||
+      !Number.isSafeInteger(lines?.end_line) || lines.start_line < startLine ||
+      lines.end_line > endLine || lines.start_line > lines.end_line) {
+    throw new RangeError("source line selection must be inside one retained region or file");
+  }
+  const starts = decodedLineStarts(sourceText);
+  if (endLine - startLine + 1 > starts.length) {
+    throw new RangeError("retained source has fewer lines than its declared bounds");
+  }
+  const first = lines.start_line - startLine;
+  const after = lines.end_line - startLine + 1;
+  return sourceText.slice(starts[first], starts[after] ?? sourceText.length);
+}
+
 export function decodeCommittedSource(bytes) {
   if (!Buffer.isBuffer(bytes)) {
     throw new TypeError("decodeCommittedSource requires a Buffer");

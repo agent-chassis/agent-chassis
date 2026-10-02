@@ -1,6 +1,6 @@
 import { types as utilTypes } from "node:util";
 import {
-  SHA256_PATTERN,
+  isWorkRecordFreshness,
   SLICE_ID_PATTERN,
   WORK_RECORD_STATUS_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
@@ -306,6 +306,9 @@ export const SELECTED_RECORD_MEMBER_FIELDS = Object.freeze([
   "path", "offset", "limit", "length", "expected_source_digest"
 ]);
 
+export const SELECTED_RECORD_MEMBERS_MAX = 16;
+export const SELECTED_RECORD_MEMBERS_ENTRY_FIELDS = Object.freeze(["path", "offset", "limit", "length"]);
+
 function isMemberIndex(value) {
   return Number.isSafeInteger(value) && value >= 0;
 }
@@ -315,28 +318,29 @@ function memberDiagnostic(code, message, path, recoveryPath = null) {
     ...(recoveryPath === null ? {} : { recovery_member_path: recoveryPath }) };
 }
 
-export function selectedRecordMemberSelectorIssues(member) {
+function memberSelectionIssues(member, fields, label) {
   if (!isObject(member) || Array.isArray(member)) {
-    return [{ path: [], message: "member must be an object with path and optional offset, limit, length and expected_source_digest" }];
+    return [{ path: [], message: `${label} must be an object with path and optional ${
+      fields.filter((field) => field !== "path").join(", ")}` }];
   }
   const issues = [];
   for (const key of Object.keys(member)) {
-    if (!SELECTED_RECORD_MEMBER_FIELDS.includes(key)) {
-      issues.push({ path: [key], message: `member does not support ${key}` });
+    if (!fields.includes(key)) {
+      issues.push({ path: [key], message: `${label} does not support ${key}` });
     }
   }
   const path = ownDataValue(member, "path");
   if (!path.present || path.value === INVALID || !Array.isArray(path.value) || utilTypes.isProxy(path.value)) {
-    issues.push({ path: ["path"], message: "member.path must be an array of own-key strings and array indexes" });
+    issues.push({ path: ["path"], message: `${label}.path must be an array of own-key strings and array indexes` });
   } else {
     if (path.value.length > SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS) {
       issues.push({ path: ["path"],
-        message: `member.path accepts at most ${SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS} segments` });
+        message: `${label}.path accepts at most ${SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS} segments` });
     }
     for (let index = 0; index < path.value.length; index += 1) {
       const segment = ownDataValue(path.value, String(index));
       if (!segment.present || (typeof segment.value !== "string" && !isMemberIndex(segment.value))) {
-        issues.push({ path: ["path", index], message: "member.path segments are strings or nonnegative safe integers" });
+        issues.push({ path: ["path", index], message: `${label}.path segments are strings or nonnegative safe integers` });
       }
     }
   }
@@ -344,16 +348,38 @@ export function selectedRecordMemberSelectorIssues(member) {
     const supplied = ownDataValue(member, field);
     if (!supplied.present) return;
     if (!Number.isSafeInteger(supplied.value) || supplied.value < minimum || supplied.value > maximum) {
-      issues.push({ path: [field], message: `member.${field} must be an integer from ${minimum} to ${maximum}` });
+      issues.push({ path: [field], message: `${label}.${field} must be an integer from ${minimum} to ${maximum}` });
     }
   };
   bounded("offset", 0, Number.MAX_SAFE_INTEGER);
   bounded("limit", 1, WORK_RECORD_ENTRY_METADATA_PAGE_MAX);
   bounded("length", 1, WORK_RECORD_ENTRY_BODY_PAGE_MAX_SCALARS);
   const digest = ownDataValue(member, "expected_source_digest");
-  if (digest.present && (typeof digest.value !== "string" || !SHA256_PATTERN.test(digest.value))) {
+  if (digest.present && !isWorkRecordFreshness(digest.value)) {
     issues.push({ path: ["expected_source_digest"],
-      message: "member.expected_source_digest must be the source_digest a member read returned" });
+      message: `${label}.expected_source_digest must be the 16-hex source_digest a member read returned` });
+  }
+  return issues;
+}
+
+export function selectedRecordMemberSelectorIssues(member) {
+  return memberSelectionIssues(member, SELECTED_RECORD_MEMBER_FIELDS, "member");
+}
+
+export function selectedRecordMembersSelectorIssues(members) {
+  if (!Array.isArray(members) || utilTypes.isProxy(members)) {
+    return [{ path: [], message: "members must be an array of {path, offset?, limit?, length?} selections" }];
+  }
+  const issues = [];
+  if (members.length < 1 || members.length > SELECTED_RECORD_MEMBERS_MAX) {
+    issues.push({ path: [], message: `members selects 1 to ${SELECTED_RECORD_MEMBERS_MAX} paths; received ${members.length}` });
+  }
+  for (let index = 0; index < members.length; index += 1) {
+    const entry = ownDataValue(members, String(index));
+    for (const issue of memberSelectionIssues(entry.present ? entry.value : undefined,
+      SELECTED_RECORD_MEMBERS_ENTRY_FIELDS, `members[${index}]`)) {
+      issues.push({ path: [index, ...issue.path], message: issue.message });
+    }
   }
   return issues;
 }
@@ -402,11 +428,11 @@ function describeMember(value) {
   return { kind };
 }
 
-function resolveMember(root, path) {
+function resolveMember(root, path, label) {
   let current = root;
   for (let index = 0; index < path.length; index += 1) {
     const segment = path[index];
-    const where = `member.path[${index}]`;
+    const where = `${label}.path[${index}]`;
     const kind = memberKind(current);
     if (typeof segment === "number" ? kind !== "array" : kind !== "object") {
       return { diagnostic: memberDiagnostic("record_member_path_type_mismatch",
@@ -425,21 +451,27 @@ function resolveMember(root, path) {
   return { value: current };
 }
 
-export function projectSelectedRecordMember({ value, member, sourceDigest = null, envelope = {}, buildCall }) {
+function serializedBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value), "utf8");
+}
+
+function chunked(values, size) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) chunks.push(values.slice(index, index + size));
+  return chunks;
+}
+
+function buildSelectedRecordMemberFragment({ value, member, label, childCalls }) {
   const path = member.path;
-  const resolved = resolveMember(value, path);
+  const resolved = resolveMember(value, path, label);
   if (resolved.diagnostic) return { ok: false, diagnostic: resolved.diagnostic };
   const selected = resolved.value;
   const kind = memberKind(selected);
-
-  const pinned = (selector) => buildCall(sourceDigest === null
-    ? selector
-    : { ...selector, expected_source_digest: sourceDigest });
   const refuse = (code, message, field) => ({ ok: false,
-    diagnostic: memberDiagnostic(code, message, `member.${field}`, path) });
+    diagnostic: memberDiagnostic(code, message, `${label}.${field}`, path) });
   if (kind === null) {
     return { ok: false, diagnostic: memberDiagnostic("record_member_value_unsupported",
-      "the selected member is not a JSON value", "member.path") };
+      "the selected member is not a JSON value", `${label}.path`) };
   }
 
   if (kind === "object" || kind === "array") {
@@ -454,24 +486,23 @@ export function projectSelectedRecordMember({ value, member, sourceDigest = null
       return refuse("record_member_range_invalid", `offset ${start} is past the ${total} immediate members`, "offset");
     }
     const limit = member.limit ?? WORK_RECORD_ENTRY_METADATA_PAGE_DEFAULT;
+    const segments = [];
     const rows = [];
     for (let position = start; position < Math.min(total, start + limit); position += 1) {
       const segment = keys === null ? position : keys[position];
-      rows.push({ ...(keys === null ? { index: segment } : { key: segment }),
-        ...describeMember(selected[segment]), next_call: pinned({ path: [...path, segment] }) });
+      segments.push(segment);
+      rows.push({ ...(keys === null ? { index: segment } : { key: segment }), ...describeMember(selected[segment]) });
     }
-    const build = (count) => {
-      const end = start + count;
-      return { ...envelope,
-        member: { path, kind, offset: start, total_count: total, returned_count: count, members: rows.slice(0, count) },
-        next_calls: end < total
-          ? [pinned({ path, offset: end, ...(member.limit === undefined ? {} : { limit: member.limit }) })]
-          : [] };
-    };
-    const budget = member.limit === undefined
-      ? WORK_RECORD_ENTRY_READ_TARGET_UTF8_BYTES
-      : WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES;
-    return { ok: true, result: fitReadPagePopulation(rows.length, build, budget) };
+    return { ok: true, kind, units: rows.length, explicit: member.limit !== undefined,
+      fragment: (count) => {
+        const end = start + count;
+        const fragment = { path, kind, offset: start, total_count: total, returned_count: count,
+          members: rows.slice(0, count) };
+        if (count > 0) fragment.child_calls = childCalls(segments.slice(0, count).map((segment) => [...path, segment]));
+        return { fragment, continuation: end < total
+          ? { path, offset: end, ...(member.limit === undefined ? {} : { limit: member.limit }) }
+          : null };
+      } };
   }
 
   if (kind === "string") {
@@ -486,18 +517,14 @@ export function projectSelectedRecordMember({ value, member, sourceDigest = null
     }
     const maximum = Math.min(member.length ?? WORK_RECORD_TEXT_PAGE_DEFAULT_SCALARS, total - start);
     const scalars = scalarWindow(selected, start, maximum);
-    const build = (count) => {
-      const end = start + count;
-      return { ...envelope,
-        member: { path, kind, offset: start, length: count, total, value: scalars.slice(0, count).join("") },
-        next_calls: end < total
-          ? [pinned({ path, offset: end, ...(member.length === undefined ? {} : { length: member.length }) })]
-          : [] };
-    };
-    const budget = member.length === undefined
-      ? WORK_RECORD_ENTRY_READ_TARGET_UTF8_BYTES
-      : WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES;
-    return { ok: true, result: fitReadPagePopulation(maximum, build, budget) };
+    return { ok: true, kind, units: maximum, explicit: member.length !== undefined,
+      fragment: (count) => {
+        const end = start + count;
+        return { fragment: { path, kind, offset: start, length: count, total, value: scalars.slice(0, count).join("") },
+          continuation: end < total
+            ? { path, offset: end, ...(member.length === undefined ? {} : { length: member.length }) }
+            : null };
+      } };
   }
 
   for (const field of ["offset", "limit", "length"]) {
@@ -506,14 +533,128 @@ export function projectSelectedRecordMember({ value, member, sourceDigest = null
         `${field} applies to container or string members; a ${kind} member is returned whole`, field);
     }
   }
-  return { ok: true, result: { ...envelope, member: { path, kind, value: selected }, next_calls: [] } };
+  return { ok: true, kind, units: 1, explicit: false,
+    fragment: () => ({ fragment: { path, kind, value: selected }, continuation: null }) };
+}
+
+function fragmentBudget(explicit) {
+  return explicit ? WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES : WORK_RECORD_ENTRY_READ_TARGET_UTF8_BYTES;
+}
+
+function memberCallBuilders(sourceDigest, buildCall) {
+  const pin = sourceDigest === null ? {} : { expected_source_digest: sourceDigest };
+  const batchCall = (selections) => buildCall({ members: selections, ...pin });
+  return {
+    singleCall: (selector) => buildCall({ member: { ...selector, ...pin } }),
+    batchCall,
+    childCalls: (paths) => chunked(paths, SELECTED_RECORD_MEMBERS_MAX)
+      .map((chunk) => batchCall(chunk.map((path) => ({ path }))))
+  };
+}
+
+export function projectSelectedRecordMember({ value, member, sourceDigest = null, envelope = {}, buildCall }) {
+  const calls = memberCallBuilders(sourceDigest, buildCall);
+  const built = buildSelectedRecordMemberFragment({ value, member, label: "member", childCalls: calls.childCalls });
+  if (!built.ok) return built;
+  const build = (count) => {
+    const { fragment, continuation } = built.fragment(count);
+    return { ...envelope, member: fragment,
+      next_calls: continuation === null ? [] : [calls.singleCall(continuation)] };
+  };
+  if (built.kind !== "object" && built.kind !== "array" && built.kind !== "string") {
+    return { ok: true, result: build(1) };
+  }
+  return { ok: true, result: fitReadPagePopulation(built.units, build, fragmentBudget(built.explicit)) };
+}
+
+export function projectSelectedRecordMembers({ value, members, sourceDigest = null, envelope = {}, buildCall }) {
+  const calls = memberCallBuilders(sourceDigest, buildCall);
+  const valid = [];
+  const diagnostics = [];
+  members.forEach((member, index) => {
+    const built = buildSelectedRecordMemberFragment({ value, member, label: `members[${index}]`,
+      childCalls: calls.childCalls });
+    if (built.ok) valid.push({ index, member, built });
+    else diagnostics.push({ selection: index, ...built.diagnostic });
+  });
+  const recoveryPaths = [];
+  const seenRecovery = new Set();
+  for (const diagnostic of diagnostics) {
+    const recovery = diagnostic.recovery_member_path;
+    if (!Array.isArray(recovery) || seenRecovery.has(JSON.stringify(recovery))) continue;
+    seenRecovery.add(JSON.stringify(recovery));
+    recoveryPaths.push({ path: recovery });
+  }
+  const recoveryCall = recoveryPaths.length > 0 ? calls.batchCall(recoveryPaths) : null;
+  if (valid.length === 0) {
+    return { ok: false, diagnostics,
+      next_calls: [recoveryCall ?? calls.batchCall([{ path: [] }])] };
+  }
+
+  const respond = (whole, partial = null) => {
+    const results = [];
+    const continuation = [];
+    let completed = 0;
+    valid.forEach((entry, position) => {
+      const count = position < whole ? entry.built.units
+        : position === whole && partial !== null ? partial : null;
+      if (count === null) {
+        continuation.push(entry.member);
+        return;
+      }
+      const { fragment, continuation: next } = entry.built.fragment(count);
+      results.push({ selection: entry.index, ...fragment });
+      if (next === null) completed += 1;
+      else continuation.push(next);
+    });
+    const nextCalls = [];
+    if (continuation.length > 0) nextCalls.push(calls.batchCall(continuation));
+    if (recoveryCall !== null) nextCalls.push(recoveryCall);
+    return { ...envelope,
+      selections: { requested: members.length, completed, failed: diagnostics.length,
+        remaining: continuation.length },
+      members: results,
+      ...(diagnostics.length > 0 ? { diagnostics } : {}),
+      next_calls: nextCalls };
+  };
+
+  const budget = fragmentBudget(valid.some((entry) => entry.built.explicit));
+  const fits = (candidate) => serializedBytes(candidate) <= budget;
+  const all = respond(valid.length);
+  let result = fits(all) ? all : null;
+  if (result === null) {
+    let whole = 0;
+    if (valid.length > 1) {
+      const fitted = fitReadPagePopulation(valid.length - 1, (count) => respond(count), budget);
+      if (fits(fitted)) {
+        whole = fitted.members.length;
+        result = fitted;
+      }
+    }
+    const next = valid[whole].built;
+    if (next.units > 1) {
+      const partial = fitReadPagePopulation(next.units - 1, (count) => respond(whole, count), budget);
+      if (result === null || fits(partial)) result = partial;
+    }
+
+    result ??= respond(1);
+  }
+  if (serializedBytes(result) <= WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES) return { ok: true, result };
+  const narrowed = calls.batchCall([valid[0].member]);
+  return { ok: false,
+    diagnostics: [memberDiagnostic("record_member_batch_too_large",
+      `the smallest progress for this batch exceeds ${WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES} UTF-8 bytes; ` +
+        "request fewer or shorter selections", "members")],
+    next_calls: serializedBytes(narrowed) <= WORK_RECORD_ENTRY_READ_TARGET_UTF8_BYTES && members.length > 1
+      ? [narrowed] : [] };
 }
 
 export function buildSelectedRecordMemberCall({
-  tool, repository = null, identity, selectedSlice = null, member, recommended = false
+  tool, repository = null, identity, selectedSlice = null, member = undefined, selection = null,
+  recommended = false
 }) {
   return buildNextCall({ tool,
     arguments: { ...(repository === null ? {} : { repo: repository }), ...identity,
-      ...(selectedSlice === null ? {} : { selected_slice: selectedSlice }), member },
+      ...(selectedSlice === null ? {} : { selected_slice: selectedSlice }), ...(selection ?? { member }) },
     ...(recommended ? { recommended: true } : {}) });
 }

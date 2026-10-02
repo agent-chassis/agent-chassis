@@ -113,13 +113,13 @@ function indexedProjectionPopulation(contract, population, identityField) {
   return new Map([...index].map(([identity, value]) => [identity, value.entry]));
 }
 
-function requiredProjectionNode(index, identity, { population, field, claimId }) {
+function requiredProjectionNode(index, identity, { population, field, claimId, subject = "requirement" }) {
   const entry = typeof identity === "string" ? index.get(identity) : undefined;
   if (entry === undefined) projectionFailure(
     population === "references"
       ? "controlled_contract_requirement_projection_reference_missing"
       : "controlled_contract_requirement_projection_node_missing",
-    `The canonical requirement ${field} does not resolve to one ${population} definition`,
+    `The canonical ${subject} ${field} does not resolve to one ${population} definition`,
     { population, field, claim_id: claimId, identity: identity ?? null });
   return entry;
 }
@@ -181,7 +181,7 @@ export function projectControlledContractRequirements(contract, {
   for (const relation of contract.relations ?? []) {
     if (relation.role !== "verifies") continue;
     const rows = verifications.get(relation.target_claim_id) ?? [];
-    rows.push({ relation, claim: claims.get(relation.source_claim_id) });
+    rows.push({ relation });
     verifications.set(relation.target_claim_id, rows);
   }
   const selectedNodes = controlledContractNodeIds === null
@@ -190,8 +190,11 @@ export function projectControlledContractRequirements(contract, {
     claim.kind !== "verification");
   const usedReferences = new Set();
   const requirements = requirementClaims.flatMap((claim) => {
+
     const linked = (verifications.get(claim.claim_id) ?? [])
-      .filter(({ claim: verification }) => verification !== undefined)
+      .map((row) => ({ ...row, claim: requiredProjectionNode(claims,
+        row.relation.source_claim_id, { population: "claims",
+          field: "verification_claim_ids", claimId: claim.claim_id }) }))
       .sort((left, right) => left.claim.claim_id.localeCompare(right.claim.claim_id));
     const closureIds = new Set([claim.claim_id, claim.proposition_id]);
     const addPropositionClosure = (propositionId) => {
@@ -221,47 +224,54 @@ export function projectControlledContractRequirements(contract, {
     }
     if (selectedNodes !== null && ![...closureIds].some(identity =>
       selectedNodes.has(identity))) return [];
-    const verification = linked[0]?.claim ?? null;
-    const proof = verification === null ? null : proofs.get(verification.claim_id) ?? null;
-    for (const [index, referenceId] of
-      (proof?.system_under_test_boundary?.subject_reference_ids ?? []).entries()) {
-      referentInput(referenceId, { references, usedReferences,
-        field: `meaning.verification.runtime_test.boundary.subjects[${index}]`,
-        claimId: claim.claim_id });
-    }
     const behaviorProposition = requiredProjectionNode(propositions, claim.proposition_id, {
       population: "propositions", field: "meaning.behavior", claimId: claim.claim_id
     });
-    const meaning = Object.freeze({
-      nature: claim.kind,
-      modality: claim.modality,
-      subject: referentInput(behaviorProposition.subject_reference_id, {
-        references, usedReferences, field: "meaning.subject", claimId: claim.claim_id
-      }),
-      behavior: statementInput(behaviorProposition, {
-        references, usedReferences, field: "meaning.behavior", claimId: claim.claim_id,
-        propositionId: claim.proposition_id
-      }),
-      ...(verification === null ? {} : { verification: Object.freeze({
+    const subject = referentInput(behaviorProposition.subject_reference_id, {
+      references, usedReferences, field: "meaning.subject", claimId: claim.claim_id
+    });
+    const behavior = statementInput(behaviorProposition, {
+      references, usedReferences, field: "meaning.behavior", claimId: claim.claim_id,
+      propositionId: claim.proposition_id
+    });
+
+    const verificationMeanings = linked.map(({ claim: verification }, position) => {
+      const field = `meaning.verifications[${position}]`;
+      const proof = proofs.get(verification.claim_id) ?? null;
+      for (const [index, referenceId] of
+        (proof?.system_under_test_boundary?.subject_reference_ids ?? []).entries()) {
+        referentInput(referenceId, { references, usedReferences,
+          field: `${field}.runtime_test.boundary.subjects[${index}]`,
+          claimId: claim.claim_id });
+      }
+      return Object.freeze({
+        claim_id: verification.claim_id,
         method: verification.verification_method,
         verifier: referentInput(requiredProjectionNode(propositions,
           verification.proposition_id, { population: "propositions",
-            field: "meaning.verification.observes",
+            field: `${field}.observes`,
             claimId: claim.claim_id }).subject_reference_id, {
-          references, usedReferences, field: "meaning.verification.verifier",
+          references, usedReferences, field: `${field}.verifier`,
           claimId: claim.claim_id
         }),
         observes: statementInput(propositions.get(verification.proposition_id), {
-          references, usedReferences, field: "meaning.verification.observes",
+          references, usedReferences, field: `${field}.observes`,
           claimId: claim.claim_id, propositionId: verification.proposition_id
         }),
         fails_when: statementInput(propositions.get(verification.falsifying_proposition_id), {
-          references, usedReferences, field: "meaning.verification.fails_when",
+          references, usedReferences, field: `${field}.fails_when`,
           claimId: claim.claim_id, propositionId: verification.falsifying_proposition_id
         }),
         ...(proof === null ? {} : {
           runtime_test: projectControlledContractDeclaredRuntimeTest(proof) })
-      }) })
+      });
+    });
+    const meaning = Object.freeze({
+      nature: claim.kind,
+      modality: claim.modality,
+      subject,
+      behavior,
+      verifications: Object.freeze(verificationMeanings)
     });
     return [Object.freeze({ claim_id: claim.claim_id,
       verification_claim_ids: Object.freeze(linked.map(({ claim: row }) => row.claim_id)),
@@ -284,6 +294,19 @@ export function projectControlledContractRequirements(contract, {
   return Object.freeze({ ...projection,
     meaning_identity: `sha256:${createHash("sha256")
       .update(canonicalMaterial(projection)).digest("hex")}` });
+}
+
+export function projectControlledContractReferenceClosure(contract, uses) {
+  if (uses.length === 0) return Object.freeze([]);
+  const references = indexedProjectionPopulation(contract ?? {}, "references", "reference_id");
+  const ids = new Set();
+  for (const { reference_id: referenceId, field } of uses) {
+    requiredProjectionNode(references, referenceId, { population: "references", field, claimId: null,
+      subject: "case" });
+    ids.add(referenceId);
+  }
+  return Object.freeze([...ids].sort().map(referenceId =>
+    Object.freeze(structuredClone(references.get(referenceId)))));
 }
 
 function text(value, field) {

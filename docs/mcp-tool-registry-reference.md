@@ -2,7 +2,7 @@
 
 Navigation reference for the live MCP tool and resource registry used by
 [MCP integration](mcp-integration.md). This page deliberately contains no
-hand-maintained `full`, `agent-safe`, or equivalent exhaustive operation list.
+hand-maintained per-role or equivalent exhaustive operation list.
 
 ## Available MCP Tools
 

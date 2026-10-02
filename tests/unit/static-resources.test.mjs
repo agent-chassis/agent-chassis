@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { registerStaticResources } from "../../packages/wiki-mcp/src/lib/static-resources.mjs";
 import { errorContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import { assertStructuredCarrier } from "../helpers/mcp-journey-accounting.mjs";
 
 test("static resources convert loader failures into MCP error payloads", async () => {
   const resources = [];
@@ -31,7 +32,7 @@ test("static resources convert loader failures into MCP error payloads", async (
   assert.notEqual(envelope.code, "operator_recovery_needed");
   assert.equal(envelope.diagnostic, "contract read failed");
   assert.equal(envelope.refusal.no_supported_route, true);
-  assert.deepEqual(result.content, []);
+  assertStructuredCarrier(result);
   assert.equal(result.contents[0].uri, "contract://schema");
   assert.equal(result.contents[0].mimeType, "application/json");
   assert.deepEqual(JSON.parse(result.contents[0].text), envelope);

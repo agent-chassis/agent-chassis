@@ -22,6 +22,11 @@ Two optional installed mechanisms are available:
   module and class bodies (a lazy import), collection, setup and teardown never
   count as traversal.
 
+A failure's diagnosis is the launcher diagnostic graph of the phase's original
+exception (and of a collector's original exception), encoded by the shared
+``workspace_agent_test_proof_diagnostic_graph.py`` owner installed beside this
+file and loaded from that exact path without changing ``sys.path``.
+
 Every mode ignores cached bytecode through a private empty ``pycache_prefix``,
 loads no sourceless bytecode, and reports the top-level modules it imported
 after startup from outside the consumer root, the installed runtime packages
@@ -39,24 +44,30 @@ import importlib.machinery
 import importlib.util
 import inspect
 import json
-import math
 import os
 import platform
 import shutil
 import sys
 import sysconfig
 import tempfile
-import traceback
+
+
+def _load_diagnostic_graph():
+    """The shared diagnostic graph owner, loaded from its installed sibling path."""
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                        "workspace_agent_test_proof_diagnostic_graph.py")
+    spec = importlib.util.spec_from_file_location("launcher_test_proof_diagnostic_graph", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+diagnostic_graph = _load_diagnostic_graph()
 
 PROTOCOL_SCHEMA = "workspace-agent-test-proof-pytest-events.v1"
 CONFIG_SCHEMA = "workspace-agent-test-proof-pytest-configuration.v1"
-DIAGNOSTIC_SCHEMA = "launcher-test-failure-diagnostic.v1"
 PROTOCOL_FD = 3
 MODES = ("probe", "candidate", "falsifier", "traversal")
-MAX_DIAGNOSTIC_VALUES = 4096
-MAX_DIAGNOSTIC_DEPTH = 32
-MAX_TEXT = 1024 * 1024
-SAFE_INTEGER = 2 ** 53 - 1
 FUNCTION_CODE_FLAGS = inspect.CO_OPTIMIZED | inspect.CO_NEWLOCALS
 SOURCE_ONLY_LOADERS = (
     (importlib.machinery.ExtensionFileLoader, importlib.machinery.EXTENSION_SUFFIXES),
@@ -64,22 +75,8 @@ SOURCE_ONLY_LOADERS = (
 )
 
 
-def _type_name(value):
-    if value is None:
-        return "NoneType"
-    return type(value).__name__
-
-
 def _sha256_bytes(data):
     return "sha256:" + hashlib.sha256(data).hexdigest()
-
-
-def _safe_text(value):
-    try:
-        text = str(value)
-    except Exception:  # noqa: BLE001 - diagnostics must not raise
-        return None
-    return text[:MAX_TEXT]
 
 
 def _decode_configuration(encoded):
@@ -90,111 +87,6 @@ def _decode_configuration(encoded):
     if configuration.get("mode") not in MODES:
         raise ValueError("unsupported launcher pytest mode")
     return configuration
-
-
-class DiagnosticGraph:
-    """Encode one exception chain as a launcher-test-failure-diagnostic.v1 graph."""
-
-    def __init__(self):
-        self.errors = []
-        self.values = []
-        self.issues = []
-        self._error_ids = {}
-
-    def value(self, item, path, depth=0):
-        value_id = "value-%d" % len(self.values)
-        if len(self.values) >= MAX_DIAGNOSTIC_VALUES or depth > MAX_DIAGNOSTIC_DEPTH:
-            self.issues.append({"path": path, "reason": "unsupported_value_type"})
-            self.values.append({"id": value_id, "type": "unavailable", "reason": "unsupported_value_type",
-                                "source_type": _type_name(item)})
-            return value_id
-        entry = {"id": value_id}
-        self.values.append(entry)
-        if item is None:
-            entry["type"] = "null"
-        elif isinstance(item, bool):
-            entry.update(type="boolean", value=item)
-        elif isinstance(item, int):
-            if abs(item) <= SAFE_INTEGER:
-                entry.update(type="number", value=item)
-            else:
-                entry.update(type="bigint", value=str(item))
-        elif isinstance(item, float):
-            if math.isfinite(item):
-                entry.update(type="number", value=item)
-            else:
-                entry.update(type="nonfinite_number",
-                             value="NaN" if math.isnan(item) else ("Infinity" if item > 0 else "-Infinity"))
-        elif isinstance(item, str):
-            entry.update(type="string", value=item)
-        elif isinstance(item, (list, tuple)):
-            entry.update(type="array", length=len(item), elements=[], properties=[])
-            for index, element in enumerate(item):
-                entry["elements"].append({"index": index,
-                                          "value": self.value(element, "%s[%d]" % (path, index), depth + 1)})
-        elif isinstance(item, dict):
-            entry.update(type="object", properties=[])
-            for key, element in item.items():
-                if not isinstance(key, str):
-                    self.issues.append({"path": path, "reason": "unsupported_symbol_key"})
-                    continue
-                entry["properties"].append({"key": key,
-                                            "value": self.value(element, "%s.%s" % (path, key), depth + 1)})
-        else:
-            text = _safe_text(item)
-            if text is None:
-                self.issues.append({"path": path, "reason": "source_value_unreadable"})
-                entry.update(type="unavailable", reason="source_value_unreadable", source_type=_type_name(item))
-            else:
-                entry.update(type="unavailable", reason="unsupported_value_type", source_type=_type_name(item))
-        return value_id
-
-    def error(self, exc, path="root_error"):
-        key = id(exc)
-        if key in self._error_ids:
-            return self._error_ids[key]
-        error_id = "error-%d" % len(self.errors)
-        self._error_ids[key] = error_id
-        entry = {"id": error_id, "name": type(exc).__qualname__}
-        self.errors.append(entry)
-        message = _safe_text(exc)
-        if message is None:
-            self.issues.append({"path": path + ".message", "reason": "source_value_unreadable"})
-        else:
-            entry["message"] = message
-        try:
-            entry["stack"] = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__,
-                                                                chain=False))[:MAX_TEXT]
-        except Exception:  # noqa: BLE001
-            self.issues.append({"path": path + ".stack", "reason": "source_value_unreadable"})
-        code = getattr(exc, "code", None)
-        if isinstance(code, str):
-            entry["code"] = code
-        if isinstance(exc, AssertionError):
-            entry["operator"] = "assert"
-        if exc.args:
-            entry["value"] = self.value(list(exc.args) if len(exc.args) > 1 else exc.args[0],
-                                        path + ".args")
-        cause = exc.__cause__
-        if cause is None and not exc.__suppress_context__:
-            cause = exc.__context__
-        if isinstance(cause, BaseException):
-            entry["cause"] = self.error(cause, path + ".cause")
-        nested = getattr(exc, "exceptions", None)
-        if isinstance(exc, BaseExceptionGroup) and isinstance(nested, tuple):  # noqa: F821
-            entry["aggregate_errors"] = [self.error(child, "%s.exceptions[%d]" % (path, index))
-                                         for index, child in enumerate(nested)]
-        return error_id
-
-    def project(self, root_error):
-        return {"schema_version": DIAGNOSTIC_SCHEMA, "status": "captured", "root_error": root_error,
-                "errors": self.errors, "values": self.values, "issues": self.issues}
-
-
-def _failure_diagnostic(exc):
-    graph = DiagnosticGraph()
-    root = graph.error(exc)
-    return graph.project(root)
 
 
 def _error_codes(exc, when):
@@ -305,9 +197,9 @@ class ScalarReturnFault:
             "module_path": self.module_path,
             "function_name": self.function_name,
             "replacement": self.replacement,
-            "replacement_type": _type_name(self.replacement),
+            "replacement_type": diagnostic_graph.type_name(self.replacement),
             "original": self.original,
-            "original_type": _type_name(self.original) if self.lineno is not None else None,
+            "original_type": diagnostic_graph.type_name(self.original) if self.lineno is not None else None,
             "source_digest": self.source_digest,
             "compilations": self.compilations,
             "mutated_code": None if self.mutated_code is None else {
@@ -409,12 +301,14 @@ class SelectedCallTracer:
 
 def _plugin(pytest, configuration, fault, tracer):
     node_id = configuration["node_id"]
+    root = configuration["root"]
 
     class LauncherProofPlugin:
         def __init__(self):
             self.collected = []
             self.selected = []
             self.collect_errors = []
+            self.collect_causes = {}
             self.phases = []
             self.pending = {}
 
@@ -428,10 +322,16 @@ def _plugin(pytest, configuration, fault, tracer):
             items[:] = selected
             self.selected = [item.nodeid for item in selected]
 
+        def pytest_exception_interact(self, node, call, report):
+            # A collector that failed: its original exception, before pytest
+            # renders it into report text.
+            if call.when == "collect" and call.excinfo is not None:
+                self.collect_causes[report.nodeid] = diagnostic_graph.failure_diagnostic(
+                    call.excinfo.value, root, "phase", "collect")
+
         def pytest_collectreport(self, report):
             if report.failed:
-                self.collect_errors.append({"nodeid": report.nodeid,
-                                            "message": (_safe_text(report.longreprtext) or "")[:65536]})
+                self.collect_errors.append({"nodeid": report.nodeid, "report": report})
 
         @pytest.hookimpl(wrapper=True)
         def pytest_runtest_call(self, item):
@@ -451,7 +351,7 @@ def _plugin(pytest, configuration, fault, tracer):
                 exc = call.excinfo.value
                 self.pending[(item.nodeid, call.when)] = {
                     "assertion_failure": isinstance(exc, AssertionError),
-                    "failure_diagnostic": _failure_diagnostic(exc),
+                    "failure_diagnostic": diagnostic_graph.failure_diagnostic(exc, root, "phase", call.when),
                     "error_codes": _error_codes(exc, call.when),
                 }
             return report
@@ -462,10 +362,17 @@ def _plugin(pytest, configuration, fault, tracer):
             if report.failed:
                 observation["assertion_failure"] = bool(detail and detail["assertion_failure"])
                 observation["error_codes"] = detail["error_codes"] if detail else ["pytest.phase." + report.when]
-                observation["failure_diagnostic"] = detail["failure_diagnostic"] if detail else {
-                    "schema_version": DIAGNOSTIC_SCHEMA, "status": "unavailable", "root_error": None,
-                    "errors": [], "values": [], "issues": [{"path": "root_error", "reason": "error_not_supplied"}]}
+                observation["failure_diagnostic"] = detail["failure_diagnostic"] if detail else \
+                    diagnostic_graph.unavailable(origin={"kind": "phase", "name": report.when})
             self.phases.append(observation)
+
+        def collection_errors(self):
+            # Every failed collector, with its captured original exception or an
+            # explicit statement that pytest supplied none.
+            return [{"nodeid": entry["nodeid"],
+                     "failure_diagnostic": self.collect_causes.get(entry["nodeid"]) or
+                     diagnostic_graph.unavailable(origin={"kind": "phase", "name": "collect"})}
+                    for entry in self.collect_errors]
 
     return LauncherProofPlugin()
 
@@ -574,7 +481,8 @@ def main(argv):
     try:
         import pytest  # noqa: PLC0415 - installed runtime path is configured above
     except Exception as error:  # noqa: BLE001
-        payload["runtime_error"] = {"code": "pytest_unavailable", "message": _safe_text(error)}
+        payload["runtime_error"] = {"code": "pytest_unavailable", "message": diagnostic_graph.safe_text(error),
+                                    "failure_diagnostic": diagnostic_graph.failure_diagnostic(error, root)}
         settle()
         return 3
     payload["pytest_version"] = pytest.__version__
@@ -599,11 +507,12 @@ def main(argv):
     try:
         status = int(pytest.main(arguments, plugins=[plugin]))
     except BaseException as error:  # noqa: BLE001 - reported, never swallowed silently
-        payload["runtime_error"] = {"code": "pytest_session_crashed", "message": _safe_text(error)}
+        payload["runtime_error"] = {"code": "pytest_session_crashed", "message": diagnostic_graph.safe_text(error),
+                                    "failure_diagnostic": diagnostic_graph.failure_diagnostic(error, root)}
         status = 3
     calls = tracer.calls() if tracer is not None else []
     payload["collection"] = {"collected_node_ids": plugin.collected,
-                             "selected_node_ids": plugin.selected, "errors": plugin.collect_errors}
+                             "selected_node_ids": plugin.selected, "errors": plugin.collection_errors()}
     payload["phases"] = plugin.phases
     payload["fault"] = None if fault is None else fault.projection(calls)
     payload["trace"] = None if tracer is None else {"module_path": tracer.module_path,
