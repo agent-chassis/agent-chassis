@@ -40,6 +40,7 @@ import {
 import { createTrustedFrozenReviewContract } from
   "../../packages/agent-launch-cli/src/lib/backend-review-identity.mjs";
 import {
+  bindAdvisoryReviewInputToRun,
   createAdvisoryReviewDescriptor,
   createAdvisoryReviewInput
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-advisory-review-contract.mjs";
@@ -478,18 +479,35 @@ test("WK-1678: the launcher plan module has no cyclic conduit dependency", async
 
 test("WK-1678: exact role profiles keep worker delivery-only and findings roles read-only", () => {
 
-  assert.deepEqual(resolveLauncherRoleToolNames("worker"),
-    ["commit", "workspace_controlled_contract_obligation_coverage_query",
-      "workspace_read_mcp_content_reference", "workspace_read_page", "workspace_verify_proof"]);
-  for (const role of ["reviewer", "redteam"]) {
+  const worker = ["get_run_result", "verify_proof", "workspace_deliver_work", "workspace_read_wiki",
+    "workspace_run_test"];
+  const reviewer = ["get_run_result", "query_code_index", "verify_proof", "workspace_assess_contract",
+    "workspace_find_proofs", "workspace_read_wiki", "workspace_run_test"];
+  const redteam = ["query_code_index", "workspace_assess_contract", "workspace_find_proofs", "workspace_read_wiki"];
+  assert.deepEqual(resolveLauncherRoleToolNames("worker"), worker);
+  assert.deepEqual(resolveLauncherRoleToolNames("reviewer"), reviewer);
+  assert.deepEqual(resolveLauncherRoleToolNames("redteam"), redteam);
+
+  const coordination = ["save_record", "workspace_create_record", "start_agent", "integrate_work",
+    "workspace_advance_candidate", "workspace_publish_work", "workspace_check_landing",
+    "workspace_inspect_candidate"];
+  for (const role of ["worker", "reviewer", "redteam"]) {
     const tools = resolveLauncherRoleToolNames(role);
-    assert.equal(tools.includes("commit"), false);
-    assert.equal(tools.includes("workspace_work_record_set_status"), false);
-    assert.equal(tools.includes("workspace_wk_forge_handoff"), false);
-    assert.equal(tools.includes("workspace_read_page"), true);
+    for (const tool of coordination) assert.equal(tools.includes(tool), false, `${role} holds no ${tool}`);
   }
-  assert.equal(resolveLauncherRoleToolNames("review").join(","),
-    resolveLauncherRoleToolNames("reviewer").join(","));
+  for (const role of ["reviewer", "redteam"]) {
+    assert.equal(resolveLauncherRoleToolNames(role).includes("workspace_deliver_work"), false,
+      `${role} delivers nothing`);
+  }
+
+  for (const tool of ["verify_proof", "workspace_run_test", "get_run_result"]) {
+    assert.equal(resolveLauncherRoleToolNames("redteam").includes(tool), false, `redteam holds no ${tool}`);
+  }
+
+  for (const tool of ["workspace_assess_contract", "workspace_find_proofs", "query_code_index"]) {
+    assert.equal(resolveLauncherRoleToolNames("worker").includes(tool), false, `worker holds no ${tool}`);
+  }
+
   assert.throws(() => resolveLauncherRoleToolNames("agy"));
 });
 
@@ -636,14 +654,15 @@ test("WK-2203#SLICE-053: contract provenance, serialization, and identity tuple 
 const ADVISORY_REVIEW_CHECKOUT = "/srv/review-worktrees/.immutable-candidates/candidate-1/checkout";
 
 function advisoryReviewInput({ role = "reviewer", subject = AUTH_UNIT, repository = AUTH_REPO,
-  checkoutRoot = ADVISORY_REVIEW_CHECKOUT } = {}) {
+  checkoutRoot = ADVISORY_REVIEW_CHECKOUT, runId = "wkdb_advisory_conduit_contract" } = {}) {
   const descriptor = createAdvisoryReviewDescriptor({
     role, subject, repository, materialKind: "explicit_sha_range",
     diffBaseSha: "1".repeat(40), reviewedSha: "2".repeat(40), reviewedTreeSha: "3".repeat(40),
     immutableSourceIdentity: Object.freeze({ kind: "git_range" }),
     reviewBrief: Object.freeze({ role, subject, instructions: "Review.", material: Object.freeze({}) })
   });
-  return createAdvisoryReviewInput({ descriptor, checkoutRoot, toolProfile: role });
+  const prepared = createAdvisoryReviewInput({ descriptor, checkoutRoot, toolProfile: role });
+  return runId === null ? prepared : bindAdvisoryReviewInputToRun(prepared, runId);
 }
 
 test("WK-2672: the authenticated advisory input is the sole producer of the review read source", () => {
@@ -658,6 +677,9 @@ test("WK-2672: the authenticated advisory input is the sole producer of the revi
     const env = __testing.buildServerEnv({ assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO, authority }, role);
     assert.equal(env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR, ADVISORY_REVIEW_CHECKOUT);
     assert.equal(env.WIKI_MCP_WORKSPACE_DIR, AUTH_REPO);
+
+    assert.equal("WIKI_MCP_REVIEW_SOURCE_POPULATION_PATH" in env, false);
+    assert.equal("reviewSourcePopulationDigest" in authority, false);
   }
 
   const frozenOnly = mintTrustedStdioMcpConduitAuthority({
@@ -685,6 +707,8 @@ test("WK-2672: copied, plain, and mismatched advisory inputs refuse at the share
     ["copied", "reviewer", { ...genuine }],
     ["frozen copy", "reviewer", Object.freeze({ ...genuine })],
     ["plain", "reviewer", { private_checkout_root: ADVISORY_REVIEW_CHECKOUT }],
+    ["prepared but not run-bound", "reviewer", advisoryReviewInput({ runId: null })],
+    ["copied run-bound", "reviewer", Object.freeze({ ...genuine, run_id: "wkdb_other" })],
     ["role mismatch", "redteam", genuine],
     ["subject mismatch", "reviewer", advisoryReviewInput({ subject: "WK-9999#SLICE-001" })],
     ["repository mismatch", "reviewer", advisoryReviewInput({ repository: "/srv/repos/elsewhere" })],
@@ -864,5 +888,27 @@ test("WK-1678: the conduit-requires-bubblewrap blocker is a registered taxonomy 
     STDIO_MCP_CLEANUP_BLOCKER_REASON
   ]) {
     assert.equal(codes.has(reason), true, `${reason} must be a registered blocker code`);
+  }
+});
+
+test("the conduit host is started with the launcher's native usage task carriers and nothing a request could supply", () => {
+  const KEYS = ["AGENT_LAUNCH_USAGE_TASK_DIR", "AGENT_LAUNCH_USAGE_PARENT_INVOCATION_ID"];
+  const saved = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
+  const input = { assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO,
+
+    AGENT_LAUNCH_USAGE_TASK_DIR: "/forged/task", env: { AGENT_LAUNCH_USAGE_PARENT_INVOCATION_ID: "INV-forged" } };
+  try {
+    for (const key of KEYS) delete process.env[key];
+    const without = __testing.buildServerEnv(input, "worker");
+    assert.deepEqual(KEYS.map((key) => key in without), [false, false]);
+    process.env.AGENT_LAUNCH_USAGE_TASK_DIR = "/state/usage/INV-root";
+    process.env.AGENT_LAUNCH_USAGE_PARENT_INVOCATION_ID = "INV-root";
+    const carried = __testing.buildServerEnv(input, "worker");
+    assert.deepEqual(KEYS.map((key) => carried[key]), ["/state/usage/INV-root", "INV-root"]);
+  } finally {
+    for (const key of KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
   }
 });

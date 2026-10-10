@@ -137,6 +137,10 @@ export function buildWorkerAssignmentCanonicalSummary(
     operative_notes: isNonEmptyString(operativeUnit?.sections?.agent_notes)
       ? operativeUnit.sections.agent_notes
       : null,
+
+    parent_user_requirements: selectedSlice && isNonEmptyString(record.sections?.user_requirements)
+      ? record.sections.user_requirements
+      : null,
     dispatch_intent: selectedUnit ? selectedUnit.dispatch_intent : record.dispatch_intent || null,
     selected_unit: selectedUnit,
     accepted_escalations: Array.isArray(readiness.accepted_escalations) ? readiness.accepted_escalations : [],

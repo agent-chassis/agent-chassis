@@ -1,6 +1,6 @@
 import { NODE_TEST_SELECTOR_KIND, TEST_PROOF_PROVIDER_AUTHORING_FACTS, TEST_PROOF_PROVIDER_CATALOG,
-  resolveNativeTestSelector, testProofFalsifierProvider, testProofSelectorKind,
-  testProofStrategySelectorKinds } from './test-proof-provider-registry.mjs';
+  authoredNativeTestSelector, resolveAuthoredNativeTestTarget, resolveNativeTestSelector, testProofFalsifierProvider,
+  testProofSelectorKind, testRuntimeRunner } from './test-proof-provider-registry.mjs';
 import schema from './stable-contract-schema-v1.mjs';
 import { compiledValidators } from './compiled-validator-cache.mjs';
 import { canonicalDigest } from './deterministic-projection-primitives.mjs';
@@ -77,56 +77,131 @@ function strategyFields(strategy, mechanism) {
   return { required: ['strategy', ...authored(required)], not_allowed: authored(forbidden),
     server_derived: [...required].filter(field => !caseFalsificationFields.includes(field)).sort() };
 }
+
+function falsificationFieldPatterns(mechanism, strategies) {
+  const mutation = defs.falsifier.properties.mutation.properties;
+  const native = nativeMutationBranch.if.properties.mutation.properties.mechanism.enum.includes(mechanism);
+  const enforced = { module_path: native ? nativeSourcePath : inline(defs.repo_module_path),
+    function_name: inline(mutation.function_name) };
+  const required = new Set(strategies.flatMap(strategy => strategyFields(strategy, mechanism).required));
+  return Object.fromEntries(Object.entries(enforced).filter(([field, declared]) =>
+    required.has(field) && typeof declared.pattern === 'string').map(([field, declared]) => [field, declared.pattern]));
+}
 const leafFields = (node, prefix = '') => Object.entries(node.properties).flatMap(([field, child]) =>
   child.type === 'object' && child.properties ? leafFields(child, `${prefix}${field}.`) : [`${prefix}${field}`]);
-const [nodeTargetFields, nativeTargetFields] = NATIVE_TEST_CASE_SCHEMA.properties.target.oneOf.map(arm => leafFields(arm));
+const [nodeTargetArm, storedNativeTargetArm] = NATIVE_TEST_CASE_SCHEMA.properties.target.oneOf;
+
+const structuredSelectors = new Map(TEST_PROOF_PROVIDER_AUTHORING_FACTS
+  .filter(family => family.selector.authored !== undefined)
+  .map(family => [family.selector.authored.member, structuredClone(family.selector.authored.schema)]));
+const authoredNativeTargetArm = { ...storedNativeTargetArm, properties: { ...storedNativeTargetArm.properties,
+  selector: closed({ ...storedNativeTargetArm.properties.selector.properties, ...Object.fromEntries(structuredSelectors) }) } };
+const nodeTargetFields = leafFields(nodeTargetArm);
+
+const nativeTargetFields = member => leafFields(authoredNativeTargetArm).filter(field =>
+  !field.startsWith('selector.') || field === `selector.${member}`);
+const LITERAL_SELECTOR_MEMBER = Object.keys(storedNativeTargetArm.properties.selector.properties)[0];
+
+const nativeTargetVariant = member => member === LITERAL_SELECTOR_MEMBER ? 'provider_qualified' : `provider_${member}`;
+const familySelectorMember = family => family.selector.authored?.member ?? LITERAL_SELECTOR_MEMBER;
 const falsifierMechanisms = new Map(TEST_PROOF_PROVIDER_AUTHORING_FACTS.map(({ falsifier_execution: falsifier }) =>
   [falsifier.mechanism, falsifier]));
 
 export const CASE_VERIFICATION_ASSOCIATION_FIELD = 'obligations[].case.verification_id';
 
+export const CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD = 'obligations[].case.verification';
+
+export const CASE_VERIFICATION_OWNERSHIP_RECOVERY = Object.freeze({
+  condition: 'verification_owned_by_another_case',
+  choices: Object.freeze([Object.freeze({ when: 'same_test', field: 'obligations[].case.id' }),
+    Object.freeze({ when: 'different_test', field: 'requirements[].verification' })]),
+  correction: 'If the obligation means the saved test, resubmit its authored key or saved id, meaning and claims ' +
+    'in changes.obligations with case:{id}, explicitly choosing an id from saved_case_ids. ' +
+    'If it means a different test, resubmit the unchanged requirement in changes.requirements without id, ' +
+    'with distinct verification meaning and verification.key. Use the returned bindings.verification identity ' +
+    'in the different obligation claims and case.verification. ' +
+    'Resubmit the coherent changes; no case is deleted, reassigned or selected automatically.'
+});
+
 export const CASE_COMPONENT_FIELD = 'obligations[].case.component';
 export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
   schema_version: 'controlled-contract-native-case-authoring-guidance.v1',
-  purpose: 'Author case.target and case.falsification for an obligation verified by test_execution: ' +
-    'choose the family that runs the test, copy its provider identity, write node_id in its form, and ' +
-    'use the falsification fields of its mechanism. Falsifier providers are server-derived.',
+  purpose: 'Author case.target, case.observation and case.falsification for an obligation verified by ' +
+    'test_execution: choose the family that runs the test, copy its provider identity, write the selector ' +
+    'member its target variant lists in its form, author the observable result the test inspects as ' +
+    'case.observation (the derived binding\'s observable_result comes from it), and use the falsification ' +
+    'fields of its mechanism. Falsifier providers are server-derived.',
   target_variants: {
-    node_test: { fields: nodeTargetFields, path_owner: 'the owning unit work-record node_test declaration' },
-    provider_qualified: { fields: nativeTargetFields, path_owner: 'the case; path is the source node_id names' }
+    node_test: { fields: nodeTargetFields, path_owner: 'the owning unit work-record node_test declaration',
+      path_pattern: nodeTargetArm.properties.path.pattern },
+    [nativeTargetVariant(LITERAL_SELECTOR_MEMBER)]: { fields: nativeTargetFields(LITERAL_SELECTOR_MEMBER),
+      path_owner: 'the case; path is the source node_id names',
+      path_pattern: authoredNativeTargetArm.properties.path.pattern },
+    ...Object.fromEntries([...structuredSelectors.keys()].map(member => [nativeTargetVariant(member), {
+      fields: nativeTargetFields(member),
+      path_owner: `the case; path is the test source file, written once, and selector.${member} holds the ` +
+        'values the family form states as the request\'s own JSON array',
+      path_pattern: authoredNativeTargetArm.properties.path.pattern }]))
   },
 
   verification_association: {
     field: CASE_VERIFICATION_ASSOCIATION_FIELD,
-    eligible: 'One test_execution verification claim_id that the SAME obligation lists in its own ' +
-      'controlled_contract_node_ids. Linking only the requirement claim leaves no eligible verification, ' +
-      'because eligibility reads the obligation links themselves rather than following the requirement ' +
-      'that verification verifies.',
-    correction: 'Author both fields in one save: list the verification claim_id in the obligation ' +
-      "controlled_contract_node_ids beside its requirement claim, and name that same claim_id in the case's " +
-      'verification_id. Replacing the verification a saved case names is the same amendment.',
-    omission: 'A case may omit verification_id while exactly one eligible verification is linked; that one ' +
-      'is adopted. Zero eligible verifications leave the case unfinished, and more than one is ambiguous ' +
-      'and must be named explicitly.',
+    eligible: 'One test_execution verification claim_id the SAME obligation makes eligible: a verification ' +
+      'claim it lists in its own controlled_contract_node_ids, or one an explicit verifies relationship ties ' +
+      'to a requirement claim it lists there. A requirement already records which verification verifies it, ' +
+      'so linking only the requirement claim is enough and the verification identity is not repeated. ' +
+      'Eligibility reads these semantic facts alone; whether an executable binding exists never changes it.',
+    correction: 'List the requirement claim, or the verification claim_id itself, in the obligation ' +
+      "controlled_contract_node_ids, and name an eligible claim_id in the case's verification_id when " +
+      'several are eligible. Replacing the verification a saved case names is the same amendment.',
+    omission: 'A case may omit verification_id. A saved case that names an eligible verification keeps it. ' +
+      'Otherwise exactly one eligible, selectable verification is adopted. With none or several the save still ' +
+      'commits and the case stays an unresolved draft that names no verification: nothing is chosen for the ' +
+      'author, and the draft cannot be executed.',
+
+    authoring: {
+      method: 'test_execution',
+      field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
+      links_field: 'obligations[].claims',
+      omit_when: 'the case already names an eligible verification, or the obligation claims make exactly one ' +
+        'test_execution verification eligible and no other case owns it: the saved one is kept and the sole one ' +
+        'is adopted. A listed requirement makes each verification that verifies it eligible, so claims need not ' +
+        'repeat the verification',
+      choose_when: 'the obligation claims make several test_execution verifications eligible, listed there or ' +
+        'verifying a requirement listed there: name one of them',
+      unresolved: 'With no eligible verification, several, or one that another case owns, the save still commits ' +
+        'every change and reports the case as a saved incomplete draft with its missing association or complete ' +
+        'candidates. One explicit selection, or resubmitting the obligation once its claims make a sole ' +
+        'verification eligible, resolves that same case; no case identity or other case member is repeated.'
+    },
     derived_from_association: 'Every proposition identity on the derived test binding comes from the ' +
       'named canonical verification claim. Those identities are derived and are never authored: a case ' +
       'that names no eligible verification derives a placeholder binding whose propositions are absent, ' +
       'which validation reports as the unfinished content of that case.',
-    identities: 'The upsert guidance member required_object_shapes.requirement_rebinding.complete_case_population ' +
-      'states which query output carries each requirement verification_claim_ids and each case verification_id. ' +
+    identities: 'The guidance member required_object_shapes.requirement_rebinding.complete_case_population ' +
+      'states which saved-contract read carries each requirement verification_claim_ids and each case verification_id. ' +
       'Read the identities there; this member states only which combination of them is eligible.',
 
     cardinality: 'One verification identity belongs to at most one case_id. Several obligations may use one ' +
       'case by naming its case_id; a different case_id naming a verification another case already owns is ' +
       'refused, and nothing is saved.',
     additional_verification: 'A genuinely distinct test of the same requirement needs its own verification. ' +
-      'Resubmit that requirement in contract_requirements.requirements with unchanged nature, modality, subject ' +
-      'and behavior (query requirements[].meaning, whose select referents are accepted as ' +
-      'input), a verification that differs in verifier, observes or fails_when, and no replace_claim_id. The ' +
+      'Resubmit that requirement through save_record changes.requirements with unchanged nature, modality, subject ' +
+      'and behavior (read the complete coverage requirements[].meaning, whose select referents are accepted as ' +
+      'input), a verification that differs in verifier, observes or fails_when, and omit id. The ' +
       'requirement keeps its claim_id; the existing verification, its case and its links are unchanged; ' +
-      'requirement_bindings[].verification_claim_id returns the added verification. Link that identity beside ' +
-      'the requirement claim and name it in the new case verification_id. Identical meaning resubmitted ' +
-      'returns the same identities. Reuse a saved case only when the use means that same case and test.'
+      'label verification.key to receive its identity in bindings.verification. Link that identity beside ' +
+      'the requirement claim in changes.obligations[].claims and name it in case.verification. Identical meaning ' +
+      'resubmitted returns the same identities. For the same test, explicitly reuse a known saved case with ' +
+      'changes.obligations[].case:{id}; the obligation key or id and its meaning remain caller choices.'
+  },
+
+  case_identity: {
+    field: 'obligations[].case',
+    omit_when: 'the case is the obligation\'s own: a new obligation receives a generated case identity and an ' +
+      'amended obligation reuses its stored case, keeping every omitted member',
+    choose_when: 'case.id deliberately selects a different or shared saved case; case.key labels a new case so ' +
+      'its generated identity is returned in bindings.case'
   },
 
   component: {
@@ -134,7 +209,7 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
     forms: '{reference_id} selects a saved reference; {type_term, identity} names one by value and reuses a ' +
       'saved reference with that exact type_term and identity.',
     role_constraint: "The selected proof's component parameter refines the accepted type_terms, identity kinds " +
-      'and cardinality. Read them with query {obligation_id, parameter_detail: true}: parameter_contract ' +
+      "and cardinality. Read them with the unit's workspace_read_wiki selection {obligation, parameters: true}: parameter_contract " +
       '.parameters[name=component].refinements. A mismatch is refused with ' +
       'obligation_coverage_prospective_incompatible, whose cause names the role and actual_references.',
     identity_uniqueness: 'One identity names one referent and has one type_term across the contract. A ' +
@@ -148,7 +223,16 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
       'profile_term or other descriptive identity names meaning, not a source location, and supplies no ' +
       'module path even when its term mentions a file. Author the actual repository and path; the module ' +
       'path itself is derived and never authored.',
-    identities: 'Query contract_inputs.references lists each saved reference_id, type_term and identity.'
+    identities: "The unit's workspace_read_wiki selection {contract: 'references'} lists each saved reference_id, " +
+      'type_term and identity.'
+  },
+
+  observation: {
+    field: 'obligations[].case.observation',
+    purpose: 'An object whose kind classifies the observable result the test inspects. Assertion prose or a ' +
+      'description of expected behavior is not an observation value. Choose kind for the result the test ' +
+      'actually inspects; no kind is a default.',
+    input_schema: structuredClone(NATIVE_TEST_CASE_SCHEMA.properties.observation)
   },
 
   support_states: {
@@ -156,28 +240,32 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
     listed_family: 'a listed family runs the language; not a target fact',
     family_absent: 'no listed family owns that source suffix or runner; the catalog lists none for it',
     request_invalid: 'the save refused the request shape, an unknown provider_id, or a provider_version the catalog does not list; a request defect is not a fact about the target, the family or the language',
-    target_selector_valid: 'save accepted provider, path and node_id form',
-    target_uninspected: 'test existence and falsifier target shape are checked only when workspace_verify_proof runs',
-    unsupported_demonstrated: 'a workspace_verify_proof attempt refused this exact target with one of its mechanism target_constraint refusal_codes and reasons',
+    target_selector_valid: 'save accepted provider, path and selector form',
+    target_uninspected: 'test existence and falsifier target shape are checked only when verify_proof runs',
+    unsupported_demonstrated: 'a verify_proof attempt refused this exact target with one of its mechanism target_constraint refusal_codes and reasons',
     unresolved: 'a fact above is unknown: keep acceptance required and record the obligation gap (unresolved_coverage)'
   },
   target_shape_limits: 'A mechanism mutates only the shape its target_constraint states, and a listed family is no assurance that the code under test has that shape. Author the case for the behavior the obligation requires: when no accepted shape exists, author the case without a falsifier and keep the obligation required. Do not add, export or reshape a production function so that it fits the mutation.',
   falsification_support: {
     provider: 'the case declares a falsifier: author strategy and its mechanism fields',
-    registry_unsupported: 'the case declares no falsifier: author support alone, declare no falsifier, and expect workspace_verify_proof to run the selected test and report the absent falsification as a capability limitation. It is not a detection and not counterevidence: a passing selected test whose other required checks hold is proven with that limitation, and nothing is retried, waived or installed for it'
+    registry_unsupported: 'the case declares no falsifier: author support alone, declare no falsifier, and expect verify_proof to run the selected test and report the absent falsification as a capability limitation. It is not a detection and not counterevidence: a passing selected test whose other required checks hold is proven with that limitation, and nothing is retried, waived or installed for it'
   },
   falsification: Object.fromEntries([...falsifierMechanisms].map(([mechanism, falsifier]) => [mechanism, {
     strategies: Object.fromEntries(falsifier.strategies.map(strategy =>
       [strategy, strategyFields(strategy, mechanism)])),
+    field_patterns: falsificationFieldPatterns(mechanism, falsifier.strategies),
     target_constraint: falsifier.target_constraint
   }])),
+
   families: Object.fromEntries(TEST_PROOF_PROVIDER_AUTHORING_FACTS.map(family => [family.family_id, {
-    languages: family.languages, runner: family.runner,
-    target_variant: family.selector.provider_qualified ? 'provider_qualified' : 'node_test',
+    languages: family.languages, runner: testRuntimeRunner({ runnerId: family.runner_id }).name,
+    target_variant: family.selector.provider_qualified ? nativeTargetVariant(familySelectorMember(family)) : 'node_test',
     ...(family.selector.provider_qualified ? { provider: {
       provider_id: family.candidate_execution.provider_id,
       provider_version: family.candidate_execution.provider_version } } : {}),
-    ...(family.selector.node_id_form === null ? {} : { node_id_form: family.selector.node_id_form }),
+    ...(family.selector.authored !== undefined
+      ? { [`${family.selector.authored.member}_form`]: family.selector.authored.form }
+      : family.selector.node_id_form === null ? {} : { node_id_form: family.selector.node_id_form }),
     source_suffixes: family.selector.source_suffixes,
     falsification: family.falsifier_execution.mechanism
   }]))
@@ -193,6 +281,7 @@ const nativeOperation = nativeFalsificationProperties.operation;
 
 export const NATIVE_TEST_CASE_AMENDMENT_SCHEMA = closed({
   ...nativeCaseProperties,
+  target: { oneOf: [nodeTargetArm, authoredNativeTargetArm] },
   falsification: nullable(closed({
     ...nativeFalsificationProperties,
     strategy: nullable(nativeFalsificationProperties.strategy),
@@ -235,6 +324,35 @@ export function resolveNativeCaseTarget(target) {
       pointer: resolved.pointer, expected: resolved.expected_identity, actual: resolved.actual_identity });
   return resolved;
 }
+
+const CASE_TARGET_FIELD = 'obligations[].case.target';
+const caseTargetField = pointer => `${CASE_TARGET_FIELD}${pointer.replace(/^\/target/u, '').replaceAll('/', '.')}`;
+
+export function storedNativeCaseTarget(target) {
+  if (!isNativeCaseTarget(target)) return target;
+  const resolved = resolveAuthoredNativeTestTarget(target, { pointer: '/target' });
+  if (!resolved.valid) {
+    const replacement = resolved.replacement_member === undefined ? null
+      : `${CASE_TARGET_FIELD}.selector.${resolved.replacement_member}`;
+    throw new ProofAuthoringError('case_target_invalid', replacement === null
+      ? 'A native case target must satisfy the rule its listed provider states for the named member'
+      : 'This provider takes another selector member; the named one is not an input of its case target', {
+      pointer: resolved.pointer, field: caseTargetField(resolved.pointer), expected: resolved.expected_identity,
+      actual: resolved.actual_identity,
+      ...(replacement === null ? {} : { correction_field: replacement,
+        correction: `Remove this member and author selector.${resolved.replacement_member} for this provider: ` +
+          `${resolved.expected_identity.slice(`selector.${resolved.replacement_member}: `.length)}. ` +
+          'The provider derives the stored test identity from it; no serialized identity is authored.' }) });
+  }
+  return { provider: { provider_id: resolved.provider_id, provider_version: resolved.provider_version },
+    path: resolved.path, selector: { node_id: resolved.node_id } };
+}
+
+export function authorableNativeCaseTarget(target) {
+  if (!isNativeCaseTarget(target)) return target;
+  return { ...target, selector: authoredNativeTestSelector({ provider_id: target.provider?.provider_id,
+    provider_version: target.provider?.provider_version, node_id: target.selector?.node_id }) };
+}
 export function linkedNativeTestProofs(contract, row) {
   if (row.case_id) return contract.test_proofs.filter(proof => proof.test_proof_id ===
     `test-proof-${canonicalDigest({ case_id: row.case_id }).slice(0,40)}`);
@@ -243,6 +361,20 @@ export function linkedNativeTestProofs(contract, row) {
     links.add(relation.source_claim_id);
   }
   return contract.test_proofs.filter(proof => links.has(proof.verification_claim_id));
+}
+
+export function eligibleCaseVerificationIds(contract, row) {
+  const named = new Set(row.controlled_contract_node_ids ?? []);
+  const verifying = new Set((contract.relations ?? []).filter(relation => relation.role === 'verifies' &&
+    named.has(relation.target_claim_id)).map(relation => relation.source_claim_id));
+  return [...new Set((contract.claims ?? []).filter(claim => claim.kind === 'verification' &&
+    claim.verification_method === 'test_execution' && (named.has(claim.claim_id) || verifying.has(claim.claim_id)))
+    .map(claim => claim.claim_id))].sort();
+}
+
+export function caseUseExcludesVerification(row, verificationId, verificationClaimIds) {
+  const known = (row.controlled_contract_node_ids ?? []).filter(id => verificationClaimIds.has(id));
+  return known.length > 0 && !known.includes(verificationId);
 }
 
 export function boundVerificationClaim(contract, verificationId, identity = {}) {
@@ -274,17 +406,12 @@ function caseTargetSelectorKind(target, binding) {
 
 function caseSelectorKind(target, binding, strategy) {
   const kind = caseTargetSelectorKind(target, binding);
-  if (kind !== undefined && testProofFalsifierProvider(kind, strategy) !== null) return kind;
-  const owners = testProofStrategySelectorKinds(strategy);
-  if (owners.length === 1) return owners[0];
-  if (kind !== undefined && owners.length > 1) {
-    throw new ProofAuthoringError('case_falsification_unsupported',
-      'The case target provider family does not implement this falsification strategy', {
-        strategy, selector_kind: kind,
-        strategies: TEST_PROOF_PROVIDER_CATALOG.providers.filter(provider => provider.selector_kind === kind)
-          .flatMap(provider => provider.falsifier_strategies) });
-  }
-  return undefined;
+  if (kind === undefined || testProofFalsifierProvider(kind, strategy) !== null) return kind;
+  throw new ProofAuthoringError('case_falsification_unsupported',
+    'The case target provider family does not implement this falsification strategy', {
+      strategy, selector_kind: kind,
+      strategies: TEST_PROOF_PROVIDER_CATALOG.providers.filter(provider => provider.selector_kind === kind)
+        .flatMap(provider => provider.falsifier_strategies) });
 }
 
 export function applyNativeTestProofCase({ contract, row, caseInput, subject, buildTemplate }) {
@@ -294,7 +421,7 @@ export function applyNativeTestProofCase({ contract, row, caseInput, subject, bu
 
   const association = (condition, eligible) => ({
     condition,
-    field: CASE_VERIFICATION_ASSOCIATION_FIELD,
+    field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
     obligation_id: row.obligation_id ?? null,
     case_id: caseInput.case_id ?? row.case_id ?? null,
     verification_id: caseInput.verification_id ?? null,

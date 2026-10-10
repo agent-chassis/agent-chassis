@@ -4,7 +4,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { NATIVE_TEST_CASE_AUTHORING_GUIDANCE } from
+  "../../packages/controlled-contract/lib/native-test-proof-authoring.mjs";
 import {
+  TEST_PROOF_PROVIDER_AUTHORING_FACTS,
   TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
   TEST_PROOF_PROVIDER_CATALOG,
   TEST_PROOF_PROVIDER_REGISTRY_VERSION,
@@ -52,6 +55,21 @@ test("provider families accommodate the eleven runner inventory", () => {
   assert.equal(TEST_PROOF_PROVIDER_CATALOG.providers.length, 11 * CAPABILITIES.length);
 
   assert.ok(runners.filter(({ languages }) => languages.includes("typescript")).length >= 3);
+});
+
+test("case-authoring guidance names each family's runner by its catalogue execution name", () => {
+  const guided = NATIVE_TEST_CASE_AUTHORING_GUIDANCE.families;
+  assert.deepEqual(Object.keys(guided), TEST_PROOF_PROVIDER_FAMILIES.map(({ family_id: id }) => id));
+  for (const family of TEST_PROOF_PROVIDER_FAMILIES) {
+
+    const catalogued = TEST_RUNTIME_RUNNER_CATALOG.runners.filter(({ runner_id: id }) => id === family.runtime.runner_id);
+    assert.equal(catalogued.length, 1, family.family_id);
+    assert.equal(guided[family.family_id].runner, catalogued[0].name, family.family_id);
+  }
+
+  const deno = TEST_PROOF_PROVIDER_AUTHORING_FACTS.find(({ runner_id: id }) => id === "runner.deno");
+  assert.deepEqual([guided.deno.runner, deno.runner, deno.identity_terms.includes("deno test")],
+    ["deno", "deno test", true]);
 });
 
 test("composition refuses ambiguous or incomplete families", () => {

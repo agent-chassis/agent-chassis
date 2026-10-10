@@ -1,6 +1,6 @@
 
 
-import { mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { loadManifest } from "./contract.mjs";
@@ -8,11 +8,10 @@ import {
   getKindRecordPath,
   writeValidatedKindRecord
 } from "./kind-record-store.mjs";
-import {
-  WORK_RECORD_SCHEMA_VERSION,
-  canonicalizeWorkRecordReadScope,
-  validateWorkRecord
-} from "./work-record-schema.mjs";
+import { WORK_RECORD_PUBLICATION_STATES, persistenceOutcomeFields } from
+  "../operations/work-record-persistence-diagnostics.mjs";
+import { controlledContractContentDigest } from "./controlled-contract-tools.mjs";
+import { extractFrontMatter, extractMarkdownBody } from "./wiki-frontmatter.mjs";
 
 import {
   GENERATED_VIEW_NAMES,
@@ -25,6 +24,7 @@ import {
 } from "./wiki-shared.mjs";
 import {
   formatAllocatedId,
+  getAllocatorPaths,
   nextAllocatedRecordValue,
   normalizeAllocatedRecordId,
   parseAllocatedIdValue,
@@ -32,6 +32,7 @@ import {
   withAllocatorLock,
   writeAllocatorStateAtomically
 } from "./wiki-allocator.mjs";
+
 import { renderTemplate } from "./wiki-scaffold.mjs";
 import {
   listRecordFiles,
@@ -96,67 +97,6 @@ export {
   syncTemplates
 } from "./wiki-scaffold.mjs";
 
-function buildCreatedIssueWorkRecord({ id, title, date, repo }) {
-  return {
-    schema_version: WORK_RECORD_SCHEMA_VERSION,
-    id,
-    repo,
-    title,
-    record_kind: "work_item",
-    work_kind: "implementation",
-    status: "inbox",
-    priority: "medium",
-    owner: "unassigned",
-    created: date,
-    updated: date,
-    resolution: "unresolved",
-    docs: [],
-    repo_paths: [],
-    write_scope: [],
-    depends_on: [],
-    blocks: [],
-    related: [],
-    dispatch_intent: {
-      intended_agent_role: null,
-      target_unit: "none",
-      requires_graph_impact: false,
-      requires_escalation: false
-    },
-
-    acceptance: {
-      criteria: [],
-      validation: []
-    },
-    sections: {
-      summary: "Describe the failure mode, system boundary, capability, or invariant this item tracks.",
-      why_it_matters:
-        "State the operational impact and what future readers should understand from this work.",
-      scope: {
-        items: [
-          "impacted boundary or area is explicit",
-          "intended invariant or behavior is explicit",
-          "out-of-scope work is explicit when useful"
-        ],
-        out_of_scope: []
-      },
-      tasks: [
-        {
-          text: "",
-          status: "todo"
-        }
-      ],
-      references: [],
-      agent_notes: "",
-      closure: null
-    },
-    children: [],
-    slices: [],
-    escalations: [],
-    projections: [],
-    migration: null
-  };
-}
-
 function buildCreatedDecisionRecord({ id, title, date, actor }) {
   return {
     id,
@@ -203,89 +143,110 @@ async function writeCreatedKindRecord({ targetDir, recordId, kind, record }) {
   const jsonAbsoluteFile = path.join(targetDir, jsonRelativeFile);
   const markdownAbsoluteFile = path.join(targetDir, markdownRelativeFile);
 
-  if (await pathExists(jsonAbsoluteFile)) {
-    throw new Error(`Canonical record already exists: ${jsonRelativeFile}`);
-  }
+  await assertCreatedPathAbsent(jsonAbsoluteFile, jsonRelativeFile);
+  await assertCreatedPathAbsent(markdownAbsoluteFile, markdownRelativeFile);
 
   const result = await writeValidatedKindRecord({ repoRoot: targetDir, record });
   if (!result.ok || !result.written) {
     const message = (result.diagnostics ?? [])
       .map((diagnostic) => diagnostic.message)
       .join("; ");
-    throw new Error(`Invalid created ${kind} record: ${message}`);
+    const prefix = result.publication_state === WORK_RECORD_PUBLICATION_STATES.PUBLISHED
+      ? `Published ${kind} record; persistence failed`
+      : result.publication_state === WORK_RECORD_PUBLICATION_STATES.UNKNOWN
+        ? `Publication uncertain for created ${kind} record`
+        : result.diagnostics.some(diagnostic => diagnostic.category === "kind_record_write_failed")
+          ? `Could not publish created ${kind} record` : `Invalid created ${kind} record`;
+    throw Object.assign(new Error(`${prefix}: ${message}`),
+      { code: result.diagnostics[0].code, diagnostics: result.diagnostics,
+        details: { publication_state: result.publication_state ?? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED, persistence: result } });
   }
 
   return {
     markdownRelativeFile,
     markdownAbsoluteFile,
     jsonRelativeFile,
-    jsonAbsoluteFile
+    jsonAbsoluteFile,
+    record, revision: result.source_digest
   };
 }
 
-function validateCreatedWorkRecord(record, sourcePath) {
-  const diagnostics = validateWorkRecord(record, { sourcePath });
-  if (diagnostics.length > 0) {
-    const message = diagnostics.map((diagnostic) => diagnostic.message).join("; ");
-    throw new Error(`Invalid created work record: ${message}`);
+async function assertCreatedPathAbsent(absoluteFile, relativeFile) {
+  try { await lstat(absoluteFile); }
+  catch (error) { if (error.code === "ENOENT") return; throw error; }
+  throw Object.assign(new Error(`Canonical record already exists: ${relativeFile}`),
+    { code: "create_record_target_exists", details: { changed: false, path: relativeFile } });
+}
+
+async function readCreatedMarkdown({ absoluteFile, relativeFile, rendered }) {
+  let bytes;
+  try {
+    bytes = await readFile(absoluteFile, "utf8");
+    if (bytes !== rendered) throw Object.assign(new Error("Published creation source moved before readback"),
+      { code: "create_record_readback_moved" });
+    return { path: relativeFile, content_digest: controlledContractContentDigest(bytes),
+      frontmatter: extractFrontMatter(bytes), body: extractMarkdownBody(bytes) };
+  } catch (error) {
+    error.details = { ...error.details, publication_state: WORK_RECORD_PUBLICATION_STATES.PUBLISHED,
+      changed: true, retry_safe: false, path: relativeFile };
+    throw error;
   }
 }
 
-async function writeAllocatedIssueRecord({
-  targetDir,
-  recordId,
-  record: inputRecord
-}) {
-
-  const record = canonicalizeWorkRecordReadScope(inputRecord);
-
+async function publishCreatedWorkItem({ targetDir, recordId, title, date, repo, initial, birthOptions }) {
+  const { withCanonicalWorkRecordBirthLease } = await import("../operations/work-records-store-io.mjs");
+  const { resolveBirthProofAuthoringSource } = await import("../operations/controlled-contract/proof-authoring-source.mjs");
+  const { prepareRecordAuthoringChange } = await import("../operations/record-authoring-plan.mjs");
+  const { settlePreparedRecordAuthoring } = await import("../operations/controlled-contract/proof-authoring-targets.mjs");
+  const { loadControlledContractProofAuthoring } = await import("../operations/controlled-contract/package-runtime.mjs");
+  const { observeRecordAuthoringAssessment } = await import("../operations/save-record.mjs");
   const markdownRelativeFile = path.join("wiki", "issues", `${recordId}.md`);
   const markdownAbsoluteFile = path.join(targetDir, markdownRelativeFile);
-  const jsonRelativeFile = path.join("wiki", "work-records", `${recordId}.json`);
-  const jsonAbsoluteFile = path.join(targetDir, jsonRelativeFile);
-
-  await ensureDirectory(path.dirname(jsonAbsoluteFile));
-
-  if (await pathExists(markdownAbsoluteFile)) {
-    throw new Error(`Canonical record already exists: ${markdownRelativeFile}`);
-  }
-  if (await pathExists(jsonAbsoluteFile)) {
-    throw new Error(`Canonical record already exists: ${jsonRelativeFile}`);
-  }
-
-  const tempDir = await mkdtemp(path.join(targetDir, "wiki", ".record-tmp-"));
-  const tempJsonPath = path.join(tempDir, `${recordId}.json`);
-
-  try {
-    validateCreatedWorkRecord(record, jsonRelativeFile);
-    await writeFile(tempJsonPath, `${JSON.stringify(record, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx"
-    });
-    await rename(tempJsonPath, jsonAbsoluteFile);
-  } catch (error) {
-    await rm(jsonAbsoluteFile, { force: true });
-    throw error;
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
-
-  return {
-    markdownRelativeFile,
-    markdownAbsoluteFile,
-    jsonRelativeFile,
-    jsonAbsoluteFile
-  };
+  await assertCreatedPathAbsent(markdownAbsoluteFile, markdownRelativeFile);
+  const target = { repoRoot: targetDir, wkId: recordId, selectedUnit: null, focus: null };
+  return withCanonicalWorkRecordBirthLease({ dir: targetDir, id: recordId, title, date, repo }, async ({ lease, canonical_record_path }) => {
+    const source = await resolveBirthProofAuthoringSource({ ...target, recordLease: lease });
+    const plan = await prepareRecordAuthoringChange({ capturedSource: source, context: "birth", changes: initial ?? {},
+      owners: { pkg: await loadControlledContractProofAuthoring(), ...birthOptions.owners, now: () => date } });
+    if (!plan.ok) throw Object.assign(new TypeError("Invalid initial record meaning; correct the addressed initial fields"),
+      { code: "create_record_initial_invalid", diagnostics: plan.diagnostics, details: { changed: false } });
+    const settled = await settlePreparedRecordAuthoring({ input: target, initial: source, preparation: plan.preparation,
+      options: { ...birthOptions, observeCommitted: snapshot => observeRecordAuthoringAssessment(target, snapshot, birthOptions) } });
+    return { markdownRelativeFile, markdownAbsoluteFile,
+      jsonRelativeFile: path.relative(targetDir, canonical_record_path), jsonAbsoluteFile: canonical_record_path,
+      revision: settled.snapshot.authoringIdentity, record: settled.snapshot.record,
+      record_source_digest: settled.snapshot.recordSourceDigest,
+      bindings: plan.bindings, entries: plan.entries, criterion_identity_changes: plan.criterion_identity_changes,
+      changed_fields: plan.changed_fields, receipt: settled.receipt, ...settled.observed };
+  });
 }
 
-export async function createRecord({ targetDir, type, title, id = null, repo = null }) {
+export async function createRecord({ targetDir, type, title, id = null, repo = null, initial, birthOptions = {} }) {
   const manifest = await loadManifest();
   const normalizedType = normalizeType(type, manifest);
   const definition = manifest.types[normalizedType];
-  const date = today();
+  const date = birthOptions.now?.() ?? today();
+  if (initial !== undefined) {
+    const { validateRecordAuthoringChanges } = await import("./record-authoring-schema.mjs");
+    const diagnostics = validateRecordAuthoringChanges(normalizedType === "issue" ? "work_item" : normalizedType, "birth", initial);
+    if (diagnostics.length) throw Object.assign(new TypeError("Invalid initial record meaning; correct the addressed initial fields"),
+      { code: "create_record_initial_invalid", diagnostics, details: { changed: false } });
+    if (Object.hasOwn(initial, "title") && initial.title !== title) throw Object.assign(
+      new TypeError("initial.title must agree with the authoritative creation title"), {
+        code: "create_record_initial_invalid", details: { changed: false }, diagnostics: [{
+          code: "create_record_title_conflict", severity: "error", path: "initial.title",
+          message: "initial.title must agree with the authoritative creation title" }] });
+    if (normalizedType === "source" || normalizedType === "area") {
+      const { prepareSourceAreaRecordBirth } = await import("../operations/create.mjs");
+      await prepareSourceAreaRecordBirth({ kind: normalizedType, title, initial, date, id: "prospective" });
+      if (normalizedType === "area" && !slugify(title)) throw Object.assign(new TypeError("Area title produces an empty slug; supply a title with slug characters"),
+        { code: "create_record_area_slug_empty", details: { changed: false } });
+    }
+  }
 
   if (definition.idStrategy === "allocated") {
-    return withAllocatorLock(targetDir, async () => {
+    let allocation = null, published = null, allocatorAdvanced = false;
+    try { return await withAllocatorLock(targetDir, async () => {
       const state = await readOrInitializeAllocatorState(targetDir, manifest);
       const stateValue = Number.parseInt(state[definition.stateKey] ?? 0, 10);
       const nextValue = await nextAllocatedRecordValue(targetDir, definition, stateValue);
@@ -298,68 +259,98 @@ export async function createRecord({ targetDir, type, title, id = null, repo = n
 
       const idValue = requestedId ? parseAllocatedIdValue(requestedId, definition) : nextValue;
       const recordId = formatAllocatedId(definition, idValue);
+      allocation = { id: recordId, type: normalizedType, allocator_state_advanced: false,
+        relativeFile: normalizedType === "issue"
+          ? path.relative(targetDir, (await import("./work-record-store.mjs")).getWorkRecordPath(targetDir, recordId))
+          : path.join(definition.directory, `${recordId}.${normalizedType === "source" ? "md" : "json"}`) };
 
       const actor = os.userInfo().username;
 
       const createdPaths = normalizedType === "issue"
-        ? await writeAllocatedIssueRecord({
-            targetDir,
-            recordId,
-            record: buildCreatedIssueWorkRecord({ id: recordId, title, date, repo })
-          })
+        ? await publishCreatedWorkItem({ targetDir, recordId, title, date,
+            repo: repo ?? (await import("./wiki-contract-metadata.mjs").then(owner => owner.resolveContractContext(targetDir))).repo,
+            initial, birthOptions })
         : normalizedType === "decision" || normalizedType === "initiative"
         ? await writeCreatedKindRecord({
             targetDir,
             recordId,
             kind: normalizedType,
-            record:
-              normalizedType === "decision"
+            record: await (async () => {
+              const record = normalizedType === "decision"
                 ? buildCreatedDecisionRecord({ id: recordId, title, date, actor })
-                : buildCreatedInitiativeRecord({ id: recordId, title, date, actor })
+                : buildCreatedInitiativeRecord({ id: recordId, title, date, actor });
+              if (initial === undefined) return record;
+              const { planKindRecordAuthoringChange } = await import("../operations/record-authoring-plan.mjs");
+              const plan = planKindRecordAuthoringChange({ record, changes: initial, actor, now: date, context: "birth" });
+              if (!plan.ok) throw Object.assign(new TypeError("Invalid initial kind record meaning"),
+                { code: "create_record_initial_invalid", diagnostics: plan.diagnostics, details: { changed: false } });
+              return plan.updatedRecord;
+            })()
           })
         : await (async () => {
-            const rendered = await renderTemplate({
-              type: normalizedType,
-              title,
-              id: recordId,
-              date
-            });
+            const rendered = initial === undefined ? await renderTemplate({ type: normalizedType, title, id: recordId, date })
+              : (await import("../operations/create.mjs").then(owner => owner.prepareSourceAreaRecordBirth({
+                kind: normalizedType, title, initial, id: recordId, date }))).markdown;
             const relativeFile = path.join(definition.directory, `${recordId}.md`);
             const absoluteFile = path.join(targetDir, relativeFile);
             await ensureDirectory(path.dirname(absoluteFile));
-            if (await pathExists(absoluteFile)) {
-              throw new Error(`Canonical record already exists: ${relativeFile}`);
-            }
+            await assertCreatedPathAbsent(absoluteFile, relativeFile);
 
             const tempDir = await mkdtemp(path.join(path.dirname(absoluteFile), ".record-tmp-"));
             const tempPath = path.join(tempDir, `${recordId}.md`);
+            let primary = null;
+            let publicationState = WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED;
             try {
               await writeFile(tempPath, rendered, { encoding: "utf8", flag: "wx" });
+              publicationState = WORK_RECORD_PUBLICATION_STATES.UNKNOWN;
               await rename(tempPath, absoluteFile);
+              publicationState = WORK_RECORD_PUBLICATION_STATES.PUBLISHED;
+            } catch (error) {
+              primary = error;
+              error.details = { ...error.details, publication_state: publicationState };
+              throw error;
             } finally {
-              await rm(tempDir, { recursive: true, force: true });
+              try { await rm(tempDir, { recursive: true, force: true }); }
+              catch (error) {
+                if (primary === null) {
+                  error.details = { ...error.details, publication_state: publicationState };
+                  throw error;
+                }
+                primary.cleanup_failures = [...(primary.cleanup_failures ?? []),
+                  { step: "source_stage_cleanup", code: error.code ?? null, message: error.message, error }];
+              }
             }
 
             return {
               markdownRelativeFile: relativeFile,
               markdownAbsoluteFile: absoluteFile,
               jsonRelativeFile: null,
-              jsonAbsoluteFile: null
+              jsonAbsoluteFile: null,
+              ...(initial === undefined ? {} : { source: await readCreatedMarkdown({ absoluteFile, relativeFile, rendered }) })
             };
           })();
 
-      try {
-        state[definition.stateKey] = Math.max(stateValue, idValue);
-        await writeAllocatorStateAtomically(targetDir, state);
-      } catch (error) {
-        await rm(createdPaths.markdownAbsoluteFile, { force: true });
-        if (createdPaths.jsonAbsoluteFile) {
-          await rm(createdPaths.jsonAbsoluteFile, { force: true });
+      published = createdPaths;
+      state[definition.stateKey] = Math.max(stateValue, idValue);
+      try { await writeAllocatorStateAtomically(targetDir, state); }
+      catch (error) {
+
+        try {
+          const observed = JSON.parse(await readFile(getAllocatorPaths(targetDir).statePath, "utf8"));
+          allocatorAdvanced = Number.isInteger(observed[definition.stateKey])
+            ? observed[definition.stateKey] >= idValue : null;
+        } catch (observation) {
+          allocatorAdvanced = null;
+          error.allocator_observation = { code: observation.code ?? null, message: observation.message };
         }
         throw error;
       }
+      allocatorAdvanced = true;
 
       return {
+        ...createdPaths,
+        ...persistenceOutcomeFields(WORK_RECORD_PUBLICATION_STATES.PUBLISHED, { ok: true }),
+        allocator_state_advanced: true,
         id: recordId,
         relativeFile: createdPaths.jsonRelativeFile || createdPaths.markdownRelativeFile,
         absoluteFile: createdPaths.jsonAbsoluteFile || createdPaths.markdownAbsoluteFile,
@@ -367,7 +358,23 @@ export async function createRecord({ targetDir, type, title, id = null, repo = n
         jsonAbsoluteFile: createdPaths.jsonAbsoluteFile,
         type: normalizedType
       };
-    });
+    }, { faultInjector: birthOptions.allocatorLockFaultInjector }); }
+    catch (error) {
+      if (allocation !== null) {
+        const details = error.details ?? {};
+        const state = published !== null || details.changed === true || details.publication_outcome === "established"
+          ? WORK_RECORD_PUBLICATION_STATES.PUBLISHED
+          : details.changed === false || details.settlement_status === "compensated"
+            ? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED : details.publication_state ?? WORK_RECORD_PUBLICATION_STATES.UNKNOWN;
+        error.creation = { ...allocation, ...persistenceOutcomeFields(state), allocator_state_advanced: allocatorAdvanced,
+          consumed_id: state === WORK_RECORD_PUBLICATION_STATES.PUBLISHED || allocatorAdvanced === true
+            ? allocation.id : state === WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED && allocatorAdvanced === false ? null : "unknown",
+          ...(published === null ? {} : { relativeFile: published.jsonRelativeFile || published.markdownRelativeFile,
+            revision: published.revision ?? null, receipt: published.receipt ?? null }),
+          recovery: "Inspect the allocated subject and reported participant effects; do not repeat creation blindly." };
+      }
+      throw error;
+    }
   }
 
   if (id != null) {
@@ -375,19 +382,24 @@ export async function createRecord({ targetDir, type, title, id = null, repo = n
   }
 
   const slugId = slugify(title) || "replace-me";
-  const rendered = await renderTemplate({
-    type: normalizedType,
-    title,
-    id: slugId,
-    date
-  });
+  const rendered = initial === undefined ? await renderTemplate({ type: normalizedType, title, id: slugId, date })
+    : (await import("../operations/create.mjs").then(owner => owner.prepareSourceAreaRecordBirth({
+      kind: normalizedType, title, initial, id: slugId, date }))).markdown;
   const relativeFile = path.join(definition.directory, `${slugId}.md`);
   const absoluteFile = path.join(targetDir, relativeFile);
   await ensureDirectory(path.dirname(absoluteFile));
-  if (await pathExists(absoluteFile)) {
-    throw new Error(`Canonical record already exists: ${relativeFile}`);
+  await assertCreatedPathAbsent(absoluteFile, relativeFile);
+  let source;
+  try {
+    await writeFile(absoluteFile, rendered, { encoding: "utf8", flag: "wx" });
+    if (initial !== undefined) source = await readCreatedMarkdown({ absoluteFile, relativeFile, rendered });
+  } catch (error) {
+    error.creation = { id: slugId, type: normalizedType, relativeFile,
+      ...persistenceOutcomeFields(error.details?.publication_state ?? (error.code === "EEXIST"
+        ? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED : WORK_RECORD_PUBLICATION_STATES.UNKNOWN)),
+      recovery: "Inspect the exact area subject before further action; do not repeat creation blindly." };
+    throw error;
   }
-  await writeFile(absoluteFile, rendered, { encoding: "utf8", flag: "wx" });
 
   return {
     id: slugId,
@@ -395,6 +407,8 @@ export async function createRecord({ targetDir, type, title, id = null, repo = n
     absoluteFile,
     jsonRelativeFile: null,
     jsonAbsoluteFile: null,
+    ...(source === undefined ? {} : { source }),
+    ...persistenceOutcomeFields(WORK_RECORD_PUBLICATION_STATES.PUBLISHED, { ok: true }),
     type: normalizedType
   };
 }

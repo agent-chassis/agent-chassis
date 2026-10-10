@@ -1,11 +1,11 @@
 
 
+import { types as utilTypes } from "node:util";
 import {
   closedTerminalWkCandidateGitDiagnosis,
   projectTerminalWkCandidateFailure,
   projectTerminalWkCandidateRefDisagreements,
-  TERMINAL_WK_CANDIDATE_CODES,
-  TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE_MESSAGE
+  TERMINAL_WK_CANDIDATE_CODES
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 import {
   COMMITTED_SLICE_INTEGRATION_PUBLIC_BLOCKER_CODES,
@@ -16,6 +16,7 @@ import {
 import { captureDiagnosticEvidence } from
   "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import {
+  isForwardedTerminalCandidateFailure,
   projectAuthenticatedTerminalCandidateFailure
 } from "./dispatch-terminal-candidate-coordinator.mjs";
 import { distillCapturedCauses } from "./dispatch-tool-helpers.mjs";
@@ -262,8 +263,7 @@ export const CLOSED_LIFECYCLE_FAILURE_KEYS = Object.freeze([
 ]);
 
 export const CLOSED_CANDIDATE_FAILURE_KINDS = Object.freeze({
-  TYPED: "typed_candidate_error",
-  UNKNOWN: "unknown_cause"
+  TYPED: "typed_candidate_error"
 });
 
 export const CLOSED_CANDIDATE_FAILURE_KEYS = Object.freeze([
@@ -293,13 +293,6 @@ const APPROVED_NATIVE_ERROR_FACTS = Object.freeze([
 
 const CLOSED_TYPED_CANDIDATE_FAILURE_MESSAGE =
   "terminal WK candidate: typed construction or recovery failure";
-
-const CLOSED_UNKNOWN_CANDIDATE_FAILURE = Object.freeze({
-  kind: CLOSED_CANDIDATE_FAILURE_KINDS.UNKNOWN,
-  code: null,
-  message: TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
-  detail: null
-});
 
 const APPROVED_TERMINAL_WK_CANDIDATE_CODES = Object.freeze(
   new Set(Object.values(TERMINAL_WK_CANDIDATE_CODES))
@@ -343,7 +336,9 @@ function ownerCandidateProjection(error) {
 
   const authenticated = projectAuthenticatedTerminalCandidateFailure(error);
   if (authenticated?.kind === CLOSED_CANDIDATE_FAILURE_KINDS.TYPED) return authenticated;
-  return projectTerminalWkCandidateFailure(error);
+
+  return isForwardedTerminalCandidateFailure(error) || !utilTypes.isNativeError(error)
+    ? null : projectTerminalWkCandidateFailure(error);
 }
 
 function closedCandidateFailure(error) {
@@ -352,13 +347,14 @@ function closedCandidateFailure(error) {
     projected = ownerCandidateProjection(error);
   } catch {
 
-    return CLOSED_UNKNOWN_CANDIDATE_FAILURE;
+    return null;
   }
+
   if (typeof projected !== "object" || projected === null ||
       projected.kind !== CLOSED_CANDIDATE_FAILURE_KINDS.TYPED ||
       typeof projected.code !== "string" ||
       !APPROVED_TERMINAL_WK_CANDIDATE_CODES.has(projected.code)) {
-    return CLOSED_UNKNOWN_CANDIDATE_FAILURE;
+    return null;
   }
   return Object.freeze({
     kind: CLOSED_CANDIDATE_FAILURE_KINDS.TYPED,

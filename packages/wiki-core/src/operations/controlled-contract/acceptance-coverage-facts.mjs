@@ -12,21 +12,26 @@ import {
   resolveCanonicalControlledContractCarrierSet
 } from "../../lib/controlled-contract-tools.mjs";
 import {
+  controlledContractAssessmentAuthoredDependencies,
+  readScopedControlledContractSourceFile,
+  scopedControlledContractSourceObservation
+} from "../../lib/controlled-contract-tool-shared.mjs";
+import {
   ACCEPTANCE_COVERAGE_STATES,
   deriveControlledContractAcceptanceCoverage,
   deriveCriterionIdentitySet
 } from
   "../../lib/controlled-contract-acceptance-coverage.mjs";
 import { criterionIdentityInputs } from "./criterion-identity-projection.mjs";
-import { assertPackageValidContract, loadControlledContractPackage } from
-  "./package-runtime.mjs";
+import { assertPackageValidContract, loadControlledContractPackage,
+  loadControlledContractSharedContract } from "./package-runtime.mjs";
 
 const ACCEPTANCE_COVERAGE_CARRIER_VERSION =
   "wiki-core-controlled-contract-acceptance-coverage.v1";
 const ACCEPTANCE_COVERAGE_MAX_ROWS = 4096;
 const ACCEPTANCE_COVERAGE_MAX_BYTES = 1048576;
 import { OBLIGATION_COVERAGE_MAX_ROWS, OBLIGATION_COVERAGE_MAX_BYTES }
-  from "@agent-chassis/controlled-contract";
+  from "@agent-chassis/controlled-contract/obligation-coverage";
 const ACCEPTANCE_COVERAGE_BINDING_KEYS = Object.freeze([
   "workRecordLocatorDigest", "contractDigest", "contractNodeDigest",
   "proofPlanDigest", "selectedPackDigest", "mappingDigest",
@@ -95,14 +100,24 @@ async function assertObligationCoverageSourcePathIntegrity(input, {
       { changed: false }
     );
   }
+
+  const observation = scopedControlledContractSourceObservation({
+    repoRoot: repository.repository, wkId: input.wkId
+  });
   try {
-    const entry = await lstat(file);
-    if (!entry.isFile() || entry.isSymbolicLink() || await realpath(file) !== file) {
-      throw new ControlledContractToolError(
-        "obligation_coverage_target_escape",
-        "server-resolved obligation source is not a real canonical file",
-        { changed: false }
-      );
+    if (observation !== null) {
+      if (await readScopedControlledContractSourceFile(observation, file) === null) {
+        throw Object.assign(new Error("observed source has no obligation source"), { code: "ENOENT" });
+      }
+    } else {
+      const entry = await lstat(file);
+      if (!entry.isFile() || entry.isSymbolicLink() || await realpath(file) !== file) {
+        throw new ControlledContractToolError(
+          "obligation_coverage_target_escape",
+          "server-resolved obligation source is not a real canonical file",
+          { changed: false }
+        );
+      }
     }
   } catch (error) {
     if (error instanceof ControlledContractToolError) throw error;
@@ -111,17 +126,34 @@ async function assertObligationCoverageSourcePathIntegrity(input, {
         error?.code === "ENOENT" ? "obligation_coverage_source_not_found"
           : "obligation_coverage_target_invalid",
         "server-resolved obligation source target failed path-integrity validation",
-        { changed: false, cause: error?.code ?? null }
+        {
+          changed: false,
+          cause: error?.code ?? null,
+
+          definition_source: {
+            unit: selectedUnit === null ? input.wkId : `${input.wkId}#${selectedUnit}`,
+            ...(focus === null ? {} : { focus }),
+            path: path.relative(repository.repository, file).split(path.sep).join("/"),
+            cause: error?.code ?? null
+          }
+        }
       );
     }
   }
   return Object.freeze({ file, repository });
 }
 
-async function readJsonAtFixedPath(file, { optional = false, source }) {
+async function readJsonAtFixedPath(file, { optional = false, source, observed = null }) {
   try {
-    return JSON.parse(await readFile(file, "utf8"));
+    const observation = observed === null ? null : scopedControlledContractSourceObservation(observed);
+    if (observation === null) return JSON.parse(await readFile(file, "utf8"));
+    const captured = await readScopedControlledContractSourceFile(observation, file);
+    if (captured === null) {
+      throw Object.assign(new Error("observed source has no such file"), { code: "ENOENT" });
+    }
+    return JSON.parse(captured.bytes.toString("utf8"));
   } catch (error) {
+    if (error instanceof ControlledContractToolError) throw error;
     if (optional && error?.code === "ENOENT") return null;
     throw new ControlledContractToolError(
       error?.code === "ENOENT"
@@ -185,7 +217,8 @@ async function readAcceptanceCoverageCarrier(input) {
     input.repoRoot, input.wkId, focus, selectedUnit
   );
   const content = await readJsonAtFixedPath(file, {
-    optional: true, source: "controlled-acceptance coverage carrier"
+    optional: true, source: "controlled-acceptance coverage carrier",
+    observed: { repoRoot: input.repoRoot, wkId: input.wkId }
   });
   if (content === null) return null;
   validateAcceptanceCoverageCarrier(content, {
@@ -196,7 +229,8 @@ async function readAcceptanceCoverageCarrier(input) {
 
 async function readCanonicalWorkRecord(repoRoot, wkId, selectedUnit) {
   const file = path.resolve(repoRoot, "wiki", "work-records", `${wkId}.json`);
-  const record = await readJsonAtFixedPath(file, { source: "canonical work record" });
+  const record = await readJsonAtFixedPath(file, { source: "canonical work record",
+    observed: { repoRoot, wkId } });
   if (record?.id !== wkId) throw new ControlledContractToolError(
     "acceptance_coverage_canonical_source_mismatch", "canonical work record identity mismatched",
     { source: "work-record", expected: wkId, actual: record?.id ?? null });
@@ -215,11 +249,12 @@ async function readCanonicalObligationSource(input, { optional = false } = {}) {
     input.repoRoot, input.wkId, focus, selectedUnit
   );
   const content = await readJsonAtFixedPath(file, {
-    optional, source: "canonical obligation-coverage carrier"
+    optional, source: "canonical obligation-coverage carrier",
+    observed: { repoRoot: input.repoRoot, wkId: input.wkId }
   });
   if (content === null) return null;
 
-  const { validateObligationCoverageDraft } = await loadControlledContractPackage();
+  const { validateObligationCoverageDraft } = await loadControlledContractSharedContract();
   const validation = validateObligationCoverageDraft(content);
   if (!validation.valid) throw new ControlledContractToolError(
     "acceptance_coverage_canonical_source_invalid",
@@ -499,7 +534,7 @@ async function resolveCanonicalCoverageFacts(input, { sourceOptional = false,
       repoRoot: repository.repository, wkId: input.wkId, focus, carrierKind: "contract",
       canonicalSet
     });
-  const pkg = await loadControlledContractPackage();
+  const pkg = await loadControlledContractSharedContract();
   const source = Object.hasOwn(canonicalOverride ?? {}, "obligationSource")
     ? canonicalOverride.obligationSource
     : await readCanonicalObligationSource({
@@ -614,7 +649,7 @@ function coverageAuthoringApplicability(rows) {
 }
 
 async function currentObligationCoverageContext(base) {
-  const pkg = await loadControlledContractPackage();
+  const pkg = await loadControlledContractSharedContract();
   const { bindings } = obligationCoverageCriterionIdentities(base);
   const identitySet = pkg.deriveCriterionIdentitySet({
     criteria: criterionIdentityInputs(base.unit.acceptance?.criteria ?? []),
@@ -735,15 +770,18 @@ async function resolveAcceptanceCoverageFacts(input, { requireCarrier = false,
     "acceptance_coverage_carrier_not_found", "canonical acceptance-coverage carrier is absent",
     { changed: false }
   );
+  const scopeDependency = controlledContractAssessmentAuthoredDependencies({ id: wkId }).files
+    .find((dependency) => dependency.role === "optional_scope_record");
   const scopeRecord = await readJsonAtFixedPath(
-    path.resolve(repoRoot, "wiki", "work-records", "WK-2025.json"),
-    { optional: true, source: "optional scope work record" }
+    path.resolve(repoRoot, ...scopeDependency.path.split("/")),
+    { optional: scopeDependency.optional, source: "optional scope work record",
+      observed: { repoRoot, wkId } }
   );
   const bindings = identityBindings({
     unit, contract: base.canonicalContract, contractNodeSemantics, plan, source,
     scopeRecord
   });
-  const pkg = await loadControlledContractPackage();
+  const pkg = await loadControlledContractSharedContract();
   const acceptanceIdentitySet = pkg.deriveCriterionIdentitySet({
     criteria: criterionIdentityInputs(unit.acceptance?.criteria ?? []),
     selectedUnitDigest: controlledContractContentDigest({

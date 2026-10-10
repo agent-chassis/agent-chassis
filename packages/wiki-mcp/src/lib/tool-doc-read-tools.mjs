@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+export const PACKAGE_DOCUMENT_READ_FIELDS = Object.freeze(["text"]);
 import { readFile } from "node:fs/promises";
 
 import {
@@ -35,7 +36,6 @@ function toolDocReadRefusal(code, message, extra = {}) {
   error.envelope = {
     schema_version: "tool-doc-read-refusal.v1",
     ok: false,
-    tool: WORKSPACE_READ_TOOL_DOC_TOOL_NAME,
     code,
     message,
     ...extra
@@ -216,6 +216,26 @@ export function registerToolDocReadTools({
     },
     async (args) => {
       try {
+        return jsonContent(await readAdvertisedDoc(args));
+      } catch (error) {
+        return errorContent(error);
+      }
+    }
+  );
+
+  async function readAdvertisedDoc(args, { operation = WORKSPACE_READ_TOOL_DOC_TOOL_NAME } = {}) {
+    try {
+      return await readAuthorizedDoc(args);
+    } catch (error) {
+      if (error?.name === "ToolDocReadError") {
+        const { schema_version: schemaVersion, ok, ...cause } = error.envelope;
+        error.envelope = { schema_version: schemaVersion, ok, tool: operation, ...cause };
+      }
+      throw error;
+    }
+  }
+
+  async function readAuthorizedDoc(args) {
 
         if (!isSafeLogicalDocPath(args.path)) {
           throw toolDocReadRefusal(
@@ -275,7 +295,7 @@ export function registerToolDocReadTools({
           );
         }
 
-        return jsonContent({
+        return {
           schema_version: "tool-doc-read.v1",
           ok: true,
           tool_name: args.tool_name,
@@ -286,10 +306,8 @@ export function registerToolDocReadTools({
           sha256: entry.sha256,
           bytes: entry.bytes,
           text
-        });
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
+        };
+  }
+
+  return { readAdvertisedDoc };
 }

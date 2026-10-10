@@ -36,7 +36,7 @@ export function resolveVerifyProofRunCacheDir(workspaceDir) {
   return verifyProofRunCacheDirectory(resolved.root);
 }
 
-export function readVerifyProofRunRecord({ workspaceDir, verification }) {
+export function readVerifyProofRunRecord({ workspaceDir, verification, includeVerifiedSource = false }) {
   const evidence = verification?.evidence;
   if (evidence?.store !== "launcher_durable_state" ||
       evidence.namespace !== VERIFY_PROOF_RUN_CACHE_NAMESPACE) {
@@ -44,5 +44,6 @@ export function readVerifyProofRunRecord({ workspaceDir, verification }) {
       { code: "verify_proof_cache.record_corrupt.v1" });
   }
   const stateDir = resolveVerifyProofRunCacheDir(workspaceDir);
-  return { kind: evidence.kind, record: readVerifyProofCachedRecord(evidence, { stateDir }) };
+  const read = readVerifyProofCachedRecord(evidence, { stateDir, includeVerifiedSource });
+  return { kind: evidence.kind, ...(includeVerifiedSource ? read : { record: read }) };
 }

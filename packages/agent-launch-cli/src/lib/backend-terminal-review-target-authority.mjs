@@ -4,10 +4,10 @@ import path from "node:path";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import { isPlainObject } from "./backend-review-identity.mjs";
 import {
-  assertTerminalCandidateMaterialization,
   TERMINAL_REVIEW_MATERIALIZATION_SCHEMA_VERSION,
   TERMINAL_REVIEW_VERIFY_PARTS
 } from "./terminal-review-materialization.mjs";
+import { assertTerminalCandidateMaterialization } from "./terminal-candidate-checkout.mjs";
 import { verifyTerminalWkCandidateObjectBinding } from "./terminal-wk-candidate.mjs";
 
 export const TERMINAL_CANDIDATE_REVIEW_TARGET_SCHEMA_VERSION =

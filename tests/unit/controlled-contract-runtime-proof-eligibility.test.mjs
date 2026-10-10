@@ -25,6 +25,27 @@ test('declaration presence is independent of absent and unresolved saved relatio
   }
   assert.deepEqual(classify({ claims: [], test_proofs: [] }, null), []);
 });
+test('WK-2729 an explicit opt-out declares no runtime proof and is not an unresolved design', () => {
+  const facts = coverage(['A']);
+  const undecided = { code: 'obligation_coverage_proof_unselected' };
+
+  facts.rows.push({ obligation_id: 'OBL-OPTED-OUT', design_status: 'invalid', diagnostics: [], controlled_contract_node_ids: ['B'] },
+    { obligation_id: 'OBL-UNDECIDED', design_status: 'invalid', diagnostics: [undecided], controlled_contract_node_ids: ['C'] });
+  facts.resolution = { mapping: null, rows: [
+    { obligation_id: 'OBL-0', accounting: { status: 'accounted', decision: 'selected' } },
+    { obligation_id: 'OBL-OPTED-OUT', accounting: { status: 'accounted', decision: 'opted_out' } },
+    { obligation_id: 'OBL-UNDECIDED', accounting: { status: 'unaccounted', decision: 'undecided' } }] };
+  const rows = classify(contract, facts);
+  const of = id => rows.filter(row => row.obligation_id === id).map(row =>
+    [row.classification, row.reason_code, row.verification_id, row.proof_kind]);
+  assert.deepEqual(of('OBL-0'), [['runtime', 'runtime_test_proof_required', 'A', 'saved_selection']]);
+  assert.deepEqual(of('OBL-OPTED-OUT'), [['non_runtime', 'obligation_proof_disposition_non_runtime', null, null]]);
+  assert.deepEqual(of('OBL-UNDECIDED'), [['unresolved', undecided.code, null, null]]);
+
+  assert.deepEqual(rows.filter(row => row.obligation_id === null).map(row => [row.verification_id, row.reason_code]),
+    [['B', 'runtime_proof_obligation_missing'], ['C', 'runtime_proof_obligation_missing']]);
+  assert.deepEqual(declare(contract.test_proofs, facts).applicability.map(row => row.obligation_id), ['OBL-0', null, null]);
+});
 test('every admitted current relationship establishes eligibility, including shared verification', () => {
   const rows = classify(contract, coverage(['A']));
   assert.equal(rows.filter(row => row.classification === 'runtime').length, 1);

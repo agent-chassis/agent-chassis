@@ -275,34 +275,6 @@ export function sameControlledContractRuntimeTestProof(left, right) {
   return same(left, right);
 }
 
-export function composeControlledContractRuntimeTestSelectorCorrection({
-  storedBinding, runtimeTest, retireFields, expectedRetiredFields,
-  field = "definitions"
-}) {
-  if (!storedBinding || typeof storedBinding !== "object" ||
-      !runtimeTest || typeof runtimeTest !== "object" || Array.isArray(runtimeTest) ||
-      !runtimeTest.selector || typeof runtimeTest.selector !== "object" ||
-      Array.isArray(runtimeTest.selector) ||
-      !same(Object.keys(runtimeTest).sort(), ["selector"]) ||
-      !same(Object.keys(runtimeTest.selector).sort(), ["name", "nesting"])) {
-    fail("controlled_contract_current_definition_answer_invalid",
-      "current-definition correction supplies only one complete declarative selector",
-      { field: `${field}.runtime_test.selector` });
-  }
-  const expected = [...expectedRetiredFields].sort();
-  if (!Array.isArray(retireFields) || !same([...retireFields].sort(), expected) ||
-      new Set(retireFields).size !== retireFields.length) {
-    fail("controlled_contract_current_definition_retirement_confirmation_invalid",
-      "retired-field confirmation must exactly match the fields named by the server",
-      { field: `${field}.retire_fields`, expected_retired_fields: expected,
-        actual_retired_fields: Array.isArray(retireFields) ? [...retireFields].sort() : null });
-  }
-  const binding = structuredClone(storedBinding);
-  for (const retired of expected) delete binding[retired];
-  binding.test_selector = structuredClone(runtimeTest.selector);
-  return binding;
-}
-
 export function composeControlledContractRuntimeTestReplacement({
   template, runtimeTest, falsifierSelection, contract, verificationClaimId,
   field = "runtime_test"

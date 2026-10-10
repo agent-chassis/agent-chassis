@@ -3,6 +3,9 @@
 import { shouldExposeTool } from "./tool-profile.mjs";
 import { guardToolHandler } from "./mcp-response.mjs";
 import { isDeepStrictEqual } from "node:util";
+import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { getMethodLiteral } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
+import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import {
   AGENT_TOOL_LIVE_DESCRIPTION_HARD_LIMIT_CHARACTERS
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery/descriptor.mjs";
@@ -249,6 +252,70 @@ export function createToolInputValidationError({ tool, validationError, details 
   return error;
 }
 
+function taskValidatorIssue(issue, depth = 0) {
+  const projected = {};
+
+  const normalized = typeof issue.path === "string" ? { ...issue,
+    path: issue.path.replace(/\[([0-9]+)\]/gu, ".$1").split(".")
+      .map(part => /^[0-9]+$/u.test(part) ? Number(part) : part) } : issue;
+  for (const [key, value] of Object.entries(normalized)) {
+    if (key === "constraint") {
+      projected.constraint = taskValidatorIssue(value, depth + 1);
+    } else if (key === "unionErrors") {
+      projected.union_error_count = value.length;
+      if (depth < 3) projected.union_errors = value.slice(0, 8).map(error => ({
+        issue_count: error.issues.length,
+        issues: error.issues.slice(0, 8).map(child => taskValidatorIssue(child, depth + 1))
+      }));
+    } else if (typeof value === "string" && Buffer.byteLength(value, "utf8") > 512) {
+      projected[`${key}_utf8_bytes`] = Buffer.byteLength(value, "utf8");
+    } else if (Array.isArray(value)) {
+      projected[key] = value.slice(0, 8).map((entry, index) =>
+        typeof entry === "string" && Buffer.byteLength(entry, "utf8") > 128
+          ? { index, utf8_bytes: Buffer.byteLength(entry, "utf8") } : entry);
+      if (value.length > 8) projected[`${key}_count`] = value.length;
+    } else {
+      projected[key] = value;
+    }
+  }
+  if (issue.keys !== undefined) {
+    projected.unsupported_key_count = issue.keys.length;
+    projected.key_bytes = issue.keys.reduce((total, key) => total + Buffer.byteLength(key, "utf8"), 0);
+    if (projected.message === undefined) projected.message = "Remove the unsupported keys at this input path.";
+  }
+  return projected;
+}
+
+export async function projectToolInputValidationFailure({ tool, args, validationError, requestContract,
+  ownerDiagnostics = null }) {
+  const issues = ownerDiagnostics ?? validationError.issues;
+  const nextCalls = [];
+
+  if (issues.every(issue => issue.code === "unrecognized_keys")) {
+    const corrected = structuredClone(args);
+    for (const issue of issues) {
+      const parent = issue.path.reduce((value, part) => value?.[part], corrected);
+      for (const key of issue.keys) delete parent[key];
+    }
+    if (Buffer.byteLength(JSON.stringify(corrected), "utf8") <= 4096 &&
+        await requestContract.acceptsArguments(corrected)) {
+      nextCalls.push(buildNextCall({ tool, arguments: corrected, recommended: true }));
+    }
+  }
+  const missing = issues.filter(issue => issue.code === "invalid_type" && issue.received === "undefined");
+  return { code: TOOL_INPUT_VALIDATION_FAILED, accepted: false, tool,
+    ...(typeof (args?.unit ?? args?.subject) === "string" && (args.unit ?? args.subject).length <= 128
+      ? { subject: args.unit ?? args.subject } : {}),
+    issue_count: issues.length,
+    invalid_fields: issues.slice(0, 8).map(issue => taskValidatorIssue(issue)),
+    ...(missing.length === 0 ? {} : { required_inputs: missing.slice(0, 8).map(issue => ({
+      path: issue.path, expected: issue.expected, choice: "caller_supplied_value_required"
+    })) }),
+    correction: nextCalls.length > 0 ? "Call the corrected request with the unsupported fields removed."
+      : "Supply the missing caller choices or correct the reported field constraints before calling this tool again.",
+    next_calls: nextCalls };
+}
+
 function createEffectsEnforcingHandler(
   effectsSchema,
   downstreamHandler,
@@ -314,6 +381,29 @@ function createEffectsEnforcingHandler(
   };
 }
 
+const listedSchemaProjections = new WeakMap();
+const LIST_TOOLS_METHOD = getMethodLiteral(ListToolsRequestSchema);
+
+function listedSchemaProjectionFor(server) {
+  const protocol = server?.server;
+  if (typeof protocol?.setRequestHandler !== "function") return null;
+  let state = listedSchemaProjections.get(protocol);
+  if (state !== undefined) return state;
+  state = { installed: false, published: new Map() };
+  listedSchemaProjections.set(protocol, state);
+  const install = protocol.setRequestHandler.bind(protocol);
+  protocol.setRequestHandler = (requestSchema, handler) => {
+    if (getMethodLiteral(requestSchema) !== LIST_TOOLS_METHOD) return install(requestSchema, handler);
+    state.installed = true;
+    return install(requestSchema, async (request, extra) => {
+      const listed = await handler(request, extra);
+      return { ...listed, tools: listed.tools.map((tool) => state.published.has(tool.name)
+        ? { ...tool, inputSchema: state.published.get(tool.name)() } : tool) };
+    });
+  };
+  return state;
+}
+
 export function createRegisterTool({
   server,
   toolProfile,
@@ -327,6 +417,7 @@ export function createRegisterTool({
 }) {
 
   const requestContracts = createRegisteredToolRequestContractStore();
+  const listedSchemaProjection = listedSchemaProjectionFor(server);
   const registerTool = function registerTool(name, config, handler) {
 
     if (!shouldExposeTool(toolProfile, name)) {
@@ -362,6 +453,7 @@ export function createRegisterTool({
       inputContractAuthoringGuidance,
       inputContractRequestGuidanceLocations,
       inputValidationErrorProjector,
+      publishedInputSchemaProjection,
       ...declaredConfig
     } = config ?? {};
     const publishedConfig = writeSemantics === undefined
@@ -400,6 +492,11 @@ export function createRegisterTool({
         advertisedInputSchema === undefined) {
       throw new Error(
         `agent_tool_input_contract_schema_source_without_advertised_schema: '${name}' selects its advertised input schema as the input contract source but declares no advertisedInputSchema`
+      );
+    }
+    if (publishedInputSchemaProjection !== undefined && typeof publishedInputSchemaProjection !== "function") {
+      throw new Error(
+        `agent_tool_published_schema_projection_invalid: '${name}' declares a publishedInputSchemaProjection that is not a function`
       );
     }
     const schemaToPublish = advertisedInputSchema === undefined
@@ -465,8 +562,18 @@ export function createRegisterTool({
     registeredToolNames.add(name);
     requestContracts.retain(name, {
       ...declaredRequestContract,
-      publishedInputSchema: effectiveConfig?.inputSchema
+      publishedInputSchema: effectiveConfig?.inputSchema,
+      publishedInputSchemaProjection
     });
+    if (publishedInputSchemaProjection !== undefined && listedSchemaProjection !== null) {
+      if (!listedSchemaProjection.installed) {
+        throw new Error(
+          `agent_tool_published_schema_projection_unavailable: '${name}' declares a publishedInputSchemaProjection but this server's tools/list handler was installed before its registrar; create the registrar before any tool is registered`
+        );
+      }
+      const contract = requestContracts.lookup.contractFor(name);
+      listedSchemaProjection.published.set(name, () => contract.publishedRequestSchema());
+    }
   };
   bindRegisteredToolRequestContracts(registerTool, requestContracts);
   return registerTool;

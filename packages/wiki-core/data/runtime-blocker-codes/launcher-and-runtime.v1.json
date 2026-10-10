@@ -12,30 +12,11 @@
       "reasons": [
         {
           "reason": "reviewer_write_scope_nonempty",
-          "summary": "A reviewer dispatch named a subject whose selected slice or work-item declares a non-empty write_scope. Reviewers are findings-only and require write_scope: []. This reason rides as structured diagnostic context on role_policy_violation at the MCP dispatch admission boundary (workspace_agent_dispatch) and in the launcher reviewer role-plan paths (agent-role buildAgentRolePlan and the Codex read-only reviewer path); it is not a separate taxonomy code.",
+          "summary": "A reviewer was planned with a non-empty effective mutation scope. Reviewers are findings-only: the write scope a reviewer session may mutate is required to be empty. This is the reviewer's own effective authority, not the write_scope of the unit under review; a write-bearing implementation slice remains a valid immutable subject of a read-only findings action. This reason rides as structured diagnostic context on role_policy_violation in the launcher reviewer role-plan paths (agent-role buildAgentRolePlan and the Codex read-only reviewer path); it is not a separate taxonomy code.",
           "cause_classification": "coordination_wk_shape_issue",
           "required_write_scope": [],
-          "remediation": {
-            "action": "create_or_select_separate_findings_only_review_unit",
-            "kind": "structured_route",
-            "summary": "The selected subject is shaped like implementation work, so it is the wrong subject for a findings-only reviewer. Author a separate findings-only unit through the structured ready-slice route and dispatch the reviewer against the server-allocated slice id it returns. shaping_mode selects the technical role, so review shaping is what binds dispatch_intent.intended_agent_role to reviewer; a caller-authored semantic unit id is refused by the route and must not be attempted.",
-            "route": "workspace_work_record_ready_slice",
-            "arguments": {
-              "shaping_mode": "review",
-              "review_purpose": "standalone",
-              "work_kind": "review",
-              "write_scope": []
-            },
-            "argument_bindings": {
-              "unit": "reviewed_parent_wk_unit",
-              "title": "review_objective_title",
-              "repo_paths": "reviewed_implementation_paths",
-              "depends_on": "reviewed_implementation_unit",
-              "acceptance": "review_acceptance_contract"
-            },
-            "success_condition": "workspace_work_record_ready_slice acknowledges saving a server-allocated findings-only slice whose write_scope is empty and whose review_purpose and derived intended_agent_role are set; workspace_work_record_summary or workspace_read_page with selected_slice then confirms the canonical saved unit"
-          },
           "not_remediation": [
+            "authoring a separate review unit for a write-bearing subject",
             "changing the requested role",
             "bypassing dispatch readiness",
             "refreshing graph impact",
@@ -298,19 +279,19 @@
       "actor_recovery": "coordinator",
       "blocking": true,
       "summary": "Implementation dispatch requires the managed lifecycle; unmanaged direct execution is not an implementation route.",
-      "detail": "Use when an implementation request is outside the server-owned managed lifecycle. This code does not imply that structured dispatch, native editing, repository reads, or commit are unavailable; each capability is reported independently by coordination preflight.",
-      "consumer_notes": "Recovery is a structured preflight followed by structured dispatch only. Consumers must not turn this blocker into caller-selected lifecycle configuration. The preflight is scoped to the dispatch role the refusal actually names: a capability fact obtained for another role neither answers nor discharges this refusal.",
+      "detail": "Use when an implementation request is outside the server-owned managed lifecycle. This code does not imply that structured dispatch, native editing, repository reads, or commit are unavailable; each capability is reported independently by the start_agent capability preview.",
+      "consumer_notes": "The registered recovery is an inspection, not a correction: it reads the package document the start_agent tool advertises, from the serving package and never from a workspace file, and repairs no unavailable capability. The capability facts themselves are reported by the start_agent capability preview for an explicit role; a fact read for another role neither answers nor discharges a refusal for the dispatch role it names, and no role is defaulted. Neither read starts a child, writes anything or admits a launch. The correction is the coordinator's own explicit start of an exact canonical slice through the managed lifecycle; the refusal supplies no subject, so none is constructed. Consumers must not turn this blocker into caller-selected lifecycle configuration.",
       "recovery": {
-        "kind": "structured_route",
-        "route": "workspace_coordination_preflight",
+        "kind": "capability_inspection",
+        "route": "workspace_read_wiki",
         "arguments": {
-          "role": "coordinator"
+          "reference": {
+            "tool_name": "start_agent",
+            "path": "docs/mcp-operation-reference.md"
+          }
         },
-        "argument_bindings": {
-          "target_dispatch_role": "refused_dispatch_role"
-        },
-        "prerequisite": "no fresh managed-lifecycle capability fact exists for the dispatch role the refusal names",
-        "success_condition": "workspace_coordination_preflight reports fresh, available managed lifecycle capability facts for the dispatch role the refusal names"
+        "prerequisite": "the managed lifecycle does not admit the implementation request the refusal names",
+        "success_condition": "the advertised start_agent package reference has been read; the read changes no capability fact and leaves the refusal in force until the coordinator starts an exact canonical slice through the managed lifecycle"
       }
     },
     {
@@ -327,15 +308,18 @@
       "blocking": true,
       "summary": "Managed implementation worktree provisioning is not currently available from the launcher-owned capability source.",
       "detail": "Use when managed implementation dispatch cannot obtain a fresh, available provisioning fact. Provisioning absence, unknown authority, and stale authority all fail closed before worker spawn.",
-      "consumer_notes": "The operator restores the server-owned capability source; the coordinator rechecks it through the structured preflight route. No caller-provided provisioning values are accepted.",
+      "consumer_notes": "The operator restores the server-owned capability source; nothing an agent can call provisions or repairs it. The registered recovery is an inspection only: it reads the package document the start_agent tool advertises, from the serving package and never from a workspace file. The current provisioning fact is reported by the start_agent capability preview for the worker role, which starts no child. No caller-provided provisioning values are accepted.",
       "recovery": {
-        "kind": "structured_route",
-        "route": "workspace_coordination_preflight",
+        "kind": "capability_inspection",
+        "route": "workspace_read_wiki",
         "arguments": {
-          "role": "coordinator",
-          "target_dispatch_role": "worker"
+          "reference": {
+            "tool_name": "start_agent",
+            "path": "docs/mcp-operation-reference.md"
+          }
         },
-        "success_condition": "managed_worktree_provisioning reports available from a fresh authoritative source"
+        "prerequisite": "the launcher-owned capability source does not report managed_worktree_provisioning available from a fresh authoritative source",
+        "success_condition": "the advertised start_agent package reference has been read; the read observes and cannot produce the capability, which stays unavailable until the operator restores the launcher-owned capability source"
       }
     },
     {
@@ -345,10 +329,10 @@
       "blocking": true,
       "summary": "Managed provisioning is available, but the slice branch retains a delivery the canonical WK base does not contain, so it cannot be adopted as a fresh worker base.",
       "detail": "Emitted when a managed implementation launch finds an existing slice tip that is ahead of, or diverged from, the canonical WK-derived base \u2014 the shape a committed-but-unintegrated worker attempt leaves behind. Adopting that tip would make the retained delivery invisible to every later diff and would start a second worker for work already committed, so the launch fails closed BEFORE any attempt binding, ref mutation, worktree mutation, provisioning side effect, or spawn. This code reports Git containment facts only: it does not assert that the prior worker terminated, and it carries no authority to delete, move, reset, rebase, or integrate any ref, nor to launch a replacement worker. It is NOT a provisioning-capability failure \u2014 managed_worktree_provisioning_unavailable remains the code for genuinely absent, unknown, or stale provisioning authority, and unrelated Git, configuration, allocation, or worktree failures keep their own codes.",
-      "consumer_notes": "Coordinator-owned: the retained delivery is a REVIEW problem, not a re-spawn problem. Dispatch a reviewer for the exact slice subject; launcher-owned admission derives the frozen committed target from canonical review state and refs. Read the bounded reconcile_state / slice_tip / wk_base_ref / wk_base_sha / recovery_route facts carried on the refusal detail. Do not re-dispatch a worker, recover a worker monitor handle, hand-repair refs, or infer worker terminality from Git truth.",
+      "consumer_notes": "Coordinator-owned: the retained delivery is a REVIEW problem, not a re-spawn problem. The coordinator explicitly starts a reviewer for the exact slice subject through start_agent; launcher-owned admission derives the frozen committed target from canonical review state and refs. The refusal offers that call and starts nothing itself: no review runs, nothing is integrated and no ref moves until the coordinator makes it. Read the bounded reconcile_state / slice_tip / wk_base_ref / wk_base_sha / recovery_route facts carried on the refusal detail. Do not start another worker, recover a worker monitor handle, hand-repair refs, or infer worker terminality from Git truth.",
       "recovery": {
         "kind": "structured_route",
-        "route": "workspace_agent_dispatch",
+        "route": "start_agent",
         "arguments": {
           "role": "reviewer"
         },
@@ -691,7 +675,7 @@
       "category": "review_transport",
       "actor_recovery": "operator",
       "blocking": true,
-      "summary": "MCP reviewer dispatch route (workspace_agent_dispatch --role reviewer) is not registered or not exposed in this session.",
+      "summary": "The MCP reviewer start route (start_agent with role reviewer) is not registered or not exposed in this session.",
       "consumer_notes": "When MCP reviewer dispatch is unavailable in-session, implementation slices that are explicitly covered by the bootstrap review exception must use that exception instead of treating this as a hard close blocker."
     },
     {
@@ -956,17 +940,17 @@
       "actor_recovery": "caller_retry",
       "blocking": true,
       "summary": "An authenticated managed corrective-status recovery is pending launcher retirement of the observed attempt.",
-      "detail": "The launcher authenticated a corrective-status recovery for the exact slice unit and still owns retirement of the observed attempt. Filesystem cleanup is forbidden, the substantive review and review status are preserved, and no replacement review is required. The supported continuation is to re-call workspace_agent_run_status for the same subject until the launcher completes retirement.",
+      "detail": "The launcher authenticated a corrective-status recovery for the exact slice unit and still owns retirement of the observed attempt. Filesystem cleanup is forbidden, the substantive review and review status are preserved, and no replacement review is required. Nothing a caller can invoke retires the attempt. The supported read is get_run_result for the same subject, which reports the launcher's current state and performs no retirement or cleanup.",
       "recovery": {
-        "kind": "structured_route",
-        "route": "workspace_agent_run_status",
+        "kind": "run_observation",
+        "route": "get_run_result",
         "argument_bindings": {
           "subject": "corrective_status_slice_unit"
         },
         "prerequisite": "the launcher has not yet completed retirement of the observed attempt",
-        "success_condition": "workspace_agent_run_status reports the subject the refusal names without the pending launcher-retirement recovery"
+        "success_condition": "get_run_result has reported the launcher's current state for the subject the refusal names; the read retires nothing, and the refusal stays in force until the launcher completes retirement of the observed attempt"
       },
-      "consumer_notes": "A callable continuation exists, so this must never be published as operator_recovery_needed. Do not perform filesystem cleanup, do not retire the attempt from the caller side, and do not replace the preserved review."
+      "consumer_notes": "The launcher, not an operator, owns the retirement, so this must never be published as operator_recovery_needed. The registered recovery is an observation, not a correction: it binds the exact slice subject and no attempt, because the refusal supplies no attempt identity; the result reader applies its own selection and reports an ambiguous attempt rather than choosing one. Do not perform filesystem cleanup, do not retire the attempt from the caller side, and do not replace the preserved review."
     },
     {
       "code": "agent_launch.slice_integration.cce_policy_refused.v1",

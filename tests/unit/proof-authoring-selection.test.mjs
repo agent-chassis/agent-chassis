@@ -39,6 +39,15 @@ test('P04 omitted proof names keep drafts incomplete and preserve saved selectio
     { ...selected.obligations[0].selection, parameters: undefined });
   assert.equal(kept.obligations[0].selection.proof_version, '4.0.0');
 });
+
+const CURRENT_ROUTE = /^(?!.*upsert).*workspace_find_proofs.*caller.*workspace_read_wiki.*save_record/iu;
+test('an unselected row names discovery by the caller\'s own query and the current save route', async () => {
+  for (const selection of [undefined, null, { proof_name: null, proof_version: null }]) {
+    await assert.rejects(loadPinnedProofSelection(selection, { loadExact: () => assert.fail('no definition is loaded') }),
+      { name: 'ProofAuthoringError', code: 'obligation_coverage_proof_unselected', message: CURRENT_ROUTE,
+        details: { limb: 'mechanical_failure', changed: false, field: 'proof_name', discovery_input: 'query' } });
+  }
+});
 test('P04 an explicitly supplied unknown proof name refuses the whole amendment', async () => {
   const owners = { catalog: async () => ({ packs: [{ profile_id: 'proof.test' }] }), load: async () => ({
     profile: { profile_id: 'proof.test', profile_version: '4.0.0' }, profile_digest: 'a'.repeat(64),
@@ -60,8 +69,10 @@ test('P04 an explicitly supplied unknown proof name refuses the whole amendment'
   const unpinned = { ...empty(), obligations: [{ obligation_id: 'OBL-OLD', selection: { proof_name: 'proof.invented',
     proof_version: null, profile_digest: null, parameter_contract_digest: null, admission_digest: null, parameters: {} } }] };
   await assert.rejects(upsert(unpinned, [{ obligation_id: 'OBL-OLD', proof_name: 'proof.invented' }], owners), refusal);
+
   await assert.rejects(loadPinnedProofSelection(unpinned.obligations[0].selection),
-    { code: 'obligation_coverage_proof_unpinned', message: /upsert an exact catalog name or remove the selection/u });
+    { code: 'obligation_coverage_proof_unpinned', message: CURRENT_ROUTE, details: { limb: 'mechanical_failure',
+      changed: false, field: 'proof_name', proof_name: 'proof.invented', discovery_input: 'proof_name' } });
   const repaired = await upsert(unpinned, [{ obligation_id: 'OBL-OLD', proof_name: 'proof.test' }], owners);
   assert.equal(repaired.obligations[0].selection.proof_version, '4.0.0');
 });

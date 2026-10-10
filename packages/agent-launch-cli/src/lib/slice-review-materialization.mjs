@@ -3,13 +3,9 @@
 import {
   existsSync,
   lstatSync,
-  mkdirSync,
-  mkdtempSync,
   readFileSync,
-  realpathSync,
-  rmSync
+  realpathSync
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { runGitAsync } from "../../../agent-launch-core/src/lib/git.mjs";
@@ -22,6 +18,13 @@ import {
   resolveCommitGitIdentity,
   verifyExactSliceCommitBinding
 } from "./exact-slice-commit-binding.mjs";
+
+import {
+  applyCheckoutMutation,
+  isolatedGitEnvironment,
+  measurePhysicalCheckoutTree,
+  OWNED_WORKTREE_CHECKOUT_MUTATIONS
+} from "./owned-worktree-checkout.mjs";
 
 import {
   failSliceReviewMaterialization as fail,
@@ -41,24 +44,6 @@ export {
 
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
-function gitEnvironment({ indexFile = null, objectDirectory = null, alternates = null } = {}) {
-  const env = { ...process.env };
-  for (const key of [
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES"
-  ]) {
-    delete env[key];
-  }
-  if (indexFile !== null) env.GIT_INDEX_FILE = indexFile;
-  if (objectDirectory !== null) env.GIT_OBJECT_DIRECTORY = objectDirectory;
-  if (alternates !== null) env.GIT_ALTERNATE_OBJECT_DIRECTORIES = alternates;
-  return env;
-}
-
 export async function defaultSliceReviewRunGit({
   repo = null,
   gitDir = null,
@@ -73,7 +58,7 @@ export async function defaultSliceReviewRunGit({
     gitDir,
     workTree,
     args,
-    env: gitEnvironment({ indexFile, objectDirectory, alternates }),
+    env: isolatedGitEnvironment({ indexFile, objectDirectory, alternates }),
     maxBuffer: 1024 * 1024
   });
   if (result.error) {
@@ -265,49 +250,28 @@ async function resolveObjectStoreIdentity(runGit, gitContext) {
   return { objectDirectory, commonDirectory, objectAlternates };
 }
 
-async function physicalTreeFromIsolatedIndex({ runGit, gitContext, reviewedSha, objectDirectory }) {
-  const tempRoot = mkdtempSync(path.join(tmpdir(), "slice-review-surface-"));
-  const indexFile = path.join(tempRoot, "index");
-  const temporaryObjects = path.join(tempRoot, "objects");
-  mkdirSync(temporaryObjects);
-  const isolated = {
-    ...gitContext,
-    indexFile,
-    objectDirectory: temporaryObjects,
-    alternates: objectDirectory
-  };
-  try {
-    await gitResult(runGit, isolated, ["read-tree", reviewedSha], {
-      code: SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.PHYSICAL_TREE_REFUSED,
-      message: "could not seed the isolated physical-tree index"
-    });
-    for (const args of [
-      ["ls-files", "--others", "--exclude-standard", "--directory", "--no-empty-directory"],
-      ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory"]
-    ]) {
-      const unexpected = await gitOutput(runGit, isolated, args, {
-        code: SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.PHYSICAL_TREE_REFUSED,
-        message: "could not inspect unexpected worktree content"
-      });
-      if (unexpected.length > 0) {
-        fail(
-          SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.PHYSICAL_TREE_REFUSED,
-          "retained slice worktree contains unexpected untracked content",
-          { path: unexpected.split("\n", 1)[0] }
-        );
-      }
-    }
-    await gitResult(runGit, isolated, ["add", "-A", "--"], {
-      code: SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.PHYSICAL_TREE_REFUSED,
-      message: "could not measure the physical checkout through the isolated index"
-    });
-    return assertOid(await gitOutput(runGit, isolated, ["write-tree"], {
-      code: SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.PHYSICAL_TREE_REFUSED,
-      message: "could not write the isolated physical checkout tree"
-    }), "physical checkout tree");
-  } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
+function refusePhysicalMeasurement(step, detail) {
+  const code = SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.PHYSICAL_TREE_REFUSED;
+  if (step === "seed") fail(code, "could not seed the isolated physical-tree index", detail);
+  if (step === "inspect") fail(code, "could not inspect unexpected worktree content", detail);
+  if (step === "unexpected_content") {
+    fail(code, "retained slice worktree contains unexpected untracked content", detail);
   }
+  if (step === "measure") fail(code, "could not measure the physical checkout through the isolated index", detail);
+  if (step === "write_tree") fail(code, "could not write the isolated physical checkout tree", detail);
+  return assertOid(detail?.value, "physical checkout tree");
+}
+
+async function physicalTreeFromIsolatedIndex({ runGit, gitContext, reviewedSha, objectDirectory }) {
+  const { tree } = await measurePhysicalCheckoutTree({
+    runGit,
+    gitContext,
+    seedCommit: reviewedSha,
+    objectDirectory,
+    refuse: ["untracked", "ignored"],
+    report: refusePhysicalMeasurement
+  });
+  return tree;
 }
 
 async function resolveTrustedState({
@@ -919,10 +883,16 @@ export async function prepareSliceReviewSurface({
         "ordinary linked-worktree index became locked before preparation"
       );
     }
-    await gitResult(runGit, before.gitContext, ["read-tree", before.reviewedSha], {
-      code: SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.PREPARE_FAILED,
-      message: "git read-tree could not align the ordinary index with the reviewed commit"
-    });
+    const aligned = await applyCheckoutMutation({ runGit, gitContext: before.gitContext,
+      mutation: OWNED_WORKTREE_CHECKOUT_MUTATIONS.INDEX_ONLY, target: before.reviewedSha });
+    if (aligned.result?.ok !== true) {
+      fail(SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.PREPARE_FAILED,
+        "git read-tree could not align the ordinary index with the reviewed commit", {
+          args: aligned.args,
+          status: aligned.result?.status ?? null,
+          stderr: aligned.result?.stderr ?? aligned.result?.error ?? null
+        });
+    }
   }
   if (existsSync(indexLock)) {
     fail(

@@ -16,6 +16,9 @@ export function classifyControlledContractRuntimeEligibility(contract,
     (obligationCoverage?.authoringApplicability?.selection_relationships ?? [])
       .map(({ obligation_id: obligationId }) => obligationId)
   );
+
+  const optedOut = new Set((obligationCoverage?.resolution?.rows ?? [])
+    .filter(row => row.accounting?.decision === 'opted_out').map(row => row.obligation_id));
   const population = (obligationCoverage?.rows ?? []).map((obligation) => {
     const proofKind = obligation.selection ? 'saved_selection' : null;
     const mappingClassification = proofKind === "saved_selection" ? "mapped" : "invalid";
@@ -26,6 +29,11 @@ export function classifyControlledContractRuntimeEligibility(contract,
       mapping_classification: mappingClassification,
       mapping_reason_code: null
     };
+
+    if (optedOut.has(obligation.obligation_id)) return frozen({
+      ...common, verification_id: null, classification: 'non_runtime',
+      reason_code: 'obligation_proof_disposition_non_runtime', verification_method: null
+    });
     if (obligation.design_status !== 'valid') return frozen({
       ...common, verification_id: null, classification: 'unresolved',
       reason_code: obligation.diagnostics?.[0]?.code ?? 'obligation_coverage_design_invalid',

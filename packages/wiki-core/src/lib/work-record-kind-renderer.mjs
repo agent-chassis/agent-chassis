@@ -15,7 +15,7 @@ function isString(value) {
 }
 
 function isSimpleYamlScalar(value) {
-  return /^[A-Za-z0-9_./:-]+$/.test(value) && !/^(true|false|null|yes|no|on|off)$/i.test(value);
+  return /^[A-Za-z0-9_./:-]+$/.test(value) && !value.endsWith(":") && !/^(true|false|null|yes|no|on|off)$/i.test(value);
 }
 
 function renderYamlScalar(value) {
@@ -71,7 +71,7 @@ function renderYamlValue(value, indentLevel = 0) {
   return `${indent}${renderYamlScalar(value)}`;
 }
 
-function renderYamlLine(key, value) {
+export function renderYamlLine(key, value) {
   if (value === undefined) {
     return null;
   }

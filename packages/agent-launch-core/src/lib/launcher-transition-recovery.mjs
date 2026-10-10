@@ -11,6 +11,9 @@ const GUIDANCE_ARGUMENT_KEY_RE = /^[a-z][a-z0-9_]{0,63}$/u;
 const GUIDANCE_ARGUMENT_STRING_MAX = 256;
 const GUIDANCE_ARGUMENT_MAX_DEPTH = 2;
 const GUIDANCE_INFORMATION_MAX = 512;
+
+const DECLARED_CALLABLE_NEXT_ACTION = "start_agent";
+
 const RECOVERY_PROSE_FIELDS = Object.freeze([
   "prerequisite", "operator_action", "retry_condition", "explanation"
 ]);
@@ -200,7 +203,7 @@ export function selectDeclaredLauncherRecovery(detail, schemaRejected) {
     detail.next_action_args,
     schemaRejected
   );
-  const declaredCallableArgs = nextAction.ok && nextAction.value === "workspace_agent_dispatch" &&
+  const declaredCallableArgs = nextAction.ok && nextAction.value === DECLARED_CALLABLE_NEXT_ACTION &&
       actorRecovery.ok && actorRecovery.value === "coordinator" &&
       typeof nextActionArgs?.subject === "string"
     ? nextActionArgs
@@ -220,7 +223,7 @@ export function selectDeclaredLauncherRecovery(detail, schemaRejected) {
   } else if (declaredCallableArgs !== null) {
     recovery = Object.freeze({
       state: "callable",
-      route: "workspace_agent_dispatch",
+      route: DECLARED_CALLABLE_NEXT_ACTION,
       args: Object.freeze({
         role: declaredCallableArgs.role ?? null,
         subject: declaredCallableArgs.subject

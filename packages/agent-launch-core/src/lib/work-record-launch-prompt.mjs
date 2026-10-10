@@ -309,7 +309,7 @@ export const LAUNCH_ASSIGNMENT_DELIVERY_MODES = Object.freeze({
 });
 
 export const MANAGED_ASSIGNMENT_RETRIEVAL_INSTRUCTION =
-  "Your assignment is not included in this startup text. First call workspace_read_page with arguments " +
+  "Your assignment is not included in this startup text. First call workspace_read_wiki with arguments " +
   "{\"assignment\":true} and follow every returned next_calls continuation until the guidance is complete " +
   "before doing any assigned work. If that read is refused, stop and report its refusal code and recovery " +
   "action as a blocker; do not substitute any other source for the assignment.";
@@ -403,6 +403,15 @@ function renderManagedAssignmentGuidanceLines({ canonicalSummary, agentBrief }) 
   const summary = isNonEmptyString(canonicalSummary.operative_summary)
     ? ["### Summary", "", canonicalSummary.operative_summary.trim(), ""]
     : [];
+
+  const parentRequirements = isNonEmptyString(canonicalSummary.parent_user_requirements)
+    ? [
+        "### Parent user requirements — context; your assigned scope is below.",
+        "",
+        canonicalSummary.parent_user_requirements,
+        ""
+      ]
+    : [];
   return [
     "## Canonical Record",
     "",
@@ -412,11 +421,20 @@ function renderManagedAssignmentGuidanceLines({ canonicalSummary, agentBrief }) 
       ["title", canonicalSummary.title]
     ]),
     "",
+    ...parentRequirements,
     ...summary,
     ...renderOperativeInstructions(canonicalSummary),
     "### Acceptance Criteria",
     "",
     formatAcceptanceCriteriaList(selectedUnitContext.acceptance_criteria),
+    "",
+    "### Readable Paths",
+    "",
+    formatInlineList(readablePaths(selectedUnitContext)),
+    "",
+    "### Writable Paths",
+    "",
+    formatInlineList([...new Set(selectedUnitContext.write_scope)]),
     "",
     "### Declared Validation",
     "",

@@ -152,12 +152,18 @@ export async function settleControlledContractAuthoringProspectiveMembers({
   repoRoot, wkId, focus = null, source, prospective, coverage = null,
   obligationSource = null, obligationSources = [], publishCarriers = true,
   targetRecord = null, selectedUnit = null, assertDefinitions = async () => {},
-  compilerContract = null, proofSourceOverride = null
+  compilerContract = null, proofSourceOverride = null, evidenceParticipants = []
 }, {
   prepareCarrierSettlement = prepareControlledContractRefactorCarrierSettlement,
   prepareCoverageSettlement = prepareControlledContractRefactorCoverageSettlement,
   settle = settleControlledContractRefactorTransaction,
-  retain = retainControlledContractRefactorResource
+  retain = retainControlledContractRefactorResource,
+
+  prepareRecordSettlement = ({ targetRecord: record }) => prepareWorkRecordTestTargetSettlement({
+    dir: repoRoot, id: wkId, selectedUnit, record, lease: source.record_lease,
+    allowProofPosture: controlledContractContentDigest(
+      record.proof_posture ?? null) !== controlledContractContentDigest(
+      source.record.proof_posture ?? null) })
 } = {}) {
   if (publishCarriers) validateControlledContractAuthoringProspectiveMembers(prospective, { source });
   const plannedGeneration = prospective.source.generation;
@@ -180,6 +186,8 @@ export async function settleControlledContractAuthoringProspectiveMembers({
   });
   let carrierReceipt = null;
   let coverageReceipt = null;
+
+  let terminalReceipt = null;
   let settled = false;
   try {
     const settlement = await settle({
@@ -194,6 +202,7 @@ export async function settleControlledContractAuthoringProspectiveMembers({
         });
     },
     participants: [
+      ...evidenceParticipants,
       ...obligationSources.map(item => ({ name: `obligation_source:${item.initial.selectedUnit ?? 'parent'}`,
         prepare: () => prepareProofAuthoringSourceSettlement(item) })),
       ...(obligationSource === null ? [] : [{ name: 'obligation_source',
@@ -224,11 +233,13 @@ export async function settleControlledContractAuthoringProspectiveMembers({
         } });
       } }] : [])
       ,...(targetRecord === null ? [] : [{ name: 'work_record_targets', terminal: true,
-        prepare: () => prepareWorkRecordTestTargetSettlement({ dir: repoRoot, id: wkId,
-          selectedUnit, record: targetRecord, lease: source.record_lease,
-          allowProofPosture: controlledContractContentDigest(
-            targetRecord.proof_posture ?? null) !== controlledContractContentDigest(
-            source.record.proof_posture ?? null) }) }])
+        prepare: async () => {
+          const prepared = await prepareRecordSettlement({ targetRecord, source });
+          return Object.freeze({ ...prepared, commit: async () => {
+            terminalReceipt = await prepared.commit();
+            return terminalReceipt;
+          } });
+        } }])
     ]
     });
     settled = true;
@@ -252,9 +263,11 @@ export async function settleControlledContractAuthoringProspectiveMembers({
     const retained = await retain({
       repoRoot, resourceKind: "receipt", payload: receipt
     });
-    return Object.freeze({ ...receipt, receipt_identity: retained.identity });
+    return Object.freeze({ ...receipt, receipt_identity: retained.identity,
+      ...(terminalReceipt?.ok === false ? { terminal_receipt: terminalReceipt } : {}) });
   } catch (error) {
-    if (!settled && carrierReceipt === null || error.details?.settlement_status === 'compensated') throw error;
+    if (!settled && carrierReceipt === null && terminalReceipt === null ||
+        error.details?.settlement_status === 'compensated') throw error;
 
     if (!settled && Array.isArray(error.details?.compensation_failures)) throw error;
 
@@ -263,7 +276,8 @@ export async function settleControlledContractAuthoringProspectiveMembers({
       error?.code ?? "controlled_contract_authoring_post_commit_failure",
       error?.message ?? "authoring publication committed but closeout failed", {
         ...details,
-        changed: carrierReceipt?.no_op === true ? false : true,
+        changed: carrierReceipt?.no_op === true &&
+          (terminalReceipt === null || terminalReceipt.no_op === true) ? false : true,
         retry_safe: false,
         publication_outcome: "established",
         publication_phase: "post_commit_closeout",

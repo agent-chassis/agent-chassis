@@ -125,11 +125,7 @@ async function scanEntrySelection({content,repository,dir,loadWorkRecord,literal
     literal_length:literalPoints.length,total_count:totalCount,selected_offset:selectedOffset,choices};
 }
 
-export async function upsertWorkRecordEntry({dir=".",repository,unit,entryId,title,kind,content,
-  expectedSourceDigest,writeWorkRecord=writeValidatedWorkRecord,loadWorkRecord=readWorkRecordById,
-  resolveExternalReference=null}={}){
-  const parsed=parseUnit(unit);if(!parsed)return refusal("work_record_entry_unit_invalid","unit must be WK-#### or WK-####\u0023SLICE-###","unit");
-  if(typeof expectedSourceDigest!=="string"||expectedSourceDigest.length===0)return refusal("invalid_expected_source_digest","expected_source_digest is required","expected_source_digest");
+export function validateWorkRecordEntryUpsertInput({entryId,title,kind,content}={}){
   const creating=entryId===undefined;
   if(!creating&&(!Number.isSafeInteger(entryId)||entryId<=0))return refusal("work_record_entry_id_invalid","entry_id must be a positive safe integer","entry_id");
   if(creating&&title===undefined)return refusal("work_record_entry_title_invalid","create requires title","title");
@@ -138,6 +134,45 @@ export async function upsertWorkRecordEntry({dir=".",repository,unit,entryId,tit
     validateWorkRecordEntryKind(kind)])if(issue)return{ok:false,valid:false,written:false,diagnostics:[issue]};
   if(content===null)return refusal("work_record_entry_content_invalid","content must not be null","content");
   if(content!==undefined){const shape=validateWorkRecordEntryContent(content,{path:"content"});if(!shape.ok)return{ok:false,valid:false,written:false,diagnostics:[shape.diagnostic]};}
+  return null;
+}
+
+export async function planWorkRecordEntryUpsert({record:sourceRecord,sourceDigest,parsed,repository,dir,
+  loadWorkRecord=readWorkRecordById,entryId,title,kind,content,resolveExternalReference=null,
+  now=()=>new Date().toISOString().slice(0,10)}){
+  const creating=entryId===undefined;
+  const record=structuredClone(sourceRecord),owner=selectUnit(record,parsed);
+  if(!owner)return {result:refusal("work_record_entry_unit_missing","selected unit is unavailable","unit")};
+  owner.sections??={};owner.sections.entries??=[];
+  const entry=creating?null:owner.sections.entries.find(value=>value.id===entryId);
+  if(!creating&&!entry)return {result:refusal("work_record_entry_missing","entry_id is not owned by the selected unit","entry_id")};
+  const current=entry?.versions.find(value=>value.id===entry.current_version)??null;
+  if(!creating&&!current)return {result:refusal("work_record_entry_history_corrupt","current version is not retained","entry_id")};
+  const currentLengths=creating?null:await resolveWorkRecordEntryVersionLengths({entry,version:current,repository,dir,loadWorkRecordById:loadWorkRecord});
+  if(currentLengths&&!currentLengths.ok)return {result:lengthRefusal({source_digest:sourceDigest},currentLengths)};
+  const intendedTitle=title===undefined?current?.title:title,intendedKind=kind===undefined?(current?.kind??""):kind,intendedContent=content===undefined?structuredClone(current?.content):content;
+  if(!creating&&JSON.stringify({title:intendedTitle,kind:intendedKind,content:intendedContent})===JSON.stringify({title:current.title,kind:current.kind,content:current.content}))return {result:compactWriteSuccess({ok:true,valid:true,written:false,no_op:true,publication_state:"not_published",record_id:record.id,source_digest:sourceDigest,current_source_digest:sourceDigest,diagnostics:[]},{entry_id:entry.id,version_id:current.id,reference:entryRef(repository,record,parsed,entry,current,currentLengths)})};
+
+  const captured=await captureWorkRecordEntryContent({content:intendedContent,repository,dir,loadWorkRecordById:loadWorkRecord,resolveExternalReference});
+  if(captured.ok&&content===undefined)captured.provenance=structuredClone(current.provenance);
+  if(!captured.ok)return {result:{ok:false,valid:false,written:false,source_digest:sourceDigest,diagnostics:[captured.diagnostic]}};
+  if(creating&&captured.scalar_length===0)return {result:refusal("work_record_entry_content_empty","create content must resolve to at least one Unicode scalar","content",{source_digest:sourceDigest})};
+  let targetEntry=entry;
+  if(creating){const all=[record,...(record.slices??[])].flatMap(value=>value.sections?.entries??[]),allocation=nextId(all,"id","work_record_entry_identity_overflow");if(allocation.issue)return {result:{ok:false,valid:false,written:false,diagnostics:[allocation.issue]}};targetEntry={id:allocation.value,current_version:1,versions:[]};owner.sections.entries.push(targetEntry);}
+  const versionAllocation=creating?{value:1}:nextId(targetEntry.versions,"id","work_record_entry_version_identity_overflow");if(versionAllocation.issue)return {result:{ok:false,valid:false,written:false,diagnostics:[versionAllocation.issue]}};
+  const versionValue={id:versionAllocation.value,title:intendedTitle,kind:intendedKind,content:structuredClone(captured.content),scalar_length:captured.scalar_length,utf8_bytes:captured.utf8_bytes,provenance:structuredClone(captured.provenance)};
+  targetEntry.versions.push(versionValue);targetEntry.current_version=versionValue.id;record.updated=now();
+  return {record,targetEntry,versionValue};
+}
+
+export async function upsertWorkRecordEntry({dir=".",repository,unit,entryId,title,kind,content,
+  expectedSourceDigest,writeWorkRecord=writeValidatedWorkRecord,loadWorkRecord=readWorkRecordById,
+  resolveExternalReference=null}={}){
+  const parsed=parseUnit(unit);if(!parsed)return refusal("work_record_entry_unit_invalid","unit must be WK-#### or WK-####\u0023SLICE-###","unit");
+  if(typeof expectedSourceDigest!=="string"||expectedSourceDigest.length===0)return refusal("invalid_expected_source_digest","expected_source_digest is required","expected_source_digest");
+  const creating=entryId===undefined;
+  const invalid=validateWorkRecordEntryUpsertInput({entryId,title,kind,content});
+  if(invalid)return invalid;
   const targetDir=path.resolve(String(dir));
   const externalCaptures=new Map();
   if(content!==undefined&&typeof resolveExternalReference==="function"){
@@ -159,17 +194,6 @@ export async function upsertWorkRecordEntry({dir=".",repository,unit,entryId,tit
       return refusal("work_record_entry_target_missing","target work record is unavailable","unit");
     }
     if(loaded.source_digest!==expectedSourceDigest)return refusal("stale_source_digest","source digest does not match the current canonical record","expected_source_digest",{expected_source_digest:expectedSourceDigest,current_source_digest:loaded.source_digest,source_digest:loaded.source_digest,next_calls:[{tool:READ_TOOL,arguments:{repo:repository,unit},recommended:true}]});
-    const record=structuredClone(loaded.record),owner=selectUnit(record,parsed);
-    if(!owner)return refusal("work_record_entry_unit_missing","selected unit is unavailable","unit");
-    owner.sections??={};owner.sections.entries??=[];
-    const entry=creating?null:owner.sections.entries.find(value=>value.id===entryId);
-    if(!creating&&!entry)return refusal("work_record_entry_missing","entry_id is not owned by the selected unit","entry_id");
-    const current=entry?.versions.find(value=>value.id===entry.current_version)??null;
-    if(!creating&&!current)return refusal("work_record_entry_history_corrupt","current version is not retained","entry_id");
-    const currentLengths=creating?null:await resolveWorkRecordEntryVersionLengths({entry,version:current,repository,dir:targetDir,loadWorkRecordById:loadWorkRecord});
-    if(currentLengths&&!currentLengths.ok)return lengthRefusal(loaded,currentLengths);
-    const intendedTitle=title===undefined?current?.title:title,intendedKind=kind===undefined?(current?.kind??""):kind,intendedContent=content===undefined?structuredClone(current?.content):content;
-    if(!creating&&JSON.stringify({title:intendedTitle,kind:intendedKind,content:intendedContent})===JSON.stringify({title:current.title,kind:current.kind,content:current.content}))return compactWriteSuccess({ok:true,valid:true,written:false,no_op:true,publication_state:"not_published",record_id:record.id,source_digest:loaded.source_digest,current_source_digest:loaded.source_digest,diagnostics:[]},{entry_id:entry.id,version_id:current.id,reference:entryRef(repository,record,parsed,entry,current,currentLengths)});
     const lockedExternalResolver=externalCaptures.size===0?null:async({reference,repository:sourceRepository})=>{
       const original=externalCaptures.get(reference);
       if(!original)return{ok:false,state:"corrupt"};
@@ -181,16 +205,10 @@ export async function upsertWorkRecordEntry({dir=".",repository,unit,entryId,tit
       }
       return original;
     };
-
-    const captured=await captureWorkRecordEntryContent({content:intendedContent,repository,dir:targetDir,loadWorkRecordById:loadWorkRecord,resolveExternalReference:lockedExternalResolver});
-    if(captured.ok&&content===undefined)captured.provenance=structuredClone(current.provenance);
-    if(!captured.ok)return{ok:false,valid:false,written:false,source_digest:loaded.source_digest,diagnostics:[captured.diagnostic]};
-    if(creating&&captured.scalar_length===0)return refusal("work_record_entry_content_empty","create content must resolve to at least one Unicode scalar","content",{source_digest:loaded.source_digest});
-    let targetEntry=entry;
-    if(creating){const all=[record,...(record.slices??[])].flatMap(value=>value.sections?.entries??[]),allocation=nextId(all,"id","work_record_entry_identity_overflow");if(allocation.issue)return{ok:false,valid:false,written:false,diagnostics:[allocation.issue]};targetEntry={id:allocation.value,current_version:1,versions:[]};owner.sections.entries.push(targetEntry);}
-    const versionAllocation=creating?{value:1}:nextId(targetEntry.versions,"id","work_record_entry_version_identity_overflow");if(versionAllocation.issue)return{ok:false,valid:false,written:false,diagnostics:[versionAllocation.issue]};
-    const versionValue={id:versionAllocation.value,title:intendedTitle,kind:intendedKind,content:structuredClone(captured.content),scalar_length:captured.scalar_length,utf8_bytes:captured.utf8_bytes,provenance:structuredClone(captured.provenance)};
-    targetEntry.versions.push(versionValue);targetEntry.current_version=versionValue.id;record.updated=new Date().toISOString().slice(0,10);
+    const planned=await planWorkRecordEntryUpsert({record:loaded.record,sourceDigest:loaded.source_digest,parsed,repository,
+      dir:targetDir,loadWorkRecord,entryId,title,kind,content,resolveExternalReference:lockedExternalResolver});
+    if(planned.result)return planned.result;
+    const {record,targetEntry,versionValue}=planned;
     const write=await writeWorkRecord({dir:targetDir,record,expectedSourceDigest:loaded.source_digest,lockAlreadyHeld:true});
     const identity={entry_id:targetEntry.id,version_id:versionValue.id,reference:entryRef(repository,record,parsed,targetEntry,versionValue)};
     if(write?.ok===true)return compactWriteSuccess(write,identity);

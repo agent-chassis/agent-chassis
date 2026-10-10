@@ -173,26 +173,35 @@ function observeContent(guidance, reads) {
 }
 // WK-2669 commit_delivery: the delivery is exactly the documentation output.
 // The physical-access probe's own writes are restored to their prior bytes before
-// the worker's authenticated commit and re-applied after it, so the committed
+// the worker's authenticated delivery and re-applied after it, so the delivered
 // delta carries no probe residue while this worktree still shows every observed
-// write. The result receipt is written only after the commit.
+// write. The result receipt is written only after the delivery. The delivery is
+// the worker-visible workspace_deliver_work with no arguments; only its
+// confirmed "delivered" outcome continues, and any refused, partial, thrown or
+// unconfirmed result fails this child with that actual result as its evidence.
 const PROBE_WRITE_TARGETS = ["writable/existing.txt", "bin/witness-tool", "glob/existing-one.txt"];
 function snapshotProbeTargets() {
   const { readFileSync } = require("node:fs");
   try { return PROBE_WRITE_TARGETS.map(relative => [relative, readFileSync(relative)]); }
-  catch (error) { throw refuse("commit", "probe_target_unreadable:" + (error.code || String(error))); }
+  catch (error) { throw refuse("delivery", "probe_target_unreadable:" + (error.code || String(error))); }
 }
 async function commitDocumentationDelivery(mcp, preserved) {
   const { readFileSync, writeFileSync: write } = require("node:fs");
   const written = preserved.map(([relative]) => [relative, readFileSync(relative)]);
   for (const [relative, bytes] of preserved) write(relative, bytes);
-  const committed = await mcp.callTool("commit", {}, { timeoutMs: 120000 });
-  const structured = committed && committed.structuredContent || null;
-  if (!committed || committed.isError === true || !structured || structured.committed !== true) {
-    throw refuse("commit", "commit_not_confirmed:" +
-      JSON.stringify(structured || (committed && committed.content) || null).slice(0, 1000));
+  let delivered;
+  try { delivered = await mcp.callTool("workspace_deliver_work", {}, { timeoutMs: 120000 }); }
+  catch (error) {
+    for (const [relative, bytes] of written) write(relative, bytes);
+    throw refuse("delivery", "delivery_call_failed:" + (error && error.message || String(error)).slice(0, 1000));
   }
   for (const [relative, bytes] of written) write(relative, bytes);
+  const structured = delivered && delivered.structuredContent || null;
+  if (!delivered || delivered.isError === true || !structured || structured.outcome !== "delivered") {
+    throw refuse("delivery", "delivery_not_confirmed:" +
+      JSON.stringify(structured || (delivered && delivered.content) || null).slice(0, 1000));
+  }
+  return structured;
 }
 (async () => {
   const mcp = await connectFixedProbeMcp({ clientName: "assignment-story-probe" });
@@ -212,7 +221,7 @@ async function commitDocumentationDelivery(mcp, preserved) {
   catch (error) { throw refuse("documentation", "documentation_unwritable:" + (error.code || String(error))); }
   const preserved = scenario === "commit_delivery" ? snapshotProbeTargets() : null;
   const physical = probeAssignedPhysicalAccess();
-  if (preserved !== null) await commitDocumentationDelivery(mcp, preserved);
+  const delivery = preserved === null ? null : await commitDocumentationDelivery(mcp, preserved);
   const digestInput = task.id + "\n" + summarySha256 + "\n" + keys.join(",") + "\n" +
     task.documentation + "\n" + source.sha256 + "\n" + material.tokens.join("\n") + "\n";
   report({
@@ -241,7 +250,8 @@ async function commitDocumentationDelivery(mcp, preserved) {
     mcp: { authenticated: true, protocol_version: mcp.initialized.protocolVersion || null,
       tool_count: mcp.tools === null ? null : mcp.tools.length,
       tools_sha256: sha(JSON.stringify(mcp.tools || [])) },
-    physical
+    physical,
+    ...(delivery === null ? {} : { delivery })
   });
   // Hold with the authenticated conduit open until the host stops and reaps
   // this attempt; exceeding the bounded deadline is a failed observation.

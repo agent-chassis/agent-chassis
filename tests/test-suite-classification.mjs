@@ -403,7 +403,10 @@ export const INTEGRATION_PROCESS_SIGNAL_SPECIFIERS = Object.freeze([
 ]);
 
 export function hasIntegrationProcessSignal(sourceText) {
-  const dependencies = extractModuleDependencies(sourceText);
+  return dependenciesCarryProcessSignal(extractModuleDependencies(sourceText));
+}
+
+function dependenciesCarryProcessSignal(dependencies) {
   return [...dependencies.all, ...dependencies.requireSpecifiers]
     .some((specifier) => INTEGRATION_PROCESS_SIGNAL_SPECIFIERS.includes(specifier));
 }
@@ -439,34 +442,54 @@ export const SUBPROCESS_HELPER_ENROLLED = Object.freeze([
 
 export const SUBPROCESS_MIGRATION_BACKLOG = Object.freeze([]);
 
-export function collectLocalImportClosure(relPath, sources) {
+function createModuleAnalysis(sources) {
+  const analyses = new Map();
+  return (relPath) => {
+    let analysis = analyses.get(relPath);
+    if (analysis === undefined) {
+      const source = sources.get(relPath);
+      const dependencies = extractModuleDependencies(source);
+      const localEdges = [];
+      if (typeof source === "string") {
+        for (const specifier of dependencies.all) {
+          const local = resolveLocalModule(specifier, relPath, sources);
+          if (local?.resolved) localEdges.push(local.resolved);
+        }
+      }
+      analysis = {
+        localEdges,
+        processSignal: dependenciesCarryProcessSignal(dependencies),
+      };
+      analyses.set(relPath, analysis);
+    }
+    return analysis;
+  };
+}
+
+export function collectLocalImportClosure(relPath, sources, analyze = createModuleAnalysis(sources)) {
   const key = toPosixPath(relPath);
   const seen = new Set();
   const stack = [key];
   while (stack.length > 0) {
     const current = stack.pop();
-    const source = sources.get(current);
-    if (typeof source !== "string") continue;
-    for (const specifier of extractModuleDependencies(source).all) {
-      const local = resolveLocalModule(specifier, current, sources);
-      if (!local?.resolved) continue;
-      if (seen.has(local.resolved)) continue;
-      seen.add(local.resolved);
-      stack.push(local.resolved);
+    for (const resolved of analyze(current).localEdges) {
+      if (seen.has(resolved)) continue;
+      seen.add(resolved);
+      stack.push(resolved);
     }
   }
   seen.delete(key);
   return [...seen].sort();
 }
 
-export function findIntegrationProcessSignals(relPath, sources) {
+export function findIntegrationProcessSignals(relPath, sources, analyze = createModuleAnalysis(sources)) {
   const key = toPosixPath(relPath);
   const reasons = [];
-  if (hasIntegrationProcessSignal(sources.get(key))) {
+  if (analyze(key).processSignal) {
     reasons.push({ carrier: key, kind: "self" });
   }
-  for (const dep of collectLocalImportClosure(key, sources)) {
-    if (hasIntegrationProcessSignal(sources.get(dep))) {
+  for (const dep of collectLocalImportClosure(key, sources, analyze)) {
+    if (analyze(dep).processSignal) {
       reasons.push({ carrier: dep, kind: "imported" });
     }
   }
@@ -512,10 +535,11 @@ export function auditTestCorpus({
   const unitSet = new Set(unit);
   const staleExceptions = [...exceptionPaths].filter((rel) => !unitSet.has(rel)).sort();
 
+  const analyze = createModuleAnalysis(sources);
   const integrationSignalInUnit = [];
   for (const rel of unit) {
     if (exceptionPaths.has(rel)) continue;
-    const signals = findIntegrationProcessSignals(rel, sources);
+    const signals = findIntegrationProcessSignals(rel, sources, analyze);
     if (signals.length > 0) integrationSignalInUnit.push({ test: rel, signals });
   }
 
@@ -524,11 +548,11 @@ export function auditTestCorpus({
   const backlogPaths = backlog.map((entry) => toPosixPath(entry.path));
 
   const directSubprocessInEnrolled = enrolledPaths
-    .filter((rel) => !helperPaths.has(rel) && hasIntegrationProcessSignal(sources.get(rel)))
+    .filter((rel) => !helperPaths.has(rel) && analyze(rel).processSignal)
     .sort();
 
   const staleSubprocessBacklog = backlogPaths
-    .filter((rel) => !hasIntegrationProcessSignal(sources.get(rel)))
+    .filter((rel) => !analyze(rel).processSignal)
     .sort();
 
   const enrolledSet = new Set(enrolledPaths);

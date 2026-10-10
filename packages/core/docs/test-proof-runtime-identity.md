@@ -2,13 +2,54 @@
 
 This document defines how saved semantic proof meaning becomes one exact runtime
 verification. Authoring and validation do not execute code. The public
-`workspace_verify_proof` operation owns execution.
+`verify_proof` operation owns execution.
+
+The production `task-verify-proof.mjs` composition registers execution-only
+`verify_proof`. Its closed schema accepts `{subject}` with optional
+`source:{unit,focus?}`, `branch`, `git_sha`, `environment` and `timeout`; repository selection
+is trusted host configuration. Existing orchestrator, worker and reviewer source
+authentication, SDK cancellation and proof execution/settlement remain unchanged.
+
+An orchestrator selects where proofs execute with at most one of `branch` and
+`git_sha`. `branch` is a WK ID, a slice ID (`work record`, or `SLICE-001`
+when the subject or `source` names the WK) or a canonical WK or slice branch
+name. It resolves once, through the unit branch-naming owners and the
+initiative of the WK's canonical record, to the commit that branch names, and
+that commit executes exactly as a `git_sha` request does. The result names
+both: `subject_binding.candidate_identity.resolved_branch` holds the selector,
+the branch, its ref and the resolved commit, beside the commit and tree that
+ran. A branch is how the commit was chosen and is not evidence of particular
+bytes: it may move afterwards, so a later `branch` request names the commit it
+selects then, while `git_sha` keeps naming one exact candidate. A selection
+that names no existing canonical WK or slice branch refuses with
+`verify_proof.execution_branch_unresolved.v1` and its reason
+(`selector_invalid`, `slice_context_unavailable`, `initiative_unavailable`,
+`branch_missing` or `branch_commit_unavailable`); the configured checkout is
+never substituted. `branch` together with `git_sha` refuses with
+`verify_proof.execution_source_conflict.v1`, and `branch` from a worker or
+reviewer refuses with `verify_proof.branch_role_forbidden.v1`. With neither
+selector an orchestrator request selects the subject's own branch the same way:
+the slice branch of a slice subject and the WK branch of any other subject. It
+refuses identically when that branch does not exist, and it never executes the
+configured checkout. `source` selects authored proof definitions only and never
+an execution branch. The selected commit supplies code only: the definitions are
+current canonical authoring, captured once per invocation (see
+[Exact-commit proof definitions](#exact-commit-proof-definitions)). `workspace_run_test` resolves its `{kind:"branch"}` source
+through the same resolver.
+
+Responses use incumbent bounded summary and diagnosis owners and retain complete
+recorded originals without another execution. `get_run_result({result})` reads a
+standalone original, optionally selecting a proof subject or authored source.
+`get_run_result({assigned:true,recorded_invocation:{invocation_id}})` reads a
+worker's recorded invocation with its original source. Stored producer/schema
+identities remain unchanged. Reads are pure and preserve unavailable evidence;
+execution retries use `verify_proof`, never a retained-read argument.
 
 ## Saved meaning
 
 Contract requirements, proof definitions, cases, and obligation selections are
 authored through
-`workspace_controlled_contract_obligation_coverage_upsert`. The server derives
+`save_record`. The server derives
 stable identities and compiles native contract members through the package
 owners. A caller supplies semantic inputs, not a carrier, graph, bundle, plan,
 publication session, execution observation, or proof result.
@@ -18,12 +59,23 @@ and revision. Validation reports missing or invalid runtime semantics without
 spawning a provider. A single later upsert can complete or correct the same
 case under content-digest CAS.
 
+The case target decides the provider family whose falsifier mechanics the save
+derives: the target authored in the request, or the one an earlier save bound.
+A falsification strategy never selects a family. A draft that states a strategy
+and has no target keeps its mechanics unresolved. A strategy the target's family
+does not implement is refused with
+`obligation_coverage_case_falsification_unsupported`, which carries that
+family's selector kind, the requested strategy and the strategies the family
+implements, and nothing is saved. The save never substitutes another runner or
+another strategy; a case whose family runs no falsifier for it declares
+`falsification.support: "registry_unsupported"` instead.
+
 A `test_execution` verification claim can also be saved with no stable proof
 definition at all. Its meaning — verifier, observed proposition and falsifying
 proposition — is complete without one, and authoring, query, restart and
 implementation admission never resolve an evaluator, an installed executor, a
 falsifier target or an executable catalog entry to accept it. Execution is the
-owner of that gap: `workspace_verify_proof` refuses a claim with no binding, and
+owner of that gap: `verify_proof` refuses a claim with no binding, and
 a claim whose binding exists still passes every strict check below.
 
 Both workflows read that saved meaning through the same owners — the shared
@@ -105,9 +157,10 @@ or a detected falsifier never substitutes for that observation.
 
 ### Native provider runtime inputs
 
-The pytest provider uses only launcher-provisioned runtime inputs: the first
-`python3` on the launcher `PATH`, and the pytest requirement closure that
-interpreter's site population provides under the launcher `HOME`. It never
+The pytest provider runs with the interpreter of the environment the shared
+runtime resolution routes its target to, as an ordinary run of that target
+does, and with the pytest requirement closure that interpreter's own
+population provides. It has no interpreter or site population of its own, never
 installs a package, searches another root, or accepts a caller executable,
 environment, or mount. A fixed launcher-owned program locates that closure
 before any selected body runs, under the invocation's execution budget.
@@ -130,21 +183,37 @@ The last two classes identify a provider or interpreter defect rather than a
 missing input. A missing interpreter refuses separately with
 `test_proof_native_interpreter_unavailable`.
 
-A target is readiness-configured when the repository's published local
-test-runtime readiness (see [Local test-runtime readiness](#local-test-runtime-readiness))
-has a Python environment that owns the target, or when the call names a
-prepared environment (see [Prepared environment routing](#prepared-environment-routing)).
-A configured target uses exactly the routed environment's detected interpreter
-and pytest population, the same population setup verified, instead of the
+A target is configured when the repository publishes at least one environment
+(see [Local test-runtime readiness](#local-test-runtime-readiness)) and a
+Python environment owns the target, published or declared by the checkout, or
+when the call names an environment (see
+[Prepared environment routing](#prepared-environment-routing)).
+A configured target uses exactly the routed environment's configured interpreter
+and pytest population as they are now, instead of the
 launcher `PATH` lookup; its read-only binds come from the same record. The
 prepared runtime reports `runtime_source: "launcher_readiness"`, the record's
 `readiness_digest` and the routed `environment`, and execution re-checks both
-before each attempt. A missing, invalid or stale record for a configured target refuses
-preparation with the readiness code (`test_runtime_readiness_invalid`,
-`test_runtime_inputs_stale`, `test_runtime_dependencies_stale`,
-`test_runtime_toolchain_stale`); it never selects a different host interpreter
-or site population. A repository without published readiness is unconfigured
-and keeps the `PATH` lookup (`runtime_source: "launcher_path"`).
+before each attempt. What setup measured earlier does not decide whether the
+target runs (see [Local test-runtime readiness](#local-test-runtime-readiness)).
+Inputs that can be
+neither taken from the configuration nor located, or an interpreter that is
+missing or not executable (`test_runtime_toolchain_executable_unavailable`,
+`test_runtime_toolchain_executable_invalid`) refuses preparation with that
+code; it never selects a different host interpreter
+or site population. A repository that publishes no environment (no record, or
+a record that is not authentic and is therefore never consumed) is resolved as
+an ordinary run resolves it: the project the checkout declares is routed and
+its inputs located, and a target no Python project owns is refused with the
+ordinary run's own code.
+
+Immediately before each run the provider measures the interpreter and the
+runtime packages again and builds the run from the runtime as it is then
+(`refreshInstalledPytestRuntime`). A change to the provider's own assets, or to
+the routed interpreter path or environment, is refused, because those
+authenticate what the run reports. A change to the interpreter's or the
+packages' bytes, or to the environment's toolchain and dependency provenance,
+is not: the run is bound to the current runtime-inputs digest and its run
+facts carry `runtime_environment_observed`.
 
 ### Provider witness validators
 
@@ -190,19 +259,22 @@ leaves the reached fact intact. Loading the replacement or probing its exports
 does not run the witness.
 
 The provider resolves the launcher-bound worktree once before constructing the
-registration probe, substituted-module expectation, and test execution. The
-confined runner uses that same resolved root as its working directory. A
-supported symlink spelling of the launcher-minted worktree therefore cannot make
-recorded fault identity diverge from the module URL actually loaded; no caller or
-environment supplies an alternate root.
+registration probe, substituted-module expectation and its stage of the shared
+test run (see [Shared test execution](#shared-test-execution)). That run uses
+the same resolved root as its checkout and runs from the target's project
+directory inside it; the reporter and the declared-module coverage scope are
+addressed by that root, so every reported file and covered module is named
+relative to it whatever directory the tests run from. A supported symlink
+spelling of the launcher-minted worktree therefore cannot make recorded fault
+identity diverge from the module URL actually loaded; no caller or environment
+supplies an alternate root.
 
 The structured-event reporter, the module-fault loader and the modules they
 import are installed launcher assets. Every node:test candidate, falsifier and
 traversal run resolves them from the loaded launcher package, never from the
 checkout under test or its working directory, so a consumer file at a lookalike
 path is never loaded. The confined run receives exactly that closure read-only
-at its own paths, with the launcher's own Node or a prepared npm environment
-alike; no other launcher or repository path is exposed. Test targets and
+at its own paths; no other launcher or repository path is exposed. Test targets and
 declared modules stay rooted in the authorized worktree. A missing or unreadable
 asset fails the confined run itself: its original startup error, stderr, exit
 status and execution facts are retained, and no proof credit results. The same
@@ -441,7 +513,7 @@ its own parser state, so calls do not affect one another.
 
 A parsed report is only data. It is not authenticated proof evidence and carries
 no execution provenance, runtime identity, or authority. Selected-test proof
-execution and evidence remain owned by `workspace_verify_proof` as described
+execution and evidence remain owned by `verify_proof` as described
 above.
 
 ## Canonical source and generation
@@ -475,11 +547,36 @@ pooled. The resolution handles each problem case as follows:
 
 Rebinding still refuses a verification declared by more than one unit.
 Authoring visibility is not execution permission: a managed worker or reviewer
-resolves executable targets only from its authorized unit's declarations.
+resolves executable targets only from its authorized unit's declarations, with
+one exception. When the authorized slice's own saved source references a case
+that the parent work record owns, and the slice declares no target of its own
+for that case's verification, execution resolves that exact case's declaration
+through the parent, using the same owner resolution as authoring:
+
+- The selected slice, its source binding and its launcher-bound worktree are
+  unchanged. The parent's declaration names the test; the slice's own checkout
+  supplies the code that runs.
+- Only the verification identities of cases the slice's source references are
+  resolved this way. Other parent declarations, the parent's own obligations
+  and source, and sibling uses of the same case remain unavailable to the
+  slice.
+- The slice needs no copy. A declaration the slice itself holds for that
+  verification still resolves from the slice, and the parent is not read.
+- A sibling's declaration beside the parent's is a duplicate
+  (`verify_proof.declared_target_ambiguous.v1`). A parent with no declaration
+  keeps `verify_proof.declared_target_missing.v1`, and a dangling owner refuses
+  with `validation_case_owner_unit_missing`; none falls back to a sibling's
+  declaration.
+- The resolved declaration is part of the invocation's currentness check, so a
+  declaration or reference that changes during the invocation refuses as stale.
+- Verification and readback write no declaration and never change the case.
+
+A case owned by a sibling slice is not resolved this way, and a reviewer's
+frozen review binding is checked before any declaration is read.
 
 ## Exact candidate binding
 
-`workspace_verify_proof` accepts a canonical proof subject. The server resolves
+`verify_proof` accepts a canonical proof subject. The server resolves
 the corresponding saved population and binds execution to an exact candidate
 commit and source snapshot. The source snapshot hashes the sorted repository
 entries, entry kind, mode, and file bytes while excluding launcher metadata and
@@ -490,6 +587,66 @@ Before each provider attempt, the launcher rechecks candidate and source
 currentness. Movement invalidates the attempt population. Evidence binds the
 subject, contract and source digests, case revision, proof identity, candidate
 commit, source snapshot, provider, evaluator, and attempt.
+
+### Exact-commit proof definitions
+
+An orchestrator exact commit, whether named by `git_sha` or resolved from a
+branch, supplies the code that executes and nothing else. The proof definitions
+are current canonical authoring: the WK record and its complete contract inputs
+as they are when the invocation starts. A commit that predates a slice, an
+obligation source, a case or a contract generation is therefore verifiable
+against them without another commit, and no authoring metadata has to be
+committed for verification.
+
+The subject's WK is located in current canonical authoring. The exact-commit
+runtime then captures that WK's inputs once, through the definition-capture
+core that findings review shares for its frozen design inputs, and supplies
+them to the private materialization of the commit before any proof context
+resolves: the WK record, the selected contract generation with its manifests
+and members, the parent and slice obligation sources, the acceptance carriers,
+and the related mapping contracts. Assignment entry material is review input
+only: review resolves it on top of the shared capture, proof execution never
+resolves it, and a material reference that does not resolve cannot refuse a
+proof. The
+commit's own copies of that WK's contract sources that current authoring no
+longer holds are removed from the private checkout. Every other file keeps the
+commit's bytes.
+
+WK, slice, obligation and proof selection, `source` qualification, the
+generation and a slice's parent-owned case all resolve from that one captured
+set. Membership is never read from the commit's authoring metadata, so a
+source saved after the commit is selectable and one removed since is not.
+Source and generation authentication and the per-attempt currentness checks
+run unchanged against the supplied files: one that moves inside the private
+checkout refuses as stale. An authoring edit made after capture does not reach
+the invocation or its retained result; a later invocation captures authoring as
+it is then.
+
+The result identifies the two separately. `subject_binding.candidate_identity`
+keeps the `commit` and `tree` that ran, and its `captured_definitions` names
+the origin `current_canonical_authoring` with a `definitions_digest` over the
+captured record's source digest, every supplied file's path, digest and length,
+and every removed path. The source snapshot binds the same identity as
+`selected_definitions`, so receipts that carry the snapshot digest are bound to
+both. The definitions are never attributed to the commit's tree. A configured
+current worktree executes its own files and carries no captured definitions.
+
+Missing current authoring refuses before any proof starts and names what is
+missing:
+
+- When the capture itself cannot complete, the refusal is
+  `verify_proof.current_proof_definitions_capture_refused.v1`. Its `cause_code`
+  is the capture owner's code (missing, malformed or moved), and
+  `definition_source` gives the unit, the input path the owner named and the
+  underlying cause. Nothing is materialized. The recovery is
+  `author_or_repair_the_named_current_proof_definition_source_then_retry`.
+- When the captured record names a unit whose obligation source was never
+  saved, the refusal keeps `obligation_coverage_source_not_found`, and its
+  `definition_source` gives that unit, the repository path where its source
+  belongs and the filesystem cause.
+
+Both publish `definition_source` in the diagnostic and in `recovery.facts`.
+Saving the named source and repeating the unchanged call is the correction.
 
 ### Exact-commit runtime dependencies
 
@@ -590,6 +747,38 @@ do not suppress independently eligible proofs. Eligible proofs run serially,
 with exact execution-key de-duplication and currentness checks before and after
 each attempt.
 
+An obligation whose author explicitly declined proof (`proof_opt_out: true`) is
+not one of those rows. It is accounted for by that decision, has no proof to
+resolve or run, and is neither missing input nor a failure: it appears in no
+`proof_results` row, no count and no diagnostic, and carries no
+`missing_selection`. The result reports it in `proof_opt_outs`, present only
+when the selected population holds one: the complete `obligation_ids` with
+`accounting: "opted_out"`, `proofs_executed: 0` and `credit_granted: 0`; the
+summary gives the same facts as `count` with at most sixteen identities and
+`obligation_ids_omitted`. A mixed population keeps both: its selected proofs
+run and are reported as usual beside the opt-outs. A subject that is only an
+opt-out resolves no proof and answers `verify_proof.proof_population_empty.v1`
+with that same fact, executing nothing.
+
+An obligation whose saved case selects no proof is one of those rows. Its
+reason stays `verify_proof.author_inputs_unavailable.v1`, with execution
+`not_started` and zero credit, and its recovery
+`select_a_proof_for_the_named_obligation_then_retry` carries a
+`missing_selection` fact: the selection owner's original code
+(`obligation_coverage_proof_unselected`), the owning obligation, the public save
+field `proof.name` and that owner's explanation. The fact is read from the
+resolver's retained diagnostic for that obligation, never from a message or
+from the reason code, so any other authored-input failure keeps the generic
+`repair_the_named_proof_prerequisite` recovery. The first answer, the selected
+detail and every later read of the retained or recorded result report the same
+fact for the same result; reading it executes nothing and changes no authoring.
+The caller chooses the proof: the recovery names no proof, discovery query or
+save revision. Its one call is the current read of the unit that owns the
+obligation, offered only to a session whose registered reader serves that
+authoring source. Any other session receives the same fact with
+`verify_proof.authoring_acquisition_unavailable.v1` in place of the call and
+gains no authoring route.
+
 Once execution starts, the attempt engine runs the unchanged candidate and each
 declared falsifier, observes the selected traversal, and emits authenticated
 evidence. A selected assertion failure is an `unproven` result when the
@@ -618,6 +807,22 @@ receipt is synthesized for it. The recovery is
 stays in the recovery facts. A todo, a sibling's skip, or a skip seen by a
 falsifier or traversal run is not the candidate's skip and keeps
 `test_proof_selected_identity_not_observed`.
+
+A later stage can refuse after the candidate stage already authenticated the
+selected test. Once the candidate's observation is validated (the selected
+identity observed, its run complete and its inventory present), the attempt
+owner records the candidate's own event for the exact launcher-selected
+identity, `passed` or `failed`, and a failure in a falsifier, traversal or
+receipt stage carries it on its attempt observation as `selected_observation`.
+A proof-local refusal publishes it as the refused row's typed
+`selected_observation`, exactly as for a candidate skip, so the direct answer,
+the population summary, the retained result's `test_observation` and the
+selected detail all report the observed status. The refusal keeps its own
+reason, stage and provider; no receipt is synthesized, nothing is read from
+runner output, and the observation earns no proof credit: the row stays
+`not_executable` and its mutation evidence stays `not_run`. An event of any
+other identity, a candidate-stage refusal, or an attempt that recorded no
+candidate observation publishes nothing, and the row says `not_observed`.
 
 Every mutation member is classified by one pure owner,
 `lib/test-proof-mutation-outcome.mjs`, which the semantic kernel, the runtime
@@ -657,10 +862,25 @@ provider refused the declared subject at execution time and returned one of
 `test_proof_native_instrumentation_unsupported`,
 `test_proof_native_runner_unsupported` or
 `test_proof_native_selection_unsupported`. Those three codes are the complete
-provider-owned limitation set. Unprepared runtimes, stale runtime inputs, spawn
+provider-owned limitation set. Unconfigured runtimes, runtime inputs that moved during one attempt, spawn
 failures, timeouts, confinement and authority refusals, missing or invalid
 selected identities, and malformed observations are execution failures and keep
 their own diagnostics; none of them becomes a limitation.
+
+The pytest scalar-return falsifier (`launcher.pytest-scalar-return`) reports
+its installed entry's refusal through the same set. A function shape its
+substitution does not accept (`body_not_single_scalar_return`,
+`return_not_scalar`, `async_function_unsupported` or
+`decorated_function_unsupported`) is `test_proof_native_instrumentation_unsupported`
+with that reason only when the authenticated envelope shows the refusal in
+prevalidation: no pytest session, collection, phase or compilation ran, the
+refusal names the bound module, function and replacement, and its source digest
+is still current. Every other refusal of that entry stays
+`test_proof_python_fault_unsupported`, a falsifier execution failure, whatever
+reason it carries: an absent or ambiguous function (`function_absent`,
+`function_not_unique`), a malformed or restated replacement, an absent or
+unparsable module, and source that moved after prevalidation, which the entry
+reports as `module_source_moved` rather than by the moved source's shape.
 
 A refused falsifier keeps its declaration and records `provider_support:
 unsupported`, `falsified_status: not_run`, `isolated: false`, unobserved
@@ -704,6 +924,22 @@ requires exactly one identity-less falsifier limitation for a
 mismatched, cross-bound or duplicate evidence keeps refusing through those
 authenticity checks; it is never read as a limitation or as incomplete evidence.
 
+A provider that refuses a declared check under a code outside that set still
+fails the attempt; its classification is the provider's. Its recovery is
+attributed by the refusal's adapter reason. When a falsifier or traversal stage
+refuses a legal source shape its mechanism does not accept
+(`body_not_single_scalar_return`, `return_literal_unsupported`,
+`return_not_scalar`, `function_not_synchronous`,
+`async_function_unsupported` or `decorated_function_unsupported`), the recovery
+is `report_the_launcher_provider_check_shape_limitation` with
+`correction_owner: launcher_test_proof_provider`, the reason as `condition`
+and no retry. Its facts name the affected `check` (kind, identity and declared
+module and function), the stage, the provider and the refusal code and reason.
+It never asks for the working source to be rewritten, an obligation removed or
+unchanged input retried. An absent or ambiguous target, a malformed
+replacement, unparsable source, a candidate-stage refusal, a runtime failure and
+an authority refusal keep their own recoveries.
+
 Traversal limitations are unchanged: a proof whose traversal was limited stays
 unmet on that evaluator axis. A typed, attributable proof-local attempt failure
 may leave that row unavailable and permit a later sibling. Candidate/source or
@@ -742,7 +978,7 @@ Each provider maps only facts its runner supplies natively:
 
 | Family | Diagnosis |
 | --- | --- |
-| node:test | the reporter's original error graph |
+| node:test | the reporter's original error graph; for a file that failed before the selected test was observed, the uncaught exception report the file's own Node process printed |
 | Jest | circus's original error; `matcherResult` operands and matcher name; the failing hook |
 | Vitest | the task or suite error; Vitest's formatted operands and diff as display details; a suite hook |
 | Mocha | the original error, captured before Mocha's base reporter formats its operands; the hook title |
@@ -773,11 +1009,37 @@ copy rather than the author's source. Report framing is bounded per line; an
 oversized line or a failed adapter marks the report unreadable while draining,
 capture and exit facts continue.
 
+node:test runs each file in its own process and reports a file whose process
+failed as one generic wrapper failure (`ERR_TEST_FAILURE`, "test failed"); the
+exception that ended the process exists only as the report that process
+printed, which the default reporter writes to stdout. The node-test provider
+reads that report while the confined capture drains stdout, before head/tail
+elision, and the run carries it as its cause when the file wrapper failed with
+a nonzero exit and the selected test was not observed. The cause is diagnosis
+read from printed text, never a captured error: it has the origin `condition`
+`uncaught_exception`, the name, message and code Node printed, the throw site
+or first frame inside the checkout as its location (repository path and line,
+with the column when a frame names it), and the error's own printed scalar
+properties (for example `syscall` and `path`) as labelled details. It has no
+call trace and no captured values. A printed cause or aggregate member is not
+rebuilt; it is the issue `native_report_unreadable` at `/native_report/cause`
+or `/native_report/aggregate_errors`. The structured wrapper event is
+unchanged beside it. A report that never reached Node's version line, a thrown
+value that is not an error, a property block that never closed and a line the
+framing dropped each carry `native_report_unreadable`; a message over 8 KiB, a
+report over 256 lines and more than 16 properties (or one over 1 KiB) carry
+`capture_budget_exceeded`; a failed file that printed no report has an
+unavailable cause with `error_not_supplied`. The last report the stream
+terminated is used, so a test that prints report-shaped text before its own
+process dies cannot replace it. A file that did not fail has no startup cause,
+whatever it printed, and a run that captured no report gains none later.
+
 Diagnosis is never proof authority. It never selects a test, changes a passed,
 failed, skipped or execution status, or earns assertion, reach or mutation
 credit, and an expected falsifier failure is not candidate repair advice. A
 report's diagnosis applies only to a failed selected test whose observer
-captured no error of its own. A malformed graph on an observed record refuses
+captured no error of its own, to a build that wrote no observer record, or to
+a node:test file whose wrapper failed before the selected test was observed. A malformed graph on an observed record refuses
 the record stream like any other malformed record.
 
 Candidate, falsifier, and traversal observations link to their existing
@@ -785,8 +1047,8 @@ authenticated structured-result artifacts. The compact verification summary
 does not inline diagnostic payloads. It does carry each retained proof's
 selected-test identity and observation, its mutation-evidence state, and the
 actual evaluator diagnostic codes of each unproven relationship. The complete
-settled result is retained once and named by `result: {ref_id, sha256}`;
-`workspace_verify_proof` with that `result` reads it without rerunning the
+settled result is retained once and named by `result: {ref_id}`;
+`verify_proof` with that `result` reads it without rerunning the
 proof, and a proof or obligation subject within it returns that proof's
 selected diagnosis. The public ranged content reader refuses those retained
 bytes and returns that read instead.
@@ -801,16 +1063,23 @@ graph). One launcher-owned pure helper validates those facts for both the
 launcher and the public refusal projection, which publishes the cause through
 the same selected diagnostic projection as a failed test. The cause is the
 original error of an observer runtime error (for example a Jest or Vitest
-startup failure), of a preparation probe that could not be built, of a pytest
-runtime error, a native build failure, or the first runner-level error (with
-their count) of a run whose selected test was not observed or whose exit status
-disagreed with it. A native provider's preparation probe is its own
-stage, `execution_stage: preparation`: its ran, exit and output facts are its
-own, it never stands for a selected-test execution, and the selected test stays
-`not_observed` with no proof credit. A process that ran
-and whose proof observation was refused afterwards keeps those facts:
-`ran: true`, its exit status and output, and disposition `failed` with the
-observation code as its blocker. `not_run` means the process never executed.
+startup failure), of a pytest
+runtime error, a native build failure, a node:test file's printed uncaught
+exception, or the first runner-level error (with their count) of a run whose
+selected test was not observed or whose exit status disagreed with it. Preparation runs nothing, so it is never a captured stage;
+a preparation that could not bind its runtime identity reports
+`execution_stage: preparation` with the readiness or routing code and no run.
+A run's native facts are the process's own, whatever its proof evidence turns
+out to be: `ran`, its exit status, signal and output, `ok` and a disposition
+of `passed` or `failed` decided by the exit alone, and a blocker only for the
+execution budget's own interruption or a cleanup that could not be confirmed.
+A proof observation that is missing or refused is reported beside them
+(`test_proof_observation.valid: false` with its code, published as
+`structured_observation_code`): it establishes nothing and earns no credit,
+and it never turns a run that exited 0 into a failed one. `not_run` means the
+process never executed, including a stage the shared run refused or whose
+native selection it could not resolve; such a stage carries that exact code
+as its blocker and no observation.
 The failure also names the resolved provider of the failing stage. The proof
 result then reports `execution_status: completed` (or `interrupted` when the
 run's own timeout stopped it) with status `not_executable`; only a failure
@@ -818,9 +1087,16 @@ with no executed run reports `not_started`, and `execution_not_started`
 counts only those. A completed candidate says nothing about later falsifier
 or traversal stages; the failed stage stays in the facts. `captured_run` holds the complete captured run, including the
 attempt's stdout and stderr (head-and-tail bounded by the capture's own output
-bounds), normalized argv, timings, cleanup outcome and the observation envelope.
-The fd-3 reporter protocol is never part of either stream, so test output stays
-diagnostic-only and cannot select authenticated evidence. `captured_run` is never
+bounds), normalized argv, timings, cleanup outcome, the observation envelope
+and `runner_execution`: the harness, native selection and command the shared
+run composed, and each selection command with its outcome.
+The reporter and observer protocols never travel on either stream (node:test
+writes its report to a file of the run's own scratch, native observers to their
+channel file, pytest to a descriptor the shared executor's driver relays), so
+test output stays diagnostic-only and cannot select authenticated evidence.
+node:test hands the tests' own output to its reporters, so its default reporter
+keeps writing that output and the native results to stdout, where it is
+captured. `captured_run` is never
 read by the public projection; it survives only inside the captured evidence
 below, including when the execution budget relabels the failure as an
 interruption.
@@ -845,8 +1121,9 @@ pass-through, and the public `runtime_environment` is projected from it.
 Diagnostics never grant proof credit, select an identity, or change an outcome:
 runner output is never parsed into assertion facts, and the structured
 per-test error remains the authenticated observation's `failure_diagnostic`.
-An unproven proof's selected diagnosis presents its captured error, location
-and relevant call trace; its expected and actual operands over 256 bytes are
+An unproven proof's selected diagnosis presents its captured error and
+location; its call trace and cause chain stay in the retained result and are
+named as retained, and its expected and actual operands over 256 bytes are
 named as deferred rather than inlined. The runner's own output stays in the
 retained result's `attempt_diagnostics` and is not part of the public answer.
 
@@ -860,7 +1137,7 @@ recoverable. Every stage keeps `output_truncated`, `output_elided_bytes` and
 `output_bounds` beside its streams, and a truncated capture is never presented
 as complete output. Everything after capture is lossless for the captured
 value: retention and serialization reproduce it exactly, and the retained
-result is read back through its `workspace_verify_proof` result read.
+result is read back through its `verify_proof` result read.
 
 A modeled proof refusal captures the original thrown value before it classifies
 the cause chain. The complete retained original carries that capture at the
@@ -875,10 +1152,9 @@ credit, execution eligibility, proof-local continuation, or a recovery action
 for the unknown cause.
 
 The ordinary proof-result retention and MCP response owners store that JSON
-evidence unchanged. If the refusal is too large to inline,
-`workspace_read_mcp_content_reference` ranged reads reconstruct the complete
-refusal; retained refusal readback uses the same stored result and never reruns
-the provider. Carrier-generation member failures name the exact filesystem
+evidence unchanged. `get_run_result` reads the retained proof original through
+the authenticated selected-response class, without byte ranges or reassembly.
+Retained refusal readback uses the same stored result and never reruns the provider. Carrier-generation member failures name the exact filesystem
 operation, `filename`, path, and caller-supplied generation context in the
 classified details, while their native exception remains in the captured
 evidence. Generation identity is supplied by the manifest owner and is never
@@ -910,7 +1186,7 @@ recommended for rerun merely because a later definition exists.
 
 ### Verification timing
 
-`workspace_verify_proof` reports coarse, monotonic timing for each execution
+`verify_proof` reports coarse, monotonic timing for each execution
 and for the invocation. It is diagnostic evidence beside the authenticated
 proof evidence: it never enters a runtime receipt, the semantic evaluation,
 proof credit, a source or cache key, a nonce, or the
@@ -929,8 +1205,8 @@ or cancellation:
 | --- | --- |
 | `state` | `measured`. |
 | `elapsed_ms` | From after attempt-context authentication, before source-currentness validation, until the observation is sealed after every reached stage, the final release and the final checks. Receipt construction after that belongs to invocation time. |
-| `preparation_ms` | Inclusive time of the provider's runtime preparation: runtime checks, the confined setup probe and any cleanup inside that call. A preparation that was never reached adds nothing. |
-| `stage_work_ms` | The sum of the actual candidate, falsifier and traversal provider calls: source copies, instrumentation, process startup, compilation and linking (with whatever the native compiler cache supplies), test execution, observation and stage-local cleanup. It is not test-body time. |
+| `preparation_ms` | Inclusive time of the provider's runtime preparation: resolving the runtime as it is now and binding its identity. Preparation executes nothing. A preparation that was never reached adds nothing. |
+| `stage_work_ms` | The sum of the actual candidate, falsifier and traversal provider calls: runtime resolution, the runner's own selection commands, instrumentation, any source copy, process startup, compilation and linking (with whatever the native compiler cache supplies), test execution, observation and stage-local cleanup. It is not test-body time. |
 | `cleanup_ms` | The first explicit final release of the prepared runtime. Cleanup already inside preparation or a stage is not counted again. |
 | `other_ms` | `elapsed_ms` minus the three phases above: unexplained attempt time, not an inferred cause. |
 
@@ -1004,7 +1280,7 @@ stays out of the public answer under the delivery contract above.
 
 ## Native provider families
 
-`workspace_verify_proof` is the only public route that executes a saved test.
+`verify_proof` is the only public route that executes a saved test.
 Every proof provider belongs to one package provider family, and every family
 supplies exactly one provider per capability: candidate execution, falsifier
 execution and boundary traversal. A family owns its closed native selector
@@ -1034,7 +1310,7 @@ grammar and refuses one outside it with `stable_contract_schema_invalid`:
 arms take the eleven-suffix table, and a `module_substitution` mutation path is
 `repo_module_path`. What authoring no longer asks is whether a path ends in one
 of the SELECTED family's source suffixes. That is an execution fact about the
-provider that will run the proof: `workspace_verify_proof` resolves it and
+provider that will run the proof: `verify_proof` resolves it and
 reports an incompatible falsifier or system-under-test module with
 `verify_proof.test_proof_binding_source_path_incompatible.v1`, naming each
 pointer, its path and the family's suffixes. node:test and pytest keep the
@@ -1052,7 +1328,7 @@ launcher adapter accepts, the stable refusal code
 (`test_proof_native_instrumentation_unsupported` with an adapter reason for
 source instrumentation, `test_proof_forced_invocation_export_identity_mismatch`
 for Node forced invocation) and that the shape is checked only when
-`workspace_verify_proof` runs the attempt. It describes the check; it never
+`verify_proof` runs the attempt. It describes the check; it never
 performs one.
 
 The registry publishes one authoring-facts projection per installed family:
@@ -1063,44 +1339,159 @@ Proof discovery uses the identity terms to recognize provider context, and the
 case-authoring guidance of the obligation-coverage upsert is projected from the
 same facts. Neither adds a provider, a language or execution support.
 
+### Shared test execution
+
+`workspace_verify_proof` is `workspace_run_test` plus proof evaluation. Every
+test execution of a proof attempt -- the unchanged candidate and each
+falsifier and traversal stage, for every family -- is one run of the same
+owner an ordinary test run uses
+(`test-execution/ordinary-test-runner.mjs`), and proof evaluation consumes
+what that run settled. For both tools that owner alone:
+
+- resolves the runtime as it is now, routing the target to its published
+  environment or to the project the checkout declares when no record exists
+  (see [Prepared environment routing](#prepared-environment-routing));
+- applies the checkout's saved test-entrypoint associations: a `node-test`
+  repository wrapper or a `lib0-testing` harness association runs a proof stage
+  exactly as it runs an ordinary run of the file;
+- has the runner's installed integration build the one command, running the
+  runner's own listing or metadata first when it needs it;
+- executes through the shared confined executor in the target's project
+  directory with the runtime's environment, under the requested timeout and the
+  invocation's execution budget (the shorter applies; no stage has a timeout or
+  ceiling of its own), and settles the captured run. The budget starts with
+  the request's execution, once its input is valid, for both tools: for
+  `workspace_verify_proof` that is before canonical resolution, which
+  therefore consumes it.
+
+A provider builds no command and launches nothing. It contributes to that run
+only what its existing checks need and an ordinary run does not supply: the
+exact selected test and the runner's own options that load its observer
+(node:test's reporter, import and coverage options; Mocha's reporter; a
+preload for AVA and lib0; an exact `-run` and Go's `-json` report; Cargo's
+exact libtest name and JSON messages; stestr's exact filter and worker
+command), its instrumented source, its observation channel and the reader of
+that evidence. A stage's command is therefore the ordinary command with those
+options. Four families cannot attach their observer through an option of
+their runner's command line and contribute a launcher entry program that the
+same interpreter runs in the same project directory instead: Jest and Vitest
+(the observer is installed through the runner's programmatic API), Deno (an
+entry module that imports the observer before the selected test module) and
+pytest (a plugin that must be installed before any consumer module is
+imported). The pytest entry starts the project's own pytest and leaves the
+repository's configuration in force -- its ini file and `addopts` apply as
+for an ordinary run. It passes `--rootdir` so that node ids are named
+relative to the repository root, as the launcher's selected identities are.
+It overrides only the cache location (`cache_dir`): the enabled cache provider
+writes to a separate pytest subdirectory of the entry's launcher-owned private
+import-policy scratch, removed when the process settles. This keeps cache writes
+outside the authenticated checkout without changing source snapshot enforcement.
+It does not set a verbosity. Plugin autoload stays
+disabled, because an autoloaded plugin would join the dependency population
+the entry measures.
+
+A provider keeps the proof-specific authority around that run: the attempt's
+launcher-minted runtime authority and its kind, the declared target, the
+minted budget and the identity it bound at preparation are all checked before
+the shared run is reached, and a selected dependency projection that changed
+is still refused. No proof stage has a runtime of its own: a target that no
+installation root owns is refused for a proof exactly as for an ordinary run
+of the same file.
+
+An observer belongs to the launcher; the runner and every package it needs
+belong to the project. The launcher may be installed anywhere, apart from the
+project and its dependencies, so an observer never loads a project dependency
+from its own location. A stage's observer configuration names the project
+directory the shared run runs in (`project_directory`), and the JavaScript
+observers load the project's Jest, Vitest and Mocha from there through one
+loader in the observer channel, which hands that location to Node's own
+resolution (package `exports` included). The Vitest runner the launcher
+installs in each worker takes its base runner from that same Vitest. The other
+families already run their observer inside the selected runtime: node:test's
+reporter and loader use only Node built-ins, AVA and lib0 wrap the module the
+project's own loader resolved, Go, Cargo and Deno compile or import the
+observer with the selected toolchain and its dependency environment, and
+pytest and stestr run it under the selected interpreter. A package the project
+lacks therefore fails with the runtime's own module-load error, as it does for
+an ordinary run, and a copy installed beside the launcher is never loaded in
+its place.
+
 ### Shared native lifecycle
 
-One launcher lifecycle runs every non-Node, non-pytest family; a family
-contributes only its runner layout, its observer and its runner command.
+One launcher lifecycle serves every non-Node, non-pytest family; a family
+contributes only its runner layout, its observer and the facts its runner's
+integration needs for the selected test. Each stage it describes is one run
+of the [shared test execution](#shared-test-execution).
 
 1. Preparation routes the selected test to one prepared environment of the
    published [local test-runtime readiness](#local-test-runtime-readiness)
-   (see [Prepared environment routing](#prepared-environment-routing)) and runs
-   the runner's setup probe inside the attempt confinement under the
-   invocation's execution budget. A target no environment serves, a named
-   environment that cannot serve it, or a missing, invalid or stale record,
-   refuses before any selected body runs, with the readiness or routing code,
-   its route facts and `recovery.operator_action`. Attempts never install
-   anything.
-2. Every attempt re-derives the runtime-inputs digest (readiness digest, routed
-   environment, toolchain and dependency identities, and the digest of the
-   launcher's provider assets) and refuses with
-   `test_proof_native_runtime_inputs_stale` when it differs from preparation.
-3. The launcher-owned attempt driver copies the prepared project into a working
-   copy in the stage's own execution root (a uniquely minted
+   (see [Prepared environment routing](#prepared-environment-routing)) and
+   binds its identity: the routed project and environment, the runtime as it is
+   now and the provider's assets. It executes nothing. The runner's setup
+   probe belongs to setup alone and never decides whether the selected test
+   runs: a project whose unrelated package cannot be loaded still runs the
+   selected package's test. A target no installation root owns, a named
+   environment that cannot serve it, a malformed saved configuration, or inputs
+   that can be neither taken from the configuration nor located refuses before
+   any selected body runs, with the readiness or routing code, its route facts
+   and `recovery.operator_action`; an executable that is missing or not
+   executable, or a runner package the project did not install, refuses the
+   stage that would have launched it with that same code. No record, a record
+   that is not authentic (it
+   is never consumed), a setup that is running or failed, a
+   runner setup never proved, a root setup never inventoried and inputs that
+   changed since setup do not refuse: the runtime is resolved and run
+   as it is. Attempts never install anything.
+2. Every stage of one attempt resolves the runtime again. What authenticates
+   the stage is held to that attempt's preparation: the digest of the
+   launcher's provider assets and the routed project and environment. A
+   difference refuses with `test_proof_native_runtime_inputs_stale`. The
+   environment's own toolchain and dependencies are not held to preparation: a
+   change to them between preparation and a stage runs, the stage is bound to
+   the runtime-inputs digest of what it actually used, and its run facts carry
+   `runtime_environment_observed` (`changed_since_preparation`, the current and
+   preparation digests, and the current record, toolchain and dependency
+   provenance). The attempt's `runtime_environment` publishes both: its
+   top-level facts are what preparation observed (`observed_at:
+   "preparation"`), and `stage_environments` lists every executed stage with
+   `changed_since_preparation` and, for a stage that used a different runtime,
+   that stage's own runtime-inputs digest and record, toolchain and dependency
+   provenance. Stages that used different runtimes stay distinguishable, and
+   the public result detail carries the same object.
+3. Every stage runs where an ordinary run of the same file runs: in the
+   checkout, from the target's project directory, with every input
+   that run reads. Each run has its own execution root (a uniquely minted
    `/tmp/agent-chassis-execution-*` host directory whose `scratch/` child
    every family sees at the fixed `/agent-validation-tmp` and whose `tmp/` child
-   is the stage's whole private `/tmp`), omitting only the project root's
-   own `.git`, `.agent-launch`, `node_modules`, `target`, `__pycache__`,
-   `.pytest_cache` and `.stestr` entries (nested directories with those names
-   are copied). The verifier removes only that owned root after the stage's
-   process tree settles. Concurrent attempts therefore have disjoint working
-   copies and temporary directories; tests can create and use temporary files
+   is the run's whole private `/tmp`), which the launcher removes only after the
+   run's process tree settles. Tests can create and use temporary files
    natively or at literal `/tmp` paths, but no pre-existing host `/tmp` entry is
-   visible. It links the read-only
-   detected dependency installation into it (for an npm workspace, a private
-   `node_modules` whose member entries link to the members' copied sources and
-   whose other entries link to the installed packages), and writes the launcher's instrumented
-   sources, observer configuration and observation channel. The checkout, every
-   runtime input and the observer assets stay read-only; the network is denied
-   and secrets are masked. The driver relays the channel on the launcher
-   protocol descriptor in one framed message whose length and digest are
-   checked.
+   visible. The launcher's instrumented sources are bound read-only over their
+   own checkout paths in that run's sandbox only -- the declared module's
+   probes and, for a falsifier, its one declared substitution -- so the
+   unchanged candidate and a falsifier read exactly the same inputs except the
+   instrumented files: no file Git ignores, no fixture and no path exists for
+   one and not the other, and a failure of the mutation run is not an input
+   difference. The launcher itself never writes the checkout; the test may
+   write its own checkout exactly as in an ordinary run (see
+   [Ordinary test runs](local-test-runtime-setup.md#ordinary-test-runs)). The observer
+   configuration and the observation channel are files of the run's scratch.
+   The checkout's Git administration, every runtime input and the observer
+   assets stay read-only; the network is denied and secrets are masked. The driver relays the channel
+   on the launcher protocol descriptor in one framed message whose length and
+   digest are checked.
+
+   Two families reach the same checkout by their runner's own means. go test's
+   observer adds source files to the package, which a bind over an existing
+   file cannot do, so a go test stage names its instrumented and added package
+   files in Go's own build overlay (`-overlay`, for the listing and the run
+   alike); the files themselves are in the stage's scratch. Cargo decides
+   what to rebuild from source modification times and its target directory
+   outlives a stage, so a cargo test stage binds every Rust source of the
+   project's default layout (`src/**/*.rs`, `tests/*.rs`) as that stage's own
+   bytes, instrumented or unchanged: a file an earlier stage instrumented and
+   this one leaves plain is rebuilt, never reused. No stage of any family runs
+   from a copy of the project.
 4. The declared module and the selected test file are read from the checkout,
    rejected unless they are regular files of the prepared project, and
    instrumented from their exact bytes. Instrumentation never changes line
@@ -1140,7 +1531,7 @@ contributes only its runner layout, its observer and its runner command.
 #### Persistent native compiler caches (Go, Cargo, Deno and Vitest)
 
 A family whose dependency ecosystem or runner integration names a native
-compiler cache runs its setup probe and every stage with that cache at one
+compiler cache runs every stage with that cache at one
 persistent directory below the main repository:
 `<main repository>/.cache/test-proof-native/<cache>`. The caches are Go's
 `GOCACHE` (`go-build`), Cargo's `CARGO_TARGET_DIR` (`cargo-target`), Deno's
@@ -1160,7 +1551,7 @@ or npm runner has one.
   request or environment value can name it. Every component below the main
   repository must be a real directory: a symbolic link or another entry
   refuses with `test_proof_native_compiler_cache_unavailable`, the affected
-  path and the original error, before the probe or any selected body runs,
+  path and the original error, before any selected body runs,
   and nothing is followed, repaired or created through it. This is path
   configuration, not authentication of cache content.
 - Git exclusion. The caches are untracked runtime state and must never change
@@ -1175,15 +1566,20 @@ or npm runner has one.
   level, or when Git or the file cannot be used. Every other untracked file,
   elsewhere below `.cache/` included, still changes the status identity.
   Before a run opens its cache, `git check-ignore` must confirm the directory
-  is ignored; otherwise the run refuses with
-  `test_proof_native_compiler_cache_not_excluded`, whose recovery is to rerun
-  setup, and nothing is created.
+  is ignored. The persistent cache is an optimization, not a prerequisite:
+  where the directory is not ignored (setup never ran, or the repository is
+  not a Git work tree), or its location is redirected or cannot be created,
+  nothing is created or written there, no Git exclusion is added by the run,
+  and every stage keeps its compiler cache in its own scratch instead. The prepared runtime reports the choice as
+  `native_compiler_cache` (`persistent`, or `attempt_scratch` with the reason
+  code). The same toolchain and sources run either way.
 - Confinement. Each confined run of such a family sees exactly that one cache
   directory writable, bound at its own path through the sandbox planner's
-  runtime roots. The checkout, Git metadata, installed dependencies, the
-  operator's dependency stores and the provider assets stay read-only; secret
+  runtime roots. The checkout's Git metadata, installed dependencies, the
+  operator's dependency stores and the provider assets stay read-only, and the
+  checkout is writable to the test as in any test execution; secret
   masks and network denial are unchanged. Its fresh private scratch is bound
-  at the fixed `/agent-validation-tmp`, so working copies, `HOME`, the
+  at the fixed `/agent-validation-tmp`, so `HOME`, the
   observer configuration and the channel have the same compiler-visible paths
   in every proof, call and launcher process, while concurrent runs keep
   separate host backing directories.
@@ -1208,7 +1604,8 @@ or npm runner has one.
   them before each run; nothing is copied from or written to the operator's
   installation. Deno type-checks the stage's own graph and reuses its check
   cache; a changed graph is checked again. Configuration and lock files are
-  readiness inputs: changing them refuses the proof until setup is rerun.
+  dependency inputs: a change to them is recorded in the run's provenance and
+  Deno itself decides whether the cached dependencies still satisfy them.
   Setup probes of other consumers and worker commands keep the operator's
   `DENO_DIR` itself, read-only.
 - Vitest. The supported route is Vitest's built-in transformation only,
@@ -1275,7 +1672,16 @@ or `test_proof_native_selection_unsupported`, with the original error when it
 has one. A failed pytest collector is listed among the observed failures with
 its own identity and original exception; it is never a selected test.
 
-Process exit codes, runner output and printed text are never evidence.
+A process exit code and printed text are never evidence, and neither is
+anything parsed from a runner's human-readable output. Evidence is what the
+runner itself reports, for the same run an ordinary test run performs, through
+its own reporting facility or the observer that facility loads: node:test's
+reporter events and coverage, a runner's reporter or lifecycle hooks, the
+launcher probes of an instrumented source. Each such report is authenticated
+(its attempt nonce, digest, sequence and selected identity) before it is read,
+and the selected test's identity, a falsifier's detection and a traversal are
+established only from it. A run that exits 0 without that evidence is a
+successful native run and an unestablished proof.
 
 The selected window opens when the runner starts the selected test and closes
 with its result. The selected outcome is the runner's final outcome for the
@@ -1319,8 +1725,8 @@ credential the launcher did not mint for this attempt refuses the attempt with
 `test_proof_structured_events_reach_unauthenticated`.
 
 The observer configuration is readable by the selected test. It names the
-channel and nonce but never the attempt mode, the substitution or a
-credential. The channel nonce binds a record population to one attempt and
+channel, the nonce and the project directory but never the attempt mode, the
+substitution or a credential. The channel nonce binds a record population to one attempt and
 proves it complete. It does not identify which in-process code wrote a
 record. A test can therefore call the probe sink or append channel records,
 but without a minted credential the attempt earns nothing. Traversal and
@@ -1333,7 +1739,7 @@ records. That includes reading the module's file or its function source text.
 Such code can also tell a falsifier attempt from its substituted literal.
 This is source-text inspection of the system under test, which the launcher
 does not detect. Deno tests run without read permission, so they cannot read
-the working copy or the configuration. The node:test and pytest providers
+the project source or the configuration. The node:test and pytest providers
 observe through their own mechanisms: coverage of attempt-private witness
 functions, and a tracer bound to the declared module's code objects.
 
@@ -1361,9 +1767,9 @@ functions, and a tracer bound to the declared module's code objects.
   precedes every module, the observer's included: nothing runs, the selected
   test is not observed, and the run's cause is Deno's native report read from
   stderr as a build failure. Each diagnostic keeps its `TS` code, its first
-  message line and its working-copy location (repository path, line and
+  message line and its checkout location (repository path, line and
   column; the instrumented declared module keeps only its line, and a file
-  outside the working copy has no location); source excerpts, caret lines,
+  outside the checkout has no location); source excerpts, caret lines,
   related information and hints are never read. A message continued beyond
   its first line (a chained message or a hint) carries
   `native_report_unreadable` for that message. At most 16 diagnostics are
@@ -1422,11 +1828,13 @@ accepted, then that attempt's `ready` (after its own detection, validation and
 sandbox checks pass) or `failed` (with the complete structured setup result),
 each carrying the attempt's `preparation` identity, its `environments` and the
 most recent earlier failure as `last_failure`. `loadReadiness` is the one
-classifier: only an intact ready record of this repository is usable; preparing
-and failed return `test_runtime_preparation_in_progress` and
+classifier of that state: only an intact ready record of this repository is
+ready; preparing and failed return `test_runtime_preparation_in_progress` and
 `test_runtime_preparation_failed` with the record; an absent record
 (`test_runtime_not_ready`) alone means never prepared. Native proof preparation
-and attempts read it and nothing else. A ready record holds every detected
+and attempts read it and nothing else. A `preparing` or `failed` record also
+holds, as `configured`, the configuration of the ready record it superseded.
+A ready record holds every detected
 environment (`environments`: public ID, ecosystem, installation root, workspace
 members, proved runner IDs and toolchains), the proved runners as
 `selection` rows of runner ID and installation root, each toolchain's exact
@@ -1439,11 +1847,24 @@ and metadata fingerprint, each environment's detected dependency installation
 and member manifests and the lock, workspace member links, the existing
 directory, measured population, content digest and fingerprint), the passed sandbox
 verification checks, and a `readiness_digest` over the whole record. A record
-that does not reproduce its digest is invalid. Before every attempt the
-launcher recomputes the input-file digest of the checkout under test and the
-fingerprints of the recorded populations; any difference refuses with the
-matching stale code. Neither setup nor attempts ever download, install or
-rewrite lockfiles.
+that does not reproduce its digest is invalid.
+
+For execution the record is configuration, not approval
+(`loadRuntimeConfiguration`): attempts launch with the configured locations of
+a ready record, or with the `configured` block of a `preparing` or `failed`
+one, as those locations are now, and locate for the run whatever no
+configuration names, including every input of a repository with no record.
+The launcher does not compare the checkout's
+input files, the recorded populations' fingerprints or digests, or a version
+against what setup measured in order to decide whether to run, and a later
+setup outcome does not withdraw the configuration. Each resolution instead
+observes the current inputs and reports them as the run's provenance: setup's
+version and content digest for an input whose bytes are unchanged, and for a
+changed one the content digest measured now, `observed: "changed_since_setup"`
+and setup's facts under `setup_*` names. The exact fields and the mechanical
+refusals that remain are in
+[Runtime inputs at execution](local-test-runtime-setup.md#runtime-inputs-at-execution).
+Neither setup nor attempts ever download, install or rewrite lockfiles.
 
 The verifier and a managed coding worker select an installation root with the
 same pure selector. It takes a candidate root list and a normalized
@@ -1454,7 +1875,7 @@ ever selected.
 
 ### Prepared environment routing
 
-`workspace_verify_proof` routes each selected test independently, so one call
+`verify_proof` routes each selected test independently, so one call
 may verify tests in several languages and environments:
 
 1. The saved proof's runner binding (its candidate provider family) names the
@@ -1462,54 +1883,66 @@ may verify tests in several languages and environments:
    recorded as a language-family hint (`route.suffix_ecosystems`) and never
    replaces the saved binding, test, provider, evaluator, falsifier or
    obligation population.
-2. Without an `environment` argument, the recorded environment of that
-   ecosystem whose installation root owns the target serves it
-   (`route.basis: "saved_runner_binding_and_project_ownership"`). Two projects
-   of one language are two environments and each target reaches its own. If
-   the owning environment did not prove the runner, the test refuses with
-   `test_runtime_runner_not_prepared`, naming the environment, its runners and
-   the environments that would serve it; no sibling environment is borrowed.
-3. An installation root between the target and its routed environment that
-   declares its own complete dependency inputs but is not in the record refuses
-   with `test_runtime_inventory_stale` (`unrecorded_project`) until setup runs
-   again, instead of silently using the enclosing environment.
-4. With `environment: "<ecosystem>@<installation root>"`, that published
-   environment serves the test (`route.basis: "named_environment"`) only if it
-   is of the runner's ecosystem, proved the runner and contains the target.
+2. Without an `environment` argument, the environment of that ecosystem whose
+   installation root owns the target serves it
+   (`route.basis: "saved_runner_binding_and_project_ownership"`): the longest
+   of the published environments that contain the target and the environments
+   the checkout itself declares, by the one repository inventory setup uses. Two projects of one language are two
+   environments and each target reaches its own. Whether setup proved the
+   runner in the owning environment is not a condition; no sibling environment
+   is borrowed, and a runner the installation lacks fails when it runs. A
+   target no root owns refuses with `test_runtime_runner_not_prepared`.
+3. An installation root between the target and a published environment that
+   declares its own complete dependency inputs is the target's environment
+   even though no record names it: its inputs are located for the run (see
+   [Runtime inputs at execution](local-test-runtime-setup.md#runtime-inputs-at-execution)),
+   and the enclosing environment is never used silently in its place.
+4. With `environment: "<ecosystem>@<installation root>"`, that environment,
+   published or declared by the checkout at exactly that root, serves the test
+   (`route.basis: "named_environment"`) only if it is of the runner's
+   ecosystem and contains the target.
    Before anything is bound, prepared or executed, the verifier checks the
    named environment against every selected proof. If any proof cannot run
    there, the whole call refuses with `verify_proof.environment_incompatible.v1`.
    The refusal's `recovery.facts` list `requested_environment`, each
    `incompatible` proof (test proof ID, obligation IDs, target, family,
-   `reason`: `ecosystem_mismatch`, `runner_not_proved`,
+   `reason`: `ecosystem_mismatch`,
    `target_outside_environment`, `provider_unknown` or
    `environment_unavailable`, and code), the `valid_choices` that would serve
    the whole population, and the `prepared_environments`. Nothing is filtered
    or partially executed. An unknown name is `environment_unavailable` with
    `test_runtime_environment_unknown`.
 5. node:test proofs route the same way through the npm environment that owns
-   the target and proved node-test. A routed node:test attempt keeps its
-   selection, reporter, module-fault falsifier and V8 traversal, but runs the
-   environment's recorded Node with the detected `node_modules` bound read-only
+   the target, published or declared by the checkout's own package manifest
+   when no record exists. A routed node:test stage is the ordinary command of
+   the file -- `node --test`, or the repository wrapper a saved `node-test`
+   association names, run from the project directory -- with the options the
+   provider contributes: its exact selection, reporter, module-fault import
+   and declared-module coverage. It names no isolation mode and uses no
+   descriptor of the runner, so node:test, or the wrapper, keeps its own
+   process boundary. It runs the environment's Node with the detected
+   `node_modules` bound read-only
    at the project's own `node_modules` in the checkout under test, so workspace
    member links resolve to that checkout's sources. A missing mountpoint exists
    only in the run's namespace; nothing is created on the host. The run has its
-   own execution root as its private `/tmp`. Preparation binds the runtime-inputs digest and
-   every run re-proves it. A repository that publishes no readiness owning the
-   target, with no environment named, keeps the launcher's own Node
-   (`runtime_source: "launcher_node"`).
+   own execution root as its private `/tmp`. Preparation binds the provider assets and the
+   routed environment, and every run of that attempt resolves the runtime again as in
+   step 2 of the native lifecycle. A target that no npm project owns (no
+   published environment and no package manifest contains it), with no
+   environment named, is refused with the ordinary run's
+   `test_runtime_runner_not_prepared`.
 6. The name is an identity only: it grants no visibility, cannot retarget the
    candidate source, and never supplies an executable, path, variable, root or
-   mount. Currentness, source authentication and the stale checks above apply
-   unchanged.
+   mount. Source authentication, routing and the per-attempt runtime identity
+   above apply unchanged.
 
 Each proof result reports the `runtime_environment` that actually ran it: the
 `requested_environment`, the routed `environment`, `runtime_source`, the
 `route` (`basis`, `runner`, `suffix_ecosystems`), the `readiness_digest`, the
-toolchain and dependency identities (versions, sources and content digests; no
+toolchain and dependency identities as observed for that run (versions, sources
+and content digests, with any change since setup named; no
 host paths) and the `runtime_inputs_digest`, for every family (pytest included).
-An unrouted node:test proof reports `runtime_source: "launcher_node"` and no
-environment. The aggregate reports the
+The aggregate reports the
 call's `requested_environment`, the compact summary names each proof's
 `environment`, and both are retained with the invocation for execution-free
 reads.

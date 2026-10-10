@@ -44,6 +44,10 @@ function buildStubModuleSource() {
   return `
 import { structuredToolResult } from ${JSON.stringify(pathToFileURL(
     path.join(REPO_ROOT, "packages/wiki-mcp/src/lib/mcp-response.mjs")).href)};
+// The publication stub stands in for the exact CAS owner, so the failure codes
+// the handler reads from that owner are the real ones, not a copy.
+export { SLICE_INTEGRATION_DIAGNOSTIC_CODES } from ${JSON.stringify(pathToFileURL(
+    path.join(REPO_ROOT, "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs")).href)};
 const zNode = (${fakeZodNode.toString()})();
 const getState = () => globalThis.__WK1429_COMMIT_CONTRACT_TEST_STATE__;
 
@@ -88,10 +92,12 @@ export function runWorkspaceWorkRecordAdmissionRefreshRoute() { return {}; }
 export function jsonContent(value) {
   return structuredToolResult(value);
 }
+// Like the production owner, a declared envelope is the structured result.
 export function errorContent(error) {
   return {
     isError: true,
-    content: [{ type: "text", text: error?.message ?? String(error) }]
+    content: [{ type: "text", text: error?.message ?? String(error) }],
+    ...(error?.envelope ? { structuredContent: error.envelope } : {})
   };
 }
 export function guardToolHandler(handler) { return handler; }
@@ -224,11 +230,9 @@ export function registerKindRecordWriteTools() {}
 export function registerDispatchTools() {}
 export function registerReviewResultEvidenceTools() {}
 export function registerFrozenReviewContractTools() {}
-// WK-1990: the launcher-owned managed-worker declared-test capability. This
-// harness exercises the COMMIT surface, so the sibling worker route is stubbed
-// exactly like every other registrar; its own contract is covered by
-// tests/integration/worker-declared-test-capability.test.mjs.
-export function registerWorkerDeclaredTestTool() {}
+// The declared-test route. This harness exercises the COMMIT surface, so the
+// sibling route is stubbed exactly like every other registrar.
+export function registerRunTestTool() {}
 export function buildDispatchRuntime() {
   return { dispatchBackend: null, dispatchSessionIdentity: "test-session" };
 }
@@ -247,17 +251,14 @@ export function resolveWorktreeBinding(args) {
 export function materializeCommitObject(args) {
   const state = getState();
   state.calls.push({ op: "materialize", args });
+  if (state.materializationError) throw state.materializationError;
   return state.materialized;
 }
 export function verifyAndMeasureCommitScope(args) {
   const state = getState();
   state.calls.push({ op: "verify_measure", args });
+  if (state.scopeError) throw state.scopeError;
   return state.scope;
-}
-export function advanceWkRef(args) {
-  const state = getState();
-  state.calls.push({ op: "advance_ref", args });
-  return state.advanced;
 }
 export function commitSliceRef(args) {
   const state = getState();
@@ -282,7 +283,12 @@ export async function setWorkRecordStatusByUnit(args) {
 
 async function importServerWithFakes(t) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "wk1429-commit-contract-"));
+
+  const previousResponseState = process.env.WIKI_MCP_RESPONSE_STATE_DIR;
+  process.env.WIKI_MCP_RESPONSE_STATE_DIR = path.join(tempDir, "response-state");
   t.after(async () => {
+    if (previousResponseState === undefined) delete process.env.WIKI_MCP_RESPONSE_STATE_DIR;
+    else process.env.WIKI_MCP_RESPONSE_STATE_DIR = previousResponseState;
     await rm(tempDir, { recursive: true, force: true });
   });
 
@@ -303,7 +309,6 @@ async function importServerWithFakes(t) {
     "WORK_RECORD_STATUS_VALUES",
     "parseWorkspaceRepos",
     "resolveWorkspaceRepo",
-    "advanceWkRef",
     "materializeCommitObject",
     "verifyAndMeasureCommitScope",
     "resolveWorktreeBinding",
@@ -365,7 +370,7 @@ async function importServerWithFakes(t) {
     "registerDispatchTools",
     "registerReviewResultEvidenceTools",
     "registerFrozenReviewContractTools",
-    "registerWorkerDeclaredTestTool",
+    "registerRunTestTool",
     "buildDispatchRuntime",
     "bootstrapWikiMcpNodeEngineEnv"
   ];
@@ -375,7 +380,7 @@ async function importServerWithFakes(t) {
   const commitToolTransformed = [
     'import path from "node:path";',
     `import { resolveLauncherRunCredential, resolveAssignedUnit, WIKI_MCP_ASSIGNED_UNIT_ENV_VAR, WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR, WIKI_MCP_COMMIT_RUN_ID_ENV_VAR } from ${JSON.stringify(pathToFileURL(path.join(REPO_ROOT, "packages/wiki-mcp/src/lib/launcher-run-credential.mjs")).href)};`,
-    `import { advanceWkRef, materializeCommitObject, verifyAndMeasureCommitScope, resolveWorktreeBinding } from ${JSON.stringify(pathToFileURL(stubsPath).href)};`,
+    `import { materializeCommitObject, verifyAndMeasureCommitScope, resolveWorktreeBinding } from ${JSON.stringify(pathToFileURL(stubsPath).href)};`,
     `import { admitWorkerCommitCall, WORKER_COMMIT_TOOL_NAME } from ${JSON.stringify(pathToFileURL(COMMIT_GUARD_SOURCE).href)};`,
     'import { verifyExactSliceCommitBinding, resolveCommitGitIdentity, normalizeCommitRef, ' +
       'resolveExpectedEnvelope, resolveCommitWriteScopeMatcher } from ' +
@@ -383,6 +388,12 @@ async function importServerWithFakes(t) {
     ...[
 
       ["createSubmitForReviewResponse", "packages/wiki-mcp/src/lib/server-composition-helpers.mjs"],
+
+      ["createToolInputValidationError", "packages/wiki-mcp/src/lib/register-tool.mjs"],
+
+      ["describeRetentionFailure, measureMcpInlineResultBytes", "packages/wiki-mcp/src/lib/mcp-response.mjs"],
+      ["selectedResponseDeliveryBound", "packages/wiki-mcp/src/lib/selected-response-snapshot.mjs"],
+      ["createDeliveryOriginals", "packages/wiki-mcp/src/lib/task-deliver-work-result.mjs"],
       ["createWorkerScopeTreeReader", "packages/agent-launch-cli/src/lib/backend-worker-scope-tree.mjs"],
       ["defaultRunGit", "packages/agent-launch-cli/src/lib/worktree-substrate-primitives.mjs"],
       ["CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT", "packages/wiki-core/src/lib/controlled-contract-private-path-policy.mjs"]
@@ -414,7 +425,16 @@ async function importServerWithFakes(t) {
     )
   ].join("\n");
   await writeFile(serverPath, transformed, "utf8");
-  return import(pathToFileURL(serverPath).href);
+  const server = await import(pathToFileURL(serverPath).href);
+  const execution = await import(pathToFileURL(commitToolPath).href);
+  const dependencies = await import(pathToFileURL(stubsPath).href);
+  return { ...server, executionFactory: execution.createWorkspaceCommitExecution,
+    writeStatus: dependencies.setWorkRecordStatusByUnit };
+}
+
+export async function loadCommitExecutionDependencies(t) {
+  const { executionFactory, writeStatus } = await importServerWithFakes(t);
+  return { executionFactory, writeStatus };
 }
 
 export async function registerCommitTool(t) {
@@ -526,7 +546,7 @@ export function installState(overrides = {}) {
       base_sha: BASE_SHA,
       commit: COMMIT_SHA,
       tree: TREE_SHA,
-      ref: "refs/heads/wk/IN-0011/WK-1429",
+      ref: "refs/heads/slice/IN-0011/WK-1429/SLICE-004",
       prior_tip: BASE_SHA,
       idempotent: false,
       ref_advanced: true,
@@ -539,6 +559,8 @@ export function installState(overrides = {}) {
       restored_tip: BASE_SHA
     },
     compensationError: null,
+    materializationError: null,
+    scopeError: null,
     publicationError: null,
     transitionError: null,
     transitionResult: {

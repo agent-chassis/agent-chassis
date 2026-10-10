@@ -2,7 +2,7 @@ import {
   VERIFICATION_BUNDLE_VOCABULARY,
   buildStableTestProofBindingTemplate,
   buildVerificationBundleTemplate
-} from "@agent-chassis/controlled-contract";
+} from "@agent-chassis/controlled-contract/test-proof";
 
 const DIGEST_PATTERN = /^(?:sha256:)?[0-9a-f]{64}$/;
 

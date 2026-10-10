@@ -1,12 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { readFileSync } from "node:fs";
 
 import {
-  advanceTerminalReviewCandidate,
+  advanceSelectedTerminalCandidate,
+  projectTerminalCandidateAdvanceFailure,
   TERMINAL_CANDIDATE_RUNTIME_CODES,
   TerminalCandidateRuntimeError
 } from "../../packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs";
@@ -17,30 +15,39 @@ const runtime = readFileSync(new URL(
 ), "utf8");
 
 function advanceBody() {
-  const start = runtime.indexOf("export async function advanceTerminalReviewCandidate");
+  const start = runtime.indexOf("async function advanceCandidatePipeline");
   assert.ok(start >= 0);
   return runtime.slice(start);
 }
 
 test("advance authenticates complete current generation before freezing W inputs", () => {
   const body = advanceBody();
-  const authenticate = body.indexOf("authenticateAdvanceGeneration({");
+  const authenticate = body.indexOf(
+    "const generationAuthentication = await authenticateAdvanceGeneration({");
   const freeze = body.indexOf("freezeTerminalWkCandidateInputs({");
   assert.ok(authenticate >= 0);
   assert.ok(freeze > authenticate);
+
+  const initial = body.slice(authenticate, freeze);
+  assert.match(initial, /expectation: \{ expectedWkTipSha: snapshot\.currentW \}/u);
+  assert.equal(initial.includes("expectedGeneration"), false);
   assert.match(body, /generationAuthentication,\s*\n\s*runGit/u);
 });
 
 test("generation is re-authenticated after derivation and before candidate CAS", () => {
   const body = advanceBody();
   const derive = body.indexOf("const derived = await derive({ frozen, runGit });");
-  const finalAuth = body.indexOf("const finalGenerationAuthentication = await authenticateAdvanceGeneration");
+  const finalAuth = body.indexOf("await authenticateAdvanceGeneration({", derive);
   const cas = body.indexOf("const published = await publish({");
   assert.ok(derive >= 0);
   assert.ok(finalAuth > derive);
   assert.ok(cas > finalAuth);
-  assert.ok(body.indexOf("controlled-contract generation moved during candidate derivation") > finalAuth);
-  assert.match(runtime, /return assertAuthenticatedControlledContractGeneration\(authenticated/u);
+
+  assert.match(body.slice(finalAuth, cas),
+    /expectedWkTipSha: snapshot\.currentW,\s*expectedGeneration: generationAuthentication\s*\}/u);
+
+  assert.match(runtime,
+    /await authenticateCurrentControlledContractGenerationAtW\(\{\s*repoRoot: mainRepo, wkId, \.\.\.expectation, deps: \{ runGit \}\s*\}\)/u);
   assert.equal(runtime.includes("controlled-contract-resolved-generation.v1"), false);
 });
 
@@ -55,43 +62,60 @@ test("candidate CAS remains bound to the evaluator snapshot and exact B/W refs",
   assert.match(body, /\{ ref: snapshot\.wkRef, oid: snapshot\.currentW \}/u);
 });
 
-test("production advance refuses an absent generation without mutating the candidate ref", async (t) => {
-  const mainRepo = await mkdtemp(path.join(os.tmpdir(), "terminal-candidate-generation-fence-"));
-  t.after(() => rm(mainRepo, { recursive: true, force: true }));
-  await mkdir(path.join(mainRepo, "wiki", "work-records"), { recursive: true });
-  await mkdir(path.join(mainRepo, "wiki", "contracts"), { recursive: true });
-  await writeFile(path.join(mainRepo, "wiki", "work-records", "WK-2271.json"), JSON.stringify({
-    id: "WK-2271", initiative: "IN-0030"
-  }), "utf8");
-
-  const currentW = "a".repeat(40);
-  const snapshot = Object.freeze({ currentW, versionDecision: null });
-  let casCalls = 0;
+test("advance adopts no snapshot for a status lookalike and reaches no owner", async () => {
+  const reached = [];
   const backend = {
     async withTerminalCandidateAdvanceExclusion({ evaluateTerminalReviewCandidateStatus, run }) {
-      const observed = await evaluateTerminalReviewCandidateStatus();
-      return run(observed);
+      return run(await evaluateTerminalReviewCandidateStatus());
     }
   };
-
+  const owner = (name) => async () => { reached.push(name); throw new Error(name); };
   await assert.rejects(
-    advanceTerminalReviewCandidate({
-      mainRepo,
+    advanceSelectedTerminalCandidate({
+      mainRepo: "/missing-fixture",
       wkId: "WK-2271",
+      version: "a".repeat(64),
       backend,
       dependencies: {
         evaluateTerminalReviewCandidateStatus: async () => ({ state: "candidate_stale_w" }),
-        authoritySnapshot: () => snapshot,
-        casTerminalCandidateCurrentRef: async () => { casCalls += 1; }
+        authoritySnapshot: () => Object.freeze({ currentW: "a".repeat(40), candidate: "b".repeat(40) }),
+        authenticateHistoricalTerminalCandidate: owner("authenticate"),
+        deriveTerminalWkCandidate: owner("derive"),
+        publishTerminalWkCandidateVersion: owner("publish")
       }
     }),
     (error) => {
       assert.ok(error instanceof TerminalCandidateRuntimeError);
-      assert.equal(error.code, TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_GENERATION_ABSENT);
+      assert.equal(error.code, TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_NOT_STALE);
+      assert.deepEqual(projectTerminalCandidateAdvanceFailure(error), {
+        stage: "selection", requested_version: "a".repeat(64), source: null, target: null,
+        derived_candidate: null, ref_transaction_attempted: false
+      });
       return true;
     }
   );
-  assert.equal(casCalls, 0);
+  assert.deepEqual(reached, []);
+  assert.equal(runtime.includes("dependencies.authoritySnapshot"), false);
+  assert.equal(/export[^\n]*statusAuthoritySnapshots/u.test(runtime), false);
+});
+
+test("the requested version is authenticated inside the exclusion and is equality-only", () => {
+  const body = advanceBody();
+  const run = body.indexOf("run: async (inside) => {");
+  const authenticate = body.indexOf("await authenticateHistoricalTerminalCandidate({");
+  const equality = body.indexOf("selected.binding.candidate !== snapshot.candidate");
+  const generation = body.indexOf("const generationAuthentication = await authenticateAdvanceGeneration({");
+  assert.ok(run >= 0 && authenticate > run && equality > authenticate && generation > equality);
+  assert.match(body, /mainRepo, wkId, versionIdentity: selectedVersion, runGit\s*\}\)/u);
+
+  assert.deepEqual(body.match(/\bselected\.[A-Za-z_.]+/gu),
+    ["selected.binding.candidate", "selected.binding.candidate"]);
+  assert.equal(body.match(/\(selected\)/gu).length, 1);
+  assert.ok(body.includes("progress.source = projectTerminalWkCandidateVersion(selected);"));
+  for (const forbidden of ["latest", "expectedOld: selected", "selected.binding.base",
+    "selected.binding.wk_tip", "selected.binding.controlled_generation"]) {
+    assert.equal(body.includes(forbidden), false, forbidden);
+  }
 });
 
 test("advance derives from the W record digest and generation, never a review contract", () => {
@@ -101,5 +125,6 @@ test("advance derives from the W record digest and generation, never a review co
     "freezeReconstructedTerminalWkCandidateInputs"]) {
     assert.equal(body.includes(reviewInput), false, reviewInput);
   }
-  assert.match(body, /authenticatedControlledContractGenerationsEqual\(\s*finalGenerationAuthentication,\s*generationAuthentication\)/u);
+
+  assert.equal(runtime.includes("authenticatedControlledContractGenerationsEqual"), false);
 });

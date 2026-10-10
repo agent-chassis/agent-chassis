@@ -171,6 +171,48 @@ function classifyProspectiveTransition(selectedUnit, beforeRecord, afterRecord) 
   return classifyWorkRecordGenerationTransition(selectedUnit, beforeRecord, afterRecord);
 }
 
+export async function inspectInitiativeAssignmentTarget({ targetDir, initiative }) {
+  const refused = (diagnostics, nextAction) => ({ ok: false, diagnostics, nextAction });
+  const target = await loadKindRecordById({ repoRoot: targetDir, id: initiative });
+  if (!target.record) {
+    const missing = target.diagnostics?.some((entry) => entry.code === "missing_json_record");
+    return refused(missing
+      ? [{
+          code: "initiative_not_found",
+          severity: "error",
+          message: `Target initiative '${initiative}' does not exist`,
+          path: "initiative"
+        }]
+      : target.diagnostics || [],
+    "supply the id of an existing canonical initiative record");
+  }
+  if (target.record_id !== initiative) {
+    return refused([{
+      code: "initiative_record_mismatch",
+      severity: "error",
+      message: `Target initiative file '${initiative}' claims id '${target.record_id}'`,
+      path: "initiative"
+    }], "repair the target initiative record before assigning work to it");
+  }
+  if (target.record.record_kind !== "initiative") {
+    const actualKind =
+      typeof target.record.record_kind === "string"
+        ? target.record.record_kind.slice(0, 64)
+        : typeof target.record.record_kind;
+    return refused([{
+      code: "initiative_record_kind_mismatch",
+      severity: "error",
+      message: `Target '${initiative}' has record_kind '${actualKind}', expected 'initiative'`,
+      path: "initiative"
+    }], "supply a canonical initiative record target");
+  }
+  if (target.diagnostics?.some((entry) => entry.severity === "error")) {
+    return refused(target.diagnostics,
+      "repair the target initiative record before assigning work to it");
+  }
+  return { ok: true };
+}
+
 export async function assignWorkRecordToInitiativeByUnit({
   dir = ".",
   unit,
@@ -292,72 +334,8 @@ export async function assignWorkRecordToInitiativeByUnit({
     });
   }
 
-  const target = await loadKindRecordById({ repoRoot: targetDir, id: initiative });
-  if (!target.record) {
-    const missing = target.diagnostics?.some((entry) => entry.code === "missing_json_record");
-    return buildResult({
-      operation,
-      recordId: parsed.recordId,
-      unit: parsed.unit,
-      loaded,
-      diagnostics: missing
-        ? [
-            {
-              code: "initiative_not_found",
-              severity: "error",
-              message: `Target initiative '${initiative}' does not exist`,
-              path: "initiative"
-            }
-          ]
-        : target.diagnostics || [],
-      sourceDigest: loaded.source_digest || null,
-      nextAction: "supply the id of an existing canonical initiative record",
-      verbose
-    });
-  }
-  if (target.record_id !== initiative) {
-    return buildResult({
-      operation,
-      recordId: parsed.recordId,
-      unit: parsed.unit,
-      loaded,
-      diagnostics: [
-        {
-          code: "initiative_record_mismatch",
-          severity: "error",
-          message: `Target initiative file '${initiative}' claims id '${target.record_id}'`,
-          path: "initiative"
-        }
-      ],
-      sourceDigest: loaded.source_digest || null,
-      nextAction: "repair the target initiative record before assigning work to it",
-      verbose
-    });
-  }
-  if (target.record.record_kind !== "initiative") {
-    const actualKind =
-      typeof target.record.record_kind === "string"
-        ? target.record.record_kind.slice(0, 64)
-        : typeof target.record.record_kind;
-    return buildResult({
-      operation,
-      recordId: parsed.recordId,
-      unit: parsed.unit,
-      loaded,
-      diagnostics: [
-        {
-          code: "initiative_record_kind_mismatch",
-          severity: "error",
-          message: `Target '${initiative}' has record_kind '${actualKind}', expected 'initiative'`,
-          path: "initiative"
-        }
-      ],
-      sourceDigest: loaded.source_digest || null,
-      nextAction: "supply a canonical initiative record target",
-      verbose
-    });
-  }
-  if (target.diagnostics?.some((entry) => entry.severity === "error")) {
+  const target = await inspectInitiativeAssignmentTarget({ targetDir, initiative });
+  if (!target.ok) {
     return buildResult({
       operation,
       recordId: parsed.recordId,
@@ -365,7 +343,7 @@ export async function assignWorkRecordToInitiativeByUnit({
       loaded,
       diagnostics: target.diagnostics,
       sourceDigest: loaded.source_digest || null,
-      nextAction: "repair the target initiative record before assigning work to it",
+      nextAction: target.nextAction,
       verbose
     });
   }
@@ -538,7 +516,7 @@ function proseWriteRefusal({ operation, parsed, diagnostic, expectedSourceDigest
   });
 }
 
-async function resolveProseCarrier({
+export async function resolveProseCarrier({
   content,
   path: contentPath,
   field,

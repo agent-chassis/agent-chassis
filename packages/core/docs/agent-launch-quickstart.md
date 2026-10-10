@@ -36,12 +36,19 @@ worker, reviewer, redteam, or orchestrator launch.
 Examples:
 
 ```bash
-agent-launch worker   --app codex  <WK-ID#slice>
 agent-launch worker   --app claude <WK-ID#slice>
+agent-launch worker   --app codex  <WK-ID#slice> --dry-run-json   # plan only
 agent-launch review   --app codex  <WK-ID>
 agent-launch redteam  --app codex  <IN-ID>
-agent-launch worker   --app codex  --spark <WK-ID>  # Spark profile
 ```
+
+The direct live Codex worker route is retired. `agent-launch worker` for a
+launch that resolves to Codex (by `--app codex`, by a Codex profile such as
+`--spark`, or by its model) refuses before any client is started, with
+`codex_direct_worker_retired`, and records no usage contributor. A Codex
+implementation worker is started through the managed `start_agent` tool of an
+orchestrator session (`agent-launch orchestrator <IN-####>`). `--dry-run-json`
+still plans the launch, and live Claude workers are unaffected.
 
 Old per-family wrapper scripts (`codex-worker`, `claude-review`, and the rest)
 are no longer shipped. If you are migrating operator scripts that call them, see
@@ -131,9 +138,17 @@ Startup prompts name the package-owned role guides in
 `@agent-chassis/agent-launch-core` under `data/role-guides/`. Each orchestrator,
 worker, reviewer, and redteam prompt carries one `Read your ... guide before
 acting: <path>` line with the package-resolved `orchestrator.md`,
-`managed-worker.md`, or `reviewer.md` path. The launcher grants a confined
+`managed-worker.md`, or `reviewer.md` path. The orchestrator's line reads
+`Read your orchestrator guide at <path> and the authoring vignette at <path>
+before authoring.`; the vignette ships in the same directory as a byte-identical
+copy of `docs/orchestrator-authoring-vignette.md`. The launcher grants a confined
 worker, reviewer, or redteam that whole guide directory read-only, including
-Claude's native `Read`, whatever its task scope.
+Claude's native `Read`, whatever its task scope; a confined orchestrator gets
+the same read-only directory. After a manual or automatic compaction, a confined
+Claude or Codex session receives its selected guide's full text again before its
+next model request, through a launcher-added hook that needs no approval and
+trusts no other hook. Direct-mode and unenforced launches have no such hook; see
+[Role guide after compaction](agent-launch-confinement-mcp-conduit.md#role-guide-after-compaction).
 
 Reviewer review uses `workspace_agent_dispatch --role reviewer`. If that route
 is unavailable in the current session, an implementation WK or slice covered by
@@ -573,10 +588,11 @@ Two prerequisites are commonly missed before a WK's first managed start:
 
 `workspace_validate_dispatch` is optional. `workspace_agent_dispatch` performs
 its own readiness and needs no prior validation call. When used, validation
-allocates nothing, and its structural `dispatchable` decision does not certify
-launch: a missing root base selection leaves `dispatchable:true` and reports
-`worker_scope_preflight.reason.code: scope_existence_base_selection_missing`,
-with `next_action` directing the root selection above.
+allocates nothing, and its `dispatchable` decision does not certify launch. A
+missing root base selection reports `dispatchable:false` with
+`decision_code: scope_existence_base_selection_missing`, keeps
+`worker_scope_preflight` `not_evaluated` with that reason, and directs the root
+selection above in `next_action`.
 
 Canonical review and redteam dependencies need no ref or initiative-derived Git
 identity. Only canonical implementation

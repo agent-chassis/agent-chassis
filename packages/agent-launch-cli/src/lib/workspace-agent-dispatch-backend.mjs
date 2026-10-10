@@ -55,7 +55,7 @@ import {
   defaultRunIdFactory,
   defaultMonitorHandleFactory
 } from "./workspace-agent-dispatch-refusal.mjs";
-import { createDispatchRunLifecycle } from "./workspace-agent-dispatch-run-lifecycle.mjs";
+import { createDispatchRunLifecycle, createPreparedDispatchRunLifecycle } from "./workspace-agent-dispatch-run-lifecycle.mjs";
 import { selectVisibleRunRecord } from "./workspace-agent-dispatch-run-lifecycle-state.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import {
@@ -76,7 +76,11 @@ import {
 import {
   readManagedRunObservation,
   recordManagedLifecycleFailure,
-  recordManagedRunResult
+  recordManagedRunResult,
+  recordManagedRunOriginal,
+  recordManagedReviewOriginal,
+  readManagedReviewOriginal,
+  assessManagedRunResultPublication
 } from "./managed-run-process-identity-store.mjs";
 import { deriveManagedRunIdentityTupleFromBindingPair } from
   "./managed-run-process-identity-contract.mjs";
@@ -92,10 +96,12 @@ import { createBackendTerminalCandidateCoordination } from
   "./workspace-agent-dispatch-backend-terminal-candidate-coordination.mjs";
 import { createBackendPostWorkerLifecycle } from
   "./workspace-agent-dispatch-backend-post-worker-lifecycle.mjs";
+import { createCompletedIntegrationCandidateObservation } from
+  "./backend-completed-integration-candidate-observation.mjs";
 import { createBackendRecovery } from "./workspace-agent-dispatch-backend-recovery.mjs";
 import { createBackendWorkerRouting } from
   "./workspace-agent-dispatch-backend-worker-routing.mjs";
-import { resolveDispatchSelection } from "./workspace-agent-dispatch-run-lifecycle-selection.mjs";
+import { resolveDispatchSelection, resolveDispatchModelSelection } from "./workspace-agent-dispatch-run-lifecycle-selection.mjs";
 import { createWorkspaceAgentAdvisoryReviewPipeline } from
   "./workspace-agent-advisory-review-pipeline.mjs";
 
@@ -125,6 +131,14 @@ export {
 export { createCanonicalCommittedSliceIntegrationAdapter };
 
 export function createWorkspaceAgentDispatchBackend(options = {}) {
+  return assembleDispatchBackend(options, createDispatchRunLifecycle);
+}
+
+export function createPreparedWorkspaceAgentDispatchBackend(options = {}) {
+  return assembleDispatchBackend(options, createPreparedDispatchRunLifecycle);
+}
+
+function assembleDispatchBackend(options, createLifecycle) {
   const {
     launchExecutor = null,
     launchExecutors = null,
@@ -194,6 +208,15 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
   const canonicalCommittedSliceIntegrationsByDelivery = new Map();
 
   const sliceIntegrationCcePolicy = options.sliceIntegrationCcePolicy ?? null;
+
+  const retainCommittedSliceIntegrationOriginal = options.retainCommittedSliceIntegrationOriginal ?? null;
+  const readIntegrationDispositions = options.readIntegrationDispositions ?? null;
+  const finalizeCommittedSliceIntegration = options.finalizeCommittedSliceIntegration ?? null;
+  for (const dependency of [readIntegrationDispositions, finalizeCommittedSliceIntegration]) {
+    if (dependency !== null && typeof dependency !== "function") {
+      throw new TypeError("integration source and finalization dependencies must be callable");
+    }
+  }
   const recoveredIntegratedRuns = new Map();
 
   const exactSliceReviewReceiptStore = options.exactSliceReviewReceiptStore ?? null;
@@ -241,6 +264,13 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         dispatchTuple,
         result
       });
+  const assessManagedRunResult = managedRunIdentityRoot === null
+    ? null
+    : (request) => assessManagedRunResultPublication({ ...request, mainRepo: managedRunIdentityRoot });
+  const publishManagedRunOriginal = managedRunIdentityRoot === null ? null
+    : request => recordManagedRunOriginal({ ...request, mainRepo: managedRunIdentityRoot });
+  const publishManagedReviewOriginal = managedRunIdentityRoot === null ? null
+    : request => recordManagedReviewOriginal({ ...request, mainRepo: managedRunIdentityRoot });
 
   const managedRunIdentityDeps = options.managedRunProcessIdentityDeps ?? undefined;
 
@@ -265,6 +295,9 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     canonicalCommittedSliceIntegrationAttempts,
     canonicalCommittedSliceIntegrationsByDelivery,
     sliceIntegrationCcePolicy,
+    retainCommittedSliceIntegrationOriginal,
+    readIntegrationDispositions,
+    finalizeCommittedSliceIntegration,
     sliceReviewTargetKey,
     committedSliceIntegrationTargetKey,
     frozenSliceReviewContexts,
@@ -284,6 +317,17 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
   Object.assign(backendContext, createBackendManagedIdentity(backendContext));
   Object.assign(backendContext, createBackendIntegration(backendContext));
 
+  const advisoryLaunchObservations = new Map();
+  const observeExecutor = candidate => createLifecycle !== createPreparedDispatchRunLifecycle ? candidate
+    : async input => {
+      const result = await candidate(input);
+      const root = input.advisory_review_input?.private_checkout_root;
+      if (root !== undefined) advisoryLaunchObservations.set(root, Object.freeze({
+        child_started: Number.isInteger(result?.pid) && result.pid > 0 ? true : null,
+        enforcement: result?.enforcement ?? null
+      }));
+      return result;
+    };
   const executors = {};
   const executorRegistryEntries = {};
 
@@ -293,7 +337,7 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
       const candidate = launchExecutors[app];
       if (typeof candidate === "function") {
         executors[app] = maybeWrapExecutorWithWorktreeProvisioning(
-          requireManagedProvisioning ? gateManagedExecutor(candidate) : candidate,
+          requireManagedProvisioning ? gateManagedExecutor(observeExecutor(candidate)) : observeExecutor(candidate),
           app,
           worktreeProvisioningConfig,
           requireManagedProvisioning,
@@ -304,8 +348,8 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         executorRegistryEntries[app] = executors[app];
       } else if (candidate && typeof candidate === "object" && typeof candidate.executor === "function") {
         const gatedCandidate = requireManagedProvisioning
-          ? { ...candidate, executor: gateManagedExecutor(candidate.executor) }
-          : candidate;
+          ? { ...candidate, executor: gateManagedExecutor(observeExecutor(candidate.executor)) }
+          : { ...candidate, executor: observeExecutor(candidate.executor) };
         const wrapped = maybeWrapRegistryEntryWithWorktreeProvisioning(
           gatedCandidate,
           app,
@@ -346,7 +390,7 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
   backendContext.executorRegistryEntries = executorRegistryEntries;
   backendContext.familyAwareWiring = familyAwareWiring;
 
-  const lifecycle = createDispatchRunLifecycle({
+  const lifecycle = createLifecycle({
     executors,
     executorRegistryEntries,
     familyAwareWiring,
@@ -371,13 +415,22 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
 
     resolveCanonicalAdmissionReviewRecord,
     settleFormalReviewAttestation: options.settleFormalReviewAttestation ?? null,
-    publishManagedRunResult
+    publishManagedRunResult,
+    assessManagedRunResult,
+    publishManagedRunOriginal,
+    publishManagedReviewOriginal,
+    captureRunOriginal: options.captureRunOriginal ?? null
   });
   backendContext.lifecycle = lifecycle;
 
   const advisoryReviewPipeline = createWorkspaceAgentAdvisoryReviewPipeline({
     lifecycle,
     worktreeProvisioningConfig,
+    readLaunchObservation: createLifecycle !== createPreparedDispatchRunLifecycle ? null : root => {
+      const observation = advisoryLaunchObservations.get(root) ?? null;
+      advisoryLaunchObservations.delete(root);
+      return observation;
+    },
     runGit: reviewContextRunGit,
 
     resolveConfiguredWorkspaceRepo: typeof options.resolveConfiguredWorkspaceRepo === "function"
@@ -420,6 +473,12 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     familyAwareWiring,
     resolveBackendRoutingDecision: backendContext.resolveBackendRoutingDecision
   });
+  const getDispatchModelCapabilityFacts = createSelectedBackendCapabilityFacts({
+    resolveDispatchSelection: (input = {}) => resolveDispatchModelSelection({
+      role: input.role, app: input.app, model: input.model,
+      workspaceDir: input.workspace_dir, configRootDir: input.config_root_dir
+    }), executors, executorRegistryEntries, familyAwareWiring
+  });
   const predictRepositoryScope = (input = {}) => {
     const routing = backendContext.resolveBackendRoutingDecision(input);
     if (routing?.ok !== true) return routing;
@@ -434,6 +493,8 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
   return {
     schema_version: WORKSPACE_AGENT_DISPATCH_BACKEND_SCHEMA_VERSION,
     startAdvisoryReview: backendContext.startAdvisoryReview,
+    ...(createLifecycle === createPreparedDispatchRunLifecycle
+      ? { resolveAdvisoryReviewMaterial: backendContext.resolveAdvisoryReviewMaterial } : {}),
     startLaunch: backendContext.startLaunch,
     getRunStatus: lifecycle.getRunStatus,
     waitForRunStatus: lifecycle.waitForRunStatus,
@@ -455,11 +516,20 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
           if (visible.selected?.role !== undefined && visible.selected.role !== "worker") {
             return Object.freeze({ ok: false, code: "findings_observation_unavailable" });
           }
-          return readManagedRunObservation({
+          const worker = readManagedRunObservation({
             mainRepo: managedRunIdentityRoot,
             ...input,
             attemptId: input.attemptId ?? visible.selected?.run_id ?? null
           });
+
+          if (input.includeReviewOriginal !== true || worker.ok || visible.selected != null) return worker;
+          const review = readManagedReviewOriginal({ mainRepo: managedRunIdentityRoot,
+            subject: input.subject, attemptId: input.attemptId ?? null });
+          const nothingSelected = worker.refusal == null &&
+            ["attempt_selector_mismatch", "attempt_observation_unavailable"].includes(worker.code);
+          if (review.ok) return input.attemptId != null || nothingSelected ? review : worker;
+          return nothingSelected && (review.refusal != null || review.code === "attempt_selection_ambiguous")
+            ? review : worker;
         },
 
     recordManagedLifecycleFailure: managedRunIdentityRoot === null
@@ -495,8 +565,10 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         },
     resolveRetainedFindingsSource: lifecycle.resolveRetainedFindingsSource,
     planLaunch: lifecycle.planLaunch,
+    resolveWorkerTargetRefusal: backendContext.resolveWorkerTargetRefusal,
     getManagedLifecycleCapabilityAuthorityFacts,
     getSelectedBackendCapabilityFacts,
+    getDispatchModelCapabilityFacts,
     resolveBackendRoutingDecision: backendContext.resolveBackendRoutingDecision,
 
     predictRepositoryScope,
@@ -517,6 +589,12 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         status: run
       }),
     resolveCommittedSliceIntegrationContinuation: backendContext.resolveCommittedSliceIntegrationContinuation,
+
+    observeCompletedIntegrationCandidate: createCompletedIntegrationCandidateObservation({
+      resolveCommittedSliceIntegrationContinuation: (args) =>
+        backendContext.resolveCommittedSliceIntegrationContinuation(args),
+      observeTerminalCandidate: options.observeTerminalCandidate
+    }),
     resolveTerminalReviewPublicationState: backendContext.resolveTerminalReviewPublicationState,
     observeTerminalCandidateBoundState: backendContext.observeTerminalCandidateBoundState,
 

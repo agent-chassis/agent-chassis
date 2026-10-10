@@ -54,6 +54,8 @@ import {
   resolveStdioMcpTranscriptCaptureRoot
 } from "./stdio-mcp-transcript-capture.mjs";
 import { mcpMetricsServerEnv } from "./mcp-metrics-config.mjs";
+import { nativeUsageTaskEnv } from "@agent-chassis/agent-launch-core/src/lib/native-usage-records.mjs";
+import { projectProxyEnvironment } from "@agent-chassis/agent-launch-core/src/lib/proxy-environment.mjs";
 import {
   LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION,
   WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR,
@@ -334,6 +336,8 @@ function buildServerEnv(input, role, {
     ...transcriptCaptureServerEnv(),
 
     ...mcpMetricsServerEnv(),
+
+    ...nativeUsageTaskEnv(),
     PATH: process.env.PATH ?? "/usr/bin:/bin",
     HOME: process.env.HOME ?? "",
     ...(process.env.USER ? { USER: process.env.USER } : {}),
@@ -341,6 +345,10 @@ function buildServerEnv(input, role, {
     ...(process.env.LANG ? { LANG: process.env.LANG } : {}),
     ...(process.env.LC_ALL ? { LC_ALL: process.env.LC_ALL } : {}),
     ...(process.env.TZ ? { TZ: process.env.TZ } : {}),
+
+    ...projectProxyEnvironment(process.env),
+
+    NODE_USE_ENV_PROXY: process.env.NODE_USE_ENV_PROXY ?? "1",
     WIKI_MCP_TOOL_PROFILE: role,
     WIKI_MCP_ASSIGNED_UNIT: input.assignedUnit,
     WIKI_MCP_WORKSPACE_DIR: input.workspaceDir,

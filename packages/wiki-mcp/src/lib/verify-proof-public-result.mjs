@@ -49,12 +49,15 @@ import {
   VERIFY_PROOF_SOURCE_SELECTION_FAILURES,
   dependencyProjectionCorrection,
   isVerifyProofSourceSelectionFailure,
+  isVerifyProofSourceUnitForbidden,
   projectObservedEvidence,
   projectVerifyProofSourceRetryCalls,
   projectedSourceSelectionDetail,
+  projectedSourceUnitForbidden,
   projectedEvidenceFailure,
   projectedExecutionDetail,
   projectedDependencyProjectionFacts,
+  projectedDefinitionSourceFacts,
   projectedOperationDetail,
   projectedProviderFailure,
   proofLocalContinuationFacts
@@ -64,7 +67,7 @@ export { projectObservedEvidence, projectProofAuthoringRecoveryCall } from
   "./verify-proof-failure-detail.mjs";
 
 export function projectVerifyProofFailure(error, { subject = null, continuation = false,
-  request = null, timing = null } = {}) {
+  request = null, timing = null, executionCall = null } = {}) {
 
   const originalEvidence = captureDiagnosticEvidence(error);
   const chain = [];
@@ -133,6 +136,25 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
         choices: projectVerifyProofSourceRetryCalls(projected.choices, {
           subject: subject ?? projected.details.subject, request })
       };
+    } else if (current instanceof ControlledContractToolError &&
+        isVerifyProofSourceUnitForbidden(current)) {
+
+      const projected = projectedSourceUnitForbidden(current, { subject, request });
+      if (projected === null) {
+        break projection;
+      }
+      node = { code: current.code,
+        owning_boundary: "wiki-core.controlled-contract.verify-proof-source-binding",
+        details: projected.details };
+      deepestFailure = projected.alternative === null ? {
+        recovery_action: "verify_through_a_session_authorized_for_the_requested_unit",
+        retry: false,
+        correction_owner: "coordinator",
+        condition: current.code
+      } : {
+        recovery_action: "verify_the_authorized_unit_instead",
+        alternative: projected.alternative
+      };
     } else if (current instanceof ProofObligationResolutionError || current instanceof ProofAuthoringError ||
         current instanceof AdmittedProofPackError || current instanceof TestProofEvidenceSemanticKernelError ||
         current instanceof VerifyProofOperationError && !Object.hasOwn(VERIFY_PROOF_OPERATION_FAILURES, current.code) ||
@@ -176,15 +198,17 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
       }
       const details = { selector };
       let correction = null;
-      if (current.code === ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.EXACT_DEPENDENCY_PROJECTION) {
+      if (current.code === ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.EXACT_DEPENDENCY_PROJECTION ||
+          current.code === ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.CURRENT_DEFINITIONS) {
         if (typeof current.detail?.cause_code !== "string" ||
             !STABLE_CODE_RE.test(current.detail.cause_code)) {
           break projection;
         }
         details.cause_code = current.detail.cause_code;
         const facts = projectedDependencyProjectionFacts(current.detail);
-        if (facts === null) break projection;
-        Object.assign(details, facts);
+        const source = projectedDefinitionSourceFacts(current.detail);
+        if (facts === null || source === null) break projection;
+        Object.assign(details, facts, source);
         correction = dependencyProjectionCorrection(details, subject);
       }
       node = { code: current.code,
@@ -283,11 +307,12 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     "filesystem_error_code", "spawn_error_code", "structured_observation_code", "failure_diagnostic",
     "output_truncated", "output_elided_bytes",
     "execution_stage", "timed_out", "disposition", "blocker_code", "reason",
-    "provider_id", "provider_version", "structured_observation_detail",
-    "selector", "cause_code", "candidate_commit", "validator_cache", "expected_commit", "observed_commit", "expected_tree",
+    "provider_id", "provider_version", "check", "structured_observation_detail",
+    "selector", "cause_code", "candidate_commit", "definition_source", "validator_cache", "expected_commit", "observed_commit", "expected_tree",
     "observed_tree", "diagnostic_count", "returned_diagnostic_count",
     "omitted_diagnostic_count", "match_count", "choice_count", "field",
-    "unsupported_keys", "accepted_form", "source_unit", "requested_environment", "incompatible",
+    "unsupported_keys", "accepted_form", "source_unit", "authorized_unit", "requested_environment", "incompatible",
+    "branch", "branch_selector", "conflicting_fields",
     "valid_choices", "prepared_environments"]) {
     if (detail[key] !== undefined) recoveryFacts[key] = structuredClone(detail[key]);
   }
@@ -304,18 +329,26 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     reason_code: deepest.code,
     diagnostics: projectPublicDiagnostic(chain, "diagnostics", redactions),
     diagnostic_redactions: redactions,
-    next_calls: detail.recovery_call === undefined ? [] : [buildNextCall({
+    next_calls: detail.recovery_call !== undefined ? [buildNextCall({
       ...detail.recovery_call, recommended: true
-    })],
+    })] : deepestFailure.alternative !== undefined ? [executionCall === null ? buildNextCall({
+      ...deepestFailure.alternative.call, recommended: true
+    }) : executionCall(deepestFailure.alternative.call.arguments, { recommended: true })] : [],
     recovery: Object.freeze({
       action: deepestFailure.recovery_action,
+      ...(detail.authoring_source === undefined ? {} : { authoring_source: detail.authoring_source }),
 
-      ...(deepestFailure.retry === false ? {
+      ...(deepestFailure.alternative !== undefined ? {
+        alternative: (({ call: _call, ...facts }) => facts)(deepestFailure.alternative)
+      } : deepestFailure.retry === false ? {
         correction_owner: deepestFailure.correction_owner,
         condition: deepestFailure.condition,
         ...(deepestFailure.correction === undefined ? {} : {
-          correction: structuredClone(deepestFailure.correction) })
-      } : { retry_operation: VERIFY_PROOF_TOOL_NAME }),
+          correction: { ...structuredClone(deepestFailure.correction),
+            ...(executionCall === null || deepestFailure.correction.verify_after_correction?.tool !== VERIFY_PROOF_TOOL_NAME
+              ? {} : { verify_after_correction: executionCall({ ...request,
+                ...deepestFailure.correction.verify_after_correction.arguments }) }) } })
+      } : { retry_operation: executionCall === null ? VERIFY_PROOF_TOOL_NAME : executionCall({ subject }).tool }),
       ...(deepestFailure.choices === undefined ? {} : {
         choices: Object.freeze([...deepestFailure.choices]),
         choice_count: deepestFailure.choices.length

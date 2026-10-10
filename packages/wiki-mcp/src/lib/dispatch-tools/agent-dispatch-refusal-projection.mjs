@@ -4,17 +4,16 @@ import {
   WORKER_SCOPE_PATH_REFUSED_DECISION_CODE as WORKER_SCOPE_PATH_REFUSED,
   projectLauncherTransitionReadiness
 } from "@agent-chassis/wiki-core/src/lib/work-record-dispatch-readiness-shape.mjs";
-import { ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION } from
-  "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-shared.mjs";
-import { MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE } from
-  "@agent-chassis/wiki-core/src/lib/work-record-dispatch.mjs";
 import {
   createFailedLauncherTransitionPlan
 } from "@agent-chassis/agent-launch-core/src/lib/launcher-transition-plan.mjs";
 import { isRuntimeBlockerCode } from
   "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
-import { AGENT_DISPATCH_TOOL_NAME, DISPATCH_BLOCKER_CODES } from
-  "../dispatch-tool-constants.mjs";
+import {
+  AGENT_DISPATCH_SCHEMA_VERSION,
+  AGENT_DISPATCH_TOOL_NAME,
+  DISPATCH_BLOCKER_CODES
+} from "../dispatch-tool-constants.mjs";
 import {
   buildBlockedDispatchResult,
   buildDispatchContinuation,
@@ -22,10 +21,13 @@ import {
   distillDispatchFailureDetail,
   NO_SUPPORTED_ROUTE_RECOVERY,
   ownedNoRouteRecovery,
+  projectDispatchFailureDetail,
+  requestSchemaAuthorityForRegistration,
   retainWithheldOriginal
 } from "../dispatch-tool-helpers.mjs";
 import { buildDispatchGuidanceRefusal, GUIDANCE_CAPABILITY_OWNER, guidanceCapability } from
   "../dispatch-guidance-contract.mjs";
+import { loadDispatchSelection } from "@agent-chassis/wiki-core/src/operations/validate-dispatch.mjs";
 import { classifyMechanicalRuntimeBlocker } from "./runtime-blocker-classifier.mjs";
 import { projectBoundedExactPolicyPayloadIssueReadiness } from
   "./agent-dispatch-cce-admission.mjs";
@@ -149,14 +151,6 @@ export function projectPublicBackendDetail(classification, app, { env = process.
     schema_rejected: classification.schema_rejected
   };
 
-  for (const [field, value] of Object.entries(diagnostics)) {
-    if (value !== null && typeof value === "object") continue;
-    if (!Object.hasOwn(projected, field) && ![
-      "next_action", "next_action_args", "actor_recovery"
-    ].includes(field)) {
-      projected[field] = value;
-    }
-  }
   return Object.freeze(projected);
 }
 
@@ -171,7 +165,12 @@ export function routeExceptionRefusal(route) {
   });
 }
 
-export function callerSuppliedAuthorityRefusal({ role, subject, refusedFields }) {
+const PUBLIC_START_TOOL = "start_agent";
+
+const EXISTING_ATTEMPT_READ_TOOL = "get_run_result";
+
+export function callerSuppliedAuthorityRefusal({ role, subject, refusedFields,
+  requestSchemaAuthority = null }) {
   const observedFacts = {
     "request.caller_supplied_authority_present": true,
     "request.caller_supplied_authority_field_count": refusedFields.length
@@ -182,12 +181,13 @@ export function callerSuppliedAuthorityRefusal({ role, subject, refusedFields })
   ];
   const continuation = typeof role === "string" && typeof subject === "string"
     ? buildDispatchContinuation({
-        tool: AGENT_DISPATCH_TOOL_NAME,
+        tool: PUBLIC_START_TOOL,
         arguments: { role, subject },
         successPredicate: {
           fact: "request.caller_supplied_authority_present",
           operator: "is_false"
-        }
+        },
+        requestSchemaAuthority
       })
     : null;
   if (continuation === null) {
@@ -214,11 +214,12 @@ export function callerSuppliedAuthorityRefusal({ role, subject, refusedFields })
       prerequisite: "the request carries authority this route is closed to",
       operation: sameCallContinuation.tool,
       success_condition:
-        "workspace_agent_dispatch admits the same role and subject when no caller-supplied authority carrier accompanies them",
+        "start_agent admits the same role and subject when no caller-supplied authority carrier accompanies them",
       success_predicate: sameCallContinuation.success_predicate,
       selected_from: ["request.caller_supplied_authority_present"]
     },
-    route: AGENT_DISPATCH_TOOL_NAME
+    route: PUBLIC_START_TOOL,
+    requestSchemaAuthority
   });
 }
 
@@ -330,62 +331,14 @@ export function reviewerShaSubjectRefusal({ subject, requestSchemaAuthority = nu
   });
 }
 
-export function missingInitiativeAssignmentRefusal({ readiness, code, requestSchemaAuthority = null }) {
-  const parent = readiness.record_id;
-  const factEntries = [
-    ["wk.dispatchable", false],
-    ["wk.decision_code", MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE]
-  ];
-  const common = {
-    code,
-    decidingFacts: factEntries.map(([field, value]) => ({ field, value })),
-    observedFacts: Object.fromEntries(factEntries),
-    route: AGENT_DISPATCH_TOOL_NAME
-  };
-  const prerequisite = `canonical parent ${parent} declares no canonical IN-#### initiative`;
-  const assignment = guidanceCapability({
-    tool: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION, requestSchemaAuthority
-  });
-  const carried = {
-    initiative_assignment: {
-      operation: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
-      arguments: { unit: parent },
-      required_arguments: ["initiative"],
-      success_predicate: { fact: "wk.canonical_initiative", operator: "is_present" }
-    }
-  };
-  const built = assignment.available ? buildDispatchGuidanceRefusal({
-    ...common,
-    guidance: {
-      tool: "workspace_tools_describe",
-      arguments: { tool_name: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION },
-      information:
-        `The registered ${ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION} contract that assigns parent ` +
-        `${parent} (unit) to the caller-chosen existing IN-#### (initiative).`
-    },
-    recovery: {
-      responsible_actor: "coordinator",
-      prerequisite,
-      selected_from: ["wk.decision_code"],
-      retry_condition:
-        `call ${ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION} with unit ${parent} and the existing initiative, ` +
-        "then resubmit workspace_agent_dispatch; its other readiness conditions are evaluated then"
-    },
-    carried,
-    requestSchemaAuthority
-  }) : { unavailable: assignment };
-  if (built.refusal) return built.refusal;
-  return buildDispatchMechanicalRefusal({
-    ...common,
-    noSupportedRoute: true,
-    recovery: ownedNoRouteRecovery({
-      responsibleActor: null,
-      prerequisite,
-      explanation: `This server cannot offer initiative assignment: missing ` +
-        `${built.unavailable.missing.join(", ")} (${built.unavailable.owner}).`
-    }),
-    carried: { guidance_unavailable: built.unavailable }
-  });
+export function missingInitiativeAuthoring(readiness) {
+  return { unit: readiness.record_id, save_tool: "save_record", placement: "changes.initiative",
+    values: "caller_chosen_existing_initiative" };
+}
+export function missingInitiativeRead(authoring) {
+  return { tool: "workspace_read_wiki", arguments: { subject: authoring.unit },
+    information: `The parent ${authoring.unit} and its current revision, for a caller-authored ` +
+      `${authoring.placement} save naming an existing canonical IN-#### initiative; reading leaves the blocker unchanged.` };
 }
 
 const SCOPE_PATH_TEXT_LIMIT = 1024;
@@ -417,7 +370,8 @@ export function publicBackendBlockerCode(backendClassification) {
     : backendClassification.blocker_code;
 }
 
-function scopePathCorrectionRefusal({ blockerCode, facts, role, subject, carried }) {
+function scopePathCorrectionRefusal({ blockerCode, facts, role, subject, carried,
+  requestSchemaAuthority = null }) {
   const correctedFact = "worker_scope_path.corrected";
   const factEntries = [
     ["dispatch.backend_accepted", false],
@@ -432,9 +386,10 @@ function scopePathCorrectionRefusal({ blockerCode, facts, role, subject, carried
   const observedFacts = Object.fromEntries(factEntries);
   const continuation = typeof role === "string" && typeof subject === "string"
     ? buildDispatchContinuation({
-        tool: AGENT_DISPATCH_TOOL_NAME,
+        tool: PUBLIC_START_TOOL,
         arguments: { role, subject },
-        successPredicate: { fact: correctedFact, operator: "is_true" }
+        successPredicate: { fact: correctedFact, operator: "is_true" },
+        requestSchemaAuthority
       })
     : null;
   if (continuation === null) {
@@ -463,12 +418,13 @@ function scopePathCorrectionRefusal({ blockerCode, facts, role, subject, carried
         "the declared scope path named by worker_scope_path does not resolve at the authenticated scope base; its author corrects the canonical slice contract, or delivers the path at that base, before this call",
       operation: sameCallContinuation.tool,
       success_condition:
-        "every declared scope path resolves at the authenticated scope base and workspace_agent_dispatch applies its remaining checks to the same role and subject",
+        "every declared scope path resolves at the authenticated scope base and start_agent applies its remaining checks to the same role and subject",
       success_predicate: sameCallContinuation.success_predicate,
       selected_from: decidingFacts.map((fact) => fact.field)
     },
-    route: AGENT_DISPATCH_TOOL_NAME,
-    carried
+    route: PUBLIC_START_TOOL,
+    carried,
+    requestSchemaAuthority
   });
 }
 
@@ -482,13 +438,38 @@ export function carriedBackendRefusalFor(backendClassification) {
 
 export function backendRefusalCarrier(backendClassification, {
   role = null,
-  subject = null
+  subject = null,
+  requestSchemaAuthority = null
 } = {}) {
   const causeCode = backendClassification?.cause?.code ?? null;
   const blockerCode = publicBackendBlockerCode(backendClassification);
   const classifiedRecovery = backendClassification?.recovery ?? null;
   const carriedBackendRefusal = carriedBackendRefusalFor(backendClassification);
 
+  let unavailableGuidance = Object.freeze(["guidance_consumer_for_refusal_reason"]);
+  if (classifiedRecovery?.state === "guidance" && classifiedRecovery.route === EXISTING_ATTEMPT_READ_TOOL) {
+    const built = buildDispatchGuidanceRefusal({
+      code: blockerCode,
+      decidingFacts: [
+        { field: "dispatch.backend_accepted", value: false },
+        { field: "dispatch.backend_cause", value: causeCode }
+      ],
+      observedFacts: { "dispatch.backend_accepted": false, "dispatch.backend_cause": causeCode },
+      guidance: { tool: classifiedRecovery.route, arguments: classifiedRecovery.args,
+        information: classifiedRecovery.information },
+
+      recovery: { prerequisite: classifiedRecovery.prerequisite,
+        responsible_actor: classifiedRecovery.responsible_actor,
+        selected_from: ["dispatch.backend_cause"],
+        ...(typeof classifiedRecovery.explanation === "string"
+          ? { explanation: classifiedRecovery.explanation } : {}) },
+      route: PUBLIC_START_TOOL,
+      carried: { launcher_backend_refusal: carriedBackendRefusal },
+      requestSchemaAuthority
+    });
+    if (built.refusal !== undefined) return built.refusal;
+    unavailableGuidance = built.unavailable.missing;
+  }
   if (classifiedRecovery?.state === "guidance") {
     return buildDispatchMechanicalRefusal({
       code: blockerCode,
@@ -507,7 +488,7 @@ export function backendRefusalCarrier(backendClassification, {
         launcher_backend_refusal: carriedBackendRefusal,
         guidance_unavailable: Object.freeze({
           available: false,
-          missing: Object.freeze(["guidance_consumer_for_refusal_reason"]),
+          missing: unavailableGuidance,
           owner: GUIDANCE_CAPABILITY_OWNER,
           proposal_location: "blocker.detail.recovery"
         })
@@ -521,7 +502,8 @@ export function backendRefusalCarrier(backendClassification, {
       facts: scopePathFacts,
       role,
       subject,
-      carried: { launcher_backend_refusal: carriedBackendRefusal }
+      carried: { launcher_backend_refusal: carriedBackendRefusal },
+      requestSchemaAuthority
     });
   }
 
@@ -534,10 +516,13 @@ export function backendRefusalCarrier(backendClassification, {
     const validatedContinuation = buildDispatchContinuation({
       tool: classifiedRecovery.route,
       arguments: classifiedRecovery.args ?? undefined,
-      successPredicate
+      successPredicate,
+      requestSchemaAuthority
     });
     if (validatedContinuation !== null) {
-      const continuation = classifiedRecovery.route === AGENT_DISPATCH_TOOL_NAME
+
+      const sameTool = classifiedRecovery.route === PUBLIC_START_TOOL;
+      const continuation = sameTool
         ? Object.freeze({
             ...validatedContinuation,
             prerequisite_predicate: validatedContinuation.success_predicate
@@ -566,10 +551,11 @@ export function backendRefusalCarrier(backendClassification, {
             "the named operation accepts the advertised arguments after applying its own checks",
           success_predicate: continuation.success_predicate
         },
-        route: AGENT_DISPATCH_TOOL_NAME,
+        route: sameTool ? PUBLIC_START_TOOL : AGENT_DISPATCH_TOOL_NAME,
         carried: {
           launcher_backend_refusal: carriedBackendRefusal
-        }
+        },
+        requestSchemaAuthority
       });
     }
   }
@@ -607,6 +593,7 @@ export function backendRefusalCarrier(backendClassification, {
 }
 
 export function continuationOrNull({
+  requestSchemaAuthority = null,
   tool,
   arguments: callArguments,
   predicate,
@@ -615,6 +602,7 @@ export function continuationOrNull({
 }) {
   const call = buildDispatchContinuation({
     tool,
+    requestSchemaAuthority,
     arguments: callArguments,
     successPredicate: predicate
   });
@@ -628,6 +616,91 @@ export function readinessFailure(source, launcherTransitionFailures) {
     return launcherTransitionFailures.CCE_POLICY_REFUSED;
   }
   return launcherTransitionFailures.PROSPECTIVE_LIFECYCLE_UNAVAILABLE;
+}
+
+export function unresolvedAssignmentAuthoring({ selection, subject }) {
+  if (selection.record_id === null) return null;
+  const slice = selection.subject !== null && selection.slice_id !== null;
+  return { state: slice ? "slice_intent_unresolved" : selection.slice_id === null ? "slice_required" : "slice_absent",
+    unit: slice ? subject : selection.record_id, save_tool: "save_record",
+    placement: slice ? "changes.agent_role" : "changes.ready_slices", values: "caller_authored" };
+}
+
+export const EXACT_SLICE_TARGET_REASON = "managed_worker_exact_slice_required";
+export async function exactSliceTargetAuthoring(targetRefusal, { subject, dir, registerTool = null,
+  requestSchemaAuthority = null, requestContracts = null }) {
+  if (targetRefusal?.refusal?.reason !== EXACT_SLICE_TARGET_REASON) return targetRefusal;
+  const tool = "workspace_read_wiki";
+  const selection = await loadDispatchSelection({ dir, unitAddress: subject });
+  const assignment = unresolvedAssignmentAuthoring({
+    selection: { record_id: selection.record_id, slice_id: null, subject: null }, subject });
+  const guidance = assignment === null
+    ? { limitation: { code: "readiness_guidance_record_unavailable", tool, subject: subject ?? null } }
+    : await authoredReadinessGuidance({ subject: assignment.unit, code: targetRefusal.refusal.code,
+      assignment: { ...assignment, exact_slice_target: true }, requestContracts,
+      requestSchemaAuthority: requestSchemaAuthority ??
+        (registerTool === null ? null : requestSchemaAuthorityForRegistration(registerTool)) });
+  return { ...targetRefusal, refusal: { ...targetRefusal.refusal,
+    ...(assignment === null ? {} : { assignment_authoring: assignment }),
+    ...(guidance.refusal === undefined ? { readiness_guidance_limitation: guidance.limitation }
+      : { recovery: guidance.refusal.recovery, next_calls: guidance.refusal.next_calls }) } };
+}
+
+export async function authoredReadinessGuidance({ subject, readiness, code,
+  requestSchemaAuthority, requestContracts, assignment = null, initiative = null }) {
+  const target = assignment?.exact_slice_target === true;
+  const facts = assignment === null
+    ? [["wk.dispatchable", false], ["wk.decision_code", readiness.decision_code]]
+    : [[target ? "dispatch.worker_target_exact_slice" : "dispatch.canonical_role_derived", false],
+      ["dispatch.assignment_state", assignment.state]];
+  const tool = "workspace_read_wiki", callArguments = { subject };
+  const parentRead = initiative === null ? null : missingInitiativeRead(initiative);
+  const capability = guidanceCapability({ tool, requestSchemaAuthority });
+  if (!capability.available) return { limitation: {
+    code: "readiness_guidance_unavailable", ...capability
+  } };
+  const contract = requestContracts?.contractFor(tool);
+  if (!contract) return { limitation: {
+    code: "readiness_guidance_full_contract_unavailable", tool, owner: GUIDANCE_CAPABILITY_OWNER
+  } };
+  try {
+    if (await contract.acceptsArguments(callArguments) !== true) return { limitation: {
+      code: "readiness_guidance_arguments_invalid", tool, arguments: callArguments
+    } };
+    const built = buildDispatchGuidanceRefusal({
+      code,
+      decidingFacts: facts.map(([field, value]) => ({ field, value })),
+      observedFacts: Object.fromEntries(facts),
+      guidance: { tool, arguments: callArguments,
+        information: parentRead !== null ? parentRead.information : assignment === null
+          ? `The selected authored unit ${subject}, its current revision and semantic selections for inspecting the readiness defect.`
+          : target
+            ? `The authored unit ${subject}, its slices and current revision, for a caller-selected implementation slice or a caller-authored ${assignment.placement} save.`
+            : `The authored unit ${subject} and its current revision, for a caller-authored ${assignment.placement} save.` },
+      recovery: { responsible_actor: "coordinator",
+        prerequisite: initiative !== null ? `canonical parent ${subject} declares no canonical IN-#### initiative`
+          : assignment === null ? "the selected unit is not dispatchable under its authored contract"
+          : target ? "a managed worker starts only on an exact implementation slice"
+            : "the saved assignment declares no agent for the requested unit",
+        selected_from: facts.map(([field]) => field),
+        retry_condition: initiative !== null
+          ? `choose an existing canonical IN-#### initiative, save ${initiative.placement} on ${subject} through save_record ` +
+            "at the returned revision, then retry the same subject with start_agent; its other readiness conditions are evaluated then"
+          : assignment === null
+          ? "correct the selected authored fact through save_record, then reassess the same subject with start_agent"
+          : target
+            ? `select an existing implementation slice of ${subject}, or author ${assignment.placement} on it through save_record with caller-chosen values, then start that exact slice with start_agent`
+            : `author ${assignment.placement} on ${subject} through save_record with caller-chosen values, then start the saved slice with start_agent` },
+      route: AGENT_DISPATCH_TOOL_NAME,
+      requestSchemaAuthority
+    });
+    return built.refusal ? built : { limitation: {
+      code: "readiness_guidance_unavailable", ...built.unavailable
+    } };
+  } catch (error) {
+    return { limitation: { code: "readiness_guidance_validation_failed", tool,
+      cause: { code: error.code ?? null, message: error.message } } };
+  }
 }
 
 export function buildTransitionRefusal({
@@ -645,7 +718,8 @@ export function buildTransitionRefusal({
   decidingFacts = null,
   observedFacts = null,
   continuation = null,
-  carried = null
+  carried = null,
+  requestSchemaAuthority = null
 }) {
   const launcherTransitionPlan = createFailedLauncherTransitionPlan({
     previousPlan,
@@ -667,7 +741,8 @@ export function buildTransitionRefusal({
     decidingFacts: published,
     observedFacts: facts,
     route: AGENT_DISPATCH_TOOL_NAME,
-    carried
+    carried,
+    requestSchemaAuthority
   };
   const projectedRefusal = refusal ?? (continuation === null
     ? buildDispatchMechanicalRefusal({
@@ -686,20 +761,70 @@ export function buildTransitionRefusal({
           success_predicate: continuation.call.success_predicate
         }
       }));
-  const readiness = projectPublicReadiness(readinessSource, launcherTransitionPlan);
-  return Object.freeze({
-    ...buildBlockedDispatchResult({
-      blockerCode,
-      reason,
-      detail,
-      nextAction,
-      refusal: projectedRefusal
-    }),
-    readiness,
+  return projectCompactDispatchRefusal(buildBlockedDispatchResult({
+    blockerCode,
+    reason,
+    detail,
+    nextAction,
+    refusal: projectedRefusal
+  }), {
+    readiness: projectPublicReadiness(readinessSource, launcherTransitionPlan),
+    plan: launcherTransitionPlan,
+    source: readinessSource
+  });
+}
 
-    ...(readiness?.launcher_transition_plan === launcherTransitionPlan
+function compactRefusalReadiness(readiness, plan, source, detail) {
+  if (readiness === null) return null;
+  const decision = plan?.cce?.decision ?? null;
+  const recovery = plan?.cce?.recovery ?? null;
+  const publishedRecovery = recovery !== null && detail?.recovery === recovery ? null : recovery;
+  return Object.freeze({
+    decision_code: readiness.decision_code,
+    dispatchable: readiness.dispatchable,
+    ...(typeof source?.dispatch_role === "string" ? { dispatch_role: source.dispatch_role } : {}),
+    record_id: readiness.record_id,
+    unit: readiness.unit,
+    ...(decision === null && publishedRecovery === null
       ? {}
-      : { launcher_transition_plan: launcherTransitionPlan })
+      : {
+          cce: Object.freeze({
+            decision,
+            ...(publishedRecovery === null ? {} : { recovery: publishedRecovery })
+          })
+        })
+  });
+}
+
+export function projectCompactDispatchRefusal(blocked, { readiness, plan, source }) {
+  return Object.freeze({
+    ...blocked,
+    readiness: compactRefusalReadiness(readiness, plan, source, blocked.blocker?.detail),
+    transition_failure: plan?.failure ?? null
+  });
+}
+
+export function projectAdvisoryDispatchRefusal(launch, { role, subject, subjectKind,
+  env = process.env }) {
+  const answer = launch !== null && typeof launch === "object" ? launch : {};
+  const carrier = (value) => {
+    if (value === null || typeof value !== "object") return value;
+    if (!Object.hasOwn(value, "detail")) return value;
+    return Object.freeze({ ...value, detail: projectDispatchFailureDetail(value.detail, { env }) });
+  };
+  return Object.freeze({
+    schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
+    accepted: false,
+    transport: "mcp",
+    subject_kind: subjectKind,
+    role,
+    subject,
+    run_id: typeof answer.run_id === "string" ? answer.run_id : null,
+    monitor_handle: typeof answer.monitor_handle === "string" ? answer.monitor_handle : null,
+    ...(Object.hasOwn(answer, "blocker") ? { blocker: carrier(answer.blocker) } : {}),
+    ...(Object.hasOwn(answer, "refusal") ? { refusal: carrier(answer.refusal) } : {}),
+    ...(Object.hasOwn(answer, "next_action") ? { next_action: answer.next_action } : {}),
+    ...(Object.hasOwn(answer, "next_calls") ? { next_calls: answer.next_calls } : {})
   });
 }
 

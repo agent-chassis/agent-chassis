@@ -10,7 +10,7 @@ import {
   defaultTerminalCandidateRunGit,
   observeExactDirectCommitRef
 } from "./terminal-wk-candidate.mjs";
-import { withPrivateExactCommitCheckout } from "./terminal-review-materialization.mjs";
+import { withPrivateExactCommitCheckout } from "./private-exact-commit-checkout.mjs";
 import {
   mintIntegratedSliceTestProofRuntimeAuthority
 } from "./workspace-agent-test-proof-runtime-identity.mjs";

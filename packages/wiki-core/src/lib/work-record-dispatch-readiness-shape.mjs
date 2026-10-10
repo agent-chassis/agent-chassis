@@ -384,21 +384,36 @@ export function compactAcceptedEscalation(recordId, sliceId, escalation) {
 
 export const WORKER_SCOPE_PATH_REFUSED_DECISION_CODE = "worker_scope_path_refused";
 
+export const WORKER_SCOPE_BASE_SELECTION_MISSING_DECISION_CODE = "scope_existence_base_selection_missing";
+
 export function applyWorkerScopePreflightOverlay(readiness, report) {
   if (report === null || report === undefined) return readiness;
   const enriched = { ...readiness, worker_scope_preflight: report };
-  if (report.status !== "refused" || readiness.dispatchable !== true) return enriched;
-  const message = report.refusal?.message;
-  const reason = typeof message === "string" && message.length > 0
-    ? message
-    : "the declared worker scope is refused at the prospective launch base";
+  if (readiness.dispatchable !== true) return enriched;
+  let decisionCode;
+  let reason;
+  if (report.status === "refused") {
+    const message = report.refusal?.message;
+    decisionCode = WORKER_SCOPE_PATH_REFUSED_DECISION_CODE;
+    reason = typeof message === "string" && message.length > 0
+      ? message
+      : "the declared worker scope is refused at the prospective launch base";
+  } else if (report.status === "not_evaluated" &&
+      report.reason?.code === WORKER_SCOPE_BASE_SELECTION_MISSING_DECISION_CODE) {
+    const message = report.reason.message;
+    decisionCode = WORKER_SCOPE_BASE_SELECTION_MISSING_DECISION_CODE;
+    reason = typeof message === "string" && message.length > 0 ? message : null;
+  } else {
+    return enriched;
+  }
   enriched.structural_readiness ??= {
     dispatchable: readiness.dispatchable,
     decision_code: readiness.decision_code
   };
   enriched.dispatchable = false;
-  enriched.decision_code = WORKER_SCOPE_PATH_REFUSED_DECISION_CODE;
-  enriched.reasons = [...new Set([reason, ...(Array.isArray(readiness.reasons) ? readiness.reasons : [])])];
+  enriched.decision_code = decisionCode;
+  const reasons = Array.isArray(readiness.reasons) ? readiness.reasons : [];
+  enriched.reasons = reason === null ? [...reasons] : [...new Set([reason, ...reasons])];
   return enriched;
 }
 

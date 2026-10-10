@@ -167,8 +167,6 @@ export { deriveDeclaredLimitGuidancePropagation }
   from "./lib/declared-limit-guidance-propagation.mjs";
 
 export {
-  CURRENT_DEFINITION_REAUTHORING_SCHEMA,
-  RETIRED_CURRENT_DEFINITION_FIELDS,
   STABLE_TEST_PROOF_AUTHORING_LIMITS,
   StableTestProofContractError,
   VERIFICATION_BUNDLE_FIELDS,
@@ -181,8 +179,6 @@ export {
   describeStableTestProofAuthoring,
   queryStableTestProofBindings,
   projectStableTestProofSelector,
-  qualifyStableCurrentDefinitionReauthoring,
-  reauthorStableCurrentDefinitionBindings,
   replaceStableTestProofBindings,
   resolveStableTestProofBindingPopulation,
   resolveStableTestProofProviderBindings,
@@ -361,7 +357,7 @@ export { PROOF_AUTHORING_DIAGNOSTIC_GROUPS_VERSION, PROOF_AUTHORING_SHARED_CONST
   groupProofAuthoringDiagnostics, shareRepeatedProofConstraints }
   from "./lib/proof-authoring-diagnostic-groups.mjs";
 
-export { NATIVE_TEST_CASE_SCHEMA, NATIVE_TEST_CASE_AMENDMENT_SCHEMA, NATIVE_TEST_CASE_AUTHORING_GUIDANCE, applyNativeTestProofCase, projectAuthoredTestCase, authoredCaseRevision, authoredCaseVerificationId, deriveAuthoredTestCases, emptyCaseContract, linkedNativeTestProofs } from "./lib/native-test-proof-authoring.mjs";
+export { NATIVE_TEST_CASE_SCHEMA, NATIVE_TEST_CASE_AMENDMENT_SCHEMA, NATIVE_TEST_CASE_AUTHORING_GUIDANCE, applyNativeTestProofCase, projectAuthoredTestCase, authoredCaseRevision, authoredCaseVerificationId, deriveAuthoredTestCases, emptyCaseContract, linkedNativeTestProofs, eligibleCaseVerificationIds, caseUseExcludesVerification } from "./lib/native-test-proof-authoring.mjs";
 export { validateNativeTestProofAuthoringContract } from "./lib/test-proof-contract-v1.mjs";
 
 export { canonicalDigest, deepFreeze } from "./lib/deterministic-projection-primitives.mjs";

@@ -336,7 +336,7 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     assert.match(input.worker_assignment.assignment_guidance, /WK2261_SLICE_NOTES/);
     assert.doesNotMatch(input.worker_assignment.prompt, /WK2261_SLICE_CRITERION/);
     assert.equal(Object.hasOwn(input.worker_assignment, "record"), false);
-    return { accepted: true, status: "launching" };
+    return { accepted: true, status: "launching", completion: new Promise(() => {}) };
   };
   const wrapped = maybeWrapExecutorWithWorktreeProvisioning(
     executor,

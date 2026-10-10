@@ -1,10 +1,9 @@
 
 
 import {
-  ACCEPTANCE_VALIDATION_DRIFT_GUIDANCE,
+  acceptanceValidationDriftProposal,
   ACCEPTANCE_VALIDATION_FIELD
-} from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
-import { WK_FORGE_HANDOFF_TOOL_NAME } from "../dispatch-tool-constants.mjs";
+} from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-closeout-chain.mjs";
 import { ownedNoRouteRecovery } from "../dispatch-tool-helpers.mjs";
 import { buildDispatchGuidanceRefusal } from "../dispatch-guidance-contract.mjs";
 
@@ -21,7 +20,7 @@ export function closeoutDriftFields(refusal, detail) {
 
 function isExactDriftProposal(detail, assignedUnit) {
   const drift = detail?.acceptance_validation_drift;
-  return JSON.stringify(detail?.recovery) === JSON.stringify(ACCEPTANCE_VALIDATION_DRIFT_GUIDANCE) &&
+  return JSON.stringify(detail?.recovery) === JSON.stringify(acceptanceValidationDriftProposal(assignedUnit)) &&
     drift?.unit === assignedUnit && drift.field === ACCEPTANCE_VALIDATION_FIELD;
 }
 
@@ -36,7 +35,8 @@ export function acceptanceValidationDriftGuidance({
     code,
     decidingFacts: [...decidingFacts, { field: FORGE_HANDOFF_DRIFT_FIELDS_FACT, value: fields }],
     observedFacts: { ...observedFacts, [FORGE_HANDOFF_DRIFT_FIELDS_FACT]: fields },
-    guidance: { tool: proposal.route, arguments: proposal.args, information: proposal.information },
+    guidance: { tool: "workspace_read_wiki", arguments: { subject: assignedUnit },
+      information: "Read the current authored WK and its authoring selections before saving corrected acceptance or an evidence entry." },
     recovery: {
       responsible_actor: proposal.responsible_actor,
       prerequisite: proposal.prerequisite,
@@ -44,7 +44,7 @@ export function acceptanceValidationDriftGuidance({
       retry_condition: proposal.retry_condition,
       explanation: proposal.explanation
     },
-    route: WK_FORGE_HANDOFF_TOOL_NAME,
+    route: "workspace_publish_work",
     carried,
     requestSchemaAuthority
   });

@@ -325,7 +325,7 @@ export function scopeResolutionFailureDetail(error, { role, subject }) {
     worker_scope_path: scopePath,
     recovery: Object.freeze({
       state: "callable",
-      route: "workspace_agent_dispatch",
+      route: "start_agent",
       args: Object.freeze({ role, subject })
     }),
     unchanged_retry_recovers: false

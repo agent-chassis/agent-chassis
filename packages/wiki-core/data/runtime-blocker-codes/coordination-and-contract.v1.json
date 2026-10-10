@@ -323,6 +323,13 @@
       "summary": "The exact candidate is healthy with a selected durable version; review is reported only as an advisory review-consumer projection."
     },
     {
+      "code": "agent_launch.terminal_candidate.inspect.historical_version.v1",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": false,
+      "summary": "One requested immutable candidate version authenticated from its own material; it states nothing about the current candidate."
+    },
+    {
       "code": "agent_launch.terminal_candidate.canonical_root_invalid.v1",
       "category": "filesystem",
       "actor_recovery": "operator",

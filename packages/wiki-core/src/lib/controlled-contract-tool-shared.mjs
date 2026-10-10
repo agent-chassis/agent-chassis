@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import {
   lstat,
@@ -547,28 +548,162 @@ export async function resolveControlledContractRepository(repoRoot) {
   }
 }
 
-async function inspectCarrierFile(file, { required }) {
+const CONTROLLED_CONTRACT_GENERATION_SOURCE_OBSERVATION_SCHEMA_VERSION =
+  "controlled-contract-generation-source-observation.v1";
+
+function assertControlledContractGenerationSourceObservation(observation) {
+  if (!isPlainObject(observation) ||
+      observation.schema_version !==
+        CONTROLLED_CONTRACT_GENERATION_SOURCE_OBSERVATION_SCHEMA_VERSION ||
+      !isPlainObject(observation.source) ||
+      typeof observation.repository !== "string" ||
+      !path.isAbsolute(observation.repository) ||
+      path.normalize(observation.repository) !== observation.repository ||
+      typeof observation.storeEntries !== "function" ||
+      typeof observation.readFile !== "function") {
+    fail("controlled_contract_generation_source_observation_invalid",
+      "controlled-contract generation source observation is malformed");
+  }
+  return observation;
+}
+
+const SCOPED_SOURCE_OBSERVATION = new AsyncLocalStorage();
+
+export function withControlledContractSourceObservation(observation, callback) {
+  assertControlledContractGenerationSourceObservation(observation);
+  if (typeof observation.wk_id !== "string" || !WK_ID_PATTERN.test(observation.wk_id)) {
+    fail("controlled_contract_generation_source_observation_invalid",
+      "a scoped controlled-contract source observation names one record");
+  }
+  return SCOPED_SOURCE_OBSERVATION.run(observation, callback);
+}
+
+const ASSESSMENT_DEPENDENCY_FILES = Object.freeze([Object.freeze({
+  role: "optional_scope_record",
+  path: "wiki/work-records/WK-2025.json",
+  optional: true
+})]);
+
+export function controlledContractAssessmentAuthoredDependencies(record) {
+  const related = Array.isArray(record?.related) ? record.related : [];
+  return Object.freeze({
+    files: ASSESSMENT_DEPENDENCY_FILES,
+    contract_record_ids: Object.freeze([...new Set(related.filter((id) =>
+      typeof id === "string" && WK_ID_PATTERN.test(id) && id !== record?.id))].sort())
+  });
+}
+
+export function scopedControlledContractSourceObservation({ repoRoot, wkId }) {
+  const observation = SCOPED_SOURCE_OBSERVATION.getStore() ?? null;
+  if (observation === null || observation.wk_id !== wkId) return null;
+  if (typeof repoRoot !== "string" || path.resolve(repoRoot) !== observation.repository) {
+    fail("controlled_contract_generation_source_observation_invalid",
+      "controlled-contract generation source observation belongs to another repository",
+      { wk_id: wkId, source: observation.source });
+  }
+  return observation;
+}
+
+export function scopedControlledContractDependencyObservation({ repoRoot, wkId, dependencyWkId }) {
+  const observation = scopedControlledContractSourceObservation({ repoRoot, wkId });
+  return observation !== null && observation.dependency_wk_ids?.includes(dependencyWkId) === true
+    ? observation : null;
+}
+
+export async function readScopedControlledContractSourceFile(observation, file) {
+  const observed = await observation.readFile(observedRepositoryPath(observation, file));
+  if (observed === null) return null;
+  if (observed.ordinary !== true || !Buffer.isBuffer(observed.bytes)) {
+    fail("controlled_contract_carrier_escape", "canonical source is not a real file",
+      observedSourceDetails(observation, file));
+  }
+  return { bytes: observed.bytes };
+}
+
+export function scopedControlledContractWorkRecordStore({ repoRoot, wkId }) {
+  const observation = scopedControlledContractSourceObservation({ repoRoot, wkId });
+  if (observation === null) return null;
+  const read = async (file) => {
+    const observed = await readScopedControlledContractSourceFile(observation, file);
+    if (observed === null) {
+      throw Object.assign(new Error("observed source has no such work record"), { code: "ENOENT" });
+    }
+    return observed.bytes;
+  };
+  return Object.freeze({
+    readBytes: read,
+    readText: async (file) => (await read(file)).toString("utf8"),
+    pathExists: async (file) => await readScopedControlledContractSourceFile(observation, file) !== null
+  });
+}
+
+function observedRepositoryPath(observation, file) {
+  return path.relative(observation.repository, file).split(path.sep).join("/");
+}
+
+function observedSourceDetails(observation, file) {
+  return observation === null
+    ? {}
+    : { path: observedRepositoryPath(observation, file), source: observation.source };
+}
+
+async function resolveControlledContractGenerationStore(repoRoot, observation = null) {
+  if (observation === null) return resolveControlledContractRepository(repoRoot);
+  assertControlledContractGenerationSourceObservation(observation);
+  if (typeof repoRoot !== "string" || path.resolve(repoRoot) !== observation.repository) {
+    fail("controlled_contract_generation_source_observation_invalid",
+      "controlled-contract generation source observation belongs to another repository");
+  }
+  return Object.freeze({
+    repository: observation.repository,
+    contracts: path.join(observation.repository, "wiki", "contracts")
+  });
+}
+
+async function readControlledContractGenerationStoreEntries(store, observation = null) {
+  return observation === null
+    ? readdir(store.contracts, { withFileTypes: true })
+    : observation.storeEntries();
+}
+
+async function inspectCarrierFile(file, { required, observation = null }) {
   try {
-    const entry = await lstat(file);
-    if (!entry.isFile() || entry.isSymbolicLink()) {
-      fail("controlled_contract_carrier_escape", "canonical carrier is not a real file");
+    let bytes;
+    if (observation === null) {
+      const entry = await lstat(file);
+      if (!entry.isFile() || entry.isSymbolicLink()) {
+        fail("controlled_contract_carrier_escape", "canonical carrier is not a real file");
+      }
+      const resolved = await realpath(file);
+      if (resolved !== file) {
+        fail("controlled_contract_carrier_escape", "canonical carrier escaped its deterministic path");
+      }
+      bytes = await readFile(file);
+    } else {
+      const observed = await observation.readFile(observedRepositoryPath(observation, file));
+      if (observed === null) throw Object.assign(new Error("observed source has no such file"), {
+        code: "ENOENT"
+      });
+      if (observed.ordinary !== true || !Buffer.isBuffer(observed.bytes)) {
+        fail("controlled_contract_carrier_escape", "canonical carrier is not a real file",
+          observedSourceDetails(observation, file));
+      }
+      bytes = observed.bytes;
     }
-    const resolved = await realpath(file);
-    if (resolved !== file) {
-      fail("controlled_contract_carrier_escape", "canonical carrier escaped its deterministic path");
-    }
-    const bytes = await readFile(file);
     if (bytes.byteLength > CONTROLLED_CONTRACT_MAX_JSON_BYTES) {
-      fail("controlled_contract_carrier_too_large", "canonical carrier exceeds its byte limit");
+      fail("controlled_contract_carrier_too_large", "canonical carrier exceeds its byte limit",
+        observedSourceDetails(observation, file));
     }
     return { bytes, digest: digestBytes(bytes) };
   } catch (error) {
     if (error instanceof ControlledContractToolError) throw error;
     if (error?.code === "ENOENT" && !required) return null;
     if (error?.code === "ENOENT") {
-      fail("controlled_contract_carrier_not_found", "canonical carrier does not exist");
+      fail("controlled_contract_carrier_not_found", "canonical carrier does not exist",
+        observedSourceDetails(observation, file));
     }
     fail("controlled_contract_carrier_read_failed", "canonical carrier could not be read", {
+      ...observedSourceDetails(observation, file),
       cause_code: error?.code ?? null
     });
   }
@@ -594,10 +729,12 @@ function loadCarrierSetResolution() {
   return carrierSetResolutionPromise;
 }
 
-async function resolveManifestSelectedGeneration({ repoRoot, wkId }) {
+async function resolveManifestSelectedGeneration({ repoRoot, wkId, observation = null }) {
   const { resolveCanonicalControlledContractGenerationSelection } =
     await loadCarrierSetTools();
-  return resolveCanonicalControlledContractGenerationSelection({ repoRoot, wkId });
+  return resolveCanonicalControlledContractGenerationSelection(observation === null
+    ? { repoRoot, wkId }
+    : { repoRoot, wkId, observation });
 }
 
 async function manifestSelectedGenerationCarriers(selection) {
@@ -1040,12 +1177,12 @@ export async function validateControlledContractGenerationDescriptors({
 }
 
 async function resolveGenerationProofAuthoringSourceDescriptors({
-  repoRoot, wkId, focuses, invalid
+  repoRoot, wkId, focuses, invalid, observation = null
 }) {
-  const store = await resolveControlledContractRepository(repoRoot);
+  const store = await resolveControlledContractGenerationStore(repoRoot, observation);
   let entries;
   try {
-    entries = await readdir(store.contracts, { withFileTypes: true });
+    entries = await readControlledContractGenerationStoreEntries(store, observation);
   } catch (error) {
     invalid("proof-authoring generation sources could not be enumerated", {
       cause_code: error?.code ?? null
@@ -1072,7 +1209,8 @@ async function resolveGenerationProofAuthoringSourceDescriptors({
       });
     }
     const inspected = await inspectCarrierFile(path.join(store.contracts, entry.name), {
-      required: true
+      required: true,
+      observation
     });
     parseCarrierJson(inspected.bytes);
     descriptors.push({
@@ -1096,7 +1234,8 @@ async function resolveManifestSelectedGenerationPopulation({
   absentAsNull,
   validateDescriptors,
   invalid,
-  selection
+  selection,
+  observation = null
 }) {
   if (selection.descriptors.length === 0) {
     if (absentAsNull) return null;
@@ -1105,7 +1244,7 @@ async function resolveManifestSelectedGenerationPopulation({
   }
   const focuses = new Set(selection.manifests.map(({ focus }) => focus ?? null));
   const sourceDescriptors = await resolveGenerationProofAuthoringSourceDescriptors({
-    repoRoot, wkId, focuses, invalid
+    repoRoot, wkId, focuses, invalid, observation
   });
   const descriptors = [
     ...selection.descriptors.map((descriptor) => ({ ...descriptor })),
@@ -1116,14 +1255,14 @@ async function resolveManifestSelectedGenerationPopulation({
   }
   await validateDescriptors({ wkId, descriptors });
 
-  const observed = await resolveManifestSelectedGeneration({ repoRoot, wkId });
+  const observed = await resolveManifestSelectedGeneration({ repoRoot, wkId, observation });
   if (observed === null ||
       JSON.stringify(observed.manifests) !== JSON.stringify(selection.manifests) ||
       JSON.stringify(observed.descriptors) !== JSON.stringify(selection.descriptors)) {
     invalid("canonical generation changed during resolution");
   }
   const observedSources = await resolveGenerationProofAuthoringSourceDescriptors({
-    repoRoot, wkId, focuses, invalid
+    repoRoot, wkId, focuses, invalid, observation
   });
   if (JSON.stringify(observedSources) !== JSON.stringify(sourceDescriptors)) {
     invalid("proof-authoring generation sources changed during resolution");
@@ -1144,13 +1283,22 @@ async function resolveControlledContractGenerationPopulation({
   wkId,
   absentAsNull,
   validateDescriptors,
-  invalid
+  invalid,
+  observation = null
 }) {
-  const selection = await resolveManifestSelectedGeneration({ repoRoot, wkId });
+  const selection = await resolveManifestSelectedGeneration({ repoRoot, wkId, observation });
   if (selection !== null) {
     return resolveManifestSelectedGenerationPopulation({
-      repoRoot, wkId, absentAsNull, validateDescriptors, invalid, selection
+      repoRoot, wkId, absentAsNull, validateDescriptors, invalid, selection, observation
     });
+  }
+
+  if (observation !== null) {
+    fail("controlled_contract_generation_source_manifest_missing",
+      "observed source publishes no carrier-set manifest for this record", {
+        wk_id: wkId,
+        source: observation.source
+      });
   }
   const store = await resolveControlledContractRepository(repoRoot);
   let entries;
@@ -1270,6 +1418,22 @@ export async function resolveControlledContractAttachmentGeneration({ repoRoot, 
   });
 }
 
+export async function resolveControlledContractGenerationFromSourceObservation({
+  wkId, observation
+} = {}) {
+  assertControlledContractOperationInput(arguments[0] ?? {}, ["wkId", "observation"]);
+  normalizeControlledContractIdentity({ wkId, focus: null });
+  assertControlledContractGenerationSourceObservation(observation);
+  return resolveControlledContractGenerationPopulation({
+    repoRoot: observation.repository,
+    wkId,
+    absentAsNull: false,
+    validateDescriptors: validateControlledContractGenerationDescriptors,
+    invalid: generationInvalid,
+    observation
+  });
+}
+
 export async function resolveControlledContractGeneration({ repoRoot, wkId } = {}) {
   assertControlledContractOperationInput(arguments[0] ?? {}, ["repoRoot", "wkId"]);
   normalizeControlledContractIdentity({ wkId, focus: null });
@@ -1311,6 +1475,9 @@ export {
   canonicalJsonBytes,
   assertDirectoryNoSymlink,
   inspectCarrierFile,
+  CONTROLLED_CONTRACT_GENERATION_SOURCE_OBSERVATION_SCHEMA_VERSION,
+  resolveControlledContractGenerationStore,
+  readControlledContractGenerationStoreEntries,
   CONTROLLED_CONTRACT_GENERATION_SCHEMA_VERSION,
   sameWkCanonicalCarrierPattern,
   observeLegacyRootControlledContractGeneration,

@@ -4,7 +4,6 @@ import * as root from "@agent-chassis/agent-launch-core";
 import * as owner from "../../packages/agent-launch-core/src/lib/managed-corrective-diagnostic-contract.mjs";
 import * as compat from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-managed-identity-diagnostics.mjs";
 import { projectManagedIdentityCheckFailure } from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-lifecycle-launch.mjs";
-import { projectManagedCorrectiveStatusRecovery } from "../../packages/wiki-mcp/src/lib/dispatch-tools/dispatch-admission-policy.mjs";
 
 const EXPORTS = [
   "MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES",
@@ -22,7 +21,7 @@ function recovery(overrides = {}) {
     observed: { parent_status: "todo", slice_status: "todo" }, unit: "WK-2328",
     slice_unit: "WK-2328#SLICE-003", exact_subject: "WK-2328#SLICE-003",
     responsible_actor: "launcher",
-    next_action: "retry_workspace_agent_run_status_same_subject",
+    next_action: "get_run_result",
     launcher_retirement_required: true,
     filesystem_cleanup_forbidden: true, preserve_substantive_review: true,
     preserve_review_status: true, replacement_review_required: false,
@@ -98,12 +97,27 @@ test("reconstructed or malformed bounded wire shapes are rejected", () => {
   }
 });
 
-test("MCP admission consumes the owner vocabulary without changing values", () => {
+test("the lifecycle owner carries the retirement recovery unchanged and observation-only", () => {
+
   const projected = projectManagedIdentityCheckFailure(carrier());
-  const admission = projectManagedCorrectiveStatusRecovery({
-    reason: "managed_run_identity_check_threw", detail: projected }, "WK-2328#SLICE-003");
-  assert.equal(admission.detail.recovery_kind, owner.MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND);
-  assert.equal(projectManagedCorrectiveStatusRecovery({ reason: "managed_run_identity_check_threw",
-    detail: { ...projected, code: "agent_launch.managed_run.reconstructed.v1" } },
-  "WK-2328#SLICE-003"), null);
+  assert.deepEqual(projected.recovery, recovery());
+  assert.equal(projected.recovery.recovery_kind, owner.MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND);
+  assert.deepEqual(projected.observed_canonical_status, OBSERVED);
+  assert.deepEqual([projected.recovery.responsible_actor, projected.recovery.launcher_retirement_required,
+    projected.recovery.filesystem_cleanup_forbidden, projected.recovery.preserve_substantive_review,
+    projected.recovery.preserve_review_status, projected.recovery.replacement_review_required],
+  ["launcher", true, true, true, true, false]);
+
+  for (const override of [{ next_action: "retry_workspace_agent_run_status_same_subject" },
+    { next_action: "start_agent" }, { exact_subject: "WK-2328#SLICE-004" }, { responsible_actor: "operator" }]) {
+    const refused = projectManagedIdentityCheckFailure(carrier({ recovery: recovery(override) }));
+    assert.equal(Object.hasOwn(refused, "recovery"), false, JSON.stringify(override));
+    assert.equal(refused.recovery_carrier_status, "malformed");
+  }
+
+  const produced = compat.correctiveStatusReconciliationRecovery("WK-2328#SLICE-003", OBSERVED);
+  assert.equal(produced.next_action, "get_run_result");
+  assert.match(produced.notification, /only observes launcher state and retires nothing/u);
+  assert.doesNotMatch(JSON.stringify(produced), /workspace_agent_run_status/u);
+  assert.deepEqual(projectManagedIdentityCheckFailure(carrier({ recovery: produced })).recovery, produced);
 });

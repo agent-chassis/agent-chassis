@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/controlled-contract",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "type": "module",
   "license": "Elastic-2.0",
   "repository": {
@@ -98,6 +98,8 @@
     "lib/proof-intent-discovery.mjs",
     "lib/proof-intent-metadata.mjs",
     "lib/proof-discovery-scope.mjs",
+    "lib/proof-discovery-task.d.mts",
+    "lib/proof-discovery-task.mjs",
     "lib/proof-intent-selection-status.mjs",
     "lib/proof-intent-selection.d.mts",
     "lib/proof-intent-selection.mjs",
@@ -376,6 +378,10 @@
       "types": "./lib/multi-pack-assessment.d.mts",
       "default": "./lib/multi-pack-assessment.mjs"
     },
+    "./proof-discovery-task": {
+      "types": "./lib/proof-discovery-task.d.mts",
+      "default": "./lib/proof-discovery-task.mjs"
+    },
     "./proof-intents": {
       "types": "./lib/proof-intent-selection.d.mts",
       "default": "./lib/proof-intent-selection.mjs"
@@ -394,6 +400,8 @@
     },
     "./verification-profile": "./lib/verification-profile-v1.mjs",
     "./test-proof": "./lib/test-proof-contract-v1.mjs",
+    "./test-proof-mutation-outcome": "./lib/test-proof-mutation-outcome.mjs",
+    "./task-result-snapshots": "./lib/task-result-snapshots.mjs",
     "./proof-contract": {
       "types": "./lib/proof-contract.d.mts",
       "default": "./lib/proof-contract.mjs"
@@ -403,8 +411,15 @@
       "default": "./lib/proof-executable-map.mjs"
     },
     "./proof-authoring": "./lib/proof-authoring-resolution.mjs",
+    "./proof-selection": "./lib/proof-authoring-selection.mjs",
+    "./proof-authoring-diagnostic-groups": "./lib/proof-authoring-diagnostic-groups.mjs",
     "./native-test-cases": "./lib/native-test-proof-authoring.mjs",
     "./obligation-coverage": "./lib/obligation-coverage-carrier.mjs",
+    "./acceptance-coverage-identity": "./lib/acceptance-coverage-identity.mjs",
+    "./acceptance-coverage": "./lib/acceptance-coverage.mjs",
+    "./acceptance-coverage-projection": "./lib/acceptance-coverage-projection.mjs",
+    "./coverage-authoring-skeleton": "./lib/coverage-authoring-skeleton.mjs",
+    "./carrier-patch": "./lib/carrier-patch-v1.mjs",
     "./native-contract": "./lib/native-contract-carrier-v1.mjs",
     "./native-contract-dag": "./lib/native-contract-dag.mjs",
     "./runtime-evidence": "./lib/test-proof-runtime-evidence-v2.mjs",

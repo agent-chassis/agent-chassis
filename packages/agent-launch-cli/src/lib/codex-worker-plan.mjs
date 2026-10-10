@@ -319,9 +319,11 @@ export async function buildWorkerPlan({
   const sliceId = unit.value.slice_id;
   const now = env.AGENT_LAUNCH_TIMESTAMP || new Date().toISOString();
   const validateWorkRecordDispatch = await loadValidateWorkRecordDispatch();
+
   const initialReadiness = await validateWorkRecordDispatch({
     dir: canonicalReadRepo,
     unitAddress,
+    suppress_live_graph_resolution: true,
     now
   });
   const bridgeResult = await applyGraphImpactBridge({
@@ -334,6 +336,7 @@ export async function buildWorkerPlan({
         dir: canonicalReadRepo,
         unitAddress,
         graph_impact: evidence,
+        suppress_live_graph_resolution: true,
         now
       })
   });

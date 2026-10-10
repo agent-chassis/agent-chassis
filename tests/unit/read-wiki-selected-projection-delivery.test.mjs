@@ -1,0 +1,189 @@
+
+
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import { errorContent, guardToolHandler, jsonContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import {
+  readSelectedResponseFull, readSelectedResponseProjection, retainSelectedResponseSource
+} from "../../packages/wiki-mcp/src/lib/selected-response-snapshot.mjs";
+import { assertStructuredCarrier, deliveredAdmissionBytes } from "../helpers/mcp-journey-accounting.mjs";
+import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+
+const LIMIT = 8192;
+const ROUTE = "workspace_selected_projection_fixture";
+const PRIVATE = "PRIVATE_DIAGNOSIS_INVENTORY_MARKER";
+const AUTHORITY_A = Object.freeze({ role: "orchestrator", source: { kind: "canonical_workspace", repository: "fixture-repo" } });
+const AUTHORITY_B = Object.freeze({ role: "reviewer", run: { run_id: "run-b" } });
+
+const DIAGNOSIS = `selected diagnosis é 🚀 "quoted" \\ back\ttab\r\n${"語λ".repeat(9000)} end`;
+const CARRIER = Object.freeze({
+  assessment: { verdict: "refused", selected_diagnosis: DIAGNOSIS, case_ids: ["case-1", "case-2"] },
+  diagnosis_inventory: Array.from({ length: 40 }, (_, index) => ({ id: `diag-${index}`, text: `${PRIVATE} ${index}` })),
+  correction_routes: [{ tool: "private_route", arguments: { secret: PRIVATE } }]
+});
+const binding = (authority = AUTHORITY_A, fields = {}) => ({ route: ROUTE, repository: "fixture-repo",
+  unit: "WK-0001#SLICE-001", ...(authority === null ? {} : { authority_identity: authority }), ...fields });
+const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+function fixture(t) {
+  const scope = createTestResourceScope();
+  t.after(() => scope.dispose());
+  const dir = mkdtempSync(path.join(os.tmpdir(), "selected-projection-"));
+  scope.add("response state", () => rmSync(dir, { recursive: true, force: true }));
+  const env = { WIKI_MCP_RESPONSE_STATE_DIR: dir, WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: String(LIMIT) };
+
+  const producer = { calls: 0 };
+  const produce = () => { producer.calls += 1; return structuredClone(CARRIER); };
+  const source = retainSelectedResponseSource({ binding: binding(), carrier: produce() }, { env });
+
+  const state = () => Object.fromEntries(readdirSync(dir).sort().map((name) => [name, sha256(readFileSync(path.join(dir, name)))]));
+  return { scope, dir, env, source, producer, state };
+}
+
+const projector = (calls, present) => ({ binding: retainedBinding, carrier }) => {
+  calls.push(retainedBinding.unit);
+  return { assessment: carrier.assessment, currentness: present.currentness,
+    next_calls: [{ tool: ROUTE, arguments: { cursor: present.cursor } }] };
+};
+const read = (env, source, project, expected = binding()) =>
+  readSelectedResponseProjection(source, { env, expected, project });
+const guarded = (env, result) => guardToolHandler(async () => result, { name: "fixture", env })({});
+const refused = (reason, code = "selected_response_query_invalid") => (error) => {
+  assert.equal(error?.envelope?.code, code, String(error?.stack ?? error));
+  const disclosed = `${error.message}${JSON.stringify(error.envelope)}`;
+  assert.ok(disclosed.includes(`"${reason}"`), `${reason}: ${disclosed}`);
+  assert.equal(disclosed.includes(PRIVATE) || disclosed.includes("selected diagnosis"), false,
+    "a refusal discloses no retained content");
+  return true;
+};
+const UNREADABLE = "mcp_response.content_reference_ranged_read_unavailable.v1";
+
+test("RW-J01", async (t) => {
+  const { env, source, producer, state } = fixture(t);
+  const before = state();
+  const calls = [];
+  const first = await guarded(env, await read(env, source,
+    projector(calls, { currentness: { state: "current", observed_at: 1 }, cursor: "page-1" })));
+
+  const expected = { assessment: CARRIER.assessment, currentness: { state: "current", observed_at: 1 },
+    next_calls: [{ tool: ROUTE, arguments: { cursor: "page-1" } }] };
+  assert.deepEqual(assertStructuredCarrier(first), expected);
+  assert.equal(first.structuredContent.assessment.selected_diagnosis, DIAGNOSIS, "the oversized scalar, exactly");
+  assert.deepEqual(first.content, [{ type: "text", text: JSON.stringify(expected) }]);
+  assert.deepEqual(Object.keys(first).sort(), ["content", "structuredContent"]);
+  assert.ok(deliveredAdmissionBytes(first) > LIMIT * 4, "materially above the ordinary inline limit");
+  for (const key of ["response_spilled", "content_reference"]) assert.equal(Object.hasOwn(first.structuredContent, key), false);
+
+  assert.equal(JSON.stringify(first).includes(PRIVATE), false, "the private inventory stays retained");
+  assert.equal(Object.hasOwn(first.structuredContent, "diagnosis_inventory"), false);
+  assert.equal(Object.hasOwn(first.structuredContent, "correction_routes"), false);
+
+  const second = await guarded(env, await read(env, source,
+    projector(calls, { currentness: { state: "changed", observed_at: 2 }, cursor: "page-2" })));
+  assert.deepEqual(second.structuredContent.currentness, { state: "changed", observed_at: 2 });
+  assert.deepEqual(second.structuredContent.next_calls, [{ tool: ROUTE, arguments: { cursor: "page-2" } }]);
+  assert.deepEqual(second.structuredContent.assessment, CARRIER.assessment);
+  assert.deepEqual(calls, ["WK-0001#SLICE-001", "WK-0001#SLICE-001"]);
+
+  assert.deepEqual(state(), before, "no retained file was added or changed by reading");
+  assert.equal(producer.calls, 1);
+
+  assert.deepEqual(readSelectedResponseFull(source, { env, expected: binding() }).structuredContent, CARRIER);
+
+  const mutating = await read(env, source, ({ carrier }) => { carrier.assessment.verdict = "mutated"; return { ok: true }; });
+  assert.deepEqual(mutating.structuredContent, { ok: true });
+  assert.equal(readSelectedResponseFull(source, { env, expected: binding() }).structuredContent.assessment.verdict, "refused");
+  assert.deepEqual(state(), before);
+});
+
+test("RW-J02", async (t) => {
+  const { dir, env, source, producer, state } = fixture(t);
+  const calls = [];
+  const project = projector(calls, { currentness: { state: "current" }, cursor: "c" });
+  const never = (expected, route) => readSelectedResponseProjection(source, { env, expected, route, project });
+
+  await assert.rejects(never(binding(AUTHORITY_B)), refused("source_binding_mismatch"));
+  await assert.rejects(never(binding(null)), refused("authority_identity_missing"));
+  await assert.rejects(never(binding(AUTHORITY_A, { authority_identity: null })), refused("authority_identity_missing"));
+  for (const [field, other] of [["repository", "other-repo"], ["unit", "WK-0002"], ["route", "workspace_other"]]) {
+    await assert.rejects(never(binding(AUTHORITY_A, { [field]: other }), ROUTE), refused("source_binding_mismatch"), field);
+    const { [field]: omitted, ...partial } = binding();
+    await assert.rejects(never(partial, ROUTE), refused("source_binding_mismatch"), `omitted ${field}`);
+  }
+
+  const foreign = retainSelectedResponseSource({ binding: binding(AUTHORITY_A, { route: "workspace_other_producer" }),
+    carrier: CARRIER }, { env });
+  await assert.rejects(read(env, foreign, project), refused("source_binding_mismatch"));
+
+  const spill = jsonContent({ generic: PRIVATE }, { env, forceSpill: true }).structuredContent.content_reference;
+  await assert.rejects(read(env, { ref_id: spill.ref_id, sha256: spill.sha256 }, project),
+    refused("source_not_selected_response"));
+  await assert.rejects(read(env, { ref_id: source.ref_id, sha256: "0".repeat(64) }, project),
+    refused("content_reference_recorded_digest_mismatch", UNREADABLE));
+  await assert.rejects(read(env, { ref_id: "../escape", sha256: source.sha256 }, project), refused("source_locator_invalid"));
+  assert.deepEqual(calls, [], "no refused read reached the projector");
+
+  const beforeFailures = state();
+
+  const failure = Object.assign(new Error("currentness owner unavailable"), { code: "route_currentness_unavailable" });
+  await assert.rejects(read(env, source, () => { throw failure; }), (error) => error === failure);
+  await assert.rejects(read(env, source, async () => { throw failure; }), (error) => error === failure);
+  for (const invalid of [null, "text", ["array"], 7, undefined]) {
+    await assert.rejects(read(env, source, () => invalid), TypeError, `projection ${JSON.stringify(invalid)}`);
+  }
+  await assert.rejects(readSelectedResponseProjection(source, { env, expected: binding() }), TypeError);
+  await assert.rejects(readSelectedResponseProjection(source, { env, expected: binding(), project: "carrier" }), TypeError);
+  assert.deepEqual(state(), beforeFailures, "failed reads added or changed no retained file");
+  assert.equal(producer.calls, 1);
+
+  const retainedPath = path.join(dir, `${source.ref_id}.json`);
+  writeFileSync(retainedPath, `${JSON.stringify({ tampered: PRIVATE })}\n`);
+  await assert.rejects(read(env, source, project), refused("content_reference_digest_mismatch", UNREADABLE));
+  rmSync(retainedPath);
+  await assert.rejects(read(env, source, project), refused("content_reference_not_found", UNREADABLE));
+  assert.deepEqual(calls, []);
+});
+
+test("RW-J03", async (t) => {
+  const { env, source, state } = fixture(t);
+  const project = projector([], { currentness: { state: "current" }, cursor: "c" });
+  const spilledOnly = (result) => {
+    const value = assertStructuredCarrier(result);
+    assert.equal(value.response_spilled, true, JSON.stringify(result).slice(0, 300));
+    assert.ok(deliveredAdmissionBytes(result) <= LIMIT);
+    assert.equal(JSON.stringify(result).includes("語λ end"), false, "the complete value is not delivered");
+  };
+
+  spilledOnly(await guarded(env, jsonContent({ assessment: CARRIER.assessment }, { env })));
+  const refusal = await guarded(env, errorContent({ envelope: { code: "example_refusal", detail: CARRIER.assessment } }, { env }));
+  assert.equal(refusal.isError, true);
+  spilledOnly(refusal);
+
+  const delivered = await guarded(env, await read(env, source, project));
+  assert.equal(await guarded(env, delivered), delivered, "normalization is idempotent for the delivered result");
+  const mutated = async (mutate) => { const result = await read(env, source, project); mutate(result); return guarded(env, result); };
+  spilledOnly(await guarded(env, { ...(await read(env, source, project)) }));
+  spilledOnly(await mutated((result) => { result.structuredContent.diagnosis_inventory = CARRIER.diagnosis_inventory; }));
+  spilledOnly(await mutated((result) => { result.structuredContent.currentness = { state: "forged" }; }));
+  spilledOnly(await mutated((result) => { result._meta = { selected_projection: true }; }));
+  const flagged = await mutated((result) => { result.isError = true; });
+  assert.equal(flagged.isError, true);
+  spilledOnly(flagged);
+  const remirrored = await mutated((result) => { result.content = [{ type: "text", text: "stale" }]; });
+  assert.equal(remirrored.content[0].text, JSON.stringify(remirrored.structuredContent));
+  assert.equal(remirrored.structuredContent.assessment.selected_diagnosis, DIAGNOSIS);
+
+  const before = state();
+  assert.deepEqual(Object.keys(source), ["ref_id"]);
+  const locator = JSON.parse(JSON.stringify({ ref_id: source.ref_id }));
+  const cold = await guarded(env, await readSelectedResponseProjection(locator, { env, expected: binding(),
+    project: ({ carrier }) => ({ assessment: carrier.assessment, restarted: true }) }));
+  assert.deepEqual(cold.structuredContent, { assessment: CARRIER.assessment, restarted: true });
+  assert.equal(cold.content[0].text, JSON.stringify(cold.structuredContent));
+  assert.deepEqual(state(), before, "a cold read retains nothing");
+});

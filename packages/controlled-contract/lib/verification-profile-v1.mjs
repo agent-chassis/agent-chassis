@@ -10,7 +10,8 @@ import { createExpandedProfileSemanticValidator } from
 import {
   evaluateCompletePopulationBindingV1,
   normalizeReferenceV1,
-  referencesEquivalentV1
+  referencesEquivalentV1,
+  resolveClosedPopulationV1
 } from "./population-semantics-v1.mjs";
 import {
   SCHEMA_VERSION_V1,
@@ -569,6 +570,84 @@ function enrichResult(result, profile, nativeEvaluation) {
   return deepFreezeComplete(enriched);
 }
 
+function stableRuntimeOptions(graphSelectionSink = null) {
+  return {
+    graphSelectionSink,
+    resultVersion: RESULT_VERSION_V1,
+    validateProfile: validateProfileSchemaV1,
+    validateProfileSemanticsForRuntime: validateProfileSemanticsV1,
+    validateEvaluationInput: validateEvaluationInputSchemaV1,
+    validateContract: validateAndResolveNativeContractV1,
+    purposeMatchedCollectionsAreCandidates: true,
+    completePopulationBindingEvaluator: evaluateCompletePopulationBindingV1,
+    referencesEquivalent: referencesEquivalentV1,
+    normalizeReference: normalizeReferenceV1,
+    allowIteratedRelations: true,
+    allowIteratedCollections: true,
+    allowBindingPresenceConstraints: true,
+    allowExplicitEmptyReferenceBindings: true,
+    globalRequiredBindingsAffectSatisfaction: true,
+    validateRuntimeResult: () => true
+  };
+}
+
+const POLICY_PATTERN_ASSESSMENT_VERSION =
+  "controlled-contract-policy-pattern-assessment.experimental.v0";
+
+function assessPolicyPatternsExperimentalV1(payload) {
+  const family = validateStableV1Family({ contract: payload?.contract, profile: payload?.profile,
+    input: payload?.evaluation_input });
+  if (!family.valid && !family.refused_only_by_contract_semantics) refuse(
+    "stable_family_refused", "stable evaluation refuses non-stable or incomplete families",
+    { stage: family.stage, diagnostics: family.diagnostics }
+  );
+  const { contract, profile, evaluation_input: input } = payload;
+  const unsupported = [
+    ...(profile.stable_capabilities === undefined ? [] : ["/profile/stable_capabilities"]),
+    ...(profile.evidence_patterns.length === 0 ? [] : ["/profile/evidence_patterns"]),
+    ...(profile.resolver_fact_patterns.length === 0 ? [] : ["/profile/resolver_fact_patterns"]),
+    ...(Object.keys(input.stable_evaluation).length === 0 ? [] : ["/evaluation_input/stable_evaluation"]),
+    ...(input.delivered_evidence.length === 0 ? [] : ["/evaluation_input/delivered_evidence"]),
+    ...(input.resolver_facts.length === 0 ? [] : ["/evaluation_input/resolver_facts"])
+  ];
+  if (unsupported.length > 0) refuse("policy_pattern_assessment_member_unsupported",
+    "experimental policy pattern assessment matches authored definitions only", { pointers: unsupported });
+  assertStableResourceUsage({ aggregate_source_bytes: canonicalJsonBytes(payload).byteLength,
+    work_units: contract.references.length + contract.propositions.length + contract.claims.length +
+      contract.relations.length + contract.collections.length + contract.test_proofs.length });
+  const result = evaluateVerificationProfileWithRuntime(payload,
+    { ...stableRuntimeOptions(), contractSemanticDiagnosticsNonblocking: true });
+  const assessed = deepFreezeComplete(structuredClone({
+    result_version: POLICY_PATTERN_ASSESSMENT_VERSION,
+    experimental: true,
+    admission: { kind: "unadmitted_direct", profile_digest: profileDigest(profile),
+      adequacy_attested: false },
+    profile: result.profile,
+    profile_valid: result.profile_valid,
+    input_valid: result.input_valid,
+    contract_structurally_valid: family.contract_semantic_diagnostics.length === 0,
+    contract_structural_diagnostics: family.contract_semantic_diagnostics,
+    satisfaction: result.satisfaction,
+    pattern_results: result.pattern_results,
+    binding_analysis: result.binding_analysis,
+    ambiguity_analysis: result.ambiguity_analysis,
+    diagnostics: result.diagnostics
+  }));
+  assertStableResourceUsage({ projection_result_bytes: canonicalJsonBytes(assessed).byteLength });
+  return assessed;
+}
+
+function describePopulationDeclarationExperimentalV1({ contract, population_reference_id: populationReferenceId,
+  applicability_context: applicabilityContext }) {
+  const population = resolveClosedPopulationV1(contract, populationReferenceId, applicabilityContext);
+  return { population_reference_id: populationReferenceId,
+    applicability_context: population.applicability_context,
+    membership_claim_ids: population.membership_claim_ids,
+    cardinality_claim_ids: population.cardinality_claim_ids,
+    member_reference_ids: population.member_reference_ids,
+    equivalent: population.equality.equivalent };
+}
+
 function evaluateVerificationProfileV1(payload, { graphSelectionSink = null } = {}) {
   const family = validateStableV1Family({
     contract: payload?.contract,
@@ -601,24 +680,7 @@ function evaluateVerificationProfileV1(payload, { graphSelectionSink = null } = 
     semanticRequestCount: semanticEvaluation.requestCount,
     testValidityEvaluated: testValidityInputs.length > 0
   };
-  const result = evaluateVerificationProfileWithRuntime(payload, {
-    graphSelectionSink,
-    resultVersion: RESULT_VERSION_V1,
-    validateProfile: validateProfileSchemaV1,
-    validateProfileSemanticsForRuntime: validateProfileSemanticsV1,
-    validateEvaluationInput: validateEvaluationInputSchemaV1,
-    validateContract: validateAndResolveNativeContractV1,
-    purposeMatchedCollectionsAreCandidates: true,
-    completePopulationBindingEvaluator: evaluateCompletePopulationBindingV1,
-    referencesEquivalent: referencesEquivalentV1,
-    normalizeReference: normalizeReferenceV1,
-    allowIteratedRelations: true,
-    allowIteratedCollections: true,
-    allowBindingPresenceConstraints: true,
-    allowExplicitEmptyReferenceBindings: true,
-    globalRequiredBindingsAffectSatisfaction: true,
-    validateRuntimeResult: () => true
-  });
+  const result = evaluateVerificationProfileWithRuntime(payload, stableRuntimeOptions(graphSelectionSink));
   const enriched = enrichResult(result, payload.profile, nativeEvaluation);
   assertStableResourceUsage({
     projection_result_bytes: canonicalJsonBytes(enriched).byteLength,
@@ -629,7 +691,10 @@ function evaluateVerificationProfileV1(payload, { graphSelectionSink = null } = 
 }
 
 export {
+  POLICY_PATTERN_ASSESSMENT_VERSION,
   STABLE_RESOURCE_LIMITS,
+  assessPolicyPatternsExperimentalV1,
+  describePopulationDeclarationExperimentalV1,
   StableVerificationError,
   assertStableResourceUsage,
   assertVerificationProfileV1Result,

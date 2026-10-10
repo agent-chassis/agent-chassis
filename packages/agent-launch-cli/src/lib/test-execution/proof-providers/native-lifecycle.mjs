@@ -11,15 +11,10 @@ import {
 } from "@agent-chassis/controlled-contract/test-proof";
 
 import { ATTEMPT_SCRATCH_ROOT, DEPENDENCY_ECOSYSTEMS } from "../../test-runtime-setup/ecosystems.mjs";
-import { captureTestFailureDiagnostic } from "../../workspace-agent-test-proof-error-diagnostic.mjs";
-import { readinessRecovery } from "../../test-runtime-setup/readiness.mjs";
-import { DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS } from "../confined-capture.mjs";
-import { withExecutionRoot } from "../confined-invocation.mjs";
 import { nativeNodeId, projectNativeObservation } from "../native-observation.mjs";
+import { mintProofStage, resolveTestFileRuntime } from "../ordinary-test-runner.mjs";
 import { resolveInstalledRunnerIntegration } from "../runner-integrations.mjs";
-import { nativeCompilerCachePath, openNativeCompilerCache, resolveProofEnvironment, resolveRunnerRuntimeInputs,
-  workingCopyProjectDir } from "../runtime-inputs.mjs";
-import { selectWorkingCopySource } from "../source-selection.mjs";
+import { nativeCompilerCachePath, openNativeCompilerCache } from "../runtime-inputs.mjs";
 import { SourceInstrumentationError } from "../source-instrumentation/index.mjs";
 import {
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES,
@@ -80,21 +75,21 @@ export function runtimeInputsDigest(runtime, providerAssetDigest) {
     dependencies: runtime.identity.dependencies, provider_asset_digest: providerAssetDigest })));
 }
 
+export function runtimeProvenanceSincePreparation(prepared, runtime, currentDigest) {
+  if (currentDigest === prepared.runtime_inputs_digest) return null;
+  return Object.freeze({ changed_since_preparation: true, runtime_inputs_digest: currentDigest,
+    preparation_runtime_inputs_digest: prepared.runtime_inputs_digest,
+    readiness_digest: runtime.identity.readiness_digest, environment: runtime.identity.environment,
+    toolchains: runtime.identity.toolchains, dependencies: runtime.identity.dependencies });
+}
+
+export function withRuntimeProvenance(run, provenance) {
+  return provenance === null ? run : Object.freeze({ ...run, runtime_environment_observed: provenance });
+}
+
 function unavailable(resolved, code, detail, budget) {
   return brandPreparedRuntime({ status: "unavailable", provider_id: resolved.provider_id,
     run: nativeInterruptedRun(code, detail, budget) });
-}
-
-export function buildPreparationProbe({ integration, resolved, runtime, executionBudget }) {
-  try {
-    return { probe: integration.setupProbe({ runtime, projectDir: runtime.projectDir }) };
-  } catch (error) {
-    const detail = error?.detail !== null && typeof error?.detail === "object" &&
-      !Array.isArray(error.detail) ? error.detail : {};
-    return { unavailable: unavailable(resolved, typeof error?.code === "string" ? error.code
-      : "test_proof_native_runtime_unavailable",
-    { ...detail, failure_diagnostic: captureTestFailureDiagnostic(error) }, executionBudget) };
-  }
 }
 
 function refusedRun(code, detail) {
@@ -102,33 +97,6 @@ function refusedRun(code, detail) {
     signal: null, timed_out: false, blocker_code: code, output_truncated: false,
     output_elided_bytes: 0, test_proof_observation: Object.freeze({ valid: false, code,
       ...(detail === null ? {} : { detail }) }) });
-}
-
-function resolveRuntime({ spec, input, worktree, workProjectDir = null,
-  scratchRoot = ATTEMPT_SCRATCH_ROOT, compilerCache = false }) {
-  const runner = testRuntimeRunner({ name: spec.runtime_runner });
-  const located = resolveProofEnvironment({ repositoryRoot: input.authority.main_repo,
-    checkoutRoot: worktree, target: input.target, runner, environment: input.environment ?? null });
-  if (!located.configured || !located.ok) {
-
-    const code = located.failure?.code ?? "test_runtime_runner_not_prepared";
-    const recovery = located.configured ? located.failure.recovery ?? null
-      : readinessRecovery(`No prepared ${runner.dependency_ecosystem} environment owns ${input.target}; ` +
-        "rerun local test-runtime setup after the project that contains it declares its dependencies.");
-    return { ok: false, code, detail: { failure: "configured_runtime_not_ready",
-      readiness_code: code, recovery,
-      ...(located.failure?.detail === undefined ? {} : { route: located.failure.detail }) } };
-  }
-  const project = located.project;
-  const runtime = resolveRunnerRuntimeInputs({ repositoryRoot: input.authority.main_repo,
-    checkoutRoot: worktree, descriptor: runner, project,
-    workProjectDir: workProjectDir === null ? null : workingCopyProjectDir(scratchRoot, project),
-    scratchRoot, compilerCache });
-  if (!runtime.ok) {
-    return { ok: false, code: runtime.code, detail: { failure: "configured_runtime_not_ready",
-      readiness_code: runtime.code, recovery: runtime.recovery ?? null, route: located.route } };
-  }
-  return { ok: true, runner, project, runtime, route: located.route };
 }
 
 function readAuthenticatedSource(worktree, project, relative) {
@@ -176,18 +144,17 @@ export function nativeProviderImplementation(spec) {
       directory: nativeCompilerCachePath(repositoryRoot, runnerIntegration().compilerCache) });
   }
 
-  const withProofScratchRoot = (callback) =>
-    withExecutionRoot((executionRoot) => callback(ATTEMPT_SCRATCH_ROOT, executionRoot));
+  const compilerCachePolicy = (input) => cachesCompilation()
+    ? { open: (runtime) => openCompilerCache(input, runtime) } : null;
 
-  const scratchMembers = (executionRoot, cache) => ({ executionRoot,
-    ...(cache === null ? {} : { writableCache: cache }) });
+  function attemptFacts({ mode, worktree, project, projectHost, runtime, selectedTest, test, moduleRelative }) {
 
-  function attemptFacts({ mode, worktree, project, runtime, selectedTest, test, workRoot, moduleRelative }) {
+    const workRoot = worktree;
     return {
       mode,
       worktree,
       project,
-      projectHost: project === "." ? worktree : path.join(worktree, project),
+      projectHost,
       workRoot,
       runtime,
       selectedTest,
@@ -201,80 +168,54 @@ export function nativeProviderImplementation(spec) {
     };
   }
 
-  async function prepareInScratch(resolved, input, scratchRoot, executionRoot) {
+  async function prepare(resolved, input) {
     assertClosedInput(input, ["authority", "target", "authorizedTargets", "selectedTest",
       "executionBudget", "environment"], "provider preparation refuses caller-supplied executable authority");
     selectedTestExecutionInput(input);
     const worktree = launcherResolvedWorktree(input);
-    const located = resolveRuntime({ spec, input, worktree, scratchRoot, compilerCache: cachesCompilation() });
-    if (!located.ok) return unavailable(resolved, located.code, located.detail, input.executionBudget);
-    const built = buildPreparationProbe({ integration: resolveInstalledRunnerIntegration(located.runner),
-      resolved, runtime: located.runtime, executionBudget: input.executionBudget });
-    if (built.unavailable !== undefined) return built.unavailable;
-    const { probe } = built;
-    const providerAssetDigest = assetDigest(spec);
+    const located = await resolveTestFileRuntime({ repositoryRoot: input.authority.main_repo,
+      checkoutRoot: worktree, target: input.target, descriptor: runtimeRunner,
+      environment: input.environment ?? null, compilerCache: compilerCachePolicy(input) });
+    if (!located.ok) {
 
-    const cache = openCacheOrRefusal(input, located.runtime);
-    if (cache.refusal !== undefined) {
-      return unavailable(resolved, cache.refusal.code, { failure: "native_compiler_cache_unavailable",
-        ...cache.refusal.detail, failure_diagnostic: captureTestFailureDiagnostic(cache.refusal) },
+      return unavailable(resolved, located.code, { failure: "configured_runtime_not_ready",
+        readiness_code: located.code, recovery: located.recovery,
+        ...(located.kind === "route" ? { route: located.detail }
+          : located.kind === "runtime" ? { route: located.route, ...located.detail } : {}) },
       input.executionBudget);
     }
-    const expectation = { capability: "preparation", family_id: spec.family_id };
-    const run = await runDeclaredTest(input, mintProviderExecution(resolved, [], expectation, {
-      runtime: located.runtime,
-      invocation: { command: probe.command, args: probe.args, cwd: probe.cwd,
-        env: probe.env ?? {}, ...scratchMembers(executionRoot, cache.directory) },
-      target_extensions: targetExtensions,
-      timeout_ms: DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
-      observe: ({ exitCode }) => (exitCode === 0 ? { valid: true, status: "prepared" }
-        : { valid: false, code: "test_proof_native_runtime_unavailable" })
-    }));
-    const prepared = run.test_proof_observation?.valid === true;
-    const inputsDigest = runtimeInputsDigest(located.runtime, providerAssetDigest);
+    const { runtime, route, cache } = located;
+    const providerAssetDigest = assetDigest(spec);
+    const inputsDigest = runtimeInputsDigest(runtime, providerAssetDigest);
     return brandPreparedRuntime({
       schema_version: "workspace-agent-test-proof-native-preparation.v1",
-      status: prepared ? "prepared" : "unavailable",
+      status: "prepared",
       provider_id: resolved.provider_id,
       provider_version: resolved.provider_version,
       selector_kind: spec.selector_kind,
       project: located.project,
       runtime: Object.freeze({
         runtime_source: "launcher_readiness",
-        runtime_runner: located.runner.runner_id,
+        runtime_runner: runtimeRunner.runner_id,
         project: located.project,
-        environment: located.runtime.identity.environment,
-        route: located.route,
-        readiness_digest: located.runtime.identity.readiness_digest,
+        environment: runtime.identity.environment,
+        route,
+        readiness_digest: runtime.identity.readiness_digest,
         provider_asset_digest: providerAssetDigest,
         runtime_inputs_digest: inputsDigest,
         dependency_population: Object.freeze({ source: "launcher_readiness",
-          readiness_digest: located.runtime.identity.readiness_digest,
-          environment: located.runtime.identity.environment,
-          route: located.route,
-          toolchains: located.runtime.identity.toolchains,
-          dependencies: located.runtime.identity.dependencies })
+          readiness_digest: runtime.identity.readiness_digest,
+          environment: runtime.identity.environment,
+          route,
+          toolchains: runtime.identity.toolchains,
+          dependencies: runtime.identity.dependencies })
       }),
       runtime_inputs_digest: inputsDigest,
       consumer_compilation: "attempt_private",
-      run
+
+      native_compiler_cache: Object.freeze({ choice: cache.choice,
+        ...(cache.reason === undefined ? {} : { reason: cache.reason }) })
     });
-  }
-
-  function openCacheOrRefusal(input, runtime) {
-    if (!cachesCompilation()) return { directory: null };
-    try {
-      return { directory: openCompilerCache(input, runtime) };
-    } catch (error) {
-      if (error?.code !== "test_proof_native_compiler_cache_unavailable" &&
-          error?.code !== "test_proof_native_compiler_cache_not_excluded") throw error;
-      return { refusal: error };
-    }
-  }
-
-  function prepare(resolved, input) {
-    return withProofScratchRoot((scratchRoot, executionRoot) =>
-      prepareInScratch(resolved, input, scratchRoot, executionRoot));
   }
 
   function attemptResult(mode, { observation, run, resolved, provider }) {
@@ -284,61 +225,55 @@ export function nativeProviderImplementation(spec) {
     return traversalResult({ observation, run, artifacts, provider, selection: resolved.selection });
   }
 
-  async function executeInScratch(resolved, input, selectedTest, scratchRoot, executionRoot) {
-    const worktree = launcherResolvedWorktree(input);
+  async function execute(resolved, input, selectedTest) {
     const prepared = assertPreparedRuntime(input.preparedRuntime, resolved);
+    const worktree = launcherResolvedWorktree(input);
     const mode = CAPABILITY_MODES[resolved.capability];
     const provider = providerEvidence(resolved, resolved.capability);
-    const located = resolveRuntime({ spec, input, worktree, workProjectDir: true, scratchRoot,
-      compilerCache: cachesCompilation() });
-    if (!located.ok) fail(TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.EXECUTION_UNTRUSTED,
-      "the prepared native runtime is no longer ready", located.detail);
-    const providerAssetDigest = assetDigest(spec);
-    const currentDigest = runtimeInputsDigest(located.runtime, providerAssetDigest);
-    if (located.project !== prepared.project || currentDigest !== prepared.runtime_inputs_digest ||
-        located.runtime.identity.environment !== prepared.runtime.environment) {
-      throw Object.assign(new Error("installed native runtime inputs changed after preparation"), {
-        code: "test_proof_native_runtime_inputs_stale",
-        detail: { expected: prepared.runtime_inputs_digest, actual: currentDigest } });
-    }
     const native = resolveNativeTestSelector({ provider_id: selectedTest.provider_id,
       provider_version: selectedTest.provider_version, node_id: selectedTest.node_id },
     { path: selectedTest.file });
     if (!native.valid || native.selector_kind !== spec.selector_kind) fail(
       TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.CAPABILITY_MISMATCH,
       "the selected test belongs to another provider family");
-    const cache = openCacheOrRefusal(input, located.runtime);
-    if (cache.refusal !== undefined) {
-      const detail = { ...cache.refusal.detail, failure_diagnostic: captureTestFailureDiagnostic(cache.refusal) };
-      return attemptResult(mode, { resolved, provider,
-        observation: { valid: false, code: cache.refusal.code, detail },
-        run: refusedRun(cache.refusal.code, detail) });
-    }
-    const project = located.project;
-    const workRoot = path.join(scratchRoot, "work");
-    const workProject = workingCopyProjectDir(scratchRoot, project);
-    const privateRoot = path.join(scratchRoot, ".launcher-test-proof");
-    const configPath = path.join(privateRoot, "config.json");
-    const channelPath = path.join(privateRoot, "channel.jsonl");
     const selection = resolved.selection ?? {};
     const moduleRelative = mode === "falsifier" ? selection.mutation.module_path
       : mode === "traversal" ? selection.module_path : null;
+    const privateRoot = path.join(ATTEMPT_SCRATCH_ROOT, ".launcher-test-proof");
+    const configPath = path.join(privateRoot, "config.json");
+    const channelPath = path.join(privateRoot, "channel.jsonl");
     const nonce = randomBytes(32).toString("hex");
-    const attempt = Object.freeze({
-      ...attemptFacts({ mode, worktree, project, runtime: located.runtime, selectedTest,
-        test: native.selection.title_path ?? native.selection.identifier_path, workRoot, moduleRelative }),
-      nonce,
-      workProject,
-      privateRoot,
-      configPath,
-      channelPath,
+    let provenance = null;
+    let composed = false;
 
-      compilerCache: cache.directory,
-      mutation: mode === "falsifier" ? { function_name: selection.mutation.function_name,
-        replacement: selection.mutation.replacement } : null
-    });
-    let plan;
-    try {
+    const compose = async ({ runtime, project, cache, projectDir }) => {
+      composed = true;
+
+      const providerAssetDigest = assetDigest(spec);
+      if (project !== prepared.project || providerAssetDigest !== prepared.runtime.provider_asset_digest ||
+          runtime.identity.environment !== prepared.runtime.environment) {
+        throw Object.assign(new Error("the native provider or its routed environment changed after preparation"), {
+          code: "test_proof_native_runtime_inputs_stale",
+          detail: { provider_asset_digest: { expected: prepared.runtime.provider_asset_digest,
+            actual: providerAssetDigest },
+          environment: { expected: prepared.runtime.environment, actual: runtime.identity.environment },
+          project: { expected: prepared.project, actual: project } } });
+      }
+      const currentDigest = runtimeInputsDigest(runtime, providerAssetDigest);
+      provenance = runtimeProvenanceSincePreparation(prepared, runtime, currentDigest);
+      const attempt = Object.freeze({
+        ...attemptFacts({ mode, worktree, project, projectHost: projectDir, runtime, selectedTest,
+          test: native.selection.title_path ?? native.selection.identifier_path, moduleRelative }),
+        nonce,
+        workProject: projectDir,
+        privateRoot,
+        configPath,
+        channelPath,
+
+        compilerCache: cache.directory,
+        mutation: mode === "falsifier" ? { function_name: selection.mutation.function_name,
+          replacement: selection.mutation.replacement } : null
+      });
       if (moduleRelative !== null && !family.source_suffixes.some((suffix) =>
         moduleRelative.endsWith(suffix))) {
         refuseAttempt("test_proof_native_selection_unsupported",
@@ -346,12 +281,73 @@ export function nativeProviderImplementation(spec) {
       }
       const layout = await spec.layout(attempt);
       const instrumentation = await spec.instrument(attempt, layout);
-      const invocation = spec.invocation(attempt, layout);
-      const source = await selectWorkingCopySource(attempt.projectHost);
-      if (!source.ok) {
-        refuseAttempt(source.code, source.message, { ...source.detail, recovery: source.recovery });
-      }
-      plan = { layout, instrumentation, invocation, source };
+
+      const sourceWrites = (instrumentation.writes ?? []).filter(({ path: file }) =>
+        file.startsWith(`${worktree}/`));
+      const scratchWrites = (instrumentation.writes ?? []).filter((write) => !sourceWrites.includes(write));
+
+      const config = {
+        schema_version: OBSERVER_CONFIG_SCHEMA_VERSION,
+        nonce,
+        channel: channelPath,
+        repository_root: worktree,
+        project_directory: projectDir,
+        test_file: attempt.testFileWork,
+        selected: { file: selectedTest.file, test: attempt.test,
+          ...(instrumentation.selected_extra ?? {}) },
+        runner_options: typeof spec.runner_options === "function"
+          ? spec.runner_options(attempt) : spec.runner_options ?? {},
+        ...(instrumentation.config ?? {})
+      };
+      const moduleFacts = instrumentation.module ?? null;
+      const expectation = {
+        capability: resolved.capability,
+        family_id: spec.family_id,
+        provider_id: selectedTest.provider_id,
+        provider_version: selectedTest.provider_version,
+        candidate_mechanism: candidateDescriptor.observation_mechanisms[0],
+        identity_format: spec.identity_format,
+        completion: spec.completion,
+        window_start: spec.window_start ?? "test_start",
+        declared_node_ids: (instrumentation.declared_tests ?? []).map((test) =>
+          nativeNodeId(selectedTest.file, test, spec.identity_format)),
+        attempt_nonce: nonce,
+        node_id: selectedTest.node_id,
+        target: selectedTest.file,
+        target_test_id: selectedTest.test_id,
+        runtime_inputs_digest: currentDigest,
+        worktree,
+        ...(mode === "falsifier" ? {
+          mutation_id: selection.mutation.mutation_id,
+          failure_reason_code: FALSIFIER_REASON_CODE,
+          observation_seam: falsifierDescriptor.observation_seams[0]
+        } : {}),
+        ...(mode === "traversal" ? { observation_seam: selection.observation_seam } : {}),
+        ...(moduleFacts === null ? {} : { instrumentation: moduleFacts })
+      };
+      return {
+        proof: spec.proof(attempt, layout),
+        additions: {
+          env: { [OBSERVER_CONFIG_ENV]: configPath },
+          directories: [privateRoot],
+          writes: [{ path: configPath, content: `${JSON.stringify(config)}\n` }, ...scratchWrites],
+          overlays: sourceWrites,
+          channel: { kind: "file", path: channelPath },
+          readOnlyBinds: spec.assets.map((asset) => ({ src: asset, dst: asset }))
+        },
+        nativeReport: typeof spec.report === "function" ? () => spec.report(attempt, layout) : null,
+        observe: ({ channelBytes, exitCode, channelOverflow, nativeReport }) => projectNativeObservation({
+          channelBytes, channelOverflow, exitCode, expectation, nativeReport })
+      };
+    };
+    let run;
+    try {
+      run = await runDeclaredTest(input, mintProviderExecution(resolved, {
+        runner: spec.runtime_runner,
+        environment: input.environment ?? null,
+        targetExtensions,
+        stage: mintProofStage({ compilerCache: compilerCachePolicy(input), compose })
+      }));
     } catch (error) {
       if (!(error instanceof SourceInstrumentationError) && !(error instanceof NativeAttemptRefusal) &&
           !(typeof error?.code === "string" && error.code.startsWith("test_runtime_"))) throw error;
@@ -361,79 +357,16 @@ export function nativeProviderImplementation(spec) {
         observation: { valid: false, code: error.code, detail },
         run: refusedRun(error.code, detail) });
     }
-    const { layout, instrumentation, invocation, source } = plan;
 
-    const config = {
-      schema_version: OBSERVER_CONFIG_SCHEMA_VERSION,
-      nonce,
-      channel: channelPath,
-      repository_root: workRoot,
-      test_file: attempt.testFileWork,
-      selected: { file: selectedTest.file, test: attempt.test,
-        ...(instrumentation.selected_extra ?? {}) },
-      runner_options: typeof spec.runner_options === "function"
-        ? spec.runner_options(attempt) : spec.runner_options ?? {},
-      ...(instrumentation.config ?? {})
-    };
-    const moduleFacts = instrumentation.module ?? null;
-    const expectation = {
-      capability: resolved.capability,
-      family_id: spec.family_id,
-      provider_id: selectedTest.provider_id,
-      provider_version: selectedTest.provider_version,
-      candidate_mechanism: candidateDescriptor.observation_mechanisms[0],
-      identity_format: spec.identity_format,
-      completion: spec.completion,
-      window_start: spec.window_start ?? "test_start",
-      declared_node_ids: (instrumentation.declared_tests ?? []).map((test) =>
-        nativeNodeId(selectedTest.file, test, spec.identity_format)),
-      attempt_nonce: nonce,
-      node_id: selectedTest.node_id,
-      target: selectedTest.file,
-      target_test_id: selectedTest.test_id,
-      runtime_inputs_digest: prepared.runtime_inputs_digest,
-      worktree,
-      ...(mode === "falsifier" ? {
-        mutation_id: selection.mutation.mutation_id,
-        failure_reason_code: FALSIFIER_REASON_CODE,
-        observation_seam: falsifierDescriptor.observation_seams[0]
-      } : {}),
-      ...(mode === "traversal" ? { observation_seam: selection.observation_seam } : {}),
-      ...(moduleFacts === null ? {} : { instrumentation: moduleFacts })
-    };
-    const writes = [
-      { path: configPath, content: `${JSON.stringify(config)}\n` },
-      ...(instrumentation.writes ?? [])
-    ];
-    const run = await runDeclaredTest(input, mintProviderExecution(resolved, [], expectation, {
-      runtime: located.runtime,
-      invocation: {
-        command: invocation.command,
-        args: invocation.args,
-        cwd: invocation.cwd,
-        env: { ...(invocation.env ?? {}), [OBSERVER_CONFIG_ENV]: configPath },
-
-        directories: [privateRoot, ...(invocation.directories ?? []), ...located.runtime.directories],
-        copies: [{ from: attempt.projectHost, to: workProject, entries: source.entries }],
-        links: located.runtime.links,
-        writes,
-        channel: { kind: "file", path: channelPath },
-        ...scratchMembers(executionRoot, cache.directory),
-        readOnlyBinds: spec.assets.map((asset) => ({ src: asset, dst: asset }))
-      },
-      target_extensions: targetExtensions,
-      timeout_ms: DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
-      native_report: typeof spec.report === "function" ? () => spec.report(attempt, layout) : null,
-      observe: ({ channelBytes, exitCode, channelOverflow, nativeReport }) => projectNativeObservation({
-        channelBytes, channelOverflow, exitCode, expectation, nativeReport })
-    }));
+    if (!composed && run.ran === false && run.runner_execution?.status === "refused" &&
+        typeof run.blocker_code === "string" && run.blocker_code.startsWith("test_runtime_")) {
+      fail(TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.EXECUTION_UNTRUSTED,
+        "the prepared native runtime can no longer be resolved",
+        { failure: "configured_runtime_not_ready", readiness_code: run.blocker_code,
+          ...(run.test_proof_observation?.detail ?? {}) });
+    }
+    run = withRuntimeProvenance(run, provenance);
     return attemptResult(mode, { observation: run.test_proof_observation, run, resolved, provider });
-  }
-
-  function execute(resolved, input, selectedTest) {
-    assertPreparedRuntime(input.preparedRuntime, resolved);
-    return withProofScratchRoot((scratchRoot, executionRoot) =>
-      executeInScratch(resolved, input, selectedTest, scratchRoot, executionRoot));
   }
 
   return Object.freeze({ family_id: spec.family_id, prepare, execute,

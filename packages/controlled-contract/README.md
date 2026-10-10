@@ -745,9 +745,11 @@ build:intent-metadata` derives it through the same validators and writes
 it was derived from. Import reads that file and checks those bindings without
 validating or compiling; a changed input refuses with
 `proof_intent_metadata_stale` and an absent file with
-`proof_intent_metadata_missing`, each naming the rebuild command. Inside a
-writing repository the import also derives the metadata itself and refuses a
-packaged file that disagrees.
+`proof_intent_metadata_missing`, each naming the rebuild command. Startup does
+not repeat full discovery or selection derivation inside or outside a writing
+repository. Full semantic metadata parity is enforced by the builder's
+`--check` mode. Startup hashing does not independently detect arbitrary edits
+to metadata bodies or input lists, or changes to unhashed derivation/schema code.
 
 Read-only catalog search (`discoverProofIntents`) is repository-independent. The
 metadata also carries the admitted discovery population, and every discovery
@@ -758,9 +760,21 @@ loads it through the cache's verified load path -- toolchain and schema identity
 and code digest -- inside and outside Git. It never compiles or writes at load;
 a missing or stale artifact refuses with `validator_packaged_artifact_unavailable`
 and a corrupt one with the verifier's own code. This is the only package-built
-group, not a second cache. Pack selection and authoring projections read the
-admitted pack meanings, which only the in-repository derivation loads, so they
-still need the repository-bound cache.
+group, not a second cache. Pack selection and authoring projections consume
+profile and admission meaning parsed from the exact bytes already read for
+hashing in their one metadata capture, including the checked catalogue's paths
+and order. Their profile and admission digests come from that same metadata
+document's discovery provenance, bound to the complete admitted population by
+exact profile id and version. Duplicate, mismatched (including wrong-version),
+and missing provenance identities refuse in that order, then in code-unit
+identity order. A package maintainer rebuilds in the writing repository; an
+installed consumer installs or reinstalls a corrected package.
+
+Captured meaning is frozen and is not an admitted execution snapshot. Selection
+and authoring remain synchronous and still require the repository-bound cache
+for their validators; unavailable validators refuse with
+`validator_cache_root_unresolved`. The capture retains source bytes privately only
+until parsing and provides no live reload or cross-capture cache.
 
 Cache identity is split in two, and a group is reused only when both halves
 match. *Toolchain identity* is shared by every group: the Ajv package and version

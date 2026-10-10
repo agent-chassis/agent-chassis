@@ -7,6 +7,7 @@ const SUMMARY_DIAGNOSTIC_CODE_LIMIT = 8;
 
 export const RETAINED_OUTCOME_SUMMARY_BYTE_BUDGET = 4096;
 export const VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION = "workspace-verify-proof-outcome-summary.v1";
+const SUMMARY_OPT_OUT_ID_LIMIT = 16;
 
 function summaryDiagnosticFacts(diagnostics) {
   const entries = Array.isArray(diagnostics) ? diagnostics : [];
@@ -38,7 +39,7 @@ function summaryRepair(repair) {
 function summaryRecovery(recovery, proof = null) {
   if (recovery === null || typeof recovery !== "object") return undefined;
   const { repair: rawRepair, subject, follow_up_call: call,
-    recovery_call: _recoveryCall, ...rest } = structuredClone(recovery);
+    recovery_call: _recoveryCall, authoring_source: _authoringSource, ...rest } = structuredClone(recovery);
   const repair = summaryRepair(rawRepair);
   const ownSubject = proof !== null && subject?.test_proof_id === proof.test_proof_id &&
     subject?.verification_id === proof.verification_id;
@@ -208,6 +209,10 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
     })
   });
   const aggregateFacts = summaryDiagnosticFacts(evidence.diagnostics);
+
+  const optOuts = evidence.proof_opt_outs === undefined ? undefined : (({ obligation_ids: ids, ...facts }) => ({
+    ...facts, count: ids.length, obligation_ids: ids.slice(0, SUMMARY_OPT_OUT_ID_LIMIT),
+    obligation_ids_omitted: Math.max(0, ids.length - SUMMARY_OPT_OUT_ID_LIMIT) }))(evidence.proof_opt_outs);
   const priority = rows.map((row, index) => ({ row, index }))
     .sort((left, right) => Number(left.row.status === "proven") -
       Number(right.row.status === "proven") || left.index - right.index);
@@ -227,6 +232,7 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
       ...(evidence.reason_code === undefined ? {} : { reason_code: evidence.reason_code }),
       ...(recovery === undefined ? {} : { recovery }),
       counts,
+      ...(optOuts === undefined ? {} : { proof_opt_outs: optOuts }),
       proofs,
       proofs_returned: proofs.length,
       proofs_omitted: omitted.length,

@@ -198,8 +198,9 @@ Scope comes from DESCRIPTOR PROVENANCE, never from probing which filesystem
 happens to contain the relative path:
 
 - A built-in AgentChassis descriptor row is **package-scoped**. Its executable
-  read route is `workspace_read_tool_doc`, served from the documentation bundle
-  the launching package supplies.
+  read route is `workspace_read_wiki` with the reference
+  `{reference:{tool_name,path}}`, served from the documentation bundle the
+  launching package supplies.
 - A row may name individual references as **workspace-scoped** through
   `docs_ref_scopes`. Those keep `workspace_read_page` as their route.
 - When the same logical path exists in both places the declared owner wins
@@ -239,8 +240,17 @@ advertised):
 | `package_docs_carrier_absent` | The session was launched without a package documentation carrier, so no package-scoped reference is executable. |
 | `package_docs_reference_not_bundled` | The bound carrier's manifest does not carry this logical path (declared but not shipped, or absent from the installed bundle). |
 
-`workspace_read_tool_doc` refusal codes (`tool-doc-read-refusal.v1`; a success
-envelope is `tool-doc-read.v1`):
+`workspace_read_wiki` reads a package document by
+`{reference:{tool_name,path}}`: `tool_name` is a tool the session can see and
+`path` one logical path that tool advertises. The answer is the compact
+`package_document` context — the logical path, scope, owning package, package
+version, digest and byte count — and one returned call. That call repeats the
+reference with `select:{field:"text"}` and returns the complete document text
+with the same identity. Both reads report
+`effects:{reads:["package_document"],writes:[]}`.
+
+A refused read answers with `tool-doc-read-refusal.v1`, naming `tool` as
+`workspace_read_wiki` and one of these codes:
 
 | Code | Refused because |
 | --- | --- |
@@ -252,13 +262,14 @@ envelope is `tool-doc-read.v1`):
 | `documentation_reference_not_advertised` | The tool does not currently advertise that package-scoped logical path. |
 | `descriptor_manifest_disagreement` | Discovery advertised the reference and the bound manifest does not carry it, so nothing is read. |
 | `invalid_documentation_path` | The path is not an advertised repository-relative logical path: absolute, `~`-rooted, drive-lettered, backslashed, NUL-bearing, untrimmed, empty, or carrying a `.`/`..` segment. |
-| `documentation_path_containment_failure` | The manifest entry does not resolve inside the bound package root. |
+| `documentation_path_containment_failure` | The manifest entry does not resolve inside the bound documentation bundle. |
 | `documentation_read_failed` | The manifest-bound bundled file could not be read. There is no workspace or ancestor fallback. |
 
-The input is closed: exactly `tool_name` and `path`. A caller-supplied package
-root, docs root, or manifest path is refused by the published schema
-(`additionalProperties: false`), and the response names only the logical path and
-the owning package identity — never an installation root.
+The reference is closed: exactly `tool_name` and `path`. A caller-supplied
+package root, docs root, or manifest path is refused by the published request
+schema as `tool_input_validation_failed` before the reader runs, as is an empty
+`path`. The response names only the logical path and the owning package
+identity — never an installation root.
 
 ### Routing Metadata Fields
 

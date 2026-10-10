@@ -48,6 +48,7 @@ test("spawn success delegates caller-owned command, supervision, metadata, and e
   const options = { stdio: "pipe", detached: false };
   const args = ["--one"];
   const superviseCalls = [];
+  let superviseCompletion = null;
 
   const result = await launchWorkspaceAgentFamilyLaunchLifecycle({
     command: "/bin/tool",
@@ -71,10 +72,13 @@ test("spawn success delegates caller-owned command, supervision, metadata, and e
     superviseChildLaunch: (superviseOptions) => {
       events.push("supervise");
       superviseCalls.push(superviseOptions);
+
+      superviseCompletion = new Promise(() => {});
       return {
         accepted: true,
         status: "launching",
-        pid: superviseOptions.child.pid
+        pid: superviseOptions.child.pid,
+        completion: superviseCompletion
       };
     },
     ...requiredCallbacks({ parseFinalResult: parser }),
@@ -125,12 +129,15 @@ test("spawn success delegates caller-owned command, supervision, metadata, and e
       accepted: true,
       status: "launching",
       pid: 1234,
+      completion: superviseCompletion,
       warning,
       enforcement,
       adapted: true
     },
     contextArgs: ["--one"]
   });
+
+  assert.equal(result.envelope.completion, superviseCompletion);
 });
 
 test("spawn threw and spawn returned no child are mapped by caller-supplied refusal builders", async () => {
@@ -169,6 +176,8 @@ test("caller-supplied baseline capture runs before spawn and is passed to verifi
   let adapterBaseline;
   let verifierBaseline;
 
+  const completion = Promise.resolve();
+
   const launched = await launchWorkspaceAgentFamilyLaunchLifecycle({
     command: "neutral",
     spawn: () => {
@@ -179,6 +188,7 @@ test("caller-supplied baseline capture runs before spawn and is passed to verifi
       events.push("supervise");
       return {
         accepted: true,
+        completion,
         probe: async () => ({
           status: "succeeded",
           final_result: { kind: "findings" }
@@ -204,6 +214,8 @@ test("caller-supplied baseline capture runs before spawn and is passed to verifi
     }
   });
 
+  assert.equal(launched.completion, completion);
+  assert.equal(await launched.completion, undefined);
   assert.deepEqual(events, ["baseline", "spawn", "supervise"]);
   const terminal = await launched.probe();
   assert.deepEqual(events, ["baseline", "spawn", "supervise", "verify", "attach"]);
@@ -221,11 +233,14 @@ test("terminal probe preserves supervised final_result normalization while verif
   const attachContexts = [];
   const adaptedStatuses = [];
 
+  const completion = Promise.resolve();
+
   const launched = await launchWorkspaceAgentFamilyLaunchLifecycle({
     command: "neutral",
     spawn: () => ({ pid: 8 }),
     superviseChildLaunch: () => ({
       accepted: true,
+      completion,
       probe: async () => {
         probeCount += 1;
         return {
@@ -265,6 +280,9 @@ test("terminal probe preserves supervised final_result normalization while verif
     }
   });
 
+  assert.equal(launched.completion, completion);
+  assert.equal(await launched.completion, undefined);
+  assert.deepEqual([probeCount, verifyCount], [0, 0], "awaiting completion neither probes nor verifies");
   const first = await launched.probe();
   const second = await launched.probe();
 
@@ -293,11 +311,14 @@ test("verifier failure mapping and final_result field attachment are caller supp
   const baseline = { before: "snapshot" };
   let mappedInput;
 
+  const completion = Promise.resolve();
+
   const launched = await launchWorkspaceAgentFamilyLaunchLifecycle({
     command: "neutral",
     spawn: () => ({ pid: 9 }),
     superviseChildLaunch: () => ({
       accepted: true,
+      completion,
       probe: async () => ({
         status: "failed",
         final_result: { kind: "missing_result" }
@@ -321,6 +342,9 @@ test("verifier failure mapping and final_result field attachment are caller supp
     }
   });
 
+  assert.equal(launched.completion, completion);
+  assert.equal(await launched.completion, undefined);
+  assert.equal(mappedInput, undefined, "awaiting completion does not run the verifier");
   const terminal = await launched.probe();
 
   assert.deepEqual(mappedInput, {
@@ -355,41 +379,38 @@ test("verification is not run or attached for non-terminal probes or probes miss
   let verifyCount = 0;
   let attachCount = 0;
 
-  const launched = await launchWorkspaceAgentFamilyLaunchLifecycle({
-    command: "neutral",
-    spawn: () => ({ pid: 10 }),
-    superviseChildLaunch: () => ({
-      accepted: true,
-      probe: async () => probes.shift()
-    }),
-    ...requiredCallbacks(),
-    postRunVerification: {
-      run: () => {
-        verifyCount += 1;
-        return { ok: true };
-      },
-      attachFinalResult: (finalResult, context) => {
-        attachCount += 1;
-        return { ...finalResult, verification: context.checkResult };
-      },
-      adaptProbeResult: (probed) => ({
-        ...probed,
-        adapted: true
-      })
-    }
-  });
+  for (const observation of probes) {
+    const expected = structuredClone(observation);
+    const completion = observation.status === "running" ? new Promise(() => {}) : Promise.resolve();
+    const launched = await launchWorkspaceAgentFamilyLaunchLifecycle({
+      command: "neutral",
+      spawn: () => ({ pid: 10 }),
+      superviseChildLaunch: () => ({
+        accepted: true,
+        completion,
+        probe: async () => observation
+      }),
+      ...requiredCallbacks(),
+      postRunVerification: {
+        run: () => {
+          verifyCount += 1;
+          return { ok: true };
+        },
+        attachFinalResult: (finalResult, context) => {
+          attachCount += 1;
+          return { ...finalResult, verification: context.checkResult };
+        },
+        adaptProbeResult: (probed) => ({
+          ...probed,
+          adapted: true
+        })
+      }
+    });
 
-  assert.deepEqual(await launched.probe(), {
-    status: "running",
-    final_result: { kind: "should-not-be-attached" }
-  });
-  assert.deepEqual(await launched.probe(), {
-    status: "succeeded",
-    final_result: null
-  });
-  assert.deepEqual(await launched.probe(), {
-    status: "failed"
-  });
+    assert.equal(launched.completion, completion);
+    assert.deepEqual(await launched.probe(), expected);
+    assert.deepEqual(observation, expected, "the probe returns its row without mutating it");
+  }
   assert.equal(verifyCount, 0);
   assert.equal(attachCount, 0);
 });

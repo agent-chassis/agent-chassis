@@ -52,7 +52,8 @@ test("provider exclusion is discriminating: an excluded identity term occurs in 
   const holder = discoverProofIntents().candidates.filter((candidate) =>
     normalizeSearchText(JSON.stringify(candidate)).split(" ").includes("node"));
   assert.ok(holder.length > 0, "the control term really occurs in the admitted population");
-  const property = "test verifies the declared answer";
+
+  const property = "the declared answer is verified by a test";
   const withNode = discoverProofIntents({ query: `node ${property}` });
   assert.equal(withNode.provider_context.status, "ambiguous");
   assert.deepEqual(ranked(withNode), ranked(discoverProofIntents({ query: property })),
@@ -67,9 +68,10 @@ test("provider exclusion is discriminating: an excluded identity term occurs in 
 test("test-verification questions surface the test proof; non-test properties do not", () => {
   for (const query of [
     `Go ${INCIDENT_PROPERTY}`,
-    "go test verifies the config parser defaults",
+
+    "go test runs a unit test that verifies the config parser defaults",
     "pytest test checks parser rejects unknown level",
-    "cargo test proves the function returns an error",
+    "cargo test runs a test proving the function returns an error",
     "regression test for lint rule",
     "jest test covers component",
     "a unit test that fails when the behavior is broken",
@@ -88,6 +90,69 @@ test("test-verification questions surface the test proof; non-test properties do
     const index = ordered.indexOf(TEST_VALIDITY);
     assert.ok(index < 0 || index >= 5, `${query} does not steer a non-test property to test proof (${index})`);
   }
+});
+
+const IDENTITY_PROPERTY = "selected test executed not skipped falsifier detected";
+test("multi-token registered identities are recognized in their contiguous query context", () => {
+  const property = discoverProofIntents({ query: IDENTITY_PROPERTY });
+  for (const [spelling, term, family] of [["node:test", "node test", "node-test"],
+    ["node-test", "node test", "node-test"], ["go test", "go test", "go-test"], ["go-test", "go test", "go-test"],
+    ["cargo test", "cargo test", "cargo-test"], ["deno test", "deno test", "deno"],
+    ["lib0/testing", "lib0 testing", "lib0-testing"]]) {
+    const result = discoverProofIntents({ query: `${spelling} ${IDENTITY_PROPERTY}` });
+    assert.deepEqual(result.provider_context, { status: "identified", provider_terms: [term], families: [family] },
+      spelling);
+
+    assert.deepEqual(ranked(result), ranked(property), `${spelling} changes no relevance`);
+    assert.equal(rank(`${spelling} ${IDENTITY_PROPERTY}`), 0, spelling);
+  }
+
+  assert.deepEqual(discoverProofIntents({ query: `jest ${IDENTITY_PROPERTY}` }).provider_context,
+    { status: "identified", provider_terms: ["jest"], families: ["jest"] });
+  assert.deepEqual(discoverProofIntents({ query: `pytest ${IDENTITY_PROPERTY}` }).provider_context,
+    { status: "identified", provider_terms: ["pytest"], families: ["pytest"] });
+
+  const generic = discoverProofIntents({ query: `node ${IDENTITY_PROPERTY}` }).provider_context;
+  assert.equal(generic.status, "ambiguous");
+  assert.deepEqual(generic.provider_terms, ["node"]);
+  assert.ok(generic.families.length > 1 && generic.families.includes("node-test"));
+  for (const query of [`test node ${IDENTITY_PROPERTY}`, `node selected test executed not skipped falsifier detected`]) {
+    assert.equal(discoverProofIntents({ query }).provider_context.status, "ambiguous", query);
+  }
+  const reordered = discoverProofIntents({ query: "test go selected executed" }).provider_context;
+  assert.deepEqual(reordered, { status: "identified", provider_terms: ["go"], families: ["go-test"] },
+    "only the single-token go is recognized; the reordered pair is not go test");
+
+  assert.equal(discoverProofIntents({ query: `node:test pytest ${IDENTITY_PROPERTY}` }).provider_context.status,
+    "conflicting");
+  assert.equal(discoverProofIntents({ query: `go test cargo test ${IDENTITY_PROPERTY}` }).provider_context.status,
+    "conflicting");
+
+  assert.deepEqual(discoverProofIntents({ query: `node node:test ${IDENTITY_PROPERTY}` }).provider_context.families,
+    ["node-test"]);
+
+  for (const query of [`nodetest ${IDENTITY_PROPERTY}`, `gotest ${IDENTITY_PROPERTY}`,
+    `cargotest ${IDENTITY_PROPERTY}`, `node-tests ${IDENTITY_PROPERTY}`]) {
+    const result = discoverProofIntents({ query });
+    assert.notEqual(result.provider_context.status, "identified", query);
+    assert.ok(!result.provider_context.provider_terms.some(term => term.includes(" ")), query);
+  }
+  const lookalike = discoverProofIntents({ query: `node-tests ${IDENTITY_PROPERTY}` }).candidates[0].ranking;
+  assert.ok([...lookalike.matched_terms, ...lookalike.unmatched_terms].includes("tests"),
+    "an unknown word stays a property word");
+});
+
+test("negative control: consuming every occurrence of an identity word loses the property", () => {
+
+  const query = `node:test ${IDENTITY_PROPERTY}`;
+  const result = discoverProofIntents({ query });
+  const top = result.candidates[0];
+  assert.ok(top.ranking.semantic_terms.includes("test"), "the property's own test is matched");
+  const withoutTest = discoverProofIntents({ query: IDENTITY_PROPERTY.replace(/\btest\b/gu, "") });
+  assert.notDeepEqual(ranked(withoutTest), ranked(result), "removing every test changes the ranking");
+
+  assert.deepEqual(ranked(discoverProofIntents({ query: "go test verifies the config parser defaults" })),
+    ranked(discoverProofIntents({ query: "verifies the config parser defaults" })));
 });
 
 test("negative control: the former semantic-count order buries the test proof", () => {

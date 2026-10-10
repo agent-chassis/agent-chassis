@@ -6,11 +6,16 @@ export default Object.freeze({
   runner_id: "runner.jest",
   setupProbe: ({ runtime, projectDir }) => ({ command: runtime.executables.node,
     args: [npmPackageBin(runtime, "jest"), "--version"], cwd: projectDir }),
-  invocation: ({ runtime, projectDir, entry, entryArgs }) => ({
-    command: runtime.executables.node,
-    args: [entry, ...entryArgs],
-    cwd: projectDir,
-    directories: [`${runtime.scratchRoot}/jest-cache`],
-    env: { FORCE_COLOR: "0" }
-  })
+  ordinaryInvocation: ({ runtime, projectDir, file, selector, proof = null }) => {
+
+    const cli = npmPackageBin(runtime, "jest");
+    return {
+      harness: Object.freeze(proof === null ? { kind: "jest" } : { kind: "jest_launcher_entry" }),
+      invocation: { command: runtime.executables.node,
+        args: proof !== null ? [proof.entry, ...proof.entryArgs]
+          : [cli, "--runTestsByPath", ...(selector === null ? [] : [`--testNamePattern=${selector}`]), file],
+        cwd: projectDir, env: { FORCE_COLOR: "0" },
+        ...(proof === null ? {} : { directories: [`${runtime.scratchRoot}/jest-cache`] }) }
+    };
+  }
 });

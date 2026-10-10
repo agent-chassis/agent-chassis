@@ -1,0 +1,86 @@
+{
+  "id": "DEC-9001",
+  "record_kind": "decision",
+  "title": "Synthetic export bundle carries one manifest and a matching checksum",
+  "status": "accepted",
+  "date": "2026-10-08",
+  "owners": [],
+  "updated": "2026-10-08",
+  "updated_by": "user",
+  "sections": {
+    "context": "Synthetic decision used only by the required-property prototype CLI tests.",
+    "decision": "1. An export bundle carries exactly one manifest.\n\n2. The bundle checksum equals the recorded checksum.",
+    "consequences": "None; this record is a test fixture."
+  },
+  "area": "agent-launch",
+  "related": [],
+  "ratified": "2026-10-08",
+  "ratified_by": "user",
+  "enforcement": {
+    "schema_version": "decision-required-properties.prototype.v1",
+    "system": {
+      "id": "synthetic-export-bundle",
+      "unit_tag": "system:synthetic-export-bundle"
+    },
+    "properties": [
+      {
+        "id": "bundle-manifest-cardinality",
+        "clause": "1",
+        "requirement": {
+          "nature": "behavior",
+          "modality": "MUST",
+          "subject": {
+            "declare": {
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "profile_term",
+                "term": "synthetic-export-bundle.manifests"
+              }
+            }
+          },
+          "behavior": {
+            "relation": "number:has_cardinality",
+            "objects": [
+              {
+                "number": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "bundle-checksum-equality",
+        "clause": "2",
+        "requirement": {
+          "nature": "behavior",
+          "modality": "MUST",
+          "subject": {
+            "declare": {
+              "type_term": "cc:artifact",
+              "identity": {
+                "kind": "profile_term",
+                "term": "synthetic-export-bundle.bundle-checksum"
+              }
+            }
+          },
+          "behavior": {
+            "relation": "reference:equals",
+            "objects": [
+              {
+                "referent": {
+                  "declare": {
+                    "type_term": "cc:artifact",
+                    "identity": {
+                      "kind": "profile_term",
+                      "term": "synthetic-export-bundle.recorded-checksum"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

@@ -307,6 +307,7 @@ function resolveAuthorizedDeclaredTestTarget({
   workRecord,
   selectedUnit,
   reviewedTargetBinding = null,
+  caseOwnedDeclarations = null,
   orchestrator = false,
   verificationId,
   controlledContractGeneration,
@@ -439,12 +440,21 @@ function resolveAuthorizedDeclaredTestTarget({
     [targetUnit] = matches;
     unitAddress = reviewedUnit;
   }
-  const projection = projectWorkRecordTestProofValidation({ selectedUnit: targetUnit });
-  if (projection.status !== "valid") return deepFreeze({
+
+  const local = projectWorkRecordTestProofValidation({ selectedUnit: targetUnit });
+  const assigned = unitAddress !== workRecord?.id && local.status === "valid" &&
+    !local.executable_declarations.some((entry) => entry.verification_ids.includes(verificationId)) &&
+    caseOwnedDeclarations?.case_owner_resolutions?.some((entry) =>
+      entry.verification_id === verificationId &&
+      (entry.owner_unit === workRecord?.id || entry.status === "owner_missing")) === true;
+  const projection = assigned ? caseOwnedDeclarations : local;
+  const issues = projection.diagnostics.filter((entry) => !assigned ||
+    (entry.verification_id ?? verificationId) === verificationId);
+  if (issues.length > 0) return deepFreeze({
     schema_version: "wiki-core-declared-test-target-resolution.v1",
     status: "refused",
     verification_id: verificationId,
-    diagnostics: projection.diagnostics.map((entry) => diagnostic(
+    diagnostics: issues.map((entry) => diagnostic(
       entry.code, entry.path, { verification_id: verificationId }
     ))
   });

@@ -22,14 +22,6 @@ function batchingGuidance(responseKind) {
     publication: "Each batch is independently validated and published by its incumbent owner; there is no atomicity across batches.",
     oversized_single_item: "unsupported: one indivisible requirement that exceeds the complete-answer byte limit has no field-fragment route"
   });
-  if (responseKind === "current_definition_reauthoring") return Object.freeze({
-    supported: true,
-    unit: "complete_definition_answers",
-    maximum_items_per_answer: COVERAGE_ANSWER_LIMITS.entries,
-    continuation: "Use the emitted population session revision for the next complete-definition batch.",
-    publication: "Session batches remain unpublished until the incumbent definition owner accepts the complete server-selected population.",
-    oversized_single_item: "unsupported: one indivisible definition answer that exceeds the complete-answer byte limit has no field-fragment route"
-  });
   if (["obligation_coverage_population", "acceptance_coverage_population"]
     .includes(responseKind)) return Object.freeze({
     supported: true,
@@ -63,8 +55,7 @@ export function withControlledContractAnswerLimits(authoring, responseKinds) {
       batching: batchingGuidance("contract_requirements") })
   });
   if (responseKinds.length === 1 &&
-      ["obligation_coverage_population", "acceptance_coverage_population",
-        "current_definition_reauthoring"]
+      ["obligation_coverage_population", "acceptance_coverage_population"]
         .includes(responseKinds[0]) && projected.population_authoring !== undefined) {
     return Object.freeze({ ...projected,
       population_authoring: Object.freeze({ ...projected.population_authoring,

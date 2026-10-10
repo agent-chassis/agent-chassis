@@ -3,7 +3,6 @@
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import integration from "../runner-integrations/deno.mjs";
 import { nativeRecordFailureDiagnostic } from "../../workspace-agent-test-proof-error-diagnostic.mjs";
 import { DIAGNOSTIC_GRAPH_ASSET, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
   instrumentJavaScriptAttempt, javascriptLayout } from "./javascript-support.mjs";
@@ -244,8 +243,7 @@ export default nativeProviderImplementation({
   assets: [SPEC_ASSET, JAVASCRIPT_INSTRUMENTATION_ASSET, DIAGNOSTIC_GRAPH_ASSET],
   layout: javascriptLayout,
   instrument,
-  invocation: (attempt) => integration.invocation({ runtime: attempt.runtime,
-    hostProjectDir: attempt.projectHost, projectDir: attempt.workProject, entry: path.join(attempt.privateRoot, "deno-entry.js"),
+  proof: (attempt) => ({ entry: path.join(attempt.privateRoot, "deno-entry.js"),
     writablePaths: [attempt.channelPath] }),
   report: (attempt) => denoTestReport({ workRoot: attempt.workRoot, instrumented: attempt.module })
 });

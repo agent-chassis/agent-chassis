@@ -107,6 +107,28 @@ export function resolveIndependentUnitBase({ mainRepo, base, deps = {} } = {}) {
   return Object.freeze({ base_ref: base, base_sha: baseSha });
 }
 
+export const WK_BASE_SELECTION = Object.freeze({
+  SAVED: "saved_base_branch",
+  DEFAULTED: "defaulted_current_checkout_branch"
+});
+
+export function selectInitialWkBaseBranch({ mainRepo, baseBranch, deps = {} } = {}) {
+  if (typeof baseBranch === "string" && baseBranch.length > 0) {
+    return Object.freeze({ branch: baseBranch, selection: WK_BASE_SELECTION.SAVED });
+  }
+  const runGit = deps.runGit ?? defaultRunGit;
+  const repo = assertAbsolutePath(mainRepo, "mainRepo");
+  const decide = (result) => {
+    const ref = result?.ok === true && typeof result.stdout === "string" ? result.stdout.trim() : "";
+    const branch = ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : null;
+    return isCanonicalWorkRecordBaseBranch(branch)
+      ? Object.freeze({ branch, selection: WK_BASE_SELECTION.DEFAULTED })
+      : null;
+  };
+  const read = runGit({ repo, args: ["symbolic-ref", "--quiet", "HEAD"] });
+  return typeof read?.then === "function" ? read.then(decide) : decide(read);
+}
+
 export function resolveWkBranchTipBase({ mainRepo, unitAddress, deps = {} } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
   const repo = assertAbsolutePath(mainRepo, "mainRepo");

@@ -4,7 +4,7 @@ import { lifecycleError } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
-} from "../../../agent-launch-cli/src/lib/terminal-review-materialization.mjs";
+} from "../../../agent-launch-cli/src/lib/terminal-candidate-checkout.mjs";
 import { verifyTerminalWkCandidateObjectBinding } from
   "../../../agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 

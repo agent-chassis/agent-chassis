@@ -1343,12 +1343,45 @@ test("acceptance rebase exact-identity attempt atomically rebinds and replays id
   const attempt = {
     ...acceptanceRebaseAttempt(described), repoRoot: harness.repoRoot
   };
+
+  const staleCarrier = await harness.readCarrier();
+  const moved = `sha256:${"0".repeat(64)}`;
+  for (const [label, stale] of [
+    ["carrier identity", { carrierIdentity: { ...attempt.carrierIdentity, content_digest: moved } }],
+    ["source identity", { sourceIdentity: { ...attempt.sourceIdentity, content_digest: moved } }],
+    ["unit digest", { expectedUnitDigest: moved }]
+  ]) {
+    await assert.rejects(rebaseControlledContractAcceptanceCoverageOperation({ ...attempt, ...stale }, {
+      resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease,
+      resolveSourceFacts: async () => CURRENT_SOURCE_FACTS
+    }), (error) => {
+      assert.equal(error.code, "acceptance_coverage_rebase_stale", `${label}: ${error.message}`);
+      assert.deepEqual(error.details, { changed: false, fresh_describe_required: true }, label);
+      return true;
+    });
+    assert.deepEqual(await harness.readCarrier(), staleCarrier, `a stale ${label} leaves the carrier unchanged`);
+  }
+
+  const sourceFacts = (...decisions) => ({ sourceCurrent: true, wkId: "WK-0001", selectedUnit: null, focus: null,
+    resolution: { status: "invalid", mapping: null, total: decisions.length, counts: {},
+      rows: decisions.map((decision, index) => ({ obligation_id: `OBL-${index}`,
+        status: decision === "undecided" ? "invalid" : "valid",
+        accounting: { status: decision === "undecided" ? "unaccounted" : "accounted", decision } })) } });
+  const held = await rebaseControlledContractAcceptanceCoverageOperation(attempt, {
+    resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease,
+    resolveSourceFacts: async () => sourceFacts("selected", "opted_out", "undecided")
+  });
+  assert.deepEqual([held.status, held.changed, held.obligation_resolution.status,
+    held.obligation_resolution.complete_authored_obligations, held.authority],
+  ["obligation_resolution_incomplete", false, "unresolved", 2, { authoritative: false, grants: [] }]);
+  assert.deepEqual(await harness.readCarrier(), staleCarrier, "an undecided obligation leaves the carrier unchanged");
   const rebound = await rebaseControlledContractAcceptanceCoverageOperation(attempt, {
     resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease,
-    resolveSourceFacts: async () => CURRENT_SOURCE_FACTS
+    resolveSourceFacts: async () => sourceFacts("selected", "opted_out")
   });
   assert.equal(rebound.status, "resolved");
   assert.equal(rebound.changed, true);
+  assert.notEqual(rebound.content_digest, staleCarrier.content_digest, "the accepted attempt does rebind the carrier");
   assert.deepEqual((await harness.readCarrier()).content.rows, [operationRow(identity.identity)]);
 
   const replayed = await rebaseControlledContractAcceptanceCoverageOperation(attempt, {
@@ -1708,4 +1741,71 @@ test("stale conflict sets and page limits carry exact current-family recovery", 
     cursor: encodeCursor(decoded), staleRecovery: calls.acceptance
   }), (error) => error.code === "controlled_contract_coverage_rebase_cursor_stale" &&
     assert.deepEqual(error.details.next_calls, [calls.acceptance]) === undefined);
+});
+
+test("an assessment's declared dependencies and the scoped observation that answers for them", async () => {
+  const shared = await import("../../packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs");
+  const declared = shared.controlledContractAssessmentAuthoredDependencies({ id: "WK-4001",
+    related: ["WK-4003", "WK-4002", "WK-4001", "WK-4002", "IN-0001", 7, "WK-40020"] });
+  assert.deepEqual(declared.files, [{ role: "optional_scope_record", path: "wiki/work-records/WK-2025.json",
+    optional: true }]);
+  assert.deepEqual(declared.contract_record_ids, ["WK-4002", "WK-4003"],
+    "the record's related work records, once each, never itself");
+  for (const record of [undefined, null, {}, { related: "WK-4002" }]) {
+    assert.deepEqual(shared.controlledContractAssessmentAuthoredDependencies(record).contract_record_ids, []);
+  }
+
+  const repository = "/observed/repository";
+  const recordFile = `${repository}/wiki/work-records/WK-4001.json`;
+  const held = new Map([["wiki/work-records/WK-4001.json", Buffer.from("{\"id\":\"WK-4001\"}")],
+    ["wiki/contracts/nested/file.json", Buffer.from("{}")]]);
+  const reads = [];
+  const observation = { schema_version: "controlled-contract-generation-source-observation.v1",
+    source: { kind: "unit_test" }, repository, wk_id: "WK-4001", dependency_wk_ids: ["WK-4002"],
+    storeEntries: async () => [],
+    readFile: async (repositoryPath) => {
+      reads.push(repositoryPath);
+      if (held.has(repositoryPath)) return { ordinary: true, bytes: held.get(repositoryPath) };
+      return repositoryPath === "wiki/contracts/nested" ? { ordinary: false, bytes: null } : null;
+    } };
+  const scoped = (wkId, repoRoot = repository) => shared.scopedControlledContractSourceObservation({ repoRoot, wkId });
+
+  assert.equal(scoped("WK-4001"), null);
+  assert.equal(shared.scopedControlledContractWorkRecordStore({ repoRoot: repository, wkId: "WK-4001" }), null);
+
+  await shared.withControlledContractSourceObservation(observation, async () => {
+    assert.equal(scoped("WK-4001"), observation, "its own record");
+    assert.equal(scoped("WK-4002"), null, "an ordinary read of a dependency record is untouched");
+    assert.equal(scoped("WK-4003"), null, "any other record is untouched");
+
+    const dependency = (wkId, dependencyWkId, repoRoot = repository) =>
+      shared.scopedControlledContractDependencyObservation({ repoRoot, wkId, dependencyWkId });
+    assert.equal(dependency("WK-4001", "WK-4002"), observation, "a declared dependency of the scoped record");
+    assert.equal(dependency("WK-4001", "WK-4003"), null, "a record it does not depend on");
+    assert.equal(dependency("WK-4002", "WK-4001"), null, "the dependency's own reads");
+    assert.throws(() => dependency("WK-4001", "WK-4002", "/another/repository"),
+      (error) => error.code === "controlled_contract_generation_source_observation_invalid");
+    assert.throws(() => scoped("WK-4001", "/another/repository"),
+      (error) => error.code === "controlled_contract_generation_source_observation_invalid",
+      "the scoped record is never read from another repository");
+    const store = shared.scopedControlledContractWorkRecordStore({ repoRoot: repository, wkId: "WK-4001" });
+    assert.deepEqual([await store.pathExists(recordFile), await store.readText(recordFile),
+      (await store.readBytes(recordFile)).equals(held.get("wiki/work-records/WK-4001.json"))],
+    [true, "{\"id\":\"WK-4001\"}", true], "the observed bytes are the record");
+    const absent = `${repository}/wiki/work-records/WK-2025.json`;
+    assert.equal(await store.pathExists(absent), false, "a record the source does not hold is absent");
+    await assert.rejects(store.readText(absent), (error) => error.code === "ENOENT");
+    await assert.rejects(store.readBytes(`${repository}/wiki/contracts/nested`),
+      (error) => error.code === "controlled_contract_carrier_escape", "a directory is not a record");
+    assert.deepEqual(reads, ["wiki/work-records/WK-4001.json", "wiki/work-records/WK-4001.json",
+      "wiki/work-records/WK-4001.json", "wiki/work-records/WK-2025.json", "wiki/work-records/WK-2025.json",
+      "wiki/contracts/nested"], "every read went to the observation, by repository path");
+  });
+  assert.equal(scoped("WK-4001"), null, "the scope ends with its callback");
+  assert.equal(shared.scopedControlledContractDependencyObservation({ repoRoot: repository, wkId: "WK-4001",
+    dependencyWkId: "WK-4002" }), null);
+
+  const { wk_id: _record, ...unnamed } = observation;
+  assert.throws(() => shared.withControlledContractSourceObservation(unnamed, () => {}),
+    (error) => error.code === "controlled_contract_generation_source_observation_invalid");
 });

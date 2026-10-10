@@ -12,10 +12,6 @@ import {
   mintTrustedStdioMcpConduitAuthority,
   resolveLauncherAgentSessionContract
 } from "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
-import { mintStdioMcpCompletionCredential } from
-  "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs";
-import { classifyLauncherFindingsCompletionTransport } from
-  "../../packages/agent-launch-cli/src/lib/workspace-agent-role-contract.mjs";
 
 const WORKSPACE = path.resolve(process.cwd());
 const ASSIGNED_UNIT = "WK-1678#SLICE-009";
@@ -131,20 +127,6 @@ function redigestSessionContract(contract) {
   return { ...candidate, contract_digest: digestLauncherAgentSessionContract(candidate) };
 }
 
-function reviewerCredential(overrides = {}) {
-  return {
-    ...mintStdioMcpCompletionCredential({
-      role: "reviewer",
-      completionTransport: classifyLauncherFindingsCompletionTransport({
-        role: "reviewer", canonicalRepo: WORKSPACE
-      }),
-      canonicalRepo: WORKSPACE,
-      assignedUnit: REVIEWER_UNIT
-    }),
-    ...overrides
-  };
-}
-
 test("WK-2446: a Codex findings route carries its authenticated session contract", () => {
   const contract = reviewerSessionContract();
   const input = resolveCodexConduitInput({
@@ -218,18 +200,32 @@ test("WK-2351: an unmanaged Codex route keeps working without a credential", () 
 
 test("WK-2351: an unmanaged route may not carry a managed completion credential", () => {
   const { authority, provisioning } = workerCarriers();
-  assert.throws(
-    () => resolveCodexConduitInput({
-      role: "worker",
-      assignedUnit: ASSIGNED_UNIT,
-      workspaceDir: WORKSPACE,
-      workerScopeAuthority: authority,
-      worktreeProvisioning: provisioning,
-      completionCredential: reviewerCredential(),
-      launcherEnv: {}
-    }),
-
+  const route = {
+    role: "worker",
+    assignedUnit: ASSIGNED_UNIT,
+    workspaceDir: WORKSPACE,
+    workerScopeAuthority: authority,
+    worktreeProvisioning: provisioning,
+    launcherEnv: {}
+  };
+  const refuses = (completionCredential, refusalCode, label) => assert.throws(
+    () => resolveCodexConduitInput({ ...route, completionCredential }),
     (error) => error.code === "stdio_mcp_conduit_input_invalid" &&
-      error.detail?.mismatch_class === "completion_transport_mismatch"
+      error.detail?.refusal_code === refusalCode,
+    label
   );
+
+  const own = resolveCodexConduitInput(route).sessionContract;
+  assert.deepEqual(
+    resolveCodexConduitInput({ ...route, completionCredential: own }).sessionContract, own);
+
+  const managed = reviewerSessionContract();
+  assert.equal(resolveCodexConduitInput({ ...findingsRoute(), completionCredential: managed })
+    .sessionContract.contract_digest, managed.contract_digest);
+  assert.notEqual(managed.completion_transport.transport_id, own.completion_transport.transport_id);
+
+  refuses(redigestSessionContract({ ...own, completion_transport: managed.completion_transport }),
+    "session_contract_completion_transport_mismatch", "managed completion transport");
+
+  refuses(managed, "session_contract_capability_unknown", "managed reviewer contract");
 });

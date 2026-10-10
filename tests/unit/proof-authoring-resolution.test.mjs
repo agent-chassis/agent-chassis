@@ -4,6 +4,7 @@ import { pinProofSelection, loadPinnedProofSelection } from '@agent-chassis/cont
 import { resolveProofAuthoring } from '@agent-chassis/controlled-contract/proof-authoring';
 import { loadCurrentParameterPopulation, validatePackParameterContract, describePackParameters } from '@agent-chassis/controlled-contract/pack-parameters';
 import { canonicalDigest } from '../../packages/controlled-contract/lib/deterministic-projection-primitives.mjs';
+import { occurrenceRecoveryFacts, OCCURRENCE_CORRECTION_CLAUSES } from '../../packages/controlled-contract/lib/proof-executable-map.mjs';
 const context = { source_digest: `sha256:${'a'.repeat(64)}` };
 const SELECTED_FAMILIES = Object.freeze([
   'proof.authentication.direct-source-provenance',
@@ -70,7 +71,10 @@ test('a saved selection of the deactivated write-confinement proof reports its u
     result.counts.invalid, result.counts.resolved_selections], [1, 0, 1, 0]);
   const [row] = result.rows;
   assert.deepEqual([row.obligation_id, row.status, row.semantic_status, row.disposition],
-    ['OBL-SCOPE', 'valid', 'valid', 'selected']);
+    ['OBL-SCOPE', 'invalid', 'valid', 'selected']);
+  assert.deepEqual([row.authoring_status, row.accounting, row.authoring_diagnostic_codes], ['incomplete',
+    { status: 'unaccounted', decision: 'selected', diagnostic_codes: ['proof_pack_not_found'] },
+    ['proof_pack_not_found']]);
   assert.equal(result.semantic_status, 'valid');
   assert.deepEqual(row.definition, savedPin);
   assert.equal(row.selected_proof_assessment, null);
@@ -120,6 +124,57 @@ test('a real current selection resolves without locator, selector, nodes or plan
   assert.ok(invalid.rows[0].diagnostics.some(d => d.code === ownerCode));
   const empty = await resolveProofAuthoring(source([]), context);
   assert.equal(empty.mapping, null); assert.equal(empty.status, 'invalid');
+});
+
+test('WK-2729 an obligation is complete only with a validated selection or an explicit opt-out', async () => {
+  const { assessProofAuthoringSemantics } = await import('@agent-chassis/controlled-contract/proof-contract');
+  const selection = { ...await pinProofSelection('proof.verification.test-validity'), parameters: {} };
+  const statement = 'State the obligation and nothing about its proof.';
+  const draft = { ...source([]), obligations: [
+    { obligation_id: 'OBL-A-UNDECIDED', statement },
+    { obligation_id: 'OBL-B-OPTED-OUT', statement, proof_opt_out: true },
+    { obligation_id: 'OBL-C-SELECTED', statement, selection },
+    { obligation_id: 'OBL-D-UNVALIDATED', statement, selection: { ...selection, proof_version: '999.0.0' } }] };
+  const before = structuredClone(draft);
+  const result = await resolveProofAuthoring(draft, context);
+  assert.deepEqual(draft, before, 'no selection or opt-out is written for the author');
+  let unvalidated;
+  await assert.rejects(loadPinnedProofSelection(draft.obligations[3].selection), error => { unvalidated = error.code; return true; });
+  const UNSELECTED = 'obligation_coverage_proof_unselected';
+  const facts = row => [row.semantic_status, row.authoring_status, row.status, row.accounting];
+  const [undecided, optedOut, selected, broken] = result.rows;
+
+  assert.deepEqual(facts(undecided), ['valid', 'incomplete', 'invalid',
+    { status: 'unaccounted', decision: 'undecided', diagnostic_codes: [UNSELECTED] }]);
+  assert.deepEqual(undecided.authoring_diagnostic_codes, [UNSELECTED]);
+
+  assert.deepEqual(facts(optedOut), ['valid', 'complete', 'valid',
+    { status: 'accounted', decision: 'opted_out', diagnostic_codes: [] }]);
+  assert.deepEqual([optedOut.definition, optedOut.resolved_identity, optedOut.selected_proof_assessment,
+    optedOut.diagnostics, optedOut.authoring_diagnostic_codes], [null, null, null, [], []]);
+
+  assert.deepEqual(facts(selected), ['valid', 'complete', 'valid',
+    { status: 'accounted', decision: 'selected', diagnostic_codes: [] }]);
+  const route = selected.selected_proof_assessment;
+  assert.deepEqual([route.readiness_status, route.prevents_selected_route, route.stages.execution_evidence.status,
+    route.stages.execution_evidence.credit_granted], ['incomplete', true, 'not_started', 0]);
+  assert.ok(selected.diagnostics.some(entry => entry.code === 'obligation_coverage_construction_unavailable'));
+
+  assert.deepEqual(facts(broken), ['valid', 'incomplete', 'invalid',
+    { status: 'unaccounted', decision: 'selected', diagnostic_codes: [unvalidated] }]);
+  assert.ok(broken.diagnostics.some(entry => entry.code === unvalidated));
+  assert.deepEqual([result.semantic_status, result.status, result.mapping, result.counts.resolved_selections,
+    result.counts.unselected], ['valid', 'invalid', null, 1, 2]);
+
+  const alone = await resolveProofAuthoring({ ...draft, obligations: draft.obligations.slice(0, 3) }, context);
+  assert.deepEqual(alone.rows.map(row => row.status), ['invalid', 'valid', 'valid']);
+  assert.deepEqual(alone.rows[0].accounting, undecided.accounting);
+
+  const semantic = assessProofAuthoringSemantics(draft, context);
+  assert.deepEqual([semantic.status, semantic.rows.map(row => [row.status, row.accounting.status, row.accounting.decision])],
+    ['complete', [['complete', 'unaccounted', 'undecided'], ['complete', 'accounted', 'opted_out'],
+      ['complete', 'unestablished', 'selected'], ['complete', 'unestablished', 'selected']]]);
+  assert.deepEqual(semantic.rows[0].accounting, undecided.accounting);
 });
 
 test('omitted configurable route parameters do not invalidate authored meaning', async () => {
@@ -343,7 +398,12 @@ test('WK-2567 eight complete selected test routes retain two generic limitations
       assert.equal(authoring.problem.route_assessment.stage, 'authored_inputs', code);
       assert.equal(authoring.problem.route_assessment.recovery.status,
         'operator_action', code);
-      assert.ok(authoring.problem.route_assessment.recovery.operator_action.includes(route), code);
+
+      const instruction = authoring.problem.route_assessment.recovery.operator_action;
+      assert.ok(instruction.includes(!registered ? route : `save the authored correction in ${
+        route === WORK_RECORD_EDIT ? 'changes.validation' : 'changes.obligations'} through save_record`), code);
+      assert.ok(instruction.includes('workspace_read_wiki'), code);
+      assert.doesNotMatch(instruction, /obligation_coverage_upsert|workspace_work_record_edit|Supported next call/u, code);
 
       if (registered) {
 
@@ -378,7 +438,8 @@ test('WK-2567 eight complete selected test routes retain two generic limitations
     }
   };
   await blockedBy({ case_definitions: [] },
-    'obligation_coverage_authored_case_missing', 'incomplete', UPSERT, false);
+
+    'obligation_coverage_authored_case_missing', 'incomplete', 'save_record', false);
   const withoutOptionalCases = obligations.map(({ case_id: _caseId, ...row }) => row);
   const omittedCases = await resolveProofAuthoring({ ...source([]),
     obligations: withoutOptionalCases }, { ...selectedContext, case_definitions: [] });
@@ -465,7 +526,8 @@ test('WK-2653 missing binding-derived parameters name their authored prerequisit
         ['blocking', 'authored_inputs', null, 'operator_action'], label);
       assert.equal(route.recovery.supported_next_call, null, label);
       assert.match(route.recovery.operator_action,
-        /^Query the current saved selection, then through workspace_controlled_contract_obligation_coverage_upsert with its returned content digest /u, label);
+        /^Read the current unit through workspace_read_wiki, then through save_record with its returned revision /u, label);
+      assert.doesNotMatch(route.recovery.operator_action, /obligation_coverage_(?:query|upsert)|content digest/u, label);
       assert.match(route.recovery.operator_action, /never edit the binding or supply the parameter directly/u, label);
       assert.doesNotMatch(`${route.reason} ${route.recovery.explanation}`,
         /No supported recovery|cannot repair canonical sources|system capabilit/u, label);
@@ -508,11 +570,31 @@ test('WK-2653 missing binding-derived parameters name their authored prerequisit
   delete withoutCaseFields[0].system_under_test_boundary.subject_reference_ids;
   delete withoutCaseFields[1].test_selector;
   const partial = await resolve({ test_declarations: withoutCaseFields });
-  const caseFact = { prerequisite: 'authored_case', status: 'incomplete' };
-  assertAttributed(partial.rows[0], { component: { ...caseFact, ...componentSource } },
+
+  const caseFact = index => ({ prerequisite: 'authored_case', status: 'incomplete',
+    case_id: obligations[index].case_id });
+  assert.ok(obligations.every(row => typeof row.case_id === 'string'));
+  assertAttributed(partial.rows[0], { component: { ...caseFact(0), ...componentSource } },
     'no component', 'incomplete');
-  assertAttributed(partial.rows[1], { suite: { ...caseFact, ...suiteSource } },
+  assertAttributed(partial.rows[1], { suite: { ...caseFact(1), ...suiteSource } },
     'no target selector', 'incomplete');
+
+  const typed = row => parameters(row).map(diagnostic => occurrenceRecoveryFacts(diagnostic));
+  assert.deepEqual(typed(partial.rows[0]),
+    [{ corrections: ['prerequisite_component'], case_id: obligations[0].case_id }]);
+  assert.deepEqual(typed(partial.rows[1]),
+    [{ corrections: ['prerequisite_target'], case_id: obligations[1].case_id }]);
+  for (const row of [...missing.rows, ...ambiguous.rows]) {
+    assert.deepEqual(typed(row), [{ corrections: ['prerequisite_case'] }, { corrections: ['prerequisite_case'] }]);
+  }
+  assert.deepEqual([OCCURRENCE_CORRECTION_CLAUSES.prerequisite_component.field,
+    OCCURRENCE_CORRECTION_CLAUSES.prerequisite_target.field, OCCURRENCE_CORRECTION_CLAUSES.prerequisite_case.field,
+    OCCURRENCE_CORRECTION_CLAUSES.prerequisite_case.operation],
+  ['obligations[].case.component', 'obligations[].case.target', 'obligations[].case', 'link_one_case']);
+  for (const key of ['prerequisite_component', 'prerequisite_target', 'prerequisite_case']) {
+    assert.match(OCCURRENCE_CORRECTION_CLAUSES[key].constraint, /derived from the authored case; supply neither directly/u);
+  }
+  assert.equal(occurrenceRecoveryFacts({ code: 'obligation_coverage_node_unknown', problem: { cause: {} } }), null);
   assert.match(parameters(partial.rows[0])[0].problem.route_assessment.recovery.operator_action,
     /author the 'component' field of the case this obligation uses/u);
   assert.match(parameters(partial.rows[1])[0].problem.route_assessment.recovery.operator_action,
@@ -674,7 +756,7 @@ test('WK-2664 the two split statuses select their code from the discriminating f
   const provider = raise('native_test_binding', 'provider_unresolved',
     prerequisiteFacts({ owner_code: 'stable_test_proof_provider_unknown' }));
   assert.equal(provider.code, 'obligation_coverage_native_binding_provider_unresolved');
-  assert.equal(provider.problem.cause.actor_recovery, 'operator');
+  assert.equal(provider.problem.cause.actor_recovery, 'none');
   assert.equal(registeredRecoveryTemplate(PROOF_PREREQUISITE_CODES, provider.code), null);
 
   const unresolved = raise('declared_test_target', 'verification_unresolved',
@@ -781,8 +863,8 @@ test('WK-2667 a typed missing runtime module path names the component correction
     { instancePath: '/system_under_test_boundary', keyword: 'required',
       params: { missingProperty: 'runtime_module_path' }, message: 'unrelated prose' },
     { instancePath: '/system_under_test_boundary', keyword: 'if', params: { failingKeyword: 'then' } }];
-  const component = /obligations\[\]\.case\.component[^]*case_authoring\.component/u;
-  const association = /case_authoring\.verification_association/u;
+  const component = /obligations\[\]\.case\.component[^]*Author that component with the actual repository and path/u;
+  const association = /Correct the case's verification association/u;
   const prose = occurrenceRecoverySummary(typed(moduleMissing), { summary: 'fallback' });
   assert.match(prose, component);
   assert.match(prose, /repository_path/u);
@@ -808,6 +890,120 @@ test('WK-2667 a typed missing runtime module path names the component correction
       ? { ...typed(moduleMissing), code: 'obligation_coverage_native_binding_missing' }
       : typed(diagnostics);
     assert.doesNotMatch(occurrenceRecoverySummary(diagnostic, { summary: 'fallback' }),
-      /case_authoring\.component/u, name);
+      /Author that component/u, name);
   }
+});
+
+const PROVIDER_UNRESOLVED = 'obligation_coverage_native_binding_provider_unresolved';
+const PROVIDER_UNRESOLVED_REASON = "The execution provider of the one native test binding derived from this obligation's authored case could not be resolved against the provider registry.";
+
+async function selectedAuthoringDiagnosis(testDeclarations, code) {
+  const { obligations, selectedContext } = await completeTestRoutes(1);
+  const { groupProofAuthoringDiagnostics } = await import(
+    '@agent-chassis/controlled-contract/proof-authoring-diagnostic-groups');
+  const { occurrencePublicRecovery } = await import('@agent-chassis/controlled-contract/executable-map');
+  const { projectProofAuthoringDiagnosticGroups, proofAuthoringGroupDiagnosis } = await import(
+    '../../packages/wiki-core/src/operations/controlled-contract/proof-authoring-diagnostic-projection.mjs');
+  const result = await resolveProofAuthoring({ ...source([]), obligations },
+    { ...selectedContext, test_declarations: testDeclarations });
+  const grouped = groupProofAuthoringDiagnostics(result);
+  const index = grouped.groups.findIndex(group => group.code === code);
+  assert.notEqual(index, -1, `${code} is diagnosed`);
+  const projected = projectProofAuthoringDiagnosticGroups({ grouped,
+    resultIdentity: result.identity_digest, wkId: 'WK-0001' }).groups[index];
+  return { result, raw: grouped.groups[index], diagnosis: proofAuthoringGroupDiagnosis({ projected,
+    raw: grouped.groups[index], recoveryFacts: occurrenceRecoveryFacts,
+    publicRecovery: occurrencePublicRecovery }) };
+}
+
+function assertNothingCredited(result) {
+  assert.equal(result.status, 'invalid');
+  assert.deepEqual([result.counts.valid, result.counts.invalid], [0, 1]);
+  const assessment = result.rows[0].selected_proof_assessment;
+  assert.equal(assessment.readiness_status, 'incomplete');
+  assert.equal(assessment.stages.execution_evidence.status, 'not_started');
+  assert.equal(assessment.stages.execution_evidence.credit_granted, 0);
+}
+
+test('WK-2765 a provider mismatch keeps every owner fact in the selected diagnosis and claims no recovery', async () => {
+  const { testDeclarations } = await completeTestRoutes(1);
+
+  const [binding] = testDeclarations;
+  binding.test_selector = { provider_id: 'launcher.ava', provider_version: '1.0.0',
+    node_id: 'tests/wk2553-0.test.mjs::["selected route 0"]' };
+  const { result, raw, diagnosis } = await selectedAuthoringDiagnosis([binding], PROVIDER_UNRESOLVED);
+
+  assert.equal(diagnosis.selected.code, PROVIDER_UNRESOLVED);
+  assert.equal(diagnosis.selected.category, 'system_capability');
+  assert.equal(diagnosis.subjects.length, 1);
+  const [subject] = diagnosis.subjects;
+  assert.equal(subject.obligation_id, 'OBL-WK2553-0');
+  assert.equal(subject.case_id, 'case-wk2553-0');
+  assert.equal(subject.owner_code, 'stable_test_proof_provider_capability_mismatch');
+  const mismatch = pointer => ({ code: 'stable_test_proof_provider_capability_mismatch', pointer,
+    expected_identity: 'ava_test_title', actual_identity: 'node_test_name' });
+  assert.deepEqual(subject.owner_diagnostics, { total_count: 3, omitted_count: 0, truncated: false,
+    diagnostics: [mismatch('/candidate_execution_provider/provider_id'),
+      mismatch('/falsifiers/0/execution_provider/provider_id'),
+      mismatch('/traversal_provider/provider_id')] });
+
+  assert.equal(Object.hasOwn(subject, 'corrections'), false);
+  assert.equal(Object.hasOwn(subject, 'failed_fields'), false);
+  assert.equal(diagnosis.correction_route, null);
+
+  assert.deepEqual(diagnosis.recovery, { actor_recovery: 'none',
+    explanation: `${PROVIDER_UNRESOLVED_REASON} Its owner reported stable_test_proof_provider_capability_mismatch. This diagnosis establishes no supported recovery.`,
+    instructions: null });
+  const assessed = raw.occurrences[0].diagnostic.problem.route_assessment.recovery;
+  assert.deepEqual([assessed.status, assessed.supported_next_call, assessed.operator_action],
+    ['unavailable', null, null]);
+  assert.equal(assessed.explanation, diagnosis.recovery.explanation);
+  assert.doesNotMatch(assessed.explanation,
+    /operator|No authoring route|cannot repair|proof-executable-map|wiki\/contracts/u);
+  assertNothingCredited(result);
+});
+
+test('WK-2765 an unknown provider keeps its own distinct cause without a fabricated correction', async () => {
+  const { testDeclarations } = await completeTestRoutes(1);
+  const [binding] = testDeclarations;
+  binding.candidate_execution_provider = { provider_id: 'launcher.absent',
+    provider_version: '1.0.0', capability: 'candidate_execution' };
+  const { result, diagnosis } = await selectedAuthoringDiagnosis([binding], PROVIDER_UNRESOLVED);
+
+  const [subject] = diagnosis.subjects;
+  assert.equal(subject.owner_code, 'stable_test_proof_provider_unknown');
+  assert.deepEqual([subject.owner_diagnostics.total_count, subject.owner_diagnostics.omitted_count,
+    subject.owner_diagnostics.diagnostics.length], [1, 0, 1]);
+  const [row] = subject.owner_diagnostics.diagnostics;
+  assert.deepEqual(Object.keys(row), ['code', 'pointer', 'expected_identity', 'actual_identity']);
+  assert.deepEqual([row.code, row.pointer, row.actual_identity], ['stable_test_proof_provider_unknown',
+    '/candidate_execution_provider/provider_id', 'launcher.absent']);
+  assert.match(row.expected_identity, /"launcher\.node-test"/u);
+  assert.deepEqual(diagnosis.recovery, { actor_recovery: 'none',
+    explanation: `${PROVIDER_UNRESOLVED_REASON} Its owner reported stable_test_proof_provider_unknown. This diagnosis establishes no supported recovery.`,
+    instructions: null });
+  assert.equal(Object.hasOwn(subject, 'corrections'), false);
+  assert.equal(diagnosis.correction_route, null);
+  assertNothingCredited(result);
+});
+
+test('WK-2765 an incomplete authored case keeps its usable authored correction', async () => {
+  const { testDeclarations } = await completeTestRoutes(1);
+  const [binding] = testDeclarations;
+  delete binding.candidate_execution_provider;
+  const { diagnosis } = await selectedAuthoringDiagnosis([binding],
+    'obligation_coverage_native_binding_case_incomplete');
+
+  const [subject] = diagnosis.subjects;
+  assert.equal(diagnosis.selected.category, 'author_input');
+  assert.equal(diagnosis.recovery.actor_recovery, 'caller_retry');
+  assert.deepEqual(subject.failed_fields,
+    [{ keyword: 'required', path: '/candidate_execution_provider' }]);
+  assert.deepEqual(subject.corrections, ['case_content']);
+  assert.equal(diagnosis.correction_route.tool,
+    'workspace_controlled_contract_obligation_coverage_upsert');
+  assert.match(diagnosis.recovery.instructions,
+    /save the authored correction in changes\.obligations through save_record/u);
+
+  assert.equal(Object.hasOwn(subject, 'owner_diagnostics'), false);
 });

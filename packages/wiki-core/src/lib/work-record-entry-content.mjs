@@ -18,6 +18,7 @@ import {
 } from "./work-record-entry-schema.mjs";
 
 const SOURCE_PROVENANCE = "canonical_work_record";
+export const WORK_RECORD_REFERENCE_READ_FIELDS = Object.freeze(["text"]);
 function supportedSourceFields() {
   return new Set([
     ...workRecordProseRegistryEntries("record").map(({ field }) => field),
@@ -145,6 +146,41 @@ export function encodeWorkRecordTextReference({
   if (problem !== null) throw new TypeError(problem);
   const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   return `${WORK_RECORD_TEXT_REFERENCE_PREFIX}${encoded}.${checksum(encoded)}`;
+}
+
+export function selectWorkRecordSourceText({ loaded, repository, recordId, sliceId = null,
+  field, taskIndex = null, literal }) {
+  const ref = { w: recordId, u: sliceId, f: field, i: taskIndex };
+  const selected = selectSourceValue(loaded.record, ref);
+  if (!selected.ok) return selected;
+  const { sourcePoints, literalPoints, matches } = findExactScalarMatches(selected.value, literal);
+  const makeRef = (offset, length) => encodeWorkRecordTextReference({ repository, recordId, sliceId,
+    field, taskIndex, sourceDigest: loaded.source_digest, offset, length, total: sourcePoints.length });
+  return { ok: true, choices: matches.map((offset, occurrence) => ({ field, occurrence,
+    offset, length: literalPoints.length, before_ref: makeRef(0, offset),
+    match_ref: makeRef(offset, literalPoints.length),
+    after_ref: makeRef(offset + literalPoints.length, sourcePoints.length - offset - literalPoints.length) })) };
+}
+
+export function selectWorkRecordReferenceText({ reference, text, literal }) {
+  const entry = decodeWorkRecordEntryReference(reference);
+  const source = entry === null ? decodeWorkRecordTextReference(reference) : null;
+  if (entry?.invalid || entry === null && !source.ok) {
+    throw new TypeError("text selection requires an authenticated work-record reference");
+  }
+  const original = entry ?? source.reference;
+  const { sourcePoints, literalPoints, matches } = findExactScalarMatches(text, literal);
+  const total = original.t ?? sourcePoints.length;
+  const makeRef = (offset, length) => entry !== null
+    ? encodeWorkRecordEntryReference({ repository: original.r, recordId: original.w, sliceId: original.u,
+      entryId: original.e, versionId: original.n, offset: original.o + offset, length, total })
+    : encodeWorkRecordTextReference({ repository: original.r, recordId: original.w, sliceId: original.u,
+      field: original.f, taskIndex: original.i, sourceDigest: original.g,
+      offset: original.o + offset, length, total });
+  return { text: literal, total_count: matches.length, ambiguous: matches.length > 1,
+    choices: matches.map((offset, occurrence) => ({ occurrence, offset, length: literalPoints.length,
+      before_ref: makeRef(0, offset), match_ref: makeRef(offset, literalPoints.length),
+      after_ref: makeRef(offset + literalPoints.length, sourcePoints.length - offset - literalPoints.length) })) };
 }
 
 export function decodeWorkRecordTextReference(reference) {

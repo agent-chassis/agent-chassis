@@ -151,6 +151,11 @@ function controlledScalarFields(spec) {
   return allowed;
 }
 
+export function kindRecordEditableScalarFields(recordKind) {
+  const spec = getRecordKindSpec(recordKind);
+  return spec === null ? Object.freeze([]) : Object.freeze([...controlledScalarFields(spec)]);
+}
+
 export function setScalar({ record, field, value, actor, now } = {}) {
   const guard = guardCommon(record, actor, now);
   if (!guard.ok) {

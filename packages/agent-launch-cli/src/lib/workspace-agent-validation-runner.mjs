@@ -25,14 +25,10 @@ import { extractPairedBehavioralPreservationEvidenceReceipt } from
   "./workspace-agent-dispatch-run-receipt.mjs";
 import { assertLauncherTestProofProviderExecution } from
   "./workspace-agent-test-proof-provider-registry.mjs";
-import { observeLauncherNodeTestRun } from "./workspace-agent-test-proof-node-observation.mjs";
 import {
-  DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
   DEFAULT_VALIDATION_TIMEOUT_MS,
-  TEST_PROOF_LIVE_CLEANUP_ALLOWANCE_MS,
   WORKSPACE_AGENT_VALIDATION_DISPOSITIONS,
   assertTestProofExecutionBudget,
-  interruptedBeforeSpawn,
   resolveValidationOutputBounds,
   settleConfinedCapture,
   spawnAndCapture
@@ -51,7 +47,8 @@ export {
 } from "./test-execution/confined-capture.mjs";
 import { assertLauncherTestProofRuntimeAuthority } from
   "./workspace-agent-test-proof-runtime-identity.mjs";
-import { executeConfinedInvocation, withExecutionRoot } from "./test-execution/confined-invocation.mjs";
+import { mintProofStage, runOrdinaryTestFile, runProofStageTestFile } from
+  "./test-execution/ordinary-test-runner.mjs";
 
 const AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS = Object.freeze({
   node_check: Object.freeze({
@@ -267,33 +264,6 @@ export async function runWorkspaceAgentValidation(input = {}) {
       );
     }
   }
-  let executionBudget = null;
-  if (Object.hasOwn(input, "executionBudget")) {
-    try {
-      executionBudget = assertTestProofExecutionBudget(input.executionBudget);
-    } catch (error) {
-      return buildRefusal(
-        WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.RAW_EXEC_FORBIDDEN,
-        "test-proof execution budget must be launcher-minted",
-        { error_code: error?.code ?? null }
-      );
-    }
-  }
-  let testProofProviderExecution = null;
-  if (Object.hasOwn(input, "testProofProviderExecution")) {
-    try {
-      testProofProviderExecution = assertLauncherTestProofProviderExecution(
-        input.testProofProviderExecution
-      );
-    } catch (error) {
-      return buildRefusal(
-        WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.RAW_EXEC_FORBIDDEN,
-        "test-proof provider execution authority must be launcher-minted",
-        { error_code: error?.code ?? null }
-      );
-    }
-  }
-
   const operation = isNonEmptyString(input.operation) ? input.operation.trim() : null;
   const operationSpec = operation ? AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS[operation] : null;
   if (!operationSpec || !Object.hasOwn(AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS, operation)) {
@@ -324,12 +294,10 @@ export async function runWorkspaceAgentValidation(input = {}) {
   const spawnIsolated =
     typeof input.spawnIsolated === "function" ? input.spawnIsolated : defaultSpawnIsolated;
   const clock = typeof input.clock === "function" ? input.clock : () => Date.now();
-  const requestedTimeoutMs =
+  const timeoutMs =
     Number.isInteger(input.timeoutMs) && input.timeoutMs > 0
       ? input.timeoutMs
       : DEFAULT_VALIDATION_TIMEOUT_MS;
-  const timeoutMs = executionBudget === null ? requestedTimeoutMs
-    : Math.max(1, Math.min(requestedTimeoutMs, executionBudget.remainingMs()));
   const outputBounds = resolveValidationOutputBounds({
     outputCapBytes: input.outputCapBytes ?? null,
     outputHeadCapBytes: input.outputHeadCapBytes ?? null,
@@ -337,17 +305,14 @@ export async function runWorkspaceAgentValidation(input = {}) {
   });
 
   const flag = operationSpec.node_flag;
-  const nodeBinary = testProofProviderExecution?.node_runtime?.executable ?? process.execPath;
+  const nodeBinary = process.execPath;
 
   const envSource = isPlainObject(input.env) ? input.env : process.env;
   const planEnv = {};
   if (typeof envSource.PATH === "string") planEnv.PATH = envSource.PATH;
   if (typeof envSource.HOME === "string") planEnv.HOME = envSource.HOME;
 
-  const providerNodeArguments = testProofProviderExecution?.node_arguments ?? [];
-  const normalizedArgv = ["node", flag,
-    ...(testProofProviderExecution ? ["[launcher-test-proof-options]"] : []),
-    authorized.posixRelative];
+  const normalizedArgv = ["node", flag, authorized.posixRelative];
   const enforcementPosture = Object.freeze({
     confined: true,
     execution_context: operationSpec.execution_context,
@@ -370,35 +335,17 @@ export async function runWorkspaceAgentValidation(input = {}) {
   };
 
   const startedAtMs = clock();
-  const pendingInterruption = executionBudget?.interruption() ?? null;
-  if (pendingInterruption !== null) {
-    return interruptedBeforeSpawn(baseEvidence, pendingInterruption, startedAtMs, clock());
-  }
-  const run = { input, buildPlan, buildBwrap, spawnIsolated, clock, timeoutMs, outputBounds, nodeBinary,
-    flag, providerNodeArguments, planEnv, envSource, authorized, baseEvidence, startedAtMs, executionBudget,
-    testProofProviderExecution };
-
-  return testProofProviderExecution === null ? confinedValidationRun({ ...run, executionRoot: null })
-    : withExecutionRoot((executionRoot) => confinedValidationRun({ ...run, executionRoot }));
-}
-
-async function confinedValidationRun({ input, buildPlan, buildBwrap, spawnIsolated, clock, timeoutMs,
-  outputBounds, nodeBinary, flag, providerNodeArguments, planEnv, envSource, authorized, baseEvidence,
-  startedAtMs, executionBudget, testProofProviderExecution, executionRoot }) {
   let plan;
   try {
     plan = buildPlan({
       workspaceDir: authorized.repoReal,
       command: nodeBinary,
-      args: [flag, ...providerNodeArguments, authorized.absolute],
+      args: [flag, authorized.absolute],
       env: planEnv,
 
       dependencyReadOnlyBinds: Array.isArray(input.dependencyReadOnlyBinds)
         ? input.dependencyReadOnlyBinds
         : [],
-
-      executionTmpSource: executionRoot?.tmp ?? null,
-      namespaceOnlyMountpoints: executionRoot !== null,
 
       ...(input.maskAgentLaunchDirWhenPresent === true
         ? { agentLaunchDirExists: existsSync }
@@ -429,12 +376,8 @@ async function confinedValidationRun({ input, buildPlan, buildBwrap, spawnIsolat
       parentEnv: envSource,
       timeoutMs,
       outputBounds,
-      reporterProtocol: testProofProviderExecution !== null,
-      clock,
-      ...(executionBudget === null ? {} : {
-        signal: executionBudget.signal,
-        cleanupAllowanceMs: TEST_PROOF_LIVE_CLEANUP_ALLOWANCE_MS
-      })
+      reporterProtocol: false,
+      clock
     });
   } catch (err) {
 
@@ -456,19 +399,7 @@ async function confinedValidationRun({ input, buildPlan, buildBwrap, spawnIsolat
     });
   }
 
-  if (capture.cleanupFailed === true) executionRoot?.markUnsettled();
-  return settleConfinedCapture({
-    baseEvidence,
-    capture,
-    startedAtMs,
-    outputBounds,
-    executionBudget,
-    proofObservation: testProofProviderExecution === null ? null
-      : ({ protocolText, exitCode, reporterProtocolOverflow }) => observeLauncherNodeTestRun({
-        stdout: protocolText, exitCode,
-        expectation: testProofProviderExecution.observation_expectation,
-        reporterProtocolOverflow })
-  });
+  return settleConfinedCapture({ baseEvidence, capture, startedAtMs, outputBounds });
 }
 
 export const MANAGED_WORKER_DECLARED_TEST_RESULT_SCHEMA_VERSION =
@@ -708,10 +639,7 @@ export async function runManagedWorkerDeclaredTest(input = {}) {
       });
     } else {
       testStep = assertMountStillValid()
-        ? await runWorkspaceAgentValidation({ ...stepInput, operation: "node_test",
-          ...(input.testProofProviderExecution
-            ? { testProofProviderExecution: input.testProofProviderExecution }
-            : {}) })
+        ? await runWorkspaceAgentValidation({ ...stepInput, operation: "node_test" })
         : mountChangedStep("node_test", "--test");
     }
   } finally {
@@ -744,9 +672,6 @@ export async function runManagedWorkerDeclaredTest(input = {}) {
     output_truncated: check.output_truncated === true || testStep.output_truncated === true,
     stdout: ranStep.stdout ?? "",
     stderr: ranStep.stderr ?? "",
-    ...(testStep.test_proof_observation
-      ? { test_proof_observation: testStep.test_proof_observation }
-      : {}),
 
     advisory: true,
     admission_effect: "none",
@@ -784,18 +709,13 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
     );
   }
   let executionBudget = null;
-  let nativeExecution = null;
-  let nodeRuntime = null;
-  let nodeAssetBinds = [];
+  let execution = null;
   try {
     if (Object.hasOwn(input, "executionBudget")) {
       executionBudget = assertTestProofExecutionBudget(input.executionBudget);
     }
     if (Object.hasOwn(input, "testProofProviderExecution")) {
-      const providerExecution = assertLauncherTestProofProviderExecution(input.testProofProviderExecution);
-      nativeExecution = providerExecution.native ?? null;
-      nodeRuntime = providerExecution.node_runtime ?? null;
-      nodeAssetBinds = providerExecution.node_asset_binds ?? [];
+      execution = assertLauncherTestProofProviderExecution(input.testProofProviderExecution);
     }
   } catch (error) {
     return buildRefusal(
@@ -808,14 +728,12 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
     workspaceDir: authority.worktree_path,
     target: input.target,
     authorizedTargets: input.authorizedTargets,
-    ...(nativeExecution === null ? {} : { allowedExtensions: nativeExecution.target_extensions })
+    ...(execution?.target_extensions ? { allowedExtensions: execution.target_extensions } : {})
   });
   if (isWorkspaceAgentValidationRunRefusal(authorized)) return authorized;
-  if (nativeExecution !== null) {
-    return runConfinedNativeTestProof({ authority, authorized, execution: nativeExecution,
-      executionBudget });
-  }
-  const dependencyProof = authority.dependency_proof;
+
+  const consumesProjection = execution === null || execution.consumer_dependencies === true;
+  const dependencyProof = consumesProjection ? authority.dependency_proof : null;
   const reviewerBinds = dependencyProof?.projection_selected === true
     ? [...dependencyProof.reviewer_read_only_binds]
     : [];
@@ -823,83 +741,108 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
     assertSelectedDependencyMountIntegrity(dependencyProof);
   }
 
-  const validatorCacheBinds = (dependencyProof?.validator_cache_read_only_binds ?? [])
-    .filter(({ dst }) => !reviewerBinds.some((bind) => bind.dst === dst));
+  const authorityBinds = [...reviewerBinds, ...(dependencyProof?.validator_cache_read_only_binds ?? [])
+    .filter(({ dst }) => !reviewerBinds.some((bind) => bind.dst === dst))];
 
-  const preparedBinds = nodeRuntime?.binds ?? [];
-
-  const dependencyBinds = [...preparedBinds, ...[...reviewerBinds, ...validatorCacheBinds]
-    .filter(({ dst }) => !preparedBinds.some((bind) => bind.dst === dst)), ...nodeAssetBinds];
-
-  const result = await runWorkspaceAgentValidation({
-    operation: "node_test",
-    workspaceDir: authority.worktree_path,
+  const request = {
+    repositoryRoot: authority.main_repo,
+    checkoutRoot: authorized.repoReal,
     target: authorized.posixRelative,
-    authorizedTargets: input.authorizedTargets,
-    timeoutMs: DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
-    dependencyReadOnlyBinds: dependencyBinds,
-    maskAgentLaunchDirWhenPresent: true,
-    testProofProviderExecution: input.testProofProviderExecution,
-    ...(executionBudget === null ? {} : { executionBudget })
-  });
-  return Object.freeze({
-    ...result,
+    runner: execution?.runner ?? "node-test",
+    ...(execution === null || execution.environment === null ? {} : { environment: execution.environment }),
+    ...(executionBudget === null ? {} : { timeoutMs: executionBudget.timeout_ms, budget: executionBudget })
+  };
+  const envelope = {
     unit: authority.selected_unit,
     dependency: Object.freeze({
       mount_selected: dependencyProof?.projection_selected === true,
       projection_identity: dependencyProof?.projection_identity ?? null,
       installation_digest: dependencyProof?.dependency_installation_digest ?? null,
+      ...(consumesProjection ? {} : { consumer_dependency_projection: "not_consumed" }),
       advisory: true
     }),
     advisory: true,
     admission_effect: "none",
     review_effect: "none",
     closure_effect: "none"
+  };
+
+  if (execution === null) {
+    return Object.freeze({ ...await runOrdinaryTestFile(request), ...envelope });
+  }
+
+  const stage = authorityBinds.length === 0 ? execution.stage : mintProofStage({
+    compilerCache: execution.stage.compilerCache,
+    compose: async (facts) => {
+      const composed = await execution.stage.compose(facts);
+      const mounted = new Set(facts.runtime.binds.map(({ dst }) => dst));
+      return { ...composed, additions: { ...(composed.additions ?? {}),
+        readOnlyBinds: [...authorityBinds.filter(({ dst }) => !mounted.has(dst)),
+          ...(composed.additions?.readOnlyBinds ?? [])] } };
+    }
   });
+  const result = await runProofStageTestFile(request, stage);
+  return proofStageRun({ result, authorized, execution, executionBudget, envelope });
 }
 
-async function runConfinedNativeTestProof({ authority, authorized, execution, executionBudget }) {
-  const command = path.basename(execution.invocation.command);
-  const settled = await executeConfinedInvocation({
-    checkout: authorized.repoReal,
-    runtime: execution.runtime,
-    invocation: execution.invocation,
-    timeoutMs: execution.timeout_ms ?? DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
-    budget: executionBudget,
-    nativeReport: execution.native_report ?? null,
-    baseEvidence: {
-      schema_version: WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION,
-      operation: "native_test_proof",
-      command,
-      normalized_argv: Object.freeze([command, "[launcher-test-proof-provider]", authorized.posixRelative]),
-      target: authorized.posixRelative,
-      raw_exec_enabled: false,
-      enforcement_posture: Object.freeze({
-        confined: true,
-        execution_context: "confined_target_execution",
-        executes_target: true,
-        repo_mount: "read_only",
-        secrets_masked: true,
-        network: "denied",
-        env: "launcher_minted_clean",
-        spawn_site: "launcher_confined_proof_runner"
-      })
-    },
-    observe: execution.observe
+function proofStageRun({ result, authorized, execution, executionBudget, envelope }) {
+  const node = execution.runner === "node-test";
+  const command = node ? "node" : path.basename(result.identity?.invocation?.command ?? execution.runner);
+  const labels = {
+    schema_version: WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION,
+    operation: node ? "node_test" : "native_test_proof",
+    command,
+    normalized_argv: Object.freeze(node
+      ? ["node", "--test", "[launcher-test-proof-options]", authorized.posixRelative]
+      : [command, "[launcher-test-proof-provider]", authorized.posixRelative]),
+    target: authorized.posixRelative,
+    raw_exec_enabled: false,
+    enforcement_posture: Object.freeze({
+      confined: true,
+      execution_context: "confined_target_execution",
+      executes_target: true,
+      repo_mount: "read_only",
+      secrets_masked: true,
+      network: "denied",
+      env: "launcher_minted_clean",
+      spawn_site: "launcher_shared_test_runner"
+    })
+  };
+
+  const runnerExecution = Object.freeze({
+    status: result.status,
+    ...(result.identity === undefined ? {} : { project: result.identity.project,
+      environment: result.identity.environment, harness: result.identity.harness,
+      selection: result.identity.selection, invocation: result.identity.invocation }),
+    resolution: Object.freeze((result.resolution ?? []).map(({ invocation, run }) => Object.freeze({ invocation,
+      disposition: run.disposition, exit_code: run.exit_code ?? null, timed_out: run.timed_out === true })))
   });
+  if (result.status === "executed" || result.status === "not_run") {
+    return Object.freeze({ ...result.run, ...labels, runner_execution: runnerExecution, ...envelope });
+  }
+  const interruption = executionBudget?.interruption() ?? null;
+  const code = interruption === "timed_out" ? "test_proof_execution_timed_out"
+    : interruption === "cancelled" ? "test_proof_execution_cancelled" : result.code;
   return Object.freeze({
-    ...settled,
-    unit: authority.selected_unit,
-    dependency: Object.freeze({
-      mount_selected: false,
-      projection_identity: null,
-      installation_digest: null,
-      consumer_dependency_projection: "not_consumed",
-      advisory: true
-    }),
-    advisory: true,
-    admission_effect: "none",
-    review_effect: "none",
-    closure_effect: "none"
+    ...labels,
+    ran: false,
+    skipped: false,
+    disposition: WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN,
+    ok: false,
+    exit_code: null,
+    signal: null,
+    timed_out: interruption === "timed_out",
+    cancelled: interruption === "cancelled",
+    cleanup_failed: false,
+    blocker_code: code,
+    blocker_message: result.message,
+    output_truncated: false,
+    output_elided_bytes: 0,
+
+    test_proof_observation: Object.freeze({ valid: false, code,
+      detail: Object.freeze({ runner_status: result.status, ...(result.detail ?? {}),
+        ...(result.recovery === undefined || result.recovery === null ? {} : { recovery: result.recovery }) }) }),
+    runner_execution: runnerExecution,
+    ...envelope
   });
 }

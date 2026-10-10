@@ -1,5 +1,4 @@
 import path from "node:path";
-import { buildNextCall } from "../lib/next-calls-descriptor.mjs";
 import { resolveContractContext } from "../lib/wiki.mjs";
 import { captureSearchSource, decodeSearchToken, encodeSearchToken } from "../lib/search-source-reader.mjs";
 import { digestResolvedSearchProjectionContext, projectCapturedSearchSource } from "../lib/search-source-corpus.mjs";
@@ -34,20 +33,25 @@ export async function readSearchSource({ dir = ".", repository = null, path: req
   if (digestResolvedSearchProjectionContext(context) !== selection.context_digest) {
     throw selectedSourceError("search_source_context_changed", "Selected search source context is incompatible");
   }
-  const freshSearchCalls = selection.fresh_search ? [buildNextCall({ tool: "workspace_search_repo",
-    arguments: selection.fresh_search, recommended: true })] : [];
+
+  const sourceError = (code, message, cause) => {
+    const error = selectedSourceError(code, message, [], cause);
+    error.envelope.subject = { repository: requestedRepository, path: requestedPath,
+      source_id: selection.source_id };
+    return error;
+  };
   let capture;
   try { capture = await captureSearchSource(targetDir, requestedPath); }
   catch (error) {
-    throw selectedSourceError(error?.code ?? "search_source_changed",
-      "Selected search source changed, disappeared, or became unreadable", freshSearchCalls, error);
+    throw sourceError(error?.code ?? "search_source_changed",
+      "Selected search source changed, disappeared, or became unreadable", error);
   }
   if (capture.digest !== selection.source_digest) {
-    throw selectedSourceError("search_source_changed", "Selected search source changed or was replaced", freshSearchCalls);
+    throw sourceError("search_source_changed", "Selected search source changed or was replaced");
   }
   const source = await projectCapturedSearchSource(targetDir, capture, context);
   const passage = source.passages.find((candidate) => candidate.sourceId === selection.source_id);
-  if (!passage) throw selectedSourceError("search_source_reordered", "Selected search source region no longer exists", freshSearchCalls);
+  if (!passage) throw sourceError("search_source_reordered", "Selected search source region no longer exists");
   const total = scalarLength(passage.originalText);
   if (!Number.isSafeInteger(selection.offset) || selection.offset < 0 || selection.offset > total) {
     throw selectedSourceError("search_source_selection_invalid", "Selected search source offset is invalid");
@@ -70,11 +74,7 @@ export async function readSearchSource({ dir = ".", repository = null, path: req
     length: returnedLength,
     total: total,
     eof,
-    next_calls: nextMatch === null ? [] : [buildNextCall({ tool: "workspace_read_page", arguments: {
-      ...(repository ? { repo: repository } : {}), path: requestedPath, search_match: nextMatch, length
-    }, recommended: true })],
-    source_start: buildNextCall({ tool: "workspace_read_page", arguments: {
-      ...(repository ? { repo: repository } : {}), path: requestedPath, search_match: startMatch, length
-    }, recommended: false })
+    next_match: nextMatch,
+    source_start: startMatch
   };
 }

@@ -1,10 +1,10 @@
 # Run inference through Vertex AI
 
 AgentChassis can route a registered Codex model through a local LiteLLM gateway
-to Vertex AI. The supported mappings are `vertex-claude-opus-5-5` and
-`vertex-claude-sonnet-5-5`. Codex is the client; Vertex AI serves the Anthropic
-model. This route works for an operator-launched orchestrator and for managed
-roles that select the same model.
+to Vertex AI. The supported mappings are `vertex-claude-opus-5-5`,
+`vertex-claude-sonnet-5-5`, and `vertex-gemini-3.8-flash`. Codex is the client;
+Vertex AI serves the selected Anthropic or Gemini model. This route works for
+an operator-launched orchestrator and for managed roles that select the same model.
 
 Start with the [quickstart](quickstart.md) to install AgentChassis, set up the
 repository, and initialize the launcher. You also need a Google Cloud project
@@ -21,7 +21,7 @@ chmod 600 /absolute/path/to/service-account.json
 ```
 
 ```toml
-[models."vertex-claude-sonnet-5-5"]
+[models."vertex-gemini-3.8-flash"]
 use_litellm = true
 
 [vertexai]
@@ -41,7 +41,7 @@ configured location.
 From the configured repository, launch an orchestrator with the routed model:
 
 ```sh
-npx agent-launch orchestrator IN-0001 --model vertex-claude-sonnet-5-5
+npx agent-launch orchestrator IN-0001 --model vertex-gemini-3.8-flash
 ```
 
 Replace `IN-0001` with your initiative ID. The command starts an interactive
@@ -56,7 +56,7 @@ To make this model the default for a role, set that role's `model` in
 
 ```toml
 [roles.worker]
-model = "vertex-claude-sonnet-5-5"
+model = "vertex-gemini-3.8-flash"
 ```
 
 Managed dispatch then follows the same model route. For the exact configuration,

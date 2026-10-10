@@ -20,7 +20,7 @@ import {
   writeControlledContractCarrierFile
 } from "../../lib/controlled-contract-tools.mjs";
 import { applyControlledContractCarrierPatch } from
-  "@agent-chassis/controlled-contract";
+  "@agent-chassis/controlled-contract/carrier-patch";
 import { assertCanonicalCarrierSetIsNotFencedLegacy } from
   "../../lib/controlled-contract-carrier-set-tools.mjs";
 import { addressedEvaluationInputPack, loadControlledContractPackage } from

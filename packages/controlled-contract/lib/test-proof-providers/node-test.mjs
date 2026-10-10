@@ -66,7 +66,63 @@ export default deepFreeze({
       shape: "dependency_failure makes the substituted module fail; forced_invocation also " +
         "names entry_export and an operation {module_path, export_name} in a different " +
         "JavaScript module; a missing, non-callable, misnamed or unreadable export is refused",
-      refusalCodes: ["test_proof_forced_invocation_export_identity_mismatch"]
+      refusalCodes: ["test_proof_forced_invocation_export_identity_mismatch"],
+      examples: [
+        {
+          strategy: "dependency_failure",
+          language: "javascript",
+          supported: {
+            code: "export function dependency() { return 42; }\n",
+            falsification: {
+              strategy: "dependency_failure",
+              module_path: "src/dependency.mjs"
+            },
+            why: "The selected test invokes this callable dependency; substitution makes that call throw the launcher failure."
+          },
+          rejected: {
+            code: "export const dependency = 42;\n",
+            falsification: {
+              strategy: "dependency_failure",
+              module_path: "src/dependency.mjs"
+            },
+            reason: "no_callable_dependency_invocation",
+            why: "Reading this non-callable value cannot witness an invocation of the throwing replacement. Substitution preserves non-callable exports; this is insufficient detection evidence, not a source-shape refusal."
+          }
+        },
+        {
+          strategy: "forced_invocation",
+          language: "javascript",
+          supported: {
+            code: "export function run() { return 42; }\n",
+            operation_code: "export function forbidden() { return 0; }\n",
+            falsification: {
+              strategy: "forced_invocation",
+              module_path: "src/entry.mjs",
+              entry_export: "run",
+              operation: {
+                module_path: "src/operation.mjs",
+                export_name: "forbidden"
+              }
+            },
+            why: "The named entry and operation are callable functions with matching names in distinct modules. The launcher invokes the operation after the first original entry return, without arguments."
+          },
+          rejected: {
+            code: "export function run() { return 42; }\n",
+            operation_code: "export const forbidden = 0;\n",
+            falsification: {
+              strategy: "forced_invocation",
+              module_path: "src/entry.mjs",
+              entry_export: "run",
+              operation: {
+                module_path: "src/operation.mjs",
+                export_name: "forbidden"
+              }
+            },
+            reason: "not_function",
+            why: "The named operation export is not callable; the launcher reports test_proof_forced_invocation_export_identity_mismatch for that export, not an unavailable runner family."
+          }
+        }
+      ]
     })
   }
 });

@@ -290,3 +290,9 @@ export function projectCompactSliceLifecycle(lifecycle, { subject, attemptId = n
   view.complete = Object.freeze(call === null ? {} : { call });
   return Object.freeze(view);
 }
+
+export function groupCompactLifecycleOmissions(view) {
+  if (!Array.isArray(view?.omitted_members)) return view;
+  return { ...view, omitted_members: [...new Set(view.omitted_members
+    .map((member) => member.split(".")[0]))] };
+}

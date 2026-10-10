@@ -69,14 +69,65 @@ function adaptRawSchemaDiagnostic(error, {
     property_kind: error.keyword === "additionalProperties" ? "unexpected"
       : error.keyword === "required" ? "missing" : null,
     keyword: text(error.keyword),
+    schema_path: text(error.schemaPath),
+    params: structuredClone(error.params ?? {}),
     reason_code: reasonCode,
     expected_identity: error.params?.allowedValue ??
       (error.keyword === "required" ? String(propertyName) : null),
     actual_identity: error.keyword === "additionalProperties"
-      ? String(propertyName) : null,
+      ? String(propertyName) : error.keyword === "required" || document === null
+        ? null : schemaValueAt(document, rawPointer),
     message: error.message ?? message,
-    ...testProofDefinitionContext(document, rawPointer)
+    ...testProofDefinitionContext(document, rawPointer),
+    ...obligationContext(document, rawPointer)
   });
+}
+
+function schemaValueAt(document, pointer) {
+  const segments = pointer === "" ? [] : pointer.slice(1).split("/")
+    .map(segment => segment.replaceAll("~1", "/").replaceAll("~0", "~"));
+  let value = document;
+  for (const segment of segments) {
+    if (value === null || typeof value !== "object" || !Object.hasOwn(value, segment)) return null;
+    value = value[segment];
+  }
+  return structuredClone(value);
+}
+
+function obligationContext(document, pointer) {
+  const match = /^\/obligations\/([0-9]+)(?:\/|$)/u.exec(pointer);
+  if (match === null || !Array.isArray(document?.obligations)) return {};
+  const index = Number(match[1]);
+  return { obligation_index: index, obligation_id: document.obligations[index]?.obligation_id ?? null };
+}
+
+function groupCompleteSchemaDiagnostics(diagnostics) {
+  if (!Array.isArray(diagnostics)) throw new TypeError("diagnostics must be an array");
+  const subjectKeys = new Set(["pointer", "field_pointer", "obligation_index", "obligation_id",
+    "definition_pointer", "test_proof_id", "verification_claim_id"]);
+  const groups = new Map();
+  for (const diagnostic of diagnostics) {
+    const reason = Object.fromEntries(Object.entries(diagnostic).filter(([key]) => !subjectKeys.has(key)));
+    const subject = Object.fromEntries(Object.entries(diagnostic).filter(([key]) => subjectKeys.has(key)));
+
+    if (Number.isInteger(subject.obligation_index)) {
+      const base = `/obligations/${subject.obligation_index}`;
+      for (const key of ["pointer", "field_pointer"]) {
+        if (subject[key] === base || subject[key]?.startsWith(`${base}/`)) {
+          reason[key] = { prefix: "/obligations/", subject_field: "obligation_index", suffix: subject[key].slice(base.length) };
+          delete subject[key];
+        }
+      }
+    }
+    const fields = Object.keys(subject);
+    const identity = canonicalJsonBytes({ reason, subject_fields: fields }).toString("utf8");
+    if (!groups.has(identity)) groups.set(identity, { reason, subject_fields: fields, occurrence_count: 0, subjects: [] });
+    const group = groups.get(identity);
+    group.occurrence_count += 1;
+    group.subjects.push(fields.map(key => subject[key]));
+  }
+  return { complete: true, total_count: diagnostics.length, group_count: groups.size,
+    groups: [...groups.values()] };
 }
 
 function encodedStringBytes(value) {
@@ -541,6 +592,7 @@ export {
   adaptRawSchemaDiagnostic,
   compareDiagnostics,
   escapeJsonPointerSegment,
+  groupCompleteSchemaDiagnostics,
   projectBoundedDiagnostics,
   selectCausalSchemaDiagnostics
 };

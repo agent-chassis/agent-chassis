@@ -18,19 +18,17 @@ function registerStaticResource(server, { name, uri, mimeType, loader, errorCont
           ]
         };
       } catch (error) {
-        const shaped = errorContent(error);
+
+        const { structuredContent } = errorContent(error);
         return {
-          ...shaped,
           contents: [
             {
               uri,
               mimeType: "application/json",
-
-              text: shaped.structuredContent === undefined
-                ? shaped.content?.[0]?.text ?? String(error)
-                : JSON.stringify(shaped.structuredContent)
+              text: JSON.stringify(structuredContent)
             }
-          ]
+          ],
+          isError: true
         };
       }
     }

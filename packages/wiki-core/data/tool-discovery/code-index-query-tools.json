@@ -3,14 +3,14 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "code-index-query-tools.json",
-  "summary": "Committed file-context and consolidated impact queries across MCP and CLI.",
-  "tool_count": 4,
+  "summary": "The one agent code read, query_code_index, and the CLI impact and file-context commands.",
+  "tool_count": 3,
   "tools": [
     {
-      "tool_name": "workspace_code_index_impact",
-      "display_name": "Workspace code index question",
+      "tool_name": "query_code_index",
+      "display_name": "Query code index",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_code_index_impact",
+      "entrypoint": "query_code_index",
       "task_ids": [
         "query-graph-impact"
       ],
@@ -21,7 +21,7 @@
         "agent",
         "operator"
       ],
-      "priority": 106,
+      "priority": 107,
       "side_effects": [
         "workspace_write"
       ],
@@ -47,18 +47,22 @@
         "packages/wiki-core/src/lib/sidecar-query-impact.mjs",
         "packages/wiki-mcp/src/lib/code-index-query-tools.mjs",
         "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
-        "docs/mcp-integration.md"
+        "docs/mcp-integration.md",
+        "packages/wiki-core/src/lib/sidecar-query-context.mjs",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
+        "packages/wiki-core/src/lib/sidecar-status.mjs"
       ],
-      "notes": "One committed code question whose documented selectors choose the answer. A change subject (exactly one of paths, patchText, diffRecords or liveGit:true) asks impact: affected files with graph, inferred, canonical and suggested bases, a truthful impact_state with denominators, and diff diagnostics; a compatible path or symbol narrows that subject to what it names. symbol, or path with line and optional character, asks the definition, references, callers and callees owners, and relationship narrows that to one of definition, references, callers or callees. path alone asks that file's committed context. An empty subject is no-change; conflicting, empty or undeclared selectors return the reachable alternatives rather than a guess. Every answer is bounded compact; its complete original is retained once. Follow next_calls or detail to select a collection by selector.id, path, symbol or relationship, affected-file relationships by input_path, ambiguity candidates by symbol/path, or absolute source lines within one retained region or file, without evaluating again. No cursor, byte range or field path exists. CLI fallback: `npm run wiki -- code-index impact --json --paths <path>`.",
+      "notes": "The one agent code read for the current repository; no argument selects a repository, root, cache or commit. Selectors choose the answer: exactly one of paths, patchText, diffRecords or liveGit:true asks change impact, which path and symbol narrow; symbol, or path with line and optional character, asks definition, references, callers and callees, which relationship narrows to one; path alone asks that file's committed context. status:true alone reports the published index passively. An ordinary question answers from the last published index without waiting, states indexed_commit, indexed_commit_short and current_head, and may request a background refresh that writes the ignored derived cache; status and detail reads write nothing and start no refresh. Every answer is a bounded summary of a complete original retained once; follow next_calls to read each collection completely through the shared pager, and read an oversized page or row through workspace_read_mcp_content_reference. CLI fallbacks: `npm run wiki -- code-index impact|context-for-path|status --json`.",
       "use_when": [
         "Find affected files, relationships, tests and canonical records for known paths or a diff.",
-        "Read one file's committed context, or one symbol's definition and use/call relationships, without choosing which underlying query runs."
+        "Read one file's committed context, or one symbol's definition, references, callers and callees.",
+        "Check which commit the published code index describes before relying on an answer."
       ],
       "do_not_use_when": [
-        "You want exactly one already-known navigation relationship and prefer its dedicated route, or you need the operator-only CLI fallback."
+        "You need to prepare the index: this route prepares nothing. Call status:true and follow the next_calls entry with purpose prepare_index when status offers one; otherwise preparation.missing_capability states that this session cannot prepare it."
       ],
       "authoritative_for": [
-        "ordinary committed code questions and their documented selector precedence"
+        "committed code questions, their documented selector precedence, and the published index status"
       ],
       "recommended_first_call": {
         "operation": "query impact for known repo-relative paths",
@@ -66,65 +70,6 @@
           "paths": [
             "$repo_relative_path"
           ]
-        },
-        "omit_null_arguments": true
-      }
-    },
-    {
-      "tool_name": "workspace_code_index_context_for_path",
-      "display_name": "Workspace code index context for path",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_code_index_context_for_path",
-      "task_ids": [
-        "query-graph-impact"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 104,
-      "side_effects": [
-        "workspace_write"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "paid_cce"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery-tiers.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/code-index-query-tools.json",
-        "packages/wiki-core/src/lib/sidecar-query-context.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-tools.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "Committed context for one repo-relative path. Default returns code-graph paths with exact path and relationship totals; source, related code, tests and canonical records stay in the retained original. Follow next_calls or detail to select a collection by selector.id, path, symbol or relationship, affected-file relationships by input_path, or absolute lines within one retained source region or file, without evaluating again. Out-of-corpus paths report indexed_corpus_excluded. CLI fallback: `npm run wiki -- code-index context-for-path --json --path <path>`.",
-      "use_when": [
-        "List code-graph paths for one repo-relative file, then select its affected files, tests or canonical records by path or id through next_calls."
-      ],
-      "do_not_use_when": [
-        "The task covers a diff or a symbol, or you want one question to select the right query; use workspace_code_index_impact."
-      ],
-      "authoritative_for": [
-        "derived single-path code-index context"
-      ],
-      "recommended_first_call": {
-        "operation": "query one repo-relative path",
-        "arguments": {
-          "path": "$repo_relative_path"
         },
         "omit_null_arguments": true
       }
@@ -160,7 +105,7 @@
         "packages/wiki-cli/src/commands/sidecar.mjs",
         "packages/wiki-core/src/lib/sidecar-query-impact.mjs"
       ],
-      "notes": "Consolidated impact CLI for exactly one of paths, --patch, --patch-file, --diff-records-json, or --live-git. It auto-ensures the committed-HEAD index and may write its ignored derived cache. --json prints the complete answer; agents should prefer workspace_code_index_impact."
+      "notes": "Consolidated impact CLI for exactly one of paths, --patch, --patch-file, --diff-records-json, or --live-git. It auto-ensures the committed-HEAD index and may write its ignored derived cache. --json prints the complete answer; agents should prefer query_code_index."
     },
     {
       "tool_name": "wiki-code-index-context-for-path",
@@ -193,7 +138,7 @@
         "packages/wiki-cli/src/commands/sidecar.mjs",
         "packages/wiki-core/src/lib/sidecar-query-context.mjs"
       ],
-      "notes": "Committed file-context CLI that auto-ensures the committed-HEAD index and may write its ignored derived cache. --json prints the complete answer; plain output lists every population. Agents should prefer workspace_code_index_context_for_path."
+      "notes": "Committed file-context CLI that auto-ensures the committed-HEAD index and may write its ignored derived cache. --json prints the complete answer; plain output lists every population. Agents should prefer query_code_index."
     }
   ]
 }

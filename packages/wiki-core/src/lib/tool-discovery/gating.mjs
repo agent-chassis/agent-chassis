@@ -57,6 +57,87 @@ export class SessionRoleToolAccessPolicyError extends Error {
   }
 }
 
+function readSelectionIdentityProblem(value) {
+  if (!isNonEmptyString(value) || value.trim() !== value) return "must be a non-empty exact string";
+  return /[*?]/u.test(value) ? "must not contain a wildcard" : null;
+}
+
+const READ_SELECTION_ROW_KEYS = Object.freeze(["roles", "selection", "source_kind"]);
+const READ_SELECTION_TUPLE_KEYS = Object.freeze(["selection", "source_kind"]);
+
+function hasExactKeys(value, keys) {
+  const actual = Object.keys(value).sort();
+  return actual.length === keys.length && actual.every((key, index) => key === keys[index]);
+}
+
+function validateReadSelections(policy, diagnostics) {
+  const rows = policy.read_selections;
+  if (!Array.isArray(rows)) {
+    diagnostics.push(policyDiagnostic("session_role_policy_invalid_read_selections",
+      "read_selections must be an array of {source_kind, selection, roles} rows"));
+    return;
+  }
+  if (rows.length === 0) {
+    diagnostics.push(policyDiagnostic("session_role_policy_empty_read_selections",
+      "read_selections must declare at least one row when present"));
+  }
+  const declaredRoles = Array.isArray(policy.roles) ? policy.roles : [];
+  const seen = new Set();
+  rows.forEach((row, index) => {
+    const at = `read_selections[${index}]`;
+    if (!isObject(row)) {
+      diagnostics.push(policyDiagnostic("session_role_policy_invalid_read_selection_row",
+        `${at} must be an object`));
+      return;
+    }
+    if (!hasExactKeys(row, READ_SELECTION_ROW_KEYS)) {
+      diagnostics.push(policyDiagnostic("session_role_policy_invalid_read_selection_keys",
+        `${at} must have exactly the keys source_kind, selection and roles`));
+    }
+
+    let exact = true;
+    for (const key of READ_SELECTION_TUPLE_KEYS) {
+      const problem = hasOwn(row, key) ? readSelectionIdentityProblem(row[key]) : "is missing";
+      if (problem === null) continue;
+      exact = false;
+      if (!hasOwn(row, key)) continue;
+      diagnostics.push(policyDiagnostic(problem.includes("wildcard")
+        ? "session_role_policy_read_selection_wildcard"
+        : "session_role_policy_invalid_read_selection_identity", `${at}.${key} ${problem}`));
+    }
+    if (exact) {
+      const tuple = JSON.stringify([row.source_kind, row.selection]);
+      if (seen.has(tuple)) {
+        diagnostics.push(policyDiagnostic("session_role_policy_duplicate_read_selection",
+          `${at} repeats source_kind '${row.source_kind}' selection '${row.selection}'`));
+      }
+      seen.add(tuple);
+    }
+    if (!hasOwn(row, "roles")) return;
+    if (!Array.isArray(row.roles)) {
+      diagnostics.push(policyDiagnostic("session_role_policy_invalid_read_selection_roles",
+        `${at}.roles must be an array of session roles`));
+      return;
+    }
+    if (row.roles.length === 0) {
+      diagnostics.push(policyDiagnostic("session_role_policy_empty_read_selection_roles",
+        `${at}.roles must grant at least one role`));
+    }
+    row.roles.forEach((role, roleIndex) => {
+      if (!isNonEmptyString(role)) {
+        diagnostics.push(policyDiagnostic("session_role_policy_invalid_read_selection_role_entry",
+          `${at}.roles[${roleIndex}] must be a non-empty role string`));
+      } else if (row.roles.indexOf(role) !== roleIndex) {
+        diagnostics.push(policyDiagnostic("session_role_policy_duplicate_read_selection_role",
+          `${at}.roles repeats role '${role}'`));
+      } else if (!declaredRoles.includes(role)) {
+        diagnostics.push(policyDiagnostic("session_role_policy_undeclared_read_selection_role",
+          `${at}.roles[${roleIndex}] '${role}' is not declared in roles`));
+      }
+    });
+  });
+}
+
 export function validateSessionRoleToolAccessPolicy(policy) {
   const diagnostics = [];
   if (!isObject(policy)) {
@@ -158,6 +239,10 @@ export function validateSessionRoleToolAccessPolicy(policy) {
       }
     }
   }
+
+  if (hasOwn(policy, "read_selections")) {
+    validateReadSelections(policy, diagnostics);
+  }
   return diagnostics;
 }
 
@@ -234,6 +319,32 @@ export function resolveToolDispositionsFromPolicy(policy) {
       dispositions[0]
     ])
   );
+}
+
+export function resolveReadWikiSelectionGrantsFromPolicy(policy, tuple) {
+  assertValidSessionRoleToolAccessPolicy(policy);
+  if (!hasOwn(policy, "read_selections")) {
+    throw new SessionRoleToolAccessPolicyError([policyDiagnostic(
+      "session_role_policy_missing_read_selections",
+      "semantic read-selection resolution requires a 'read_selections' section")]);
+  }
+  const diagnostics = [];
+  if (!isObject(tuple) || !hasExactKeys(tuple, READ_SELECTION_TUPLE_KEYS)) {
+    diagnostics.push(policyDiagnostic("session_role_policy_invalid_read_selection_tuple",
+      "a read selection is exactly {source_kind, selection}"));
+  } else {
+    for (const key of READ_SELECTION_TUPLE_KEYS) {
+      const problem = readSelectionIdentityProblem(tuple[key]);
+      if (problem !== null) {
+        diagnostics.push(policyDiagnostic("session_role_policy_invalid_read_selection_tuple",
+          `read selection ${key} ${problem}`));
+      }
+    }
+  }
+  if (diagnostics.length > 0) throw new SessionRoleToolAccessPolicyError(diagnostics);
+  const row = policy.read_selections.find((candidate) =>
+    candidate.source_kind === tuple.source_kind && candidate.selection === tuple.selection);
+  return new Set(row === undefined ? [] : row.roles);
 }
 
 export function evaluateToolDispositionCompatibility({

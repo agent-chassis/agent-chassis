@@ -79,16 +79,27 @@ test("closed worker input schema refuses authority-bearing fields and message by
   }
 
   expectGuardCode(() => assertClosedInputSchema({ surprise: true }), CODES.CLOSED_SCHEMA_VIOLATION);
-  expectGuardCode(() => assertClosedInputSchema("commit this"), CODES.CLOSED_SCHEMA_VIOLATION);
-  expectGuardCode(() => assertClosedInputSchema(["message"]), CODES.CLOSED_SCHEMA_VIOLATION);
-  assert.doesNotThrow(() => assertClosedInputSchema());
-  assert.doesNotThrow(() => assertClosedInputSchema(null));
+
+  for (const malformed of [undefined, null, "commit this", ["message"], [], 0, 7, true, false]) {
+    expectGuardCode(() => assertClosedInputSchema(malformed), CODES.CLOSED_SCHEMA_VIOLATION);
+  }
   assert.doesNotThrow(() => assertClosedInputSchema({}));
+});
+
+test("a malformed worker argument is refused before resolver authority is used", () => {
+  for (const workerArgs of [undefined, null, [], "commit this", 7, { surprise: true }]) {
+    const fake = resolver();
+    expectGuardCode(
+      () => admitWorkerCommitCall({ credential: CREDENTIAL, workerArgs, deps: fake.deps }),
+      CODES.CLOSED_SCHEMA_VIOLATION
+    );
+    assert.deepEqual(fake.calls, []);
+  }
 });
 
 test("bare commit call resolves full binding from server credential and generates trusted message", () => {
   const fake = resolver();
-  const admitted = admitWorkerCommitCall({ credential: CREDENTIAL, deps: fake.deps });
+  const admitted = admitWorkerCommitCall({ credential: CREDENTIAL, workerArgs: {}, deps: fake.deps });
 
   assert.deepEqual(fake.calls, [CREDENTIAL]);
   assert.equal(admitted.schema_version, COMMIT_TOOL_EXPOSURE_GUARD_SCHEMA_VERSION);

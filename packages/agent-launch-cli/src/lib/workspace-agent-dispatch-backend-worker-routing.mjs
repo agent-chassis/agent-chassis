@@ -57,6 +57,24 @@ function unsupportedScopeSelectorRefusal(selected, recordPath, { role, subject }
 export function createBackendWorkerRouting(ctx) {
   const { lifecycle, worktreeProvisioningConfig } = ctx;
 
+  function resolveWorkerTargetRefusal(input = {}) {
+    if (input.role !== "worker" || ctx.requireManagedProvisioning !== true ||
+        EXACT_IMPLEMENTATION_SLICE_RE.test(input.subject ?? "")) return null;
+    return dispatchRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+      "managed_worker_exact_slice_required", {
+        subject: input.subject ?? null, role: input.role, actor_recovery: "coordinator",
+        next_action: "select_or_author_exact_implementation_slice_then_start",
+        recovery: { state: "choice_required", responsible_actor: "coordinator",
+          required_inputs: ["exact implementation slice selection or authored slice contract"] },
+        explanation: "Managed worker implementation requires an exact slice. Select an existing " +
+          "implementation slice through workspace_read_wiki, or author changes.ready_slices through " +
+          "save_record on the root with its current revision and caller-supplied scope, acceptance " +
+          "and proof meaning. Then start_agent on the exact saved slice address. No executable " +
+          "start or save call exists until those inputs are supplied; retrying the bare WK repeats " +
+          "this refusal. Structural readiness does not establish launch admission."
+      });
+  }
+
   function resolveBackendRoutingDecision(input = {}) {
     const selection = ctx.resolveDispatchSelection(input);
     if (selection?.ok !== true) return selection;
@@ -111,22 +129,8 @@ export function createBackendWorkerRouting(ctx) {
           : "provisioning_config"
       });
     }
-    if (ctx.requireManagedProvisioning === true &&
-        !EXACT_IMPLEMENTATION_SLICE_RE.test(input.subject ?? "")) {
-      return dispatchRefusal(
-        BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-        "managed_worker_exact_slice_required",
-        {
-          subject: input.subject ?? null,
-          role: input.role,
-          actor_recovery: "coordinator",
-          next_action: "select_or_author_exact_implementation_slice_then_validate_and_dispatch",
-          recovery: { state: "no_supported_route", route: null },
-          explanation:
-            "Structural readiness may be true because it validates the authored contract; it does not establish managed-launch capability. Explicitly select an existing implementation slice, or complete slice authoring through workspace_work_record_ready_slice with the required scope, acceptance, and proof inputs. Then validate and dispatch the exact allocated address. No complete callable continuation exists until the coordinator supplies those selection or authoring inputs; retrying the unchanged bare WK will repeat this refusal."
-        }
-      );
-    }
+    const targetRefusal = resolveWorkerTargetRefusal(input);
+    if (targetRefusal !== null) return targetRefusal;
     let selected;
     try {
       const mainRepo = worktreeProvisioningConfig?.mainRepo ?? input.workspace_dir;
@@ -164,5 +168,5 @@ export function createBackendWorkerRouting(ctx) {
     });
   }
 
-  return Object.freeze({ resolveBackendRoutingDecision, startLaunch });
+  return Object.freeze({ resolveBackendRoutingDecision, resolveWorkerTargetRefusal, startLaunch });
 }

@@ -28,10 +28,27 @@ import {
 } from "../../packages/wiki-core/src/lib/tool-discovery.mjs";
 
 const PAID_ONLY_TOOL_NAMES = [
-  "workspace_node_engine_admission_runtime_diagnostic",
-  "workspace_record_graph_impact_evidence",
-  "workspace_work_record_refresh_admission_metrics",
-  "workspace_code_index_impact"
+  "query_code_index",
+  "workspace_code_index_build",
+  "workspace_code_index_rebuild"
+];
+
+const FREE_LOCAL_TASK_TOOL_NAMES = [
+  "workspace_read_wiki",
+  "workspace_create_record",
+  "save_record",
+  "workspace_assess_contract",
+  "workspace_find_proofs",
+  "verify_proof",
+  "workspace_run_test",
+  "start_agent",
+  "get_run_result",
+  "workspace_deliver_work",
+  "integrate_work",
+  "workspace_inspect_candidate",
+  "workspace_advance_candidate",
+  "workspace_publish_work",
+  "workspace_check_landing"
 ];
 
 const PAID_PROSE_TOKENS = [
@@ -48,10 +65,15 @@ const PAID_PROSE_TOKENS = [
   "worker-admission"
 ];
 
-const RETIRED_TARGET_RESOLUTION_TOOL_NAME =
-  "workspace_work_record_refresh_target_resolution_evidence";
+const RETIRED_DERIVED_EVIDENCE_REFRESH_TOOL_NAMES = [
+  "workspace_work_record_refresh_target_resolution_evidence",
+  "workspace_work_record_refresh_admission_metrics"
+];
 
-const DERIVED_EVIDENCE_REFRESH_TOOL_NAME = "workspace_work_record_refresh_admission_metrics";
+const DERIVED_EVIDENCE_REFRESH_TOOL_NAMES = [
+  "workspace_code_index_build",
+  "workspace_code_index_rebuild"
+];
 const LAUNCHER_GUIDANCE_FIELD_NAMES = [
   "use_when",
   "do_not_use_when",
@@ -60,6 +82,9 @@ const LAUNCHER_GUIDANCE_FIELD_NAMES = [
   "requires_prior_state",
   "replacement_for_misuse"
 ];
+
+const TASK_ROUTE_BOUNDARY =
+  "The request needs an ungranted role, caller-selected repository or another task.";
 
 const WK_2437_CONTROLLED_TASK_IDS = Object.freeze([
   "acceptance-gap-review",
@@ -120,30 +145,38 @@ test("tool discovery descriptor keeps task ids controlled and derived-evidence r
 
   assert.deepEqual(uncontrolledTaskIds, []);
 
-  assert.equal(
-    descriptor.tools.some((tool) => tool.tool_name === RETIRED_TARGET_RESOLUTION_TOOL_NAME),
-    false,
-    "the retired target-resolution refresh route must not reappear in the descriptor"
-  );
+  const advertised = new Set(descriptor.tools.map((tool) => tool.tool_name));
+  for (const retired of RETIRED_DERIVED_EVIDENCE_REFRESH_TOOL_NAMES) {
+    assert.equal(advertised.has(retired), false,
+      `the retired refresh route ${retired} must not reappear in the descriptor`);
+  }
 
-  const derivedEvidenceTool = descriptor.tools.find(
-    (tool) => tool.tool_name === DERIVED_EVIDENCE_REFRESH_TOOL_NAME
+  for (const owner of DERIVED_EVIDENCE_REFRESH_TOOL_NAMES) {
+    const derivedEvidenceTool = descriptor.tools.find((tool) => tool.tool_name === owner);
+    assert.ok(derivedEvidenceTool, `expected ${owner} metadata in the descriptor`);
+    assert.equal(derivedEvidenceTool.kind, "mcp_tool");
+    assert.ok(derivedEvidenceTool.task_ids.includes("refresh-derived-evidence"));
+  }
+  assert.deepEqual(
+    descriptor.tools
+      .filter((tool) => tool.kind === "mcp_tool" && tool.task_ids.includes("refresh-derived-evidence"))
+      .map((tool) => tool.tool_name),
+    DERIVED_EVIDENCE_REFRESH_TOOL_NAMES,
+    "the refresh task id has exactly its two MCP owners"
   );
-  assert.ok(derivedEvidenceTool, "expected derived-evidence refresh metadata in the descriptor");
-  assert.ok(derivedEvidenceTool.task_ids.includes("refresh-derived-evidence"));
 
   const rankedTools = rankToolDiscoveryTools(descriptor, {
     task_id: "refresh-derived-evidence"
   }, { verbose: false });
-  assert.ok(
-    rankedTools.some((tool) => tool.tool_name === DERIVED_EVIDENCE_REFRESH_TOOL_NAME),
-    "derived-evidence refresh metadata should be discoverable through the approved task id"
-  );
-  assert.equal(
-    rankedTools.some((tool) => tool.tool_name === RETIRED_TARGET_RESOLUTION_TOOL_NAME),
-    false,
-    "a retired route must not be rankable through an approved task id"
-  );
+  const rankedNames = rankedTools.map((tool) => tool.tool_name);
+  for (const owner of DERIVED_EVIDENCE_REFRESH_TOOL_NAMES) {
+    assert.ok(rankedNames.includes(owner),
+      `${owner} should be discoverable through the approved task id`);
+  }
+  for (const retired of RETIRED_DERIVED_EVIDENCE_REFRESH_TOOL_NAMES) {
+    assert.equal(rankedNames.includes(retired), false,
+      "a retired route must not be rankable through an approved task id");
+  }
 
   const envelope = createToolDiscoveryEnvelope({
     interface: "mcp",
@@ -158,17 +191,16 @@ test("tool discovery descriptor keeps task ids controlled and derived-evidence r
   assert.deepEqual(
     envelope.diagnostics.filter((entry) => entry.code === "invalid_task_id"),
     [],
-    "workspace_tools_describe-equivalent validation should not report invalid_task_id"
+    "descriptor-envelope validation should not report invalid_task_id"
   );
-  assert.ok(
-    envelope.results.some((tool) => tool.tool_name === DERIVED_EVIDENCE_REFRESH_TOOL_NAME),
-    "descriptor envelope should surface the derived-evidence refresh tool"
-  );
-  assert.equal(
-    envelope.results.some((tool) => tool.tool_name === RETIRED_TARGET_RESOLUTION_TOOL_NAME),
-    false,
-    "descriptor envelope must not surface the retired target-resolution refresh route"
-  );
+  const envelopeNames = envelope.results.map((tool) => tool.tool_name);
+  for (const owner of DERIVED_EVIDENCE_REFRESH_TOOL_NAMES) {
+    assert.ok(envelopeNames.includes(owner), `descriptor envelope should surface ${owner}`);
+  }
+  for (const retired of RETIRED_DERIVED_EVIDENCE_REFRESH_TOOL_NAMES) {
+    assert.equal(envelopeNames.includes(retired), false,
+      `descriptor envelope must not surface the retired route ${retired}`);
+  }
 });
 
 test("task-directed coverage intents are controlled and validate on current read rows", async () => {
@@ -183,11 +215,10 @@ test("task-directed coverage intents are controlled and validate on current read
   assert.deepEqual(validation.diagnostics.filter(({ code }) => code === "invalid_task_id"), []);
 
   const expectedRows = new Map([
-    ["workspace_controlled_contract_obligation_coverage_query", [
-      "controlled-contract-authoring",
-      "obligation-inventory",
-      "proof-obligation-map-inspection"
-    ]]
+    ["workspace_assess_contract", ["controlled-contract-assessment"]],
+    ["workspace_find_proofs", ["controlled-contract-proof-selection"]],
+    ["verify_proof", ["controlled-contract-assessment"]],
+    ["save_record", ["contract-edit"]]
   ]);
   for (const [toolName, expectedTaskIds] of expectedRows) {
     const row = descriptor.tools.find(({ tool_name: candidate }) => candidate === toolName);
@@ -198,17 +229,23 @@ test("task-directed coverage intents are controlled and validate on current read
     }
   }
 
+  const sideEffectsOf = (toolName) =>
+    descriptor.tools.find(({ tool_name: candidate }) => candidate === toolName).side_effects;
+  assert.deepEqual(sideEffectsOf("workspace_assess_contract"), ["read_only"]);
+  assert.deepEqual(sideEffectsOf("workspace_find_proofs"), ["read_only"]);
+  assert.deepEqual(sideEffectsOf("verify_proof"), ["process_spawn", "workspace_write"]);
+
   for (const retired of descriptor.tools.filter(({ tool_name: name }) =>
-    name.startsWith("workspace_controlled_contract_acceptance_coverage_"))) {
+    name.startsWith("workspace_controlled_contract_"))) {
     assert.fail(`${retired.tool_name} must not reappear in the assembled descriptor`);
   }
-  for (const taskId of ["acceptance-gap-review", "mapping-repair"]) {
+  for (const taskId of [...WK_2437_CONTROLLED_TASK_IDS, "controlled-contract-authoring"]) {
     assert.equal(controlledTaskIds.has(taskId), true, `${taskId} must remain controlled`);
     assert.deepEqual(
       descriptor.tools.filter((tool) => tool.task_ids.includes(taskId))
         .map(({ tool_name: name }) => name),
       [],
-      `${taskId} has no advertised owner after the acceptance-coverage route retirement`
+      `${taskId} has no advertised owner after the controlled-contract route retirement`
     );
   }
 });
@@ -222,12 +259,12 @@ test("terminal-candidate task ids validate fresh and preserve launcher metadata"
   for (const expected of [
     {
       taskId: "query-terminal-review-candidate",
-      toolName: "workspace_terminal_review_candidate_status",
+      toolName: "workspace_inspect_candidate",
       sideEffects: ["read_only"]
     },
     {
       taskId: "advance-terminal-review-candidate",
-      toolName: "workspace_terminal_review_candidate_advance",
+      toolName: "workspace_advance_candidate",
       sideEffects: ["workspace_write"]
     }
   ]) {
@@ -239,9 +276,21 @@ test("terminal-candidate task ids validate fresh and preserve launcher metadata"
     const tool = results.find(({ tool_name: toolName }) => toolName === expected.toolName);
     assert.ok(tool, expected.taskId);
     assert.deepEqual(tool.side_effects, expected.sideEffects);
-    assert.deepEqual(tool.authority, ["launcher_registry", "workspace_repo", "launcher_backend"]);
+    assert.deepEqual(tool.authority, ["checked_in_descriptor", "runtime_env", "workspace_repo"]);
     assert.equal(tool.runtime_posture, "supported");
+    for (const retired of [
+      "workspace_terminal_review_candidate_status",
+      "workspace_terminal_review_candidate_advance"
+    ]) {
+      assert.equal(results.some(({ tool_name: toolName }) => toolName === retired), false, retired);
+    }
   }
+
+  const candidateReads = rankToolDiscoveryTools(
+    descriptor, { task_id: "query-terminal-review-candidate" }, { verbose: true });
+  assert.deepEqual(candidateReads.map(({ tool_name: toolName }) => toolName).sort(),
+    ["workspace_check_landing", "workspace_inspect_candidate"]);
+  for (const read of candidateReads) assert.deepEqual(read.side_effects, ["read_only"], read.tool_name);
 
   const unknown = makeFullDescriptor([
     makeFullDescriptorTool("unknown-terminal-task", {
@@ -452,35 +501,56 @@ test("free/local discovery projection hides paid tool names and CLI operator ent
     "operator-only CLI fallbacks must not appear in free/local tier-projected discovery"
   );
 
-  assert.ok(freeNames.has("workspace_search_repo"));
-  assert.ok(freeNames.has("workspace_validate_dispatch"));
-  assert.ok(freeNames.has("workspace_agent_dispatch"));
-  assert.ok(freeNames.has("workspace_integrate_committed_slice"));
+  assert.deepEqual(
+    free.filter((row) => !row.tier_visibility.includes("free_local")).map((row) => row.tool_name),
+    [],
+    "every free/local row must be classified free_local"
+  );
+
+  for (const name of FREE_LOCAL_TASK_TOOL_NAMES) {
+    assert.ok(freeNames.has(name), `${name} must stay visible to free/local discovery`);
+  }
 });
 
-test("committed-slice integration discovery advertises the registered dispositions field", async () => {
+test("delivery integration discovery advertises only the registered delivery argument", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
   const integration = descriptor.tools.find(
-    (entry) => entry.tool_name === "workspace_integrate_committed_slice"
+    (entry) => entry.tool_name === "integrate_work"
   );
   assert.ok(integration);
-  assert.deepEqual(integration.recommended_first_call.arguments, {
-    subject: "$canonical_slice_subject",
-    dispositions: "$recorded_dispositions"
-  });
+
+  assert.deepEqual(integration.recommended_first_call.arguments, { delivery: "$delivery" });
+  for (const retiredArgument of ["subject", "dispositions", "comment_dispositions"]) {
+    assert.equal(
+      Object.hasOwn(integration.recommended_first_call.arguments, retiredArgument),
+      false,
+      retiredArgument
+    );
+  }
+  assert.match(integration.notes, /Explicitly integrate one exact authenticated delivery/u);
+  assert.match(integration.notes, /saved dispositions are advisory/u);
+  assert.deepEqual(integration.side_effects, ["workspace_write"]);
   assert.equal(
-    Object.hasOwn(integration.recommended_first_call.arguments, "comment_dispositions"),
-    false
+    descriptor.tools.some((entry) => entry.tool_name === "workspace_integrate_committed_slice"),
+    false,
+    "the retired committed-slice integration route must not be advertised"
   );
-  assert.match(integration.notes, /Input is closed to repo alias, canonical slice subject, and dispositions/u);
+
+  const deliver = descriptor.tools.find((entry) => entry.tool_name === "workspace_deliver_work");
+  assert.ok(deliver);
+  assert.deepEqual(deliver.recommended_first_call.arguments, {});
+  assert.match(deliver.notes, /never integrates/u);
 });
 
 test("paid/CCE discovery projection exposes paid tools while free/local does not", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
   const paid = rankToolDiscoveryTools(descriptor, { registered_tier: "paid_cce" }, { verbose: true });
   const paidNames = new Set(paid.map((row) => row.tool_name));
+  const free = rankToolDiscoveryTools(descriptor, { registered_tier: "free_local" }, { verbose: true });
+  const freeNames = new Set(free.map((row) => row.tool_name));
   for (const name of PAID_ONLY_TOOL_NAMES) {
     assert.ok(paidNames.has(name), `${name} must be visible under the paid/CCE tier`);
+    assert.equal(freeNames.has(name), false, `${name} must stay hidden from free/local`);
   }
 });
 
@@ -515,114 +585,86 @@ test("mixed-route tier_text projects paid detail only under the paid tier, fail-
   assert.equal("tier_text" in projectToolDiscoveryEntryForTier(mixed, "paid_cce"), false);
 });
 
-test("run-status descriptor documents free-tier structured_role_result.valid false", async () => {
+test("run-result descriptor is a read-only observation that launches and integrates nothing", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
-  for (const name of ["workspace_agent_run_status"]) {
-    const row = descriptor.tools.find((tool) => tool.tool_name === name);
-    assert.ok(row, `${name} present`);
-    assert.match(row.notes, /structured_role_result\.valid:false/);
-    assert.match(row.notes, /expected non-attesting output/);
+  const row = descriptor.tools.find((tool) => tool.tool_name === "get_run_result");
+  assert.ok(row, "get_run_result present");
+  assert.deepEqual(row.side_effects, ["read_only"]);
+  assert.deepEqual(row.task_ids, ["query-agent-run-status"]);
+  assert.match(row.notes, /Observe a known attempt or read an authenticated original/u);
+  assert.match(row.notes, /reads launch and integrate nothing/u);
+
+  assert.deepEqual(
+    descriptor.tools.filter((tool) => tool.task_ids.includes("query-agent-run-status"))
+      .map((tool) => tool.tool_name),
+    ["get_run_result"]
+  );
+  for (const retired of ["workspace_agent_run_status", "workspace_agent_run_wait"]) {
+    assert.equal(descriptor.tools.some((tool) => tool.tool_name === retired), false, retired);
   }
 });
 
 test("launcher discovery entries carry compact routing guidance metadata", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
   const tools = new Map(descriptor.tools.map((tool) => [tool.tool_name, tool]));
-
-  const dispatch = tools.get("workspace_agent_dispatch");
-  assert.ok(dispatch, "workspace_agent_dispatch present");
-  assert.deepEqual(
-    {
-      use_when: dispatch.use_when,
-      do_not_use_when: dispatch.do_not_use_when,
-      authoritative_for: dispatch.authoritative_for,
-      recommended_first_call: dispatch.recommended_first_call,
-      requires_prior_state: dispatch.requires_prior_state,
-      replacement_for_misuse: dispatch.replacement_for_misuse
-    },
-    {
-
-      use_when: [
-        "Start a known canonical implementation slice: name the unit and omit role.",
-        "The dispatch_role_call intent names a known subject and an advisory role (reviewer or redteam), which the caller chooses rather than the reviewed unit."
-      ],
-      do_not_use_when: [
-        "The task asks the prospective question of whether a unit could start rather than asking to start it; use workspace_validate_dispatch.",
-        "The task asks about an existing run; use workspace_agent_run_status."
-      ],
-      authoritative_for: [
-        "dispatch_role_call:canonical_unit_start",
-        "launcher-owned worker/reviewer/redteam process spawn"
-      ],
-      recommended_first_call: {
-        routing_intents: ["dispatch_role_call"],
-        operation: "start a known canonical unit by subject, omitting role",
-        arguments: {
-          subject: "WK-<id>#SLICE-<id>"
-        },
-        omit_null_arguments: true
-      },
-      requires_prior_state: [
-        "Known canonical subject; role is optional and is derived from the unit's dispatch_intent when omitted.",
-        "No prior workspace_validate_dispatch call: readiness runs inside dispatch through its existing owner, and an earlier assessment neither replaces that check nor grants launch permission."
-      ],
-      replacement_for_misuse: undefined
-    }
-  );
-
-  const dispatchGuidance = [
-    ...dispatch.use_when, ...dispatch.do_not_use_when,
-    ...dispatch.authoritative_for, ...dispatch.requires_prior_state
-  ].join("\n");
-  assert.doesNotMatch(dispatchGuidance, /must be dispatchable/u);
-  assert.doesNotMatch(dispatchGuidance, /workspace_validate_dispatch first/u);
-  assert.doesNotMatch(dispatchGuidance, /launch_after_dispatchable/u);
-
-  const validate = tools.get("workspace_validate_dispatch");
-  assert.ok(validate, "workspace_validate_dispatch present");
-  assert.deepEqual(validate.authoritative_for,
-    ["dispatch_readiness", "dispatch_readiness:prospective_assessment"]);
-  assert.match(validate.requires_prior_state.join("\n"),
-    /optional prospective assessment, and its result is neither permission to launch/u);
-  assert.match(validate.do_not_use_when.join("\n"),
-    /a start request goes to workspace_agent_dispatch/u);
-  assert.equal(validate.replacement_for_misuse
-    .some(({ misuse_code: code }) => code === "dispatch_without_readiness_validation"), false,
-  "the assessment row no longer claims a start is misuse without it");
-
-  const initiativeStatusRow = tools.get("workspace_initiative_status");
-  assert.ok(initiativeStatusRow, "workspace_initiative_status present");
-  assert.doesNotMatch(initiativeStatusRow.do_not_use_when.join("\n"),
-    /after readiness already returned dispatchable/u);
-  assert.match(initiativeStatusRow.do_not_use_when.join("\n"), /grants no launch permission/u);
-
-  const status = tools.get("workspace_agent_run_status");
-  assert.ok(status, "workspace_agent_run_status present");
-  assert.deepEqual(status.use_when, [
-    "The run_monitoring intent asks for status, output, failure, or completion of an already dispatched run."
-  ]);
-  assert.deepEqual(status.do_not_use_when, [
-    "The task is a new start or role launch; use workspace_agent_dispatch, which performs readiness through its existing owner."
-  ]);
-  assert.deepEqual(status.authoritative_for, [
-    "run_monitoring:status",
-    "launcher run lifecycle by canonical subject and retained attempt"
-  ]);
-  assert.deepEqual(status.recommended_first_call, {
-    routing_intents: ["run_monitoring"],
-    arguments: { subject: "$canonical_unit" },
-    omit_null_arguments: true
+  const guidanceOf = (tool) => ({
+    use_when: tool.use_when,
+    do_not_use_when: tool.do_not_use_when,
+    authoritative_for: tool.authoritative_for,
+    recommended_first_call: tool.recommended_first_call,
+    requires_prior_state: tool.requires_prior_state,
+    replacement_for_misuse: tool.replacement_for_misuse
   });
-  assert.deepEqual(status.requires_prior_state, [
-    "Canonical WK, slice, or IN dispatch subject; a monitor handle alone is not a status argument."
-  ]);
-  assert.deepEqual(status.replacement_for_misuse, [{
-    misuse_code: "ignored_required_next_action",
-    routing_intent: "run_monitoring",
-    use_instead: "workspace_agent_run_status"
-  }]);
 
-  for (const toolName of ["workspace_agent_dispatch", "workspace_agent_run_status"]) {
+  const taskGuidance = (meaning, firstCallArguments) => ({
+    use_when: [meaning],
+    do_not_use_when: [TASK_ROUTE_BOUNDARY],
+    authoritative_for: [meaning],
+    recommended_first_call: { operation: meaning, arguments: firstCallArguments, omit_null_arguments: true },
+    requires_prior_state: undefined,
+    replacement_for_misuse: undefined
+  });
+
+  const start = tools.get("start_agent");
+  assert.ok(start, "start_agent present");
+  assert.deepEqual(guidanceOf(start), taskGuidance(
+    "Start one saved canonical assignment or preview its action or configured capability; never integrates.",
+    { subject: "$unit" }
+  ));
+  assert.deepEqual(start.side_effects, ["process_spawn"]);
+  assert.deepEqual(start.task_ids, ["dispatch-worker"]);
+
+  const startGuidance = [
+    start.notes, ...start.use_when, ...start.do_not_use_when, ...start.authoritative_for
+  ].join("\n");
+  assert.doesNotMatch(startGuidance, /must be dispatchable/u);
+  assert.doesNotMatch(startGuidance, /validate_dispatch/u);
+  assert.doesNotMatch(startGuidance, /launch_after_dispatchable/u);
+  assert.equal(start.requires_prior_state, undefined);
+
+  const result = tools.get("get_run_result");
+  assert.ok(result, "get_run_result present");
+  assert.deepEqual(guidanceOf(result), taskGuidance(
+    "Observe a known attempt or read an authenticated original; reads launch and integrate nothing.",
+    { subject: "$unit" }
+  ));
+
+  for (const retired of [
+    "workspace_agent_dispatch",
+    "workspace_agent_run_status",
+    "workspace_validate_dispatch",
+    "workspace_initiative_status"
+  ]) {
+    assert.equal(tools.has(retired), false, `${retired} is retired and must not be advertised`);
+  }
+  const preflight = tools.get("workspace_preflight_dispatch");
+  assert.ok(preflight, "workspace_preflight_dispatch present");
+  assert.deepEqual(preflight.tier_visibility, ["operator_only"]);
+  assert.deepEqual(preflight.side_effects, ["read_only"]);
+  assert.deepEqual(preflight.authoritative_for,
+    ["structural preflight of caller-supplied proposed record content"]);
+
+  for (const toolName of ["start_agent", "get_run_result"]) {
     const compact = compactToolDiscoveryEntry(tools.get(toolName));
     for (const fieldName of LAUNCHER_GUIDANCE_FIELD_NAMES) {
       assert.equal(fieldName in compact, false, `${toolName} compact projection must omit ${fieldName}`);
@@ -645,113 +687,13 @@ test("code-index descriptor prose does not collide product tiers with the respon
       `${tool.tool_name} must not use agent-authoritative as an availability signal`
     );
   }
-});
 
-test("findings authoring routes publish the conditional redteam contract", async () => {
-  const descriptor = await loadToolDiscoveryDescriptor();
-  const byName = new Map(descriptor.tools.map((tool) => [tool.tool_name, tool]));
-
-  for (const toolName of ["workspace_work_record_ready_slice"]) {
-    const tool = byName.get(toolName);
-    assert.ok(tool, toolName);
-    const useWhen = tool.use_when.join(" | ");
-    assert.match(useWhen, /review->reviewer/u, toolName);
-    assert.match(useWhen, /redteam->redteam/u, toolName);
-    assert.match(useWhen, /redteam requires review_purpose='standalone'/u, toolName);
-    assert.ok(
-      tool.requires_prior_state.some((entry) => /standalone/u.test(entry) && /redteam/u.test(entry)),
-      `${toolName} must state the conditional redteam prerequisite`
-    );
-    assert.ok(
-      tool.authoritative_for.includes("conditional redteam review_purpose requirement at authoring time"),
-      toolName
-    );
-    assert.ok(tool.docs_refs.includes("docs/work-record-schema.md"), toolName);
-  }
-
-  const upsert = byName.get("workspace_work_record_upsert_slice");
-  assert.match(upsert.use_when.join(" | "), /omitted dispatch role is derived from work_kind/u);
-  assert.match(upsert.use_when.join(" | "), /explicitly conflicting role is refused/u);
-  assert.ok(upsert.docs_refs.includes("docs/work-record-schema.md"));
-});
-
-test("the advertised redteam example executes against the production ready-slice planner", async () => {
-  const { planWorkRecordReadySlice } = await import(
-    "../../packages/wiki-core/src/lib/work-record-ready-slice-contract.mjs"
-  );
-  const descriptor = await loadToolDiscoveryDescriptor();
-  const example = descriptor.tools.find(
-    (tool) => tool.tool_name === "workspace_work_record_ready_slice"
-  ).recommended_first_call.arguments;
-
-  assert.equal(example.shaping_mode, "redteam");
-  assert.equal(example.review_purpose, "standalone");
-
-  const resolve = (value) => {
-    if (typeof value === "string") return value.startsWith("$") ? `resolved ${value.slice(1)}` : value;
-    if (Array.isArray(value)) return value.map(resolve);
-    if (value && typeof value === "object") {
-      return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, resolve(entry)]));
-    }
-    return value;
-  };
-  const request = { ...resolve(example), unit: "WK-9298", repo_paths: ["AGENTS.md"] };
-
-  const record = {
-    schema_version: "work-record.v1",
-    id: "WK-9298",
-    repo: "agent-chassis/agent-chassis",
-    title: "Discovery example fixture",
-    record_kind: "work_item",
-    work_kind: "implementation",
-    status: "todo",
-    priority: "medium",
-    owner: "unassigned",
-    created: "2026-08-26",
-    updated: "2026-08-26",
-    read_scope: ["AGENTS.md"],
-    repo_paths: [],
-    write_scope: [],
-    depends_on: [],
-    blocks: [],
-    related: [],
-    dispatch_intent: {
-      intended_agent_role: null,
-      target_unit: "none",
-      requires_graph_impact: false,
-      requires_escalation: false
-    },
-    acceptance: { criteria: [], validation: [] },
-    sections: {
-      summary: "",
-      why_it_matters: "",
-      scope: { items: [], out_of_scope: [] },
-      tasks: [],
-      references: [],
-      agent_notes: "",
-      closure: null
-    },
-    children: [],
-    slices: [],
-    escalations: [],
-    projections: [],
-    migration: null,
-    initiative: "IN-0030"
-  };
-
-  const planned = planWorkRecordReadySlice(record, request);
-  assert.equal(planned.ok, true, JSON.stringify(planned.diagnostics));
-  const slice = planned.updatedRecord.slices[0];
-  assert.equal(slice.work_kind, "redteam");
-  assert.equal(slice.review_purpose, "standalone");
-  assert.equal(slice.dispatch_intent.intended_agent_role, "redteam");
-  assert.deepEqual(slice.write_scope, []);
-
-  const withoutPurpose = { ...request };
-  delete withoutPurpose.review_purpose;
-  const refused = planWorkRecordReadySlice(record, withoutPurpose);
-  assert.equal(refused.ok, false);
-  assert.equal(refused.diagnostics[0].path, "review_purpose");
+  const codeQuery = descriptor.tools.find((tool) => tool.tool_name === "query_code_index");
+  const preparation = codeQuery.do_not_use_when.filter((entry) => /prepare/iu.test(entry));
+  assert.equal(preparation.length, 1);
+  assert.match(preparation[0], /status:true.*purpose prepare_index.*preparation\.missing_capability/u);
+  assert.doesNotMatch([codeQuery.notes, ...codeQuery.use_when, ...codeQuery.do_not_use_when].join(" "),
+    /workspace_code_index_(?:build|rebuild)|operator-only/u);
 });
 
 test("WK-2603 discovery uses one retained ranking owner", async () => {

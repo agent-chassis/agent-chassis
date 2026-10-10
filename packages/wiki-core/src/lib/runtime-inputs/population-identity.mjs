@@ -21,8 +21,24 @@ function walk(root, visit, exclude) {
       return;
     }
     if (entryStat.isFile()) visit({ absolute, relative, kind: "file", stat: entryStat });
+    else visit({ absolute, relative, kind: "other", stat: entryStat });
   };
   step(root, "", stat);
+}
+
+function recordEntry(hash, entry, content) {
+  const mode = entry.stat.mode & 0o7777;
+  if (entry.kind === "file") {
+    const detail = content
+      ? createHash("sha256").update(readFileSync(entry.absolute)).digest("hex")
+      : `${entry.stat.size}:${entry.stat.mtimeMs}:${entry.stat.ino}`;
+    hash.update(`f\0${entry.relative}\0${mode & 0o111 ? "x" : "-"}\0${detail}${
+      content ? "" : `:${mode}`}\n`);
+  } else if (entry.kind === "link") {
+    hash.update(`l\0${entry.relative}\0${entry.target}\n`);
+  } else if (entry.kind === "dir") {
+    hash.update(`d\0${entry.relative}${content ? "" : `\0${entry.stat.mtimeMs}:${mode}`}\n`);
+  }
 }
 
 function measure(population, { content, exclude = [] }) {
@@ -33,20 +49,11 @@ function measure(population, { content, exclude = [] }) {
   for (const root of [...population].sort()) {
     hash.update(`root\0${root}\n`);
     walk(root, (entry) => {
-      const mode = entry.stat.mode & 0o7777;
       if (entry.kind === "file") {
         files += 1;
         bytes += entry.stat.size;
-        const detail = content
-          ? createHash("sha256").update(readFileSync(entry.absolute)).digest("hex")
-          : `${entry.stat.size}:${entry.stat.mtimeMs}:${entry.stat.ino}`;
-        hash.update(`f\0${entry.relative}\0${mode & 0o111 ? "x" : "-"}\0${detail}${
-          content ? "" : `:${mode}`}\n`);
-      } else if (entry.kind === "link") {
-        hash.update(`l\0${entry.relative}\0${entry.target}\n`);
-      } else {
-        hash.update(`d\0${entry.relative}${content ? "" : `\0${entry.stat.mtimeMs}:${mode}`}\n`);
       }
+      recordEntry(hash, entry, content);
     }, excluded);
   }
   return { digest: `sha256:${hash.digest("hex")}`, files, bytes };
@@ -68,4 +75,58 @@ export function digestNamedFiles(files) {
     hash.update(`${name}\0${createHash("sha256").update(readFileSync(absolute)).digest("hex")}\n`);
   }
   return `sha256:${hash.digest("hex")}`;
+}
+
+export const NAMED_POPULATION_ERROR_CODES = Object.freeze({
+  INVALID_POPULATION: "population_identity.invalid_named_population.v1",
+  UNSUPPORTED_ENTRY: "population_identity.unsupported_entry.v1"
+});
+
+function namedPopulationFailure(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+export function measureNamedPopulationContent(entries, { onEntry } = {}) {
+  if (!Array.isArray(entries)) {
+    throw namedPopulationFailure(NAMED_POPULATION_ERROR_CODES.INVALID_POPULATION,
+      "named population must be an array of { name, path } entries");
+  }
+  const names = new Set();
+  for (const entry of entries) {
+    if (typeof entry?.name !== "string" || !/^[^\0\n]+$/u.test(entry.name) ||
+        typeof entry.path !== "string" || entry.path.length === 0) {
+      throw namedPopulationFailure(NAMED_POPULATION_ERROR_CODES.INVALID_POPULATION,
+        "named population entries need a nonempty single-line name and a nonempty path");
+    }
+    if (names.has(entry.name)) {
+      throw namedPopulationFailure(NAMED_POPULATION_ERROR_CODES.INVALID_POPULATION,
+        `named population label is not unique: ${entry.name}`);
+    }
+    names.add(entry.name);
+  }
+  const hash = createHash("sha256");
+  const excluded = new Set();
+  let files = 0;
+  let bytes = 0;
+  for (const { name, path: root } of [...entries].sort((left, right) =>
+    (left.name < right.name ? -1 : 1))) {
+    hash.update(`root\0${name}\n`);
+    walk(root, (entry) => {
+      if (entry.kind === "other") {
+        throw namedPopulationFailure(NAMED_POPULATION_ERROR_CODES.UNSUPPORTED_ENTRY,
+          `named population ${name} holds an unsupported entry type: ${entry.absolute}`);
+      }
+      onEntry?.({ name, root, ...entry });
+      if (entry.kind === "file") {
+        files += 1;
+        bytes += entry.stat.size;
+      }
+      recordEntry(hash, entry, true);
+    }, excluded);
+  }
+  return Object.freeze({
+    content_digest: `sha256:${hash.digest("hex")}`, file_count: files, byte_count: bytes
+  });
 }

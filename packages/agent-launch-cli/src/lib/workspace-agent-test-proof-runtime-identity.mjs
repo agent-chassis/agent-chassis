@@ -3,10 +3,12 @@ import { createHash } from "node:crypto";
 import {
   lstatSync,
   readFileSync,
-  readdirSync,
   realpathSync
 } from "node:fs";
 import path from "node:path";
+
+import { REPOSITORY_SOURCE_SNAPSHOT_REFUSALS, collectRepositorySourceEntries } from
+  "./repository-source-snapshot.mjs";
 
 import {
   SCHEMA_VERSION_V1,
@@ -25,7 +27,7 @@ import { stableRuntimeTestIdFromParts } from
 import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
-} from "./terminal-review-materialization.mjs";
+} from "./terminal-candidate-checkout.mjs";
 import { defaultTerminalCandidateRunGit } from "./terminal-wk-candidate.mjs";
 import { assertOpaqueId } from "./worktree-substrate-primitives.mjs";
 import {
@@ -43,6 +45,8 @@ export const TEST_PROOF_SOURCE_SNAPSHOT_SCHEMA_VERSION =
   "workspace-agent-test-proof-source-snapshot.v1";
 export const ORCHESTRATOR_PROOF_CANDIDATE_IDENTITY_SCHEMA_VERSION =
   "workspace-agent-orchestrator-proof-candidate-identity.v1";
+export const CAPTURED_PROOF_DEFINITIONS_SCHEMA_VERSION =
+  "workspace-agent-captured-proof-definitions.v1";
 
 const DIGEST_RE = /^sha256:[a-f0-9]{64}$/u;
 const RUNTIME_AUTHORITIES = new WeakSet();
@@ -240,6 +244,42 @@ function assertOrchestratorSourceInput({ mainRepo, repository, selectedUnit }) {
   );
 }
 
+function capturedDefinitionsIdentity(captured, { candidateKind, selectedUnit }) {
+  if (candidateKind !== "immutable_exact_commit") {
+    if (captured !== undefined && captured !== null) fail(
+      "test_proof_orchestrator_captured_definitions_invalid",
+      "captured proof definitions belong to an exact-commit candidate only"
+    );
+    return null;
+  }
+  const files = captured?.files, suppressed = captured?.suppressed;
+  const repositoryPath = (value) => typeof value === "string" && value.length > 0 &&
+    value.length <= 4096 && !path.posix.isAbsolute(value) && !value.includes("\\") &&
+    value.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+  if (captured?.record_id !== selectedUnit.split("#")[0] ||
+      !DIGEST_RE.test(captured?.record_source_digest ?? "") ||
+      !Array.isArray(files) || files.length === 0 || !Array.isArray(suppressed) ||
+      files.some((file) => !repositoryPath(file?.path) || !DIGEST_RE.test(file?.digest ?? "") ||
+        !Number.isSafeInteger(file?.byte_length) || file.byte_length < 0) ||
+      new Set(files.map((file) => file.path)).size !== files.length ||
+      suppressed.some((value) => !repositoryPath(value))) fail(
+    "test_proof_orchestrator_captured_definitions_invalid",
+    "exact-commit proof execution requires the identity of its captured proof definitions"
+  );
+  const byPath = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
+  const body = {
+    schema_version: CAPTURED_PROOF_DEFINITIONS_SCHEMA_VERSION,
+    origin: "current_canonical_authoring",
+    record_id: captured.record_id,
+    record_source_digest: captured.record_source_digest,
+    files: files.map(({ path: file, digest, byte_length: byteLength }) =>
+      ({ path: file, digest, byte_length: byteLength }))
+      .sort((left, right) => byPath(left.path, right.path)),
+    suppressed: [...suppressed].sort(byPath)
+  };
+  return deepFreeze({ ...body, definitions_digest: digestCanonical(body) });
+}
+
 function orchestratorRunId(value) {
   return `run-orchestrator-${createHash("sha256").update(value, "utf8").digest("hex")}`;
 }
@@ -255,7 +295,8 @@ export function mintOrchestratorProofAuthority({
   clean,
   candidateKind,
   authenticatedCandidateIdentity,
-  validatorCacheReadOnlyBinds = []
+  validatorCacheReadOnlyBinds = [],
+  capturedDefinitions = null
 } = {}) {
   assertOrchestratorSourceInput({ mainRepo, repository, selectedUnit });
   if (typeof worktreePath !== "string" || !path.isAbsolute(worktreePath) ||
@@ -281,6 +322,19 @@ export function mintOrchestratorProofAuthority({
       validatorCacheReadOnlyBinds
     })
     : noDependencyProof();
+  const definitions = capturedDefinitionsIdentity(capturedDefinitions, {
+    candidateKind, selectedUnit
+  });
+
+  const definitionsBinding = definitions === null ? null : {
+    schema_version: definitions.schema_version,
+    origin: definitions.origin,
+    record_id: definitions.record_id,
+    record_source_digest: definitions.record_source_digest,
+    file_count: definitions.files.length,
+    suppressed_count: definitions.suppressed.length,
+    definitions_digest: definitions.definitions_digest
+  };
   const sourceSnapshotBody = {
     schema_version: TEST_PROOF_SOURCE_SNAPSHOT_SCHEMA_VERSION,
     algorithm: `sha256-authenticated-${candidateKind}-v1`,
@@ -295,6 +349,7 @@ export function mintOrchestratorProofAuthority({
       tree,
       clean
     },
+    ...(definitionsBinding === null ? {} : { selected_definitions: definitionsBinding }),
     entries: []
   };
   const sourceSnapshot = deepFreeze({
@@ -311,6 +366,10 @@ export function mintOrchestratorProofAuthority({
     clean,
     authenticated_candidate_identity: authenticatedCandidateIdentity,
     selected_unit: selectedUnit,
+    ...(definitions === null ? {} : { captured_definitions: {
+      origin: definitions.origin,
+      definitions_digest: definitions.definitions_digest
+    } }),
     runtime_owner: "workspace-agent-test-proof-runtime-identity"
   });
   return mintAuthority({
@@ -335,6 +394,7 @@ export function mintOrchestratorProofAuthority({
     source_snapshot: sourceSnapshot,
     source_snapshot_digest: sourceSnapshot.source_snapshot_digest,
     candidate_identity: candidateIdentity,
+    captured_definitions: definitions,
     dependency_proof: dependencyProof
   });
 }
@@ -566,31 +626,11 @@ function assertRuntimeAuthorityBrand(authority) {
 }
 
 const SNAPSHOT_EXCLUDED_NAMES = new Set([".agent-launch", ".git", "node_modules"]);
-function snapshotEntries(root, directory = root, entries = []) {
-  const topLevel = directory === root;
-  for (const name of readdirSync(directory).sort()) {
-    const absolute = path.join(directory, name);
-    const relative = path.relative(root, absolute).split(path.sep).join("/");
-    if (topLevel && SNAPSHOT_EXCLUDED_NAMES.has(name)) continue;
-    const stat = lstatSync(absolute);
-    if (stat.isDirectory()) {
-      entries.push({ path: relative, kind: "directory", mode: stat.mode & 0o777 });
-      snapshotEntries(root, absolute, entries);
-    } else if (stat.isFile()) {
-      entries.push({
-        path: relative,
-        kind: "file",
-        mode: stat.mode & 0o777,
-        digest: `sha256:${createHash("sha256").update(readFileSync(absolute)).digest("hex")}`
-      });
-    } else if (stat.isSymbolicLink()) {
-      fail("test_proof_source_snapshot_symlink_unsupported",
-        "source snapshot refuses symlinks because link-target bytes are not authenticated",
-        { path: relative });
-    } else fail("test_proof_source_snapshot_unsupported_entry",
-      "source snapshot encountered a non-file repository entry", { path: relative });
-  }
-  return entries;
+
+function snapshotEntries(root) {
+  return collectRepositorySourceEntries(root, { excludedTopLevelNames: [...SNAPSHOT_EXCLUDED_NAMES],
+    symlinks: "refuse", refuse: (kind, detail) => fail(REPOSITORY_SOURCE_SNAPSHOT_REFUSALS[kind].code,
+      REPOSITORY_SOURCE_SNAPSHOT_REFUSALS[kind].message, detail) });
 }
 
 export function captureLauncherTestProofSourceSnapshot(authority) {

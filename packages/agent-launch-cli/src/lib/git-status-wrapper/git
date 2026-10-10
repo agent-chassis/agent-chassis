@@ -1,5 +1,5 @@
 #!/bin/sh
-# Launcher-owned Git wrapper installed on the confined child's PATH.
+# Launcher-owned Git wrapper mounted over the confined child's Git executables.
 #
 # WHY THIS EXISTS. An enforced bwrap plan overlays the controlled-contract
 # private family (`wiki/contracts`) with an EMPTY read-only mount after every
@@ -8,23 +8,37 @@
 # reports every hidden contract as ` D` / `deleted:`. Those rows are an artifact
 # of the overlay, not of the working tree.
 #
-# WHAT THIS DOES. For an ordinary `git status` that targets the launcher-
-# designated repository, it adds the root-anchored exclusion pathspec the
-# launcher minted (`:(top,exclude)wiki/contracts`) and execs the launcher-
-# resolved real Git. Every other invocation -- a different subcommand, a
-# different repository, an unparseable argv -- is exec'd through byte-for-byte.
+# WHAT THIS DOES. The launcher binds this one file read-only over every supported
+# Git executable entrypoint in the namespace, and keeps each distinct original
+# Git at a launcher-owned read-only location. Whatever path this file is started
+# as, it finds the original recorded for that entrypoint and execs it. For an
+# ordinary `git status` that targets the launcher-designated repository it first
+# adds a root-anchored exclusion pathspec for the hidden family
+# (`:(top,exclude)wiki/contracts`). Every other invocation -- a different
+# subcommand, a different repository, an unparseable argv -- is exec'd through
+# with its argv unchanged.
+#
+# WHERE ITS FACTS COME FROM. Everything is read from the launcher-owned read-only
+# root named below, by path alone and with shell builtins only:
+#   entrypoints/<absolute entrypoint path>  -> the directory holding the original
+#   repository                              -> the designated repository
+#   excluded/<n>                            -> each hidden directory below it
+# Nothing comes from the environment, so a rebuilt PATH, a login profile, or a
+# cleared environment changes neither the interception nor the delegation.
 #
 # WHAT THIS IS NOT. It is an OUTPUT/ERGONOMICS adaptation, not a confidentiality
-# boundary: the empty read-only overlay is the boundary and is unchanged. Because
-# interception is PATH-based, a direct absolute-path call (`/usr/bin/git status`)
-# and an in-process Git library are NOT intercepted and still see the overlay
-# rows. The wrapper never reads a private file, never inspects repository
+# boundary: the empty read-only overlay is the boundary and is unchanged. An
+# in-process Git library, a Git executable the launcher did not inventory, and a
+# deliberate call to a preserved original are NOT adapted and still see the
+# overlay rows. The wrapper never reads a private file, never inspects repository
 # objects, and never mutates Git configuration or the index.
 #
 # ARGV, NOT COMMAND STRINGS. The subcommand is identified by walking argv past
 # Git's global options (including the ones that consume a separate value), so a
 # pathspec, a commit message, or a shell string that happens to contain the word
-# "status" is never mistaken for the subcommand.
+# "status" is never mistaken for the subcommand. Started through a `git-<name>`
+# builtin link in Git's exec path, it runs `<name>` as the subcommand, exactly
+# as Git does.
 #
 # TWO SHAPES, ONE MEANING. In Git's ordinary pathspec mode the exclusion is
 # simply APPENDED: it is a pathspec and does not start with `-`, so no `--`
@@ -46,10 +60,9 @@
 # refused by real Git itself and are passed through untouched rather than
 # normalized into something that succeeds.
 #
-# The launcher mints AGENT_LAUNCH_GIT_REAL, AGENT_LAUNCH_GIT_STATUS_FILTER_REPO
-# and AGENT_LAUNCH_GIT_STATUS_FILTER_PATHSPEC together. A missing or unusable
-# real-Git identity is an EXPLICIT failure here, never a silent unfiltered
-# status.
+# An entrypoint with no recorded original, or launcher facts that cannot be
+# read, is an EXPLICIT failure here, never a guess at another Git and never a
+# silent unfiltered status.
 
 set -u
 
@@ -66,19 +79,61 @@ git_env_true() {
 	return 0
 }
 
-real_git=${AGENT_LAUNCH_GIT_REAL-}
-case $real_git in
-	/*) ;;
-	*) wrapper_fail "AGENT_LAUNCH_GIT_REAL must be the absolute launcher-resolved Git executable" ;;
-esac
-[ -x "$real_git" ] || wrapper_fail "launcher-resolved Git executable is not executable: $real_git"
-[ "$real_git" != "$0" ] || wrapper_fail "launcher-resolved Git executable resolves back to this wrapper: $real_git"
+# The launcher-owned read-only root. The planner mounts it at this exact path.
+launcher_root=/agent-launch-git-status-wrapper
+[ -d "$launcher_root/entrypoints" ] || wrapper_fail "the launcher Git root $launcher_root is absent; this executable runs only inside a launcher namespace"
 
-filter_repo=${AGENT_LAUNCH_GIT_STATUS_FILTER_REPO-}
-filter_pathspec=${AGENT_LAUNCH_GIT_STATUS_FILTER_PATHSPEC-}
-if [ -z "$filter_repo" ] || [ -z "$filter_pathspec" ]; then
-	wrapper_fail "status filter is not configured (AGENT_LAUNCH_GIT_STATUS_FILTER_REPO/PATHSPEC)"
+# Which entrypoint was started. The directory is canonicalized so a relative
+# call, a doubled slash, or a symlinked directory all name the same entrypoint;
+# a `git-<name>` builtin link shares the original of `git` beside it.
+case $0 in
+	*/*)
+		invoked_dir=${0%/*}
+		invoked_name=${0##*/}
+		;;
+	*)
+		invoked_dir=.
+		invoked_name=$0
+		;;
+esac
+[ -n "$invoked_dir" ] || invoked_dir=/
+self_dir=$(CDPATH= cd -P -- "$invoked_dir" 2>/dev/null && pwd -P) ||
+	wrapper_fail "cannot resolve the directory of the invoked entrypoint: $0"
+case $self_dir/ in
+	"$launcher_root"/*) wrapper_fail "the invoked entrypoint is inside the launcher Git root, so it would delegate to itself: $0" ;;
+esac
+[ "$self_dir" != / ] || self_dir=
+
+builtin_name=
+entry_name=$invoked_name
+case $invoked_name in
+	git-?*)
+		builtin_name=${invoked_name#git-}
+		entry_name=git
+		;;
+esac
+
+# A symlink alias the launcher did not inventory is followed to the entrypoint
+# it resolves to, when the namespace has a `readlink` to ask.
+entry=$launcher_root/entrypoints$self_dir/$entry_name
+if [ ! -d "$entry" ]; then
+	resolved=$(readlink -f -- "$0" 2>/dev/null) || resolved=
+	case $resolved in
+		/*) [ ! -d "$launcher_root/entrypoints$resolved" ] || entry=$launcher_root/entrypoints$resolved ;;
+	esac
 fi
+[ -d "$entry" ] || wrapper_fail "no original Git is recorded for the invoked entrypoint: $0"
+
+real_dir=$(CDPATH= cd -P -- "$entry" 2>/dev/null && pwd -P) ||
+	wrapper_fail "cannot resolve the original Git recorded for the invoked entrypoint: $0"
+case $real_dir/ in
+	"$launcher_root"/originals/*) ;;
+	*) wrapper_fail "the original Git recorded for $0 is outside the launcher Git root: $real_dir" ;;
+esac
+real_git=$real_dir/git
+[ -x "$real_git" ] || wrapper_fail "the original Git recorded for $0 is not executable: $real_git"
+
+[ -z "$builtin_name" ] || set -- "$builtin_name" "$@"
 
 # Starting pathspec modes come from the environment; the global options walked
 # below then override them exactly as Git's own option handling does (each flag
@@ -136,6 +191,9 @@ done
 # on, so the same prefix resolves the worktree root. Anything else -- an
 # unrelated repository, no repository at all, a bare repository -- passes
 # through unchanged.
+filter_repo=$(CDPATH= cd -P -- "$launcher_root/repository" 2>/dev/null && pwd -P) ||
+	wrapper_fail "cannot resolve the launcher-designated repository: $launcher_root/repository"
+
 toplevel=$(
 	keep=$((index - 1))
 	remaining=$#
@@ -154,10 +212,25 @@ toplevel=$(
 [ -n "$toplevel" ] || exec "$real_git" "$@"
 [ "$toplevel" = "$filter_repo" ] || exec "$real_git" "$@"
 
+# Append one root-anchored exclusion per hidden directory and run the original.
+# Each exclusion is derived from the launcher's own record of what it hid.
+exec_filtered() {
+	for excluded in "$launcher_root"/excluded/*; do
+		excluded_dir=$(CDPATH= cd -P -- "$excluded" 2>/dev/null && pwd -P) ||
+			wrapper_fail "cannot resolve the launcher-hidden directory: $excluded"
+		case $excluded_dir in
+			"$filter_repo"/?*) ;;
+			*) wrapper_fail "the launcher-hidden directory is not below the designated repository: $excluded_dir" ;;
+		esac
+		set -- "$@" ":(top,exclude)${excluded_dir#"$filter_repo"/}"
+	done
+	exec "$real_git" "$@"
+}
+
 # Ordinary pathspec mode: append and be done. Nothing about the caller's argv is
 # rewritten.
 if [ "$literal_mode" -eq 0 ]; then
-	exec "$real_git" "$@" "$filter_pathspec"
+	exec_filtered "$@"
 fi
 
 # Literal mode. Survey the caller's own pathspecs first, so the two invocations
@@ -223,4 +296,4 @@ done
 
 GIT_LITERAL_PATHSPECS=0
 export GIT_LITERAL_PATHSPECS
-exec "$real_git" "$@" "$filter_pathspec"
+exec_filtered "$@"

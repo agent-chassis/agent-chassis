@@ -647,6 +647,47 @@ export function resolveUniqueManagedLifecycleBindingPairForRecovery({
   });
 }
 
+export function listOwnedWorktreeBindings(mainRepo) {
+  const repo = assertAbsolutePath(mainRepo, "mainRepo");
+  const storeDir = worktreeIdentityStoreDir(repo);
+  let entries;
+  try {
+    entries = readdirSync(storeDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && RECOVERY_BINDING_FILE_RE.test(entry.name));
+  } catch (error) {
+    if (error?.code === "ENOENT") return Object.freeze([]);
+    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.BINDING_NOT_FOUND,
+      `identity binding store is not readable: ${storeDir}`, { errno: error?.code ?? null });
+  }
+  const owned = [];
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    const filePath = path.join(storeDir, entry.name);
+    let binding;
+    try {
+      binding = JSON.parse(readFileSync(filePath, "utf8"));
+    } catch (error) {
+      recoveryBindingFailure(filePath, "binding file cannot be classified for ownership",
+        { message: error?.message ?? String(error) });
+    }
+    if (!isPlainObject(binding)) recoveryBindingFailure(filePath, "binding must be an object");
+    let unit;
+    try {
+      assertOpaqueId(binding.launch_ref, "launch_ref");
+      assertOpaqueId(binding.run_id, "run_id");
+      unit = parseUnitAddress(binding.unit_address);
+    } catch (error) {
+      recoveryBindingFailure(filePath, "binding identity is noncanonical", { message: error?.message ?? String(error) });
+    }
+    if (typeof binding.worktree_path !== "string" || !path.isAbsolute(binding.worktree_path) ||
+        path.normalize(binding.worktree_path) !== binding.worktree_path) {
+      recoveryBindingFailure(filePath, "worktree_path is not a normalized absolute path");
+    }
+    owned.push(Object.freeze({ worktree_path: binding.worktree_path, unit_address: unit.unitAddress,
+      kind: unit.kind, launch_ref: binding.launch_ref, run_id: binding.run_id, retry_id: binding.retry_id ?? null }));
+  }
+  return Object.freeze(owned);
+}
+
 export function resolveWorktreePath(args) {
   const binding = resolveWorktreeBinding(args);
   return Object.freeze({

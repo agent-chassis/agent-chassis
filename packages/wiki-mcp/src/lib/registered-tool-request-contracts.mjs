@@ -43,7 +43,7 @@ function projectionUnavailable(toolName, cause) {
   return error;
 }
 
-function createContract(toolName, { inputSchema, publishedInputSchema }) {
+function createContract(toolName, { inputSchema, publishedInputSchema, publishedInputSchemaProjection = null }) {
   const noArgument = publishedInputSchema === undefined;
   let sdkObject;
   let requestSchema = null;
@@ -71,7 +71,10 @@ function createContract(toolName, { inputSchema, publishedInputSchema }) {
       const object = publishedObject();
       if (object === null) throw projectionUnavailable(toolName);
       try {
-        requestSchema = toJsonSchemaCompat(object, { strictUnions: true, pipeStrategy: "input" });
+        const converted = toJsonSchemaCompat(object, { strictUnions: true, pipeStrategy: "input" });
+
+        requestSchema = publishedInputSchemaProjection === null ? converted
+          : publishedInputSchemaProjection(converted);
       } catch (error) {
         throw projectionUnavailable(toolName, error);
       }
@@ -113,13 +116,14 @@ export function createRegisteredToolRequestContractStore() {
     if (existing !== undefined && !sameDeclaration(existing, declaration)) throw conflict(toolName);
   }
 
-  function retain(toolName, { inputSchema, advertisedInputSchema, publishedInputSchema }) {
+  function retain(toolName, { inputSchema, advertisedInputSchema, publishedInputSchema,
+    publishedInputSchemaProjection }) {
     assertRetainable(toolName, { inputSchema, advertisedInputSchema });
     if (entries.has(toolName)) return;
     entries.set(toolName, Object.freeze({
       inputSchema,
       advertisedInputSchema,
-      contract: createContract(toolName, { inputSchema, publishedInputSchema })
+      contract: createContract(toolName, { inputSchema, publishedInputSchema, publishedInputSchemaProjection })
     }));
   }
 

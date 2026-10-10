@@ -265,7 +265,7 @@ test('WK-1377: every assembled entry carries an explicit valid tier classificati
     'workspace_node_engine_admission_runtime_diagnostic',
     'workspace_work_record_refresh_admission_metrics',
     'workspace_record_graph_impact_evidence',
-    'workspace_code_index_impact',
+    'query_code_index',
   ]) {
     assert.deepEqual(byName.get(paid), ['paid_cce'], `${paid} must be paid/CCE-only`);
   }

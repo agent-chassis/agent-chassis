@@ -106,6 +106,17 @@ function assertRecordStalenessCheckEntries(entries) {
   });
 }
 
+export async function compareObservedWorkRecords({ dir, entries, readRecord = readWorkRecordById }) {
+  if (!Array.isArray(entries) || entries.length > 0) assertRecordStalenessCheckEntries(entries);
+  const results = [];
+  for (const entry of entries.slice(0, RECORD_STALENESS_CHECK_ENTRY_LIMIT)) {
+    results.push(classifyRecordStalenessEntry(entry, await readRecord({ dir, id: entry.id })));
+  }
+  const uncheckedIds = entries.slice(RECORD_STALENESS_CHECK_ENTRY_LIMIT).map(entry => entry.id);
+  return { entry_limit: RECORD_STALENESS_CHECK_ENTRY_LIMIT, total_count: entries.length,
+    returned_count: results.length, has_more: uncheckedIds.length > 0, unchecked_ids: uncheckedIds, results };
+}
+
 export function registerWorkRecordReadTools({
   registerTool,
   workspaceRepos,
@@ -163,7 +174,7 @@ export function registerWorkRecordReadTools({
   });
 
   const advertisedReceiptSchema = z.object({}).passthrough().describe(
-    "{ref_id,sha256,finding_id?} of a unit's closeout receipt; reruns nothing.");
+    "{ref_id,finding_id?} of a unit's closeout receipt; reruns nothing.");
 
   const resolveSummaryWorkspace = createWorkspaceReadRepoResolver({
     workspaceRepos,
@@ -227,7 +238,7 @@ export function registerWorkRecordReadTools({
     "workspace_work_record_summary",
     {
       description:
-        "Read a WK/slice by id, unit or path. Default returns status, title and up to 3 next calls; details:{offset,limit} lists selected routes. ordinary_field selects root summary, notes, task pages or task text; reference_only omits bodies. member:{path} pages one field; members:[...] reads 1-16 selections in one bounded call. Pin index reads, selected occurrences and noninitial pages/ranges with the 16-hex source_digest. Read-only.",
+        "Read a WK/slice by id, unit or path. Default returns status, title and up to 3 next calls; details:{offset,limit} lists selected routes. ordinary_field selects root summary, notes, task pages or task text; reference_only omits bodies. member:{path} pages one field; members:[...] batches selections. Pin index reads, selected occurrences and noninitial pages/ranges with the 16-hex source_digest. Read-only.",
       inputSchema: workRecordSummaryInputSchema,
       advertisedInputSchema: workRecordSummaryAdvertisedInputSchema
     },
@@ -321,26 +332,9 @@ export function registerWorkRecordReadTools({
         assertRecordStalenessCheckEntries(submitted);
 
         const workspace = resolveWorkspaceRepo(workspaceRepos, suppliedArgs.repo);
-        const resolvable = submitted.slice(0, RECORD_STALENESS_CHECK_ENTRY_LIMIT);
-        const uncheckedIds = submitted
-          .slice(RECORD_STALENESS_CHECK_ENTRY_LIMIT)
-          .map((entry) => entry.id);
-
-        const results = [];
-        for (const entry of resolvable) {
-
-          const loaded = await readWorkRecordById({ dir: workspace.dir, id: entry.id });
-          results.push(classifyRecordStalenessEntry(entry, loaded));
-        }
-
         return jsonContent({
           workspaceRepo: workspace.repo,
-          entry_limit: RECORD_STALENESS_CHECK_ENTRY_LIMIT,
-          total_count: submitted.length,
-          returned_count: results.length,
-          has_more: uncheckedIds.length > 0,
-          unchecked_ids: uncheckedIds,
-          results
+          ...(await compareObservedWorkRecords({ dir: workspace.dir, entries: submitted }))
         });
       } catch (error) {
         return errorContent(error);

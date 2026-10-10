@@ -37,28 +37,50 @@ function isNormalizedSourcePath(value, suffixes) {
 }
 
 function sourceQualifiedGrammar({ sourceSuffixes, restStatement, parseRest,
-  excludedSuffixes = [] }) {
-  const statement = `<normalized repository-relative ${sourceSuffixes.map((suffix) =>
-    `*${suffix}`).join("|")} path>::${restStatement}`;
+  excludedSuffixes = [], authored = null }) {
+  const pathStatement = `normalized repository-relative ${sourceSuffixes.map((suffix) =>
+    `*${suffix}`).join("|")} path`;
+  const statement = `<${pathStatement}>::${restStatement}`;
+  const identityStatement = `nonempty literal node identity of at most ${
+    NATIVE_NODE_ID_MAX_SCALARS} Unicode scalars`;
+  const acceptsSource = (sourcePath) => isNormalizedSourcePath(sourcePath, sourceSuffixes) &&
+    !excludedSuffixes.some((suffix) => sourcePath.endsWith(suffix));
+
+  const inspect = (nodeId) => {
+    if (!isLiteralText(nodeId, NATIVE_NODE_ID_MAX_SCALARS)) return { valid: false, part: "identity" };
+    const separator = nodeId.indexOf("::");
+    const sourcePath = separator < 0 ? null : nodeId.slice(0, separator);
+    const rest = separator < 0 ? "" : nodeId.slice(separator + 2);
+    if (sourcePath === null || rest.length === 0 || !acceptsSource(sourcePath)) {
+      return { valid: false, part: "form" };
+    }
+    const selection = parseRest(rest);
+    if (selection === null) return { valid: false, part: "form" };
+    return { valid: true, path: sourcePath, selection };
+  };
   return deepFreeze({
     source_suffixes: [...sourceSuffixes],
     statement,
+    ...(authored === null ? {} : { authored: {
+      member: authored.member,
+      form: authored.form,
+      schema: authored.schema,
+      read: authored.read,
+      compose(sourcePath, value) {
+        if (!acceptsSource(sourcePath)) return { valid: false, member: "path", expected: pathStatement };
+        const nodeId = `${sourcePath}::${authored.write(value)}`;
+        const inspected = inspect(nodeId);
+        if (inspected.valid) return { valid: true, node_id: nodeId };
+        return { valid: false, member: authored.member, expected: inspected.part === "identity"
+          ? `path and ${authored.member} that together stay within the test identity limit of ${
+            NATIVE_NODE_ID_MAX_SCALARS} Unicode scalars; ${authored.limit}`
+          : authored.form };
+      }
+    } }),
     resolve(nodeId) {
-      if (!isLiteralText(nodeId, NATIVE_NODE_ID_MAX_SCALARS)) {
-        return { valid: false, expected: `nonempty literal node identity of at most ${
-          NATIVE_NODE_ID_MAX_SCALARS} Unicode scalars` };
-      }
-      const separator = nodeId.indexOf("::");
-      const sourcePath = separator < 0 ? null : nodeId.slice(0, separator);
-      const rest = separator < 0 ? "" : nodeId.slice(separator + 2);
-      if (sourcePath === null || rest.length === 0 ||
-          !isNormalizedSourcePath(sourcePath, sourceSuffixes) ||
-          excludedSuffixes.some((suffix) => sourcePath.endsWith(suffix))) {
-        return { valid: false, expected: statement };
-      }
-      const selection = parseRest(rest);
-      if (selection === null) return { valid: false, expected: statement };
-      return { valid: true, path: sourcePath, selection };
+      const inspected = inspect(nodeId);
+      return inspected.valid ? inspected
+        : { valid: false, expected: inspected.part === "identity" ? identityStatement : statement };
     }
   });
 }
@@ -70,10 +92,21 @@ function literalRestGrammar(sourceSuffixes) {
 
 function titlePathGrammar(sourceSuffixes, { minLength = 1,
   maxLength = TITLE_PATH_MAX_ELEMENTS, element = null, statement = null } = {}) {
+  const restStatement = statement ??
+    `<canonical JSON array of ${minLength}..${maxLength} literal titles>`;
   return sourceQualifiedGrammar({
     sourceSuffixes,
-    restStatement: statement ??
-      `<canonical JSON array of ${minLength}..${maxLength} literal titles>`,
+    restStatement,
+    authored: {
+      member: "title_path",
+
+      form: `${restStatement.replace(/^<canonical JSON /u, "").replace(/>$/u, "")}; each title is ` +
+        `nonempty printable text of at most ${TITLE_MAX_SCALARS} Unicode scalars, outermost first`,
+      limit: "a quotation mark or backslash in a title counts twice",
+      schema: { type: "array", items: { type: "string" } },
+      write: (titles) => JSON.stringify(titles),
+      read: (selection) => [...selection.title_path]
+    },
     parseRest(rest) {
       let titles;
       try { titles = JSON.parse(rest); } catch { return null; }
@@ -139,11 +172,41 @@ const SCALAR_RETURN_REFUSAL_REASONS = Object.freeze(["source_unparsable", "funct
   "return_literal_unsupported", "replacement_not_scalar", "replacement_not_distinct"]);
 
 function falsifierTargetConstraint({ target, shape, replacement = undefined, refusalCodes,
-  refusalReasons = [] }) {
+  refusalReasons = [], examples }) {
   return deepFreeze({ target, shape, ...(replacement === undefined ? {} : { replacement }),
-    checked: "by the launcher when workspace_verify_proof runs the attempt, not at save or validation",
-    refusal_codes: [...refusalCodes], refusal_reasons: [...refusalReasons] });
+    checked: "by the launcher when verify_proof runs the attempt, not at save or validation",
+    refusal_codes: [...refusalCodes], refusal_reasons: [...refusalReasons], examples });
 }
+
+function scalarReturnExample(language, modulePath, functionName, supported, rejected) {
+  const falsification = { strategy: 'result_inversion', module_path: modulePath,
+    function_name: functionName, replacement: 41 };
+  return { strategy: 'result_inversion', language,
+    supported: { code: supported, falsification,
+      why: 'The mutated function has one literal return; 41 differs from 42. ' +
+        'This shape concerns that function, not necessarily the test method.' },
+    rejected: { code: rejected, falsification, reason: 'body_not_single_scalar_return',
+      why: 'Branching or multiple statements are unsupported by scalar-return substitution. ' +
+        'Keep the required behavior; do not reshape production code to fit this mechanism.' } };
+}
+
+const SCALAR_RETURN_USAGE_EXAMPLES = deepFreeze([
+  scalarReturnExample('javascript', 'src/answer.mjs', 'answer',
+    'export function answer() { return 42; }\n',
+    'export function answer(flag) { if (flag) return 42; return 0; }\n'),
+  scalarReturnExample('typescript', 'src/answer.ts', 'answer',
+    'export function answer(): number { return 42; }\n',
+    'export function answer(): number { const value = 42; return value; }\n'),
+  scalarReturnExample('python', 'app/calc.py', 'answer',
+    'def answer():\n    return 42\n',
+    'def answer(flag=True):\n    if flag:\n        return 42\n    return 0\n'),
+  scalarReturnExample('go', 'calc/answer.go', 'Answer',
+    'package calc\nfunc Answer() int { return 42 }\n',
+    'package calc\nfunc Answer(flag bool) int { if flag { return 42 }; return 0 }\n'),
+  scalarReturnExample('rust', 'src/answer.rs', 'answer',
+    'pub fn answer() -> i32 { return 42; }\n',
+    'pub fn answer() -> i32 { let value = 42; return value; }\n')
+]);
 
 const SHARED_FALSIFIER_TARGET_CONSTRAINTS = deepFreeze({
   scalar_return_substitution: falsifierTargetConstraint({
@@ -157,7 +220,8 @@ const SHARED_FALSIFIER_TARGET_CONSTRAINTS = deepFreeze({
       "literal, different from it",
     refusalCodes: [NATIVE_INSTRUMENTATION_REFUSAL_CODE],
     refusalReasons: [...SCALAR_RETURN_REFUSAL_REASONS, "function_generic",
-      "replacement_kind_incompatible"]
+      "replacement_kind_incompatible"],
+    examples: SCALAR_RETURN_USAGE_EXAMPLES
   })
 });
 
@@ -204,6 +268,7 @@ export {
   NATIVE_INSTRUMENTATION_REFUSAL_CODE,
   NATIVE_NODE_ID_MAX_SCALARS,
   SCALAR_RETURN_REFUSAL_REASONS,
+  SCALAR_RETURN_USAGE_EXAMPLES,
   SHARED_FALSIFIER_TARGET_CONSTRAINTS,
   SHARED_WITNESS_VALIDATORS,
   canonicalJson,

@@ -40,15 +40,11 @@ export function createProductionForgeMergeDependencies({
     mainRepo,
 
     resolveAuthenticatedWkForgeHandoff,
-    validateWorkRecord: (record, options = {}) => {
-      const { closeoutReady = false, ...schemaOptions } = options;
-      const valid = validateWorkRecord(record, {
-        sourcePath: `wiki/work-records/${options.id}.json`,
-        ...schemaOptions
-      }).length === 0;
 
-      return valid && (!closeoutReady || record?.status === "review");
-    }
+    validateWorkRecord: (record, options = {}) => validateWorkRecord(record, {
+      sourcePath: `wiki/work-records/${options.id}.json`,
+      ...options
+    }).length === 0
   };
 }
 

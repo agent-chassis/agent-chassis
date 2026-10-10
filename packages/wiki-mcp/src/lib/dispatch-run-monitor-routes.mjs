@@ -36,6 +36,7 @@ import { projectRunFinalResultPublication } from "./dispatch-final-result-public
 import { buildFindingsMaterialContinuation } from "./dispatch-findings-material-continuation.mjs";
 import {
   projectPublishedControlledGeneration,
+  groupCompactLifecycleOmissions,
   projectCompactSliceLifecycle,
   projectPublishedSliceLifecycle
 } from "./dispatch-run-status-authored-contract-projection.mjs";
@@ -49,13 +50,15 @@ import {
 import {
   authoredDocumentCall,
   authoredDocumentDetailSchema,
+  retainedSourceDetailSchema,
   presentAuthoredDocument,
   RUN_STATUS_AUTHORED_DOCUMENT_DETAIL_KIND
 } from "./dispatch-run-status-retained-document-retrieval.mjs";
 import {
   activeMcpInlineByteLimit,
   describeRetentionFailure,
-  measureMcpInlineResultBytes
+  measureMcpInlineResultBytes,
+  measureMcpSerializedResultBytes
 } from "./mcp-response.mjs";
 import {
   retainSelectedResponseSource,
@@ -84,6 +87,7 @@ import {
   recordLifecycleFailure,
   retryAssessmentNextAction,
   retryAssessmentRequiredCorrection,
+  compactRequiredCorrection,
   WORKER_SLICE_SUBJECT_RE
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
@@ -648,7 +652,7 @@ export function registerRunMonitorRoutes(ctx) {
         tool: "workspace_agent_run_status",
         arguments: { repo: repository, subject, attempt_id: attemptId,
           detail: { kind: RETRY_ASSESSMENT_DETAIL_KIND,
-            source: { ref_id: source.ref_id, sha256: source.sha256 } } },
+            source: { ref_id: source.ref_id } } },
         successPredicate: { fact: "monitor.retry_assessment_detail_read", operator: "is_true" }
       });
     } catch {
@@ -747,7 +751,7 @@ export function registerRunMonitorRoutes(ctx) {
       schema_version: RETRY_ASSESSMENT_DETAIL_SCHEMA_VERSION,
       kind: RETRY_ASSESSMENT_DETAIL_KIND,
       grants_authority: false,
-      source: { ref_id: detail.source.ref_id, sha256: detail.source.sha256 },
+      source: { ref_id: detail.source.ref_id },
       retained_source: {
         route: envelope.binding.route,
         repository: envelope.binding.repository,
@@ -1387,11 +1391,102 @@ export function registerRunMonitorRoutes(ctx) {
     return frame(false);
   }
 
+  function compactDefaultStatus(published) {
+    if (measureMcpSerializedResultBytes(published) <= 8192) return published;
+    const compact = structuredClone(published);
+    const completeCall = compact.slice_lifecycle?.complete?.call;
+
+    if (completeCall === undefined) return published;
+    const diagnosis = [];
+    const resolution = compact.lifecycle_resolution;
+    if (resolution?.latest_failure) {
+      const latest = resolution.latest_failure;
+      for (const key of ["evidence_summary", "error_message", "error_message_truncated"]) {
+        delete latest[key];
+      }
+      if (latest.failure_cause?.diagnostic_kind === null) delete latest.failure_cause.diagnostic_kind;
+      if (latest.phase === resolution.phase) delete latest.phase;
+      diagnosis.push("lifecycle_resolution");
+      const lifecycle = compact.slice_lifecycle;
+      for (const key of ["error_code", "error_message", "error_message_truncated", "failure_cause"]) {
+        if (Object.hasOwn(lifecycle, key) &&
+            JSON.stringify(lifecycle[key]) === JSON.stringify(published.lifecycle_resolution.latest_failure[key])) {
+          delete lifecycle[key];
+        }
+      }
+      lifecycle.failure_source = "lifecycle_resolution.latest_failure";
+    }
+    if (resolution?.retry_assessment) {
+      resolution.retry_assessment = Object.fromEntries(Object.entries(resolution.retry_assessment)
+        .filter(([key]) => COMPACT_RETRY_ASSESSMENT_FACTS.has(key)));
+      if (resolution.retry_assessment.reason === resolution.latest_failure?.failure_cause?.reason) {
+        delete resolution.retry_assessment.reason;
+      }
+      if (!diagnosis.includes("lifecycle_resolution")) diagnosis.push("lifecycle_resolution");
+    }
+
+    if (resolution?.omitted_members) {
+      delete resolution.omitted_members;
+      if (!diagnosis.includes("lifecycle_resolution")) diagnosis.push("lifecycle_resolution");
+    }
+    if (compact.final_result_summary) {
+      for (const key of ["kind", "result_mode", "structured_role_result", "advisory_review", "full_response_chars"]) {
+        delete compact.final_result_summary[key];
+      }
+      diagnosis.push("final_result_summary");
+    }
+    const proof = compact.proof_verification;
+    if (proof) {
+      delete proof.snapshot;
+      if (proof.last_recorded_invocation) {
+        delete proof.last_recorded_invocation.sequence;
+      }
+      diagnosis.push("proof_verification");
+    }
+    if (compact.session_contract) {
+      compact.session_contract_digest = compact.session_contract.contract_digest;
+      delete compact.session_contract;
+      diagnosis.push("session_contract");
+    }
+    if (compact.run_id === compact.attempt_id) { delete compact.run_id; diagnosis.push("run_id"); }
+    for (const key of ["started_at", "updated_at", "app", "monitor_handle"]) {
+      if (Object.hasOwn(compact, key)) { delete compact[key]; diagnosis.push(key); }
+    }
+    delete compact.slice_lifecycle.view;
+    compact.slice_lifecycle = groupCompactLifecycleOmissions(compact.slice_lifecycle);
+    const integration = compact.slice_lifecycle.integration;
+    if (integration) {
+      delete integration.schema_version;
+      if (integration.slice_sha !== undefined && integration.slice_sha === integration.delivery_sha) {
+        delete integration.slice_sha;
+        if (!compact.slice_lifecycle.omitted_members.includes("integration")) {
+          compact.slice_lifecycle.omitted_members.push("integration");
+        }
+      }
+    }
+    if (compactRequiredCorrection(compact.required_correction)) {
+      diagnosis.push("required_correction");
+    }
+
+    for (const value of [resolution, compact.required_correction, proof, compact.final_result_summary]) {
+      if (value) delete value.schema_version;
+    }
+    for (const call of [completeCall, resolution?.failure_history_call, proof?.detail_call,
+      ...(compact.next_calls ?? [])]) {
+      if (call) { delete call.success_predicate; delete call.recommended; }
+    }
+    compact.omitted_diagnosis = { members: diagnosis, read_by: "slice_lifecycle.complete.call" };
+    return compact;
+  }
+
+  const retainedSource = retainedSourceDetailSchema(z);
   registerTool(
     "workspace_agent_run_status",
     {
       description:
-        "Observe one canonical dispatch subject immediately or for a bounded timeout. attempt_id only disambiguates retained runs; detail pages are read-only. Managed-worker observation advances lifecycle; terminal means finalized, child_terminal does not. Follow next_action. Retained review text is usable advisory evidence; required formal attestation settles in the same result. A managed worker's proof_verification reports its recorded workspace_verify_proof calls apart from lifecycle, with the last call's compact recorded outcome and a detail call listing each call with its exact outcome read; adding proof_subject (a test_proof_id or obligation_id) returns that proof's recorded error, location and call trace; adding source {unit, focus?} with invocation_id instead inspects one exact tuple of a retained source ambiguity and returns its original execution call without executing it. Default status is a compact answer that names what it omits; include_final_result:true returns the complete result, naming in bounded_complete any member it serves through a selected read. detail.kind retry_assessment reads the captured retry assessment from the source compact status publishes in next_calls; detail.kind authored_document reads a retained authored document by unit, section, criterion, entry, carrier, focus or obligation through its published document_calls.",
+        "Observe one canonical dispatch subject. timeout_ms is an integer from " +
+        `${RUN_WAIT_TIMEOUT_MS_BOUNDS.min} through ${RUN_WAIT_TIMEOUT_MS_BOUNDS.max}, in milliseconds; ` +
+        "omission observes once; expiry stops waiting without cancelling the run. attempt_id only disambiguates retained runs; detail pages are read-only. Managed-worker observation advances lifecycle; terminal means finalized, child_terminal does not. Follow next_action. Retained review text is usable advisory evidence; required formal attestation settles in the same result. proof_verification reports a managed worker's recorded workspace_verify_proof calls apart from lifecycle: the last call's compact outcome and a detail call reading each call's exact outcome; proof_subject (test_proof_id or obligation_id) adds that proof's recorded error, location and call trace; source with invocation_id instead inspects one exact retained source-ambiguity tuple, returning its original execution call unexecuted. Default status is compact and names what it omits; include_final_result:true returns the complete result, naming in bounded_complete any member served through a selected read. detail.kind retry_assessment reads the captured retry assessment from the source compact status publishes in next_calls; authored_document reads a retained authored document by its schema selectors through its published document_calls.",
       inputSchema: z.object({
         repo: z.string().optional(),
         subject: z.string().refine(
@@ -1411,9 +1506,8 @@ export function registerRunMonitorRoutes(ctx) {
             source: z.object({ unit: proofAuthoringUnitInputSchema(z),
               focus: proofAuthoringFocusInputSchema(z).optional() }).strict().optional() }).strict(),
           z.object({ kind: z.literal(RETRY_ASSESSMENT_DETAIL_KIND),
-            source: z.object({ ref_id: z.string().regex(/^[A-Za-z0-9._-]{1,200}$/u),
-              sha256: z.string().regex(/^[a-f0-9]{64}$/u) }).strict() }).strict(),
-          authoredDocumentDetailSchema(z)
+            source: retainedSource }).strict(),
+          authoredDocumentDetailSchema(z, retainedSource)
         ]).optional()
       }).strict()
     },
@@ -1889,7 +1983,7 @@ export function registerRunMonitorRoutes(ctx) {
         return jsonContent(includeFullFinalResult
           ? boundCompleteStatus(published, { status, assessmentSource, assessmentCall,
             omitsAssessmentEvidence })
-          : published);
+          : compactDefaultStatus(published));
       } catch (error) {
 
         const repoRefusal = dispatchRepoResolutionRefusal("workspace_agent_run_status", error);

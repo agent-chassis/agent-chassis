@@ -241,12 +241,37 @@ export function proofValidationAssessment({ envelope, diagnostics, issues, fits 
   return build(admitted);
 }
 
+export function boundProofValidationAssessment(assessment, fits) {
+  const { schema_version: _version, diagnostics, allowed_selectors: _selectors, ...envelope } = assessment;
+  const { meanings, issues: rows, issues_omitted: omitted } = diagnostics;
+  const bounded = proofValidationAssessment({ envelope, diagnostics,
+    issues: rows.map(({ meaning, ...issue }) => ({ meaning: meanings[meaning], ...issue })), fits });
+
+  bounded.diagnostics.issues_omitted += omitted;
+  return bounded;
+}
+
 const isTypedFact = value => value === null || ["string", "number", "boolean"].includes(typeof value) ||
   (Array.isArray(value) && value.length <= 16 && value.every(item => ["string", "number"].includes(typeof item)));
+
+const OWNER_DIAGNOSTIC_FACTS = Object.freeze(["code", "pointer", "expected_identity", "actual_identity"]);
+
+function ownerDiagnostics(cause) {
+  const envelope = cause.owner_details?.diagnostics;
+  if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope) ||
+      typeof envelope.diagnostic_projection_version !== "string" ||
+      !Array.isArray(envelope.diagnostics)) return null;
+  return { total_count: envelope.total_count, omitted_count: envelope.omitted_count,
+    truncated: envelope.truncated === true,
+    diagnostics: envelope.diagnostics.map(row => Object.fromEntries(OWNER_DIAGNOSTIC_FACTS
+      .filter(name => row[name] !== null && row[name] !== undefined && isTypedFact(row[name]))
+      .map(name => [name, row[name]]))) };
+}
 
 function authoringSubject(occurrence, recoveryFacts) {
   const { diagnostic } = occurrence;
   const cause = diagnostic.problem?.cause ?? {};
+  const owned = ownerDiagnostics(cause);
   const facts = {};
   for (const [name, value] of [...Object.entries(diagnostic), ...Object.entries(cause)]) {
     if (SUBJECT_NON_FACTS.has(name) || Object.hasOwn(facts, name) || value === null ||
@@ -257,7 +282,14 @@ function authoringSubject(occurrence, recoveryFacts) {
   }
   const typed = recoveryFacts(diagnostic);
   return { obligation_id: occurrence.obligation_id, ...facts,
-    ...(typed === null ? {} : { failed_fields: typed.failed_fields.map(field => ({ ...field })),
+    ...(owned === null ? {} : { owner_diagnostics: owned }),
+    ...(typed === null ? {} : {
+
+      ...(typeof typed.case_id === "string" && !Object.hasOwn(facts, "case_id") ? { case_id: typed.case_id } : {}),
+      ...(typed.failed_fields === undefined ? {}
+        : { failed_fields: typed.failed_fields.map(field => ({ ...field })) }),
+
+      ...(typed.association === undefined ? {} : { association: structuredClone(typed.association) }),
       corrections: [...typed.corrections] }) };
 }
 

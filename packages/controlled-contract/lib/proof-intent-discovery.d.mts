@@ -2,12 +2,18 @@ export interface ProofDiscoveryCandidate {
   id: string;
   proof_name: string;
   profile_version: string;
+  // The catalogue's own navigation sentence for this proof: not a guarantee.
+  short_description: string;
+  usage: { requires: string[]; fits: { example: string; why: string };
+    does_not_fit: { example: string; why: string } };
   assertion: string;
   matching_assertion: string;
   essential_limitation: string | null;
   exclusions: string[];
   constraints: Array<{ ref: string; reading?: string; constraint: Record<string, unknown> }>;
-  refinements: Array<Record<string, unknown>>;
+  // Each parameter's own refinements, and the refs of the `constraints` that
+  // apply to it; a constraint body is carried once, by its ref.
+  refinements: Array<{ name: string; refinements: Array<{ ref: string; value: unknown }>; applicability: string[] }>;
   observations: string[];
   capabilities: Array<Record<string, unknown>>;
   provenance: Record<string, string>;
@@ -63,6 +69,7 @@ export function discoverProofIntents(options?: { query?: string; limit?: number 
   { proof_name: string }): Readonly<ProofIntentDiscoveryResult>;
 export function discoverCompleteProofIntents(options?: { query?: string }):
   Readonly<ProofIntentDiscoveryResult>;
+export function readProofDiscoverySourceIdentity(): { discovery: string };
 export function rankProofIntentCandidates(
   population: ReadonlyArray<Record<string, unknown>>,
   options: {

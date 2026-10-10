@@ -106,6 +106,67 @@ function workRecordLinksBackToTracker(record, trackerId) {
   );
 }
 
+export function lintRecordFrontMatter({ definition, frontMatter, filePath, relativeFilePath, addFinding }) {
+  for (const requiredField of definition.requiredFrontMatter) {
+    if (
+      !(requiredField in frontMatter) ||
+      frontMatter[requiredField] === null ||
+      frontMatter[requiredField] === ""
+    ) {
+      addFinding("error", `Missing field '${requiredField}' in ${filePath}`, {
+        code: "missing_required_field",
+        path: relativeFilePath
+      });
+    }
+  }
+
+  for (const fieldName of definition.arrayFrontMatter || []) {
+    if (
+      fieldName in frontMatter &&
+      frontMatter[fieldName] !== null &&
+      !Array.isArray(frontMatter[fieldName])
+    ) {
+      addFinding("error", `Field '${fieldName}' must be a list in ${filePath}`, {
+        code: "invalid_array_field",
+        path: relativeFilePath
+      });
+    }
+  }
+
+  for (const fieldName of definition.objectFrontMatter || []) {
+    if (
+      fieldName in frontMatter &&
+      frontMatter[fieldName] !== null &&
+      (typeof frontMatter[fieldName] !== "object" || Array.isArray(frontMatter[fieldName]))
+    ) {
+      addFinding("error", `Field '${fieldName}' must be an object in ${filePath}`, {
+        code: "invalid_object_field",
+        path: relativeFilePath
+      });
+    }
+  }
+
+  for (const [fieldName, allowedValues] of Object.entries(
+    definition.enumFrontMatter || {}
+  )) {
+    if (
+      fieldName in frontMatter &&
+      frontMatter[fieldName] !== null &&
+      frontMatter[fieldName] !== "" &&
+      !allowedValues.includes(String(frontMatter[fieldName]).toLowerCase())
+    ) {
+      addFinding(
+        "error",
+        `Field '${fieldName}' has unsupported value '${frontMatter[fieldName]}' in ${filePath}`,
+        {
+          code: "invalid_enum_value",
+          path: relativeFilePath
+        }
+      );
+    }
+  }
+}
+
 export async function lintRecordFiles({
   targetDir,
   manifest,
@@ -173,7 +234,11 @@ export async function lintRecordFiles({
     for (const filePath of files) {
       const relativeFilePath = path.relative(targetDir, filePath).replaceAll(path.sep, "/");
       const content = await readFile(filePath, "utf8");
-      const frontMatter = extractFrontMatter(content);
+      let frontMatter;
+      try { frontMatter = extractFrontMatter(content); }
+      catch (cause) {
+        throw new Error(`Cannot parse YAML front matter in ${relativeFilePath}: ${cause.message}`, { cause });
+      }
       if (!frontMatter) {
         addFinding("error", `Missing YAML front matter: ${filePath}`, {
           code: "missing_frontmatter",
@@ -182,64 +247,7 @@ export async function lintRecordFiles({
         continue;
       }
 
-      for (const requiredField of definition.requiredFrontMatter) {
-        if (
-          !(requiredField in frontMatter) ||
-          frontMatter[requiredField] === null ||
-          frontMatter[requiredField] === ""
-        ) {
-          addFinding("error", `Missing field '${requiredField}' in ${filePath}`, {
-            code: "missing_required_field",
-            path: relativeFilePath
-          });
-        }
-      }
-
-      for (const fieldName of definition.arrayFrontMatter || []) {
-        if (
-          fieldName in frontMatter &&
-          frontMatter[fieldName] !== null &&
-          !Array.isArray(frontMatter[fieldName])
-        ) {
-          addFinding("error", `Field '${fieldName}' must be a list in ${filePath}`, {
-            code: "invalid_array_field",
-            path: relativeFilePath
-          });
-        }
-      }
-
-      for (const fieldName of definition.objectFrontMatter || []) {
-        if (
-          fieldName in frontMatter &&
-          frontMatter[fieldName] !== null &&
-          (typeof frontMatter[fieldName] !== "object" || Array.isArray(frontMatter[fieldName]))
-        ) {
-          addFinding("error", `Field '${fieldName}' must be an object in ${filePath}`, {
-            code: "invalid_object_field",
-            path: relativeFilePath
-          });
-        }
-      }
-
-      for (const [fieldName, allowedValues] of Object.entries(
-        definition.enumFrontMatter || {}
-      )) {
-        if (
-          fieldName in frontMatter &&
-          frontMatter[fieldName] !== null &&
-          frontMatter[fieldName] !== "" &&
-          !allowedValues.includes(String(frontMatter[fieldName]).toLowerCase())
-        ) {
-          addFinding(
-            "error",
-            `Field '${fieldName}' has unsupported value '${frontMatter[fieldName]}' in ${filePath}`,
-            {
-              code: "invalid_enum_value",
-              path: relativeFilePath
-            }
-          );
-        }
-      }
+      lintRecordFrontMatter({ definition, frontMatter, filePath, relativeFilePath, addFinding });
 
       const expectedStem = expectedFileStem(frontMatter, filePath, definition);
       const actualStem = path.basename(filePath, ".md");

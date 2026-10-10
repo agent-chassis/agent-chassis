@@ -11,9 +11,9 @@ import {
 import {
   readCanonicalContractGenerationIdentity
 } from "./slice-integration-authorization.mjs";
+import { assertServerMintedCommitChain } from "./committed-slice-review-admission.mjs";
 import {
   observeIntegratedSliceDelivery,
-  resolveAuthenticatedExactSliceDeliveryBase,
   SliceIntegrationError
 } from "./slice-integration.mjs";
 import {
@@ -158,6 +158,27 @@ export function createBackendIntegrationContinuation(ctx) {
     return sha;
   }
 
+  async function authenticateOriginalDeliveryBase({ subject, pair, deliverySha }) {
+    const baseSha = pair.slice_binding.base_sha;
+    try {
+      await assertServerMintedCommitChain({
+        runGit: postWorkerLifecycleRunGit,
+        mainRepo: worktreeProvisioningConfig.mainRepo,
+        subject,
+        baseSha,
+        reviewedSha: deliverySha
+      });
+    } catch (error) {
+      continuationRefusal("reviewed_delivery_base_mismatch", {
+        binding_base_sha: baseSha ?? null,
+        reviewed_delivery_sha: deliverySha,
+        source_code: typeof error?.code === "string" ? error.code : null,
+        source_reason: error?.detail?.reason ?? null
+      }, error);
+    }
+    return baseSha;
+  }
+
   async function resolveLiveCompletedIntegration({ subject, status }) {
     if (canonicalCommittedSliceIntegrationsByDelivery?.size === 0) return null;
     if (worktreeProvisioningConfig === null || status === null || status === undefined) {
@@ -208,18 +229,7 @@ export function createBackendIntegrationContinuation(ctx) {
       continuationRefusal("durable_worker_ref_mismatch", { slice_ref: sliceRef, wk_ref: wkRef });
     }
     const deliverySha = await resolveLiveCommit(sliceRef, "live_slice_ref_unavailable");
-    const deliveryBase = await resolveAuthenticatedExactSliceDeliveryBase({
-      runGit: postWorkerLifecycleRunGit,
-      mainRepo: worktreeProvisioningConfig.mainRepo,
-      subject,
-      deliverySha
-    });
-    if (deliveryBase === null || pair.slice_binding.base_sha !== deliveryBase) {
-      continuationRefusal("reviewed_delivery_base_mismatch", {
-        binding_base_sha: pair.slice_binding.base_sha,
-        authenticated_base_sha: deliveryBase
-      });
-    }
+    const deliveryBase = await authenticateOriginalDeliveryBase({ subject, pair, deliverySha });
     const completed = canonicalCommittedSliceIntegrationsByDelivery.get(
       committedSliceIntegrationDeliveryKey({
         main_repo: worktreeProvisioningConfig.mainRepo,
@@ -409,18 +419,9 @@ export function createBackendIntegrationContinuation(ctx) {
     });
     if (integration === null) return null;
 
-    const deliveryBase = await resolveAuthenticatedExactSliceDeliveryBase({
-      runGit: postWorkerLifecycleRunGit,
-      mainRepo: worktreeProvisioningConfig.mainRepo,
-      subject,
-      deliverySha: integration.delivery_sha
+    const deliveryBase = await authenticateOriginalDeliveryBase({
+      subject, pair, deliverySha: integration.delivery_sha
     });
-    if (deliveryBase === null || pair.slice_binding.base_sha !== deliveryBase) {
-      continuationRefusal("reviewed_delivery_base_mismatch", {
-        binding_base_sha: pair.slice_binding.base_sha,
-        authenticated_base_sha: deliveryBase
-      });
-    }
 
     const liveSliceTip = await resolveLiveCommit(sliceRef, "live_slice_ref_unavailable");
     const liveWkTip = await resolveLiveCommit(wkRef, "live_wk_ref_unavailable");

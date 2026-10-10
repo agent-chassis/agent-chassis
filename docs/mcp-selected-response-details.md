@@ -1,358 +1,566 @@
 # MCP Selected Response Details
 
-This page owns the internal composition that lets a wiki-MCP route answer with a
-bounded summary and explicitly selected detail instead of an oversized ordinary
-response. The public route contracts that use it are described in
-[MCP Dispatch Runtime Contract](mcp-dispatch-runtime-contract.md) and
+This page owns the serving composition for compact summaries and complete,
+authenticated semantic selections. The task contracts are described in
+[MCP Operation Reference](mcp-operation-reference.md) and
 [MCP Integration](mcp-integration.md).
 
 ## Owners
 
-The composition lives in `packages/wiki-mcp/src/lib/selected-response-snapshot.mjs`.
-It composes incumbent owners and adds no store, codec, limit or authority:
+`packages/wiki-mcp/src/lib/selected-response-snapshot.mjs` composes the incumbent
+response retention, verified byte reader, registry and continuation owners. It
+adds no store, codec, authority identity or independent limit.
 
-- `mcp-response.mjs` retains bytes (`jsonContent` forced spill), reads them back
-  whole and verified (`readRetainedArtifactBytes`, the one internal byte reader
-  it shares with the managed verify-proof cache) and measures the complete
-  structured frame (`measureMcpInlineResultBytes`).
-- `createTaskResultSnapshotRegistry` is the only pager, snapshot identity, cursor,
-  expiry, field and scalar-range mechanism. The composition injects its
-  complete-frame measurement, original-order paging and a scalar range bound
-  whose base64 frame fits (three source bytes per four characters, published
-  once).
-- `buildNextCall` and `buildPublicMechanicalRefusal` own emitted calls and refusals.
+- `mcp-response.mjs` retains originals once, verifies stored bytes, measures the
+  larger structured/text representation and admits complete selected responses.
+- `createTaskResultSnapshotRegistry` owns internal ordering, collections,
+  snapshots, cursors, expiry and range accounting where a producer uses them.
+- The route owner selects permitted semantic meaning and authenticates its
+  source, repository, subject and session before exposing it.
+- The serving request-contract store and canonical continuation owner admit
+  every offered call against the actual registered consumer.
 
-The readiness adapter lives in
-`packages/wiki-mcp/src/lib/validate-dispatch-response-selection.mjs`. The
-obligation-coverage query adapter lives in
-`packages/wiki-mcp/src/lib/controlled-contract-query-response.mjs`; its source and
-authority identity come from `controlled-contract-query-context.mjs` (see
-[Acceptance Coverage MCP](acceptance-coverage-mcp.md)).
-
-Write receipts have a separate compact projection: see
-[MCP editor response projections](mcp-editor-response-projections.md). In
-particular, compact task-write receipts omit authored text and point to a
-source-digest-pinned read-only continuation; `verbose: true` retains the task
-detail.
+Internal byte storage, hashing, pager and codec machinery is server-owned.
+Public task responses do not expose raw logs, public base64 or agent integrity
+and reconstruction jobs. There is no generic public spill-reader bypass.
 
 ## Delivery bound
 
-Every summary, detail page, empty page, refusal and recovery frame fits
-`min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES, activeMcpInlineByteLimit())`,
-measured on the complete serialized result including escaping, frame keys and
-emitted calls. The bound is a delivery bound, not a content cap: every omitted member or
-value stays reachable through a collection page, a field inventory or scalar ranges.
+Ordinary summaries use
+`min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES,activeMcpInlineByteLimit())`.
+Admission measures the larger compact structured value or delivered text,
+including escaping and calls. Physical serialized wire size carries both
+representations and is a distinct measurement. The bound is no content cap:
+complete explicitly selected meaning uses the shared selected-full class.
+Native test answers alone preserve the 1,024 UTF-8 byte total response exception.
 
-Proof-intent discovery candidate pages and selected proof detail use the same
-class and the same scalar-range arithmetic
-(`scalarRangeBytesWithinDeliveryBound`), for page admission and for every
-emitted range continuation. They keep their own session: `proof_name`
-selectors and the package catalogue's source-change refusal are proof
-semantics, not a retained-carrier source.
+A summary discloses original availability and the next semantic selection. A
+selected-full answer delivers that complete selected meaning as one structured
+result, even above the ordinary inline limit. It preserves the privately minted
+response object through final transport admission rather than rewrapping it as
+an ordinary response or spilling it to a retired reader.
 
 ## Retained source
 
-A route retains one envelope, once:
+The shared owner retains `{schema_version,binding,carrier}` exactly once. The
+binding contains producer route, repository, unit, optional query/observation
+identity and authenticated authority identity. A locator is exactly `{ref_id}`:
+one opaque eight-character handle matching `^[A-Za-z0-9_-]{8}$`, for example
+`{ref_id:"aB3_dE9x"}`. It is a source selector, never authority, and it carries
+no digest: the caller performs no integrity work. Authentication resolves the
+handle to the server-held retention metadata, checks that metadata is the
+handle's own well-formed record, verifies the stored byte count and full SHA-256
+against it, and checks the server-resolved binding before projection. An unknown
+handle, a payload without metadata, malformed metadata, changed bytes, a source
+mismatch and unavailable identity retain their specific causes; a refused read
+repairs no metadata, selects no other object and reruns no producer. A hot
+snapshot or cursor continues from the snapshot already verified for that handle
+and rereads nothing.
 
-```json
-{
-  "schema_version": "selected-response-source.v1",
-  "binding": { "route": "…", "repository": "…", "unit": "…", "query_identity": null, "observation_identity": "…" },
-  "carrier": { "…": "the route's complete permitted presentation, unchanged" }
-}
-```
+A handle is six random bytes as unpadded base64url. Retention reserves it by
+exclusive creation before publishing it, so concurrent producers never share
+one; an occupied or half-allocated handle is passed over and never overwritten
+or reassigned, and a store with no free handle in the bounded attempt reports
+the persistence failure. No handle is returned until both payload and metadata
+are complete. An allocation that never published its metadata stays unavailable
+and does not stop restart discovery of complete originals; a published object
+with unreadable bytes reports its own cause.
 
-The returned locator `{ref_id, sha256}` authenticates the whole envelope.
-Reconstruction equality refers to `carrier`. The retained file is an ignored
-transport artifact, not canonical evidence or a lifecycle write.
+Journals keep the `{ref_id,sha256}` pair they recorded as internal evidence.
+A public projection of a journal record exposes only `ref_id`, and a
+journal-routed read refuses with `content_reference_recorded_digest_mismatch`
+when the recorded digest disagrees with the retention metadata.
 
-A retention that fails throws an error carrying the response boundary's
-`spill_persistence_failed` refusal, whose `cause_diagnostic` is the original
-filesystem failure. A producer whose operation already settled reports that
-error through `describeRetentionFailure` (see
-[MCP integration](mcp-integration.md)) rather than only its code, and
-advertises no locator.
+Only handles of this form are locators. An original retained under an earlier,
+longer identifier keeps its stored bytes and its journal records, and no public
+call reads it: a request naming it is refused by the request contract, and a
+journal or restart discovery that selects it reports
+`source_locator_not_current` with no continuation and reruns nothing. It is not
+reported as absent.
 
-### Protected task sources
+Protected retention records the actual owner call and authoritative request
+schema. Storage producer IDs remain unchanged when a public facade changes its
+name. Old metadata is not a compatibility route: only the current selected owner
+can expose permitted semantic material. Reads create no new original, rerun no
+producer and never fall back to another source.
 
-A producer whose retained source is a selected task result passes its owner
-call to `retainSelectedResponseSource` (`ownerCall(locator)` and that route's
-request schema). The same retention writes, beside the bytes, the one owner
-call that reads them. The
-public ranged reader then refuses those bytes with
-`mcp_response.content_reference_ranged_read_unavailable.v1`
-(`content_reference.failed_limb: "selected_access"`) and offers that owner call
-as its exact next call; both public entrypoints, `workspace_read_mcp_content_reference`
-and the `workspace_read_page` `content_reference` delegate, go through that
-reader. Internal reads never pass through the guard. The current protected
-producers are:
+## Selected-full delivery
 
-| Producer | Binding | Owner read |
-| --- | --- | --- |
-| `workspace_verify_proof` (standalone) | route, repository, unit, `{subject, source}`, result identity and authenticated orchestrator session for source ambiguity | `workspace_verify_proof` with `result` and a subject; a retained ambiguity also accepts one exact source tuple |
-| `workspace_work_record_set_status` / `workspace_work_record_set_closure` receipt | producing operation, repository, unit, `{source_digest, publication_state}` | `workspace_work_record_summary` with the unit and `receipt` |
-| The four code-index navigation routes, `workspace_code_index_context_for_path` and `workspace_code_index_impact` | route, repository, query arguments, index HEAD | the same route with `detail` naming the answer's first semantic subject (see [Code-index answers](#code-index-answers)) |
-| `workspace_agent_run_status` authored documents (terminal-candidate contracts, controlled generation, written record) | route, repository, observed subject, question `authored_documents`, attempt and candidate | `workspace_agent_run_status` with `attempt_id` and `detail.kind: "authored_document"` naming the first retained document (see [MCP dispatch monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md#retrieving-the-omitted-documents)) |
-| `workspace_agent_run_status` captured retry assessment | route, repository, subject, question `retry_assessment`, attempt | `workspace_agent_run_status` with `attempt_id` and `detail.kind: "retry_assessment"` (see [MCP dispatch monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md#the-retry-assessment-detail)) |
+`readSelectedResponseFull(source,{env,expected,route})` authenticates the original
+and delivers its carrier only when the owner permits that complete carrier.
+`readSelectedResponseProjection(source,{env,expected,route,project})` authenticates
+identically and calls the route's trusted in-process projector on copies. The
+projector chooses only the permitted semantic material and current read facts;
+request/environment input never supplies an executable projector. Refused reads
+invoke no projector and return no carrier content.
 
-For a standalone source ambiguity, this protected source retains the complete
-original refusal once. The public answer gives up to three exact source
-identities and read calls; any recorded tuple can be selected by its exact
-`source:{unit,focus?}` alongside `result`. The owner read returns that tuple's
-original execution descriptor without executing it. This is a semantic read
-of the one retained original; no collection page, byte range or second source
-is created. A failed retention reports its cause and supplies no locator.
+Expected binding includes producer route, repository, unit and authority
+identity. Missing authority refuses. `selectedFullContent` verifies the retained
+serialization against its locator and privately brands the returned result. The
+final response guard recognizes that exact object and regenerates its text from
+the same canonical value. Cloning or JSON-wrapping it loses this delivery class.
 
-`workspace_record_graph_impact_evidence` reads an impact source internally when
-given `graph_impact_source`, requires the impact route and an `impact` answer,
-and persists that complete original; it serves no bytes, evaluates nothing and
-reports the retained `observation` (`current`, `changed` or `unavailable`
-against the repository's committed HEAD). Evidence a dispatch-family
-route retains for the operator (`retainOperatorOnlyEvidence`) has no public
-owner read and is refused with no supported route.
+The production reader, code-index selections, candidate/publication/landing
+originals and common-result semantic detail use this same owner. They add no
+parallel store, schema table, fallback parser or public owner router.
 
-Readers that are not the producing route pass `route` separately to
-`readSelectedResponseSource` so a refusal names the reading route, and check the
-retained producer route themselves.
+## Wiki selections
 
-A route that answers from a retained source WITHOUT a selected-response session
-reads it with `readSelectedResponseSource`, checks the stored binding (including
-the question its `query_identity` names) against the server-resolved request,
-and presents a semantic selection of it; the caller never reassembles bytes. The
-monitor route's authored documents and captured retry assessment are answered
-this way — see
-[MCP dispatch monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md#retrieving-the-omitted-documents).
+`workspace_read_wiki` first names a saved unit, canonical record, document,
+search, manifest, repository or worker assignment. It returns compact context
+and a retained descriptor containing resource identity and observed revision,
+not the resource's complete content. A later `reference` plus one semantic
+`select` authenticates that resource and projects the selected value through its
+native owner. The combined authoring revision comes from the current context;
+source/currentness facts remain distinct.
 
-The carrier is paged as collections. `members` has one row per top-level member
-in carrier order, either `{id, value}` or, for a top-level array, `{id,
-collection, count}`. Each top-level array is its own collection of `{id, value}`
-rows, where `id` is the array index.
+The central policy has one read-selection grant owner. Each role's advertised
+schema contains only its granted source/selection forms. Assignment reads use
+the launcher's frozen bytes; findings reads use the authenticated review source.
+A returned reference grants no arbitrary filesystem access or mutation.
 
-## Detail requests
+A findings request authenticates its frozen review source before any reader
+runs: the session's run binding must commit to this host's role, assigned unit,
+run, canonical repository and review materialization (see
+[launch and admission](mcp-dispatch-launch-and-admission.md)). The bound private
+checkout is the source. The selected WK's work records, its entries -- a body,
+an explicit version, history, a text choice and a material reference -- and its
+controlled contract are read from that checkout through their owners' native
+read paths, and another WK of the same source keeps the reviewed commit's files.
+A source that was absent at capture is absent from the checkout, so a record
+that had no contract at capture reads as honestly absent, and an incomplete or
+draft captured contract stays readable without any execution-readiness
+requirement. No canonical or live read replaces the checkout. The retained
+reference's authority identity includes the run and its source binding, so a
+reference is not exchangeable across runs. The binding does not detect edits
+made inside the private checkout after launch, and a read made while that
+checkout is being edited is not guaranteed an unchanged answer; a selected
+source that is malformed when it is read refuses with its owner's own
+diagnostic.
 
-A detail request is `{source, snapshot_identity?, cursor?, collection, selector?,
-ordinal?, field_path?, offset?, length?}`:
+`workspace_assess_contract` computes a findings session's fresh assessment
+over the same bound checkout. Every authored source the assessment reads comes
+from the files captured into it: the selected WK's contract,
+the selected work record that the design-workbench owner loads, the internal
+acceptance-axis carrier when one was present, the optional scope record, and
+the root contract carriers of a `related` work record when the saved-proof owner
+reads them as the mapping contracts of a pinned proof's construction input. The
+frozen assessment therefore states what the native owner states over the same
+sources at capture, for the root focus and for each focus the selected contract
+publishes. A source that was absent at capture is absent to the
+assessment, because materialization removed the reviewed commit's older copy
+from the checkout; a related record the assessment does not use is not part of
+the capture, and any other read of it is a read of an ordinary record of the
+source. Host capability and execution facts are
+observed where the assessment runs and are not part of the capture. A retained
+original is read back without recomputation.
 
-- With `snapshot_identity` or `cursor`, the read is served from this host's
-  registry.
-- Without either, the composition reads every retained byte, verifies the digest
-  before parsing, checks the stored route, repository and unit against the
-  server-resolved request, and then serves the same selection.
-- `ordinal` restarts a collection or field inventory at a page boundary the
-  original traversal emitted.
+Every refusal of the findings-source resolver reaches `workspace_read_wiki` as
+`workspace-read-wiki-source-refusal.v1` with that resolver's own code and
+subject: an unauthenticated session, a missing, duplicated or mismatched
+binding, and an unavailable or unreadable materialization. Documents, canonical DEC and IN records and search read the
+authenticated source root after the request's authentication.
+Entry inventories preserve every member in source order, with exact identities,
+versions and totals. A nonempty inventory with entry grants returns one
+`selection_context` containing the unchanged authenticated reference and the
+explicit binding `select:{entry:members[i].entry}`. Optional `version` pins an
+exact saved version. At most one fully expanded primary call is published in
+`next_calls`; empty or ungranted inventories offer no entry selection. There is
+no member-by-member repetition of the locator, duplicate navigation array or
+pagination of the requested population.
 
-Every emitted continuation carries the explicit locator and selection, so it
-stays executable after the cursor that accompanies it can no longer
-authenticate. A detail read never revalidates, evaluates CCE, rebuilds a graph or
-presents a fresh result as the retained one.
+A selected entry body also returns `reference`, the entry owner's immutable
+reference string for the exact returned `entry_id` and `version_id`, including
+when the request selected the current version. Pass it unchanged as
+`save_record`'s `changes.material_refs:[{ref:reference}]`, or read it with
+`workspace_read_wiki({reference:{ref:reference},select:{field:"text"}})`.
+It pins the complete returned body after later versions are appended. It is
+distinct from the context's retained `{ref_id}` locator and grants no
+source visibility: reads and assignment preparation still authenticate the
+repository, source and role or frozen scope through their existing owners.
 
-Each detail page carries `retained_source`: route, locator, repository, unit,
-query identity digest and observation identity. `observation.state` is
-`current`, `changed` or `unavailable`, from a read-only comparison performed
-outside the registry.
+A WK root or slice context returns one `reference` and the complete ordered
+`selections` it offers under the session's grants. At most one fully expanded
+call is published in `next_calls`: the recommended selection, which is the
+first member of `selections`; a context with no granted selection publishes
+none. Every other choice is read by passing that `reference` unchanged with one
+returned selector unchanged, as `{reference, select: selections[i]}`. The
+reference is stated once beside the expanded call instead of once per choice,
+and there is no per-selection call list, second navigation array or derived
+selector. Selection order, grants, authentication, currentness and refusals are
+those of the expanded form. Other contexts keep one expanded call per selection.
+
+A requirement-guidance context is read the same way, and its one `reference`
+serves every topic it offers. A complete topic answer returns that `reference`
+unchanged with `selections`, the other offered topics in the context's order
+without the topic just returned, so another topic is read as
+`{reference, select: selections[i]}` with no further context request. The
+answer is complete and publishes an empty `next_calls`. An optional
+`subject.topic` only chooses the context's recommended selection.
+
+Work context includes a small literal summary with its scalar extent. Orchestrator
+context also reports the parent record's literal requirements and source extent,
+including absent and empty values, for both root and slice reads. Recommendations
+select granted information that is still missing: partially delivered prose or
+a further inventory. Already complete, absent or empty prose is not recommended.
+Full field selections remain complete.
+
+Work context `facts` also carry two advisory review observations of the saved
+record, each projected from its existing semantic owner. A record's `facts`
+carry `terminal_review_designation`: a `state` of `missing`, `designated`,
+`ambiguous` or `not_applicable`, the exact `eligible_count`, and `unit_id` only
+when exactly one unit is eligible. A findings unit's `facts`, for a record or a
+selected slice, and each findings member of the complete
+`select:{inventory:"slices"}` population carry `review_purpose` only when one is
+in effect: the authored value, or `standalone` for `review` work that authors
+none. A `redteam` unit that stores no purpose, a non-findings unit and a unit
+whose authored purpose is contradictory carry no key; the reader never derives,
+defaults or persists one, and the contradiction remains a diagnostic of the
+`integrity` selection. These facts are compact and bounded: one count and at
+most one identity for the designation, one scalar per member for the purpose.
+They are descriptive only. They add no selection, input or grant, and nothing
+in a reader response turns them into a blocker, next action, dispatch,
+admission, integration, handoff or recovery decision.
+
+An initiative `action` names one exact action identity. Work actions use the
+initiative-status owner's selected-unit view, including its complete relevant
+facts, without initiative-wide actions or consistency rows. Missing and foreign
+action identities refuse with `action_not_found`; ranking hints are not selectors.
+The reader projects named `top_actions`, `next_action` and nested
+`recommendations` through the current role's live registered request contracts.
+Executable calls carry trusted known arguments. Missing authored values are
+explicit `missing_inputs`; absent effect capabilities are explicit
+`missing_capability` facts. Information-acquisition calls are distinguished from
+the requested effect. Reading a graph or record never persists graph-impact
+evidence, supplies an authored title or fabricates a write revision.
+
+Canonical carrier validation failures preserve the native cause code, affected
+subject, schema errors and diagnostics in a declared source refusal delivered
+through the response owner. Schema errors share complete reasons with all
+affected subjects and occurrence counts. The shared diagnostic owner preserves
+AJV property names, escaped field pointers, schema paths and constraint
+parameters before grouping, without row caps or field truncation. `subject_fields`
+names the columns of each subject row. Shared pointer bindings concatenate their
+literal `prefix`, the named subject field and literal escaped `suffix` to preserve
+each exact address. A read never repairs invalid carrier bytes. Where no serving
+correction exists, `next_calls` is empty and recovery explicitly
+states `no_supported_route`, including the absent repair capability and inability
+to acquire a current authenticated authoring revision from the invalid source.
+
+Create/save originals and candidate/publication/landing originals delegate through
+their producer's authenticated read composition. Current and original facts are
+never conflated, and an original read invokes no corresponding mutation.
+
+A save receipt is not the saved record and is granted no record or contract
+selection. A request that attaches such a selection to a save receipt is refused
+with `selection_not_granted`. When the save owner authenticates that receipt for
+the session -- producer, repository, unit and session authority -- and the
+session's own schema and grants permit the record context read, the refusal
+carries exactly one call, `workspace_read_wiki({subject})` for the receipt's
+authenticated root or slice unit. That call returns the unit's current context
+and a fresh reference; it does not apply the refused selection, and the caller
+selects from the returned context. The refusal reads no record, repeats no save
+or check and leaves the receipt unchanged. A foreign repository, a missing or
+changed reference, an owner authentication refusal and a role without the save
+receipt read keep their own refusal and gain no correction.
+
+An initiative offers its whole record as `select:{field:"record"}`; a saved work
+unit does not. That selection on a work-unit root or slice reference is refused
+with `field_not_applicable` after the reference's binding, grants and
+currentness are checked. The refusal names the unit's applicable fields, the
+same reference and its granted selections, and, when the session's schema and
+grants permit the context read, exactly one call:
+`workspace_read_wiki({reference, select:{context:true}})` with that reference
+unchanged. That call returns the context and its choices, not the refused
+whole-record content; the caller chooses one offered selection, and none is
+inferred or followed for it. A foreign, unauthorized, missing, changed or stale
+reference keeps its own refusal and recovery.
+
+## Proof discovery and code-index selections
+
+`workspace_find_proofs` called with no arguments browses the catalogue, and
+that is the normal first call: it returns every listed proof once, in the
+catalogue owner's order, or a bounded count with one exact call
+(`next_calls.catalogue`) to the complete retained list. Two request forms
+follow and are never mixed. A fresh read of the current catalogue is
+`{proof_name, part?, target_family?}`, or `{query, target_family?}` to search.
+A read from a returned original is `{result, selection?: {proof_name?,
+part?}}`. Top-level `proof_name` and `part` belong to a fresh read;
+`target_family` belongs to a fresh `proof_name` or `query` request and never
+to a retained selection. The tool description and each field's description
+state this distinction, because a client may render the fields without their
+dependencies. A complete catalogue or index carries one executable call,
+`next_calls.select`, and `next_calls.selection` says how to use it: copy the
+complete supplied arguments, keep `result` unchanged, and replace only
+`selection.proof_name` with the listed proof wanted. The call names the first
+listed proof only as an example and recommends none; a later part goes inside
+`selection`, as `selection.part`. `tools/list`
+publishes these request forms on the one flat declaration, derived from the
+enforced union: each field's dependency names what it requires and which
+fields it excludes. The dependency is one-way: `selection` requires `result`,
+and `result` alone is a valid request. A `selection` sent without a `result`
+is refused for that cause and nothing is read. When the selection is otherwise
+valid and names a proof, the refusal offers one guidance call, the top-level
+`proof_name` request, labelled as a read of the current catalogue; it is not
+the retained original and is never executed or substituted for it. An optional
+`query` instead returns complete lexical matches by tier, or bounded
+counts with one exact call to the complete retained index. A complete catalogue
+or index also
+carries `short_descriptions`: one catalogue sentence of at most 120 characters
+for exactly the listed proofs, keyed by proof name and empty when nothing
+matched. The sentences are navigation prose for comparing candidates; they are
+retained verbatim with the original, never searched or ranked, and add no
+guarantee or execution capability. Complete selections
+return assertion, exclusions, capability and applicable authoring facts. The
+overview and combined answer also carry the exact catalogue `short_description`
+and `usage` prerequisites and fit/misuse scenarios with their admitted boundary.
+These inline illustrations do not establish source applicability or turn every
+unsuitable case into an evaluator refusal. Catalogue/index rows remain unchanged.
+An overview states `verification_capability` and carries no construction
+inventory or definition digest; a selected family's falsification states each
+strategy by its `required` and `not_allowed` authored fields, its field
+patterns and its target constraint, without the mechanism name or the fields
+the save derives. These
+facts are selected semantic meaning, not paged byte reconstruction. Every stored
+discovery selection checks the owner's current catalogue identity without
+re-ranking. Source movement refuses rather than mixing populations.
+
+Authoring a proof that a test case verifies needs the family that runs the
+test. `target_family` is an input of `workspace_find_proofs`, never of
+`save_record`. When an answer carrying authoring has no selected family,
+`authoring.family` names the missing input and its task, and
+`next_calls.primary` is `choose_family`. `next_calls.choose_family.choices`
+lists every family of the case-authoring owner by `family_id` and `runner`,
+each with one exact call: `{proof_name, target_family, part: {kind:
+"authoring"}}`. `runner`, there and in a selected family's
+`authoring.family.runner`, is the runtime runner name `workspace_run_test`
+takes as `runner`, for example `deno` or `go-test`; a command label such as
+`deno test` is query vocabulary and never a runner identifier. Each call is a
+fresh read of the current catalogue that
+returns a new result. `target_family` is no selection of a retained result,
+so the earlier original is unchanged and stays without a family. No family is
+inferred, defaulted or read ahead, and a choice carries no family's authoring
+detail. Until a family is chosen, `save.awaits_family` names the case target
+and falsification fields instead of listing the family among
+`save.missing_inputs`. `next_calls.select` and `parts` remain the secondary
+reads of the same result's parameters and constraints. A selected or
+query-identified family, and a proof that declares no test execution, gain no
+choice step.
+
+A selected family states the one selector member its case target takes in
+`authoring.family.target.fields`, with that member's form beside it. Jest,
+Vitest, Mocha, AVA, Deno and lib0/testing list `selector.title_path` and carry
+`title_path_form`: the ordinary test titles as an array of strings, outermost
+first, with `path` naming the test source file once. Every other
+provider-qualified family lists `selector.node_id` and carries `node_id_form`.
+The form is the selector grammar owner's own, captured with the answer, and
+`save.missing_inputs` names the same member. Discovery states no serialized
+identity for a title path and no encoding instruction: the provider owner
+derives the stored test identity from the saved path and titles. Discovery
+classifies no selector syntax and corrects no request; a selector member of
+another family is refused by the save, which names the member to write.
+
+An authoring answer carries only calls that read its own retained result
+and, for a missing family, the family choice. Inline strategy examples accompany
+target constraints; there is no linked-example route or call into the
+requirement-authoring guidance. The selected proof's
+`authoring` already states whether a case is required (`authoring.case`), the
+values the answer establishes (`save.changes`) and every input that remains the
+caller's own (`save.missing_inputs`). A proof that declares no test execution
+lists no case input, family or case member, so nothing in its answer leads
+into case authoring. Required configurable proof parameters in
+`save.missing_inputs` come from retained source policies/cardinality, with schemas
+left to parameter parts. The checklist describes a new complete selection, not
+missing values in an existing WK; incomplete drafts remain savable. Selected
+family target constraints include inline supported/rejected strategy snippets
+chosen from the family’s existing languages, authored once per mechanism and
+language variant. Retained reads preserve both guidance and examples. The answer
+does not vary with the reading session's role.
+
+`query_code_index` retains its published-index and currentness owner. Its returned
+selections deliver complete semantic rows through authenticated selected-full
+projection. The public reader never consumes an oversized internal spill page or
+reruns the original query merely to recover an original.
+
+Default code-index status keeps availability, indexed commit, observed HEAD,
+freshness, dirty state, base/SCIP usability and coverage qualifications,
+without the store's own incarnation and publication sequence: the
+project, inactive-project, project-document, covered and uncovered document
+counts and every scalar base, provider and SCIP fact, with unknown counts left
+unknown. Deep provider and provenance populations remain exact in
+authenticated status selections. File context leads with the requested file
+and recommends its complete `source`. Both summaries carry concise
+`selected_detail.choices`, sharing `source` and `snapshot_identity`. Each choice
+is composed as `{detail:{source:selected_detail.source,
+snapshot_identity:selected_detail.snapshot_identity,...choice}}` on the same
+route. Status retains its evidence once without indexing or requesting refresh;
+selected reads retain nothing further.
+
+What status recommends follows what the index needs. A fresh usable index
+lists `supported_questions`, the selectors of each code question, and
+recommends no inspection: its evidence selection stays offered and is no
+prerequisite for a question. A published index that is stale or whose provider
+facts are partial recommends exactly one call, the focused `diagnosis`
+selection, which states the exact cause, both commits and what this session
+can do; a registered preparation call follows it, still offered. An absent
+index recommends the registered preparation call when this session holds one;
+when it holds none, `preparation` names the missing capability and the
+diagnosis is the recommendation. No preparation call is invented and no
+unchanged retry is offered as a remedy. The explicit `graph_snapshot`
+selection remains the complete, passive provenance read.
+
+The code route uses the registry's existing row projection and presentation
+hooks for oversized rows. Their stable positions fit the internal row budget;
+the presenter resolves those positions against the same authenticated semantic
+selection and delivers the complete values through selected-full admission.
+Identity, selection, boundary and recovery checks still run in the registry.
+An internal `row_field_inventory_exceeds_delivery_bound` refusal is therefore
+not required to retrieve a complete selected source or provenance member. The
+route adds no pager, retention store or public reader.
+
+## Common execution-result selections
+
+`get_run_result` default answers are compact live/durable or retained summaries.
+Standalone/recorded proof results keep their incumbent summary and diagnosis
+owners. Native originals use the native outcome reader and its strict bound;
+that owner retains its read/continue/retry vocabulary and source checks.
+
+Coordinators discover recorded proofs through the selected run's compact
+`proof_verification`: `none_recorded` describes a healthy empty population,
+`recorded` carries its exact count and inventory call, and `unavailable` carries
+the actual evidence failure. Following the inventory call returns all invocation
+rows from one validated journal prefix, including their subject, tested source,
+result identity and exact original read calls. A later append does not alter
+those invocation selections. Authentication uses the prepared backend's
+visibility owner and durable attempt selection; a hot denial cannot retry cold.
+
+The shared response owner admits this complete inventory using the exact native
+journal bytes from the same successful validated read. It checks their private
+source digest and preserves the complete selection's transport class. Those
+bytes, unrelated attempts and journal paths never become public locators. A
+chosen original's emitted `detail:{member:"outcome"}` call similarly uses the
+cache reader's already verified envelope and exact stored bytes, with no reread,
+response snapshot, public pager or new storage owner.
+
+A complete proof outcome contains the permitted semantic outcome and each proof's
+selected diagnosis through the existing presentation owners. Failed and
+not-executable outcomes retain their cause, selected identity and tested source;
+later success cannot replace an earlier failure. Private runner captures, raw
+stdout/stderr and full stacks remain in the immutable original. Complete semantic
+delivery can exceed the ordinary response bound, while default observation and
+summary responses remain bounded. Malformed or mixed selectors identify their
+actual field; missing, corrupt and deficient evidence refuses rather than
+substituting another invocation or an empty result. Every read preserves original
+bytes, permissions and identities and performs no execution, publication,
+integration, lifecycle advance or repair.
+
+After authenticating a proof original and its entitlement, the common reader
+applies the proof producer's shared recovery projector to a presentation copy.
+The trusted receiving role, live registered request contracts and authenticated
+authoring-source resolver determine which correction reads are actually usable.
+The original's subject, source/focus, diagnostics, competing verification IDs,
+invocation identity and digest remain its historical facts. Stored carrier bytes,
+request schema, journal and cache are never replaced by this presentation.
+
+Worker subject acquisition remains unavailable under its registered reader
+schema. Recovery reports the exact saved source and obligation, missing
+capability and correction boundary; it substitutes neither assignment observation
+nor an invented reference. An entitled coordinator's nonfocused current-source
+read stays callable. Focused or unknown authoring intent and frozen or unavailable
+review sources retain their specific acquisition boundaries. Reviewer recovery
+coverage grants no proof-original read route: role/attempt refusals precede
+projection and disclose no evidence. Source movement or later successful proofs
+do not repin or replace a historical failure. Reading a permitted authoring
+context may retain its ordinary selected-resource descriptor; that transport
+effect neither re-retains proof evidence nor mutates authoring or proof state.
+
+Delivery, integration and observation detail selects one returned semantic member
+with `{result:{ref_id},detail:{member}}`. The owner returns `member`, its
+complete `value`, pure observation facts, the unchanged `result` locator once and
+`selections`, one `{member}` selector for each other member of that same original
+in original order. Another member is read by passing both unchanged, as
+`{result, detail: selections[i]}`. The returned member is not among the
+selections and no call rereads it; there is no expanded call per member, and a
+complete detail publishes an empty `next_calls`. A default summary's member
+calls are unchanged. No cursor, offset, length or base64 field is
+public in this detail contract. A missing member refuses with its available member names;
+it never becomes an empty successful result. The original is authenticated again
+before this shared selected-full projection.
+
+Complete child text is reachable only through a selected original member. Default
+observation carries kind, missing-result diagnosis, text length, publication state
+and availability, not internal publication/journal/result carriers. Producer
+settlement captures the permitted terminal original once independently of reads.
+A read never settles, captures, integrates, writes canonical/Git state or reruns.
+
+Producer pending spans settlement, retained-original capture and durable worker
+binding while the child
+can already be terminal. `original_publication` distinguishes `pending`,
+`captured`, `failed`, `not_configured` and `unavailable`; journal
+`result_publication` describes the separate durable-result publication. Worker
+capture reports `bound:true` after the locked publisher binds its locator to the
+exact recorded attempt/result. Failure at stage `original_binding` preserves the
+actual publisher refusal or cause and the successfully captured original; live
+and authenticated held-locator reads still offer that original.
+Accepted nonterminal and original-publication-pending observations return an
+exact `get_run_result` call pinned to the server-selected subject and attempt,
+without replaying a timeout. Available originals instead return their
+authenticated member call. Successful bounded waits preserve the immediate
+read's original locator. Failed publication preserves its actual cause, stage
+and responsible owner; observation does not retry publication or offer a retry
+promise. The complete frame still uses the shared summary bound.
+
+Known originals survive restart under their original session/source binding.
+For a bound managed worker, the existing subject/attempt observation authenticates
+the journal-selected original before returning its exact locator and member call.
+Repository, authority identity, unit and carrier subject/run must agree. Reads
+preserve historical failure originals after later success and source movement;
+subject-only selection still refuses ambiguity. Assigned worker metadata grants
+no observation-original access. A durable result without an original binding
+has no discoverable complete-original call. The observation states
+`durable_result_has_no_retained_original`; a read does not manufacture a locator.
+Retaining bytes and recording the immutable worker result are separate from
+binding a discoverable original locator. A crash between those publications can
+leave complete originals accessible through authenticated held locators while
+subject/attempt discovery remains unavailable. Reads never scan stored originals,
+backfill missing linkage or recapture. Advisory observation remains process-local;
+its held original retains the same authenticated reader after restart.
 
 ## Authority identity
 
-A session created with `requireAuthorityIdentity: true` authenticates its
-callers. Its binding carries a server-resolved `authority_identity`: the retained
-envelope stores it whole and the hot summary (`retained_source`) stores its
-`authority_identity_sha256`, so a hot cursor or snapshot identity is compared with
-exactly what a cold locator read compares. Retention without an identity is
-refused, and every detail read — hot cursor, snapshot identity or cold retained
-locator — requires the caller's re-resolved identity to be present and equal to the
-retained one before any page is returned. An absent expected identity refuses with
-`authority_identity_missing`; an absent or different retained identity refuses with
-`source_binding_mismatch` naming `binding_field: "authority_identity"`. A session
-that does not declare the requirement retains its exact binding shape and
-semantics. The obligation-coverage query is the declaring route.
+Each producer preserves its existing source and entitlement binding. Wiki context,
+worker assignment, findings source, native caller, standalone proof source,
+integration, delivery and observation keep distinct entitlement boundaries.
+Integration originals authenticate the orchestrator and configured repository;
+delivery and observation additionally bind their stored launcher identity. A
+foreign repository/role/attempt/source refuses before selected material is
+returned. Worker delivery originals remain available to their authenticated
+worker; integration/observation originals require the orchestrator owner. Native
+results remain available to their authenticated execution role.
 
-A session may also reserve `navigationReserveBytes` for navigation the route
-appends to a detail response. The reserve applies to scalar ranges and to every
-registry page the route's `pageAppendsNavigation(page)` says it will extend
-(by default, every page). A page the route serves unchanged is admitted against
-the whole delivery bound. The obligation-coverage query extends a page with a
-descend template for a row projection or field inventory, or with the
-next-collection call when a whole-collection page carries no continuation. A
-mid-collection page that already continues by cursor is served unchanged. The
-complete frame is still measured against the delivery bound.
+Optional proof selectors name one exact subject or authored source tuple within
+a proof original; they select no native, delivery, integration or observation
+meaning. Assigned recorded invocation reads retain their original subject/source
+through the existing worker journal/cache authentication owner.
 
-A value holding a reserved controlled-contract assessment envelope is never
-emitted whole. Its row and field inventories advertise its parts, and the
-readiness adapter applies `assertNoControlledContractRawResponse` to the emitted
-controlled-semantic value.
+An original source ambiguity offers exact `get_run_result` inspection calls.
+Each authenticated source inspection returns its selected tuple and an optional,
+nonrecommended `verify_proof` execution call constructed by the current proof
+owner. Inspection executes nothing and leaves stored producer identities and
+original bytes unchanged.
 
-## Code-index answers
+Malformed recorded selectors report the recorded schema's exact field and
+constraint, including caller-supplied `recorded_invocation.invocation_id` when
+missing. Recovery never substitutes assigned observation or drops a recognized
+selector. Unsupported-key corrections retain the invocation and proof selection
+and must satisfy the complete registered contract; mixed selectors require the
+caller to choose one request meaning.
 
-The six code-index query routes do not use the paging session. Their owner,
-`createCodeIndexAnswerSelection` in
-`packages/wiki-mcp/src/lib/code-index-query-response.mjs`, composes only
-`retainSelectedResponseSource` (one protected retention per answer) and
-`readSelectedResponseSource` (the whole, digest-verified read). It adds no
-registry, cursor, snapshot identity, codec or store.
+## Refusals and purity
 
-The ordinary answer is the route's bounded summary plus `selected_detail`
-`{schema_version: "code-index-selected-summary.v2", source, collections}` —
-the opaque locator and the exact row count of every selectable collection — and
-one top-level `next_calls` entry selecting the answer's first semantic subject
-(the first affected file by `path`, or the first definition, reference, caller
-or callee by its hit identity). That call is also the owner call the public
-reader returns for the retained bytes. Calls are published once, never inside
-`selected_detail`.
-
-Navigation summaries (the four navigation routes and a composed code question)
-fit the same complete frame, `selected_detail` and `next_calls` included, at
-their projection owner, `fitNavigationSummary` in
-`packages/wiki-core/src/lib/sidecar-navigation-projection.mjs`. The largest
-leading prefix of rows and candidates whose identities fit is shown with exact
-totals. At that prefix, displayed region texts are first represented by
-`omitted.source_text.utf8_bytes`, and hit entries that only repeat a displayed
-row are dropped with an exact `counts.source_hits`; texts are then restored in
-answer order while the frame fits. A composed answer shares one row limit
-across its parts, states an identical publication `graph_snapshot` once, and
-offers each non-empty relationship collection as its own call after the first
-subject. An ambiguous composed target may therefore show no rows, only its
-resolution, candidate counts and totals, with those calls and an explicit
-`candidates` call.
-
-A detail request is `{source, collection, selector?: {id}, path?, symbol?,
-relationship?, input_path?, lines?: {start_line, end_line}}` and nothing else; `cursor`, `ordinal`, `offset`, `length`,
-`field_path` and `snapshot_identity` are not part of the schema and are refused
-by the handler as `detail_invalid`. `collection` names one top-level row
-collection of the retained answer or one top-level result member (such as
-`graph_state` or `source`). The caller's own query material
-(`input_diff_sources`, a supplied patch) stays retained and is never
-selectable. Every supplied filter must hold:
-
-- `selector.id` — a returned row's own identity (`hit_id`, `region_id`,
-  `edge_id` or `id`), or the value of a path row.
-- `path` — a row naming that file (`path`, `document_path`, `input_path`,
-  `newPath` or `oldPath`, or the row itself).
-- `symbol` — a row naming that symbol (`symbol`, `symbol_key`, `symbol_id`,
-  `caller_symbol`, `callee_symbol` or `symbol_keys`).
-- `relationship` — a row of that `kind`, or a row whose relationship lists are
-  reduced to entries of that kind.
-- `input_path` — within one selected `affected_files` row, the exact input path
-  of its retained relationships, optionally narrowed by `relationship`.
-- `lines` — absolute, inclusive, one-based source lines within one retained
-  `context_regions` row selected by `selector.id` or one `complete_files` row
-  selected by `path`. The selected text preserves Unicode, BOM and line endings.
-
-`candidates` selects the original `symbol_resolution.candidates` population by
-symbol or path. A composed answer keeps candidates distinct by relationship;
-the `relationship` filter selects that part. Multiple matches remain explicit.
-
-A detail response (`code-index-selected-detail.v1`) carries `observation`
-(`current`, `changed` or `unavailable` from a read-only comparison of the
-retained index HEAD with the current committed HEAD), `selected_detail` with the
-source, collection, selection, `presentation` and exact `counts` (`total`,
-`matched`, `returned`, `truncated`), the selected rows under the collection's
-own name, and `next_calls`. When the whole matched selection fits the delivery
-bound it is returned as the original rows (`presentation: "complete"`).
-Otherwise a single row answers with its compact view: every member of at most
-512 UTF-8 bytes unchanged, and each larger member under `omitted` with its exact
-`count` (plus relationship `kinds`) or `utf8_bytes`; `next_calls` then select
-each relationship kind and, within a selected kind, actual `input_path` choices,
-or an actual source location within a region or file whose text was omitted.
-A broad selection answers with the leading compact rows
-in original order, exact counts, and calls selecting its first rows by their
-own subject. Nothing is clipped, continued by position or assembled from
-fragments; a text larger than the delivery bound is represented by its exact
-size. A source-line call identifies a code location; it is not a consecutive
-window protocol for reconstructing a file. A requested line range that cannot
-fit refuses without clipping; an indivisible line larger than the frame remains
-a stated limit.
-
-A detail read never evaluates the question, prepares or rebuilds the index, or
-retains a new source, and a restarted host reads the same retained observation.
-A detail request that also carries query arguments is refused as
-`detail_excludes_query_arguments` with the exact detail-only call as its
-callable next call, but only after its selection resolves; otherwise the
-selection's own refusal is returned. `collection_unknown` (with the selectable
-collection names, and `retained_query_material: true` for the patch),
-`selection_matched_nothing`, `selection_not_applicable` (a filter on a result
-member) and `source_binding_mismatch` (a source retained by another route or
-repository) name the exact cause and disclose no other result.
-
-## Refusals
-
-| Condition | Code | Continuation |
-| --- | --- | --- |
-| Snapshot identity or cursor unknown, expired, evicted or from another host | `selected_response_snapshot_unavailable` | The same selection bound to its source, without the lost identity or cursor. A read that already carried no identity declares no supported route. |
-| `field_path` without a row (`field_requires_exact_row_identity`) | `selected_response_query_invalid` | One callable correction: the same retained source, identity form and collection without `selector`, `field_path`, `ordinal` or range. It inspects the collection's rows and their valid field paths; it does not return the requested field. |
-| `field_path` whose field the exact selected row does not carry (`field_unknown`) | `selected_response_query_invalid` | One callable correction: the same retained source, identity form, collection and `selector` without `field_path`, `ordinal` or range. It inspects that row's valid structure; it does not return the requested field. |
-| Unknown collection, invalid selector, unknown or non-unique row, any other invalid field path, ordinal or range; source bound to another route, repository, unit or authority identity; locator that is not a selected-response source | `selected_response_query_invalid` | No supported route; the deciding facts carry the exact reason. |
-| Retained bytes missing | `mcp_response.content_reference_ranged_read_unavailable.v1` | No supported route; `content_reference.failed_step` is `content_reference_not_found`. |
-| Retained bytes whose digest does not match, or that do not parse | `mcp_response.content_reference_ranged_read_unavailable.v1` | No supported route; `content_reference.failed_step` names the integrity failure. |
-
-A field correction is offered only after the same snapshot serves the corrected
-selection through the source, route, repository, unit, authority and selection
-checks; a foreign, unavailable or otherwise invalid selection keeps no supported
-route. The correction never prepends a field, guesses a row, re-executes the
-query or retains the source again.
-
-## Readiness summary
-
-For readiness, a presenter carrier that fits is returned whole with
-`selected_detail.complete: true`. Otherwise the summary spends the complete-frame
-budget in this order, measuring each step on the complete frame:
-
-1. Reserved: the header (schema version, repository, record, unit, dispatch
-   role, `dispatchable`, `decision_code`, `reasons_total` and `cluster_count`);
-   the locator, the snapshot identity, collection counts and the required detail
-   calls; the next action; `reasons` and owner `next_calls`, each whole when it
-   fits and otherwise as exact counts (`selected_detail.reasons.total` and
-   `distinct_total`, `selected_detail.owner_next_calls.total`) with the call for
-   its original collection; and the decision scalars of admissibility and
-   controlled acceptance.
-2. The optional navigation call for the first omitted member, when it fits.
-3. Graph failure code, auto-recovery, recovery and state, each whole when it
-   fits.
-4. Otherwise reason and owner-call identities, alternating between the two
-   populations in original order: a distinct reason as its first ordinal and
-   exact count, an owner call as its ordinal, tool and recommendation.
-5. Long values of listed distinct reasons that fit.
-6. Refusals, structural readiness, admissibility, controlled acceptance and
-   inventories, whole while they fit.
-
-The call for the first omitted member is recommended until the owner's own
-`next_calls` are inline; after that it is optional navigation. Optional
-navigation that does not fit after the reserved content is left out, but only
-when it serves no required purpose and a required detail call for the same
-retained source remains. The member stays named in
-`selected_detail.omitted_members` and is read by sending that remaining call
-with `collection: "members"` and `selector: {id: "<member>"}`. The last detail
-route, and a call that is also required, are never left out.
-
-A member is inlined whole under its original key or named in
-`selected_detail.omitted_members`, never truncated. Owner-identical reasons are
-counted together; differing ones are never collapsed. Each identity population
-carries `inline: {complete, listed}`. When `complete` is `false`, the listed
-identities are an original-order prefix, not the whole population, and
-`selected_detail.next_calls` includes a detail call for that population's
-original collection (`reasons` or `next_calls`), beside the call for the first
-omitted member when that call is offered. Cardinality alone never refuses valid readiness.
-
-A chosen reason or owner call is read directly: send that collection call with
-`selector: {id: "<ordinal>"}`. The row is the original value, or its field
-inventory and scalar ranges when it is too large, so a chosen row never needs
-preceding pages or another readiness evaluation. Following the collection's
-continuations recovers every occurrence, multiplicity and unchanged call argument
-when the complete population is needed.
-
-## Obligation-coverage query
-
-The query adapter returns a result that fits whole with `selected_detail.complete:
-true`. Otherwise it retains the result once. The compact view carries the identity,
-disposition, source authority and population members, then the contract digests,
-controlled acceptance and inventory summary while they fit, naming the rest in
-`selected_detail.omitted_members`, with collection counts and one `next_calls` entry
-that starts complete retrieval. A `parameter_detail` read of one known obligation
-places `parameter_selection` before the optional members, at the largest size that
-fits. A partial size names every parameter-contract field it leaves out in
-`not_inline`, and leads `next_calls` with the exact field read of the first of them
-on that retained obligation instead of recommending the first collection; each such
-read names the next, until every named field is delivered. `view: "complete"` returns that retrieval's first
-page directly. When a whole-collection traversal ends, the adapter appends the call
-for the next non-empty collection in carrier order after `members`; a page whose
-row or value arrives as a field inventory also carries a `descend` template, to
-which the caller adds each listed `field_path`.
+Refusals state the actual cause, selected subject and supported fix. No read
+silently captures missing evidence, repairs a journal, prepares a runtime,
+refreshes a proof pin, advances a candidate, publishes or integrates. Unavailable
+originals, live-state loss after restart and contradictory identity remain explicit.
+Original and current observations can disagree because they address distinct
+resources; each response preserves its own source identity and certainty.

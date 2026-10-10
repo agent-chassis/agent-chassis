@@ -3,66 +3,9 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "code-index-tools.json",
-  "summary": "Code-index status and optional build/rebuild controls.",
-  "tool_count": 3,
+  "summary": "Operator-only code-index build and rebuild controls.",
+  "tool_count": 2,
   "tools": [
-    {
-      "tool_name": "workspace_code_index_status",
-      "display_name": "Workspace code index status",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_code_index_status",
-      "task_ids": [
-        "query-graph-impact"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 107,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "paid_cce"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-tiers.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "Optional read-only diagnostic of index freshness, dirtiness and graph availability. Queries prepare the index automatically and report their own freshness; no status or build call is needed first. verbose:true adds derived-evidence and artifact-path detail. CLI fallback: `npm run wiki -- code-index status --json`.",
-      "use_when": [
-        "Inspect code index freshness, dirtiness or graph availability as an optional read-only diagnostic."
-      ],
-      "do_not_use_when": [
-        "Before asking a code-index query; queries prepare the index automatically and need no status or build prerequisite."
-      ],
-      "authoritative_for": [
-        "read-only committed code-index status diagnostics"
-      ],
-      "recommended_first_call": {
-        "operation": "inspect the configured workspace code index status",
-        "arguments": {
-          "repo": "$configured_workspace_alias"
-        },
-        "omit_null_arguments": true
-      }
-    },
     {
       "tool_name": "workspace_code_index_build",
       "display_name": "Workspace code index build",
@@ -100,12 +43,12 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Optional control that prepares the repo code index for a configured workspace repository now. Queries already prepare this ignored derived cache automatically, so no build call is needed first. A dirty worktree is reported, never refused. A cache path that is not git-ignored refuses with cache_path_not_ignored. CLI fallback: `npm run wiki -- code-index build --json --dir <repo>`.",
+      "notes": "Optional control that prepares the repo code index for a configured workspace repository now. Queries answer from the published index and request background refresh; explicit build waits for current HEAD. A dirty worktree is reported, never refused. A cache path that is not git-ignored refuses with cache_path_not_ignored. CLI fallback: `npm run wiki -- code-index build --json --dir <repo>`.",
       "use_when": [
-        "Optional ahead-of-query preparation is explicitly wanted; every query already prepares the index automatically."
+        "Preparation that waits for current HEAD is explicitly wanted; queries answer from the published index and request background refresh."
       ],
       "do_not_use_when": [
-        "A code-index query is about to run; queries prepare the index automatically."
+        "A code-index query is about to run; queries answer from the published index and request background refresh."
       ],
       "authoritative_for": [
         "optional committed code-index preparation"
@@ -155,7 +98,7 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Optional control that forces a clean rebuild of the repo code index for a configured workspace repository, re-extracting every committed source. Queries already prepare this ignored derived cache automatically. A dirty worktree is reported, never refused. A cache path that is not git-ignored refuses with cache_path_not_ignored. CLI fallback: `npm run wiki -- code-index rebuild --json --dir <repo>`.",
+      "notes": "Optional control that forces a clean rebuild of the repo code index for a configured workspace repository, re-extracting every committed source. Queries answer from the published index and request background refresh; explicit rebuild waits for current HEAD. A dirty worktree is reported, never refused. A cache path that is not git-ignored refuses with cache_path_not_ignored. CLI fallback: `npm run wiki -- code-index rebuild --json --dir <repo>`.",
       "use_when": [
         "A clean re-extraction of every committed source is explicitly wanted."
       ],

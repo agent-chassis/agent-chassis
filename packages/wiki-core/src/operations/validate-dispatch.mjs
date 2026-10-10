@@ -114,10 +114,15 @@ function selectedSlice(record, unitAddress) {
     : null;
 }
 
-export async function loadDispatchSubject({ dir = ".", unitAddress, recordStore = null } = {}) {
+export async function loadDispatchSubject(source = {}) {
+  return (await loadDispatchSelection(source)).subject;
+}
+
+export async function loadDispatchSelection({ dir = ".", unitAddress, recordStore = null } = {}) {
   const loaded = await loadDispatchRecord({ dir, unitAddress, recordStore });
-  if (!loaded?.valid) return null;
-  return selectedSlice(loaded.record, unitAddress);
+  if (!loaded?.valid) return { record_id: null, slice_id: null, subject: null };
+  return { record_id: unitRecordId(unitAddress), slice_id: selectedSliceId(unitAddress),
+    subject: selectedSlice(loaded.record, unitAddress) };
 }
 
 async function loadDispatchRecord({ dir = ".", unitAddress, recordStore = null } = {}) {

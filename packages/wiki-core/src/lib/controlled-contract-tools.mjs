@@ -130,7 +130,7 @@ export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_ROW_AUTHORING_SCHEMA =
 
 import { PROOF_AUTHORING_FIELD_SCHEMAS } from
   "@agent-chassis/controlled-contract/proof-contract";
-import { CASE_COMPONENT_FIELD, CASE_VERIFICATION_ASSOCIATION_FIELD, NATIVE_TEST_CASE_AMENDMENT_SCHEMA,
+import { CASE_COMPONENT_FIELD, CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD, CASE_VERIFICATION_ASSOCIATION_FIELD, NATIVE_TEST_CASE_AMENDMENT_SCHEMA,
   NATIVE_TEST_CASE_AUTHORING_GUIDANCE } from
   "@agent-chassis/controlled-contract/native-test-cases";
 import { STABLE_TEST_PROOF_AUTHORING_LIMITS, VERIFICATION_BUNDLE_VOCABULARY } from
@@ -275,6 +275,11 @@ const upsertDescribeRequest = (argumentsValue) => Object.freeze({
 const upsertGuidanceRequest = (...path) => upsertDescribeRequest({
   input_contract: Object.freeze({ kind: "guidance", path: Object.freeze(path) })
 });
+
+export const CONTROLLED_CONTRACT_REQUIREMENT_FIELD_GUIDANCE =
+  "A behavioral requirement names a subject and an observable behavior. Its verification " +
+  "names a verifier, what it observes, and a fails_when statement describing the contrary " +
+  "result, so the check can tell the two apart.";
 export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
   schema_version: "controlled-contract-requirement-input-guidance.v1",
   overview: "Author a unit's contract requirements, controlled-acceptance disposition and " +
@@ -302,19 +307,19 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     "unrepresentable_meaning only supplement those entries and are never saved alone. " +
     "contract_requirements.retire_claim_ids explicitly retires stored requirements with no " +
     "replacement and reconciles their dependent obligations, cases and test targets. " +
-    "A behavioral requirement names a subject and an observable behavior. Its verification " +
-    "names a verifier, what it observes, and a fails_when statement describing the contrary " +
-    "result, so the check can tell the two apart. The declared inputSchema is compact; this " +
+    `${CONTROLLED_CONTRACT_REQUIREMENT_FIELD_GUIDANCE} The declared inputSchema is compact; this ` +
     "tool's verbose describe is its complete enforced structure. Accepted values are selected " +
     "guidance: pass one member name as input_contract.path to read only it -- vocabulary, " +
     "required_object_shapes, behavioral_example, native_runtime_test_vocabulary, " +
-    "case_authoring or unresolved_coverage -- or [] for every member. After saving, query reads the saved " +
+    "case_authoring or unresolved_coverage -- or [] for every member. The authority member lists " +
+    "the exact selected call for each narrower decision; call only the ones a decision needs. " +
+    "After saving, query reads the saved " +
     "authoring, workspace_validate_proof diagnoses saved inputs, and workspace_verify_proof " +
     "executes saved proofs when execution is intended. Neither this guidance nor a successful " +
     "save establishes lifecycle readiness. For an obligation verified by test_execution, " +
-    "case_authoring gives each listed family's exact provider identity, node_id form and " +
-    "falsification fields, which verification a case may name, how a second test of one " +
-    "requirement adds its own verification, and component constraints. When no catalog proof of the obligation has been identified, keep " +
+    "case_authoring holds which case members are authored, each listed family's provider " +
+    "identity, selector form and falsification fields, and the shared case rules; a selected " +
+    "family's own answer and the authority calls each return one of them. When no catalog proof of the obligation has been identified, keep " +
     "controlled_acceptance required and use unresolved_coverage to distinguish route support " +
     "from genuinely missing requirement or verification meaning. What can run a selected " +
     "proof today is not an authoring input and is never recorded here: workspace_verify_proof " +
@@ -325,7 +330,16 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     accepted_values: upsertGuidanceRequest("vocabulary"),
     complete_relation_catalog: upsertGuidanceRequest("vocabulary", "relation_details"),
     case_authoring: upsertGuidanceRequest("case_authoring"),
-    unresolved_coverage: upsertGuidanceRequest("unresolved_coverage")
+    unresolved_coverage: upsertGuidanceRequest("unresolved_coverage"),
+
+    case_members: upsertGuidanceRequest("case_authoring", "purpose"),
+    case_component: upsertGuidanceRequest("case_authoring", "component"),
+    case_verification_association: upsertGuidanceRequest("case_authoring", "verification_association"),
+    case_falsification_support: upsertGuidanceRequest("case_authoring", "falsification_support"),
+    case_target_variants: upsertGuidanceRequest("case_authoring", "target_variants"),
+    case_observation: upsertGuidanceRequest("case_authoring", "observation"),
+    test_execution_verification_method: upsertGuidanceRequest("native_runtime_test_vocabulary",
+      "required_for_verification_method")
   }),
   case_authoring: NATIVE_TEST_CASE_AUTHORING_GUIDANCE,
   unresolved_coverage: Object.freeze({
@@ -347,7 +361,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
         "its evidence while writing the actual missing requirement or verification meaning.",
       "Execution capability is not authored meaning. Author the complete verification meaning; " +
         "when an executable route is intentionally selected, author that route's required inputs " +
-        "and leave execution to workspace_verify_proof, which reports incapacity with its own cause. A " +
+        "and leave execution to verify_proof, which reports incapacity with its own cause. A " +
         "refused request shape, an unknown provider identity or a provider version the catalog " +
         "does not list is a request defect to correct, not a gap.",
       "Implementation, execution, inspection, or review being unfinished grants no proof credit " +
@@ -393,7 +407,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
       field: "requirements[].rebind_case_ids",
       requires: Object.freeze(["replace_claim_id"]),
       purpose: "Keep existing authored cases while replacing a requirement. The compiler generates the replacement's requirement and verification identities; each listed case keeps its meaning and adopts the replacement test_execution verification in the same save.",
-      complete_case_population: "List every existing case whose verification the replacement retires, including cases no obligation uses. Query shows each requirement's verification_claim_ids and each case's verification_id.",
+      complete_case_population: "List every existing case whose verification the replacement retires, including cases no obligation uses. The unit's saved requirements and cases, read through workspace_read_wiki contract selections, show each requirement's verification_claim_ids and each case's verification_id.",
       surviving_verification: "A listed case whose verification survives the replacement is accepted unchanged and still counts toward the case operation bound.",
       runtime_meaning: "After same-batch case amendments, the authored runtime_test must agree with each retained case and its derived system-under-test boundary: boundary subjects, kind and module_path; observable kind; selector; falsifier strategy, module_path, entry_export and operation. Only fields present on both sides are compared.",
       live_links: "Obligation links to the replaced requirement, or to a retired verification the replacement maps, are updated in the root and every slice source. Work-record validation declarations keep their target, order and owning unit; only the owning unit may change them.",
@@ -420,13 +434,13 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     }),
     requirement_retirement: Object.freeze({
       field: "retire_claim_ids",
-      purpose: "Retire stored requirements with no replacement. List the requirement claim_id values query returns; the server derives and settles every dependent change in the same save. Omitting a requirement never retires it.",
+      purpose: "Retire stored requirements with no replacement. List the requirement claim_id values the unit's saved requirements show; the server derives and settles every dependent change in the same save. Omitting a requirement never retires it.",
       selection: "Each entry is a current non-verification requirement claim, listed once and not also named by a replace_claim_id or compiled by a requirement in the same answer. contract_requirements carries requirements, retire_claim_ids or both; a supplied list is never empty, and notes or unrepresentable_meaning alone are refused.",
       native_effects: "The requirement and its verifies edges retire. A verification retires only when no remaining requirement still uses it, together with its test proof and newly unused propositions and references. Shared verifications, residue and notes remain.",
       dependent_uses: "A parent or slice obligation whose explicit links and case support only retired requirements is deleted. An affected obligation that also supports a remaining requirement, or that the same save amends, is refused with its unit, obligation, case and identities; amend its controlled_contract_node_ids or case in the same save to keep the remaining meaning. Obligations with no retired link or case are unchanged.",
       cases_and_targets: "Cases bound to a retired verification are deleted once their uses retire; other cases, including unfinished ones, remain. node_test declarations drop retired verification IDs, keeping target, order, notes and other IDs, and are changed only through their owning unit.",
       semantic_dependencies: "A retained non-verifies relation or collection that still names a retired claim is refused; retained relationships are never rewritten or deleted to make retirement pass.",
-      receipt: "requirement_retirements lists each selection's retired and surviving verification IDs with retired obligation and case counts. Query reads the complete current state.",
+      receipt: "requirement_retirements lists each selection's retired and surviving verification IDs with retired obligation and case counts. The unit's contract selections read the complete current state.",
       bounds: Object.freeze({
         requirements_per_answer: CONTROLLED_CONTRACT_REQUIREMENT_LIMITS.requirements_per_answer,
         answer_census: "each requirements entry plus each retire_claim_ids entry",
@@ -460,7 +474,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
         "verification.runtime_test": "supplied"
       }),
       requires: Object.freeze(["verification.runtime_test"]),
-      guidance: "A supplied runtime_test must be complete. Omitting it saves the verification meaning with no executable binding, which workspace_verify_proof then refuses to execute. Other admitted verification methods do not force test_execution."
+      guidance: "A supplied runtime_test must be complete. Omitting it saves the verification meaning with no executable binding, which verify_proof then refuses to execute. Other admitted verification methods do not force test_execution."
     })
   ]),
   behavioral_example: Object.freeze({
@@ -532,6 +546,11 @@ function requirementGuidanceMember(...path) {
   return Object.freeze([...path]);
 }
 
+for (const call of Object.values(CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE.authority)) {
+  const path = call.arguments.input_contract?.path;
+  if (path !== undefined) requirementGuidanceMember(...path);
+}
+
 function conditionalRequirementMember(required) {
   const index = CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE
     .conditional_verification_requirements
@@ -561,6 +580,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS = Object.freeze(
   case_additional_verification: requirementGuidanceMember("case_authoring", "verification_association",
     "additional_verification"),
   case_component: requirementGuidanceMember("case_authoring", "component"),
+  case_observation: requirementGuidanceMember("case_authoring", "observation"),
   runtime_test_fields: Object.freeze({
     "boundary.kind": requirementGuidanceMember(
       "native_runtime_test_vocabulary", "provider_bound_boundary_kinds"),
@@ -573,14 +593,16 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS = Object.freeze(
   })
 });
 
+const authoredFieldRequestPath = (field) => Object.freeze(field.replace("[]", ".[]").split("."));
 export { CASE_VERIFICATION_ASSOCIATION_FIELD };
-export const CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH = Object.freeze(
-  CASE_VERIFICATION_ASSOCIATION_FIELD.replace("[]", ".[]").split("."));
-export const CASE_VERIFICATION_ASSOCIATION_FIELD_PATH =
-  `$.${CASE_VERIFICATION_ASSOCIATION_FIELD}`;
+export const CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH =
+  authoredFieldRequestPath(CASE_VERIFICATION_ASSOCIATION_FIELD);
+
+export { CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD };
+export const CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD_PATH =
+  `$.${CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD}`;
 export { CASE_COMPONENT_FIELD };
-export const CASE_COMPONENT_REQUEST_PATH = Object.freeze(
-  CASE_COMPONENT_FIELD.replace("[]", ".[]").split("."));
+export const CASE_COMPONENT_REQUEST_PATH = authoredFieldRequestPath(CASE_COMPONENT_FIELD);
 export const CASE_COMPONENT_FIELD_PATH = `$.${CASE_COMPONENT_FIELD}`;
 const requirementItem = ["contract_requirements", "requirements", "[]"];
 const requirementVerification = [...requirementItem, "verification"];
@@ -602,6 +624,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_REQUEST_GUIDANCE_LOCATIONS = Object
   [[...requirementVerification, "runtime_test"], requirementGuidanceMember("runtime_test_authoring")],
   [CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH, locations.case_verification_association],
   [CASE_COMPONENT_REQUEST_PATH, locations.case_component],
+  [authoredFieldRequestPath(NATIVE_TEST_CASE_AUTHORING_GUIDANCE.observation.field), locations.case_observation],
   [["contract_requirements", "notes", "[]", "kind"], locations.note_kinds],
   [["contract_requirements", "unrepresentable_meaning", "[]", "reason"], locations.residue_reasons]
 ].map(([path, guidancePath]) => Object.freeze({ path: Object.freeze(path), guidance_path: guidancePath })));
@@ -653,7 +676,7 @@ export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_TOOL = proofTool(
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_INPUT_SCHEMA);
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_TOOL = proofTool(
   "workspace_controlled_contract_obligation_coverage_query",
-  "Saved requirements with every linked verification, deduplicated references, applicability, obligations, shared cases, notes and exact pins at one revision. Compact by default; view:\"complete\" or detail retrieves the whole result in bounded pages. obligation_id reads one obligation directly; parameter_detail reports pins; inventory lists statements.",
+  "Saved requirements with every linked verification, deduplicated references, applicability, obligations, shared cases, notes and exact pins at one revision. Compact by default; compact and inventory answers carry case_links, each selected obligation_id's exact saved case_id or null, so reusing cases needs no view:\"complete\". criterion_identities maps each zero-based index of the selected unit's acceptance.criteria, in stored order at this revision, to the exact ID obligations[].acceptance_criteria takes; with that ordered list known, use the mapped ID without reading criterion text. view:\"complete\" or detail retrieves the whole result in bounded pages. obligation_id reads one obligation directly; parameter_detail reports pins; inventory lists statements.",
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA);
 export const VALIDATE_PROOF_TOOL = proofTool("workspace_validate_proof",
   "Explicitly validate saved design inputs against the exact selected proof route. The compact default assesses authored validity, route stages and zero execution credit, and indexes the blocking and actionable issues with each one's diagnostic_group_id call; diagnostic_group_id or obligation_id returns that selection's subjects, typed failed fields, corrections and addressed correction call. Does not execute providers, assess dispatch, change authored values or grant readiness.", VALIDATE_PROOF_INPUT_SCHEMA);

@@ -1,0 +1,81 @@
+{
+  "schema_version": "required-policy-inventory.prototype.v1",
+  "entries": [
+    {
+      "input_id": "codex-usage-callback",
+      "interface": "startCodexModelEndpoint usage(entry, phase)",
+      "kind": "model_endpoint_usage_callback",
+      "bindings": {
+        "operation": {
+          "type_term": "cc:operation",
+          "identity": {
+            "kind": "code_symbol",
+            "repository": "agent-chassis",
+            "path": "tests/helpers/role-guide-compaction-native.mjs",
+            "symbol": "startCodexModelEndpoint"
+          }
+        },
+        "check": {
+          "type_term": "cc:test",
+          "identity": {
+            "kind": "repository_path",
+            "repository": "agent-chassis",
+            "path": "tests/integration/native-model-endpoint-usage.test.mjs"
+          }
+        },
+        "invalid_return": {
+          "type_term": "cc:state",
+          "identity": {
+            "kind": "profile_term",
+            "term": "model-endpoint.usage-callback.return.invalid"
+          }
+        },
+        "invalid_usage_error": {
+          "type_term": "cc:artifact",
+          "identity": {
+            "kind": "profile_term",
+            "term": "model-endpoint.error.fixture_usage_invalid"
+          }
+        }
+      }
+    },
+    {
+      "input_id": "claude-usage-callback",
+      "interface": "startClaudeModelEndpoint usage(entry, phase)",
+      "kind": "model_endpoint_usage_callback",
+      "bindings": {
+        "operation": {
+          "type_term": "cc:operation",
+          "identity": {
+            "kind": "code_symbol",
+            "repository": "agent-chassis",
+            "path": "tests/helpers/role-guide-compaction-native.mjs",
+            "symbol": "startClaudeModelEndpoint"
+          }
+        },
+        "check": {
+          "type_term": "cc:test",
+          "identity": {
+            "kind": "repository_path",
+            "repository": "agent-chassis",
+            "path": "tests/integration/native-model-endpoint-usage.test.mjs"
+          }
+        },
+        "invalid_return": {
+          "type_term": "cc:state",
+          "identity": {
+            "kind": "profile_term",
+            "term": "model-endpoint.usage-callback.return.invalid"
+          }
+        },
+        "invalid_usage_error": {
+          "type_term": "cc:artifact",
+          "identity": {
+            "kind": "profile_term",
+            "term": "model-endpoint.error.fixture_usage_invalid"
+          }
+        }
+      }
+    }
+  ]
+}

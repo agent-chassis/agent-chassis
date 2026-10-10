@@ -26,19 +26,25 @@ agent-launch review   --app <app> <unit>   # dispatch a findings-only reviewer
 agent-launch redteam  --app <app> <unit>   # dispatch a findings-only redteam
 ```
 
-`<app>` is `codex` or `claude` for supported launches, and `<unit>` is a
-`WK-####[#slice]` address (or `IN-####` for an initiative-scoped redteam). Agy
-and Gemini have no supported confined operator path and fail closed, including
-dry-run planning. `--spark` selects
-the Codex Spark profile; `--dry-run-json` emits the structured plan without
-launching.
+`<app>` is `codex` or `claude`, and `<unit>` is a `WK-####[#slice]` address (or
+`IN-####` for an initiative-scoped redteam). Agy and Gemini have no supported
+confined operator path and fail closed, including dry-run planning. `--spark`
+selects the Codex Spark profile; `--dry-run-json` emits the structured plan
+without launching.
+
+The direct live Codex worker route is retired. `agent-launch worker` for a
+launch that resolves to Codex (by `--app codex`, by a Codex profile such as
+`--spark`, or by its model) refuses before any client is started, with
+`codex_direct_worker_retired`, and records no usage contributor. A Codex
+implementation worker is started through the managed `start_agent` tool of an
+orchestrator session (`agent-launch orchestrator <IN-####>`). `--dry-run-json`
+still plans the launch, and live Claude workers are unaffected.
 
 ```bash
-agent-launch worker   --app codex  <WK-ID#slice>
 agent-launch worker   --app claude <WK-ID#slice>
+agent-launch worker   --app codex  <WK-ID#slice> --dry-run-json   # plan only
 agent-launch review   --app codex  <WK-ID>
 agent-launch redteam  --app codex  initiative
-agent-launch worker   --app codex  --spark WK-0001
 ```
 
 ## Migrating from old family-named wrapper scripts
@@ -51,8 +57,8 @@ replace each with the supported `agent-launch` command below.
 
 | Old wrapper name | Supported operator command |
 | --- | --- |
-| `codex-worker` | `agent-launch worker --app codex <unit>` |
-| `codex-worker-spark` | `agent-launch worker --app codex --spark <unit>` |
+| `codex-worker` | retired: no direct live Codex worker. Start it with `start_agent` from an orchestrator session (`agent-launch worker --app codex <unit>` refuses with `codex_direct_worker_retired`) |
+| `codex-worker-spark` | retired, as `codex-worker` (`agent-launch worker --app codex --spark <unit>` refuses the same way) |
 | `codex-worker-fast` | refusal-only — the Codex fast profile refuses before model launch (`agent-launch worker --app codex --fast` also refuses) |
 | `codex-review` | `agent-launch review --app codex <unit>` |
 | `codex-redteam` | `agent-launch redteam --app codex <unit-or-IN>` |

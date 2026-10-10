@@ -42,9 +42,16 @@ export function renderDiscoveryConstraint({ ref, constraint }) {
 export function projectProofDiscoveryScope(pack) {
   const description = describePackParameters(loadPackParameterContract(pack));
   const constraints = description.constraints.map(renderDiscoveryConstraint);
+
+  const bodies = new Map(description.constraints.map(({ ref, constraint }) =>
+    [ref, canonicalDigest(constraint)]));
   const refinements = description.parameters.map(parameter => ({
     name: parameter.name, refinements: parameter.refinements,
-    applicability: parameter.constraints
+    applicability: parameter.constraints.map(({ ref, value }) => {
+      if (bodies.get(ref) !== canonicalDigest(value)) throw new ProofDiscoveryScopeError(
+        'parameter applicability constraint reference', { ref, parameter: parameter.name });
+      return ref;
+    })
   }));
 
   return deepFreeze({
@@ -76,7 +83,7 @@ function packAssociations(catalog) {
   return associations;
 }
 
-export function discoverySourceIdentity(catalog, admittedCatalog) {
+export function discoverySourceIdentity(catalog, admittedCatalog, { read = readFileSync } = {}) {
   const sourcePaths = ['proof-intents/catalog.json', 'profiles/catalog.json',
     'vocabulary/controlled-contract-vocabulary.v1.mjs'];
   for (const { identity } of packAssociations(catalog).values()) {
@@ -85,8 +92,14 @@ export function discoverySourceIdentity(catalog, admittedCatalog) {
     sourcePaths.push(...['profile.json', 'admission.json', 'parameter-contract.json'].map(x => `${entry.path}/${x}`));
   }
   const urls = sourcePaths.map(path => new URL(`../${path}`, import.meta.url));
-  return () => ({ discovery: canonicalDigest(
-    urls.map(url => readFileSync(url).toString('base64'))) });
+  let previous = null;
+  return () => {
+    const bytes = urls.map(url => read(url));
+    if (previous === null || !bytes.every((file, index) => file.equals(previous.bytes[index]))) {
+      previous = { bytes, discovery: canonicalDigest(bytes.map(file => file.toString('base64'))) };
+    }
+    return { discovery: previous.discovery };
+  };
 }
 
 export async function loadProofDiscoveryPopulation(catalog, rawCatalogDigest) {
@@ -105,7 +118,10 @@ export async function loadProofDiscoveryPopulation(catalog, rawCatalogDigest) {
     const pack = await loadAdmittedProofPackMeaning(identity.profile_id);
     if (pack.profile.profile_version !== identity.profile_version) throw new ProofDiscoveryScopeError(
       'intent/admission exact identity mismatch', { identity });
-    population.push({ id, ...projectProofDiscoveryScope(pack), intents });
+
+    const { short_description, usage } = admittedCatalog.packs.find(entry =>
+      entry.profile_id === identity.profile_id);
+    population.push({ id, ...projectProofDiscoveryScope(pack), short_description, usage, intents });
   }
   if (canonicalDigest(currentSourceIdentity()) !== canonicalDigest(sourceIdentity))
     throw new ProofDiscoveryScopeError('sources moved during discovery initialization');

@@ -842,8 +842,11 @@ export function computeWorkRecordClusters(record, options = {}) {
     graphImportAdjacency: context.graph_import_adjacency,
     graphBearingPaths: context.graph_bearing_paths
   });
+
+  const graphRelationshipsUnread =
+    context.graph_bearing_paths !== null && context.graph_import_adjacency === null;
   const clusters = finalizeClusters(familyBuckets, {
-    graphAvailable: context.state.graph_available,
+    graphAvailable: context.state.graph_available && !graphRelationshipsUnread,
     canonicalRefs: context.canonical_refs,
     bucketMetadata
   });

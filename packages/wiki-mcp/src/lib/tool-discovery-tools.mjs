@@ -17,7 +17,7 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
 
 import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
-import { measureMcpInlineResultBytes } from "./mcp-response.mjs";
+import { measureMcpSerializedResultBytes } from "./mcp-response.mjs";
 import {
   buildDispatchContinuation,
   recordOwnerRegisteredRequestSchema,
@@ -255,7 +255,7 @@ export function registerToolDiscoveryTools({
   }
 
   function measureToolDiscoveryListResultBytes(candidate) {
-    return measureMcpInlineResultBytes(candidate);
+    return measureMcpSerializedResultBytes(candidate);
   }
 
   async function loadWorkspaceToolDiscoveryListEnvelope(options = {}) {

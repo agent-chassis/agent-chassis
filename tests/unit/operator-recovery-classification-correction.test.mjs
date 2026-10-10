@@ -525,7 +525,7 @@ test("every corrected identity is blocking and none claims the operation proceed
   }
 });
 
-test("the identities that truly have no callable route say so, and the two that do name it", () => {
+test("the identities that truly have no callable route say so, and an observation is not a correction", () => {
 
   const noRoute = [
     "agent_launch.launch_failed_before_start.v1",
@@ -539,8 +539,16 @@ test("the identities that truly have no callable route say so, and the two that 
     "agent_launch.managed_corrective_status.launcher_retirement_incomplete.v1"
   );
   assert.equal(retirement.actor_recovery, "caller_retry");
-  assert.equal(retirement.recovery.route, "workspace_agent_run_status");
+
+  assert.equal(retirement.recovery.kind, "run_observation");
+  assert.equal(retirement.recovery.route, "get_run_result");
   assert.deepEqual(retirement.recovery.argument_bindings, {
     subject: "corrective_status_slice_unit"
   });
+  assert.equal(Object.hasOwn(retirement.recovery, "arguments"), false, "no attempt is selected or defaulted");
+  assert.match(retirement.recovery.success_condition, /retires nothing/u);
+  assert.match(retirement.recovery.success_condition, /until the launcher completes retirement/u);
+  assert.match(retirement.consumer_notes, /never be published as operator_recovery_needed/u);
+  assert.match(retirement.consumer_notes, /no attempt, because the refusal supplies no attempt identity/u);
+  assert.doesNotMatch(JSON.stringify(retirement), /workspace_agent_run_status/u);
 });

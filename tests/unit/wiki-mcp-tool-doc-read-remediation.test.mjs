@@ -4,46 +4,28 @@ import os from "node:os";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { z } from "zod";
-
+import { bindPackageDocsCarrier, TOOL_DOC_READ_DIAGNOSTIC_CODES } from
+  "../../packages/wiki-mcp/src/lib/tool-doc-read-tools.mjs";
+import { shouldExposeTool } from "../../packages/wiki-mcp/src/lib/tool-profile.mjs";
 import {
-  errorContent,
-  guardToolHandler,
-  jsonContent
-} from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
-import {
-  bindPackageDocsCarrier,
-  registerToolDocReadTools,
-  TOOL_DOC_READ_DIAGNOSTIC_CODES
-} from "../../packages/wiki-mcp/src/lib/tool-doc-read-tools.mjs";
+  assertPackageDocumentRefusal as assertReaderRefusal,
+  assertReadWikiRequestShapeRefusal as assertRequestShapeRefusal,
+  packageDocumentOwnerReader as ownerReader,
+  packageDocumentPublicReader as publicReader,
+  READ_WIKI_TOOL
+} from "../helpers/package-document-public-reader.mjs";
 
-const ADVERTISING_TOOL = "workspace_search_repo";
-const PLAIN_DOC_REFERENCE = "docs/mcp-integration.md";
+const SINGLE_REFERENCE_TOOL = "start_agent";
+const PLAIN_DOC_REFERENCE = "docs/mcp-operation-reference.md";
+const PAIR_REFERENCE_TOOL = "workspace_run_test";
+const PAIR_DOC_REFERENCES = ["docs/local-test-runtime-setup.md", "docs/mcp-selected-response-details.md"];
+
 const REFS_DOC_REFERENCE = "packages/wiki-core/templates/AGENTS.md.boilerplate.md";
 const REFS_BUNDLE_PATH = "docs/_refs/packages/wiki-core/templates/AGENTS.md.boilerplate.md";
+const RETIRED_ADVERTISING_TOOL = "workspace_search_repo";
 
 const FIXTURE_PACKAGE_NAME = "@agent-chassis/core";
 const FIXTURE_PACKAGE_VERSION = "0.6.0";
-
-function registerDocReadHandler({
-  docsCarrier,
-  sessionRole = "orchestrator",
-  registeredTier = "free_local"
-} = {}) {
-  const handlers = new Map();
-  registerToolDocReadTools({
-    registerTool(name, _definition, handler) {
-      handlers.set(name, guardToolHandler(handler, { name }));
-    },
-    z,
-    jsonContent,
-    errorContent,
-    docsCarrier,
-    sessionRole,
-    registeredTier
-  });
-  return handlers.get("workspace_read_tool_doc");
-}
 
 async function makeTemporaryRoot(t, label) {
   const root = await mkdtemp(path.join(os.tmpdir(), `wk2139-remediation-${label}-`));
@@ -75,12 +57,12 @@ async function writeServingPackage(packageDir, extraEntries = []) {
   await mkdir(path.join(packageDir, "docs", "_refs", "packages", "wiki-core", "templates"), {
     recursive: true
   });
-  await writeFile(path.join(packageDir, "docs", "mcp-integration.md"), "PACKAGE DOC BYTES\n", "utf8");
+  await writeFile(path.join(packageDir, PLAIN_DOC_REFERENCE), "PACKAGE DOC BYTES\n", "utf8");
   await writeFile(path.join(packageDir, REFS_BUNDLE_PATH), "BOILERPLATE BYTES\n", "utf8");
   await writeFile(
     path.join(packageDir, "docs", "public-docs-manifest.json"),
     manifestBody([
-      entry(PLAIN_DOC_REFERENCE, "docs/mcp-integration.md"),
+      entry(PLAIN_DOC_REFERENCE, PLAIN_DOC_REFERENCE),
       entry(REFS_DOC_REFERENCE, REFS_BUNDLE_PATH),
       ...extraEntries
     ]),
@@ -112,7 +94,14 @@ function assertNoRootDisclosure(payload, roots, label) {
 }
 
 test("WK-2139 remediation: each binding failure reaches the public read route under its own code", async (t) => {
+
+  for (const tool of [READ_WIKI_TOOL, SINGLE_REFERENCE_TOOL, PAIR_REFERENCE_TOOL]) {
+    assert.equal(shouldExposeTool("orchestrator", tool), true, `${tool} is visible to an orchestrator`);
+  }
+  assert.equal(shouldExposeTool("orchestrator", RETIRED_ADVERTISING_TOOL), false);
+
   const temporaryRoot = await makeTemporaryRoot(t, "binding");
+  const open = publicReader(t, temporaryRoot);
 
   const absent = await bindPackageDocsCarrier(null);
   assert.equal(absent.bound, false);
@@ -171,8 +160,8 @@ test("WK-2139 remediation: each binding failure reaches the public read route un
     assert.equal(carrier.bound, false, `${label}: fixture precondition — binding must fail`);
     assert.equal(carrier.code, expected, `${label}: binding diagnostic`);
 
-    const read = registerDocReadHandler({ docsCarrier: carrier });
-    const refused = await read({ tool_name: ADVERTISING_TOOL, path: PLAIN_DOC_REFERENCE });
+    const read = await open(carrier);
+    const refused = await read({ tool_name: SINGLE_REFERENCE_TOOL, path: PLAIN_DOC_REFERENCE });
     assert.equal(refused.isError, true, `${label}: the read must refuse`);
 
     assert.notEqual(
@@ -180,9 +169,7 @@ test("WK-2139 remediation: each binding failure reaches the public read route un
       TOOL_DOC_READ_DIAGNOSTIC_CODES.UNADVERTISED_REFERENCE,
       `${label}: a broken carrier must not be reported as an unadvertised reference`
     );
-    assert.equal(refused.structuredContent.code, expected, `${label}: public read-route diagnostic`);
-    assert.equal(refused.structuredContent.schema_version, "tool-doc-read-refusal.v1");
-    assert.equal(refused.structuredContent.ok, false);
+    assertReaderRefusal(refused, expected, label);
     assertNoRootDisclosure(refused.structuredContent, [temporaryRoot], label);
     observed.add(refused.structuredContent.code);
   }
@@ -199,51 +186,60 @@ test("WK-2139 remediation: each binding failure reaches the public read route un
   );
 });
 
-test("WK-2139 remediation: input shape and session visibility still refuse ahead of the carrier", async () => {
+test("WK-2139 remediation: input shape and session visibility still refuse ahead of the carrier", async (t) => {
 
+  const temporaryRoot = await makeTemporaryRoot(t, "precedence");
+  const open = publicReader(t, temporaryRoot);
   const broken = await bindPackageDocsCarrier(null);
   assert.equal(broken.bound, false);
 
-  const read = registerDocReadHandler({ docsCarrier: broken });
-  for (const candidate of ["/etc/passwd", "../../etc/passwd", "docs/../../package.json", ""]) {
-    const refused = await read({ tool_name: ADVERTISING_TOOL, path: candidate });
-    assert.equal(refused.isError, true, `path ${JSON.stringify(candidate)} must refuse`);
-    assert.equal(
-      refused.structuredContent.code,
-      TOOL_DOC_READ_DIAGNOSTIC_CODES.INVALID_PATH,
-      `path ${JSON.stringify(candidate)} must still refuse on input shape, before the carrier`
-    );
+  const read = await open(broken);
+  for (const candidate of ["/etc/passwd", "../../etc/passwd", "docs/../../package.json"]) {
+    const label = `path ${JSON.stringify(candidate)}`;
+    const refused = await read({ tool_name: SINGLE_REFERENCE_TOOL, path: candidate });
+
+    assertReaderRefusal(refused, TOOL_DOC_READ_DIAGNOSTIC_CODES.INVALID_PATH, label);
   }
 
-  const hidden = await read({ tool_name: "not_a_tool", path: PLAIN_DOC_REFERENCE });
-  assert.equal(hidden.isError, true);
-  assert.equal(
-    hidden.structuredContent.code,
-    TOOL_DOC_READ_DIAGNOSTIC_CODES.HIDDEN_TOOL,
-    "a tool this session cannot see must still refuse on visibility, before the carrier"
-  );
+  assertRequestShapeRefusal(await read({ tool_name: SINGLE_REFERENCE_TOOL, path: "" }),
+    "$.reference.path", "empty path");
+  assertRequestShapeRefusal(await read({ tool_name: SINGLE_REFERENCE_TOOL, path: PLAIN_DOC_REFERENCE,
+    package_root: temporaryRoot }), "$.reference", "caller-supplied package root");
 
-  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "wk2139-remediation-still-"));
-  try {
-    const packageDir = path.join(temporaryRoot, "package");
-    await writeServingPackage(packageDir);
-    const carrier = await carrierFor(packageDir);
-    assert.equal(carrier.bound, true);
-    const boundRead = registerDocReadHandler({ docsCarrier: carrier });
-    const refused = await boundRead({ tool_name: ADVERTISING_TOOL, path: "docs/tool-discovery.md" });
-    assert.equal(refused.isError, true);
-    assert.equal(
-      refused.structuredContent.code,
-      TOOL_DOC_READ_DIAGNOSTIC_CODES.UNADVERTISED_REFERENCE,
-      "a bound carrier that does not serve the path keeps the unadvertised attribution"
-    );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
+  await assert.rejects(ownerReader({ docsCarrier: broken })({ tool_name: SINGLE_REFERENCE_TOOL, path: "" }),
+    { code: TOOL_DOC_READ_DIAGNOSTIC_CODES.INVALID_PATH });
+
+  for (const [label, toolName] of [["an unknown tool", "not_a_tool"],
+    ["the retired advertising tool", RETIRED_ADVERTISING_TOOL]]) {
+    const hidden = await read({ tool_name: toolName, path: PLAIN_DOC_REFERENCE });
+
+    assertReaderRefusal(hidden, TOOL_DOC_READ_DIAGNOSTIC_CODES.HIDDEN_TOOL, label);
+    assert.equal(JSON.stringify(hidden.structuredContent).includes(toolName), false,
+      `${label}: the refusal does not confirm the name back to the caller`);
   }
+
+  const packageDir = path.join(temporaryRoot, "package");
+  await writeServingPackage(packageDir);
+  const carrier = await carrierFor(packageDir);
+  assert.equal(carrier.bound, true);
+  const boundRead = await open(carrier);
+  const refused = await boundRead({ tool_name: SINGLE_REFERENCE_TOOL, path: "docs/tool-discovery.md" });
+  assertReaderRefusal(refused, TOOL_DOC_READ_DIAGNOSTIC_CODES.UNADVERTISED_REFERENCE,
+    "a bound carrier that does not serve the path keeps the unadvertised attribution");
+  assert.deepEqual(refused.structuredContent.advertised_paths, [PLAIN_DOC_REFERENCE]);
+
+  assert.equal(shouldExposeTool("reviewer", SINGLE_REFERENCE_TOOL), false,
+    "fixture precondition: a reviewer cannot see start_agent");
+  const reviewerRead = await open(carrier, "reviewer");
+  assertReaderRefusal(await reviewerRead({ tool_name: SINGLE_REFERENCE_TOOL, path: PLAIN_DOC_REFERENCE }),
+    TOOL_DOC_READ_DIAGNOSTIC_CODES.HIDDEN_TOOL, "a tool hidden from the reviewer");
+  assertReaderRefusal(await boundRead({ tool_name: RETIRED_ADVERTISING_TOOL, path: PLAIN_DOC_REFERENCE }),
+    TOOL_DOC_READ_DIAGNOSTIC_CODES.HIDDEN_TOOL, "the retired advertising tool over a bound carrier");
 });
 
 test("WK-2139 remediation: a docsRoot that is not inside the package root is an unavailable carrier", async (t) => {
   const temporaryRoot = await makeTemporaryRoot(t, "docsroot");
+  const open = publicReader(t, temporaryRoot);
   const packageDir = path.join(temporaryRoot, "package");
   await writeServingPackage(packageDir);
 
@@ -266,14 +262,10 @@ test("WK-2139 remediation: a docsRoot that is not inside the package root is an 
       `${label}: an unusable docsRoot is an incomplete carrier`
     );
 
-    const read = registerDocReadHandler({ docsCarrier: carrier });
-    const refused = await read({ tool_name: ADVERTISING_TOOL, path: PLAIN_DOC_REFERENCE });
-    assert.equal(refused.isError, true, `${label}: the read must refuse`);
-    assert.equal(
-      refused.structuredContent.code,
-      TOOL_DOC_READ_DIAGNOSTIC_CODES.CARRIER_UNAVAILABLE,
-      `${label}: the public read route must report the carrier as unavailable`
-    );
+    const read = await open(carrier);
+    const refused = await read({ tool_name: SINGLE_REFERENCE_TOOL, path: PLAIN_DOC_REFERENCE });
+
+    assertReaderRefusal(refused, TOOL_DOC_READ_DIAGNOSTIC_CODES.CARRIER_UNAVAILABLE, label);
     assertNoRootDisclosure(refused.structuredContent, [temporaryRoot, packageDir], label);
   }
 
@@ -293,6 +285,7 @@ test("WK-2139 remediation: a docsRoot that is not inside the package root is an 
 
 test("WK-2139 remediation: only bundle paths inside docsRoot are authorized", async (t) => {
   const temporaryRoot = await makeTemporaryRoot(t, "containment");
+  const open = publicReader(t, temporaryRoot);
   const packageDir = path.join(temporaryRoot, "package");
 
   await mkdir(path.join(packageDir, "lib"), { recursive: true });
@@ -306,56 +299,75 @@ test("WK-2139 remediation: only bundle paths inside docsRoot are authorized", as
   );
 
   await writeServingPackage(packageDir, [
-    entry("docs/tool-discovery.md", "lib/internal.md"),
-    entry("docs/tool-discovery-surfaces.md", "docs-the project documentation")
+    entry(PAIR_DOC_REFERENCES[0], "lib/internal.md"),
+    entry(PAIR_DOC_REFERENCES[1], "docs-the project documentation")
   ]);
 
   const carrier = await carrierFor(packageDir);
   assert.equal(carrier.bound, true, "the fixture package must bind");
-  const read = registerDocReadHandler({ docsCarrier: carrier });
+  const read = await open(carrier);
 
   for (const [label, reference, leaked] of [
-    ["a sibling directory of the bundle", "docs/tool-discovery.md", "PACKAGE INTERNALS"],
-    [
-      "a sibling sharing the bundle's name prefix",
-      "docs/tool-discovery-surfaces.md",
-      "SIBLING PREFIX BYTES"
-    ]
+    ["a sibling directory of the bundle", PAIR_DOC_REFERENCES[0], "PACKAGE INTERNALS"],
+    ["a sibling sharing the bundle's name prefix", PAIR_DOC_REFERENCES[1], "SIBLING PREFIX BYTES"]
   ]) {
-    const refused = await read({ tool_name: ADVERTISING_TOOL, path: reference });
-    assert.equal(refused.isError, true, `${label}: must refuse`);
-    assert.equal(
-      refused.structuredContent.code,
-      TOOL_DOC_READ_DIAGNOSTIC_CODES.PATH_CONTAINMENT,
-      `${label}: must refuse with the containment diagnostic`
-    );
-    assert.doesNotMatch(
-      JSON.stringify(refused),
-      new RegExp(leaked, "u"),
-      `${label}: the refusal must not carry the unauthorized bytes`
-    );
-    assertNoRootDisclosure(refused.structuredContent, [temporaryRoot, packageDir], label);
+    for (const select of [undefined, { field: "text" }]) {
+      const refused = await read({ tool_name: PAIR_REFERENCE_TOOL, path: reference }, select);
+      assertReaderRefusal(refused, TOOL_DOC_READ_DIAGNOSTIC_CODES.PATH_CONTAINMENT, label);
+      assert.doesNotMatch(
+        JSON.stringify(refused),
+        new RegExp(leaked, "u"),
+        `${label}: the refusal must not carry the unauthorized bytes`
+      );
+      assertNoRootDisclosure(refused.structuredContent, [temporaryRoot, packageDir], label);
+    }
   }
 
-  const plain = await read({ tool_name: ADVERTISING_TOOL, path: PLAIN_DOC_REFERENCE });
-  assert.equal(plain.isError, undefined, "a docs/… entry must still be served");
-  assert.equal(plain.structuredContent.ok, true);
+  const reference = { tool_name: SINGLE_REFERENCE_TOOL, path: PLAIN_DOC_REFERENCE };
+  const context = await read(reference);
+  assert.notEqual(context.isError, true, "a docs/… entry must still be served");
+  assert.equal(context.structuredContent.source_kind, "package_document");
+  assert.deepEqual(context.structuredContent.subject, reference);
+  assert.deepEqual(context.structuredContent.next_calls.map((call) => call.arguments),
+    [{ reference, select: { field: "text" } }]);
+  const plain = await read(reference, { field: "text" });
+  assert.notEqual(plain.isError, true, "a docs/… entry must still be served");
+  assert.equal(plain.structuredContent.complete, true);
   assert.equal(plain.structuredContent.path, PLAIN_DOC_REFERENCE);
-  assert.equal(plain.structuredContent.text, "PACKAGE DOC BYTES\n");
+  assert.equal(plain.structuredContent.value, "PACKAGE DOC BYTES\n");
 
-  const refs = await read({ tool_name: ADVERTISING_TOOL, path: REFS_DOC_REFERENCE });
-  assert.equal(refs.isError, undefined, "a docs/_refs/… entry must still be served");
-  assert.equal(refs.structuredContent.ok, true);
-  assert.equal(refs.structuredContent.path, REFS_DOC_REFERENCE);
-  assert.equal(refs.structuredContent.text, "BOILERPLATE BYTES\n");
+  const nestedDir = path.join(temporaryRoot, "nested-package");
+  await writeServingPackage(nestedDir, [entry(PAIR_DOC_REFERENCES[0], REFS_BUNDLE_PATH)]);
+  const nestedCarrier = await carrierFor(nestedDir);
+  const nested = await (await open(nestedCarrier))(
+    { tool_name: PAIR_REFERENCE_TOOL, path: PAIR_DOC_REFERENCES[0] }, { field: "text" });
+  assert.notEqual(nested.isError, true, "a docs/_refs/… bundle path must still be served");
+  assert.equal(nested.structuredContent.path, PAIR_DOC_REFERENCES[0]);
+  assert.equal(nested.structuredContent.value, "BOILERPLATE BYTES\n");
 
-  for (const served of [plain, refs]) {
-    assert.equal(
-      JSON.stringify(served.structuredContent).includes(packageDir),
-      false,
-      "a served result must never disclose the package installation root"
-    );
-    assert.equal(served.structuredContent.owner_package, FIXTURE_PACKAGE_NAME);
-    assert.equal(served.structuredContent.owner_package_version, FIXTURE_PACKAGE_VERSION);
+  for (const served of [context, plain, nested]) {
+    for (const root of [temporaryRoot, packageDir, nestedDir]) {
+      assert.equal(
+        JSON.stringify(served.structuredContent).includes(root),
+        false,
+        "a served result must never disclose the package installation root"
+      );
+    }
+    const identity = served.structuredContent.facts ?? served.structuredContent;
+    assert.equal(identity.owner_package, FIXTURE_PACKAGE_NAME);
+    assert.equal(identity.owner_package_version, FIXTURE_PACKAGE_VERSION);
   }
+
+  assertReaderRefusal(await read({ tool_name: SINGLE_REFERENCE_TOOL, path: REFS_DOC_REFERENCE }),
+    TOOL_DOC_READ_DIAGNOSTIC_CODES.UNADVERTISED_REFERENCE, "the docs/_refs reference through the public route");
+  const refs = await ownerReader({ docsCarrier: carrier, augmentDescriptor: (descriptor) => ({ ...descriptor,
+    tools: descriptor.tools.map((tool) => tool.tool_name === SINGLE_REFERENCE_TOOL
+      ? { ...tool, docs_refs: [...tool.docs_refs, REFS_DOC_REFERENCE] } : tool) }) })(
+    { tool_name: SINGLE_REFERENCE_TOOL, path: REFS_DOC_REFERENCE });
+  assert.equal(refs.ok, true, "the owner still serves a docs/_refs/… entry");
+  assert.equal(refs.path, REFS_DOC_REFERENCE);
+  assert.equal(refs.text, "BOILERPLATE BYTES\n");
+  assert.equal(JSON.stringify(refs).includes(packageDir), false);
+  assert.equal(refs.owner_package, FIXTURE_PACKAGE_NAME);
+  assert.equal(refs.owner_package_version, FIXTURE_PACKAGE_VERSION);
 });

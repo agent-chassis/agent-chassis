@@ -9,8 +9,10 @@ import {
   EXCLUSION_REASONS,
   MANIFEST_NAMES,
   discoverRuntimeEnvironments,
-  environmentsForLanguage
-} from "../../packages/core/scripts/test-runtime-setup/discovery.mjs";
+  environmentsForLanguage,
+  environmentsWithRunners,
+  pyprojectRequirementNames
+} from "../../packages/agent-launch-cli/src/lib/test-runtime-setup/discovery.mjs";
 
 const RUNNERS = TEST_RUNTIME_RUNNER_CATALOG.runners;
 
@@ -117,7 +119,7 @@ test("independent installations of one language are separate environments", () =
 
 test("a Python environment lists only the runners its requirements declare", () => {
   assert.deepEqual(rows(discover({ "requirements.txt": "flask\n" })),
-    [{ id: "python@.", members: [], runners: [] }], "prepared, but no runner is invented");
+    [{ id: "python@.", members: [], runners: [] }], "inventoried, but no runner is invented");
 
   const bare = discover({ "pyproject.toml": "[project]\nname = \"x\"\n" });
   assert.deepEqual([bare.environments, bare.excluded],
@@ -125,6 +127,88 @@ test("a Python environment lists only the runners its requirements declare", () 
 
   assert.deepEqual(rows(discover({ "pyproject.toml": "[project.optional-dependencies]\ntest = [\"pytest\"]\n" })),
     [{ id: "python@.", members: [], runners: ["pytest"] }]);
+});
+
+const PYPROJECT = `# a project file in the shapes packaging tools write
+[build-system]
+requires = ["setuptools>=68"]
+
+[project]
+name = "svc"
+version = "1.0"
+dependencies = [
+  "requests[socks]>=2.31",  # extras and a trailing comment
+  'attrs ; python_version >= "3.9"',
+  "Typing_Extensions",
+]
+optional-dependencies = { docs = ["sphinx"] }
+
+[project.optional-dependencies]
+test = ["pytest>=8", "tool @ https://example.invalid/tool.whl#sha256=abc"]
+
+[dependency-groups]
+dev = [{ include-group = "lint" }, "stestr"]
+lint = ["ruff"]
+
+[tool.poetry.dependencies]
+django = "^5"
+`;
+
+test("a pyproject.toml requires its project dependencies and no optional or group dependency", () => {
+  assert.deepEqual(pyprojectRequirementNames(PYPROJECT), ["Typing_Extensions", "attrs", "requests"]);
+  assert.deepEqual(pyprojectRequirementNames(
+    "[project.optional-dependencies]\ndocs = [\"sphinx\"]\n[dependency-groups]\ntest = [\"pytest\"]\n"), []);
+  assert.deepEqual(pyprojectRequirementNames("project.dependencies = [\"flask\"]\n"), ["flask"]);
+  assert.deepEqual(pyprojectRequirementNames("[project]\nname = \"x\"\ndynamic = [\"dependencies\"]\n"), []);
+  assert.deepEqual(pyprojectRequirementNames(null), []);
+
+  assert.deepEqual(pyprojectRequirementNames("[project\ndependencies = [\"unterminated\n= = ]]\n{"), []);
+});
+
+test("runner evidence in a pyproject.toml does not depend on what setup requires", () => {
+  assert.deepEqual(rows(discover({ "svc/pyproject.toml": PYPROJECT })),
+    [{ id: "python@svc", members: [], runners: ["pytest", "stestr"] }]);
+
+  for (const text of ["[tool.pytest.ini_options]\naddopts = \"-q\"\n",
+    "[tool.poetry.group.dev.dependencies]\npytest = \"^8\"\n",
+    "[dependency-groups]\ntest = [\"pytest\"]\n"]) {
+    assert.deepEqual(rows(discover({ "pyproject.toml": text })),
+      [{ id: "python@.", members: [], runners: ["pytest"] }], text);
+  }
+});
+
+test("a requirement-file project keeps the runner evidence of its pyproject.toml", () => {
+  assert.deepEqual(rows(discover({ "requirements.txt": "flask\n",
+    "pyproject.toml": "[tool.pytest.ini_options]\naddopts = \"-q\"\n" })),
+  [{ id: "python@.", members: [], runners: ["pytest"] }]);
+});
+
+test("automatic setup prepares only the environments that have a runner", () => {
+  const found = discover({
+    "requirements.txt": "pytest==8.0.0\n",
+    "docs/requirements.txt": "sphinx==7.4.7\n",
+    "docs/requirements-dev.txt": "sphinx-autobuild\n",
+    "site/package.json": pkg({ name: "site", dependencies: { marked: "12" } }),
+    "site/package-lock.json": LOCK
+  });
+  assert.deepEqual(rows(found), [
+    { id: "npm@site", members: [], runners: ["node-test"] },
+    { id: "python@.", members: [], runners: ["pytest"] },
+    { id: "python@docs", members: [], runners: [] }
+  ]);
+  const testable = environmentsWithRunners(found.environments);
+
+  assert.deepEqual(rows(testable), [
+    { id: "npm@site", members: [], runners: ["node-test"] },
+    { id: "python@.", members: [], runners: ["pytest"] }
+  ]);
+  assert.deepEqual(testable.excluded, [
+    { path: "docs/requirements-dev.txt", reason: EXCLUSION_REASONS.NO_RUNNER },
+    { path: "docs/requirements.txt", reason: EXCLUSION_REASONS.NO_RUNNER }
+  ]);
+
+  assert.deepEqual(rows(environmentsWithRunners(discover({ "docs/requirements.txt": "sphinx\npytest\n" })
+    .environments)), [{ id: "python@docs", members: [], runners: ["pytest"] }]);
 });
 
 test("a Cargo workspace is one vendored installation", () => {

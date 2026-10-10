@@ -2,14 +2,14 @@
 
 const path = require("node:path");
 
-const { createChannel, failureDiagnostic, loadConfig } = require("./native-channel.cjs");
+const { createChannel, failureDiagnostic, loadConfig, projectRequire } = require("./native-channel.cjs");
 
 const config = loadConfig(process.argv[2]);
 const channel = createChannel(config, "jest.entry");
 
 async function main() {
-  const projectDir = process.cwd();
-  const jestEntry = require.resolve("jest", { paths: [projectDir] });
+  const projectDir = config.project_directory;
+  const jestEntry = projectRequire(config).resolve("jest");
   const { readConfig } = require(require.resolve("jest-config",
     { paths: [path.dirname(jestEntry), projectDir] }));
   const jest = require(jestEntry);

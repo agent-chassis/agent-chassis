@@ -2,7 +2,6 @@
 
 import { pathToFileURL } from "node:url";
 
-import integration from "../runner-integrations/lib0-testing.mjs";
 import { CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
   instrumentJavaScriptAttempt, javascriptLayout, observerAsset } from "./javascript-support.mjs";
 import { nativeProviderImplementation } from "./native-lifecycle.mjs";
@@ -18,7 +17,5 @@ export default nativeProviderImplementation({
   assets: [OBSERVER, ...CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET],
   layout: javascriptLayout,
   instrument: instrumentJavaScriptAttempt,
-  invocation: (attempt) => integration.invocation({ runtime: attempt.runtime,
-    projectDir: attempt.workProject, module: attempt.testFileWork,
-    nodeArguments: [`--import=${pathToFileURL(OBSERVER).href}`] })
+  proof: () => ({ nodeArguments: [`--import=${pathToFileURL(OBSERVER).href}`] })
 });

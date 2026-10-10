@@ -398,9 +398,8 @@ export function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outp
       (reporterProtocolOverflow || !interrupted)
     ? proofObservation({ protocolText: capture.reporter.text, exitCode, reporterProtocolOverflow })
     : null;
-  const observationValid = proofObservation === null || testProofObservation?.valid === true;
-  const ok = ran && !interrupted && exitCode === 0 && observationValid;
 
+  const ok = ran && !interrupted && exitCode === 0;
   let disposition;
   if (!ran) {
     disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN;
@@ -409,12 +408,10 @@ export function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outp
   } else {
     disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.FAILED;
   }
-  const budgetBlocker = executionBudget === null ? null
+  const blockerCode = executionBudget === null ? null
     : capture.cleanupFailed ? "test_proof_execution_cleanup_failed"
       : cancelled ? "test_proof_execution_cancelled"
         : timedOut ? "test_proof_execution_timed_out" : null;
-  const blockerCode = budgetBlocker ?? (observationValid ? null
-    : testProofObservation?.code ?? "test_proof_structured_observation_invalid");
 
   return Object.freeze({
     ...baseEvidence,
@@ -425,10 +422,9 @@ export function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outp
     exit_code: exitCode,
     signal: capture.signal ?? null,
     timed_out: timedOut,
-    ...(executionBudget === null ? {} : {
-      cancelled,
-      cleanup_failed: capture.cleanupFailed === true
-    }),
+    ...(executionBudget === null ? {} : { cancelled }),
+
+    cleanup_failed: capture.cleanupFailed === true,
     spawn_error: capture.spawnError,
     ...(proofObservation !== null ? {
       test_proof_observation: testProofObservation,

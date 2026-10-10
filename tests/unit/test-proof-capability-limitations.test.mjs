@@ -75,6 +75,17 @@ test("a malformed replacement is proof data to correct, not a capability gap", (
   }
 });
 
+test("an adapter's own fault refusal is never classified by its reason alone", () => {
+
+  for (const reason of ["body_not_single_scalar_return", "decorated_function_unsupported",
+    "function_absent", "module_source_moved"]) {
+    const refused = run({ valid: false, code: "test_proof_python_fault_unsupported", detail: { reason } });
+    assert.equal(proofCapabilityLimitation(refused), null, reason);
+    assert.equal(falsifierResult({ observation: refused.test_proof_observation, run: refused, artifacts: [],
+      provider: falsifierProvider }).limitation, null, reason);
+  }
+});
+
 test("a refused falsifier records its declaration and earns no detection credit", () => {
   const limitation = { reason_code: "test_proof_native_instrumentation_unsupported",
     detail: { reason: "body_not_single_scalar_return" } };

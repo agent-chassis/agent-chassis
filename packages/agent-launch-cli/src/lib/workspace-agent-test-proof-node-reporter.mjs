@@ -78,10 +78,24 @@ function errorCodes(error, result = new Set(), seen = new Set()) {
   return result;
 }
 
+const REPORT_ROOT = new URL(import.meta.url).searchParams.get("launcher_repository_root");
+
+function isFileProcessNode(data) {
+  if (data.nesting !== 0 || typeof data.name !== "string") return false;
+  const named = path.resolve(data.name);
+  return named === path.resolve(data.file) || fileUrlPath(data.name) === path.resolve(data.file);
+}
+
+function fileUrlPath(value) {
+  if (!value.startsWith("file:")) return null;
+  try { return fileURLToPath(value); } catch { return null; }
+}
+
 function recordRuntimeNode(nodes, event) {
   if (!RUNTIME_NODE_EVENT_TYPES.has(event?.type)) return;
   const data = event.data;
   if (typeof data?.file !== "string" || !Number.isSafeInteger(data.testId)) return;
+  if (isFileProcessNode(data)) return;
   const key = `${data.file}\u0000${data.testId}`;
   const fact = { name: data.name, nesting: data.nesting, parent_id: data.parentId,
     type: data.type ?? data.details?.type ?? null };
@@ -126,7 +140,7 @@ function ancestorTestIds(nodes, data, file) {
 function projectEvent(event, nodes) {
   if (!EVENT_TYPES.has(event?.type)) return null;
   if (event.type === "test:coverage") {
-    const cwd = event.data?.summary?.workingDirectory ?? process.cwd();
+    const cwd = REPORT_ROOT ?? event.data?.summary?.workingDirectory ?? process.cwd();
     return {
       type: event.type,
       files: (event.data?.summary?.files ?? []).map((file) => ({
@@ -153,7 +167,7 @@ function projectEvent(event, nodes) {
     }
   };
   if (event.data?.details?.type !== "test") return null;
-  const file = relativeRuntimeTestFile(event.data?.file);
+  const file = relativeRuntimeTestFile(event.data?.file, REPORT_ROOT ?? process.cwd());
   const name = typeof event.data?.name === "string" ? event.data.name : null;
   const nesting = Number.isInteger(event.data?.nesting) ? event.data.nesting : null;
   return {

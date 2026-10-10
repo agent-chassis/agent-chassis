@@ -418,7 +418,7 @@ function registerStandaloneRedteamDispatchFixture(t, { slice, slices, recordId =
   const backend = createWorkspaceAgentDispatchBackend({
     launchExecutor: async (input) => {
       executorInputs.push({ role: input.role, subject: input.subject, workspace_dir: input.workspace_dir });
-      return { accepted: true, status: "launching" };
+      return { accepted: true, status: "launching", completion: new Promise(() => {}) };
     },
     worktreeProvisioning: { mainRepo: repo, worktreeRoot: worktrees },
 

@@ -8,7 +8,7 @@ import { resolveObligationCoverageFacts, resolveAcceptanceCoverageFacts }
 import { classifyControlledContractRuntimeEligibility }
   from '../../lib/controlled-contract-runtime-proof-eligibility.mjs';
 import { proofAuthoringCompletenessSummary } from './proof-authoring-source.mjs';
-import { loadControlledContractPackage } from './package-runtime.mjs';
+import { loadControlledContractProofAuthoring } from './package-runtime.mjs';
 import { projectProofAuthoringDiagnosticGroups } from
   './proof-authoring-diagnostic-projection.mjs';
 import { projectControlledContractRequirements } from
@@ -298,7 +298,7 @@ export async function resolveProofAuthoringReadinessInputs(input, canonicalSet) 
     canonicalOverride: { canonicalSet, contract, obligationSource: obligationCoverage.source },
     savedApplications: true, obligationFacts: obligationCoverage });
   const resolution = obligationCoverage.resolution;
-  const pkg = await loadControlledContractPackage();
+  const pkg = await loadControlledContractProofAuthoring();
   const proofAuthoringDiagnostics = resolution === null ? null
     : projectProofAuthoringDiagnosticGroups({
       grouped: pkg.groupProofAuthoringDiagnostics(resolution),

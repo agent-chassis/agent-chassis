@@ -79,12 +79,11 @@ const BINDING_KEY_SET = new Set(WORKER_ASSERTED_BINDING_KEYS.map((k) => k.toLowe
 const MESSAGE_KEY_SET = new Set(WORKER_SUPPLIED_MESSAGE_KEYS.map((k) => k.toLowerCase()));
 
 export function assertClosedInputSchema(workerArgs) {
-  if (workerArgs === undefined || workerArgs === null) return;
-  if (typeof workerArgs !== "object" || Array.isArray(workerArgs)) {
+  if (workerArgs === null || typeof workerArgs !== "object" || Array.isArray(workerArgs)) {
     fail(
       COMMIT_TOOL_EXPOSURE_GUARD_DIAGNOSTIC_CODES.CLOSED_SCHEMA_VIOLATION,
-      "the worker `commit` call accepts NO argument (the only input is the fact of the call); " +
-        `got a non-object argument: ${JSON.stringify(workerArgs)}`
+      "the worker `commit` call accepts only the empty object {}; " +
+        `got a non-object argument: ${JSON.stringify(workerArgs) ?? String(workerArgs)}`
     );
   }
   const keys = Object.keys(workerArgs);
@@ -284,7 +283,7 @@ export function constructWorkerCommitToolSurface({
   return surface;
 }
 
-export function admitWorkerCommitCall({ credential, workerArgs = undefined, deps = {} } = {}) {
+export function admitWorkerCommitCall({ credential, workerArgs, deps = {} } = {}) {
 
   assertClosedInputSchema(workerArgs);
 

@@ -204,33 +204,3 @@ export function runtimeTestReplacementAuthoring(facts, verificationClaimId, curr
     }
   };
 }
-
-export function currentDefinitionReauthoringOffer(qualification) {
-  return Object.freeze({
-    schema_version: "controlled-contract-current-definition-reauthoring-offer.v1",
-    response_kind: "current_definition_reauthoring",
-    source_shape: qualification.source_shape,
-    affected_definition_count: qualification.affected_definition_count,
-    definitions: structuredClone(qualification.definitions),
-    answer: Object.freeze({
-      identity_field: "verification_claim_id",
-      required_fields: Object.freeze([
-        "verification_claim_id", "retire_fields", "runtime_test"
-      ]),
-      runtime_test: Object.freeze({
-        required_fields: Object.freeze(["selector"]),
-        selector: structuredClone(qualification.selector)
-      }),
-      retirement_confirmation: "retire_fields must exactly equal the unexpected_fields returned for that definition"
-    }),
-    preservation: Object.freeze({
-      unchanged_definition_fields: true,
-      all_falsifiers: true,
-      verification_outcomes: "not_read_or_transferred"
-    }),
-    population_authoring: Object.freeze({
-      publication: "complete_population_atomic",
-      instructions: "Use the offered session to submit complete definition answers. Nothing is published until every affected definition has one valid current selector and exact retired-field confirmation."
-    })
-  });
-}

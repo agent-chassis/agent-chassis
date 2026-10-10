@@ -322,7 +322,6 @@ export {
   TEST_PROOF_PROVIDER_CATALOG, TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
   TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2, TEST_PROOF_RUNTIME_EVIDENCE_SCHEMA_V2,
   STABLE_TEST_PROOF_AUTHORING_LIMITS, PROVIDER_REFUSAL_PRECEDENCE,
-  CURRENT_DEFINITION_REAUTHORING_SCHEMA, RETIRED_CURRENT_DEFINITION_FIELDS,
   StableTestProofContractError, validateStableTestProofContract,
   canonicalStableTestProofContractJson, validateTestProofRuntimeEvidenceV2,
   describeStableTestProofAuthoring, VERIFICATION_BUNDLE_SCHEMA_VERSION,
@@ -331,8 +330,7 @@ export {
   buildVerificationBundleTemplate,
   queryStableTestProofBindings, resolveStableTestProofBindingPopulation,
   resolveStableTestProofProviderBindings,
-  replaceStableTestProofBindings, qualifyStableCurrentDefinitionReauthoring,
-  reauthorStableCurrentDefinitionBindings, resolveTestProofProviderCompatibility,
+  replaceStableTestProofBindings, resolveTestProofProviderCompatibility,
   ASSESSMENT_SCHEMA_V2, MAX_TEST_PROOF_ASSESSMENT_INDEX_BYTES,
   TEST_PROOF_SEMANTIC_JUDGMENT, assessTestProofContract, evaluateAdmittedTestValidity,
   validateTestProofAssessmentSchema
@@ -383,7 +381,6 @@ export function projectStableTestProofSelector(
 ): StableTestProofSelectorV1;
 export type {
   ControlledContractVerificationBundle, ControlledContractVerificationBundleOperation,
-  StableCurrentDefinitionQualification,
   TestProofValidationResult, RuntimeAssessmentStatus, RuntimeAssessmentReceiptKind,
   RuntimeAssessmentVerification, RuntimeAssessmentIdentity, RuntimeAssessmentReceipt,
   ControlledContractAssessmentV3
@@ -691,6 +688,8 @@ export function authoredCaseVerificationId(definition: Record<string, any>): str
 export function deriveAuthoredTestCases(input: { contract: Record<string, any> | null; cases: readonly Record<string, any>[]; buildTemplate: Function }): Record<string, any>;
 export function emptyCaseContract(): Record<string, any>;
 export function linkedNativeTestProofs(contract: Record<string, any>, row: Record<string, any>, facts?: { references?: readonly Record<string, any>[]; targets?: readonly Record<string, any>[] }): readonly Record<string, any>[];
+export function eligibleCaseVerificationIds(contract: Record<string, any>, row: Record<string, any>): string[];
+export function caseUseExcludesVerification(row: Record<string, any>, verificationId: string, verificationClaimIds: ReadonlySet<string>): boolean;
 
 // The shared proof contract, re-exported from the barrel for consumers that
 // already hold it. `@agent-chassis/controlled-contract/proof-contract` is the

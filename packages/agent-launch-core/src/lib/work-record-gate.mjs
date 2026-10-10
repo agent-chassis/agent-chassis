@@ -308,6 +308,10 @@ function normalizeCanonicalSummary(canonicalSummary) {
     operative_notes: isNonEmptyString(canonicalSummary.operative_notes)
       ? canonicalSummary.operative_notes
       : null,
+
+    parent_user_requirements: isNonEmptyString(canonicalSummary.parent_user_requirements)
+      ? canonicalSummary.parent_user_requirements
+      : null,
     dispatch_intent: isObject(canonicalSummary.dispatch_intent)
       ? cloneJson(canonicalSummary.dispatch_intent)
       : null,

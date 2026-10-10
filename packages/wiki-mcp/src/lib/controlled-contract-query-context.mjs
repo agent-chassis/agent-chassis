@@ -1,8 +1,5 @@
 
 
-import { realpathSync, statSync } from "node:fs";
-import path from "node:path";
-
 import {
   refuseObligationCoverageQuery
 } from "@agent-chassis/wiki-core/src/operations/controlled-contract/obligation-coverage-query.mjs";
@@ -19,9 +16,15 @@ export const OBLIGATION_COVERAGE_QUERY_AUTHORITY_SCHEMA_VERSION =
   "obligation-coverage-query-authority.v1";
 export const REVIEW_MATERIALIZATION_ENV_VAR = "WIKI_MCP_REVIEW_MATERIALIZATION_DIR";
 const ROUTE = "workspace_controlled_contract_obligation_coverage_query";
+
+export const CONTRACT_ASSESSMENT_ROUTE = "workspace_assess_contract";
 const FINDINGS_ROLES = new Set(["reviewer", "redteam"]);
 
 const CANONICAL_ROLES = new Set(["orchestrator", "operator"]);
+
+export const QUERY_CONSUMER = "query";
+export const ASSESSMENT_CONSUMER = "assessment";
+const CONSUMERS = new Set([QUERY_CONSUMER, ASSESSMENT_CONSUMER]);
 
 function trimmed(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -34,11 +37,35 @@ function sourceUnavailable({ role, failedCondition, subject }) {
       failed_condition: failedCondition,
       subject,
       actor: role,
+
+      recovery: role === "worker"
+        ? {
+            actor: "coordinator_or_operator",
+            action: "relaunch the managed worker so its launcher-bound worktree identity is established",
+            caller_correctable: false
+          }
+        : {
+            state: "no_supported_route",
+            actor: "coordinator_or_operator",
+            cause: failedCondition,
+            caller_correctable: false
+          },
+      next_calls: []
+    });
+}
+
+function assessmentExcludesWorker() {
+  return refuseObligationCoverageQuery("contract_assessment_worker_excluded",
+    "Contract assessment is not available to a worker session: it reads the canonical or the " +
+    "authenticated review source, never a worker's assigned population", {
+      phase: "source",
+      failed_condition: "assessment_excludes_worker_population",
+      subject: { tool_profile: "worker", consumer: ASSESSMENT_CONSUMER },
+      actor: "worker",
       recovery: {
-        actor: "coordinator_or_operator",
-        action: role === "worker"
-          ? "relaunch the managed worker so its launcher-bound worktree identity is established"
-          : "relaunch the findings session so its frozen review artifact and immutable materialization are bound",
+        actor: "orchestrator_or_operator",
+        action: "assess the contract from an orchestrator or operator session; " +
+          "relaunching the worker does not grant assessment",
         caller_correctable: false
       },
       next_calls: []
@@ -65,41 +92,27 @@ async function launcherState(env, deps, role) {
   }
 }
 
-async function findingsContext({ env, deps, role, workspace }) {
-  const state = await launcherState(env, deps, role);
-  const artifact = (deps.resolveFrozenReviewContractArtifact ??
-    (await loadLauncherRunCredential()).resolveFrozenReviewContractArtifact)({ state });
-  if (artifact?.status === "refused" || typeof artifact?.artifact_digest !== "string" ||
-      artifact.technical_role !== role) {
-    return sourceUnavailable({ role, failedCondition: "frozen_review_artifact_unavailable",
-      subject: { assigned_unit: state.assignedUnit ?? null } });
-  }
-  const configured = trimmed(env?.[REVIEW_MATERIALIZATION_ENV_VAR]);
-  let root = null;
+async function findingsContext({ env, role, workspace }) {
+  const owner = await loadLauncherRunCredential();
+  let source;
   try {
-    if (configured !== "" && path.isAbsolute(configured)) {
-      const resolved = realpathSync(configured);
-      if (statSync(resolved).isDirectory()) root = resolved;
-    }
-  } catch {
-    root = null;
-  }
-  if (root === null) {
-    return sourceUnavailable({ role, failedCondition: "review_materialization_unavailable",
-      subject: { assigned_unit: state.assignedUnit ?? null, environment: REVIEW_MATERIALIZATION_ENV_VAR } });
+    source = owner.resolveAuthenticatedFindingsSource(env);
+  } catch (error) {
+    if (!(error instanceof owner.FindingsSourceRefusal)) throw error;
+    return sourceUnavailable({ role, failedCondition: error.code, subject: error.subject });
   }
   return Object.freeze({
     role,
-    sourceRoot: root,
+    sourceRoot: source.sourceRoot,
     population: "all",
     managed: true,
     assignedUnit: null,
     identity: Object.freeze({
       role,
-      run: runIdentity(state.credential),
-      assigned_unit: state.assignedUnit,
+      run: { kind: "advisory", run_id: source.runId },
+      assigned_unit: source.assignedUnit,
       source: { kind: "frozen_review_materialization", repository: workspace.repo,
-        artifact_digest: artifact.artifact_digest, materialization: root },
+        binding: source.binding, materialization: source.sourceRoot },
       population: { kind: "repository" }
     })
   });
@@ -147,7 +160,9 @@ async function workerContext({ env, deps, workspace }) {
   });
 }
 
-export async function resolveObligationCoverageQueryContext({ env = process.env, workspace, deps = {} }) {
+export async function resolveObligationCoverageQueryContext({ env = process.env, workspace, deps = {},
+  consumer = QUERY_CONSUMER }) {
+  if (!CONSUMERS.has(consumer)) throw new TypeError("unsupported controlled-contract source consumer");
   let role;
   try {
     role = parseToolProfile(env);
@@ -156,7 +171,9 @@ export async function resolveObligationCoverageQueryContext({ env = process.env,
     return sourceUnavailable({ role: profile || "unknown", failedCondition: "session_role_unsupported",
       subject: { tool_profile: profile || null } });
   }
-  if (FINDINGS_ROLES.has(role)) return findingsContext({ env, deps, role, workspace });
+  if (FINDINGS_ROLES.has(role)) return findingsContext({ env, role, workspace });
+
+  if (role === "worker" && consumer === ASSESSMENT_CONSUMER) return assessmentExcludesWorker();
   if (role === "worker") return workerContext({ env, deps, workspace });
   if (!CANONICAL_ROLES.has(role) || trimmed(env?.[REVIEW_MATERIALIZATION_ENV_VAR]) !== "") {
     return sourceUnavailable({ role,
@@ -196,12 +213,30 @@ export function assertObligationCoverageQueryScope(context, { unit, focus }) {
     });
 }
 
+function authorityIdentity(context, { route, unit }) {
+  return { schema_version: OBLIGATION_COVERAGE_QUERY_AUTHORITY_SCHEMA_VERSION, route, unit,
+    ...context.identity };
+}
+
 export function obligationCoverageQueryAuthorityIdentity(context, { unit, sourceGeneration }) {
   return Object.freeze({
-    schema_version: OBLIGATION_COVERAGE_QUERY_AUTHORITY_SCHEMA_VERSION,
-    route: ROUTE,
-    unit,
-    ...context.identity,
+    ...authorityIdentity(context, { route: ROUTE, unit }),
     ...(context.managed ? { source_generation: sourceGeneration ?? null } : {})
   });
+}
+
+export function contractAssessmentAuthorityIdentity(context, { unit }) {
+  return Object.freeze(authorityIdentity(context, { route: CONTRACT_ASSESSMENT_ROUTE, unit }));
+}
+
+export function queryObservationIdentity(focus, revision) {
+  if (revision === null) return null;
+  return focus === undefined || focus === null ? revision : `${focus}@${revision}`;
+}
+
+export function parseQueryObservationIdentity(observation) {
+  if (typeof observation !== "string") return null;
+  const at = observation.lastIndexOf("@");
+  return at < 0 ? { focus: null, revision: observation }
+    : { focus: observation.slice(0, at), revision: observation.slice(at + 1) };
 }

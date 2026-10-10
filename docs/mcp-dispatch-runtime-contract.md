@@ -36,7 +36,10 @@ Its `failure` is null or one tuple from this closed population:
 
 The tuple always carries one stable code, its exact decision authority limb, and
 that executable action. `managed_lifecycle_required` cannot replace a more
-specific transition failure. Review findings, status, prose, messages, and local
+specific transition failure. Its registered recovery is a
+[capability inspection](tool-discovery-dispatch-runtime.md#registered-recovery-correction-versus-inspection):
+it reads the package document the `start_agent` tool advertises and is neither
+a retry nor a repair. Review findings, status, prose, messages, and local
 inference are not refusal limbs. CCE decisions are forwarded exactly and are
 never locally synthesized; all other entries above are mechanical facts.
 
@@ -269,9 +272,11 @@ reconstructs discarded recovery or owns CCE schema semantics.
 implementation axis, the registered route composes the launcher's read-only
 worker scope preflight with the wiki-core validator. It resolves the prospective
 scope-existence base with the launcher's own resolver, which is the persistent
-WK tip when that branch exists and otherwise the record-level `base_branch`
-commit the allocator would capture. Only a completed observation that the WK
-branch is absent selects `base_branch`. A WK tip that `show-ref` cannot resolve
+WK tip when that branch exists and otherwise the commit of the initially
+selected branch: the record-level `base_branch` the allocator would capture, or,
+when the root saves none, the current symbolic local branch of the configured
+repository checkout that actual start would save there. Only a completed
+observation that the WK branch is absent selects a branch. A WK tip that `show-ref` cannot resolve
 is re-read through the shared exact-ref classifier; any answer other than
 `missing`, at the capture or the stability recheck, is an unreadable tip. The
 report is then `not_evaluated` with `reason.code:
@@ -281,7 +286,9 @@ scope_existence_base_unresolved` and `reason.detail` carrying `wk_ref`,
 `base_branch` for it. It then runs the same frozen-authority resolution the scope
 freeze runs. It never allocates, snapshots, writes a ref, or creates a directory.
 The response carries `worker_scope_preflight` with `status` (`passed`,
-`refused`, or `not_evaluated`), the `base` ref, SHA and `source`, the
+`refused`, or `not_evaluated`), the `base` ref, SHA and `source` (for an
+unallocated WK also `selection`, `saved_base_branch` or
+`defaulted_current_checkout_branch`, and `publication_target`, the same branch), the
 `evaluated` checks, and `pending_at_launch`. `pending_at_launch` names the launch
 work a pass never certifies: allocation and record snapshot, revalidation at the
 provisioned base, assigned-source readability, structural-parent preparation
@@ -305,28 +312,36 @@ a readiness that would otherwise dispatch. It sets
 `decision_code: "worker_scope_path_refused"` and keeps the prior structural
 result under `structural_readiness`. A `not_evaluated` report, such as an
 unresolvable base or a supplied non-live record store, never changes the
-decision. Launch remains authoritative and refuses the same path facts with the
+decision, except the launcher's missing root base selection: that report
+overturns a readiness that would otherwise dispatch with
+`decision_code: "scope_existence_base_selection_missing"`, the same
+`structural_readiness` preservation, and the report unchanged. Launch remains authoritative and refuses the same path facts with the
 same `worker_scope_path_refused` detail through
 `canonical_scope_resolution_failed`. A glob, slash-named directory, or root
 selector needs no tree, so launch refuses it with that same detail before any WK
 allocation, worktree, or attempt event.
 
-For an unallocated WK, absence of `base_branch` is reported as
-`scope_existence_base_selection_missing`; preflight never substitutes the
-checkout branch, `HEAD`, `main`, `master`, or any branch inventory candidate.
+For an unallocated WK that saves no `base_branch`, preflight proposes the
+configured checkout's current symbolic local branch and reports it as
+defaulted; it writes nothing. A detached `HEAD` proposes nothing and is reported as
+`scope_existence_base_selection_missing`. Preflight never substitutes `main`,
+`master`, or any branch inventory candidate, and never replaces a saved
+`base_branch` that fails to resolve.
 An already-provisioned WK instead uses its authenticated captured base and
-moving WK tip even when the historical record omits `base_branch`.
+moving WK tip even when the historical record omits `base_branch`; the checkout
+branch is never consulted for it.
 
-A launch refusal carries that verdict to the public dispatch result. The
+A launch refusal carries that verdict to the public `start_agent` result. The
 backend detail declares `cause.code: "worker_scope_path_refused"`, the typed
 `worker_scope_path` facts (`code`, `field`, `path`, `component`, `cause`), the
 declared `path`, `unchanged_retry_recovers: false`, and a callable recovery for
-the same `workspace_agent_dispatch` role and subject. The code is registered
+the same `start_agent` role and subject. The code is registered
 under `work_record_readiness` with `coordinator` recovery, so classification is
 `known` and the public blocker and refusal code are `worker_scope_path_refused`.
 The refusal's deciding facts are `worker_scope_path.field`, `.path`,
 `.component`, `.cause`, and `worker_scope_path.corrected: false`. Its only next
-call is the same dispatch, gated by the `prerequisite_predicate`
+call is the same `start_agent` call, checked against the serving full contract
+and gated by the `prerequisite_predicate`
 `worker_scope_path.corrected is_true`: the author corrects the canonical slice
 contract, or delivers the path at the scope base, first. No write call with
 invented arguments is advertised. Only an error minted by the scope authority
@@ -477,6 +492,19 @@ actor is `operator`, and the recovery is `no_supported_route`. The detail carrie
   parent preparation failure names the exact output file that needs the parent
   as the member (`access: "writable"`, `member_kind: "files"`), and the parent or
   refusing ancestor as `failed_component`;
+- for a refused read-only projection mountpoint, `mountpoint`: a compact
+  explanation built from the facts the isolation layer captured at the refusal.
+  It carries the observed `path`, the refusal `condition`, whether the path
+  `exists`, its `kind`, and `occupants` as `total`, at most one `sample`
+  (`name`, `kind`) and the `omitted` count. `symlink_target` appears only for a
+  symlink, and `observation_error` only when the path, its listing or the
+  collection itself could not be observed. These values are the captured ones,
+  unredacted, within the bounds the capture already applies. A fact that was not
+  observed is `null`: a listing that failed reports `occupants: null`, never an
+  empty directory. The mount table, ownership and stat identity and the
+  directory listing are not forwarded, so the explanation has the same fields
+  whatever occupies the path. A path failure with no captured mountpoint facts
+  carries no `mountpoint`;
 - `scope_widening_recovers: false` and `unchanged_retry_recovers: false`;
 - `sandbox_required: true` and `unenforced_fallback_permitted: false`;
 - when planning created resources it could not release,
@@ -489,9 +517,11 @@ supported fresh-checkout recovery for this case (`no_supported_route`); the
 missing capability is launcher preparation recovery, not an authored-scope
 correction or a retry.
 
-The raw message is not published, because it contains the host checkout path. A
-Claude launch without a conduit also refuses a path diagnostic before the
-sandbox decision, so it can never select an unenforced launch.
+The error's raw message is not copied into the detail: the cause is stated by
+the fields above, and for a refused mountpoint by `mountpoint.path` and
+`mountpoint.condition`, which name the host path that was observed. A Claude
+launch without a conduit also refuses a path diagnostic before the sandbox
+decision, so it can never select an unenforced launch.
 
 A typed `bwrap_spawn_failed` while a conduit is held is an identified spawn
 failure, not missing bubblewrap: the operating system refused to start the
@@ -545,19 +575,94 @@ failures) and never replaces the primary cause:
   settlement refusal: `managed_identity_settlement_failure`, with
   `pending_identity_retained` and `reservation_retained`.
 
-A refused dispatch publishes each large object once:
+### Refused dispatch response
 
-- A refusal with a managed allocation publishes the allocation and the settled
-  plan only under `readiness`, as `readiness.managed_wk_allocation` and
-  `readiness.launcher_transition_plan`. A top-level `launcher_transition_plan`
-  appears only when the active plan is a distinct object from the settled plan.
-  No top-level `managed_wk_allocation` or `settled_launcher_transition_plan` is
-  published.
-- Every other transition refusal omits the top-level `launcher_transition_plan`
-  when `readiness.launcher_transition_plan` is that exact plan.
+A refused worker dispatch explains its failure and supported correction without
+publishing launcher machinery. One presentation owner in
+`agent-dispatch-refusal-projection.mjs` builds it for every transition refusal
+and for a refusal after managed allocation alike. It publishes the blocked
+result (`blocker` with its cause and diagnostics, `refusal` with its deciding
+facts, effects and recovery, `next_action`, and `run_id`/`monitor_handle` as
+`null`) plus two compact fields:
+
+- `transition_failure` is the transition plan's existing failure descriptor
+  (`code`, `authority_limb`, `next_action`, and its other registered fields),
+  unchanged and without the plan around it, or `null` when the plan carries
+  none.
+- `readiness` is `null` for a subject without readiness, and otherwise carries
+  only `decision_code`, `dispatchable`, `dispatch_role` when the readiness owner
+  supplied one, `record_id`, `unit`, and `cce`. `cce` appears when the plan
+  bound a policy decision or recovery: `cce.decision` is the exact readiness
+  admissibility the plan carried, and `cce.recovery` is the exact readiness
+  recovery unless `blocker.detail.recovery` already publishes that same object,
+  in which case it is published only there.
+
+No launcher transition plan (prospective, allocated, settled, or active),
+managed-WK allocation, dependency, reservation, spawn or worktree graph, scope
+array, controller session, lineage, or attempt/transition bookkeeping identity
+is published. The internal owners still run unchanged before a refusal is
+built: `projectLauncherTransitionReadiness` validates the exact frozen plan and
+allocation, and the accepted, settled, and active plans are revalidated against
+the prospective identity. A refusal names no actor, retry, or monitoring handle
+that its producer did not supply.
+
+A mismatch refusal's `blocker.detail.admission` carries the selected `role`,
+`subject`, `subject_kind`, and the readiness `decision_code`, `dispatchable`,
+`record_id`, and `unit`; the launch input keeps its own plan-bearing readiness.
+A routing refusal publishes `blocker.detail.routing` as the failed decision's
+`reason`, its own `detail`, and a refusal `code` when the decision carried
+one, through the shared dispatch failure projection. A missing launch backend
+publishes `blocker.detail.missing_backend` and the admission facts, and names
+no supported route.
+
+A refused reviewer or redteam dispatch publishes the advisory producer's own
+carriers by name: `schema_version`, `accepted: false`, `transport`,
+`subject_kind`, the requested `role` and `subject`, `run_id` and
+`monitor_handle` (each `null` unless the producer supplied it), and the
+producer's `blocker`, `refusal`, `next_action`, and `next_calls` when present.
+The backend answer is never spread into the response. Each carrier's `detail`
+crosses the shared dispatch failure projection, which withholds raw output into
+the operator-retained original through the registration's response
+environment; the public material-invalid code, the producer `cause_code`, a
+nested `candidate_refusal` diagnosis and recovery, and `effects_started` cross
+unchanged. A missing or invalid backend answer publishes no invented blocker or
+refusal.
 
 An oversized refusal still spills losslessly. Ranged
 `workspace_read_mcp_content_reference` retrieval reconstructs the same bytes.
+
+### Accepted dispatch receipt
+
+An accepted `workspace_agent_dispatch` returns one compact receipt, built by one
+owner in `agent-dispatch-launch-route.mjs` for worker, reviewer, and redteam
+alike. It publishes exactly `schema_version`, `accepted: true`, `run_id`,
+`monitor_handle`, `role`, `subject`, `status`, `terminal`, and `next_calls`, plus
+`resumed: true` only when the backend supplied it. Acceptance means only that
+the launch was accepted; it does not claim successful work, proof, review, or
+integration, and `status`/`terminal` keep their launch meaning.
+
+The receipt is built from named producer facts, never by spreading the backend
+result. Readiness, managed-WK allocation, prospective and allocated transition
+plans, worktree bindings, paths, scopes, bound snapshots, CCE internals, lineage,
+`review_result`, and `final_result` are not published, and no reader link stands
+in for them.
+
+The internal checks are unchanged and still run before a receipt is produced:
+the accepted plan must revalidate as the allocated continuation of the
+prospective plan, and a managed-WK allocation must project through
+`projectLauncherTransitionReadiness` as the exact frozen allocation. Either
+divergence keeps its `launcher_transition.lifecycle_allocation_failed.v1`
+refusal.
+
+Under full registration, `next_calls` holds exactly one
+`workspace_agent_run_status({ repo, subject, attempt_id: run_id })` call with
+the server-resolved repository, checked against that tool's registered request
+contract. It is returned even when the run is already terminal, because status
+is where the run's result and any completed findings are read. Following it
+observes the same run and does not dispatch again; status keeps its documented
+lifecycle behavior, including post-worker lifecycle advancement. When the status
+route is not registered, or its contract refuses the arguments, the receipt
+omits `next_calls`; the launch stays accepted and no call is fabricated.
 
 ### Producer-originated envelopes and the public response field list
 
@@ -588,9 +693,9 @@ carrier does not repeat it;
 `refusal.carried.launcher_backend_refusal.originating_detail_location` names
 `blocker.detail.originating_detail` instead. The published diagnostic includes
 originating messages, codes, details, nested causes, paths and other supplied
-plain diagnostic values. `blocker.detail` also repeats top-level scalar
-diagnostic fields, such as a relative `path`, for display. Structured values
-appear only under `originating_detail`.
+plain diagnostic values. No diagnostic field, scalar or structured, is copied
+beside the separately derived classification, cause, recovery, actor, and
+authority fields: diagnostics appear only under `originating_detail`.
 
 Stack text and raw process output are withheld, never rewritten. Every
 error-shaped object (one with a string `stack` and a `name` or `message`) loses
@@ -1367,6 +1472,15 @@ that its commit and tree are exactly the normalized reviewed commit and tree.
 The snapshot is read-only review input; no selector grants repository mutation,
 WK mutation, integration, forge, completion, or findings-veto authority.
 
+The advisory process runner mints the run and binds the prepared review input to
+that run before the selected family adapter receives it. The launcher session
+contract then binds that run and the private snapshot as its
+`advisory_review_source`, which is what the reviewer's ordinary reads and
+controlled-contract query authenticate against; see
+[the conduit's review read source](agent-launch-confinement-mcp-conduit.md#minting-provenance-and-dec-0182).
+A launch whose input cannot be bound settles as a failed advisory run and its
+owned snapshot is cleaned up.
+
 A bare commit SHA is never an accepted coordination subject. If a reviewer call
 places a commit-shaped value in `subject`, the mechanical refusal preserves it
 only as a non-authoritative observed caller value and carries a bounded
@@ -1574,10 +1688,12 @@ construction performs the later deterministic squash from the fixed lifecycle
 base.
 
 The frozen work record result is shared rather than reconstructed. work record's
-readiness-shape module alone projects its bounded public envelope, and the
-registered public route carries that exact projection from readiness through
-accepted launch for worker, the only role that continues from WK settlement into
-scope freeze, worktree reconciliation, and exact-slice authority. The envelope is
+readiness-shape module alone projects its bounded envelope, and the registered
+route checks that exact projection from readiness through accepted launch for
+worker, the only role that continues from WK settlement into scope freeze,
+worktree reconciliation, and exact-slice authority. A refused dispatch publishes
+the envelope; an accepted dispatch checks it internally and returns only the
+[accepted dispatch receipt](#accepted-dispatch-receipt). The envelope is
 redacted and grants no persistence, repair, confinement, or spawn authority.
 Findings roles — DRY reviewer, DEC reviewer, redteam, and reviewer-role
 challenge — do not enter WK settlement: the registered route sends them to the
@@ -2497,20 +2613,25 @@ refuses before conduit construction or spawn. Explicit SHA-range implementation
 review and terminal-candidate materialization do not use this design overlay.
 
 Immutable findings dependency projection is launcher-owned execution substrate.
-Fresh standalone and normalized commit-range materialization uses the same optional
-selector as exact-slice and terminal findings and binds a selected projection read-only
-at the exact snapshot `node_modules`. Each fresh action independently authenticates
-selection, enumerated unavailability, projection identity, installation digest,
-retained root, mount destination, and frozen binds. None of those fields selects,
-resumes, satisfies, suppresses, or vetoes another action. Receipts may record this
-evidence for audit but are not launch prerequisites or continuation authority.
+After binding the trusted advisory input to its run, the advisory process prepares
+substrate once before invoking either family executor. Private per-input frozen facts
+retain the optional selector's selection or named absence, projection identity,
+installation digest, root, destination and binds. Both Codex and Claude confinement
+revalidate that retained evidence and bind selected dependencies read-only at snapshot
+`node_modules`; they never reselect mutable canonical dependencies. Absent, redirected,
+unstable or checkout-owned dependencies retain the selector's nonselection policy;
+checkout-owned contents are never shadowed. Selected identity substitutions fail closed.
+These facts neither govern another action nor grant receipt authority. The projection
+is a sibling of the private checkout, removed by that action's existing cleanup.
 
-Standalone snapshot execution also binds the writing repository's
+Advisory snapshot execution also binds the writing repository's
 controlled-contract validator-cache root read-only at the snapshot writing
 repository's deterministic `.cache/controlled-contract/validators` location.
-The existing launcher pre-spawn warm remains the sole publisher. Before composing
-that bind, the launcher runs the package-owned verify path, requires the
-writing-repository-derived root and package-byte-derived current toolchain identity,
+The process-boundary preparation runs the package-owned ensure then verify paths;
+only ensure publishes. Both family composers synchronously revalidate this prepared
+backing with the shared cache-bind verifier. Unprepared or copied inputs fail closed.
+The launcher requires the writing-repository-derived root and package-byte-derived
+current toolchain identity,
 rejects redirected, non-owned, world-writable, escaping, or path-substituted
 backing, and creates only empty launcher-owned mountpoint ancestors in the
 detached checkout. The publisher creates the cache root, its missing ancestors,
@@ -2526,8 +2647,8 @@ stale, or unsafe backing still fails closed without a caller root, environment
 redirect, fallback cache, dependency install, or canonical-state write. This bind is
 execution substrate only: it does not change snapshot commit/tree identity,
 controlled-generation identity, dependency-projection evidence, findings authority,
-or action identity. Exact-slice and terminal-review launch plans keep their
-existing cache and confinement behavior.
+or action identity. Preparation failures settle through the advisory failure owner
+before any executor; existing action cleanup releases checkout and projection together.
 
 ### Independent advisory findings attempts
 

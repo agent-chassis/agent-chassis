@@ -8,7 +8,7 @@ import {
 } from "@agent-chassis/agent-launch-core/src/lib/launcher-owned-worktree-root.mjs";
 import {
   createManagedWorkerConfinementActivationBinding,
-  createWorkspaceAgentDispatchBackend
+  createPreparedWorkspaceAgentDispatchBackend
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 import {
   createCanonicalCommittedSliceIntegrationAdapter
@@ -47,6 +47,7 @@ import {
   observeAuthenticatedWkForgeHandoff
 } from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
 import {
+  observeAuthenticatedHandoffLanding,
   observeWkHandoffLanding
 } from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-landed-publication.mjs";
 
@@ -84,6 +85,12 @@ import {
   projectAuthenticatedTerminalCandidateFailure,
   projectTerminalCandidateRecoveryReason
 } from "./dispatch-terminal-candidate-runtime.mjs";
+import {
+  authenticateHistoricalTerminalCandidate
+} from "./dispatch-terminal-candidate-authentication.mjs";
+import { createWorkspaceRepoResolutionError } from "./workspace-repo-resolution.mjs";
+import { integrateWorkBackendOptions } from "./task-integrate-work.mjs";
+import { createObservationOriginals } from "./task-get-run-result-delivery.mjs";
 
 export { consumeDispatchCodexTestSeamEvidence };
 export {
@@ -109,9 +116,9 @@ export function createWkForgeHandoffPublicationStateResolver({
       "WK forge publication-state resolver requires the trusted terminal-candidate coordinator"
     );
   }
-  return async (wkId, authorityContext) => {
+  return async (wkId, authorityContext, expectedVersion = null) => {
     const recovered = await terminalCandidateCoordinator.recoverTerminalCandidateUnderAuthority({
-      wkId, authorityContext
+      wkId, authorityContext, expectedVersion
     });
     if (recovered === null) return null;
     return Object.freeze({
@@ -141,23 +148,33 @@ export function createWkForgeHandoffAuthenticationObserver({
       materialization: observed.materialization
     });
   };
-  return async (wkId, authorityContext, seams = {}) => {
+  return async (wkId, authorityContext, seams = {}, selection) => {
     try {
       return await observeAuthenticatedWkForgeHandoff({
         mainRepo,
         assignedUnit: wkId,
         authorityContext,
-        deps: { ...seams, observeTerminalCandidatePublicationState }
+        selection,
+        deps: {
+          ...seams, observeTerminalCandidatePublicationState,
+          observeHistoricalTerminalCandidatePublicationState: async (wk, versionIdentity) => {
+            const historical = await authenticateHistoricalTerminalCandidate({
+              mainRepo, wkId: wk, versionIdentity,
+              ...(seams.runGit === undefined ? {} : { runGit: seams.runGit })
+            });
+            return Object.freeze({ binding: historical.binding, historical_version: historical });
+          }
+        }
       });
     } catch (error) {
-      const observationFailure = projectAuthenticatedTerminalCandidateFailure(error);
       return Object.freeze({
         ok: false,
         category: WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY,
         detail: Object.freeze({
           stage: "candidate_observation",
           reason: projectTerminalCandidateRecoveryReason(error),
-          recovery_detail: observationFailure,
+          subject: Object.freeze({ assigned_unit: wkId }),
+          ...authenticatedTypedCandidateFailure(error),
 
           evidence: captureDiagnosticEvidence(error)
         })
@@ -174,13 +191,17 @@ export function createWkLandingObserver({
   const observeAuthenticatedHandoff = createWkForgeHandoffAuthenticationObserver({
     mainRepo, terminalCandidateCoordinator
   });
-  return async (wkId) => observeWkHandoffLanding({
+  return async (wkId, selection) => observeWkHandoffLanding({
     mainRepo,
     assignedUnit: wkId,
+    selection,
     deps: {
       ...seams,
-      observeAuthenticatedHandoff: (wk, authorityContext) =>
-        observeAuthenticatedHandoff(wk, authorityContext, seams)
+      observeAuthenticatedHandoff: (wk, authorityContext, selected) =>
+        observeAuthenticatedHandoff(wk, authorityContext, {
+          ...seams,
+          observeSelectedHandoffLanding: (handoff) => observeAuthenticatedHandoffLanding({ mainRepo, handoff, deps: seams })
+        }, selected)
     }
   });
 }
@@ -549,15 +570,9 @@ export function projectWkForgeHandoffRefusal(outcome) {
   });
 }
 
-function projectAuthenticatedWkForgeRecoveryRefusal(outcome, error) {
-  const refusal = projectWkForgeHandoffRefusal(outcome);
-  return Object.freeze({
-    ...refusal,
-    detail: Object.freeze({
-      ...refusal.detail,
-      recovery_detail: projectAuthenticatedTerminalCandidateFailure(error)
-    })
-  });
+function authenticatedTypedCandidateFailure(error) {
+  const typed = projectAuthenticatedTerminalCandidateFailure(error);
+  return typed?.kind === "typed_candidate_error" ? { recovery_detail: typed } : {};
 }
 
 const DISPATCH_RUNTIME_TEST_COMPOSITION_FIELDS = Object.freeze([
@@ -628,11 +643,21 @@ export function buildDispatchRuntime(env = process.env, {
   registeredTier = "free_local",
   sliceIntegrationCcePolicy = null,
   wkForgeHandoffCcePolicy = null,
-  workspaceRepos = null,
-  resolveWorkspaceRepo = null
+  workspace = null
 } = {}) {
 
   void registeredTier;
+  const trustedWorkspace = workspace === null ? null : Object.freeze({ ...workspace, dir: path.resolve(workspace.dir) });
+
+  const resolveBoundWorkspace = (_configured, alias = null) => {
+    if (alias !== null && alias !== trustedWorkspace.repo) {
+      throw createWorkspaceRepoResolutionError(`Repository identity does not match the bound workspace: ${alias}`,
+        trustedWorkspace.repo, [trustedWorkspace.repo]);
+    }
+    return trustedWorkspace;
+  };
+  const boundWorkspaceRepos = trustedWorkspace === null ? null
+    : { currentAlias: trustedWorkspace.repo, repos: new Map([[trustedWorkspace.repo, trustedWorkspace.dir]]) };
   const dispatchSessionIdentity = mintDispatchSessionIdentity();
   const managedStdioMcpCompositionAuthority =
     createManagedStdioMcpCompositionAuthority();
@@ -701,7 +726,7 @@ export function buildDispatchRuntime(env = process.env, {
   });
 
   dispatchBackend = launchExecutors !== null
-      ? createWorkspaceAgentDispatchBackend({
+      ? createPreparedWorkspaceAgentDispatchBackend({
           launchExecutors,
           managedStdioMcpCompositionAuthority,
           requireManagedProvisioning: true,
@@ -712,24 +737,27 @@ export function buildDispatchRuntime(env = process.env, {
           canonicalCommittedSliceIntegration,
           ...(terminalCandidateCoordinator === null
             ? {}
-            : { recoverTerminalCandidate: terminalCandidateCoordinator.recoverTerminalCandidate }),
+            : { recoverTerminalCandidate: terminalCandidateCoordinator.recoverTerminalCandidate,
+
+                observeTerminalCandidate: terminalCandidateCoordinator.observeTerminalCandidate }),
 
           sliceIntegrationCcePolicy,
           evaluateWorkerAdmission: evaluateWorkerAdmissionForBackend,
-
-          resolveConfiguredWorkspaceRepo:
-            workspaceRepos !== null && typeof resolveWorkspaceRepo === "function"
-              ? (alias) => resolveWorkspaceRepo(workspaceRepos, alias)
-              : null,
-          settleFormalReviewAttestation:
-            workspaceRepos !== null && typeof resolveWorkspaceRepo === "function"
-              ? ({ record, formalResult }) => settleFormalReviewAttestationForDispatch({
-                  record,
-                  formalResult,
-                  workspaceRepos,
-                  resolveWorkspaceRepo
-                })
-              : null
+          resolveConfiguredWorkspaceRepo: trustedWorkspace === null ? null
+            : alias => resolveBoundWorkspace(null, alias),
+          ...(worktreeProvisioningConfig !== null && trustedWorkspace !== null
+            ? integrateWorkBackendOptions({
+                workspace: trustedWorkspace, sessionEnv: env, responseEnv: env,
+                backendOptions: { worktreeProvisioning: worktreeProvisioningConfig,
+                  requireManagedProvisioning: true }
+              }) : {}),
+          captureRunOriginal: trustedWorkspace === null ? null : observation => createObservationOriginals({
+            workspace: trustedWorkspace, sessionEnv: env, responseEnv: env }).capture(observation),
+          settleFormalReviewAttestation: trustedWorkspace === null ? null
+            : ({ record, formalResult }) => settleFormalReviewAttestationForDispatch({
+                record, formalResult, workspaceRepos: boundWorkspaceRepos,
+                resolveWorkspaceRepo: resolveBoundWorkspace
+              })
         })
       : null;
   const wkForgeHandoffAdapter = worktreeProvisioning === null || dispatchBackend === null
@@ -750,19 +778,19 @@ export function buildDispatchRuntime(env = process.env, {
           });
         } catch (error) {
 
-          outcome = {
-            ok: false,
-            category: WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY,
-            detail: {
-              stage: "candidate_resolution",
-              reason: projectTerminalCandidateRecoveryReason(error),
-
-              evidence: captureDiagnosticEvidence(error)
-            }
-          };
           return {
             accepted: false,
-            refusal: projectAuthenticatedWkForgeRecoveryRefusal(outcome, error)
+            refusal: projectWkForgeHandoffRefusal({
+              ok: false,
+              category: WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY,
+              detail: {
+                stage: "candidate_resolution",
+                reason: projectTerminalCandidateRecoveryReason(error),
+                subject: { assigned_unit: assignedUnit },
+                ...authenticatedTypedCandidateFailure(error),
+                evidence: captureDiagnosticEvidence(error)
+              }
+            })
           };
         }
         return outcome?.ok === true
@@ -772,8 +800,8 @@ export function buildDispatchRuntime(env = process.env, {
 
   const wkLandingStatusAdapter = observeLanding === null || dispatchBackend === null
     ? null
-    : async ({ assigned_unit: assignedUnit }) => {
-        const observed = await observeLanding(assignedUnit);
+    : async ({ assigned_unit: assignedUnit, selection }) => {
+        const observed = await observeLanding(assignedUnit, selection);
         return observed?.ok === true
           ? { accepted: true, landing: observed.result }
           : { accepted: false, refusal: observed };

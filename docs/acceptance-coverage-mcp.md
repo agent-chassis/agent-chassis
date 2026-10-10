@@ -40,6 +40,12 @@ meaning incomplete or require an exemption. Supplying an executable binding
 still requires its complete declared shape; malformed supplied references and
 contradictory meaning retain their own refusals.
 
+A stored test-proof binding may be authored partially; execution completeness is
+a separate requirement, and only a complete binding executes. A stored field the
+current definition does not declare is refused by current validation. No
+conversion helper or workbench offer rewrites a retired stored shape: such a
+binding is authored again through the current operations.
+
 `resolved-obligation-coverage.v1` retains the selected definition, authored-input,
 canonical-source, system-capability and execution-evidence facts separately.
 Its executable-map `status` is not the semantic `semantic_status` used for
@@ -48,6 +54,30 @@ targets must not be promoted into absent requirement meaning. Likewise, counts
 of resolved selections or executable route validity are not a semantic
 completeness verdict. No selection or design assessment produces execution
 credit.
+
+Every obligation of the selected unit must be accounted for before its contract
+is reported complete: its author either selected a proof whose exact definition
+validates, or explicitly declined proof with `proof_opt_out: true`. An
+obligation with neither is unfinished authoring. It stays savable, reports
+`obligation_coverage_proof_unselected`, is counted invalid and keeps the unit
+incomplete; nothing selects a proof, infers an opt-out or borrows a parent's or
+sibling's obligations for it. A selection whose exact definition does not
+validate (an unpinned name, an integrity mismatch, a definition that cannot be
+loaded) is likewise unaccounted and keeps that owner's own code. A validated
+selection is accounted whether or not anything can run it and before any proof
+has run or passed; an opt-out is accounted with no selected, resolved or
+executable proof and no credit. This one verdict is computed with the saved
+rows and read unchanged by assessment, the assessment a save returns, the
+completeness summary and readiness. When the executable-map owner itself fails,
+no selection was validated, so no selected obligation is reported complete; the
+failure keeps its native cause beside the semantic facts already established,
+and an explicit opt-out or an unmade decision keeps its own answer.
+The resolved-selection mapping is a different, mechanical fact: it holds only
+obligations with a resolved selection, so a unit containing an opt-out has
+none. Consumers that need that mapping still require it and say so; acceptance
+rebase, which reads no mapping, waits on accounting instead, and runtime
+eligibility classifies an opt-out as declaring no runtime proof rather than as
+an unresolved design.
 
 The exact selected definition owns the prerequisites for executing that route.
 A provider-bound test route executes through its native binding; unavailable
@@ -107,13 +137,15 @@ Authoring accepts the same distinction. An obligation may link several eligible
 verifications while its case names one of them in `verification_id`; creating
 that case, reusing it from another obligation that links the same verifications,
 and adding a sibling link to an existing use all keep the saved selection, and
-readback returns every link. Refusals remain for several eligible links with no
-selection (`obligation_coverage_case_selector_ambiguous`,
-`ambiguous_linked_verification`), a selection the obligation does not link
+readback returns every link. Several eligible links with no selection are not
+refused: the case is saved naming no verification, as an unresolved draft that
+the assessment reports with its complete candidates. Refusals remain for a
+selection that is not eligible for the obligation
 (`obligation_coverage_case_selector_invalid`), a use whose verification links
-exclude its shared case's selection (`obligation_coverage_case_selector_ambiguous`,
-`shared_case_verification_conflict`), and two cases claiming one verification
-(`obligation_coverage_case_verification_conflict`).
+exclude its shared case's selected verification
+(`obligation_coverage_case_selector_ambiguous`,
+`shared_case_verification_conflict`), and two cases explicitly claiming one
+verification (`obligation_coverage_case_verification_conflict`).
 Unresolved relationships do not contribute to `runtime_eligible`. Full identities
 and owner diagnostics remain in the existing retained dimension projection and
 its lossless retrieval, while readiness carries compact counts and source bindings.
@@ -203,7 +235,10 @@ alongside native descriptors, derives native bindings through the case owner,
 validates the derived associations and rechecks source currentness. These
 association sources belong to the complete generation population; they are not
 members of the public native-carrier census. Read-only findings materialization
-uses the generation resolver to copy the selected bytes.
+copies that complete population through the attachment-generation resolver,
+which validates descriptor identity and bytes without the association
+validation; its capture contract is owned by
+[Agent Launch Confinement MCP Conduit](agent-launch-confinement-mcp-conduit.md).
 
 Launcher persistence and exact-W authentication use the generation-specific
 classifier for that complete population while retaining the native-only public
@@ -437,7 +472,7 @@ a proof succeeded. Real missing proof on an authored required obligation remains
 mechanical incompleteness.
 
 `proof_name` selects an exact proof catalog entry; it is not an authored title
-or case ID. Find catalog names with `workspace_controlled_proof_intents_discover`.
+or case ID. Find catalog names with `workspace_find_proofs`.
 Omitting `proof_name` keeps a new obligation an unselected draft and preserves
 an existing obligation's selection. Initial selection or a changed name pins
 its current admitted version, profile digest, parameter-contract digest, and
@@ -450,9 +485,20 @@ obligation and contract input in the request. The refusal names the field and
 value and returns the no-argument discovery call as its next call. A known name
 whose catalog or definition cannot load refuses with that failure's own code;
 unavailable or corrupt exact definitions never save an unpinned selection or
-silently select another version. A saved selection without a pin is reported
-as `obligation_coverage_proof_unpinned`; correct it by upserting an exact
-catalog name or removing the selection.
+silently select another version. A saved obligation that selects no proof and
+carries no `proof_opt_out` is reported as
+`obligation_coverage_proof_unselected`, and a saved selection
+without a pin as `obligation_coverage_proof_unpinned`. Both keep `field:
+"proof_name"` for the saved carrier and add one owner fact, `discovery_input`:
+the one `workspace_find_proofs` input that applies. An unselected row states
+`query`: the property to establish is the caller's own, so no query is supplied
+and no call is composed. An unpinned row states `proof_name`, the saved name
+that discovery reads back. The fact is one short scalar because every affected
+obligation repeats it inside a bounded answer.
+Discovery lists candidates and selects none. The caller chooses the proof and
+saves it as `changes.obligations[].proof.name` through `save_record` at the
+revision the current `workspace_read_wiki` unit context returns; an unpinned
+selection may instead be removed through `changes.remove.obligations`.
 
 `parameters` is a map of named replacements. Omitted names and an empty map
 preserve saved values. A supplied object or list replaces that one value as a
@@ -530,7 +576,9 @@ reference bodies, and an `obligation_detail_read` declaration naming the direct
 Delivery goes through the selected-response owner
 ([Selected-Response Details](mcp-selected-response-details.md)); the query has no
 cursor, and a `cursor` argument is refused as an unrecognized key. A result whose
-complete CallToolResult fits min(8,192 bytes, the active inline limit) is returned
+admission bytes — its larger representation, as
+[MCP Integration](mcp-integration.md) defines — fit min(8,192 bytes, the active
+inline limit) is returned
 whole with `selected_detail.complete: true`. Otherwise the result is retained once:
 the default `view: "compact"` answers with the identity, disposition, authorized
 population counts, collection counts and the `next_calls` entry that starts complete
@@ -559,7 +607,13 @@ A compact or inventory answer for a unit with criteria then carries, before any
 optional member, `criterion_identities`: an object whose keys are the owner's
 zero-based criterion `position` as a decimal string and whose values are the
 `identity` an obligation names, projected from `acceptance_criteria` without text
-or `text_sha256`. It is whole or absent: when it does not fit beside the required
+or `text_sha256`. A position is the zero-based index of the criterion in the
+selected unit's `acceptance.criteria` array, in stored order at the answer's
+revision, so a caller that already holds that ordered list uses the mapped
+identity without reading criterion text again; a caller that does not reads the
+criterion meaning through the existing detail route. A position only locates a
+known criterion: the caller still declares which obligation covers it, and a later
+edit or reorder of the criteria makes earlier positions historical. It is whole or absent: when it does not fit beside the required
 members and any `parameter_selection`, `selected_detail.omitted_members` names
 `criterion_identities` and the rows stay in the `acceptance_criteria` collection,
 whose count is `selected_detail.collections.acceptance_criteria`. A whole result
@@ -567,6 +621,25 @@ carries those rows and no map. Measured with nine long multibyte criteria, UTF-8
 request plus CallToolResult bytes, the first response carries all nine identities
 in one call: 5,421 bytes compact and 6,744 bytes inventory for the parent, 5,487
 and 6,870 bytes for a slice with longer criterion prose.
+After `criterion_identities` and before any optional member, a compact or inventory
+answer carries `case_links`: an object keyed by each selected obligation's exact
+`obligation_id` whose value is that obligation's exact saved `case_id`, or `null`
+for an obligation without a case. It is projected from the selected obligations
+only, so a slice or assignment maps only its own obligations and an empty slice has
+no map; case definitions, verifications and targets stay in the `cases` collection.
+This is the first route for reusing saved cases: no `view: "complete"` read is
+needed for the identities. The map is whole or absent. When it does not fit,
+`selected_detail.omitted_members` names `case_links` and the recommended
+`next_calls` entry, after any parameter read, reads the `obligations` collection of
+the same retained snapshot, whose rows carry `obligation_id` and `case_id`; the
+complete-retrieval call follows it unrecommended, never duplicated. That read is
+positional: `detail.selector.id` is a row position, while a fresh query with
+`obligation_id` selects one obligation. A whole result carries the obligation rows
+and no map. Measured with five long-prose obligations, four distinct
+45-character saved case identities and one no-case inspection obligation, UTF-8
+request plus CallToolResult bytes, the first response carries all five links in
+one call: 6,095 bytes compact and 7,418 bytes inventory for the parent, and 6,191
+bytes compact for the slice that reuses them.
 `detail`
 reads one bounded page of the retained result, takes only `unit` and `repo`, and is
 refused beside any live selector. A page names its continuation and, when a
@@ -579,11 +652,21 @@ template; a large scalar is delivered in exact UTF-8 byte ranges.
 The session role is launcher startup state and never a request field. Orchestrator,
 operator and an unmanaged session read the named canonical repository. Reviewer and
 redteam read only the launcher's immutable review materialization
-(`WIKI_MCP_REVIEW_MATERIALIZATION_DIR`), authenticated through launcher-run-credential
-and the frozen review artifact; they keep repository-read entitlement, so any WK in
-that materialization is readable, and an absent or unauthenticated frozen source is
-`obligation_coverage_query_source_unavailable` with coordinator/operator recovery,
-never a live-main read. A managed worker reads the controlled contract of its
+(`WIKI_MCP_REVIEW_MATERIALIZATION_DIR`), authenticated by the one findings-source
+resolver that ordinary frozen reads also use: the session contract's
+`advisory_review_source` binding must commit to this host's role, assigned unit,
+advisory run, canonical repository and materialization root, and the root must still
+be a directory. No frozen review artifact or worker run record is consulted, and the
+agent supplies no run, path or role argument and makes no authentication call. They
+keep repository-read entitlement, so any WK in that materialization is readable. A
+source that does not authenticate is `obligation_coverage_query_source_unavailable`
+whose `failed_condition` names the deciding cause — `launcher_session_unauthenticated`,
+`advisory_review_source_binding_absent`, `advisory_review_source_binding_duplicated`,
+`advisory_review_source_binding_mismatch`, `advisory_review_repository_unavailable`,
+`review_materialization_unavailable` or `review_materialization_unreadable` — with the
+subject it concerns and a `no_supported_route` recovery, since no call a findings
+session can make repairs its launcher-bound source; it is never a live-main read. A
+managed worker reads the controlled contract of its
 assigned unit: the exact-slice binding the identity store holds for its run selects
 the worktree, and the `assigned` population is that unit's obligations with exactly
 their requirement, verification, reference and parent-owned case closure plus all
@@ -591,11 +674,286 @@ global notes and residue. A different WK, slice or focus is
 `obligation_coverage_query_assignment_scope` with the one supported call; an
 assignment with no saved obligations reports `assignment_mapping: "absent"` with
 coordinator recovery rather than falling back to the whole parent. Counts in an
-assignment describe only what it returns. The grant is this query only: raw
-`wiki/contracts` files and the generic content-reference reader stay excluded.
+assignment describe only what it returns. This query is the worker's
+authority-scoped route to contract meaning; raw `wiki/contracts` files stay
+excluded. The worker's content-reference reader is a separate transport grant
+whose boundary is owned by
+[MCP Repository Model](mcp-repository-model.md#oversized-mcp-response-references);
+it grants no page, record, entry, search or path read.
+
+Current contract assessment composes the same resolver in process.
+`assessCurrentContract` (`packages/wiki-mcp/src/lib/task-assess-contract.mjs`) takes
+the trusted configured workspace and launcher session environment apart from a
+closed selection of `unit`, optional `focus` and optional `obligation_id`; any other
+selection key is refused, and the unit uses the shared saved-source unit grammar. It
+resolves the source as the assessment consumer and passes only the authenticated
+source root and the parsed selection to saved proof validation's internal capture
+(`captureProofAssessmentOperation`), which owns the revision, source absence and
+opt-out, whole-unit versus selected-obligation assessment, criterion coverage and
+independent owner failures. Orchestrator and
+operator assess the canonical repository; reviewer and redteam assess their
+authenticated frozen materialization, and a source that does not authenticate keeps
+the refusal above and is never answered from live main. Assessment excludes the
+assigned-worker population before any worker binding is read: a worker session is
+`contract_assessment_worker_excluded` with `failed_condition`
+`assessment_excludes_worker_population` and an orchestrator-or-operator recovery,
+because relaunching a worker cannot grant assessment; the query's assigned-worker
+read is unchanged. The result is
+`{repository, unit, focus, selection, source_authority, assessment, diagnosis_inventory}`:
+`selection` is `whole_unit` or `selected_obligation` with `whole_unit_assessed`,
+`source_authority` carries the resolved `role`, `source_kind` and `population_kind`,
+and `assessment` is the validation projection unchanged, so a selected obligation
+states no whole-unit validity or coverage. The user-requirements comparison follows
+the trusted orchestrator role. This composition is not registered, published,
+retained or delivered as an MCP response, and it grants no tool access.
+
+`diagnosis_inventory` is private. The capture shares one computation with
+`workspace_validate_proof` — the saved source is resolved and bound once, assessed once
+and the workbench inspected once — and keeps every diagnosis those owners produced for
+the population, in issue priority order, including nonblocking authoring groups and
+inspection-only semantic groups the compact issue index omits. Each entry is the
+selected-diagnosis projection (identity, meaning, recovery, every subject, addressed
+`correction_call`) with its owner `family` (`authoring` or `semantic`) and the owner's
+`correction_route`; the inventory states its `unit`, `focus`, `content_digest` and
+`source`, its `population` (`whole_unit` with every saved `obligation_id`, or
+`selected_obligation` with that one and only its subjects), and the `corrections`
+definitions its subjects reference. `families` states each owner's availability:
+`complete`, or after an independent owner failure `incomplete` (executable map: the
+diagnoses the semantic assessment still established are kept) or `unavailable`
+(workbench), each with that owner's native failure; `complete` is true only when no
+family failed and describes capture of owner meaning, not proof or readiness. A
+source-absent or opted-out unit keeps its findings in `assessment`, with
+`group_selectable: false`, no diagnoses and `not_applicable` families: no diagnosis id
+is made for those findings. Public validation answers are unchanged and carry no
+inventory. Complete delivery of the assessment task's permitted projection is
+available through its importable registrar; production activation is separate.
+
+`createContractAssessmentResults`
+(`packages/wiki-mcp/src/lib/task-assess-contract-results.mjs`) retains that carrier
+privately. `current(selection)` computes one assessment and then retains the exact
+carrier, inventory included, with the source context that computed it, as one
+`selected-response-source.v1` envelope under the producer route `workspace_assess_contract`, bound to the
+repository, unit, original selection and population, original revision and the
+authenticated authority. Production does not register that route: the bytes are stored with the
+operator-only access marker, so the generic content-reference reader refuses them and
+names no owner call. The assessment handler authenticates its own original reads. If retention
+fails after assessment, the carrier is returned unchanged with no locator and the
+native retention cause; the assessment is not relabelled, recomputed or retried.
+`original({source})` takes the `{ref_id}` locator; `unit` is optional. It
+authenticates the session, reads the retained envelope once checking the stored
+producer and configured repository, and treats the retained unit as data until the
+full authority resolved from this session for that unit equals the retained one. Only
+then is a supplied `unit` compared as a binding assertion, the carrier's unit and
+repository checked against the binding, and the stored carrier returned unchanged, so a
+selected-obligation original keeps its own scope and corrections and is never
+broadened. Each mismatch is the selected-response owner's `source_binding_mismatch`
+naming its field. The authority
+binds role, repository, unit, source kind and a findings session's advisory run and
+frozen-source binding, and no revision: source movement does not revoke an original,
+while another role, run or frozen source is refused before any carrier is returned.
+A missing, corrupt, non-selected or wrongly bound source keeps the selected-response
+owner's refusal, and no failed read is answered by a fresh assessment. The read
+reports `source_revision_currentness` as `current`, `changed` or `unavailable` with
+the observation owner's cause — an unreadable current source does not withhold an
+authentic original — and `assessment_context_currentness` as `not_observed`: it
+invokes no assessor, workbench or provider and infers no capability currentness.
+Retention follows the response store's existing bounds; nothing here promises
+permanence.
+The results owner's `deliverCurrent(selection, project)` and
+`deliverOriginal(request, project)` reuse those same capture/authentication paths
+for the surface's trusted projection; a request supplies neither a projector nor
+an expected binding.
+
+`original` also accepts `diagnosis_id` and, with it, `obligation_id`; each supplied
+selector is a nonempty string, `null` is not omission, and any other key — `repo`
+included, on `current` as on `original` — is refused: the repository is the trusted
+workspace configuration. Membership is inspected only after the session and source
+authenticate, and solely in the saved inventory. `diagnosis_id` selects exactly one
+diagnosis of a whole-unit or selected-obligation original by its saved
+`diagnostic_group_id`; the read then adds `selected_diagnosis` — the saved diagnosis
+and the saved correction definitions its subjects reference — beside the unchanged
+carrier, provenance and currentness. With `obligation_id` the diagnosis is restricted
+to every saved subject of that obligation, with the definitions those subjects use and
+the saved correction route addressed at the original unit, focus and revision. Nothing
+is assessed, fetched from the current source or repaired, and the stored carrier is
+never altered. The obligation must belong to the original population
+(`obligation_outside_original_population`; a selected-obligation original is never
+broadened) and be a subject of that diagnosis (`obligation_not_a_diagnosis_subject`,
+which a diagnosis naming no obligation always is), both
+`obligation_coverage_obligation_not_found`. The remaining refusals are
+`obligation_coverage_diagnostic_group_not_found` with a `failed_condition`:
+`diagnosis_unknown_in_complete_inventory`; `retained_diagnosis_inventory_incomplete`
+with the `unavailable_families` and their native failures, when an owner failed at
+capture and the requested diagnosis was not observed — never reported as unknown;
+`original_has_no_selectable_diagnoses` for a source-absent original;
+`retained_diagnosis_inventory_malformed`, `retained_diagnosis_malformed`,
+`retained_diagnosis_identity_ambiguous` and `retained_correction_definition_missing`
+for retained bytes that do not hold the inventory. No obsolete retained format is read
+or migrated.
+
+`packages/wiki-mcp/src/lib/task-assess-contract-surface.mjs` holds the request
+contract, response preparation and delivery. Importing registers nothing, and the
+retained bytes keep their operator-only marker. `createContractAssessmentInputContract(z)`
+returns the closed schema `{unit?, focus?, obligation_id?, original?}` with `original`
+`{source, diagnosis_id?, obligation_id?}`, built from the shared unit, focus,
+obligation, diagnostic-group and retained-locator declarations. Its declared rules
+project exactly: `unit` is required without `original`, and `original.obligation_id`
+requires `original.diagnosis_id`. A fresh request needs only `{unit}`; an original
+request needs only `{original: {source}}`. Unknown keys, `null` and empty selectors are
+refused; there is no repository, mode, role, provider, path, revision or delivery
+field. The one rule only the handler can decide is declared beside the schema as an
+unprojected constraint: top-level selectors supplied with `original` are compared with
+the original after it authenticates.
+
+`createContractAssessmentSurface({workspace, z, sessionEnv, responseEnv, sourceDeps,
+assessmentDeps})` takes trusted host configuration and returns `inputContract`,
+`prepare(request)` and `respond(request)`. A
+contract violation is `obligation_coverage_request_invalid` with `failed_condition`
+`input_contract_violation`. A fresh request runs `current` once; an original request
+runs `original` once and assesses nothing. After authentication a top-level `unit` or
+`focus` equal to the original's is redundant, and a top-level `obligation_id` is
+redundant only when it equals the nested restriction or the original's own
+selected-obligation population; `normalized.redundant_fields` reports them. Any other
+value is `original_and_current_selection_conflict`, naming the `conflicting_fields` and
+two `choices` — the original-only request and the fresh request — each valid under the
+schema and neither executed. The fresh choice inherits omitted unit and focus from
+the authenticated original; explicitly supplied top-level selectors override those
+defaults. A whole-unit original is never narrowed by a top-level
+obligation, and a source that fails authentication refuses before any choice is derived.
+
+The preparation result is internal: `{registered: false, normalized?, body,
+continuations, delivery}`. An assessment `body` carries the carrier's identity,
+selection and authority, the retained original's availability, revision and locator,
+currentness on an original read, and the validation projection with validate's own
+navigation removed: each indexed issue names its saved `diagnosis_id` (`null` for a
+source-absent finding), and a selected obligation's whole-unit pointer is the fresh
+request's arguments. It holds no inventory or private correction route.
+
+A fresh request is compact first: its answer is a summary bounded by the
+selected-response delivery bound, measured as delivered — body, returned calls and
+the generated text mirror together. The original is assessed and retained complete
+once; the summary never truncates it. For a whole unit, the validation owner's own
+issue-index builder admits issues in priority order while the delivered answer fits,
+and `issues_returned` and `issues_omitted` count the index exactly. For a selected
+obligation, a selection request for each of its diagnoses is admitted first, then
+each complete diagnosis that still fits, with `diagnoses_returned`,
+`diagnoses_omitted` and `complete` stating the result; a diagnosis too large for the
+summary is omitted from it and keeps its request. `diagnosis_selection` is
+`{retained, calls_returned, calls_omitted}`: the saved diagnoses the retained
+original holds and how many selection requests this answer returns for them. A
+summary that exceeds the bound with no issue or diagnosis admitted is refused as
+`proof_validation_answer_exceeds_compact_class` with the locator-only call; it is
+never delivered oversized. When retention failed there is no original to hold what a
+summary would omit: the computed facts stay whole, and an answer that does not fit is
+refused with that retention failure. A read of the retained original is explicitly selected
+meaning and is complete: the locator-only read returns every eligible issue and a
+request for every saved diagnosis, and a selected diagnosis returns every saved
+subject. Neither is held to the summary's bound.
+
+A selected
+diagnosis `body` carries that saved diagnosis with its subjects, definitions and
+historical correction call, the subjects returned beside the diagnosis's original
+total, and `correction.supplied`; a supplied correction names its registered owner and
+the original revision it is addressed at, and none is claimed without an owner call.
+`continuations` are request arguments, not calls: the locator-only request and, for a
+fresh whole-unit summary, one complete request for each issue it indexes; for a fresh
+selected-obligation summary, one for each admitted diagnosis request; and for a
+locator-only original read, one for every saved diagnosis, indexed or not. No
+caller assembles a request from an id, and the locator-only request reaches whatever
+a summary omitted. A selected diagnosis carries its own unrestricted request. After a retention
+failure there is no locator and no continuation, only the computed facts and the
+native failure. `delivery` measures body and continuations with the inline-result
+measurement against the selected-response delivery bound and states `fits` and
+`complete_transport_required`; `delivered` is always false. Oversized owner text in an
+explicitly selected original or diagnosis stays whole in the preparation and is
+flagged, never truncated, paged or retained again.
+The preparation contract remains the save consumer's in-process interface.
+
+`respond(request)` uses that same projection and returns a complete MCP
+`CallToolResult`. It adds `normalized` for original reads and `next_calls`: the
+locator-only original and one request for every offered diagnosis. The pure
+`contractAssessmentCall(arguments)` builder supplies each own-route call's
+`tool: "workspace_assess_contract"`. The private diagnosis inventory, correction
+route and unselected long content are excluded. Correction calls supplied by
+their owners keep their original arguments and historical revision; they are
+not translated to another tool's schema.
+
+Fitting frames use `jsonContent`. A fresh answer is a compact summary and is
+never given complete delivery: one that would exceed the shared delivery bound is
+refused, not spilled or delivered whole. An explicitly selected read of the retained
+original above the shared
+delivery bound uses `readSelectedResponseProjection` over the same authenticated
+original, with the binding from the results path and the same trusted projection.
+The transport owner's exact result passes unchanged through `guardToolHandler`,
+including its classification for complete delivery above ordinary inline admission.
+The consumer receives the logical value and one generated text mirror, including
+indivisible owner scalars. There is no caller paging or byte reconstruction.
+Fresh requests compute and retain once; delivering that original's projection
+does not retain another copy. Original requests observe present source currentness
+but compute nothing and write neither canonical participants nor response state.
+
+If initial retention fails, a fitting response preserves the computed assessment,
+`original.available: false`, its native persistence cause and no locator or
+continuations. When those facts cannot fit and no original exists for authenticated
+complete delivery, the initial retention owner's bounded refusal is returned
+unchanged: `mcp_response.spill_persistence_failed.v1`, `response_spilled: false`,
+`reason: "spill_persistence_failed"` and the native persistence diagnostic.
+No complete success, second spill attempt or fabricated locator is supplied.
+
+`registerContractAssessmentTool({registerTool, z, workspace, sessionEnv,
+responseEnv, sourceDeps, assessmentDeps})` is exported from
+`packages/wiki-mcp/src/lib/task-assess-contract-tools.mjs`. Explicit invocation
+registers `workspace_assess_contract` through the supplied registration owner and
+returns the surface, so a host can share `prepare` with save. `workspace` is the
+trusted single `{repo, dir}` binding; environments and optional incumbent dependency
+seams are host configuration, never request parameters. The registrar publishes
+the input contract and its declared handler-enforced constraint, preserves owner
+refusals, and supplies the two authenticated conflict choices as own-route calls.
+Neither choice executes automatically.
+
+`focus` selects a named contract of a unit; a slice is selected by `unit`
+(`WK-0001#SLICE-001`). A request that names a slice as focus, such as
+`{unit: "WK-0001", focus: "slice-001"}`, stays refused as
+`tool_input_validation_failed` with the validator's own diagnostics. The registrar
+adds a `correction` stating that distinction and one `next_calls` entry: the same
+request with `focus` removed and the slice appended to `unit`, keeping a supplied
+`obligation_id`. The call is offered only when the complete request schema accepts
+it, and it is never run for the caller: no alias is accepted, the parent is not
+assessed, and nothing is read, so the refusal does not state that the slice exists.
+An original-mode request, an already slice-qualified unit, a spelling that is not
+exactly `slice-<digits>`, an unknown key or any other invalid member receives the
+unchanged refusal with no call.
+
+`unit` names a work record (`WK-0001`) or one of its slices; an initiative is never
+assessed. A request that is exactly `{unit: "IN-0001"}` stays refused as
+`tool_input_validation_failed` with the validator's own diagnostics. The registrar
+adds a `correction` stating that the identity is an initiative and which identities
+assessment accepts, and one `next_calls` entry, the existing read-only lookup of
+that initiative's work records:
+`workspace_read_wiki({search: {inventory: true, where: {initiative: "IN-0001", kind: "issues"}}})`.
+The call carries the supplied identity, is offered only when the reader registered
+on the same server accepts it at the time of the refusal, and is never run: no work
+record is looked up, selected, assessed or created. Its results are passages, several
+of which can belong to one work record, and the caller selects the record matching
+its intent. When none matches, creating one is the caller's explicit decision with
+its own authored inputs through `workspace_create_record`; no creation call is
+returned. A server without that reader states the limitation and returns no call.
+A request carrying any other member, or a unit that is not exactly an initiative
+identity, receives the unchanged refusal with no call. Canonical orchestrator/operator and
+authenticated frozen reviewer/redteam sessions use the existing source authority;
+workers are excluded. Assessment executes no proofs and grants no credit. Initial
+noncanonical retention is a disclosed effect, distinct from canonical read-only use.
+
+This registrar is importable and unactivated. Private SDK and isolated package
+composition exercise it, but the production server does not invoke it and has no
+grant or discovery entry for it. Production registration, role grants, discovery,
+cross-tool correction/caller migration and retirement of the displaced
+`workspace_validate_proof` agent route require one coordinated serving cutover.
 
 Every retained query binds a comparable `authority_identity` — route, unit, role,
-run and retry where the launcher bound one, the source kind and identity, the
+the run the launcher bound (a worker's launch, run and retry tuple; a findings
+session's advisory run, `{ kind: "advisory", run_id }`, with its source binding and
+root), the source kind and identity, the
 authorized population and, for a managed source, the unit's source generation. The
 query session declares `requireAuthorityIdentity`, so retention and every hot
 cursor, snapshot identity and cold retained-locator read re-resolve the caller's
@@ -621,7 +979,7 @@ inventory plus N.
 whole unit with exact admitted pack metadata, so every group identity it publishes
 is one the whole-unit group selector retrieves. It takes no cursor: an answer is
 never paged, spilled or continued, and a `cursor` argument is refused as an
-unrecognized key. Each answer is assembled against the shared complete-frame
+unrecognized key. Each answer is assembled against the shared admission
 measurement and the selected-response delivery class, min(8192, the active MCP
 inline limit); the response boundary owns that size and the operation owns field
 meaning.
@@ -631,7 +989,10 @@ selection index, not a repair dossier. It publishes the unit, the combined
 `content_digest` the authoring CAS accepts, and `source` (status, source and
 context digests). `authored` reports authored validity with obligation, valid,
 invalid, explicit-gap and unselected counts over the complete obligation
-population; rows with no selected route remain in that denominator. `route`
+population; rows with no selected route remain in that denominator. An
+obligation is valid only when its meaning is valid and it is accounted for by
+a validated selection or an explicit opt-out; `unselected` counts every row
+with no selected proof, opted out or not. `route`
 separately reports the selected-route prerequisite assessment: its status,
 assessed and prevented counts, and the authored-input, canonical-source,
 system-capability and execution-evidence stages. An omitted configurable
@@ -665,7 +1026,19 @@ issues are admitted in priority order while the frame fits; `issues_returned`
 and `issues_omitted` count that index exactly, and `issue_selection_basis` is
 `group_recovery`, a different projection from the logical-cause recovery
 counts. `subjects_included: false` states that per-subject detail is not in the
-default. Nonblocking and inspection-only observations are counted, not indexed.
+default.
+
+That is the `workspace_validate_proof` producer's diagnostics, which keeps all
+of these members. The `workspace_assess_contract` answer, and the assessment a
+`workspace_create_record` or `save_record` answer embeds, is a projection of
+it that carries `authoring_groups`, `semantic_groups`, `meanings`, `issues`,
+`issues_returned`, `issues_omitted` and `subjects_included`, and omits
+`authoring_occurrence_effects`, `semantic_logical_cause_recovery` and
+`issue_selection_basis`: each indexed issue's meaning states its own effect,
+stage, route and recovery, and each selected diagnosis its own recovery
+status. The two group counts stay on every answer, including one whose
+original could not be retained, and no replacement count is added. A read of
+a retained original projects the same members and reassesses nothing. Nonblocking and inspection-only observations are counted, not indexed.
 A population-level inspection-only semantic group with no obligation identity is
 count-only in this bounded contract: that is an access limitation, not evidence
 that its cause is harmless. The index is a bounded recommendation, not a cursor:
@@ -710,7 +1083,23 @@ successful validation.
 The package-owned `occurrenceRecoveryFacts` in `proof-executable-map.mjs` derives
 the failed fields and correction clauses from the binding owner's typed failures;
 the refusal prose and the selected diagnosis are composed from those same facts,
-and nothing parses prose to classify a correction. Group identities bind the exact
+and nothing parses prose to classify a correction. A missing authored
+prerequisite selects one prerequisite clause from its own owner fact and
+publishes no failed fields: a parameter withheld because the obligation's case
+lacks the field it is derived from selects `prerequisite_component`
+(`obligations[].case.component`) or `prerequisite_target`
+(`obligations[].case.target`) and names that case as the subject's `case_id`; a
+missing case, or a parameter withheld because no single native test binding
+resolves, selects `prerequisite_case` (`obligations[].case`, operation
+`link_one_case`). Each prerequisite clause carries the owner's constraint that
+the derived binding and the parameters read from it are never authored directly.
+Every authored-input instruction this owner composes, registered or
+stage-inferred, tells the author to read the current unit through
+`workspace_read_wiki` and save the correction through `save_record` with the
+returned revision, naming the authored member (`changes.obligations` or
+`changes.validation`) the recovery belongs to. A registered recovery's `route`
+remains the owner's structural identifier for that member; it is not an
+instruction to call a tool of that name. Group identities bind the exact
 source, context, definition and grouping-projection identity and replay
 deterministically while those inputs remain current. Unknown groups and moved
 inputs refuse as `obligation_coverage_diagnostic_group_not_found` with a fresh
@@ -731,7 +1120,10 @@ deduplication discards a cause, subject or owner group.
 Recovery is qualified rather than inferred from a tool name. A validation or
 query call may be inspection only. `authored_correction_available` additionally
 requires an authenticated semantic transition and names the revision-bound read
-and authoring owner; it never supplies the caller's semantic choice.
+and authoring owner; it never supplies the caller's semantic choice. Both facts
+belong to one observation: the row carrying the authenticated transition is the
+row whose remedy names the write. An owner's internal descriptor, or a write
+named for another observation, establishes no correction.
 `system_owner_failure` establishes no author-input repair. Execution-only
 limitations remain reported by their execution owner and do not become semantic
 admission causes.
@@ -773,13 +1165,59 @@ and their selector. Query resolves that reference for semantic read-back. Case
 revisions include the referenced component and target facts. Unfinished fields
 remain absent.
 
-A case definition's `verification_id` must name a `test_execution` verification
-claim that the same obligation lists in its own `controlled_contract_node_ids`.
-Eligibility reads those links directly; linking only the requirement claim that
-the verification verifies leaves no eligible verification. A case may omit
-`verification_id` while exactly one eligible verification is linked, and zero
-eligible verifications leave the case unfinished, which validation reports as
-`obligation_coverage_native_binding_case_incomplete`. The derived binding's
+A case definition's `verification_id` must name an eligible `test_execution`
+verification claim. One owner computes that population for mutation, explicit
+selection and assessment, from the contract's semantic facts alone: the
+verification claims the obligation lists in its own
+`controlled_contract_node_ids`, and the verification claims an explicit
+`verifies` relationship ties to a requirement claim the obligation lists. A
+requirement already records which verification verifies it, so linking only the
+requirement claim is enough and the obligation does not repeat the verification
+identity. Whether an executable `test_proofs` binding exists never changes the
+population, and no relationship is inferred from prose. Every `test_execution`
+verification of a linked requirement is eligible, so listing one of them beside
+its requirement does not exclude the others; the case names the choice.
+Association is authored meaning only: it is not executable readiness, which
+still needs the case's complete target, observation and falsification, and it
+is not proof success, which only execution establishes. A case may omit
+`verification_id`. A saved case that names a verification keeps it, even when
+further eligible verifications are linked later. A case that names none adopts
+the sole eligible verification when selecting it would satisfy every incumbent
+constraint: no other case owns it, no use of the case links verifications that
+exclude it, and the unit that owns the case's declared target is the one saving.
+That holds for a new case and for a previously saved one, and an amendment of the
+obligation alone, with no case member, is enough to adopt it. The case's ordinary
+target declarations follow it from its internal placeholder to the verification
+through the incumbent identity rebinding, keeping their target, position and
+owning unit.
+
+With no eligible verification, with several, or with one a constraint blocks,
+the save still commits every supplied change and the case stays an unresolved
+draft that names no verification. Nothing is chosen for the author, including
+among cases that want the same verification in one save, and request order never
+decides. The draft's internal placeholder is not a canonical claim, is never
+published as a verification, and derives no usable binding: validation reports
+`obligation_coverage_native_binding_case_incomplete` with the binding owner's
+missing-proposition facts, and proof execution starts no provider for it. The
+selected diagnosis carries the subject's `association`: its `condition`
+(`no_eligible_verification`, `sole_eligible_verification`,
+`ambiguous_linked_verification`, or the blocking constraint's own
+`verification_owned_by_another_case`, `shared_case_verification_conflict`,
+`case_selector_cross_unit` or `case_target_invalid`), every
+`eligible_verification_ids` entry, the complete
+`candidate_verification_ids` an author may select, each `blocked` verification
+with its constraint, and the `required_choice` member. The candidate population
+is never shortened. For `verification_owned_by_another_case` there is no
+verification to select, so `required_choice` is the save owner's conditional
+recovery instead: `obligations[].case.id` `when: "same_test"` with the blocked
+entries' `saved_case_ids` as `choose_one_of`, `otherwise`
+`requirements[].verification` `when: "different_test"`, and that owner's
+`correction`. `required_authored_input`, the subject's
+`missing_authored_input` and the `association` correction definition state the
+same two conditional members and never `obligations[].case.verification`.
+Assessment chooses neither, and the save's identity checks are unchanged. One explicit eligible selection, or saving the obligation
+again once its links leave a sole eligible verification, resolves that same case
+without repeating its identity or any other member. The derived binding's
 proposition identities come from the named claim and are never authored. The
 `case_authoring.verification_association` guidance member states this
 relationship and names
@@ -787,9 +1225,7 @@ relationship and names
 owner of which query output returns the identities. A selection that names an
 ineligible verification refuses as `obligation_coverage_case_selector_invalid`
 with condition `unlinked_verification_selected` or, from the native owner,
-`unassociated_declaration`; more than one eligible verification with no explicit
-selection refuses as `obligation_coverage_case_selector_ambiguous` with
-condition `ambiguous_linked_verification` or `ambiguous_declaration`. Each
+`unassociated_declaration`. Omission is never such a refusal. Each
 refusal names the deciding field, the rejected identity, the eligible
 identities, the obligation's current links, that guidance member and the
 current-query call, and leaves persisted state unchanged.
@@ -800,7 +1236,7 @@ another case owns refuses as `obligation_coverage_case_verification_conflict`
 with condition `verification_owned_by_another_case`, the verification, the
 saved and requested case identities, the requesting obligations, the
 requirement claims that verification verifies, the
-`obligations[].case.verification_id` field, and the guidance member
+`obligations[].case.verification` field (the member a save accepts), and the guidance member
 `case_authoring.verification_association.additional_verification`. That member
 states the supported correction for a genuinely distinct test of the same
 requirement: resubmit the requirement with unchanged nature, modality, subject
@@ -861,9 +1297,12 @@ subpath) in known-parameter mode. Missing
 targets do not suppress independently known component contradictions. No save
 runs full validation, construction, or providers, or returns a completeness report.
 
-The existing source leases, ordered locks and settlement compose changed
+The existing source leases and settlement compose changed
 obligation sources and, when needed, the authorized target owner or native
-binding retirement. Ordinary case edits have no native publication participant.
+binding retirement. The source lease is the only exclusion any coverage writer
+takes, including acceptance-coverage persistence and refactor coverage
+settlement: a `.lock` file beside an obligation source or coverage carrier is
+never read and governs no write. Ordinary case edits have no native publication participant.
 Final and no-op comparisons fence the source closure, native facts, targets and
 exact definitions. Proven compensation reports unchanged state; failed
 compensation reports indeterminate effects. Post-commit read-back failure reports
@@ -873,7 +1312,9 @@ The shared list amendment primitive is `upsertProofAuthoringSelection`; the
 backend composes it in `proof-authoring-operations.mjs`. Combined revision,
 native case compilation and existing-owner settlement are factored into
 `proof-authoring-revision.mjs`, `proof-authoring-case.mjs` and
-`proof-authoring-targets.mjs`. The package-owned
+`proof-authoring-targets.mjs`. `proof-validation-operations.mjs` owns
+`validateProofOperation` with its assessment orchestration and presentation, and
+invokes the saved-source assessor in `proof-authoring-assessment.mjs`. The package-owned
 `proof-authoring-diagnostic-groups.mjs` projects semantic equivalence and lossless
 occurrence membership; wiki-core alone mints public group IDs and calls, and the
 validation answer is bounded to the compact class without spill or cursor. No
@@ -1065,11 +1506,14 @@ wording or proof results.
   `acceptance_criteria: [{identity, text_sha256}]`, binding the identity to the
   criterion text it was declared against. There is no second mapping. One
   obligation may cover several criteria and several obligations may cover one.
-- Upsert refuses an identity the selected unit does not currently have with
-  `obligation_coverage_acceptance_criterion_unknown`, naming the unit, obligation
-  and identities and returning the query call. A parent's criteria are not a
-  slice's and a slice's are not the parent's. Duplicate identities are a request
-  schema refusal. Every refusal happens before effects.
+- `save_record` refuses an identity the selected unit does not currently have
+  with `obligation_coverage_acceptance_criterion_unknown`, naming the unit,
+  obligation and identities and returning the exact-unit read,
+  `workspace_read_wiki({subject: unit})` with any slice suffix intact. That
+  read's reference with `select: {contract: "criteria"}` lists the unit's
+  current identities. A parent's criteria are not a slice's and a slice's are
+  not the parent's. Duplicate identities are a request schema refusal. Every
+  refusal happens before effects.
 - Incomplete coverage is savable. It is an assessment result, not a reason to
   refuse authoring.
 - When a criterion's text changes, an association declared against the old text
@@ -1088,9 +1532,10 @@ case: such an amendment, or a later case amendment on the opted-out obligation,
 is refused atomically with `obligation_coverage_proof_opt_out_conflict`, and a
 saved source holding both is invalid. It is distinct from the whole-unit
 `controlled_acceptance: {disposition: "opted_out"}` exemption, whose behavior
-is unchanged, and it revives no retired `gap_kind`. An obligation that simply
-has no selected proof also still covers its criteria; missing executable
-support never requires an opt-out.
+is unchanged, and it revives no retired `gap_kind`. An obligation with neither
+a selected proof nor an opt-out is unfinished authoring and covers no criterion
+until its author makes one of those two decisions. Missing executable support
+for a selected proof never requires an opt-out.
 
 Coverage of the selected unit (`acceptance-criterion-coverage.v1`) is the unit's
 current criteria minus those named by a current association of one of the
@@ -1170,21 +1615,47 @@ query/upsert route; no association is backfilled from text.
 Each amendment may include `case` with optional `case_id`,
 `component: {type_term, identity}` or `{reference_id}`,
 `target: {path, selector: {name, nesting}}` or the native target
-`target: {provider: {provider_id, provider_version}, path, selector: {node_id}}`,
+`target: {provider: {provider_id, provider_version}, path, selector}`,
 `observation: {kind}`, and
 `falsification: {strategy, module_path, entry_export, operation, function_name, replacement}`.
 Any known subset can be saved. Nested omission preserves supplied fields. An omitted case identity
-creates one for a new obligation or edits its existing case. Query returns
+creates one for a new obligation or edits its existing case; a case identity is supplied only to
+choose a different or shared saved case, or to label a new one. Query returns
 `case_id` and the exact `case_revision` with the saved fields.
 
 The node:test target is the declaration-owned specialization described above.
 A native target is one complete closed value owned by the case itself: the
 installed candidate provider identity, one normalized repository-relative source
-path, and one literal native node identity (at most 4,096 Unicode scalars, never
-parsed as shell text or a pattern). The provider grammar derives the source the
-node identity names, and that source must equal `path`; absolute paths, `..`
-segments, control characters, provider or version mismatch and mixed node:test
-and native fields are refused. The native target is persisted once in the parent
+path, and one selection in the single selector member the provider's family
+takes.
+
+- Jest, Vitest, Mocha, AVA, Deno and lib0/testing take `selector: {title_path}`:
+  the ordinary test titles as an array of strings, outermost first, with `path`
+  naming the test source file once. For example
+  `{"provider": {"provider_id": "launcher.mocha", "provider_version": "1.0.0"}, "path": "test/clamp.test.ts", "selector": {"title_path": ["clamp", "preserves in-range values"]}}`.
+  Jest, Vitest and Mocha take 1 to 32 titles; AVA and Deno take exactly one;
+  lib0/testing takes the `runTests` module key and the test function name. Each
+  title is nonempty printable text of at most 1,024 Unicode scalars and is
+  matched exactly, including quotation marks, backslashes and Unicode.
+- Every other provider-qualified family takes `selector: {node_id}`: one literal
+  native node identity in the family's `node_id_form`, whose source must equal
+  `path`.
+
+The provider's grammar owner validates the selection and derives the one
+canonical test identity the case stores (at most 4,096 Unicode scalars, never
+parsed as shell text or a pattern). For a title path that identity is composed
+by the owner from `path` and the titles; it is not an authored value, and a
+`node_id` submitted for one of those six families is refused with
+`obligation_coverage_case_target_invalid`, naming `selector.title_path` as the
+member to write. A refusal names the authored member in `details.field` and
+states the provider's rule for it in `details.expected`. Absolute paths, `..`
+segments, control characters, a source suffix the provider does not run,
+provider or version mismatch, a selector member of another family and mixed
+node:test and native fields are refused, and nothing is saved. The saved-contract
+reads of `workspace_read_wiki` return each case target in this same authored
+form, so a returned `provider`, `path` and `selector` save again unchanged;
+`case_revision` and the stored identity are unaffected by the form a target is
+read or written in. The native target is persisted once in the parent
 case with `owner_unit` and never as a work-record `node_test` declaration; saving
 it removes any ordinary declaration of that verification from the same unit.
 Changing variant replaces the whole target, and only the existing owning unit may
@@ -1197,10 +1668,11 @@ null), that must be observably different from the original return; the installed
 supports only a synchronous, undecorated top-level function whose body is one
 scalar literal return, optionally after a docstring.
 
-The upsert guidance member `case_authoring` is the compact authoring table for
+The guidance member `case_authoring` is the compact authoring table for
 these fields, projected from the installed provider families and the enforced
 case and falsifier schemas. `families` lists each family's languages, runner,
-target variant, exact candidate `provider` identity, `node_id` form and source
+target variant, exact candidate `provider` identity, the form of the selector
+member that variant lists (`title_path_form` or `node_id_form`) and source
 suffixes, and names its falsifier mechanism. `falsification` lists, per
 mechanism and strategy, the required and disallowed authored fields read from
 the falsifier schema's conditional branches, the server-derived mutation fields,
@@ -1210,6 +1682,35 @@ test existence and falsifier shape remain uninspected until
 `workspace_verify_proof`, a demonstrated unsupported case, and an unresolved
 fact. Saving and design validation do not inspect source files, so a saved
 native case is not a claim that its test or falsifier target is supported.
+
+`case_authoring.purpose` names the authored case members, `case.target`,
+`case.observation` and `case.falsification`, and states that the derived
+binding's `observable_result` comes from `case.observation`. A draft that omits
+one remains an incomplete draft; the statement adds no requirement. The upsert
+overview names the guidance member `authority`, which publishes one exact
+selected guidance call per narrower decision: the case members, `component`,
+`verification_association`, `falsification_support`, `target_variants`,
+`observation`, and
+`native_runtime_test_vocabulary.required_for_verification_method`. Each call is
+an ordinary literal-path selection of the value's existing owner, bound by the
+same source digest; the index holds calls, not rule text, schemas or catalogs,
+and the broad members remain selectable. A selected family's facts come from
+the family-selected answer the discovery route offers.
+
+`case_authoring.observation` names its field, `obligations[].case.observation`,
+states that an observation is an object whose `kind` classifies the observable
+result the test inspects (assertion prose is not an observation value, and no
+kind is a default), and carries `input_schema`: the enforced case schema's own
+observation member, a closed object whose `kind` values are exactly
+`native_runtime_test_vocabulary.observable_kinds`. It adds no requiredness;
+omission and an empty object remain partial authoring, and `null` stays refused.
+A request-schema refusal at that field or a descendant, such as a string, an
+unlisted kind or an extra member, keeps its original issue, path and no-effect
+result and offers one recommended, digest-bound selected call for that member;
+identical rejections at several obligations share that one correction. Other
+case fields with no bound location, including `case.target` and unknown case
+members, still report `request_location_guidance_undeclared` and never receive
+observation advice.
 
 Case amendments distinguish omission from explicit clearing. Omission preserves
 the saved value; a non-null value follows the ordinary amendment rules; null
@@ -1433,11 +1934,171 @@ Manual acceptance-axis authoring is no longer a public MCP workflow. The
 canonical current inputs are contract requirements, explicit
 controlled-acceptance applicability, and the obligation-to-proof map.
 
-Use the ordinary obligation-coverage upsert to save or amend those inputs under
-the current combined digest. Query returns saved meaning and currentness.
-Validation reports incomplete or contradictory meaning without executing proof
-providers. Removing a proof selection preserves the obligation and shared or
-sibling case meaning.
+Criterion coverage and the internal acceptance-axis carrier are separate facts.
+Coverage is read from the current criterion associations on valid obligations
+and can be complete while no acceptance-axis carrier exists. That absence, and
+every other acceptance-axis row, is an owner observation: its semantic cause is
+`inspection_only`, carries no response form, repair authority or write, and is
+identical in the workbench, the assessment summary and a selected diagnosis.
+It stays reported and incomplete; saving obligations does not repair it and no
+carrier is created to clear it. Missing statements, criterion associations and
+proof choices remain authored corrections through their own owners.
+
+Use `workspace_read_wiki({subject: unit})` for the current authored context and
+write revision. Its returned reference supports complete contract selections,
+including `select: {contract: "coverage"}`. Save supported authored changes with
+`save_record({unit, revision, changes})`, using that current read revision and
+the serving tool's typed work-item changes schema. Existing obligation and case
+rows use `id`; new rows use `key`. Obligation associations use `criteria` and
+`claims`; proof choices and parameters use `proof.name` and `proof.parameters`.
+A refused save publishes the owner's refusal details with the authored `field`,
+the identities the owner considered, its correction and its next calls. It never
+publishes a `guidance_path`, the owner's internal location of a guidance member.
+Where that member is part of the requirement-authoring guidance below, the
+details carry `guidance_call` instead: the `workspace_read_wiki` call that
+focuses that member. A requirement-vocabulary refusal therefore keeps its owner
+code, `field`, `rejected_value` and `accepted_alternatives`, writes nothing, and
+returns one callable read. The refusal's top-level `next_calls` recommends that
+same call, once per guidance member and after any unit read, when the session's
+reader accepts it; following it returns the focused context whose recommended
+selection is the accepted values. A location outside the published guidance is
+dropped with no call.
+
+### Requirement-authoring guidance
+
+`save_record`'s advertised description states the entry call
+`workspace_read_wiki({subject: {requirement_guidance: true}})`. It needs no
+saved requirement, obligation or selected proof. For the accepted terms of a
+requirement it also states the focused call
+`workspace_read_wiki({subject: {requirement_guidance: true, topic: ["vocabulary"]}})`,
+whose recommended selection is the `vocabulary` topic. The declaration itself
+carries no vocabulary. `{contract: true}` still names the repository manifest.
+
+The entry returns compact context: the overview, one shared `reference`, the
+complete ordered `selections` (one `{guidance: [<member>, ...]}` per topic) and
+one returned call, the recommended first selection. Any other topic is read
+with `{reference, select}` built from that reference and its returned
+selection. A selection is delivered whole through the reader's ordinary
+selected delivery, and a path may name any nested member by literal segments,
+for example `["vocabulary", "modalities"]`. An optional `topic` on the subject
+returns the same context with that member's selection first and as the one
+returned call; a save refusal's `guidance_call` uses this form. A path that names no member refuses with
+`requirement_guidance_topic_not_found` and the entry call as its correction.
+
+| Topic | Content |
+| --- | --- |
+| `save_record_inputs` | `members`: which `changes` member takes each saved identity a contract read returns (`owner_field` is the member the unit's `{contract: "obligations"}` or `{contract: "cases"}` selection returns, read and never authored; `save_record_field` is the member that takes it), with the three new-row labels; `not_authored_here`: requirement notes and residue are not authored through `save_record`; how `key` labels and `$<key>` references bind rows in one request, and `associations`: how an obligation's `claims`, `criteria`, `proof.name`, `case`, `case.verification` and `case.id` associate it with a requirement, a criterion, a proof and a test case, each by the owner's own rule, and `slice_coverage.steps`: the order in which a slice gets coverage of its own. |
+| `fields` | The owner's explanation of `subject`, `behavior`, `verifier`, `observes` and `fails_when`, with the shape each takes. |
+| `required_object_shapes` | The referent, statement and verification shapes, with requirement replacement and retirement stated by the current save inputs: a replaced requirement is `changes.requirements[].id`, kept cases are `changes.requirements[].rebind_case_ids`, and retired requirements are `changes.remove.requirements`. The underlying operation keeps its own input names; this guidance does not publish them. |
+| `vocabulary` | Every accepted term: modalities, natures, verification methods, type terms, identity kinds, applicability modes and relation signatures. |
+| `unresolved_coverage` | What to author when a proof, family or falsifier is missing, its record naming each obligation field by the `changes` member that carries it (`claims`, `proof.name`), with calls to the case-authoring and input-mapping topics and the `workspace_find_proofs` route, whose query is the author's own. |
+| `conditional_verification_requirements`, `runtime_test_authoring`, `native_runtime_test_vocabulary` | When a verification is required and how its runtime test is stated. |
+| `case_authoring` | The test-case members: verification association (`changes.obligations[].case.verification`, eligible through `changes.obligations[].claims`), component, target, observation and falsification. Each listed family keeps its provider identity and version, runner, source suffixes, selector form and `target_variant`, which names its entry in `target_variants` with the target fields and `path_owner`. Each falsification strategy lists the fields an author writes and may not write; what the save derives is not listed. |
+
+A parent's obligations, criterion labels and coverage transfer nothing to a
+slice: a slice is covered only by obligations saved on that slice unit.
+`save_record_inputs.slice_coverage.steps` states the sequence for a slice
+whose criterion an already saved parent requirement and test case show:
+
+1. Read the slice with `workspace_read_wiki({subject: "WK-NNNN#SLICE-NNN"})`
+   for its current `revision` and `reference`; that reference's
+   `{contract: "criteria"}` selection returns each criterion's `identity`.
+2. Read the parent's `{contract: "requirements"}` selection for `claim_id` and
+   its `{contract: "cases"}` selection for `case_id`.
+3. Save the slice's own obligations on the slice unit at the slice's revision.
+   No requirement and no case body is restated, so neither is duplicated.
+   Each also selects its proof
+   with `proof.name` or states an explicit `proof_opt_out`, as two exclusive
+   arms. A proof-backed obligation names `claims`, the applicable saved
+   `case.id`, `criteria` and the proof that case verifies. An opted-out
+   obligation states `proof_opt_out: true` with its `claims` and `criteria`
+   and names no case and no proof selection; combining an opt-out with either
+   is refused with `obligation_coverage_proof_opt_out_conflict`. An opt-out
+   accounts for the obligation's meaning as valid and grants no verification
+   credit. An obligation with neither arm covers no criterion.
+4. Assess that exact slice with `workspace_assess_contract({unit:
+   "WK-NNNN#SLICE-NNN"})`.
+
+Whether a parent requirement applies to a slice criterion is
+the author's judgment. Nothing is inherited, copied or inferred, parent coverage
+is unchanged by a slice save, and mechanical completeness is not a statement
+that the association is semantically adequate.
+
+Accepted terms and their definitions have one owner, the controlled-contract
+requirement guidance derived from the contract schema; the reader publishes
+those members unchanged and adds only the `save_record` mapping, the
+associations between its members and the overview. No topic is a worked
+example: `proof.name` selects the checking route, and `case` supplies the test
+details only when the selected proof's own `workspace_find_proofs` authoring
+answer requires them. Reading guidance writes nothing,
+and neither it nor a save executes a proof or grants execution credit.
+
+The `requirement_guidance` source and its `guidance` selection are granted
+through the central policy's `read_selections` to the roles that hold
+`save_record`: orchestrator and operator. The reader declares the subject form
+and the selection only to a granted role.
+
+`workspace_assess_contract` projects correction guidance through those public
+owners, including nested criterion coverage, selected diagnoses and correction
+definitions. Each correction keeps only what is its own: status, purpose,
+required authored input, affected subjects, authored members and `current_read`.
+When a diagnosis's subjects reference correction definitions,
+`required_authored_input` lists exactly the authored `save_record` members those
+definitions name, each subject states its own `missing_authored_input` (the
+member, and the operation when the definition implies one) beside its obligation
+and case identities, and `constraints` repeats the definitions' owner
+constraints. These name where the caller's authored value goes; they never
+supply the value, select a proof or case, or address a storage or binding path.
+A subject whose owner states a `discovery_input` awaits a proof selection and is
+an authored correction even when its category is unclassified:
+`required_authored_input` lists `obligations[].proof.name` rather than the saved
+carrier's `field`. The fact becomes `discovery`, one entry per distinct input.
+A property query is the caller's, so its entry is `{tool:
+"workspace_find_proofs", executable: false, missing_caller_input: ["query"]}`
+and carries no arguments; a saved proof name is a complete `{tool, arguments:
+{proof_name}}` read. Assessment supplies no query, proof or parameter.
+Selecting a proof clears only the unselected diagnosis; what the chosen proof
+itself still needs remains reported.
+The save instructions, required arguments, revision source, schema-discovery
+pointer and any frozen or focused limitation common to them are stated once per
+result as `save_guidance`, inside `assessment` or `selected_diagnosis`, so the
+assessment that a save embeds still carries them. No result embeds a copy of the
+`save_record` changes schema; the serving tool's published schema is its owner.
+A complete emitted `current_read` call is executable. A save recipe
+marked `executable: false` awaits authored values and a current read revision;
+it is never an executable correction or a member of `next_calls`. Missing
+applicability, statements, criterion associations, proof choices and parameters
+remain missing until the author supplies them. For
+`controlled_acceptance_disposition_missing`, a supported correction's
+`applicability` states the caller's two choices and selects neither
+(`selected: null`): `declare_applicable` takes
+`changes: {controlled_acceptance: {disposition: "required"}}`, and `opt_out`
+takes `disposition: "opted_out"` with `controlled_acceptance.rationale` listed
+as `missing_caller_input`. Save the chosen changes with the `current_read`
+revision. Assessment never supplies a revision or rationale, and never chooses
+applicability or an exemption. Frozen or focused guidance carries no choices.
+
+The user-requirements comparison preserves its assessed scope and advisory.
+Its `read_call` obtains the selected unit's current context through
+`workspace_read_wiki`; use that response's authentic reference and emitted
+`select: {field: "sections.user_requirements"}` call for the complete parent
+requirements. Assessment supplies no retained requirements-read reference.
+
+Original-result continuations are labelled `historical_retrieval`. They return
+immutable assessed facts after source movement, with separately observed source
+currentness; their historical digest grants no current write authority. When
+supported authoring can progress, the current read precedes historical retrieval.
+Frozen reviewers retain their source and population boundaries and receive no
+authoring permission. The current save schema addresses root and slice units,
+but has no focus argument: correction of a named focused contract is explicitly
+unsupported, and must never be redirected to the root contract.
+
+Semantic completeness, author-declared criterion coverage, execution capability,
+dispatch status and proof satisfaction remain separate facts. Assessment and
+original reads execute no proofs and grant no credit; a capability owner's
+failure keeps its originating cause and does not become an authored defect.
+Removing a proof selection preserves the obligation and shared or sibling case
+meaning.
 
 Acceptance-coverage evaluation, identity comparison, rebase planning, and
 transaction participation remain internal where readiness, persistence, or

@@ -12,11 +12,15 @@ import {
 } from "./backend-immutable-candidate.mjs";
 import { resolveAuthenticatedConfiguredWorktree } from
   "./backend-review-target-resolver.mjs";
+import {
+  captureCanonicalProofDefinitionInputs,
+  materializeCanonicalDesignReviewInputs
+} from "./findings-design-review-materialization.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import { mintOrchestratorProofAuthority } from
   "./workspace-agent-test-proof-runtime-identity.mjs";
 import { standaloneValidatorCacheBinds } from
-  "./workspace-agent-dispatch-run-lifecycle-launch.mjs";
+  "./workspace-agent-validator-cache-binds.mjs";
 
 export const ORCHESTRATOR_TEST_PROOF_RUNTIME_SCHEMA_VERSION =
   "workspace-agent-orchestrator-test-proof-runtime.v1";
@@ -29,7 +33,9 @@ export const ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES = Object.freeze({
   WORKTREE_BINDING: "verify_proof.existing_worktree_binding_refused.v1",
   WORKTREE_MOVED: "verify_proof.existing_worktree_moved.v1",
   EXACT_DEPENDENCY_PROJECTION:
-    "verify_proof.exact_candidate_dependency_projection_refused.v1"
+    "verify_proof.exact_candidate_dependency_projection_refused.v1",
+  CURRENT_DEFINITIONS:
+    "verify_proof.current_proof_definitions_capture_refused.v1"
 });
 
 const OID_RE = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -181,15 +187,52 @@ async function useCurrentWorktree(input, use, runGit) {
   return value;
 }
 
+function currentDefinitionsRefused(input, candidate, error) {
+  const cause = error?.detail?.dependency_diagnostic?.code ?? error?.cause?.code ?? null;
+  fail(ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.CURRENT_DEFINITIONS,
+    "current canonical proof definitions could not be supplied to the exact-commit checkout",
+    {
+      selector: "exact_sha",
+      cause_code: typeof error?.code === "string"
+        ? error.code
+        : "current_proof_definitions_capture_failed",
+      candidate_commit: candidate.commit,
+      definition_source: {
+        unit: input.selectedUnit,
+        path: typeof error?.input_path === "string" ? error.input_path : null,
+        cause: typeof cause === "string" ? cause : null
+      }
+    }, error);
+}
+
 async function useExactCommit(input, use, runGit) {
   const candidate = exactCandidateOrResult(input, runGit);
   if (candidate.status === "not_executable") return candidate;
+
+  let definitions;
+  try {
+    definitions = await captureCanonicalProofDefinitionInputs({
+      mainRepo: input.mainRepo,
+      recordId: input.selectedUnit
+    });
+  } catch (error) {
+    currentDefinitionsRefused(input, candidate, error);
+  }
   const materialized = materializeImmutableCandidate({
     candidate, worktreeRoot: input.worktreeRoot, runGit
   });
   let value;
   let primary = null;
   try {
+    let suppliedDefinitions;
+    try {
+      suppliedDefinitions = materializeCanonicalDesignReviewInputs({
+        capture: definitions,
+        checkoutPath: materialized.checkout.worktree_path
+      });
+    } catch (error) {
+      currentDefinitionsRefused(input, candidate, error);
+    }
     let validatorCacheReadOnlyBinds;
     try {
 
@@ -225,7 +268,13 @@ async function useExactCommit(input, use, runGit) {
       clean: true,
       candidateKind: "immutable_exact_commit",
       authenticatedCandidateIdentity: candidate.authenticated_candidate_identity,
-      validatorCacheReadOnlyBinds
+      validatorCacheReadOnlyBinds,
+      capturedDefinitions: {
+        record_id: definitions.record.id,
+        record_source_digest: definitions.record_source_digest,
+        files: suppliedDefinitions.files,
+        suppressed: suppliedDefinitions.suppressed
+      }
     });
     const assertCurrentIdentity = () => assertMaterializedImmutableCandidateCurrent({
       materialized, runGit

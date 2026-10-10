@@ -4,11 +4,9 @@ import { createHash } from "node:crypto";
 import { compiledValidatorCacheAvailability } from "./compiled-validator-cache.mjs";
 import {
   ProofIntentSelectionError,
-  assertPackagedProofIntentMetadata,
-  deriveProofIntentSelection,
+  capturePackagedProofIntentSelection,
   normalizeIntentArtifact,
-  normalizeProofPackCatalog,
-  readPackagedProofIntentMetadata
+  normalizeProofPackCatalog
 } from "./proof-intent-metadata.mjs";
 import { reduceProofIntentSelectionStatus } from
   "./proof-intent-selection-status.mjs";
@@ -51,23 +49,18 @@ function packKey({ profile_id: profileId, profile_version: version }) {
   return `${profileId}@${version}`;
 }
 
-const packagedMetadata = readPackagedProofIntentMetadata();
+const { document: packagedMetadata, loadedPacks } = capturePackagedProofIntentSelection();
 const PROOF_INTENT_ARTIFACT = deepFreeze(structuredClone(packagedMetadata.selection.intent_artifact));
 const PROOF_INTENT_DIGESTS = deepFreeze(structuredClone(packagedMetadata.selection.digests));
 const validatorCache = compiledValidatorCacheAvailability();
-const derivedSelection = validatorCache.available ? await deriveProofIntentSelection() : null;
-if (derivedSelection !== null) {
-  assertPackagedProofIntentMetadata("selection", packagedMetadata.selection, {
-    intent_artifact: derivedSelection.intent_artifact, digests: derivedSelection.digests });
-}
-const loadedPacks = derivedSelection?.loadedPacks ?? null;
-const packByIdentity = loadedPacks === null ? null : new Map(loadedPacks.map((pack) => [packKey({
+const packByIdentity = new Map(loadedPacks.map((pack) => [packKey({
   profile_id: pack.profile.profile_id,
   profile_version: pack.profile.profile_version
 }), pack]));
 
 function admittedPacks() {
-  if (loadedPacks === null) throw validatorCache.cause;
+
+  if (!validatorCache.available) throw validatorCache.cause;
   return { loadedPacks, packByIdentity };
 }
 
@@ -465,10 +458,7 @@ function selectProofPacksV2({ contract, requestedIntents, expectedDigests = null
     "one or more requested controlled proof intents are unknown",
     { unknown_intents: unknown }
   );
-  const providedPackByIdentity = new Map(admittedPacks().loadedPacks.map((pack) => [packKey({
-    profile_id: pack.profile.profile_id,
-    profile_version: pack.profile.profile_version
-  }), pack]));
+  const providedPackByIdentity = admittedPacks().packByIdentity;
   const hardIncompatibilities = [];
   const candidateIntentIds = new Map();
   for (const intentId of normalizedIntents) {

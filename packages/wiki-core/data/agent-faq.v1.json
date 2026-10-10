@@ -41,8 +41,8 @@
       ],
       "routes": [
         {
-          "tool": "workspace_code_index_impact",
-          "note": "Retry the original graph-dependent operation after correcting the reported rebuild cause. It ensures the shared committed index again; a separate status/build discovery round trip is not required."
+          "tool": "query_code_index",
+          "note": "Retry the original graph-dependent operation after correcting the reported rebuild cause. The original operation strictly ensures the shared committed index again; a separate status/build discovery round trip is not required. query_code_index reads the published index immediately and requests background refresh through the existing owner."
         }
       ],
       "fork": [
@@ -51,7 +51,7 @@
           "actor": "agent",
           "routes": [
             {
-              "tool": "workspace_code_index_impact",
+              "tool": "query_code_index",
               "note": "Query committed impact for the changed paths; dirty worktree bytes stay excluded from the committed graph and are only disclosed."
             },
             {
@@ -66,8 +66,8 @@
           "actor": "agent_or_operator",
           "routes": [
             {
-              "tool": "workspace_code_index_impact",
-              "note": "After the named cause is corrected, retry this original operation; it automatically retries ensure/rebuild."
+              "tool": "query_code_index",
+              "note": "After the named cause is corrected, retry the original graph-dependent operation. The original operation strictly ensures the shared committed index again, including rebuild when required. query_code_index reads the published index immediately and requests background refresh through the existing owner."
             }
           ],
           "note": "Do not substitute stale or dirty-overlay data for a failed committed build. Report the exact returned cause when its correction requires operator access."
@@ -88,14 +88,14 @@
       "id": "graph-impact-evidence-rejected-envelope-shape",
       "title": "workspace_record_graph_impact_evidence rejects the evidence payload shape",
       "symptom": "`workspace_record_graph_impact_evidence` rejects your evidence with an error like `requires graph_impact or graph_impact_summary_ref` or `graph_impact must be a graph-impact envelope`, so the work record stays in `missing_graph_impact`.",
-      "cause": "You passed the compact summary ref alone, or a hand-built summary object, instead of the full graph-impact envelope. The persistence route records the complete impact answer produced by `workspace_code_index_impact`, which carries `structural_impacts`, `summary`, `input_paths` and `validated_paths`; a bare ref or hand-assembled summary lacks those fields and is rejected. The caller never copies the complete answer: the answer's `selected_detail.source` names its retained original. (Through some MCP clients an unknown-schema object argument can also be dropped before it reaches the server, which surfaces as the same rejection.)",
+      "cause": "You passed the compact summary ref alone, or a hand-built summary object, instead of the full graph-impact envelope. The persistence route records the complete impact answer produced by a `query_code_index` change-impact question, which carries `structural_impacts`, `summary`, `input_paths` and `validated_paths`; a bare ref or hand-assembled summary lacks those fields and is rejected. The caller never copies the complete answer: the answer's `selected_detail.source` names its retained original. (Through some MCP clients an unknown-schema object argument can also be dropped before it reaches the server, which surfaces as the same rejection.)",
       "actor": "agent",
       "tier_visibility": [
         "paid_cce"
       ],
       "routes": [
         {
-          "tool": "workspace_code_index_impact",
+          "tool": "query_code_index",
           "note": "Ask impact for the changed paths first; its compact answer's selected_detail.source names the retained complete answer the persistence route records."
         },
         {
@@ -206,7 +206,7 @@
           "actor": "agent",
           "routes": [
             {
-              "tool": "workspace_code_index_impact",
+              "tool": "query_code_index",
               "note": "Reduce, split, or narrow the selected unit until the graph precondition is admissible, then rerun."
             }
           ],

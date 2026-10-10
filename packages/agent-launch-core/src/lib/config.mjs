@@ -4,6 +4,12 @@ import { statSync, openSync, fstatSync, readFileSync, closeSync } from "node:fs"
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createHash, randomBytes } from "node:crypto";
 import {
+  LAUNCHER_RUNTIME_STATE_DIR_ENV,
+  LAUNCHER_RUNTIME_STATE_DIRNAME,
+  LAUNCHER_RUNTIME_STATE_UNAVAILABLE_CODE,
+  resolveLauncherRuntimeStateDirForWorkspace
+} from "./launcher-runtime-state-dir.mjs";
+import {
   readNonSecretWorkspaceEnvValue,
   parseDotEnvText
 } from "@agent-chassis/wiki-core/src/lib/node-engine-env-bootstrap.mjs";
@@ -321,40 +327,14 @@ export function resolveLauncherCanonicalBwrapPath() {
   };
 }
 
-export const LAUNCHER_RUNTIME_STATE_DIR_ENV = "AGENT_LAUNCH_RUNTIME_STATE_DIR";
-export const LAUNCHER_RUNTIME_STATE_DIRNAME = "agent-launch-runtime";
-export const LAUNCHER_RUNTIME_STATE_UNAVAILABLE_CODE =
-  "launcher_runtime_state_unavailable";
-
-function workspaceScopeSegment(workspaceDir) {
-  const basis = resolveWorkspaceDir(workspaceDir);
-  return createHash("sha256").update(basis).digest("hex").slice(0, 16);
-}
+export {
+  LAUNCHER_RUNTIME_STATE_DIR_ENV,
+  LAUNCHER_RUNTIME_STATE_DIRNAME,
+  LAUNCHER_RUNTIME_STATE_UNAVAILABLE_CODE
+};
 
 export function resolveLauncherRuntimeStateDir({ workspaceDir, env = process.env } = {}) {
-  const provided = env?.[LAUNCHER_RUNTIME_STATE_DIR_ENV];
-  let root;
-  let source;
-  if (typeof provided === "string" && provided.trim().length > 0) {
-    const trimmed = provided.trim();
-    if (!path.isAbsolute(trimmed)) {
-      return {
-        ok: false,
-        code: LAUNCHER_RUNTIME_STATE_UNAVAILABLE_CODE,
-        reason: `${LAUNCHER_RUNTIME_STATE_DIR_ENV} must be an absolute path; received a relative value`
-      };
-    }
-    root = trimmed;
-    source = "env";
-  } else {
-    root = path.join(os.tmpdir(), LAUNCHER_RUNTIME_STATE_DIRNAME);
-    source = "tmpdir_default";
-  }
-  return {
-    ok: true,
-    dir: path.join(root, workspaceScopeSegment(workspaceDir)),
-    source
-  };
+  return resolveLauncherRuntimeStateDirForWorkspace({ workspaceBasis: resolveWorkspaceDir(workspaceDir), env });
 }
 
 export async function ensureLauncherRuntimeStateDir({ workspaceDir, env = process.env } = {}) {

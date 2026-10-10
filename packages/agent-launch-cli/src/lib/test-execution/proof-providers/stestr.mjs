@@ -3,7 +3,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import integration from "../runner-integrations/stestr.mjs";
 import { escapeRegExp } from "../runner-integrations/common.mjs";
 import { instrumentPythonModule } from "../source-instrumentation/python.mjs";
 import { PYTHON_DIAGNOSTIC_GRAPH_ASSET } from "../../workspace-agent-test-proof-pytest-provider.mjs";
@@ -54,15 +53,14 @@ async function instrument(attempt, { testId }) {
   };
 }
 
-function invocation(attempt, { testId }) {
+function proof(attempt, { testId }) {
   const python = attempt.runtime.executables.python;
   const words = [python, OBSERVER, attempt.configPath];
   if (!words.every((word) => SHELL_SAFE_RE.test(word))) {
     refuseAttempt("test_proof_native_runner_unsupported",
       "the stestr worker command needs shell-inert interpreter and observer paths", {});
   }
-  return integration.invocation({ runtime: attempt.runtime, projectDir: attempt.workProject,
-    filter: `^${escapeRegExp(testId)}$`, workerPython: `${python} -B ${OBSERVER} ${attempt.configPath}` });
+  return { filter: `^${escapeRegExp(testId)}$`, workerPython: `${python} -B ${OBSERVER} ${attempt.configPath}` };
 }
 
 export default nativeProviderImplementation({
@@ -75,5 +73,5 @@ export default nativeProviderImplementation({
   assets: [OBSERVER, PYTHON_INSTRUMENTATION_ASSET, PYTHON_DIAGNOSTIC_GRAPH_ASSET],
   layout,
   instrument,
-  invocation
+  proof
 });

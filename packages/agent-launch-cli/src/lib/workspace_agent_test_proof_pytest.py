@@ -1,6 +1,7 @@
 """Launcher-installed pytest proof process entry.
 
-The launcher's confined proof runner is the only intended caller:
+The launcher's shared test run is the only intended caller, from the target's
+project directory:
 
     <interpreter> -I -B <this installed file> <base64url configuration>
 
@@ -10,6 +11,17 @@ parsed as shell text. It runs exactly one literal pytest node identity, keeps
 every other collected item deselected, and reports collection plus every
 selected-item phase observation as one digest-bound envelope on launcher-owned
 file descriptor 3. Standard output and error remain diagnostics only.
+
+The repository's own pytest configuration stays in force: its ini file is
+discovered as pytest discovers it and its ``addopts`` apply, as they do for an
+ordinary run of the same file. This entry passes ``--rootdir`` because the
+launcher's selected node identities are named relative to the repository root;
+it changes how node ids are spelled and selects no configuration. It also
+overrides ``cache_dir`` to a separate pytest subdirectory of its private
+import-policy scratch, removed when the process settles, so the enabled cache
+provider cannot change the authenticated checkout. It does not set a verbosity.
+Plugin autoload stays disabled, because an autoloaded plugin would join the
+application dependency population this entry measures.
 
 Two optional installed mechanisms are available:
 
@@ -178,10 +190,15 @@ class ScalarReturnFault:
         return True
 
     def compile_mutated(self, source, filename):
+        # Prevalidation already accepted the authenticated bytes, so any refusal
+        # here means the source moved since; its new shape is never the reason.
+        if _sha256_bytes(source) != self.source_digest:
+            self.status, self.reason = "unsupported", "module_source_moved"
+            return compile(source, filename, "exec", dont_inherit=True)
         tree = ast.parse(source, filename)
         selected, reason = self._eligible_function(tree)
-        if selected is None or _sha256_bytes(source) != self.source_digest:
-            self.status, self.reason = "unsupported", reason or "module_source_moved"
+        if selected is None:
+            self.status, self.reason = "unsupported", reason
             return compile(tree, filename, "exec", dont_inherit=True)
         node, statement = selected
         statement.value = ast.copy_location(ast.Constant(self.replacement), statement.value)
@@ -502,8 +519,8 @@ def main(argv):
     if trace_module is not None:
         tracer = SelectedCallTracer(root, trace_module, configuration["node_id"], fault)
     plugin = _plugin(pytest, configuration, fault, tracer)
-    arguments = [configuration["target_path"], "--rootdir", root, "-p", "no:cacheprovider",
-                 "-o", "addopts=", "-q"]
+    arguments = [os.path.join(root, configuration["target_path"]), "--rootdir", root,
+                 "-o", "cache_dir=" + os.path.join(private_cache, "pytest")]
     try:
         status = int(pytest.main(arguments, plugins=[plugin]))
     except BaseException as error:  # noqa: BLE001 - reported, never swallowed silently

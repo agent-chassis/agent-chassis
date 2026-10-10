@@ -166,16 +166,17 @@ function capped(values, limit) {
 }
 
 function recoveryForGroup(group, subject) {
-  const authorities = [...new Map(group.occurrences.map(({ row }) =>
-    row.repair_authority).filter((authority) =>
-    authority?.status === "authenticated" &&
-      typeof authority.semantic_owner === "string").map((authority) =>
-    [authority.semantic_owner, authority])).values()];
-  const guidance = group.occurrences.map(({ row }) => row.recovery_guidance)
-    .find((entry) => entry && typeof entry === "object") ?? null;
+
+  const established = group.occurrences.map(({ row }) => row).filter((row) =>
+    row.repair_authority?.status === "authenticated" &&
+    typeof row.repair_authority.semantic_owner === "string" &&
+    typeof row.recovery_guidance?.write_tool === "string");
+  const authorities = [...new Map(established.map((row) =>
+    [row.repair_authority.semantic_owner, row.repair_authority])).values()];
+  const guidance = established[0]?.recovery_guidance ?? null;
   const internal = group.gap_class === "tooling_or_internal_invariant";
-  const authored = authorities.length === 1 &&
-    typeof guidance?.write_tool === "string";
+
+  const authored = !internal && authorities.length === 1;
   return Object.freeze({
     status: internal ? "system_owner_failure"
       : authored ? "authored_correction_available" : "inspection_only",

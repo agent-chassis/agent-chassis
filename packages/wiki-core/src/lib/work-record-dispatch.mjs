@@ -7,8 +7,6 @@ import { types as utilTypes } from "node:util";
 import { isSidecarCodeLanguagePath } from "./sidecar-language-descriptions.mjs";
 import { getSidecarIndexStatus } from "./sidecar-status.mjs";
 import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
-import { buildNextCall } from "./next-calls-descriptor.mjs";
-import { ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION } from "./work-record-contract-edit-shared.mjs";
 import {
   deriveDirectImportAdjacencyFromGraph,
   getCommittedHeadGraphImpactPaths
@@ -255,7 +253,8 @@ function maybeValidateSliceSelection(record, unit) {
 const CANONICAL_INITIATIVE_PATTERN = /^IN-\d{4}$/u;
 
 function buildMissingInitiativeRefNamespaceRefusal({ record, unit, reportOnly }) {
-  const readiness = buildTerminalReadiness({
+
+  return buildTerminalReadiness({
     recordId: record.id,
     unit,
     state: normalizeDispatchGraphState(null),
@@ -267,24 +266,6 @@ function buildMissingInitiativeRefNamespaceRefusal({ record, unit, reportOnly })
     reportOnly,
     dispatchRole: "implementation"
   });
-  return {
-    ...readiness,
-
-    next_calls: Object.freeze([
-      Object.freeze(
-        buildNextCall({
-          tool: ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION,
-          arguments: { unit: record.id },
-          recommended: true,
-          required_arguments: ["initiative"],
-          success_predicate: {
-            fact: "wk.canonical_initiative",
-            operator: "is_present"
-          }
-        })
-      )
-    ])
-  };
 }
 
 const GRAPH_IMPACT_FAILURE_CODES = new Set([
@@ -612,7 +593,11 @@ export async function validateWorkRecordDispatchById(options = {}) {
             live.graph_import_adjacency
           );
           liveGraphState = live.graph_state;
-          resolvedGraphState = normalizeDispatchGraphState(live.graph_state);
+
+          resolvedGraphState = normalizeDispatchGraphState({
+            ...live.graph_state,
+            ...(isObject(live.graph_snapshot) ? { graph_snapshot: live.graph_snapshot } : {})
+          });
         } else {
           graphImpactFailure = boundedGraphImpactFailure({
             code: live.available === true && !committedProjectionMatches

@@ -12,95 +12,112 @@
     "operator"
   ],
   "role_descriptions": {
-    "orchestrator": "Coordinator surface: all CONTENT reads plus the process/dispatch-measurement reads (validate_dispatch, coordination_preflight, initiative_status, integration_status, agent_run_status, node_engine_admission_runtime_diagnostic), the authenticated workspace_verify_proof route, and the action/authority tools (dispatch, work_record_* setters, create_record, generate_and_lint/lint/docs hygiene, review-recording). Not commit, not submit_for_review.",
-    "reviewer": "Findings-only reviewer: broad CONTENT read/inspect/navigation surface, launcher-bound workspace_verify_proof, plus workspace_submit_for_review. No process-measurement, mutation, or authority tools.",
-    "worker": "Managed implementation worker: the closed-input commit primitive, launcher-bound workspace_verify_proof, an assignment-only workspace_read_page ({assignment:true} plus member continuations) that serves the launcher-published frozen assignment and refuses every ordinary page, entry, spill or search selector, workspace_read_mcp_content_reference to follow the content references its responses return (opaque server-minted ref_ids resolved in the serving process's configured response state directory, which may be shared and enforces no per-session ownership; it grants no page, entry, record, search or path read), and workspace_controlled_contract_obligation_coverage_query limited to its assigned unit's controlled-contract closure; their unit and worktree are bound from the dispatched run rather than caller input and the verifier result is advisory (apart from these routes the worker reads via its sandboxed filesystem, and private controlled-contract carriers stay excluded from it); trusted integration freezes the later review target.",
-    "redteam": "Findings-only redteam: same broad CONTENT read surface as reviewer plus workspace_submit_for_review. No process-measurement, mutation, or authority tools.",
-    "operator": "Every policy-granted operator route, including cache writers and operator observability; launcher-managed role-bound capabilities may exclude operator."
+    "orchestrator": "Fifteen task tools for canonical reading, authoring, assessment, start, original outcomes and explicit integration/candidate/publication actions. Delivery is worker-owned.",
+    "reviewer": "Findings-only reads and assessment of authenticated source, native tests, proof execution and own native outcomes. No start, authoring, integration or publication.",
+    "worker": "Five assignment-bound tasks: read assignment, run test, verify proof, read own recorded outcomes and deliver work.",
+    "redteam": "Findings-only canonical and proof discovery reads and assessment. No execution or result observation.",
+    "operator": "Preserved operator-only recovery tools and explicitly granted canonical task replacements. No launcher-managed execution, start or delivery."
   },
   "dispositions": {
-    "allocate_id": ["operator_recovery_only"],
-    "bootstrap_repo": ["operator_recovery_only"],
-    "build_search_index": ["operator_recovery_only"],
-    "commit": ["direct"],
-    "create_record": ["operator_recovery_only"],
-    "generate_and_lint": ["operator_recovery_only"],
-    "generate_views": ["operator_recovery_only"],
-    "get_contract_manifest": ["direct"],
-    "get_record": ["operator_recovery_only"],
-    "lint_repo": ["operator_recovery_only"],
-    "read_page": ["operator_recovery_only"],
-    "search_repo": ["operator_recovery_only"],
-    "sync_contract": ["operator_recovery_only"],
-    "workspace_agent_dispatch": ["direct"],
-    "workspace_agent_dispatch_identity_contract": ["direct"],
-    "workspace_agent_run_status": ["direct"],
-    "workspace_assign_work_record_to_initiative": ["direct"],
-    "workspace_authoring_ergonomics_report": ["direct"],
-    "workspace_authoring_ergonomics_report_query": ["direct"],
-    "workspace_autofix_docs_backlinks": ["direct"],
-    "workspace_build_search_index": ["operator_recovery_only"],
-    "workspace_code_index_build": ["operator_recovery_only"],
-    "workspace_code_index_callees": ["direct"],
-    "workspace_code_index_callers": ["direct"],
-    "workspace_code_index_context_for_path": ["direct"],
-    "workspace_code_index_definition": ["direct"],
-    "workspace_code_index_find_references": ["direct"],
-    "workspace_code_index_impact": ["direct"],
-    "workspace_code_index_rebuild": ["operator_recovery_only"],
-    "workspace_code_index_status": ["direct"],
-    "workspace_controlled_contract_obligation_coverage_query": ["direct"],
-    "workspace_validate_proof": ["direct"],
-    "workspace_controlled_contract_obligation_coverage_remove": ["direct"],
-    "workspace_controlled_contract_obligation_coverage_upsert": ["direct"],
-    "workspace_verify_proof": ["direct"],
-    "workspace_controlled_proof_intents_discover": ["direct"],
-    "workspace_coordination_preflight": ["direct"],
-    "workspace_create_record": ["direct"],
-    "workspace_decision_amend_scalar": ["direct"],
-    "workspace_decision_amend_section": ["direct"],
-    "workspace_decision_reject": ["direct"],
-    "workspace_docs_policy_validate": ["direct"],
-    "workspace_frozen_review_contract_query": ["operator_recovery_only"],
-    "workspace_generate_and_lint": ["direct"],
-    "workspace_get_record": ["direct"],
-    "workspace_initiative_amend_scalar": ["direct"],
-    "workspace_initiative_amend_section": ["direct"],
-    "workspace_initiative_status": ["direct"],
-    "workspace_integrate_committed_slice": ["direct"],
-    "workspace_integration_promote_check": ["operator_recovery_only"],
-    "workspace_integration_status": ["direct"],
-    "workspace_lint_repo": ["direct"],
-    "workspace_node_engine_admission_runtime_diagnostic": ["direct"],
-    "workspace_preflight_dispatch": ["operator_recovery_only"],
-    "workspace_read_mcp_content_reference": ["direct"],
-    "workspace_read_page": ["direct"],
-    "workspace_read_tool_doc": ["direct"],
-    "workspace_record_graph_impact_evidence": ["direct"],
-    "workspace_record_staleness_check": ["direct"],
-    "workspace_runtime_blocker_taxonomy": ["direct"],
-    "workspace_search_repo": ["direct"],
-    "workspace_submit_for_review": ["direct"],
-    "workspace_terminal_review_candidate_advance": ["direct"],
-    "workspace_terminal_review_candidate_status": ["direct"],
-    "workspace_tool_router_recommend": ["direct"],
-    "workspace_tools_describe": ["direct"],
-    "workspace_tools_list": ["direct"],
-    "workspace_validate_dispatch": ["direct"],
-    "workspace_wk_forge_handoff": ["direct"],
-    "workspace_wk_landing_status": ["direct"],
-    "workspace_work_record_edit": ["direct"],
-    "workspace_work_record_entry_read": ["direct"],
-    "workspace_work_record_entry_upsert": ["direct"],
-    "workspace_work_record_delete_slice": ["direct"],
-    "workspace_work_record_ready_slice": ["direct"],
-    "workspace_work_record_refresh_admission_metrics": ["direct"],
-    "workspace_work_record_set_closure": ["direct"],
-    "workspace_work_record_set_status": ["direct"],
-    "workspace_work_record_shape_review_unit": ["direct"],
-    "workspace_work_record_summary": ["direct"],
-    "workspace_work_record_upsert_slice": ["direct"],
-    "workspace_work_record_validate": ["direct"]
+    "allocate_id": [
+      "operator_recovery_only"
+    ],
+    "bootstrap_repo": [
+      "operator_recovery_only"
+    ],
+    "build_search_index": [
+      "operator_recovery_only"
+    ],
+    "create_record": [
+      "operator_recovery_only"
+    ],
+    "generate_and_lint": [
+      "operator_recovery_only"
+    ],
+    "generate_views": [
+      "operator_recovery_only"
+    ],
+    "get_record": [
+      "operator_recovery_only"
+    ],
+    "get_run_result": [
+      "direct"
+    ],
+    "integrate_work": [
+      "direct"
+    ],
+    "lint_repo": [
+      "operator_recovery_only"
+    ],
+    "query_code_index": [
+      "direct"
+    ],
+    "read_page": [
+      "operator_recovery_only"
+    ],
+    "save_record": [
+      "direct"
+    ],
+    "search_repo": [
+      "operator_recovery_only"
+    ],
+    "start_agent": [
+      "direct"
+    ],
+    "sync_contract": [
+      "operator_recovery_only"
+    ],
+    "verify_proof": [
+      "direct"
+    ],
+    "workspace_advance_candidate": [
+      "direct"
+    ],
+    "workspace_assess_contract": [
+      "direct"
+    ],
+    "workspace_build_search_index": [
+      "operator_recovery_only"
+    ],
+    "workspace_check_landing": [
+      "direct"
+    ],
+    "workspace_code_index_build": [
+      "operator_recovery_only"
+    ],
+    "workspace_code_index_rebuild": [
+      "operator_recovery_only"
+    ],
+    "workspace_create_record": [
+      "direct"
+    ],
+    "workspace_deliver_work": [
+      "direct"
+    ],
+    "workspace_find_proofs": [
+      "direct"
+    ],
+    "workspace_frozen_review_contract_query": [
+      "operator_recovery_only"
+    ],
+    "workspace_inspect_candidate": [
+      "direct"
+    ],
+    "workspace_integration_promote_check": [
+      "operator_recovery_only"
+    ],
+    "workspace_preflight_dispatch": [
+      "operator_recovery_only"
+    ],
+    "workspace_publish_work": [
+      "direct"
+    ],
+    "workspace_read_wiki": [
+      "direct"
+    ],
+    "workspace_run_test": [
+      "direct"
+    ]
   },
   "access": {
     "allocate_id": [
@@ -112,10 +129,6 @@
     "build_search_index": [
       "operator"
     ],
-    "commit": [
-      "worker",
-      "operator"
-    ],
     "create_record": [
       "operator"
     ],
@@ -125,353 +138,477 @@
     "generate_views": [
       "operator"
     ],
-    "get_contract_manifest": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
+    "get_record": [
       "operator"
     ],
-    "get_record": [
+    "get_run_result": [
+      "orchestrator",
+      "worker",
+      "reviewer"
+    ],
+    "integrate_work": [
+      "orchestrator",
       "operator"
     ],
     "lint_repo": [
       "operator"
     ],
+    "query_code_index": [
+      "orchestrator",
+      "reviewer",
+      "redteam",
+      "operator"
+    ],
     "read_page": [
+      "operator"
+    ],
+    "save_record": [
+      "orchestrator",
       "operator"
     ],
     "search_repo": [
       "operator"
     ],
+    "start_agent": [
+      "orchestrator"
+    ],
     "sync_contract": [
       "operator"
     ],
-    "workspace_agent_dispatch": [
+    "verify_proof": [
+      "orchestrator",
+      "reviewer",
+      "worker"
+    ],
+    "workspace_advance_candidate": [
       "orchestrator",
       "operator"
     ],
-    "workspace_agent_dispatch_identity_contract": [
+    "workspace_assess_contract": [
       "orchestrator",
       "reviewer",
       "redteam",
-      "operator"
-    ],
-    "workspace_agent_run_status": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_assign_work_record_to_initiative": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_authoring_ergonomics_report": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_authoring_ergonomics_report_query": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_autofix_docs_backlinks": [
-      "orchestrator",
       "operator"
     ],
     "workspace_build_search_index": [
       "operator"
     ],
+    "workspace_check_landing": [
+      "orchestrator",
+      "operator"
+    ],
     "workspace_code_index_build": [
       "operator"
     ],
-    "workspace_code_index_callees": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_code_index_callers": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_code_index_context_for_path": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_code_index_definition": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_code_index_find_references": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_code_index_impact": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
     "workspace_code_index_rebuild": [
-      "operator"
-    ],
-    "workspace_code_index_status": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_controlled_contract_obligation_coverage_query": [
-      "orchestrator",
-      "reviewer",
-      "worker",
-      "redteam",
-      "operator"
-    ],
-    "workspace_validate_proof": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_controlled_contract_obligation_coverage_remove": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_controlled_contract_obligation_coverage_upsert": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_verify_proof": [
-      "orchestrator",
-      "reviewer",
-      "worker"
-    ],
-    "workspace_controlled_proof_intents_discover": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_coordination_preflight": [
-      "orchestrator",
       "operator"
     ],
     "workspace_create_record": [
       "orchestrator",
       "operator"
     ],
-    "workspace_decision_amend_scalar": [
-      "orchestrator",
-      "operator"
+    "workspace_deliver_work": [
+      "worker"
     ],
-    "workspace_decision_amend_section": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_decision_reject": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_docs_policy_validate": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_frozen_review_contract_query": [
-      "operator"
-    ],
-    "workspace_generate_and_lint": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_get_record": [
+    "workspace_find_proofs": [
       "orchestrator",
       "reviewer",
       "redteam",
       "operator"
     ],
-    "workspace_initiative_amend_scalar": [
-      "orchestrator",
+    "workspace_frozen_review_contract_query": [
       "operator"
     ],
-    "workspace_initiative_amend_section": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_initiative_status": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_integrate_committed_slice": [
+    "workspace_inspect_candidate": [
       "orchestrator",
       "operator"
     ],
     "workspace_integration_promote_check": [
       "operator"
     ],
-    "workspace_integration_status": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_lint_repo": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_node_engine_admission_runtime_diagnostic": [
-      "orchestrator",
-      "operator"
-    ],
     "workspace_preflight_dispatch": [
       "operator"
     ],
-    "workspace_read_mcp_content_reference": [
+    "workspace_publish_work": [
+      "orchestrator",
+      "operator"
+    ],
+    "workspace_read_wiki": [
       "orchestrator",
       "reviewer",
       "worker",
       "redteam",
       "operator"
     ],
-    "workspace_read_page": [
-      "orchestrator",
-      "worker",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_read_tool_doc": [
+    "workspace_run_test": [
       "orchestrator",
       "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_record_graph_impact_evidence": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_record_staleness_check": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_runtime_blocker_taxonomy": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_search_repo": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_submit_for_review": [
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_terminal_review_candidate_advance": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_terminal_review_candidate_status": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_tool_router_recommend": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_tools_describe": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_tools_list": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_validate_dispatch": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_wk_forge_handoff": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_wk_landing_status": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_edit": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_entry_read": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_work_record_entry_upsert": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_delete_slice": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_ready_slice": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_refresh_admission_metrics": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_set_closure": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_set_status": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_shape_review_unit": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_summary": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
-    ],
-    "workspace_work_record_upsert_slice": [
-      "orchestrator",
-      "operator"
-    ],
-    "workspace_work_record_validate": [
-      "orchestrator",
-      "reviewer",
-      "redteam",
-      "operator"
+      "worker"
     ]
-  }
+  },
+  "read_selections": [
+    {
+      "source_kind": "record",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record",
+      "selection": "field",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record",
+      "selection": "inventory",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record",
+      "selection": "text",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record",
+      "selection": "entry",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record",
+      "selection": "integrity",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record",
+      "selection": "currentness",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record",
+      "selection": "contract",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record",
+      "selection": "obligation",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "canonical_record",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "canonical_record",
+      "selection": "field",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "canonical_record",
+      "selection": "membership",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "canonical_record",
+      "selection": "action",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "document",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "document",
+      "selection": "field",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "document",
+      "selection": "text",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "document",
+      "selection": "integrity",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "manifest",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "manifest",
+      "selection": "field",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "repository",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "repository",
+      "selection": "integrity",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "search",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "search",
+      "selection": "inventory",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "search",
+      "selection": "currentness",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "entry",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "entry",
+      "selection": "field",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "entry",
+      "selection": "text",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "receipt",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "receipt",
+      "selection": "inventory",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "receipt",
+      "selection": "finding",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "package_document",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "package_document",
+      "selection": "field",
+      "roles": [
+        "orchestrator",
+        "reviewer",
+        "redteam",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "requirement_guidance",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "requirement_guidance",
+      "selection": "guidance",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "assignment",
+      "selection": "context",
+      "roles": [
+        "worker"
+      ]
+    },
+    {
+      "source_kind": "assignment",
+      "selection": "field",
+      "roles": [
+        "worker"
+      ]
+    },
+    {
+      "source_kind": "assignment",
+      "selection": "text",
+      "roles": [
+        "worker"
+      ]
+    },
+    {
+      "source_kind": "assigned_contract",
+      "selection": "contract",
+      "roles": [
+        "worker"
+      ]
+    },
+    {
+      "source_kind": "assigned_contract",
+      "selection": "obligation",
+      "roles": [
+        "worker"
+      ]
+    }
+  ]
 }

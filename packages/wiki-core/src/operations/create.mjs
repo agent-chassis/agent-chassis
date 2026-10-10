@@ -1,63 +1,49 @@
 import path from "node:path";
-import {
-  mkdtemp,
-  readFile,
-  rename,
-  rm,
-  writeFile
-} from "node:fs/promises";
+import { getManifestRecordBirthKinds, loadManifest } from "../lib/contract.mjs";
+import { extractFrontMatter } from "../lib/wiki-frontmatter.mjs";
+import { validateRecordAuthoringChanges } from "../lib/record-authoring-schema.mjs";
+import { prepareSourceAreaBirth } from "./record-birth-plan.mjs";
+import { lintRecordFrontMatter } from "./lint-record-rules.mjs";
 import {
   createRecord,
   ensureCoreSurfaces,
   resolveContractContext
 } from "../lib/wiki.mjs";
 
-function normalizeCreatedIssueRecord(record) {
-  const sections = record.sections && typeof record.sections === "object" ? record.sections : {};
-  const scope = sections.scope && typeof sections.scope === "object" ? sections.scope : {};
-
-  const normalizedRecord = {
-    ...record,
-    derived_evidence: [],
-    acceptance: {
-      ...record.acceptance,
-      criteria: [],
-      validation: []
-    },
-    sections: {
-      ...sections,
-      summary: "",
-      why_it_matters: "",
-      scope: {
-        ...scope,
-        items: [],
-        out_of_scope: []
-      },
-      tasks: [],
-      references: [],
-      agent_notes: "",
-      closure: null
-    }
-  };
-
-  delete normalizedRecord.resolution;
-
-  return normalizedRecord;
+export async function prepareSourceAreaRecordBirth({ kind, title, initial = {}, id, date }) {
+  const diagnostics = validateRecordAuthoringChanges(kind, "birth", initial)
+    .map(row => ({ ...row, path: row.path.replace(/^changes/u, "initial") }));
+  if (diagnostics.length > 0) {
+    throw Object.assign(new TypeError("Invalid initial source/area meaning; correct the addressed initial fields"),
+      { code: "create_record_initial_invalid", diagnostics });
+  }
+  const prepared = prepareSourceAreaBirth({ kind, title, initial, id, date });
+  const manifest = await loadManifest();
+  const definition = manifest.types[kind];
+  const relativeFilePath = `${definition.directory}/${id}.md`;
+  lintRecordFrontMatter({ definition, frontMatter: extractFrontMatter(prepared.markdown),
+    filePath: relativeFilePath, relativeFilePath,
+    addFinding: (severity, message, extra) => diagnostics.push({ severity, message, ...extra }) });
+  if (diagnostics.length > 0) {
+    throw Object.assign(new TypeError("Invalid prospective source/area record; correct the addressed initial fields"),
+      { code: "create_record_initial_invalid", diagnostics });
+  }
+  return prepared;
 }
 
-async function rewriteJsonRecordAtomically(filePath, record) {
-  const tempDir = await mkdtemp(path.join(path.dirname(filePath), ".record-tmp-"));
-  const tempPath = path.join(tempDir, path.basename(filePath));
+export async function createRecordFromInitial({ repoRoot, kind, title, initial }, birthOptions = {}) {
+  const selected = getManifestRecordBirthKinds().find(row => row.kind === kind);
+  if (selected === undefined) throw Object.assign(new TypeError(`Unsupported creation kind '${String(kind)}'`),
+    { code: "create_record_kind_invalid", details: { changed: false } });
+  if (typeof title !== "string" || title.trim() === "") throw Object.assign(new TypeError("title must be nonempty text"),
+    { code: "create_record_title_invalid", details: { changed: false } });
+  const targetDir = path.resolve(repoRoot);
+  const context = await resolveContractContext(targetDir);
+  if (!context.metadata) throw Object.assign(new Error("Creation requires local contract metadata; bootstrap or sync-contract first"),
+    { code: "create_record_contract_metadata_absent", details: { changed: false } });
 
-  try {
-    await writeFile(tempPath, `${JSON.stringify(record, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx"
-    });
-    await rename(tempPath, filePath);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
+  return createRecord({ targetDir, repo: context.repo, type: selected.type, title,
+    initial: initial === undefined ? {} : initial, birthOptions });
 }
 
 export async function createWikiRecord({
@@ -85,14 +71,6 @@ export async function createWikiRecord({
     extensionNamespaces: context.extensionNamespaces
   });
   const record = await createRecord({ targetDir, type, title, id, repo: context.repo });
-
-  if (type === "issue" && record.jsonAbsoluteFile) {
-    const createdRecord = JSON.parse(await readFile(record.jsonAbsoluteFile, "utf8"));
-    await rewriteJsonRecordAtomically(
-      record.jsonAbsoluteFile,
-      normalizeCreatedIssueRecord(createdRecord)
-    );
-  }
 
   return {
     targetDir,

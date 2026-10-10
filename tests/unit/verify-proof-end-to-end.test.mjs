@@ -374,7 +374,7 @@ test("one incomplete proof prevents binding resolution and every process executi
     verification_id: "claim-verification-two",
     required_meaning: blocked.recovery.repair.required_meaning,
     correction_route: null,
-    next_step: "Read the saved obligation that owns this verification identity, then amend its semantic proof inputs through workspace_controlled_contract_obligation_coverage_upsert.",
+    next_step: "Read the saved obligation that owns this verification identity through workspace_read_wiki, then amend its semantic proof inputs through save_record using the returned call.",
     execution_evidence: "owned_by_workspace_verify_proof"
   });
   assert.deepEqual(Object.keys(blocked.recovery.repair.required_meaning).sort(),

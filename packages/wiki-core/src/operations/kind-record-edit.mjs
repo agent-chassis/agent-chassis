@@ -32,7 +32,7 @@ function refusal(diagnostics, sourceDigest = null) {
   };
 }
 
-async function editKindRecord({ repoRoot = ".", id, expectedSourceDigest = null, applyPlan } = {}) {
+export async function editKindRecord({ repoRoot = ".", id, expectedSourceDigest = null, applyPlan } = {}) {
   if (typeof id !== "string" || id.trim() === "") {
     return refusal([
       { code: "invalid_id", severity: "error", message: "id must be a non-empty string", path: "id" }
@@ -49,12 +49,28 @@ async function editKindRecord({ repoRoot = ".", id, expectedSourceDigest = null,
     return refusal(loaded.diagnostics, loaded.source_digest || null);
   }
 
+  if (expectedSourceDigest !== null && expectedSourceDigest !== undefined &&
+      expectedSourceDigest !== loaded.source_digest) {
+    return {
+      ...refusal([{ code: "stale_source_digest", severity: "error",
+        message: "source digest does not match the current on-disk record",
+        path: "expected_source_digest" }], loaded.source_digest || null),
+      expected_source_digest: expectedSourceDigest,
+      current_source_digest: loaded.source_digest || null
+    };
+  }
+
   const actor = resolveActor();
   const now = todayDateString();
 
   const plan = applyPlan(loaded.record, actor, now);
   if (!plan.ok) {
     return refusal(plan.diagnostics || [], loaded.source_digest || null);
+  }
+
+  if (plan.changedFields.length === 0) {
+    return { ok: true, written: false, no_op: true, source_digest: loaded.source_digest || null,
+      changedFields: [], diagnostics: plan.diagnostics || [], record: loaded.record };
   }
 
   const effectiveExpected =
@@ -69,10 +85,12 @@ async function editKindRecord({ repoRoot = ".", id, expectedSourceDigest = null,
   });
 
   return {
+    ...writeResult,
     ok: Boolean(writeResult.ok),
-    written: Boolean(writeResult.written),
+    written: writeResult.written,
     source_digest: writeResult.source_digest ?? null,
     changedFields: writeResult.written ? plan.changedFields : [],
+    record: writeResult.written === true ? plan.updatedRecord : writeResult.written === null ? null : loaded.record,
     diagnostics: writeResult.diagnostics || [],
     ...(writeResult.current_source_digest !== undefined
       ? { current_source_digest: writeResult.current_source_digest }

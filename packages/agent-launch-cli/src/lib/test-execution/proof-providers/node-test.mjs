@@ -10,12 +10,15 @@ import { testRuntimeRunner } from "@agent-chassis/controlled-contract/test-proof
 import {
   NODE_TEST_PROOF_LAUNCHER_ASSETS,
   launcherNodeTestFaultLoaderUrl,
-  launcherNodeTestReporterUrl
+  launcherNodeTestRunReporterUrl,
+  observeLauncherNodeTestRun
 } from "../../workspace-agent-test-proof-node-observation.mjs";
 import { TEST_PROOF_MODULE_FAULT_SCHEMA_VERSION, buildTestProofFaultModuleRegistrationSource,
   describeTestProofModuleFaultAttempt } from "../../workspace-agent-test-proof-module-fault-contract.mjs";
-import { readinessRecovery } from "../../test-runtime-setup/readiness.mjs";
-import { resolveProofEnvironment, resolveRunnerRuntimeInputs } from "../runtime-inputs.mjs";
+import { ATTEMPT_SCRATCH_ROOT } from "../../test-runtime-setup/ecosystems.mjs";
+import { mintProofStage, resolveTestFileRuntime } from "../ordinary-test-runner.mjs";
+import { configuredExecutableFailure } from "../runtime-inputs.mjs";
+import { nodeTestNativeReport } from "./node-test-native-report.mjs";
 import {
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES,
   assertClosedInput,
@@ -32,7 +35,8 @@ import {
   selectedTestExecutionInput,
   traversalResult
 } from "./execution.mjs";
-import { runtimeInputsDigest } from "./native-lifecycle.mjs";
+import { runtimeInputsDigest, runtimeProvenanceSincePreparation, withRuntimeProvenance } from
+  "./native-lifecycle.mjs";
 
 const NODE_TEST_RUNNER = testRuntimeRunner({ name: "node-test" });
 
@@ -43,24 +47,25 @@ function nodeTestProviderAssetDigest() {
     .digest("hex")}`;
 }
 
-function resolvePreparedNodeRuntime(input, worktree) {
-  const repositoryRoot = input.authority.main_repo;
-  const located = resolveProofEnvironment({ repositoryRoot, checkoutRoot: worktree, target: input.target,
-    runner: NODE_TEST_RUNNER, environment: input.environment ?? null });
-  if (!located.configured) return null;
-  if (!located.ok) {
-    return { ok: false, code: located.failure.code, detail: { failure: "configured_runtime_not_ready",
-      readiness_code: located.failure.code, recovery: located.failure.recovery ?? readinessRecovery(),
-      ...(located.failure.detail === undefined ? {} : { route: located.failure.detail }) } };
+async function resolvePreparedNodeRuntime(input, worktree) {
+  const resolved = await resolveTestFileRuntime({ repositoryRoot: input.authority.main_repo,
+    checkoutRoot: worktree, target: input.target, descriptor: NODE_TEST_RUNNER,
+    environment: input.environment ?? null });
+  if (!resolved.ok) {
+    return { ok: false, code: resolved.code, detail: { failure: "configured_runtime_not_ready",
+      readiness_code: resolved.code, recovery: resolved.recovery,
+      ...(resolved.kind === "route" ? { route: resolved.detail }
+        : resolved.kind === "runtime" ? { route: resolved.route, ...resolved.detail } : {}) } };
   }
-  const runtime = resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot: worktree,
-    descriptor: NODE_TEST_RUNNER, project: located.project });
-  if (!runtime.ok) {
-    return { ok: false, code: runtime.code, detail: { failure: "configured_runtime_not_ready",
-      readiness_code: runtime.code, recovery: runtime.recovery ?? null, route: located.route } };
+  const { runtime } = resolved;
+  const unavailable = configuredExecutableFailure(runtime, runtime.executables.node);
+  if (unavailable !== null) {
+    return { ok: false, code: unavailable.code, detail: { failure: "configured_executable_unavailable",
+      readiness_code: unavailable.code, recovery: unavailable.recovery, route: resolved.route,
+      ...unavailable.detail } };
   }
   const providerAssetDigest = nodeTestProviderAssetDigest();
-  return { ok: true, project: located.project, route: located.route, runtime,
+  return { ok: true, project: resolved.project, route: resolved.route, runtime,
     provider_asset_digest: providerAssetDigest,
     runtime_inputs_digest: runtimeInputsDigest(runtime, providerAssetDigest) };
 }
@@ -70,8 +75,7 @@ async function prepare(resolved, input) {
     "executionBudget", "environment"], "provider preparation refuses caller-supplied executable authority");
   selectedTestExecutionInput(input);
   const worktree = launcherResolvedWorktree(input);
-  const located = resolvePreparedNodeRuntime(input, worktree);
-  if (located === null) return null;
+  const located = await resolvePreparedNodeRuntime(input, worktree);
   if (!located.ok) {
     return brandPreparedRuntime({ status: "unavailable", provider_id: resolved.provider_id,
       run: nativeInterruptedRun(located.code, located.detail, input.executionBudget) });
@@ -102,26 +106,11 @@ async function prepare(resolved, input) {
   });
 }
 
-function preparedNodeRuntime(input, worktree) {
-  if (input.preparedRuntime === undefined) return null;
-  const prepared = input.preparedRuntime;
-  const current = resolvePreparedNodeRuntime(input, worktree);
-  if (current === null || !current.ok) fail(TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.EXECUTION_UNTRUSTED,
-    "the prepared node:test runtime is no longer ready", current?.detail ?? null);
-  if (current.runtime_inputs_digest !== prepared.runtime_inputs_digest ||
-      current.runtime.identity.environment !== prepared.runtime.environment) {
-    throw Object.assign(new Error("installed node:test runtime inputs changed after preparation"), {
-      code: "test_proof_native_runtime_inputs_stale",
-      detail: { expected: prepared.runtime_inputs_digest, actual: current.runtime_inputs_digest } });
-  }
-  const { runtime } = current;
-  return Object.freeze({ executable: runtime.executables.node,
-    binds: Object.freeze(runtime.binds.map((bind) => Object.freeze({ src: bind.src, dst: bind.dst }))),
-    mountpoints: Object.freeze([...runtime.mountpoints]) });
-}
-
 const NODE_TEST_ASSET_BINDS = Object.freeze(NODE_TEST_PROOF_LAUNCHER_ASSETS.map((asset) =>
   Object.freeze({ src: asset, dst: asset })));
+
+const PRIVATE_ROOT = path.join(ATTEMPT_SCRATCH_ROOT, ".launcher-test-proof");
+const REPORT_PATH = path.join(PRIVATE_ROOT, "node-test-events.json");
 
 function nodeTestSelectionArguments(selectedTest) {
   const literalName = selectedTest.name
@@ -139,10 +128,10 @@ function nodeTestSelectionArguments(selectedTest) {
   return selectedArguments;
 }
 
-function nodeDeclaredCoverageArguments(modulePaths) {
+function nodeDeclaredCoverageArguments(worktree, modulePaths) {
   return ["--experimental-test-coverage",
     ...[...new Set(modulePaths)].sort().map((modulePath) => `--test-coverage-include=${
-      modulePath.replace(/[*?[\]{}()!+@]/gu, (character) => `[${character}]`)}`),
+      path.join(worktree, modulePath).replace(/[*?[\]{}()!+@]/gu, (character) => `[${character}]`)}`),
     "--test-coverage-exclude=**/node_modules/**"];
 }
 
@@ -153,17 +142,58 @@ async function execute(resolved, input, selectedTest) {
   const selectedArguments = nodeTestSelectionArguments(selectedTest);
 
   const launcherWorktree = launcherResolvedWorktree(input);
-  if (input.preparedRuntime !== undefined) assertPreparedRuntime(input.preparedRuntime, resolved);
-  const nodeRuntime = preparedNodeRuntime(input, launcherWorktree);
-  const mint = (nodeArguments, expectation) =>
-    mintProviderExecution(resolved, nodeArguments, expectation, null, nodeRuntime, NODE_TEST_ASSET_BINDS);
+  const prepared = input.preparedRuntime === undefined ? null
+    : assertPreparedRuntime(input.preparedRuntime, resolved);
   const provider = providerEvidence(resolved, resolved.capability);
-  const reporterUrl = launcherNodeTestReporterUrl();
+
+  const reporter = ["--test-reporter=spec", "--test-reporter-destination=stdout",
+    `--test-reporter=${launcherNodeTestRunReporterUrl(launcherWorktree)}`,
+    `--test-reporter-destination=${REPORT_PATH}`];
+
+  const runStage = async (options, expectation) => {
+    let provenance = null;
+    let composed = false;
+    const compose = ({ runtime, project }) => {
+      composed = true;
+
+      const assets = nodeTestProviderAssetDigest();
+      if (prepared !== null && (assets !== prepared.runtime.provider_asset_digest ||
+          project !== prepared.project || runtime.identity.environment !== prepared.runtime.environment)) {
+        throw Object.assign(new Error("the node:test provider or its routed environment changed after preparation"), {
+          code: "test_proof_native_runtime_inputs_stale",
+          detail: { provider_asset_digest: { expected: prepared.runtime.provider_asset_digest, actual: assets },
+            environment: { expected: prepared.runtime.environment, actual: runtime.identity.environment } } });
+      }
+      provenance = prepared === null ? null
+        : runtimeProvenanceSincePreparation(prepared, runtime, runtimeInputsDigest(runtime, assets));
+      return {
+        proof: { options: [...reporter, ...options, ...selectedArguments] },
+        additions: { directories: [PRIVATE_ROOT], channel: { kind: "file", path: REPORT_PATH },
+          readOnlyBinds: NODE_TEST_ASSET_BINDS },
+        nativeReport: () => nodeTestNativeReport({ workRoot: launcherWorktree }),
+        observe: ({ channelText, exitCode, channelOverflow, nativeReport }) => observeLauncherNodeTestRun({
+          stdout: channelText, exitCode, expectation, reporterProtocolOverflow: channelOverflow,
+          nativeReport })
+      };
+    };
+    const run = await runDeclaredTest(input, mintProviderExecution(resolved, {
+      runner: NODE_TEST_RUNNER.name,
+      environment: input.environment ?? null,
+      consumerDependencies: true,
+      stage: mintProofStage({ compose })
+    }));
+    if (prepared !== null && !composed && run.ran === false && run.runner_execution?.status === "refused" &&
+        typeof run.blocker_code === "string" && run.blocker_code.startsWith("test_runtime_")) {
+      fail(TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.EXECUTION_UNTRUSTED,
+        "the prepared node:test runtime can no longer be resolved",
+        { failure: "configured_runtime_not_ready", readiness_code: run.blocker_code,
+          ...(run.test_proof_observation?.detail ?? {}) });
+    }
+    return withRuntimeProvenance(run, provenance);
+  };
   if (resolved.capability === "candidate_execution") {
-    const run = await runDeclaredTest(input, mint([
-      "--test-isolation=none", `--test-reporter=${reporterUrl}`, ...selectedArguments
-    ], { capability: "candidate_execution", target: input.target,
-      target_test_id: selectedTest.test_id }));
+    const run = await runStage([], { capability: "candidate_execution", target: input.target,
+      target_test_id: selectedTest.test_id });
     const observation = run.test_proof_observation;
     return candidateResult({ observation, run, provider,
       artifacts: Object.freeze(observation?.artifacts ?? []) });
@@ -194,25 +224,21 @@ async function execute(resolved, input, selectedTest) {
       mutation_attestation_code: attempt.mutation_attestation_code,
       fault_module_identity: attempt.fault_module_identity,
       target: input.target, target_test_id: selectedTest.test_id };
-    const run = await runDeclaredTest(input, mint([
-      "--test-isolation=none", `--test-reporter=${reporterUrl}`,
-      `--import=${registrationUrl}`, ...nodeDeclaredCoverageArguments([
+    const run = await runStage([`--import=${registrationUrl}`,
+      ...nodeDeclaredCoverageArguments(launcherWorktree, [
         selection.mutation.module_path,
         ...(selection.strategy === "forced_invocation" ? [selection.mutation.operation.module_path] : [])
-      ]), ...selectedArguments
-    ], expectation));
+      ])], expectation);
     const observation = run.test_proof_observation;
     return falsifierResult({ observation, run, provider,
       artifacts: Object.freeze(observation?.artifacts ?? []) });
   }
   const selection = resolved.selection;
-  const run = await runDeclaredTest(input, mint([
-    "--test-isolation=none", `--test-reporter=${reporterUrl}`,
-    ...nodeDeclaredCoverageArguments([selection.module_path]), ...selectedArguments
-  ], { capability: "boundary_traversal", boundary_kind: selection.boundary_kind,
-    module_path: selection.module_path, observation_seam: selection.observation_seam,
-    target: input.target,
-    target_test_id: selectedTest.test_id }));
+  const run = await runStage(nodeDeclaredCoverageArguments(launcherWorktree, [selection.module_path]),
+    { capability: "boundary_traversal", boundary_kind: selection.boundary_kind,
+      module_path: selection.module_path, observation_seam: selection.observation_seam,
+      target: input.target,
+      target_test_id: selectedTest.test_id });
   const observation = run.test_proof_observation;
   return traversalResult({ observation, run, provider, selection,
     artifacts: Object.freeze(observation?.artifacts ?? []) });

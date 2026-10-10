@@ -67,3 +67,5 @@ scratch/*
 
 *.bak
 wiki/.wiki-mcp.json
+*.lock
+*.cas-lock

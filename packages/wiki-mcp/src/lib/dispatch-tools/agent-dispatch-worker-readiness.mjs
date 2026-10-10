@@ -18,11 +18,7 @@ import {
   namedAuthoredReadinessClassification,
   strictAdmissionComponentIssue
 } from "./agent-dispatch-refusal-projection.mjs";
-import {
-  graphDerivationRequiredForDispatch,
-  RECOVERABLE_DISPATCH_STATES
-} from "./dispatch-admission-policy.mjs";
-import { prepareCommittedHeadGraphAdmission } from "./graph-admission.mjs";
+import { RECOVERABLE_DISPATCH_STATES } from "./dispatch-admission-policy.mjs";
 
 export async function orchestrateWorkerReadiness({
   args,
@@ -33,7 +29,6 @@ export async function orchestrateWorkerReadiness({
   validateDispatch,
   validateLaunchIntent,
   revalidatePrivateHandoff,
-  generateGraphImpactEvidence,
   refreshAdmissionEvidence,
   buildTransitionRefusal,
   readinessFailure,
@@ -79,17 +74,13 @@ export async function orchestrateWorkerReadiness({
     };
   }
 
-  const prepared = await prepareCommittedHeadGraphAdmission({
-    readiness,
+  readiness = await validateDispatch({
     dir: workspace.dir,
     unitAddress: args.subject,
-    readinessDispatchRole,
-    graphDerivationRequiredForDispatch,
-    generateGraphImpactEvidence,
-    validateDispatch
+    dispatch_role: readinessDispatchRole,
+    mode: "strict",
+    suppress_live_graph_resolution: true
   });
-  readiness = prepared.readiness;
-  const graphPreparation = prepared.graphPreparation;
 
   if (Object.values(readiness.recovery ?? {}).includes("nonrecoverable_integrity_failure")) {
     return {
@@ -202,7 +193,7 @@ export async function orchestrateWorkerReadiness({
     unitAddress: args.subject,
     dispatch_role: readinessDispatchRole,
     mode: "strict",
-    ...graphPreparation
+    suppress_live_graph_resolution: true
   });
   readiness = launchIntent.readiness;
   let privateHandoff = launchIntent.private_handoff;
@@ -269,7 +260,7 @@ export async function orchestrateWorkerReadiness({
     dispatch_role: readinessDispatchRole,
     mode: "strict",
     node_engine_admissibility: launcherConfirmedNoCceAuthority ? false : true,
-    ...graphPreparation
+    suppress_live_graph_resolution: true
   });
   if (launcherConfirmedNoCceAuthority) {
     readiness = foldLauncherConfirmedNoCceAuthority(readiness);

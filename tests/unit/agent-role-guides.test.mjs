@@ -9,7 +9,8 @@ import {
   readAgentRoleGuide,
   renderAgentRoleGuideReadReference,
   resolveAgentRoleGuideDirectory,
-  resolveAgentRoleGuidePath
+  resolveAgentRoleGuidePath,
+  resolveOrchestratorAuthoringVignettePath
 } from "../../packages/agent-launch-core/src/lib/agent-role-guides.mjs";
 import {
   buildLaunchPrompt
@@ -31,7 +32,7 @@ const SUBJECT = "WK-9999#SLICE-001";
 
 const occurrences = (text, needle) => text.split(needle).length - 1;
 
-const GUIDE_WORD_CAPS = Object.freeze({ orchestrator: 700, "managed-worker": 600, reviewer: 600 });
+const GUIDE_WORD_CAPS = Object.freeze({ orchestrator: 790, "managed-worker": 600, reviewer: 600 });
 const words = (text) => text.split(/\s+/u).filter(Boolean).length;
 
 function managedWorkerPrompt({ assignmentDelivery = "inline" } = {}) {
@@ -130,6 +131,102 @@ test("orchestrator guide owns blocked-validation recovery and accurate result re
   }
 });
 
+test("orchestrator guide explains the read-only checkout and the supported test route", () => {
+  const orchestrator = readAgentRoleGuide("orchestrator");
+  const route = [
+    "In the managed environment, the product checkout is read-only apart from authorized coordination writes.",
+    "Run native tests with workspace_run_test and saved proofs with verify_proof; never modify the checkout, dependencies or configuration to make direct shell tests work.",
+    "A direct shell test’s environment failure does not establish that the supported test runtime is broken; use that route and diagnose its actual result."
+  ];
+  for (const instruction of route) {
+    assert.equal(occurrences(orchestrator, instruction), 1, instruction);
+  }
+
+  assert.ok(orchestrator.includes(`${route.join(" ")} verify_proof executes saved proofs against tested source;`));
+
+  assert.doesNotMatch(orchestrator, /\bava\b|npm test/iu);
+});
+
+test("orchestrator guide orders WK closeout before final publication", () => {
+  const orchestrator = readAgentRoleGuide("orchestrator");
+  const closeout = "Complete applicable WK closeout writes before final publication. If you change the WK after publication but before landing, refresh it with workspace_publish_work before exiting. Publication does not establish landing.";
+  assert.equal(occurrences(orchestrator, closeout), 1);
+
+  assert.ok(!orchestrator.includes("close explicitly through save_record"));
+});
+
+test("the authoring vignette ships beside the guides and the startup line requires it", () => {
+  const orchestrator = readAgentRoleGuide("orchestrator");
+  const reference = { tool_name: "save_record", path: "docs/orchestrator-authoring-vignette.md" };
+
+  assert.equal(occurrences(orchestrator, "vignette"), 0);
+
+  assert.equal(occurrences(orchestrator, "workspace_read_wiki initially returns compact context. When you need a " +
+    "selected document or guidance topic, follow its returned read call to obtain the content; the summary is not " +
+    "the selected content."), 1);
+
+  const vignettePath = resolveOrchestratorAuthoringVignettePath();
+  assert.equal(vignettePath, path.join(GUIDE_DIR, path.basename(reference.path)));
+  assert.equal(path.dirname(vignettePath), resolveAgentRoleGuideDirectory());
+  const canonical = readFileSync(path.join(REPO_ROOT, reference.path));
+  assert.ok(readFileSync(vignettePath).equals(canonical), "the shipped vignette is the canonical document");
+  assert.equal(renderAgentRoleGuideReadReference("orchestrator"),
+    `Read your orchestrator guide at ${resolveAgentRoleGuidePath("orchestrator")} and the authoring vignette at ` +
+    `${vignettePath} before authoring.`);
+
+  for (const guide of ["managed-worker", "reviewer"]) {
+    assert.equal(renderAgentRoleGuideReadReference(guide).includes("vignette"), false, guide);
+  }
+
+  const json = (relative) => JSON.parse(readFileSync(path.join(REPO_ROOT, relative), "utf8"));
+  const row = json("packages/wiki-core/data/tool-discovery/mcp-tools.json").tools
+    .find((tool) => tool.tool_name === reference.tool_name);
+  assert.equal(row.docs_refs.filter((ref) => ref === reference.path).length, 1);
+  const entry = json("packages/core/docs/public-docs-manifest.json").entries
+    .find((candidate) => candidate.logical_path === reference.path);
+  assert.deepEqual([entry?.available, entry?.advertised_by_built_in_descriptor, entry?.bundle_path],
+    [true, true, reference.path]);
+});
+
+test("managed worker guide stops on a scope or access blocker and keeps tests to assigned verification", () => {
+  const paragraphs = readAgentRoleGuide("managed-worker").split("\n\n");
+  const managed = paragraphs.join("\n\n");
+  const scope = [
+    "Read and write only within the session's declared scopes.",
+    "STOP IMMEDIATELY if completing the assignment requires missing information, additional access, broader scope, or an assignment correction.",
+    "Report the specific blocker and what the coordinator must supply or change, then end the attempt as blocked.",
+    "Do not continue implementation, guess the missing information, or find another route around the restriction.",
+    "A tool's ability to perform an operation does not authorize it."
+  ];
+  const testUse = [
+    "Use tests only to implement the verification described by your assignment: checking assigned behavior and required regressions.",
+    "Do not create or repurpose tests as an information-gathering channel—for example, to inspect inaccessible source, enumerate unrelated files, read coordination records, or dump their contents through test output.",
+    "If you need that information, STOP IMMEDIATELY and report the missing access to the coordinator; do not obtain it indirectly through test execution."
+  ];
+  for (const instruction of [...scope, ...testUse]) {
+    assert.equal(occurrences(managed, instruction), 1, instruction);
+  }
+
+  const scopeIndex = paragraphs.indexOf(scope.join(" "));
+  const testUseIndex = paragraphs.indexOf(testUse.join(" "));
+  assert.ok(scopeIndex > 0, "scope and blocker paragraph");
+  assert.ok(paragraphs[testUseIndex - 1]?.startsWith("Run tests through authorized structured execution."),
+    "test-use paragraph sits beside the test-execution guidance");
+
+  for (const replaced of ["If you encounter a blocker", "Do not invent missing requirements", "work around access limits"]) {
+    assert.ok(!managed.includes(replaced), replaced);
+  }
+
+  for (const preserved of [
+    "Run tests through authorized structured execution. Shell access alone does not authorize test execution.",
+    "Do not weaken requirements or reshape production code to fit a proof mechanism.",
+    "Use workspace_run_test for native tests, verify_proof for saved proof execution and get_run_result for returned or assigned results.",
+    "Finish the implementation with workspace_deliver_work({}), the closed empty request bound to your launcher assignment, and use the runtime's result format."
+  ]) {
+    assert.equal(occurrences(managed, preserved), 1, preserved);
+  }
+});
+
 test("each guide carries only its own role's workflow", () => {
   const managed = readAgentRoleGuide("managed-worker");
   const reviewer = readAgentRoleGuide("reviewer");
@@ -165,7 +262,10 @@ test("orchestrator startup prompts name the resolved guide path once without inl
 });
 
 function readLine(guide) {
-  return `Read your ${guide} guide before acting: ${resolveAgentRoleGuidePath(guide)}`;
+  return guide === "orchestrator"
+    ? `Read your orchestrator guide at ${resolveAgentRoleGuidePath(guide)} and the authoring vignette at ` +
+      `${resolveOrchestratorAuthoringVignettePath()} before authoring.`
+    : `Read your ${guide} guide before acting: ${resolveAgentRoleGuidePath(guide)}`;
 }
 
 test("one shared helper renders every role's guide read reference", () => {

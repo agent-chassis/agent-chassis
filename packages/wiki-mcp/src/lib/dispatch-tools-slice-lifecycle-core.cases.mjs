@@ -161,10 +161,12 @@ test("terminal worker monitoring invokes the trusted post-worker slice lifecycle
   });
 
   const first = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
-    subject: "WK-1537#SLICE-001"
+    subject: "WK-1537#SLICE-001",
+    include_final_result: true
   }));
   const second = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: "WK-1537#SLICE-001",
+    include_final_result: true,
     timeout_ms: 1000
   }));
 
@@ -193,7 +195,8 @@ test("a post-integration candidate preparation failure re-enters the same seam a
   });
 
   const failed = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
-    subject: harness.status.subject
+    subject: harness.status.subject,
+    include_final_result: true
   }));
   assert.equal(failed.terminal, false);
   assert.equal(failed.slice_lifecycle.phase, "integrated");
@@ -204,13 +207,14 @@ test("a post-integration candidate preparation failure re-enters the same seam a
   );
   assert.deepEqual(failed.slice_lifecycle.integration, harness.integrationResult);
 
-  assert.equal(failed.slice_lifecycle.evidence.thrown.value.message,
+  assert.equal(failed.slice_lifecycle.evidence.thrown.cause_chain[0].message,
     "injected terminal candidate preparation failure /secret/path");
   assert.deepEqual(harness.counts(), { integrationCalls: 1, reviewSeamCalls: 0 });
   assert.equal(prepareCalls, 1);
 
   const retried = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
-    subject: harness.status.subject
+    subject: harness.status.subject,
+    include_final_result: true
   }));
   assert.equal(retried.terminal, false);
   assert.equal(retried.lifecycle_resolution.phase, "integrated");
@@ -219,6 +223,7 @@ test("a post-integration candidate preparation failure re-enters the same seam a
 
   const bounded = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: harness.status.subject,
+    include_final_result: true,
     timeout_ms: 300
   }));
   assert.equal(bounded.terminal, false);

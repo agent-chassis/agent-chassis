@@ -2,7 +2,8 @@
 
 import path from "node:path";
 
-import { loadTestRuntimeConfig } from "./config.mjs";
+import { loadTestRuntimeConfig } from
+  "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/config.mjs";
 
 export const TEST_RUNTIMES_USAGE = `Usage: agent-chassis setup --test-runtimes [options]
 

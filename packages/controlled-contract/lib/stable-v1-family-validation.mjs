@@ -111,6 +111,10 @@ function validateStableV1ContractFamily(contract) {
     family: "stable_v1",
     diagnostics: projectBoundedDiagnostics(diagnostics),
     diagnostic_details: Object.freeze(structuredClone(diagnostics)),
+
+    semantic_diagnostics: Object.freeze(structuredClone(
+      validation.schema_valid ? validation.diagnostics : [])),
+    schema_valid: validation.schema_valid,
     facts: validation.facts
   });
 }
@@ -147,11 +151,17 @@ function validateStableV1Family({ contract, profile, input, result = null }) {
     ...schemaErrors(validateResultSchemaV1,
       { document: result, basePointer: "/result" })
   );
+
+  const contractSemantic = contractFamily.schema_valid === true
+    ? contractFamily.semantic_diagnostics : [];
   return Object.freeze({
     valid: diagnostics.length === 0,
     stage: diagnostics.length === 0 ? "complete" : "schema_and_semantics",
     diagnostics: projectBoundedDiagnostics(diagnostics),
-    diagnostic_details: Object.freeze(structuredClone(diagnostics))
+    diagnostic_details: Object.freeze(structuredClone(diagnostics)),
+    contract_semantic_diagnostics: contractSemantic,
+    refused_only_by_contract_semantics: diagnostics.length > 0 &&
+      diagnostics.length === contractSemantic.length
   });
 }
 

@@ -81,6 +81,7 @@ export function createExecutionRoot() {
   mkdirSync(scratch, { mode: 0o700 });
   let settled = true;
   let cleanup = null;
+  let removalError = null;
   const executionRoot = Object.freeze({
     root,
     tmp,
@@ -98,10 +99,13 @@ export function createExecutionRoot() {
         rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
         cleanup = Object.freeze({ status: existsSync(root) ? "failed" : "removed", root });
       } catch (error) {
+        removalError = error;
         cleanup = Object.freeze({ status: "failed", root, errno: error?.code ?? null });
       }
       return cleanup;
-    }
+    },
+
+    get removalError() { return removalError; }
   });
   EXECUTION_ROOTS.add(executionRoot);
   return executionRoot;
@@ -113,6 +117,7 @@ export async function withExecutionRoot(callback) {
     return await callback(executionRoot);
   } finally {
     executionRoot.release();
+    if (executionRoot.removalError !== null) throw executionRoot.removalError;
   }
 }
 
@@ -180,6 +185,8 @@ export async function runConfinedInvocation({
       executionTmpSource: executionRoot?.tmp ?? null,
       executionScratchSource: executionRoot?.scratch ?? null,
       namespaceOnlyMountpoints: true,
+
+      testExecutionCheckoutWrites: executionRoot !== null,
       dependencyReadOnlyBinds: [...runtime.binds, ...(invocation.readOnlyBinds ?? []),
         ...driverBinds],
       agentLaunchDirExists: existsSync,
@@ -229,7 +236,7 @@ const DRIVER_BLOCKERS = Object.freeze({
 });
 
 export async function executeConfinedInvocation({ checkout, runtime, invocation, timeoutMs, budget = null,
-  signal = null, nativeReport = null, baseEvidence, observe = null }) {
+  nativeReport = null, baseEvidence, observe = null }) {
   const startedAtMs = Date.now();
   const notRun = (blockerCode, message, extra = {}) => {
     const endedAtMs = Date.now();
@@ -241,7 +248,7 @@ export async function executeConfinedInvocation({ checkout, runtime, invocation,
       ...extra });
   };
   const invoke = (owned) => runConfinedInvocation({ checkout, runtime, invocation: owned, timeoutMs, budget,
-    signal, nativeReport });
+    nativeReport });
   const invoked = invocation.executionRoot === undefined
     ? await withExecutionRoot((executionRoot) => invoke({ ...invocation, executionRoot }))
     : await invoke(invocation);

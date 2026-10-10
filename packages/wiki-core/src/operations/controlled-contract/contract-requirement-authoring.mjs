@@ -1,7 +1,7 @@
 
 
 import { createHash } from "node:crypto";
-import { DEFAULT_MANDATORY_MODALITIES } from "@agent-chassis/controlled-contract";
+import { DEFAULT_MANDATORY_MODALITIES } from "@agent-chassis/controlled-contract/native-contract-dag";
 
 import {
   CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,

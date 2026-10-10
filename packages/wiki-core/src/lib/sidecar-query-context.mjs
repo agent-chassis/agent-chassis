@@ -8,15 +8,20 @@ import {
   attributeAffectedFiles,
   committedEnvelopeFields,
   composeCommittedPaths,
-  prepareCommittedQuery
+  prepareCommittedQuery,
+  runSnapshotQuery
 } from "./sidecar-query-selection.mjs";
 import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
 
-export async function getSidecarContextForPath(options = {}) {
+export async function getSidecarContextForPath(options = {}, context = null) {
   const input = normalizeSidecarContextInput(options);
+  return runSnapshotQuery(context, () => evaluateContextForPath(input, context));
+}
+
+async function evaluateContextForPath(input, context) {
   const targetDir = path.resolve(String(input.dir ?? "."));
   const includeSuppressed = input.includeSuppressed === true;
-  const prepared = await prepareCommittedQuery({ dir: targetDir, cacheDir: input.cacheDir });
+  const prepared = await prepareCommittedQuery({ dir: targetDir, cacheDir: input.cacheDir }, context);
   const composed = await composeCommittedPaths({ prepared, cacheDir: input.cacheDir, targetDir,
     validPaths: [input.path], includeSuppressed });
   const descriptor = composed.selection.files.find((file) => file.path === input.path) ?? null;
@@ -32,7 +37,7 @@ export async function getSidecarContextForPath(options = {}) {
     source_kind: "code_index",
     canonicality: "derived",
     evidence_basis: "path_match",
-    ...committedEnvelopeFields(status),
+    ...committedEnvelopeFields(prepared),
     ...createSidecarContextTrustProjection({ dirty_state: status.dirty_state,
       dirty_details: status.dirty_details, overlay_state: composed.overlay.overlayState,
       overlay_source_count: composed.overlay.sourcePaths.length,

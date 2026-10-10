@@ -1,7 +1,5 @@
 
 
-import { open, unlink } from "node:fs/promises";
-
 import {
   ControlledContractToolError,
   controlledContractContentDigest
@@ -365,31 +363,6 @@ export function assertConflictSetCurrent(plan, conflictSetIdentity, staleRecover
       actual_conflict_set_identity: plan.conflictSetIdentity
     })
   );
-}
-
-export async function withOrderedCoverageLocks(lockFiles, busyCode, callback) {
-  const held = [];
-  try {
-    for (const lockFile of lockFiles) {
-      try {
-        const handle = await open(lockFile, "wx", 0o600);
-        held.push({ handle, lockFile });
-      } catch (error) {
-        throw new ControlledContractToolError(
-          busyCode, "coverage persistence is already in progress",
-          { changed: false, phase: "lock", cause: error?.code ?? null }
-        );
-      }
-    }
-    return await callback();
-  } finally {
-    for (const { handle, lockFile } of held.reverse()) {
-      await handle.close();
-      try { await unlink(lockFile); } catch (error) {
-        if (error?.code !== "ENOENT") throw error;
-      }
-    }
-  }
 }
 
 export {

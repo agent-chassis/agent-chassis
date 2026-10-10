@@ -72,8 +72,9 @@ All five aliases are retired: they are absent from registration, discovery, and
 role access, and a retired name refuses when called. Their immutable records
 keep the pinned baseline and now report as `compatibility_alias_retired`, with
 `compatibility_alias_debt_total` zero and `compatibility_alias_remaining` empty.
-The recorded replacement for the retired path-impact alias names a route that is
-itself retired; `workspace_code_index_impact` is the current impact route.
+The recorded replacement routes are the alias records' immutable history, not
+live routes: the status, path-impact and file-context replacements they name are
+themselves retired, and `query_code_index` is the current agent code read.
 Restoring a retired alias to the descriptor is added debt. Changing a descriptor alias target is added debt;
 removing the descriptor and access-policy entry through an authorized
 compatibility change is measurable retirement. No deprecated lifecycle or

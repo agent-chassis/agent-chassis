@@ -56,6 +56,45 @@ function makeCapturingIo() {
   };
 }
 
+const CODEX_RETIRED = /^agent-launch worker: codex_direct_worker_retired: /;
+const MANAGED_START = /managed start_agent tool of an orchestrator session/;
+
+async function withRoleSelection(models, body) {
+  const repo = await mkdtemp(path.join(tmpdir(), "agent-launch-live-model-forwarding-"));
+  const originalCwd = process.cwd();
+  const lines = Object.entries(models).flatMap(([role, model]) => [`[roles.${role}]`, `model = "${model}"`]);
+  await writeFile(path.join(repo, "agent-launch.toml"), `${lines.join("\n")}\n`, "utf8");
+  try {
+    process.chdir(repo);
+    return await body();
+  } finally {
+    process.chdir(originalCwd);
+    await rm(repo, { recursive: true, force: true });
+  }
+}
+
+async function observeWorker(run) {
+  const calls = [];
+  const { io, stderr } = makeCapturingIo();
+  const savedExitCode = process.exitCode;
+  let exitCode;
+  try {
+    process.exitCode = undefined;
+    await run(io, { backend: makeModelCapturingBackend(calls) });
+    exitCode = process.exitCode;
+  } finally {
+    process.exitCode = savedExitCode;
+  }
+  return { calls, exitCode, stderr: stderr.join("") };
+}
+
+function assertCodexWorkerRetired(observed, label) {
+  assert.deepEqual(observed.calls, [], `${label}: the retired route must reach no backend`);
+  assert.equal(observed.exitCode, 1, `${label}: the retired route must exit 1`);
+  assert.match(observed.stderr, CODEX_RETIRED, label);
+  assert.match(observed.stderr, MANAGED_START, label);
+}
+
 test("WK-0764 live dispatch: worker shared pipeline forwards typed model to startLaunch", async () => {
   const calls = [];
   const mockBackend = makeModelCapturingBackend(calls);
@@ -199,17 +238,27 @@ test("WK-0764 live dispatch end-to-end: runWorker --model forwards typed model t
 });
 
 test("WK-0764 live dispatch end-to-end: runWorker preserves configured role selection without an explicit model hint", async () => {
-  const calls = [];
-  const mockBackend = makeModelCapturingBackend(calls);
-  const io = makeSilentIo();
-  const savedExitCode = process.exitCode;
-  try {
-    await runWorker(["WK-0001"], io, { backend: mockBackend });
-  } finally {
-    process.exitCode = savedExitCode;
-  }
-  assert.equal(calls.length, 1, "startLaunch must be called once");
-  assert.strictEqual(calls[0].model, null, "configured selection must not become an explicit model hint");
+
+  const configured = await withRoleSelection({ worker: "opus" },
+    () => observeWorker((io, seam) => runWorker(["WK-0001"], io, seam)));
+  assert.equal(configured.calls.length, 1, "startLaunch must be called once");
+  assert.deepEqual([configured.calls[0].app, configured.calls[0].role, configured.calls[0].subject], ["claude", "worker", "WK-0001"]);
+  assert.strictEqual(configured.calls[0].model, null, "configured selection must not become an explicit model hint");
+});
+
+test("the direct live Codex worker is retired however Codex was selected, and reaches no backend", async () => {
+
+  assertCodexWorkerRetired(await withRoleSelection({ worker: "gpt-5.5" },
+    () => observeWorker((io, seam) => runWorker(["WK-0001"], io, seam))), "configured Codex selection");
+
+  assertCodexWorkerRetired(await withRoleSelection({ worker: "gpt-5.5" },
+    () => observeWorker((io, seam) => runWorker(["WK-0001", "--app", "codex"], io, seam))), "explicit --app codex");
+
+  assertCodexWorkerRetired(await withRoleSelection({ worker: "opus" },
+    () => observeWorker((io, seam) => runWorker(["WK-0001", "--model", "gpt-5.5"], io, seam))), "explicit Codex model");
+
+  assertCodexWorkerRetired(await withRoleSelection({ worker: "opus" },
+    () => observeWorker((io, seam) => runWorker(["WK-0001", "--spark", "--model", "codex-5.3-spark"], io, seam))), "worker_spark profile");
 });
 
 test("WK-0764 live dispatch end-to-end: runReview --model forwards typed model to startLaunch", async () => {
@@ -218,7 +267,8 @@ test("WK-0764 live dispatch end-to-end: runReview --model forwards typed model t
   const io = makeSilentIo();
   const savedExitCode = process.exitCode;
   try {
-    await runReview(["WK-0001", "--app", "claude", "--model", "sonnet"], io, { backend: mockBackend });
+    await withRoleSelection({ reviewer: "opus" },
+      () => runReview(["WK-0001", "--app", "claude", "--model", "sonnet"], io, { backend: mockBackend }));
   } finally {
     process.exitCode = savedExitCode;
   }
@@ -235,12 +285,15 @@ test("WK-0764 live dispatch end-to-end: runReview preserves configured role sele
   const io = makeSilentIo();
   const savedExitCode = process.exitCode;
   try {
-    await runReview(["WK-0001"], io, { backend: mockBackend });
+    await withRoleSelection({ reviewer: "opus" },
+      () => runReview(["WK-0001"], io, { backend: mockBackend }));
   } finally {
     process.exitCode = savedExitCode;
   }
   assert.equal(calls.length, 1, "startLaunch must be called once");
   assert.strictEqual(calls[0].model, null, "configured selection must not become an explicit model hint");
+  assert.equal(calls[0].app, "claude");
+  assert.equal(calls[0].role, "reviewer");
 });
 
 test("WK-0764 live dispatch end-to-end: runRedteam --model forwards typed model to startLaunch", async () => {
@@ -320,28 +373,30 @@ test("unknown explicit models remain refused and are never retried through role 
 });
 
 test("WK-0764 anti-regression: worker configured resolved.model is NOT forwarded as model hint to startLaunch", async () => {
-  const calls = [];
-  const mockBackend = makeModelCapturingBackend(calls);
-  const io = makeSilentIo();
-  const savedExitCode = process.exitCode;
-  try {
-    await dispatchWorkerSharedPipeline(
-      {
-        resolved: { app: "codex", model: "gpt-5.6-luna", model_source: "role_config" },
-        parsed: { unitAddress: "WK-0001", model: null, promptArgs: [] }
-      },
-      io,
-      { backend: mockBackend }
-    );
-  } finally {
-    process.exitCode = savedExitCode;
-  }
-  assert.equal(calls.length, 1, "startLaunch must be called once");
+
+  const claude = await observeWorker((io, seam) => dispatchWorkerSharedPipeline(
+    {
+      resolved: { app: "claude", model: "opus", model_source: "role_config" },
+      parsed: { unitAddress: "WK-0001", model: null, promptArgs: [] }
+    },
+    io,
+    seam
+  ));
+  assert.equal(claude.calls.length, 1, "startLaunch must be called once");
   assert.strictEqual(
-    calls[0].model,
+    claude.calls[0].model,
     null,
     "configured resolved.model must NOT be forwarded as model hint; only parsed.model is"
   );
+
+  assertCodexWorkerRetired(await observeWorker((io, seam) => dispatchWorkerSharedPipeline(
+    {
+      resolved: { app: "codex", model: "gpt-5.6-luna", model_source: "role_config" },
+      parsed: { unitAddress: "WK-0001", model: null, promptArgs: [] }
+    },
+    io,
+    seam
+  )), "configured Codex selection at the shared pipeline");
 });
 
 test("WK-0764 anti-regression: reviewer configured resolved.model is NOT forwarded as model hint to startLaunch", async () => {

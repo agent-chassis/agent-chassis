@@ -97,6 +97,22 @@ export declare function assessProofAuthoringRowSemantics(
   context?: ProofAuthoringSemanticContext
 ): ProofDiagnostic[];
 
+// One obligation's proof decision: a validated selection or an explicit
+// opt-out is accounted. `selection` is the exact-definition owner's answer for
+// a selected row; without it a selected row is `unestablished`.
+export declare const PROOF_UNSELECTED_CODE: "obligation_coverage_proof_unselected";
+
+export interface ProofObligationAccounting {
+  readonly status: "accounted" | "unaccounted" | "unestablished";
+  readonly decision: "selected" | "opted_out" | "undecided";
+  readonly diagnostic_codes: readonly string[];
+}
+
+export declare function assessProofObligationAccounting(
+  row: Readonly<Record<string, unknown>>,
+  selection?: { readonly resolved: boolean; readonly diagnostic_codes?: readonly string[] } | null
+): ProofObligationAccounting;
+
 export declare function proofAuthoringPopulationDiagnostics(
   selectedCount: number
 ): readonly ProofDiagnostic[];
@@ -168,6 +184,7 @@ export declare function raiseErrorCode(
   occurrence: { path: string; facts: Record<string, unknown> }
 ): ProofDiagnostic;
 
+export declare function registeredRecoveryInstruction(recovery: { route?: string } | null): string;
 export declare function registeredRecoveryTemplate(
   registry: DiagnosticCodeRegistry, code: string
 ): DiagnosticCodeRecovery | null;

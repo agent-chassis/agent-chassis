@@ -13,33 +13,15 @@ function canonicalRecordPath(subject) {
   return `wiki/work-records/${recordId}.json`;
 }
 
-function findingsRefusalCarrier({ classification, decidingFacts, observedFacts, continuation }) {
-  const common = {
+function findingsRefusalCarrier({ classification, decidingFacts, observedFacts }) {
+  return buildDispatchMechanicalRefusal({
     code: classification.code,
     decidingFacts,
     observedFacts,
-    route: "workspace_agent_dispatch",
-    carried: { mechanical_classification: classification }
-  };
-  if (continuation === null || continuation === undefined) {
-    return buildDispatchMechanicalRefusal({
-      ...common,
-      noSupportedRoute: true,
-      recovery: NO_SUPPORTED_ROUTE_RECOVERY
-    });
-  }
-  return buildDispatchMechanicalRefusal({
-    ...common,
-    nextCalls: [continuation],
-    recovery: {
-      state: "callable",
-      prerequisite: "no findings-only unit with an empty write scope exists for this subject",
-      operation: continuation.tool,
-      success_condition:
-        "workspace_work_record_ready_slice acknowledges saving a findings unit; workspace_work_record_summary or workspace_read_page with selected_slice confirms the canonical saved unit has an empty write_scope before dispatch",
-      success_predicate: continuation.success_predicate,
-      selected_from: decidingFacts.map((fact) => fact.field)
-    }
+    route: "start_agent",
+    carried: { mechanical_classification: classification },
+    noSupportedRoute: true,
+    recovery: NO_SUPPORTED_ROUTE_RECOVERY
   });
 }
 
@@ -86,8 +68,7 @@ export async function refuseFindingsOnlyAdmission({
           { field: "findings_unit.resolved", value: false },
           { field: "findings_unit.address", value: args.subject }
         ],
-        observedFacts: { ...observedFacts, "findings_unit.address": args.subject },
-        continuation: null
+        observedFacts: { ...observedFacts, "findings_unit.address": args.subject }
       })
     }));
   }

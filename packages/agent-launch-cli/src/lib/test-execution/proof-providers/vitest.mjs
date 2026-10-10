@@ -1,6 +1,5 @@
 
 
-import integration from "../runner-integrations/vitest.mjs";
 import { CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
   instrumentJavaScriptAttempt, javascriptLayout, observerAsset } from "./javascript-support.mjs";
 import { nativeProviderImplementation } from "./native-lifecycle.mjs";
@@ -18,6 +17,5 @@ export default nativeProviderImplementation({
   runner_options: (attempt) => ({ module_cache: attempt.compilerCache }),
   layout: javascriptLayout,
   instrument: instrumentJavaScriptAttempt,
-  invocation: (attempt) => integration.invocation({ runtime: attempt.runtime,
-    projectDir: attempt.workProject, entry: ENTRY, entryArgs: [attempt.configPath] })
+  proof: (attempt) => ({ entry: ENTRY, entryArgs: [attempt.configPath] })
 });

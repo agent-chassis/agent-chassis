@@ -64,75 +64,39 @@ function request(overrides = {}) {
   };
 }
 
-test("ready-slice redteam shaping requires an explicitly authored standalone purpose", () => {
-  const explicit = planWorkRecordReadySlice(parent(), request({ review_purpose: "standalone" }));
-  assert.equal(explicit.ok, true, JSON.stringify(explicit.diagnostics));
-  assert.equal(explicit.updatedRecord.slices[0].review_purpose, "standalone");
+test("ready-slice redteam creation derives and persists the standalone purpose", () => {
 
   const parentRecord = parent();
   const snapshot = structuredClone(parentRecord);
-  const omitted = planWorkRecordReadySlice(parentRecord, request());
-  assert.equal(omitted.ok, false);
-  assert.equal(omitted.updatedRecord, null);
-  assert.equal(omitted.diagnostics.length, 1);
-  assert.equal(omitted.diagnostics[0].code, "ready_slice_missing_required_field");
-  assert.equal(omitted.diagnostics[0].severity, "error");
-  assert.equal(omitted.diagnostics[0].path, "review_purpose");
-  assert.match(omitted.diagnostics[0].message, /"standalone"/u);
-  assert.match(omitted.diagnostics[0].message, /retry/u);
+  const derived = planWorkRecordReadySlice(parentRecord, request());
+  assert.equal(derived.ok, true, JSON.stringify(derived.diagnostics));
+  assert.equal(derived.updatedRecord.slices[0].review_purpose, "standalone");
+  assert.equal(derived.updatedRecord.slices[0].work_kind, "redteam");
+  assert.equal(derived.updatedRecord.slices[0].dispatch_intent.intended_agent_role, "redteam");
+  assert.equal(Object.hasOwn(derived.updatedRecord, "completion_policy"), false);
+  assert.deepEqual(derived.allowedPersistedPrefixes, ["slices[0]"]);
   assert.deepEqual(parentRecord, snapshot);
+
+  const explicit = planWorkRecordReadySlice(parent(), request({ review_purpose: "standalone" }));
+  assert.equal(explicit.ok, true, JSON.stringify(explicit.diagnostics));
+  assert.deepEqual(explicit.updatedRecord, derived.updatedRecord);
 });
 
-test("ready-slice redteam update persists explicit standalone and refuses clearing it", () => {
-  const created = planWorkRecordReadySlice(parent(), request({ review_purpose: "standalone" }));
-  assert.equal(created.ok, true, JSON.stringify(created.diagnostics));
-  const updated = planWorkRecordReadySlice(created.updatedRecord, {
-    unit: "WK-9298",
-    slice_id: "SLICE-001",
-    shaping_mode: "redteam",
-    review_purpose: "standalone",
-  });
-  assert.equal(updated.ok, true, JSON.stringify(updated.diagnostics));
-  assert.equal(updated.updatedRecord.slices[0].review_purpose, "standalone");
-
-  const legacy = parent([{
-    ...created.updatedRecord.slices[0],
-    review_purpose: undefined,
-  }]);
-  delete legacy.slices[0].review_purpose;
-  const reshaped = planWorkRecordReadySlice(legacy, {
-    unit: "WK-9298",
-    slice_id: "SLICE-001",
-    shaping_mode: "redteam",
-    title: "Renamed standalone redteam",
-  });
-  assert.equal(reshaped.ok, false);
-  assert.equal(reshaped.diagnostics[0].code, "ready_slice_missing_required_field");
-  assert.equal(reshaped.diagnostics[0].path, "review_purpose");
-});
-
-test("an explicitly redteam-shaped update must carry the purpose in the request itself", () => {
-
-  const created = planWorkRecordReadySlice(parent(), request({ review_purpose: "standalone" }));
+test("explicit redteam reshaping derives the purpose and ordinary updates preserve it", () => {
+  const created = planWorkRecordReadySlice(parent(), request());
   assert.equal(created.ok, true, JSON.stringify(created.diagnostics));
   const conforming = created.updatedRecord;
-  assert.equal(conforming.slices[0].review_purpose, "standalone");
 
-  const snapshot = structuredClone(conforming);
-  const omitted = planWorkRecordReadySlice(conforming, {
+  const renamed = planWorkRecordReadySlice(conforming, {
     unit: "WK-9298",
     slice_id: "SLICE-001",
     shaping_mode: "redteam",
     title: "Renamed standalone redteam",
   });
-  assert.equal(omitted.ok, false);
-  assert.equal(omitted.updatedRecord, null);
-  assert.equal(omitted.diagnostics.length, 1);
-  assert.equal(omitted.diagnostics[0].code, "ready_slice_missing_required_field");
-  assert.equal(omitted.diagnostics[0].severity, "error");
-  assert.equal(omitted.diagnostics[0].path, "review_purpose");
-  assert.match(omitted.diagnostics[0].message, /"standalone"/u);
-  assert.deepEqual(conforming, snapshot);
+  assert.equal(renamed.ok, true, JSON.stringify(renamed.diagnostics));
+  assert.equal(renamed.updatedRecord.slices[0].review_purpose, "standalone");
+  assert.equal(renamed.updatedRecord.slices[0].title, "Renamed standalone redteam");
+  assert.deepEqual(renamed.changedFields, ["slices[SLICE-001].title"]);
 
   const restated = planWorkRecordReadySlice(conforming, {
     unit: "WK-9298",
@@ -142,28 +106,110 @@ test("an explicitly redteam-shaped update must carry the purpose in the request 
     title: "Renamed standalone redteam",
   });
   assert.equal(restated.ok, true, JSON.stringify(restated.diagnostics));
-  assert.equal(restated.updatedRecord.slices[0].review_purpose, "standalone");
-  assert.equal(restated.updatedRecord.slices[0].title, "Renamed standalone redteam");
+  assert.deepEqual(restated.updatedRecord, renamed.updatedRecord);
 
-  const implicit = planWorkRecordReadySlice(conforming, {
+  const purposeless = parent([structuredClone(conforming.slices[0])]);
+  delete purposeless.slices[0].review_purpose;
+  const reshaped = planWorkRecordReadySlice(purposeless, {
+    unit: "WK-9298",
+    slice_id: "SLICE-001",
+    shaping_mode: "redteam",
+  });
+  assert.equal(reshaped.ok, true, JSON.stringify(reshaped.diagnostics));
+  assert.equal(reshaped.updatedRecord.slices[0].review_purpose, "standalone");
+  assert.deepEqual(reshaped.changedFields, ["slices[SLICE-001].review_purpose"]);
+
+  const ordinary = planWorkRecordReadySlice(conforming, {
     unit: "WK-9298",
     slice_id: "SLICE-001",
     title: "Implicitly shaped rename",
   });
-  assert.equal(implicit.ok, true, JSON.stringify(implicit.diagnostics));
-  assert.equal(implicit.updatedRecord.slices[0].review_purpose, "standalone");
+  assert.equal(ordinary.ok, true, JSON.stringify(ordinary.diagnostics));
+  assert.equal(ordinary.shapingMode, "redteam");
+  assert.equal(ordinary.updatedRecord.slices[0].review_purpose, "standalone");
+  assert.deepEqual(ordinary.changedFields, ["slices[SLICE-001].title"]);
 
-  const incompatible = planWorkRecordReadySlice(conforming, {
+  const purposelessSnapshot = structuredClone(purposeless);
+  const unselected = planWorkRecordReadySlice(purposeless, {
+    unit: "WK-9298",
+    slice_id: "SLICE-001",
+    title: "Implicitly shaped rename",
+  });
+  assert.equal(unselected.ok, false);
+  assert.equal(unselected.updatedRecord, null);
+  assert.equal(unselected.diagnostics.length, 1);
+  assert.equal(unselected.diagnostics[0].code, "ready_slice_missing_required_field");
+  assert.equal(unselected.diagnostics[0].path, "review_purpose");
+  assert.match(unselected.diagnostics[0].message, /retry the same authoring call with shaping_mode: "redteam"/u);
+  assert.doesNotMatch(unselected.diagnostics[0].message, /explicitly authored/u);
+  assert.deepEqual(purposeless, purposelessSnapshot);
+
+  const retried = planWorkRecordReadySlice(purposeless, {
     unit: "WK-9298",
     slice_id: "SLICE-001",
     shaping_mode: "redteam",
-    review_purpose: "terminal_whole_wk",
+    title: "Implicitly shaped rename",
   });
-  assert.equal(incompatible.ok, false);
-  assert.equal(incompatible.diagnostics[0].code, "ready_slice_review_purpose_incompatible");
+  assert.equal(retried.ok, true, JSON.stringify(retried.diagnostics));
+  assert.equal(retried.updatedRecord.slices[0].review_purpose, "standalone");
+  assert.equal(retried.updatedRecord.slices[0].title, "Implicitly shaped rename");
+});
 
-  const createdAgain = planWorkRecordReadySlice(parent(), request({ review_purpose: "standalone" }));
-  assert.equal(createdAgain.ok, true, JSON.stringify(createdAgain.diagnostics));
+test("redteam shaping refuses a contradictory purpose, role, or work kind without changing the record", () => {
+  const created = planWorkRecordReadySlice(parent(), request());
+  assert.equal(created.ok, true, JSON.stringify(created.diagnostics));
+  const reshape = (overrides) => ({
+    unit: "WK-9298", slice_id: "SLICE-001", shaping_mode: "redteam", ...overrides,
+  });
+  const reviewerIntent = {
+    intended_agent_role: "reviewer",
+    target_unit: "slice",
+    requires_graph_impact: false,
+    requires_escalation: false,
+  };
+  const cases = [
+    ["terminal purpose", { review_purpose: "terminal_whole_wk" },
+      "ready_slice_review_purpose_incompatible", "review_purpose"],
+    ["invalid purpose", { review_purpose: "adversarial" }, "ready_slice_invalid_field", "review_purpose"],
+    ["conflicting work_kind", { work_kind: "review" }, "ready_slice_shaping_conflict", "work_kind"],
+    ["conflicting role", { dispatch_intent: reviewerIntent }, "ready_slice_shaping_conflict", "dispatch_intent"],
+  ];
+  for (const [name, overrides, code, path] of cases) {
+    for (const [record, build] of [
+      [parent(), () => request(overrides)],
+      [created.updatedRecord, () => reshape(overrides)],
+    ]) {
+      const snapshot = structuredClone(record);
+      const refused = planWorkRecordReadySlice(record, build());
+      assert.equal(refused.ok, false, name);
+      assert.equal(refused.updatedRecord, null, name);
+      assert.equal(refused.diagnostics.length, 1, name);
+      assert.equal(refused.diagnostics[0].code, code, name);
+      assert.equal(refused.diagnostics[0].path, path, name);
+      assert.deepEqual(record, snapshot, name);
+    }
+  }
+});
+
+test("terminal whole-WK review stays an explicit reviewer choice that redteam shaping never selects", () => {
+  const policy = "forge_confirmed_merge";
+  const terminal = planWorkRecordReadySlice(parent(), request({
+    shaping_mode: "reviewer", review_purpose: "terminal_whole_wk", completion_policy: policy,
+  }));
+  assert.equal(terminal.ok, true, JSON.stringify(terminal.diagnostics));
+  assert.equal(terminal.updatedRecord.slices[0].review_purpose, "terminal_whole_wk");
+  assert.equal(terminal.updatedRecord.completion_policy, policy);
+
+  const redteamPolicy = planWorkRecordReadySlice(parent(), request({ completion_policy: policy }));
+  assert.equal(redteamPolicy.ok, false);
+  assert.equal(redteamPolicy.diagnostics[0].code, "ready_slice_completion_policy_incompatible");
+
+  const beside = planWorkRecordReadySlice(terminal.updatedRecord, request());
+  assert.equal(beside.ok, true, JSON.stringify(beside.diagnostics));
+  assert.deepEqual(beside.updatedRecord.slices[0], terminal.updatedRecord.slices[0]);
+  assert.equal(beside.updatedRecord.slices[1].review_purpose, "standalone");
+  assert.equal(beside.updatedRecord.completion_policy, policy);
+  assert.deepEqual(beside.allowedPersistedPrefixes, ["slices[1]"]);
 });
 
 test("ready-slice keeps redteam terminal closed and other shaping behavior unchanged", () => {

@@ -13,6 +13,10 @@ export const CAPTURE_CHANNELS = Object.freeze(["stdin", "stdout", "stderr"]);
 
 export const sha = bytes => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 
+export function serializeJourneyPayload(payload) {
+  return JSON.stringify(payload ?? null);
+}
+
 export const CARRIER_FINDING_KINDS = Object.freeze({
   TEXT_MISSING: "text_representation_missing",
   TEXT_EMPTY: "text_representation_empty",
@@ -73,14 +77,31 @@ export function structuredCarrierFindings(result, { permitNonTextBlocks = false 
 
 export function assertStructuredCarrier(result, options = {}) {
   const { structured, findings } = structuredCarrierFindings(result, options);
-  assert.ok(structured, `structured tool result must carry structuredContent: ${JSON.stringify(result)}`);
-  assert.deepEqual(findings, [], `structured carrier contract: ${JSON.stringify(findings)}`);
+  if (!structured) {
+    assert.ok(structured, `structured tool result must carry structuredContent: ${JSON.stringify(result)}`);
+  }
+  if (!isDeepStrictEqual(findings, [])) {
+    assert.deepEqual(findings, [], `structured carrier contract: ${JSON.stringify(findings)}`);
+  }
   return result.structuredContent;
 }
 
 export function channels(raw) {
-  assert.ok(raw && typeof raw === "object", `tool result must be an object: ${JSON.stringify(raw)}`);
+  const object = raw && typeof raw === "object";
+  if (!object) assert.ok(object, `tool result must be an object: ${JSON.stringify(raw)}`);
   return assertStructuredCarrier(raw);
+}
+
+export function deliveredAdmissionBytes(result) {
+  const utf8 = value => Buffer.byteLength(JSON.stringify(value), "utf8");
+  const { content = [], structuredContent, isError, ...protocol } = result;
+  const structured = structuredContent === undefined ? 0 : utf8(structuredContent);
+  const text = content.filter(block => block.type === "text")
+    .reduce((sum, block) => sum + Buffer.byteLength(block.text, "utf8"), 0);
+  const nonmirrored = content.filter(block => block.type !== "text");
+  const residual = { ...protocol, ...(typeof isError === "boolean" || isError === undefined ? {} : { isError }),
+    ...(nonmirrored.length > 0 ? { content: nonmirrored } : {}) };
+  return Math.max(structured, text) + (Object.keys(residual).length > 0 ? utf8(residual) : 0);
 }
 
 export function carrierBytes(message) {
@@ -301,7 +322,7 @@ export const CALL_PURPOSES = Object.freeze({
   consumer: "a call the consuming journey needs to act",
   setup: "scenario setup or an interleaved second writer; never consumer knowledge or consumer cost",
   first_discovery: "initial discovery of a surface the journey has not yet read",
-  freshness: "a CAS/currentness read whose digest the next write must carry",
+  freshness: "a currentness read whose revision the next write to that unit must carry",
   restart: "re-establishing state after an actual process restart",
   conformance_control: "an explicitly requested independent control, not consumer cost"
 });
@@ -312,7 +333,7 @@ export const CLIENT_DISPLAY_CONFIGURATIONS = Object.freeze({
 });
 
 const displayLine = (result, configuration) => {
-  if (configuration === "structured") return JSON.stringify(result.payload ?? null);
+  if (configuration === "structured") return serializeJourneyPayload(result.payload);
   assert.equal(configuration, "raw_result_frame", `unknown client display configuration ${configuration}`);
   return JSON.stringify(result.raw ?? null);
 };
@@ -483,8 +504,6 @@ function stableJson(value) {
 
 const DIAGNOSTIC_COLLECTION = /diagnostic|reason|warning|finding|error/iu;
 
-const VALIDATE_PROOF_TOOL = "workspace_validate_proof";
-
 export function responseRepetitions(payload, { minimumSubtreeBytes = 1024 } = {}) {
   const findings = [];
   const subtrees = new Map();
@@ -513,9 +532,8 @@ export function responseRepetitions(payload, { minimumSubtreeBytes = 1024 } = {}
   return findings;
 }
 
-const DIAGNOSIS_SUBJECT_MEMBERS = new Set(["diagnostic_group_id", "semantic_cause_id", "affected_obligation_ids",
-  "affected_obligation_ids_truncated", "affected_obligation_ids_omitted", "affected_obligation_count",
-  "occurrence_count", "global_occurrence_count", "detail_call", "inspection_call", "supported_next_call"]);
+const DIAGNOSIS_SUBJECT_MEMBERS = new Set(["diagnostic_group_id", "diagnosis_id", "subjects", "occurrences",
+  "obligation_ids", "obligations_omitted", "correction_call"]);
 
 const diagnosisMeaning = value => Array.isArray(value) ? value.map(diagnosisMeaning)
   : value && typeof value === "object" ? Object.fromEntries(Object.entries(value)
@@ -539,15 +557,14 @@ export function validationDiagnosisSites(payload) {
         broken.push({ path, reason: "meaning_reference_unresolved", reference: reference ?? null });
         return;
       }
-      const groupId = issue?.call?.arguments?.diagnostic_group_id ?? null;
       found.push({ path, meaning_path: `/diagnostics/meanings/${reference}`,
-        diagnosis: { diagnostic_group_id: groupId, ...meaning } });
+        diagnosis: { diagnostic_group_id: typeof issue?.diagnosis_id === "string" ? issue.diagnosis_id : null, ...meaning } });
     });
   }
-  if (payload?.selected && typeof payload.selected === "object" &&
-      typeof payload.selected.diagnostic_group_id === "string") {
-    seen.add(payload.selected);
-    found.push({ path: "/selected", diagnosis: payload.selected });
+  const selected = payload?.selected_diagnosis?.diagnosis;
+  if (selected && typeof selected === "object" && typeof selected.diagnostic_group_id === "string") {
+    seen.add(selected);
+    found.push({ path: "/selected_diagnosis/diagnosis", diagnosis: selected });
   }
   const walk = (value, at) => {
     if (!value || typeof value !== "object") return;
@@ -597,19 +614,8 @@ export function sharedDiagnosisRepetitions(payload, { minimumMeaningBytes }) {
   return findings;
 }
 
-const guidanceSelection = entry => {
-  const selector = entry.arguments?.input_contract;
-  if (entry.tool !== "workspace_tools_describe" || selector?.kind !== "guidance") return null;
-  const selection = entry.response?.results?.[0]?.input_guidance;
-  if (!selection || !Array.isArray(selector.path) || !Object.hasOwn(selection, "value")) return null;
-  return { tool: entry.arguments.tool_name, path: selector.path, digest: selection.source_digest };
-};
-
 const isPrefix = (prefix, path) => prefix.length <= path.length &&
   prefix.every((segment, index) => segment === path[index]);
-
-const DIGEST_FIELDS = ["content_digest", "source_digest", "current_source_digest"];
-const EXPECTED_FIELDS = ["expected_content_digest", "expected_source_digest"];
 
 const holdsValue = (container, value) => {
   const wanted = stableJson(value);
@@ -619,6 +625,43 @@ const holdsValue = (container, value) => {
 };
 
 const valueAt = (value, fieldPath) => fieldPath.reduce((current, name) => current?.[name], value);
+
+const guidanceSelection = entry => {
+  const answer = entry.response;
+  if (answer?.source_kind !== "requirement_guidance" || !Array.isArray(answer.guidance) ||
+      !Object.hasOwn(answer, "value")) return null;
+  return { path: answer.guidance, value: answer.value };
+};
+
+const contextRead = entry => {
+  const answer = entry.response;
+  if (entry.arguments?.subject === undefined || entry.arguments?.select !== undefined ||
+      typeof answer?.revision !== "string") return null;
+  return { subject: answer.subject ?? entry.arguments.subject, revision: answer.revision, reference: answer.reference ?? null };
+};
+
+export function contextReadUse(entry, calls) {
+  const context = contextRead(entry);
+  if (context === null) return null;
+  for (const later of calls) {
+    if (later.id <= entry.id) continue;
+    if (typeof context.subject === "string" && later.arguments?.unit === context.subject &&
+        later.arguments?.revision === context.revision) return { request: later.id, by: "revision" };
+    if (context.reference !== null && later.arguments?.reference !== undefined &&
+        isDeepStrictEqual(later.arguments.reference, context.reference)) return { request: later.id, by: "reference" };
+  }
+  return null;
+}
+
+const selectionRead = entry => {
+  const answer = entry.response;
+  if (entry.arguments?.select === undefined || entry.arguments?.reference === undefined ||
+      answer?.subject === undefined || typeof answer?.revision !== "string") return null;
+  return { subject: answer.subject, revision: answer.revision, select: answer.select ?? entry.arguments.select };
+};
+
+const selectedDiagnosisId = entry => typeof entry.arguments?.original?.diagnosis_id === "string"
+  ? entry.arguments.original.diagnosis_id : null;
 
 export function correctionClauseFacts(response) {
   const facts = new Set();
@@ -651,15 +694,21 @@ export function selectedDiagnosisSuppliedUsedFact(entry, { calls, actions, rules
       if (published === undefined || published === null) continue;
       if (antecedent.rule !== undefined) {
         const typed = antecedent.rule;
+        const definition = valueAt(entry.response, (typed.definition ?? []).slice(0, -1));
         const field = valueAt(entry.response, typed.definition ?? []);
         const subject = valueAt(entry.response, typed.subject ?? []);
         const written = antecedent.field ?? [];
-        const requestField = written.length > 2 && written[0] === "obligations"
-          ? `obligations[].${written.slice(2).join(".")}` : null;
+
+        const member = typeof definition?.authored_member === "string" ? definition.authored_member.split(".") : null;
+        const row = member !== null && isPrefix(member, written) && Number.isInteger(written[member.length])
+          ? written.slice(0, member.length + 1) : null;
+        const requestField = row === null || written.length <= row.length ? null
+          : `${member.at(-1)}[].${written.slice(row.length).join(".")}`;
         const activated = rules.some(rule => rule.status === "matched" && rule.source === entry.id &&
           rule.rule === typed.id && isDeepStrictEqual(rule.typed?.member, antecedent.source_field));
-        if (published !== typed.clause || field !== requestField || !activated) continue;
-        if (valueAt(request.arguments, [...written.slice(0, 2), "obligation_id"]) !== subject) continue;
+        if (published !== typed.clause || requestField === null || field !== requestField || !activated) continue;
+        if (typeof entry.response?.unit !== "string" || request.arguments?.unit !== entry.response.unit) continue;
+        if (typeof subject !== "string" || valueAt(request.arguments, [...row, "id"]) !== subject) continue;
         if (valueAt(request.arguments, written) === undefined) continue;
         if (earlierClauses.has(stableJson([subject, published, field]))) continue;
         return { action: action.action, request: request.id, field: antecedent.field,
@@ -712,8 +761,8 @@ export function journeyRedundancy(trace, { minimumSubtreeBytes = 1024, retrieval
       const selection = guidanceSelection(entry);
       const held = selection && earlier.find(prior => {
         const prev = guidanceSelection(prior);
-        return prev && prev.tool === selection.tool && prev.digest === selection.digest &&
-          isPrefix(prev.path, selection.path);
+        return prev && isPrefix(prev.path, selection.path) &&
+          isDeepStrictEqual(valueAt(prev.value, selection.path.slice(prev.path.length)), selection.value);
       });
       if (held) findings.push({ kind: "guidance_member_reread", ...describe, held_by: held.id });
       const key = stableJson([entry.tool, entry.arguments]);
@@ -729,32 +778,37 @@ export function journeyRedundancy(trace, { minimumSubtreeBytes = 1024, retrieval
           !(entry.consumed?.length > 0)) {
         findings.push({ kind: "retrieval_unused", ...describe, decides: entry.decision.decides });
       }
-      const emitter = byId.get(entry.emitted_by);
-      if (emitter && entry.arguments?.detail !== undefined) {
+      const selected = selectionRead(entry);
+      if (selected !== null) {
+        const answered = !held && !repeated && earlier.find(prior => {
+          const prev = selectionRead(prior);
+          return prev !== null && prior.tool === entry.tool && isDeepStrictEqual(prev, selected);
+        });
+        if (answered) findings.push({ kind: "repeated_selection", ...describe, answered_by: answered.id });
 
-        const { field_path: _narrowed, ...detail } = entry.arguments.detail;
-        const requested = { tool: entry.tool, arguments: { ...entry.arguments, detail } };
-        const offered = callablesIn(emitter.response).find(call => sameCallable(call, requested));
-        const known = callablesIn(emitter.response).filter(call => call.arguments?.detail === undefined);
-        const added = callablesIn(entry.response).filter(call => call.arguments?.detail === undefined &&
-          !known.some(prior => sameCallable(prior, call)));
-        if (offered?.recommended === true && added.length === 0 &&
+        const offering = byId.get(entry.emitted_by) ?? earlier.findLast(prior =>
+          isDeepStrictEqual(prior.response?.reference, entry.arguments.reference));
+        const requested = { tool: entry.tool, arguments: entry.arguments };
+        const offered = offering ? callablesIn(offering.response).find(call => sameCallable(call, requested)) : undefined;
+        const known = offering ? callablesIn(offering.response) : [];
+        const added = callablesIn(entry.response).filter(call => !known.some(prior => sameCallable(prior, call)));
+
+        const ruled = selection !== null && rules.some(rule => rule.status === "matched" && rule.source === entry.id);
+        if (offered?.recommended === true && added.length === 0 && !ruled &&
             detailSuppliedUsedFact(entry, { calls, actions, exempt }) === null) {
-          findings.push({ kind: "redundant_recommended_detail", ...describe, recommended_by: emitter.id });
+          findings.push({ kind: "redundant_recommended_detail", ...describe, recommended_by: offering.id });
         }
       }
-      if (emitter && entry.tool === VALIDATE_PROOF_TOOL && (typeof entry.arguments?.diagnostic_group_id === "string" ||
-          typeof entry.arguments?.obligation_id === "string") &&
-          selectedDiagnosisSuppliedUsedFact(entry, { calls, actions, rules, exempt }) === null &&
-          !followsNewCall(entry, emitter, calls, exempt)) {
-        findings.push({ kind: "redundant_selected_diagnosis", ...describe, emitted_by: emitter.id });
+      if (selectedDiagnosisId(entry) !== null &&
+          selectedDiagnosisSuppliedUsedFact(entry, { calls, actions, rules, exempt }) === null) {
+        const emitter = byId.get(entry.emitted_by);
+        if (!emitter || !followsNewCall(entry, emitter, calls, exempt)) {
+          findings.push({ kind: "redundant_selected_diagnosis", ...describe, emitted_by: emitter?.id ?? null });
+        }
       }
-    }
-    if (entry.purpose === "freshness") {
-      const digests = DIGEST_FIELDS.map(field => entry.response?.[field]).filter(value => typeof value === "string");
-      const consumed = calls.slice(index + 1).some(later =>
-        EXPECTED_FIELDS.some(field => digests.includes(later.arguments?.[field])));
-      if (!consumed) findings.push({ kind: "freshness_read_unused", ...describe });
+      if (contextRead(entry) !== null && contextReadUse(entry, calls) === null) {
+        findings.push({ kind: "freshness_read_unused", ...describe });
+      }
     }
     for (const repetition of responseRepetitions(entry.response, { minimumSubtreeBytes })) {
       findings.push({ ...repetition, ...describe });

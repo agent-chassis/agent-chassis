@@ -21,9 +21,10 @@ import {
   AGENT_DISPATCH_TOOL_NAME,
   VALIDATE_DISPATCH_TOOL_NAME
 } from "./dispatch-tool-constants.mjs";
-import { VERIFY_PROOF_TOOL_NAME } from "./verify-proof-public-result.mjs";
+import { buildGuidanceCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import {
-  compactRuntimeBlockerTaxonomy
+  compactRuntimeBlockerTaxonomy,
+  registryRecoveryInspection
 } from "./dispatch-tool-helpers.mjs";
 import {
   STDIO_MCP_CONDUIT_COMPOSITION_FACT_SOURCE,
@@ -44,7 +45,7 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 
 const CAPABILITY_FRESHNESS_FRESH = "fresh";
-const FORGE_HANDOFF_TOOL_NAME = "workspace_wk_forge_handoff";
+const PUBLICATION_TOOL_NAME = "workspace_publish_work";
 
 export const MANAGED_LIFECYCLE_CAPABILITY_NAMES = Object.freeze([
   "structured_dispatch",
@@ -57,12 +58,6 @@ export const MANAGED_LIFECYCLE_CAPABILITY_NAMES = Object.freeze([
   "validation_ownership",
   "automatic_main_promotion"
 ]);
-
-const CAPABILITY_RECOVERY = Object.freeze({
-  kind: "structured_route",
-  route: "workspace_coordination_preflight",
-  arguments: Object.freeze({ role: "coordinator", target_dispatch_role: "worker" })
-});
 
 const CAPABILITY_BLOCKER = Object.freeze({
   structured_dispatch: "missing_structured_transport",
@@ -81,25 +76,20 @@ const AUTOMATIC_MAIN_PROMOTION_BLOCKER = Object.freeze({
   unknown: "automatic_main_promotion_fact_unknown"
 });
 
-function runtimeRouteFact(registeredToolNames, route) {
+function runtimeRouteFact(registeredToolNames, route, requestContracts) {
+  const registered = registeredToolNames instanceof Set && registeredToolNames.has(route);
+  const retained = requestContracts?.contractFor(route) != null;
   return {
-    available: registeredToolNames instanceof Set && registeredToolNames.has(route),
+    available: registered && retained, registered, request_contract_retained: retained,
     source: `mcp.runtime_registration.${route}`,
     freshness: { state: CAPABILITY_FRESHNESS_FRESH, basis: "live_server_registration" }
   };
 }
 
-function automaticMainPromotionGuidance(normalized, registeredToolNames) {
+function automaticMainPromotionGuidance(normalized, registeredToolNames, requestContracts, inspection) {
   if (normalized.available) return normalized;
-  const publicationRoute = runtimeRouteFact(registeredToolNames, FORGE_HANDOFF_TOOL_NAME);
-  const discovery = publicationRoute.available
-    ? {
-        kind: "structured_route",
-        route: "workspace_tools_describe",
-        arguments: { tool_name: FORGE_HANDOFF_TOOL_NAME, verbose: true },
-        purpose: "read_explicit_publication_route_and_prerequisites"
-      }
-    : null;
+  const publicationRoute = runtimeRouteFact(registeredToolNames, PUBLICATION_TOOL_NAME, requestContracts);
+  const discovery = inspection;
   return {
     ...normalized,
     blockers: [AUTOMATIC_MAIN_PROMOTION_BLOCKER[normalized.status] ??
@@ -108,10 +98,11 @@ function automaticMainPromotionGuidance(normalized, registeredToolNames) {
     publication_guidance: {
       automatic_promotion: "unavailable_or_unestablished",
       explanation:
-        "Explicit forge handoff is separate from automatic main promotion and does not merge or complete the WK.",
+        "Explicit workspace_publish_work is separate from automatic main promotion and neither merges nor completes the WK. Integration requires an explicit coordinator action through integrate_work; registration grants no caller authority.",
       publication_route: {
-        tool_name: FORGE_HANDOFF_TOOL_NAME,
-        registered: publicationRoute.available,
+        tool_name: PUBLICATION_TOOL_NAME,
+        registered: publicationRoute.registered,
+        request_contract_retained: publicationRoute.request_contract_retained,
         authority: {
           source: publicationRoute.source,
           freshness: publicationRoute.freshness
@@ -130,7 +121,7 @@ function automaticMainPromotionGuidance(normalized, registeredToolNames) {
   };
 }
 
-function normalizeCapabilityFact(name, fact, registeredToolNames) {
+function normalizeCapabilityFact(name, fact, registeredToolNames, requestContracts, inspection) {
   const freshnessState = fact?.freshness?.state ?? "unknown";
   const authoritative = typeof fact?.source === "string" && fact.source.length > 0;
   const fresh = freshnessState === CAPABILITY_FRESHNESS_FRESH;
@@ -151,7 +142,8 @@ function normalizeCapabilityFact(name, fact, registeredToolNames) {
       }
     },
     blockers: available ? [] : [fact?.blocker?.code ?? CAPABILITY_BLOCKER[name]],
-    recovery: available ? null : fact?.blocker?.recovery ?? CAPABILITY_RECOVERY
+    recovery: available ? null : typeof fact?.blocker?.recovery === "string" ? fact.blocker.recovery : inspection,
+    corrective_action: available ? null : { state: "not_established", capability: name }
   };
   const projection = name === "structured_dispatch"
     ? {
@@ -162,7 +154,7 @@ function normalizeCapabilityFact(name, fact, registeredToolNames) {
       }
     : normalized;
   return name === "automatic_main_promotion"
-    ? automaticMainPromotionGuidance(projection, registeredToolNames)
+    ? automaticMainPromotionGuidance(projection, registeredToolNames, requestContracts, inspection)
     : projection;
 }
 
@@ -188,12 +180,19 @@ function compositionCapabilityFact(projection) {
   });
 }
 
-export function projectManagedLifecycleCapabilities({
+export async function projectManagedLifecycleCapabilities({
   registeredToolNames,
   isPaidTier = false,
-  authorityFacts = {}
+  authorityFacts = {}, requestContracts = null
 } = {}) {
-  const routeRegistration = runtimeRouteFact(registeredToolNames, AGENT_DISPATCH_TOOL_NAME);
+  const routeRegistration = runtimeRouteFact(registeredToolNames, "start_agent", requestContracts);
+
+  const { tool: docTool, arguments: docArgs } = registryRecoveryInspection("managed_lifecycle_required", {});
+  const docContract = requestContracts?.contractFor(docTool);
+  const inspection = registeredToolNames?.has(docTool) && docContract && await docContract.acceptsArguments(docArgs)
+    ? buildGuidanceCall({ tool: docTool, arguments: docArgs,
+      information: "Read the package document the start_agent tool advertises; this read repairs no unavailable capability" },
+    { requestSchema: docContract.publishedRequestSchema(), registeredTools: registeredToolNames }) : null;
   const composition = authorityFacts.structured_dispatch ?? Object.freeze({
     available: false,
     source: STDIO_MCP_CONDUIT_COMPOSITION_FACT_SOURCE,
@@ -203,8 +202,8 @@ export function projectManagedLifecycleCapabilities({
     blocker: buildManagedStdioMcpCompositionRefusal("missing_fact")
   });
   const facts = {
-    validation_ownership: runtimeRouteFact(registeredToolNames, VERIFY_PROOF_TOOL_NAME),
     ...authorityFacts,
+    validation_ownership: runtimeRouteFact(registeredToolNames, "verify_proof", requestContracts),
     structured_dispatch: {
       ...composition,
       available: routeRegistration.available === true && composition.available === true
@@ -218,9 +217,11 @@ export function projectManagedLifecycleCapabilities({
     route_registration: Object.freeze({
       structured_dispatch: Object.freeze({ ...routeRegistration })
     }),
-    planes: MANAGED_LIFECYCLE_CAPABILITY_NAMES.map((name) =>
-      normalizeCapabilityFact(name, facts[name], registeredToolNames)
-    )
+    planes: MANAGED_LIFECYCLE_CAPABILITY_NAMES.map((name) => {
+      const plane = normalizeCapabilityFact(name, facts[name], registeredToolNames, requestContracts, inspection);
+      return name === "structured_dispatch" && !routeRegistration.available
+        ? { ...plane, blockers: [...new Set([...plane.blockers, "missing_structured_transport"])] } : plane;
+    })
   };
 }
 
@@ -571,8 +572,9 @@ export function registerDiagnosticRoutes(ctx) {
             structuredDispatchCompatibility
           )
         };
-        const capabilities = projectManagedLifecycleCapabilities({
+        const capabilities = await projectManagedLifecycleCapabilities({
           registeredToolNames,
+          requestContracts: ctx.requestContracts,
           isPaidTier,
           authorityFacts
         });

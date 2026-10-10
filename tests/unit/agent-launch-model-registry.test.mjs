@@ -124,16 +124,18 @@ test("registry exports the array source and model-name set used by the DEC-0114 
       "haiku",
       "vertex-claude-opus-5-5",
       "vertex-claude-sonnet-5-5",
+      "vertex-gemini-3.8-flash",
       "opus",
       "sonnet"
     ].sort()
   );
 });
 
-test("Vertex-served Claude models are Codex-client entries with declared Vertex mappings", () => {
+test("Vertex-served models are Codex-client entries with declared Vertex mappings", () => {
   for (const [model, vertexModel, profile] of [
     ["vertex-claude-opus-5-5", "claude-opus-5-5", "orchestrator"],
-    ["vertex-claude-sonnet-5-5", "claude-sonnet-5-5", "worker"]
+    ["vertex-claude-sonnet-5-5", "claude-sonnet-5-5", "worker"],
+    ["vertex-gemini-3.8-flash", "gemini-3.8-flash", "worker"]
   ]) {
     assert.equal(resolveModel(model).app, "codex");
     assert.equal(resolveModel(model).codex_profile, profile);

@@ -19,6 +19,7 @@ import {
   RUN_STATUS_CONTROLLED_GENERATION_PROJECTION_SCHEMA_VERSION,
   TERMINAL_CANDIDATE_AUTHORED_CONTRACT_MEMBERS,
   projectPublishedControlledGeneration,
+  groupCompactLifecycleOmissions,
   projectPublishedSliceLifecycle,
   readTerminalCandidateAuthoredContracts,
   readTerminalCandidateControlledGeneration
@@ -60,6 +61,7 @@ import {
 import {
   assertDefaultStatusFrame,
   defaultStatusConclusion,
+  deliveredAdmissionBytes,
   responseRepetitions
 } from "../helpers/mcp-journey-accounting.mjs";
 
@@ -177,9 +179,13 @@ test("WK-2691: the reproduced leak — run status publishes the authored contrac
   assert.equal(observed.structured.lifecycle_resolution.phase, "finalized");
 
   const before = unprojectedBytes(observed, candidate);
-  const savedFraction = (before - observed.bytes) / before;
+  const after = deliveredAdmissionBytes(observed.result);
+  assert.equal(after, measureMcpInlineResultBytes(observed.structured), "prospective and delivered agree");
+  const savedFraction = (before - after) / before;
   assert.ok(savedFraction >= 0.7,
-    `record-heavy default response must lose at least 70% of its bytes; ${before} -> ${observed.bytes}`);
+    `record-heavy default response must lose at least 70% of its admission bytes; ${before} -> ${after}`);
+
+  assert.ok(observed.bytes > after);
   } finally {
     await scope.dispose();
   }
@@ -1451,6 +1457,18 @@ test("WK-2671: the default-answer oracles detect bloat, lost facts, false claims
     const label = "sensitivity default";
     defaultFrame(observed, label);
     assertPopulatedDefault(observed, shape, label);
+    const grouped = structuredClone(observed.structured);
+    grouped.slice_lifecycle = groupCompactLifecycleOmissions(grouped.slice_lifecycle);
+    assertPopulatedDefault({ structured: grouped }, shape, "grouped omission inventory");
+    assert.equal(grouped.slice_lifecycle.complete.call.tool, "workspace_agent_run_status");
+    const original = await observe(tools, grouped.slice_lifecycle.complete.call.arguments);
+    for (const member of grouped.slice_lifecycle.omitted_members) {
+      assert.notEqual(original.structured.slice_lifecycle[member], undefined,
+        `the emitted complete call serves the whole ${member} section`);
+    }
+    assert.deepEqual(grouped.slice_lifecycle.integration, observed.structured.slice_lifecycle.integration);
+    assert.deepEqual(grouped.slice_lifecycle.terminal_candidate,
+      observed.structured.slice_lifecycle.terminal_candidate);
     const clone = () => structuredClone(observed.structured);
     const asFrame = (structured) => ({ raw: { content: [], structuredContent: structured },
       entry: { id: "control" } });

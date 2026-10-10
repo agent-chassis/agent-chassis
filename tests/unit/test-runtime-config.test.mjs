@@ -7,7 +7,7 @@ import {
   REPOSITORY_RUNTIME_CONFIG_FILE,
   parseTestRuntimeConfig,
   serializeTestRuntimeConfig
-} from "../../packages/core/scripts/test-runtime-setup/config.mjs";
+} from "../../packages/agent-launch-cli/src/lib/test-runtime-setup/config.mjs";
 
 const parse = (document) => parseTestRuntimeConfig(JSON.stringify(document), { source: "runtime.json" });
 const refuses = (document, pattern) =>

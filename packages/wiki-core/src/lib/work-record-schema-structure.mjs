@@ -61,6 +61,7 @@ import {
   SHA256_PATTERN
 } from "./work-record-schema-constants.mjs";
 import { validateWorkRecordEntries, validateWorkRecordEntryPopulation } from "./work-record-entry-schema.mjs";
+import { validateWorkRecordDispositions } from "./review-disposition.mjs";
 import { validateWorkRecordMaterialRefs } from "./work-record-entry-material.mjs";
 
 function validateExpectedEditTargetFacetFields(diagnostics, entry, path) {
@@ -253,6 +254,31 @@ function validateExpectedEditTargets(diagnostics, value, path) {
     }
   });
 }
+
+const nonBlankString = () => ({ type: "string", pattern: "\\S" });
+const normalizedVocabulary = (values) => ({ ...nonBlankString(),
+  description: `One of, ignoring case and surrounding whitespace: ${values.join(", ")}` });
+const nullableVocabulary = (values) => ({ anyOf: [{ type: "string", enum: [...values] }, { type: "null" }] });
+const deepFreeze = (value) => {
+  if (value !== null && typeof value === "object") Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
+};
+export const WORK_RECORD_EXPECTED_EDIT_TARGET_SCHEMA = deepFreeze({
+  type: "object",
+  additionalProperties: true,
+  required: ["path", "name", "kind", "operation"],
+  properties: {
+    path: nonBlankString(),
+    name: nonBlankString(),
+    kind: normalizedVocabulary(WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES),
+    operation: normalizedVocabulary(WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES),
+    activity_kind: nullableVocabulary(WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES),
+    artifact_kind: nullableVocabulary(WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES),
+    granularity: nullableVocabulary(WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES),
+    facet_provenance: { anyOf: [{ type: "object", additionalProperties: true }, { type: "null" }] },
+    optional: { type: "boolean" }
+  }
+});
 
 function validateAcceptance(diagnostics, acceptance, path = "acceptance") {
   if (!isObject(acceptance)) {
@@ -496,6 +522,9 @@ function validateSlice(diagnostics, slice, path, { recordTerminal = false } = {}
     }
     diagnostics.push(...validateWorkRecordEntries(sections.entries, {
       path: `${path}.sections.entries`
+    }));
+    diagnostics.push(...validateWorkRecordDispositions(sections.dispositions, {
+      path: `${path}.sections.dispositions`
     }));
     diagnostics.push(...validateWorkRecordMaterialRefs(sections.material_refs, {
       path: `${path}.sections.material_refs`
@@ -1038,6 +1067,9 @@ function validateSections(diagnostics, sections) {
     allowEmpty: true
   });
   diagnostics.push(...validateWorkRecordEntries(sections.entries, { path: "sections.entries" }));
+  diagnostics.push(...validateWorkRecordDispositions(sections.dispositions, {
+    path: "sections.dispositions"
+  }));
   diagnostics.push(...validateWorkRecordMaterialRefs(sections.material_refs, {
     path: "sections.material_refs"
   }));

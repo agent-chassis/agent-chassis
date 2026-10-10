@@ -3,20 +3,21 @@ import { readFileSync, writeFileSync, unlinkSync, renameSync, openSync, closeSyn
 import path from "node:path";
 import { verifyTerminalWkCandidateObjectBinding } from "./terminal-wk-candidate.mjs";
 import { observeForgeLandedPublication } from "./wk-forge-landed-publication.mjs";
+import { assertAuthenticatedWkForgeHandoffResult } from "./wk-forge-handoff.mjs";
+import { buildGhForge } from "./wk-forge-gh-adapter.mjs";
 import {
-  assertAuthenticatedWkForgeHandoffResult,
   authenticateWkCloseoutChain,
-  buildGhForge,
   readLocalWkAtomically,
   safeLocalWkPath,
   WkCloseoutObservationError,
   wkCloseoutObservationDetail
-} from "./wk-forge-handoff.mjs";
+} from "./wk-forge-closeout-chain.mjs";
 import {
   canonicalizeWorkRecordJson,
   computeWorkRecordSourceDigest
 } from "../../../wiki-core/src/lib/work-record-schema.mjs";
-import { authenticateCurrentControlledContractGenerationAtW } from
+import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
+import { authenticateCurrentControlledContractGenerationStateAtW } from
   "./controlled-carrier-attachment-primitive.mjs";
 import { withControlledContractAuthorityExclusion } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
@@ -119,7 +120,7 @@ function jsonRecord(raw, reason) {
   }
 }
 
-function validateWorkRecordShape(record, wk, { closeoutReady = false } = {}) {
+function validateWorkRecordShape(record, wk) {
   const requiredArrays = ["read_scope", "repo_paths", "write_scope", "depends_on", "blocks", "related", "children"];
   const requiredStrings = ["repo", "title", "record_kind", "work_kind", "priority", "owner", "created", "updated"];
   const statuses = ["todo", "in_progress", "review", "blocked", "done"];
@@ -143,8 +144,7 @@ function validateWorkRecordShape(record, wk, { closeoutReady = false } = {}) {
       stringArray(slice.write_scope) && slice.acceptance &&
       stringArray(slice.acceptance.criteria) && stringArray(slice.acceptance.validation) &&
       (slice.review_purpose === undefined ||
-        (slice.review_purpose === "terminal_whole_wk" && slice.work_kind === "review"))) &&
-    (!closeoutReady || record.status === "review");
+        (slice.review_purpose === "terminal_whole_wk" && slice.work_kind === "review")));
 }
 
 function validWorkRecord(record, wk, options = {}, deps = {}) {
@@ -172,7 +172,7 @@ async function commitChain(runGit, mainRepo, head, wk, { deps = {}, candidate, b
     throw new WkCloseoutObservationError("record", error);
   }
   if (!validWorkRecord(candidateRecord, wk, {}, deps) ||
-      !validWorkRecord(chain.closeoutRecord, wk, { closeoutReady: true }, deps) ||
+      !validWorkRecord(chain.closeoutRecord, wk, {}, deps) ||
       !validWorkRecord(chain.doneRecord, wk, {}, deps)) return null;
   return {
     candidate,
@@ -422,17 +422,19 @@ async function runWkForgeMergeWithinGenerationAuthority({
     if (binding.main_repo !== undefined && binding.main_repo !== mainRepo) {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "terminal_candidate_repository_disagrees");
     }
+
     try {
-      await authenticateCurrentControlledContractGenerationAtW({
+      await authenticateCurrentControlledContractGenerationStateAtW({
         repoRoot: mainRepo,
         wkId: wk,
         expectedWkTipSha: binding.wk_tip,
         expectedGeneration: binding.controlled_generation,
         deps: { runGit }
       });
-    } catch {
+    } catch (error) {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
-        "controlled_generation_identity_unverified");
+        "controlled_generation_identity_unverified",
+        { subject: { assigned_unit: wk }, evidence: captureDiagnosticEvidence(error) });
     }
     try {
       const verify = deps.verifyTerminalCandidateBinding ?? verifyTerminalWkCandidateObjectBinding;
@@ -460,9 +462,9 @@ async function runWkForgeMergeWithinGenerationAuthority({
     const localBytes = readLocalWkAtomically(localPath);
     const localDigest = computeWorkRecordSourceDigest(jsonRecord(localBytes, "local WK record unreadable"));
     const localRecord = jsonRecord(localBytes, "local WK record unreadable");
-    const localAlreadyDone = localRecord.status === "done";
-    if (!localAlreadyDone && !validWorkRecord(localRecord, wk, { closeoutReady: true }, deps)) {
-      return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "local_WK_not_closeout_ready");
+
+    if (!validWorkRecord(localRecord, wk, {}, deps)) {
+      return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "local_WK_record_invalid");
     }
     const remote = await resolveCanonicalForgeRepository({ repo: mainRepo, deps });
     if (!remote.ok) return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, remote.reason);
@@ -517,13 +519,12 @@ async function runWkForgeMergeWithinGenerationAuthority({
     if (!exact) {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "pull_request_head_or_state_disagrees");
     }
-    if (localAlreadyDone && exact.merged !== true) {
-      return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "local_WK_not_closeout_ready");
-    }
 
-    const localReviewDisagrees = !localAlreadyDone &&
-      (!chain.closeoutRecord || computeWorkRecordSourceDigest(chain.closeoutRecord) !== localDigest);
-    if (localReviewDisagrees && exact.merged !== true) {
+    const localIsCloseout = !!chain.closeoutRecord &&
+      computeWorkRecordSourceDigest(chain.closeoutRecord) === localDigest;
+    const localIsCompletion = !!chain.doneRecord &&
+      computeWorkRecordSourceDigest(chain.doneRecord) === localDigest;
+    if (!localIsCloseout && exact.merged !== true) {
       return reconciliationFailure("local_reconciliation_failed", completion);
     }
     let mergeResponseSha = null;
@@ -552,15 +553,11 @@ async function runWkForgeMergeWithinGenerationAuthority({
     });
     if (!landed.ok) return landed.refusal;
     const carrier = landed.carrier;
-    if (localReviewDisagrees) {
+    if (!localIsCloseout && !localIsCompletion) {
       return reconciliationFailure("local_reconciliation_failed", completion, carrier);
     }
-    if (localAlreadyDone) {
-      if (!chain.doneRecord || computeWorkRecordSourceDigest(chain.doneRecord) !== localDigest) {
-        return reconciliationFailure("local_reconciliation_failed", completion, carrier);
-      }
-      return { ok: true, result: carrier };
-    }
+
+    if (localIsCompletion) return { ok: true, result: carrier };
     let currentLocalDigest;
     try {
       safeLocalWkPath(mainRepo, localPath);
@@ -588,7 +585,8 @@ async function runWkForgeMergeWithinGenerationAuthority({
       const { reason, ...detail } = wkCloseoutObservationDetail(error);
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.INDETERMINATE, reason, detail);
     }
-    return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.INDETERMINATE, "forge_merge_operation_failed");
+    return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.INDETERMINATE, "forge_merge_operation_failed",
+      { evidence: captureDiagnosticEvidence(error) });
   }
 }
 
@@ -610,9 +608,9 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, checkout = n
         deps
       })
     });
-  } catch {
+  } catch (error) {
     return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
-      "controlled_generation_authority_unavailable");
+      "controlled_generation_authority_unavailable", { evidence: captureDiagnosticEvidence(error) });
   }
 }
 

@@ -1,0 +1,413 @@
+
+
+import { captureDiagnosticEvidence } from
+  "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
+import { isTerminalReviewLifecycleRefusal } from
+  "@agent-chassis/agent-launch-cli/src/lib/backend-terminal-review-lifecycle-authority.mjs";
+import { isCanonicalNextCallTool } from
+  "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+
+import { classifyDispatchSubject } from "./dispatch-subject-classifier.mjs";
+import {
+  CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES
+} from "./dispatch-terminal-review-contract.mjs";
+import {
+  projectTerminalWkCandidateFailure,
+  TERMINAL_CANDIDATE_RUNTIME_CODES
+} from "./dispatch-terminal-candidate-runtime.mjs";
+import {
+  buildDispatchContinuation,
+  buildDispatchMechanicalRefusal,
+  distillCapturedCauses,
+  hasRequestSchemaAuthority,
+  mapBackendRefusalToDispatchCode,
+  ownedNoRouteRecovery
+} from "./dispatch-tool-helpers.mjs";
+import { measureMcpInlineResultBytes } from "./mcp-response.mjs";
+import { selectedResponseDeliveryBound } from "./selected-response-snapshot.mjs";
+import { advanceRequest as ownerAdvanceRequest } from "./task-advance-candidate.mjs";
+import { isDeepStrictEqual } from "node:util";
+import { TerminalWkCandidateError, TERMINAL_WK_CANDIDATE_CODES } from
+  "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
+
+export const INSPECT_CANDIDATE_TOOL_NAME = "workspace_inspect_candidate";
+export const CANDIDATE_INSPECTION_RESPONSE_SCHEMA_VERSION = "workspace-inspect-candidate.v1";
+
+const EFFECTS = Object.freeze({ observation_only: true });
+
+const CODE_BY_STATE = Object.freeze({
+  candidate_absent: TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_ABSENT,
+  candidate_identity_invalid_or_moved:
+    TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_IDENTITY_INVALID_OR_MOVED,
+  candidate_stale_w: TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_STALE_W,
+  candidate_healthy: TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_HEALTHY,
+  historical_version: TERMINAL_CANDIDATE_RUNTIME_CODES.HISTORICAL_VERSION
+});
+
+function conditionOf(failure) {
+  if (typeof failure?.code === "string" && failure.code.length > 0) return failure.code;
+  if (failure instanceof Error) return failure.name;
+  return "non_error_value_thrown";
+}
+
+function causeOf(failure) {
+  if (failure === null || failure === undefined) return { cause_chain: [] };
+  const typed = projectTerminalWkCandidateFailure(failure);
+  return {
+    cause_chain: distillCapturedCauses(captureDiagnosticEvidence(failure), { nested: true }),
+    ...(typed.kind === "typed_candidate_error" ? { candidate_failure: typed } : {})
+  };
+}
+
+function diagnostic({ operation, condition, affected, uncertainty = null, failure = null }) {
+  return {
+    operation,
+    condition,
+    affected,
+    known_effects: EFFECTS,
+    uncertainty,
+    ...causeOf(failure)
+  };
+}
+
+function correctionOf(correction) {
+  if (correction === null) return null;
+  const { observation, failure } = correction.verified_outcome;
+  return {
+    kind: correction.kind,
+    original_condition: {
+      condition: conditionOf(correction.original_condition.failure),
+      ...causeOf(correction.original_condition.failure)
+    },
+    verified_outcome: {
+      observed: observation !== null,
+      state: observation?.state ?? null,
+      condition: failure === null ? null : conditionOf(failure)
+    }
+  };
+}
+
+const COORDINATOR_REVIEW_RECOVERY = Object.freeze({
+  incompatible: ownedNoRouteRecovery({
+    responsibleActor: "coordinator",
+    prerequisite: "the canonical record designates exactly one terminal review unit whose " +
+      "contract is compatible with the contract this candidate recorded",
+    missingComponent: "review_designation_correction_projection",
+    explanation: "which designation or scope to correct is the coordinator's authoring " +
+      "decision; no registered call from this observation makes it, and the candidate is unchanged"
+  }),
+  authored_contract_divergent: ownedNoRouteRecovery({
+    responsibleActor: "coordinator",
+    prerequisite: "the live canonical contract and the contract this candidate recorded have " +
+      "no authored difference",
+    missingComponent: "authored_contract_correction_projection",
+    explanation: "which authored change to make is the coordinator's decision; inspection " +
+      "restores nothing and a candidate advance does not bypass authored drift"
+  })
+});
+
+function reviewLimb(review) {
+  if (review === null) return null;
+  const limb = (fields) => ({
+    authority: "advisory_review_consumer",
+    compatibility: review.compatibility,
+    subject: review.subject,
+    cause: review.cause,
+    divergence: null,
+    recovery: null,
+    next_calls: [],
+    ...fields
+  });
+  switch (review.compatibility) {
+    case "not_designated":
+    case "compatible":
+      return limb({});
+    case "incompatible":
+      return limb({ recovery: COORDINATOR_REVIEW_RECOVERY.incompatible });
+    case "authored_contract_divergent":
+      return limb({
+        divergence: {
+          historical_digest: review.divergence.historical_digest,
+          live_digest: review.divergence.live_digest,
+          total: review.divergence.differences.length,
+          differences: review.divergence.differences
+        },
+        recovery: COORDINATOR_REVIEW_RECOVERY.authored_contract_divergent
+      });
+    default:
+
+      return limb({
+        cause: conditionOf(review.failure),
+        recovery: ownedNoRouteRecovery({
+          responsibleActor: null,
+          prerequisite: "the review comparison for this candidate completes",
+          explanation: "the comparison failed with the diagnosed cause, which establishes no " +
+            "responsible actor; the candidate facts are as observed"
+        })
+      });
+  }
+}
+
+function reviewDiagnostic(review) {
+  if (review === null || review.failure === null || isTerminalReviewLifecycleRefusal(review.failure)) {
+    return null;
+  }
+  return diagnostic({
+    operation: "compare_review_contract",
+    condition: review.compatibility === null ? conditionOf(review.failure) : review.cause,
+    affected: { review_subject: review.subject },
+    uncertainty: review.compatibility === null ? "review compatibility is unknown" : null,
+    failure: review.failure
+  });
+}
+
+const ABSENT_RECOVERY = ownedNoRouteRecovery({
+  responsibleActor: null,
+  prerequisite: "a terminal candidate is selected for this WK",
+  missingComponent: "terminal_candidate_production_recovery",
+  explanation: "inspection observes only; the terminal-candidate owner supplies no call here " +
+    "that constructs or selects a candidate, and an advance applies only to a stale candidate"
+});
+
+function invalidRecovery(observation, correction) {
+  if (observation.cause === CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_IDENTITY_DISAGREES) {
+    return ownedNoRouteRecovery({
+      responsibleActor: null,
+      prerequisite: "the canonical WK record's own id matches the requested WK and its initiative " +
+        "is a canonical initiative identity",
+      missingComponent: "canonical_record_identity_recovery",
+      explanation: "the canonical record identity invariant failed before generation authentication; " +
+        "inspection rewrites no record and no controlled generation was examined"
+    });
+  }
+  const currentSelectionMoved = (failure) => failure instanceof TerminalWkCandidateError &&
+    failure.code === TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED &&
+    failure.detail?.field === "current_ref";
+  if (correction?.kind === "reobserve_current_once" &&
+      currentSelectionMoved(correction.original_condition.failure) &&
+      currentSelectionMoved(observation.context.failure)) {
+    return ownedNoRouteRecovery({
+      responsibleActor: "caller_retry",
+      prerequisite: "the current candidate selection stays in place for one complete observation",
+      retryCondition: "re-issue the same subject request without version after current selection movement settles",
+      explanation: "both permitted current observations encountered selection movement; " +
+        "a later current observation asks what is selected then, and inspection restores no ref " +
+        "or original material"
+    });
+  }
+
+  return observation.context.generationAuthentication === null
+    ? ownedNoRouteRecovery({
+        responsibleActor: null,
+        prerequisite: "the complete controlled-contract generation of the live W authenticates",
+        missingComponent: "controlled_generation_recovery",
+        explanation: "the controlled-generation owner must hold that exact generation at W; " +
+          "inspection persists and repairs nothing"
+      })
+    : ownedNoRouteRecovery({
+        responsibleActor: null,
+        prerequisite: "the selected candidate, its immutable version, fork and record satisfy " +
+          "the failed invariant",
+        missingComponent: "terminal_candidate_identity_recovery",
+        explanation: "the terminal-candidate owner must restore the original authenticated " +
+          "material; inspection resets no ref, rewrites no history and constructs nothing"
+      });
+}
+
+export function createCandidateInspectionResponder({
+  requestSchemaAuthority = null,
+  advanceRequest = null,
+  responseEnv = process.env
+} = {}) {
+
+  function staleRecovery(selection) {
+    const spec = advanceRequest === null ? null : advanceRequest({
+      subject: selection.subject.unit, version: selection.candidate.version_identity
+    });
+    if (spec !== null && !isDeepStrictEqual(spec, ownerAdvanceRequest({
+      subject: selection.subject.unit, version: selection.candidate.version_identity
+    }))) {
+      throw new TypeError("candidate advance specification must match the selected-version owner request");
+    }
+    const call = spec === null || !isCanonicalNextCallTool(spec.tool) ? null : buildDispatchContinuation({
+      tool: spec.tool,
+      arguments: spec.arguments,
+      successPredicate: spec.successPredicate,
+      requestSchemaAuthority
+    });
+    if (call === null) {
+      return {
+        next_calls: [],
+        recovery: ownedNoRouteRecovery({
+          responsibleActor: null,
+          prerequisite: "the selected candidate embeds the live W",
+          missingComponent: "selected_version_candidate_advance_request",
+          explanation: "the selected-version advance request requires its canonical tool identity " +
+            "and matching serving request contract before it is callable"
+        })
+      };
+    }
+    return {
+      next_calls: [call],
+      recovery: {
+        state: "callable",
+        prerequisite: "the selected candidate embeds the live W",
+        operation: call.tool,
+        success_condition: "the selected candidate embeds the live W after the advance",
+        success_predicate: call.success_predicate
+      }
+    };
+  }
+
+  function observed(selection, fields) {
+    return {
+      schema_version: CANDIDATE_INSPECTION_RESPONSE_SCHEMA_VERSION,
+      outcome: "observed",
+      subject: selection.subject,
+      selection: selection.selection,
+      state: selection.state,
+      code: CODE_BY_STATE[selection.state],
+      candidate: selection.candidate,
+      currentness: selection.currentness,
+      review_consumer: reviewLimb(selection.review),
+      effects: EFFECTS,
+      automatic_correction: correctionOf(selection.automatic_correction),
+      diagnostic: null,
+      recovery: null,
+      next_calls: [],
+      ...fields
+    };
+  }
+
+  function observedCurrent(selection) {
+    const { observation } = selection.context.current;
+    const observedW = selection.currentness.observed_w;
+    switch (selection.state) {
+      case "candidate_healthy":
+        return observed(selection, { diagnostic: reviewDiagnostic(selection.review) });
+      case "candidate_stale_w":
+        return observed(selection, {
+          diagnostic: diagnostic({
+            operation: "observe_current_candidate",
+            condition: "candidate_stale_w",
+            affected: { candidate_w: selection.candidate.wk, observed_w: observedW }
+          }),
+          ...staleRecovery(selection)
+        });
+      case "candidate_absent":
+        return observed(selection, {
+          diagnostic: diagnostic({
+            operation: "observe_current_candidate",
+            condition: "candidate_absent",
+            affected: { current_selection: null, observed_w: observedW }
+          }),
+          recovery: ABSENT_RECOVERY
+        });
+      default:
+        return observed(selection, {
+          diagnostic: diagnostic({
+            operation: "observe_current_candidate",
+            condition: observation.cause,
+            affected: { observed_w: observedW },
+            uncertainty: observedW === null ? "the live W was not authenticated" : null,
+            failure: selection.failure
+          }),
+          recovery: invalidRecovery(observation, selection.automatic_correction)
+        });
+    }
+  }
+
+  function refused(selection) {
+    const historical = selection.selection.kind === "historical";
+    const condition = conditionOf(selection.failure);
+    const facts = {
+      "inspect_candidate.observation_completed": false,
+      "inspect_candidate.failed_condition": condition,
+      "inspect_candidate.selection": selection.selection.kind
+    };
+    return buildDispatchMechanicalRefusal({
+      code: mapBackendRefusalToDispatchCode(selection.failure?.code),
+      decidingFacts: Object.entries(facts).map(([field, value]) => ({ field, value })),
+      observedFacts: facts,
+      noSupportedRoute: true,
+      recovery: historical
+        ? ownedNoRouteRecovery({
+            responsibleActor: "caller_retry",
+            prerequisite: "the requested immutable version exists for this WK and authenticates " +
+              "from its own material",
+            retryCondition: "re-issue the request with an existing version identity of this WK; " +
+              "omitting version asks a different question, the current candidate",
+            explanation: "no other version and no current candidate is substituted for the " +
+              "requested one"
+          })
+        : ownedNoRouteRecovery({
+            responsibleActor: "caller_retry",
+            prerequisite: "the candidate's refs, the live W and its generation can be read and " +
+              "stay in place for one complete observation",
+            retryCondition: "re-issue the same request once the diagnosed condition no longer holds",
+            explanation: "an unverified observation is not a candidate state: the candidate is " +
+              "neither absent nor healthy on this evidence"
+          }),
+      route: INSPECT_CANDIDATE_TOOL_NAME,
+      carried: {
+        subject: selection.subject,
+        selection: selection.selection,
+        effects: EFFECTS,
+        diagnostic: diagnostic({
+          operation: historical ? "authenticate_historical_candidate_version" : "observe_current_candidate",
+          condition,
+          affected: historical
+            ? { version: selection.selection.version }
+            : { current_selection: "unverified" },
+          uncertainty: historical
+            ? "whether the requested version exists unmodified is not established"
+            : "no current candidate state was verified",
+          failure: selection.failure
+        }),
+        ...(selection.automatic_correction === null
+          ? {} : { automatic_correction: correctionOf(selection.automatic_correction) })
+      },
+      requestSchemaAuthority
+    });
+  }
+
+  function prepare(selection) {
+    const isObserved = selection.state !== null;
+    const body = !isObserved ? refused(selection)
+      : selection.selection.kind === "historical" ? observed(selection, {})
+        : observedCurrent(selection);
+    const bytes = measureMcpInlineResultBytes(body);
+    const bound = selectedResponseDeliveryBound(responseEnv);
+    return {
+      registered: hasRequestSchemaAuthority(INSPECT_CANDIDATE_TOOL_NAME, requestSchemaAuthority),
+      outcome: isObserved ? "observed" : "refused",
+      body,
+      delivery: { delivered: false, measured_bytes: bytes, bound_bytes: bound, fits: bytes <= bound,
+        complete_transport_required: bytes > bound }
+    };
+  }
+
+  return Object.freeze({ prepare });
+}
+
+export function candidateInspectionSubjectCorrection(args, { requestSchemaAuthority = null } = {}) {
+  const rejected = args !== null && typeof args === "object" ? args.subject : undefined;
+  const classified = classifyDispatchSubject(rejected);
+  if (classified === null || typeof classified.slice_id !== "string") return null;
+  const call = !isCanonicalNextCallTool(INSPECT_CANDIDATE_TOOL_NAME) ? null : buildDispatchContinuation({
+    tool: INSPECT_CANDIDATE_TOOL_NAME,
+    arguments: { subject: classified.record_id },
+    successPredicate: { fact: "inspect_candidate.subject_is_root_wk", operator: "is_true" },
+    requestSchemaAuthority
+  });
+  return {
+    details: {
+      subject_correction: {
+        rejected_subject: rejected,
+        reason: "slice_subject_names_no_candidate",
+        parent_subject: classified.record_id
+      }
+    },
+    next_calls: call === null ? [] : [call]
+  };
+}

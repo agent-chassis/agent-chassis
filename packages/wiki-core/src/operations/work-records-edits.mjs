@@ -421,6 +421,100 @@ export async function setWorkRecordStatusByUnit({
   });
 }
 
+export function planWorkRecordTaskEdit(record, unit, {
+  action = "mark_done", text = undefined, index = undefined, value = undefined,
+  status = undefined, tasks: replacementTasks = undefined
+} = {}) {
+  const refuse = (code, message, fieldPath) => ({ kind: "refusal", code, message, fieldPath });
+  const target = getSelectedTarget(record, unit);
+  const normalizedAction = typeof action === "string" ? action.trim() : "";
+  if (status !== undefined || replacementTasks !== undefined) {
+    return refuse("task_owner_required",
+      "task status selection and bulk task-list replacement are not supported; use one bounded task action",
+      status !== undefined ? "status" : "tasks");
+  }
+  if (!WORK_RECORD_TASK_EDIT_ACTIONS.includes(normalizedAction)) {
+    return refuse("unsupported_task_action",
+      `task action must be one of: ${WORK_RECORD_TASK_EDIT_ACTIONS.join(", ")}`, "action");
+  }
+
+  const tasks = Array.isArray(target.sections?.tasks) ? target.sections.tasks : null;
+  const edited = () => {
+    const updatedRecord = cloneJson(record);
+    const updatedTarget = getSelectedTarget(updatedRecord, unit);
+    updatedTarget.sections = isObject(updatedTarget.sections) ? updatedTarget.sections : {};
+    updatedTarget.sections.tasks = Array.isArray(updatedTarget.sections.tasks)
+      ? updatedTarget.sections.tasks
+      : [];
+    return { updatedRecord, updatedTasks: updatedTarget.sections.tasks };
+  };
+
+  if (normalizedAction === "append_todo") {
+    if (text !== undefined || index !== undefined) {
+      return refuse("ambiguous_task_selector", "append_todo accepts no task selector", "tasks");
+    }
+    const appendedText = typeof value === "string" ? value.trim() : "";
+    if (!appendedText) {
+      return refuse("invalid_task_value", "append_todo requires one non-empty task text value", "value");
+    }
+    const duplicateIndex = (tasks || []).findIndex(
+      (task) => isObject(task) && task.status === "todo" && task.text?.trim() === appendedText
+    );
+    if (duplicateIndex !== -1) {
+      return { kind: "no_op", task: { index: duplicateIndex, text: appendedText, status: "todo" } };
+    }
+    const { updatedRecord, updatedTasks } = edited();
+    const appendedIndex = updatedTasks.length;
+    updatedTasks.push({ text: appendedText, status: "todo" });
+    return { kind: "planned", updatedRecord,
+      changedField: prefixSelectedUnitField(unit, "sections.tasks"),
+      task: { index: appendedIndex, text: appendedText, status: "todo" } };
+  }
+
+  const selectedTask = selectTaskBySelector({ tasks, text, index });
+  if (!selectedTask.ok) {
+    return { kind: "selector_issue", issue: selectedTask.issue };
+  }
+
+  const task = tasks[selectedTask.index];
+  const currentStatus = typeof task.status === "string" ? task.status : null;
+  const currentTaskResult = {
+    index: selectedTask.index,
+    text: typeof task.text === "string" ? task.text : null,
+    status: currentStatus
+  };
+
+  if (normalizedAction === "mark_done" && value !== undefined) {
+    return refuse("invalid_task_value", "mark_done does not accept a caller-supplied value or status", "value");
+  }
+
+  const replacementText = typeof value === "string" ? value.trim() : "";
+  if (normalizedAction === "replace_text" &&
+      (typeof value !== "string" || (!replacementText && value !== ""))) {
+    return refuse("invalid_task_value",
+      "replace_text requires one replacement text value: nonempty text, or an explicit empty string", "value");
+  }
+
+  if (
+    (normalizedAction === "mark_done" && currentStatus === "done") ||
+    (normalizedAction === "replace_text" && currentTaskResult.text === replacementText)
+  ) {
+    return { kind: "no_op", task: currentTaskResult };
+  }
+
+  const { updatedRecord, updatedTasks } = edited();
+  const updatedTask = updatedTasks[selectedTask.index];
+  const editedMember = normalizedAction === "mark_done" ? "status" : "text";
+  if (normalizedAction === "mark_done") {
+    updatedTask.status = "done";
+  } else {
+    updatedTask.text = replacementText;
+  }
+  return { kind: "planned", updatedRecord,
+    changedField: prefixSelectedUnitField(unit, `sections.tasks[${selectedTask.index}].${editedMember}`),
+    task: { index: selectedTask.index, text: updatedTask.text, status: updatedTask.status } };
+}
+
 export async function setWorkRecordTaskByUnit({
   dir = ".",
   unitAddress,
@@ -465,95 +559,29 @@ export async function setWorkRecordTaskByUnit({
     });
   }
 
-  const normalizedAction = typeof action === "string" ? action.trim() : "";
-  if (status !== undefined || replacementTasks !== undefined) {
+  const planned = planWorkRecordTaskEdit(loaded.record, requestedUnit.unit, {
+    action, text, index, value, status, tasks: replacementTasks
+  });
+  if (planned.kind === "refusal") {
     return createEditRefusalResult({
       loaded,
       unit: requestedUnit.unit,
-      code: "task_owner_required",
-      message: "task status selection and bulk task-list replacement are not supported; use one bounded task action",
-      fieldPath: status !== undefined ? "status" : "tasks"
+      code: planned.code,
+      message: planned.message,
+      fieldPath: planned.fieldPath
     });
   }
-  if (!WORK_RECORD_TASK_EDIT_ACTIONS.includes(normalizedAction)) {
-    return createEditRefusalResult({
-      loaded,
-      unit: requestedUnit.unit,
-      code: "unsupported_task_action",
-      message: `task action must be one of: ${WORK_RECORD_TASK_EDIT_ACTIONS.join(", ")}`,
-      fieldPath: "action"
-    });
-  }
-
-  target.sections = isObject(target.sections) ? target.sections : {};
-  const tasks = Array.isArray(target.sections.tasks) ? target.sections.tasks : null;
-
-  if (normalizedAction === "append_todo") {
-    if (text !== undefined || index !== undefined) {
-      return createEditRefusalResult({
-        loaded,
-        unit: requestedUnit.unit,
-        code: "ambiguous_task_selector",
-        message: "append_todo accepts no task selector",
-        fieldPath: "tasks"
-      });
-    }
-    const appendedText = typeof value === "string" ? value.trim() : "";
-    if (!appendedText) {
-      return createEditRefusalResult({
-        loaded,
-        unit: requestedUnit.unit,
-        code: "invalid_task_value",
-        message: "append_todo requires one non-empty task text value",
-        fieldPath: "value"
-      });
-    }
-    const currentTasks = tasks || [];
-    const duplicateIndex = currentTasks.findIndex(
-      (task) => isObject(task) && task.status === "todo" && task.text?.trim() === appendedText
-    );
-    if (duplicateIndex !== -1) {
-      return createTaskEditNoopResult({
-        loaded,
-        selectedUnit: requestedUnit.unit,
-        sourceDigest: loaded.source_digest || null,
-        currentTask: { index: duplicateIndex, text: appendedText, status: "todo" },
-        sourcePath
-      });
-    }
-    const updatedRecord = cloneJson(loaded.record);
-    const updatedTarget = getSelectedTarget(updatedRecord, requestedUnit.unit);
-    updatedTarget.sections = isObject(updatedTarget.sections) ? updatedTarget.sections : {};
-    updatedTarget.sections.tasks = Array.isArray(updatedTarget.sections.tasks)
-      ? updatedTarget.sections.tasks
-      : [];
-    const appendedIndex = updatedTarget.sections.tasks.length;
-    updatedTarget.sections.tasks.push({ text: appendedText, status: "todo" });
-    return persistTaskEdit({
-      dir,
-      loaded,
-      requestedUnit,
-      updatedRecord,
-      changedField: prefixSelectedUnitField(requestedUnit.unit, "sections.tasks"),
-      task: { index: appendedIndex, text: appendedText, status: "todo" },
-      expectedSourceDigest,
-      recordStore,
-      writeWorkRecord
-    });
-  }
-
-  const selectedTask = selectTaskBySelector({ tasks, text, index });
-  if (!selectedTask.ok) {
+  if (planned.kind === "selector_issue") {
     return createWorkRecordEditResult({
       loaded,
       selectedUnit: requestedUnit.unit,
       sourceDigest: loaded.source_digest || null,
       diagnostics: [
         {
-          code: selectedTask.issue.code,
+          code: planned.issue.code,
           severity: "error",
-          message: selectedTask.issue.message,
-          path: selectedTask.issue.path
+          message: planned.issue.message,
+          path: planned.issue.path
         }
       ],
       valid: false,
@@ -565,78 +593,22 @@ export async function setWorkRecordTaskByUnit({
       canonicalRecordPath: loaded.canonical_record_path || null
     });
   }
-
-  const task = tasks[selectedTask.index];
-  const currentStatus = typeof task.status === "string" ? task.status : null;
-  const currentTaskResult = {
-    index: selectedTask.index,
-    text: typeof task.text === "string" ? task.text : null,
-    status: currentStatus
-  };
-
-  if (normalizedAction === "mark_done" && value !== undefined) {
-    return createEditRefusalResult({
-      loaded,
-      unit: requestedUnit.unit,
-      code: "invalid_task_value",
-      message: "mark_done does not accept a caller-supplied value or status",
-      fieldPath: "value"
-    });
-  }
-
-  const replacementText = typeof value === "string" ? value.trim() : "";
-  if (normalizedAction === "replace_text" &&
-      (typeof value !== "string" || (!replacementText && value !== ""))) {
-    return createEditRefusalResult({
-      loaded,
-      unit: requestedUnit.unit,
-      code: "invalid_task_value",
-      message: "replace_text requires one replacement text value: nonempty text, or an explicit empty string",
-      fieldPath: "value"
-    });
-  }
-
-  if (
-    (normalizedAction === "mark_done" && currentStatus === "done") ||
-    (normalizedAction === "replace_text" && currentTaskResult.text === replacementText)
-  ) {
+  if (planned.kind === "no_op") {
     return createTaskEditNoopResult({
       loaded,
       selectedUnit: requestedUnit.unit,
       sourceDigest: loaded.source_digest || null,
-      currentTask: currentTaskResult,
+      currentTask: planned.task,
       sourcePath
     });
   }
-
-  const updatedRecord = cloneJson(loaded.record);
-  const updatedTarget = getSelectedTarget(updatedRecord, requestedUnit.unit);
-  updatedTarget.sections = isObject(updatedTarget.sections) ? updatedTarget.sections : {};
-  const updatedTasks = Array.isArray(updatedTarget.sections.tasks) ? updatedTarget.sections.tasks : null;
-  const updatedTask = updatedTasks[selectedTask.index];
-  const editedMember = normalizedAction === "mark_done" ? "status" : "text";
-  const fieldPath = prefixSelectedUnitField(
-    requestedUnit.unit,
-    `sections.tasks[${selectedTask.index}].${editedMember}`
-  );
-
-  if (normalizedAction === "mark_done") {
-    updatedTask.status = "done";
-  } else {
-    updatedTask.text = replacementText;
-  }
-
   return persistTaskEdit({
     dir,
     loaded,
     requestedUnit,
-    updatedRecord,
-    changedField: fieldPath,
-    task: {
-      index: selectedTask.index,
-      text: updatedTask.text,
-      status: updatedTask.status
-    },
+    updatedRecord: planned.updatedRecord,
+    changedField: planned.changedField,
+    task: planned.task,
     expectedSourceDigest,
     recordStore,
     writeWorkRecord
@@ -716,7 +688,7 @@ function todayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function validateClosurePatch(closurePatch) {
+export function validateClosurePatch(closurePatch) {
   if (!isObject(closurePatch)) {
     return {
       issue: {

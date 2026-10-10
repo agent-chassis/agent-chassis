@@ -19,7 +19,7 @@ import { WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES } from
 
 test("the compact guard follows the returned result kind, not the request", () => {
   const oversized = "x".repeat(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES * 2);
-  const body = (value) => ({ ok: true, entry_id: 1, version_id: 1, source_digest: `sha256:${"a".repeat(64)}`,
+  const body = (value) => ({ ok: true, entry_id: 1, version_id: 1, source_digest: "a".repeat(16),
     body: { value, offset: 0, length: value.length, total: value.length }, next_calls: [] });
   for (const exempt of [body(oversized), body("")]) {
     assert.equal(entryReadResultUsesCompactGuard(exempt), false, "a returned body is never compact-guarded");
@@ -55,12 +55,20 @@ function registeredInputSchemas() {
 }
 
 const SCHEMAS = registeredInputSchemas();
-const DIGEST = `sha256:${"a".repeat(64)}`;
+
+const DIGEST = "a".repeat(16);
+const OBSOLETE_DIGESTS = [`sha256:${"a".repeat(64)}`, "a".repeat(64)];
 const BASE = { unit: "WK-0001" };
 
 function accepts(schema, value) {
   return schema.safeParse(value).success;
 }
+
+const refusedAt = (schema, value) => {
+  const parsed = schema.safeParse(value);
+  assert.equal(parsed.success, false, JSON.stringify(value));
+  return [...new Set(parsed.error.issues.map((issue) => issue.path.join(".")))];
+};
 
 test("the upsert input schema accepts current content alternatives and create/version forms", () => {
   const schema = SCHEMAS.get(WORKSPACE_WORK_RECORD_ENTRY_UPSERT_TOOL_NAME);
@@ -81,10 +89,17 @@ test("the upsert input schema accepts current content alternatives and create/ve
     { ...BASE, title: "Design", content: { unknown: "body" }, expected_source_digest: DIGEST },
     { ...BASE, title: "Design", content: { parts: [] }, expected_source_digest: DIGEST },
     { ...BASE, title: "Design", content: { parts: [{ text: "body", nested: { text: "bad" } }] }, expected_source_digest: DIGEST },
-    { ...BASE, title: "Design", content: { parts: [{ parts: [{ text: "nested" }] }] }, expected_source_digest: DIGEST }
+    { ...BASE, title: "Design", content: { parts: [{ parts: [{ text: "nested" }] }] }, expected_source_digest: DIGEST },
+
+    ...OBSOLETE_DIGESTS.map((digest) => ({ ...BASE, title: "Design", content: { text: "body" },
+      expected_source_digest: digest }))
   ];
   for (const candidate of accepted) assert.equal(accepts(schema, candidate), true, JSON.stringify(candidate));
   for (const candidate of refused) assert.equal(accepts(schema, candidate), false, JSON.stringify(candidate));
+
+  for (const digest of OBSOLETE_DIGESTS) {
+    assert.deepEqual(refusedAt(schema, { ...accepted[0], expected_source_digest: digest }), ["expected_source_digest"]);
+  }
 });
 
 test("the upsert content schema bounds parts and requires scalar text and nonempty refs", () => {
@@ -200,6 +215,7 @@ test("the lean read schema admits exactly one closed branch per request", () => 
     { ...entry, include_body: true, length: 1.5 },
     { ...entry, include_body: true, length: Number.MAX_SAFE_INTEGER + 1 },
     { ...entry, include_body: true, expected_source_digest: "not-a-digest" },
+    ...OBSOLETE_DIGESTS.map((digest) => ({ ...entry, include_body: true, expected_source_digest: digest })),
     { ...entry, reference_only: true, length: 0 },
     { ...entry, include_body: true, version: 1, offset: -1 },
     { ...entry, include_body: true, version: 1, offset: 1.5 },
@@ -223,5 +239,11 @@ test("the lean read schema admits exactly one closed branch per request", () => 
   }
   for (const candidate of refused) {
     assert.equal(accepts(read, candidate), false, `read schema accepted ${JSON.stringify(candidate)}`);
+  }
+
+  const fresh = { ...entry, include_body: true, expected_source_digest: DIGEST };
+  assert.equal(accepts(read, fresh), true);
+  for (const digest of OBSOLETE_DIGESTS) {
+    assert.deepEqual(refusedAt(read, { ...fresh, expected_source_digest: digest }), ["expected_source_digest"]);
   }
 });

@@ -117,7 +117,7 @@ The route is a property of the model, not of a role. A registered Codex model
 can be routed through a local LiteLLM gateway backed by Vertex AI:
 
 ```toml
-[models."gpt-5.4"]
+[models."vertex-gemini-3.8-flash"]
 use_litellm = true    # false or absent: the model's ordinary route
 
 [vertexai]
@@ -142,10 +142,11 @@ The Vertex AI model that serves a routed model is a registry fact
 (`vertex_model` on the Codex entry in `agent-launch-model-registry.mjs`), never
 derived from the registered name. A mapping is declared only for a model id
 Vertex AI actually publishes. The routable models are the Codex-client entries
-`vertex-claude-opus-5-5` (Vertex `claude-opus-5-5`) and
-`vertex-claude-sonnet-5-5` (Vertex `claude-sonnet-5-5`): Codex drives Anthropic
-models on Vertex through the gateway. `use_litellm = true` on any other model
-refuses with `model_route_vertex_model_undeclared`. The Claude Code tokens
+`vertex-claude-opus-5-5` (Vertex `claude-opus-5-5`),
+`vertex-claude-sonnet-5-5` (Vertex `claude-sonnet-5-5`), and
+`vertex-gemini-3.8-flash` (Vertex `gemini-3.8-flash`): Codex drives Anthropic
+and Gemini models on Vertex through the gateway. `use_litellm = true` on any
+other model refuses with `model_route_vertex_model_undeclared`. The Claude Code tokens
 `opus`/`sonnet`/`haiku`/`fable` still launch the `claude` CLI and are not
 LiteLLM-routable.
 
@@ -188,12 +189,37 @@ inherited credential variable, gcloud configuration or metadata-host override)
 with a private `HOME`; Codex roles never see it. No Google token or key bytes appear in
 argv, configuration text or diagnostics.
 
+Runtime setup and the gateway also receive the launching process's
+[proxy environment](#proxy-environment) exactly as supplied. A running gateway
+keeps the proxy settings it was started with, so they are part of its identity:
+a launch reuses it only when all eight proxy variables match in name, case,
+presence and value, and concurrent launches with the same settings still
+converge on one gateway. The routed Codex client, and only that client,
+bypasses its proxy for the gateway address (see
+[Proxy environment](#proxy-environment)).
+
 The launcher never takes over, restarts or stops a gateway. It refuses, with
 the exact path and correction, when the port is held by another service, the
 running gateway has a different configuration, the recorded gateway is no
 longer running, a state or lock file is unreadable, or startup fails or times
 out. Recovery is explicit: stop the named process if it is still running, remove
 the named state or lock file, and relaunch (or choose another `[vertexai] port`).
+
+A launch whose settings differ from the running gateway's is refused with
+`litellm_gateway_config_conflict`. The refusal names the gateway endpoint and
+state path and says what differs: `proxy_environment`, with the names of the
+proxy variables that differ (never their values), `gateway_configuration` for
+any other setting, or both. It changes nothing: the running gateway keeps
+serving the launches that match it. To proceed, relaunch with the proxy
+settings the gateway was started with, or set `[vertexai] port` to a free port
+to start a separate gateway. The state record keeps one comparison identity per
+proxy variable and no proxy value, so the refusal cannot show the old values.
+
+A gateway state record written in an earlier state format, or a malformed one,
+is refused with `litellm_gateway_state_invalid`; it is not read, converted or
+removed, and the gateway it describes is left running. Either set
+`[vertexai] port` to a free port to start a separate gateway, or have the
+operator of that gateway stop it and remove the named state file.
 Local tests cover the gateway runtime and Codex transport against local fakes;
 real Vertex inference through the gateway requires a separately authorized
 live check.
@@ -232,6 +258,67 @@ launcher-internal plumbing minted from canonical config
 for a single launch; they are not operator-facing configuration and should not
 be set by hand. Agent-authored environment is never policy authority — any
 runtime environment a tool needs must be launcher-minted from canonical config.
+
+### Proxy environment
+
+The launcher forwards the standard proxy variables of the process that starts
+it: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lowercase
+forms `http_proxy`, `https_proxy`, `all_proxy`, `no_proxy`. Each is forwarded
+exactly as supplied. Upper- and lowercase names are separate variables and are
+never merged, an explicitly empty value stays empty, a variable that is not set
+stays unset, and no value is parsed, validated or rewritten. There is no switch
+to turn this on.
+
+They reach:
+
+- Codex and Claude orchestrator sessions (interactive, headless and resume);
+- the host `wiki-mcp` server a launch starts, and through it the worker,
+  reviewer and redteam roles that server dispatches;
+- the private LiteLLM runtime setup and the shared LiteLLM gateway (see
+  [Per-model LiteLLM routing](#per-model-litellm-routing-modelsid-vertexai)).
+
+The host `wiki-mcp` server makes its own requests (for example to the Node
+Engine service) with Node's built-in `fetch`, which ignores proxy variables
+unless `NODE_USE_ENV_PROXY` is enabled. The launcher therefore starts that
+server with `NODE_USE_ENV_PROXY=1` whenever the process that starts the
+launcher does not set the variable, so those requests follow the caller's
+proxy settings and bypass list without an extra switch. A value the caller did
+set is passed to the host server exactly as supplied, including `0` and an
+empty value, and Node decides what it means: on the supported runtime
+(Node 24.20 or later) `1` enables proxy use and `0` leaves it off for the
+host server. This applies to the host `wiki-mcp` server process only.
+It is not one of the eight forwarded proxy variables, is not passed to
+orchestrator sessions or dispatched roles, and changes no proxy value or
+bypass entry.
+
+One value is added, for one client. A Codex client routed to the local LiteLLM
+gateway must reach that gateway without its proxy, so the launcher appends the
+gateway address (`127.0.0.1`) to that client's bypass list: once, after the
+caller's own text, in each of `NO_PROXY` and `no_proxy` that the caller set,
+including one set to an empty value. A variant the caller did not set is not
+created, because a client that prefers it would then ignore the caller's list;
+only when the caller set neither are both created, holding the gateway address
+alone. Nothing broader is added. The host `wiki-mcp` server, runtime setup and
+the gateway keep the caller's original values, and a launch on an ordinary
+route, a dry run and inspection add nothing.
+
+Limits:
+
+- This is routing configuration only. Forwarding a proxy does not restrict
+  where a launched process can connect and is not an egress or reachability
+  guarantee.
+- With proxy use enabled, a host `wiki-mcp` request whose proxy refuses it or
+  cannot be reached fails; it is not retried directly. A destination the
+  caller lists in `NO_PROXY` or `no_proxy` is contacted directly.
+- Which variable a client honors, and which case wins when both are set, is the
+  client's own behavior. The launcher does not reconcile them. With one bypass
+  variant set to an empty value and the other populated, a client that ignores
+  empty values does not see the gateway address in the one it reads.
+- `ALL_PROXY` is forwarded to runtime setup and the gateway like the others.
+  The pinned LiteLLM runtime lock contains no SOCKS packages; whether a
+  SOCKS-scheme proxy works there has not been verified.
+- Other launch paths build their own environment. The Temporal agent-job
+  wrapper does not forward these variables.
 
 ## 5. Third-party agent-CLI credentials (intentionally not configured here)
 

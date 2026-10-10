@@ -11,7 +11,8 @@ repository namespace is exactly the frozen union of canonical `read_scope`,
 `write_scope`, with the controlled-contract private family at
 `wiki/contracts` subtracted. A full host checkout never broadens this namespace.
 
-Every confined worker, reviewer, and redteam launch also receives one launcher
+Every confined worker, reviewer, redteam, and orchestrator launch (including
+orchestrator resume) also receives one launcher
 support directory outside that scope: the `data/role-guides/` directory of the
 launcher's own `@agent-chassis/agent-launch-core` package, resolved from that
 package in source and installed layouts alike. The shared planner grants it from
@@ -20,10 +21,64 @@ environment, or the candidate checkout. It hard-binds that directory read-only
 at its resolved absolute path after every writable mount and before the final
 confidentiality masks, so every shipped guide is readable and none is writable.
 The role's selected guide (`managed-worker.md` for a worker, `reviewer.md` for a
-reviewer or redteam) also keeps its exact read-only bind and its identity pin
+reviewer or redteam, `orchestrator.md` for an orchestrator) also keeps its exact
+read-only bind and its identity pin
 from the required-file check; a missing, unreadable, non-regular, or changed
-selected guide refuses the launch. Claude's minted native permission settings
-allow `Read` for the same resolved directory subtree, and grant no edit there.
+selected guide refuses the launch. For a worker, reviewer, or redteam, Claude's
+minted native permission settings allow `Read` for the same resolved directory
+subtree, and grant no edit there.
+
+### Role guide after compaction
+
+A confined Claude or Codex session gets its selected guide back after the client
+compacts the conversation, manually or automatically. The launcher adds one
+synchronous `SessionStart` hook whose matcher is `^compact$`, so a plain
+startup, resume, or clear does not run it. The hook is one shell command line
+built by the shared hook owner for both clients. It reads that one package file
+with `/bin/cat -- '<selected guide path>'` inside the session's namespace when
+the hook runs, and the client adds the output to the context before its next
+model request. Nothing is copied, cached, or linked, and the working directory,
+the task, and the hook input select nothing.
+
+The guide comes back as a reminder, not as new authority. The command prints
+this introduction, then the complete guide, unchanged, between a `<role-guide>`
+line and a `</role-guide>` line:
+
+> Role reminder: the following is your role guide. Use it to remember your role
+> and relevant working guidance. Explicit operator instructions and repository
+> policy take precedence over this guide, including its mandatory wording. This
+> reminder grants no additional tool or filesystem permissions.
+
+The command uses only `/bin/cat` and shell built-ins, and reads the whole guide
+before it prints anything, so the introduction never arrives without the guide.
+
+- **Codex** receives the hook as two `-c` overrides in the confined child's
+  argv only: `hooks.SessionStart` with the one handler (its
+  `additionalContextLimit` is `0`, so the guide is never replaced by a preview),
+  and `hooks.state` with one entry that enables that handler and trusts its
+  exact hash under the key `/<session-flags>/config.toml:session_start:0:0`.
+  The hash follows Codex 0.160.1's normalized hook identity. No other hook
+  source, hook state, or trust setting is read or changed: a user, project, or
+  plugin hook the operator has not trusted stays untrusted and does not run.
+  Managed requirements keep their authority; under a managed-hooks-only policy
+  Codex does not run this hook.
+- **Claude** receives the hook in the launcher-minted settings file. A managed
+  worker, reviewer, or redteam, and a headless orchestrator, launch with a
+  confined settings file holding the same permissions plus the hook. An
+  interactive orchestrator launch or resume, which has no permission settings,
+  launches with a settings file holding only the hook.
+
+The hook follows actual confinement. An operator direct-mode orchestrator and an
+unenforced plain launch get no hook and no hook-related refusal. A hook that
+cannot be composed refuses the confined launch before spawn and names the guide,
+the cause, and the operator repair. At run time a failed read exits nonzero with
+`/bin/cat: <file>: <cause>` on standard error and adds nothing to the context,
+not even the introduction.
+Neither client blocks a session on a failed `SessionStart` hook: the session
+continues without the guide. Codex reports the hook as `Failed`; Claude's hook
+event carries the nonzero exit and that standard-error line. Claude caps
+one hook's output at 10,000 characters; each shipped role guide with its
+introduction and delimiters is smaller.
 The grant exposes no containing package directory, package file, or repository
 content, and it is neither `read_scope` nor write authority.
 
@@ -56,14 +111,116 @@ reports each hidden contract as a deletion. Those rows describe the overlay, not
 the working tree, and they bury the session's real changes.
 
 Supported Claude and Codex orchestrator launches correct the output. The shared
-orchestrator composition asks the planner for a launcher-owned executable named
-`git`, bound read-only from a package-local asset at
-`/agent-launch-git-status-wrapper` and placed first on the child's `PATH`. When
-that executable sees an ordinary `git status` whose global options resolve to the
-launcher-designated repository, it adds the root-anchored exclusion pathspec
-`:(top,exclude)wiki/contracts` and execs the launcher-resolved real Git. An
-explicit `wiki/contracts` pathspec from the caller stays excluded, because the
-exclusion wins.
+orchestrator composition asks the planner to intercept Git in the namespace
+itself: one launcher-owned executable, a package-local asset, is bound read-only
+over every supported Git executable entrypoint, and each original Git is kept at
+a launcher-owned read-only location that the executable delegates to.
+Interception is a property of the mounts, not of the child's `PATH` or
+environment. A login shell whose profile replaces `PATH`, a cleared environment,
+and a direct absolute-path call such as `/usr/bin/git status` all start the same
+executable. The child's environment is left exactly as the caller composed it.
+
+When that executable sees an ordinary `git status` whose global options resolve
+to the launcher-designated repository, it adds the root-anchored exclusion
+pathspec `:(top,exclude)wiki/contracts` and execs the original Git recorded for
+the entrypoint it was started as. An explicit `wiki/contracts` pathspec from the
+caller stays excluded, because the exclusion wins. Every other invocation is
+exec'd to that same original with its argv unchanged.
+
+### Supported Git executable entrypoints
+
+The inventory is bounded and derived from launcher and runtime facts. Nothing is
+scanned recursively, and no path that the namespace did not already show becomes
+visible. An entrypoint is covered when it is a runnable file inside one of the
+namespace's system read-only roots (by default `/usr`, `/etc`, `/opt`, `/lib`,
+`/lib64`, `/bin`, `/sbin`, `/var/lib/dpkg`) and outside the designated
+repository, and it is one of:
+
+- `git` in a directory of the child's launch `PATH`, which is how a packaged Git
+  such as `/opt/agent-chassis/git/bin/git` is found;
+- `git` in a standard system command directory: `/usr/local/sbin`,
+  `/usr/local/bin`, `/usr/sbin`, `/usr/bin`, `/sbin`, `/bin`;
+- `git` in the exec path that each Git found above reports for itself
+  (`git --exec-path`, for example `/usr/lib/git-core`), and in the child's
+  `GIT_EXEC_PATH`. Git puts that directory first on `PATH` for hooks, aliases and
+  script helpers, so a `git` those run resolves there;
+- `git-status` in such an exec path when it is its own file, as in an
+  installation that hard-links its builtins.
+
+Every namespace path of a covered executable is bound over. A merged-`/usr` host
+shows `/usr/bin/git` at `/bin/git` and `/usr/lib/git-core/git` at
+`/lib/git-core/git` as well, because each system root is mounted at its own
+path. A symlink alias, such as `/usr/local/bin/git` pointing at a packaged Git or
+an exec-path `git` linked to `bin/git`, reaches the executable through the file
+it resolves to and is recorded as a path it can be started as. A `git-<name>`
+builtin link in an exec path runs `<name>` as the subcommand, as Git does, so
+`git-status` is filtered like `git status`. A symlink the launcher did not
+inventory is followed with the namespace's `readlink` when there is one.
+
+### Preserved originals
+
+Each distinct original executable, by real path, is its own original. Two
+installed Git versions, and the separate `git` file that some distributions ship
+in the exec path, are never redirected to one binary: every entrypoint delegates
+to the original that was at that entrypoint.
+
+The launcher-owned root is `/agent-launch-git-status-wrapper`, a tmpfs that is
+populated and then remounted read-only, so the child can change none of it:
+
+| Path below the root | Content |
+| --- | --- |
+| `originals/<n>/bin/git` | The original executable, bound read-only from the host file. |
+| `originals/<n>/{libexec,lib,lib64,share,etc}` | Symlinks to the same directories of that executable's installation prefix, where they exist. |
+| `entrypoints/<absolute entrypoint path>` | Symlink to the `originals/<n>/bin` directory that entrypoint delegates to. |
+| `repository` | Symlink to the designated repository. |
+| `excluded/<n>` | Symlink to each hidden private-family directory. |
+
+The installation prefix is found the way Git finds its own: the executable's
+directory with a trailing `libexec/git-core`, `lib/git-core`, `libexec/git`,
+`bin` or `git` removed. An executable in none of those has no prefix of its own
+and is preserved alone at `originals/<n>/git`. This layout keeps the original's
+runtime behavior. A Git with compiled-in paths reads its exec path, templates,
+system configuration and libraries from the same absolute paths as before,
+wherever it runs. A Git built to derive its prefix from its own location derives
+the mirrored prefix, and reads the same exec path, templates, configuration and
+libraries through the symlinks. Such a Git reports its exec path as
+`originals/<n>/libexec/git-core` below the root, which is the same directory
+reached through the symlink. Its exec path still holds the bound-over `git`,
+so helper lookup reaches the executable again. The symlinks add no visibility:
+they resolve through the namespace exactly as the original paths do, including
+every mask. No Git directory is mounted a second time, and `GIT_EXEC_PATH` is
+not forced; caller options and environment are honored as Git ordinarily honors
+them.
+
+The executable reads these facts by path, with shell builtins only, and takes
+nothing from the environment.
+
+### Mount order and refusals
+
+The root and the entrypoint binds are emitted after the system baseline and
+after every read-only, home, family-runtime, writable, runtime, provisioned-Git,
+test-runtime and role-guide mount, so none of those can undo the interception.
+They are emitted before the secret-file masks, the in-repository tmpfs masks, the
+private-family overlay and the `wiki/decisions` overlay, which keep final
+precedence.
+
+A selected interception that cannot be built refuses the launch before the
+planner changes anything on the host. It never falls back to a `PATH`-only or
+unfiltered status:
+
+| Code | Cause |
+| --- | --- |
+| `agent_launch.isolation.git_status_wrapper_asset_unavailable.v1` | The package-local executable is missing, not a regular file, or not executable. |
+| `agent_launch.isolation.git_status_wrapper_original_invalid.v1` | An entrypoint cannot be resolved to a real file, its path cannot be bound safely, it does not answer `git --exec-path` with an absolute directory, or more than 16 distinct Git executables were found. |
+| `agent_launch.isolation.git_status_wrapper_recursion.v1` | An entrypoint already is the launcher's executable, by path, by file identity or by content, so there is no original behind it. |
+| `agent_launch.isolation.git_status_wrapper_mount_collision.v1` | Another mount of the plan shows different content at an entrypoint, a confidentiality mask would hide the executable, a mount overlaps the launcher-owned root, or the hidden directory is not below the designated repository. |
+
+Each refusal names the entrypoint or mount and the repair. At run time, an
+entrypoint with no recorded original, or launcher facts that cannot be read, is
+an explicit exit-127 error on stderr. Run outside a launcher namespace, the
+executable refuses the same way.
+
+### Status argument handling
 
 The subcommand is identified by walking argv past Git's global options, including
 the ones that consume a separate value (`-C`, `-c`, `--git-dir`, `--work-tree`,
@@ -101,42 +258,37 @@ environment spellings) once any pathspec is present. That combination without a
 caller pathspec is legal Git and no caller path meaning is at stake, so it is
 still filtered.
 
-The wrapper's identity is entirely launcher-derived. The asset is package-local,
-the real Git stays at its own absolute host path (so its exec-path, libraries and
-any runtime-prefix derivation are unchanged), and the designated repository plus
-the exclusion pathspec are minted by the planner into three child environment
-variables. A missing or non-executable wrapper asset, or a resolved Git that
-points back at the wrapper, is an explicit launch refusal
-(`agent_launch.isolation.git_status_wrapper_asset_unavailable.v1`); at run time a
-missing pinned real Git is an explicit exit-127 error on stderr. Neither degrades
-into a silently unfiltered status.
+### Where the interception applies
 
-The wrapper is omitted, with no argv or environment change at all, for a sparse
-worker namespace (which shows only its frozen scope and carries no Git metadata),
-for a plan that carries no private-family overlay, for a plan whose child has no
-usable `PATH` or whose closed environment policy does not admit `PATH`, and when
-no real Git is reachable inside the namespace. Worker, reviewer, redteam and
-validation-confinement plans are unchanged. No role gains Git metadata it did not
-already have.
+The interception is omitted, with no argv change at all, for a sparse worker
+namespace (which shows only its frozen scope and carries no Git metadata), for a
+plan that carries no private-family overlay, and when the namespace shows no Git
+executable entrypoint. Worker, reviewer, redteam and validation-confinement
+plans, and any planner caller that does not ask for it, are unchanged: they get
+no root, no bind and no preserved original. No role gains Git access or Git
+metadata it did not already have.
 
 Coverage is honest and bounded:
 
-- Interception is `PATH`-based. A direct absolute-path call such as
-  `/usr/bin/git status`, and an in-process Git library or language binding, are
-  **not** intercepted and still show the overlay rows.
-- A shell that rebuilds `PATH` from scratch rather than extending it loses the
-  interception for that shell.
+- Only the entrypoints listed above are covered. A Git executable outside the
+  system read-only roots, inside the designated repository, or installed or
+  copied into the namespace after launch is not.
+- An in-process Git library or language binding does not run a Git executable
+  and still shows the overlay rows.
+- A preserved original is itself a runnable Git. Calling it by its path under
+  `/agent-launch-git-status-wrapper/originals` on purpose runs Git unadapted.
 - Only `status` is adapted. `git diff`, `git ls-files`, `git commit` and every
   other subcommand keep the real Git's answer, including the overlay's deletions.
 - Long-format status may print the `git add` advice line instead of
   `git add/rm`, because the only deletion has genuinely been excluded.
 
 This is an output adaptation, not a confidentiality boundary. The empty read-only
-overlay is unchanged and remains the enforcement; the wrapper never reads a
-private path or a repository object, and it never touches host Git configuration,
-the index, or any Git metadata entitlement. Because the wrapper ships as a file
-inside the installed launcher package, an already-running launcher process picks
-it up only after the package is reinstalled or the process is restarted.
+overlay is unchanged and remains the enforcement; the executable never reads a
+private path or a repository object, and nothing touches a host Git executable,
+host Git configuration, the index, or any Git metadata entitlement. Because the
+executable ships as a file inside the installed launcher package, an
+already-running launcher process picks it up only after the package is
+reinstalled or the process is restarted.
 
 Advisory reviewer and redteam launches and terminal candidate validation receive
 the installed Git executable through the ordinary system-runtime projection and a
@@ -561,11 +713,55 @@ including an explicit-SHA or implementation-slice review whose assignment was
 authored after the reviewed commit, so the captured WK may be newer than the
 committed one. Dispatch never amends a commit or moves a candidate ref.
 
-Both family adapters forward the launcher-owned advisory review input
-unchanged to the shared authority, which authenticates it with its own consumer
-for the exact role and unit, requires its canonical repository to be the
-conduit workspace, and derives the review-materialization root from its private
-checkout. That input is the only producer of the root. The host server keeps
+The captured controlled-contract inputs are the complete selected contract of
+the WK that carries the assignment, so the reviewer never reconstructs missing
+content, navigates storage internals or reads live files to complete it:
+
+- for each focus that publishes a carrier-set manifest, the visible manifest,
+  the manifest embedded in the generation directory it selects, and the
+  manifest-selected members, each at the repository path it was read from
+  (`wiki/contracts/.carrier-generations/<generation>/<filename>` for the
+  embedded manifest and the members);
+- the WK's flat parent and slice obligation-coverage sources
+  (`wiki/contracts/<WK>[--unit-slice-NNN].obligation-coverage.json`), which carry
+  its obligations, cases and associations, at their own paths;
+- with no manifest published, every carrier and obligation source of the WK
+  stored at the store root.
+
+The carrier-set owner selects the manifests and their members, and the
+attachment-generation owner resolves the complete population, including the
+obligation sources. A member's logical `wiki/contracts/<filename>` identity is
+never used as its destination when a manifest stores it in a generation
+directory. The private checkout therefore holds the same manifest-to-member
+relationship and the same authored sources as the canonical repository at
+capture, over whatever older copies the reviewed commit holds, and the ordinary
+readers resolve the capture-time contract and combined revision unchanged.
+Capture adds no other generation and no store-root copy of a member.
+
+Capture checks identity and integrity only: each selected file must be one
+regular, contained, non-symlinked file whose bytes parse as a carrier and match
+the digest its owner resolved, both when read and again before the launch
+proceeds. A file that is missing, malformed or moving refuses the dispatch with
+a `agent_launch.findings_design_capture.*` cause and launches nothing. Capture
+does not judge semantic completeness, proof-plan freshness or execution
+readiness, so a contract that is reviewable but not yet executable is captured
+as authored. A captured generation member that is later missing from, or
+changed in, the checkout refuses through the reader's own generation
+diagnostics; no read recovers a captured input from the canonical repository or
+from a store-root copy.
+
+The advisory review input has two launcher-only preparation stages. The
+pipeline prepares it from the review descriptor and private checkout; the
+advisory process runner then mints the run and binds the prepared input to that
+`run_id` before any family adapter sees it. A prepared input binds to exactly
+one run: binding it again to the same run returns the same bound input, and
+binding a prepared or bound input to a different run is refused. Both family
+adapters forward that run-bound input unchanged to the shared authority, which
+authenticates it with its own consumer for the exact role and unit, requires it
+to be run-bound, requires its canonical repository to be the conduit workspace,
+and derives the review-materialization root from its private checkout. An
+unbranded, copied, or merely prepared input composes no review source. That
+input is the only producer of the root. The host server keeps
 `WIKI_MCP_WORKSPACE_DIR` bound to canonical launcher identity, but binds
 `workspace_read_page`, summary and delegated entry reads, and their returned
 continuations through the launcher-only `WIKI_MCP_REVIEW_MATERIALIZATION_DIR`
@@ -576,12 +772,30 @@ bytes for the whole review, while completion and run identity continue to
 authenticate against the canonical root. Coordinator and other sessions read the
 live repository.
 
-A reviewer/redteam session whose launcher session contract is present but does
-not authenticate, or authenticates with no bound review root, refuses with
-`workspace_read_review_source_unavailable`; a root that fails the resolver's
-role, absolute-path, or repository-alias checks refuses, and a WK missing from
-the bound checkout refuses as not found. None of these falls back to live WK
-state. The live metadata operations `workspace_work_record_validate` and
+The host authenticates that source through one findings-source resolver,
+shared by these ordinary reads and by
+`workspace_controlled_contract_obligation_coverage_query`. The resolver
+authenticates the presented session contract against the launcher-expected
+contract through the session owner, requires exactly one
+`advisory_review_source` binding, recomputes that binding from the host's own
+startup facts, and requires the bound root to still be a directory. It reads no
+frozen review artifact, worker run record, or live repository. Its refusals name
+the deciding cause: `launcher_session_unauthenticated` (with the session
+owner's refusal code, including a changed role or subject and another run's
+contract), `advisory_review_source_binding_absent`,
+`advisory_review_source_binding_duplicated`,
+`advisory_review_source_binding_mismatch` (the host's repository or
+materialization root is not the one the launcher bound, including a substituted
+root or a retargeted symlink), `advisory_review_repository_unavailable`,
+`review_materialization_unavailable` (not configured, not absolute, missing, or
+not a directory, including a source removed by the launch's owned cleanup), and
+`review_materialization_unreadable` (a filesystem failure, with its error
+code). An ordinary read reports the cause in its
+`workspace_read_review_source_unavailable` refusal; a root that fails the
+reader's repository-alias check refuses, and a WK missing from the bound
+checkout refuses as not found. None of these falls back to live WK state. A
+reviewer or redteam profile with no launcher session state at all is not a
+managed session and reads the configured workspace. The live metadata operations `workspace_work_record_validate` and
 `workspace_record_staleness_check` stay outside this read binding and are not a
 source oracle for captured reads.
 
@@ -643,7 +857,25 @@ uses `--mcp-config`, `--strict-mcp-config`, and the role-specific tool allowlist
 Codex receives one exact top-level `mcp_servers` override containing only the
 `wiki` stdio connector. Its launcher-owned `startup_timeout_sec` is the exact
 seconds projection of the shared client-readiness budget, so Codex cannot abandon MCP
-before the launcher's initialize-plus-`tools/list` window ends. Repository
+before the launcher's initialize-plus-`tools/list` window ends. Its
+launcher-owned `tool_input_schema_max_bytes` is 131072: Codex shortens a tool's
+input schema above that per-server limit (5,000 bytes by default) and then
+offers the model nested members as `unknown`, which hid the nested
+`workspace_create_record` and `save_record` authoring members. The limit changes
+only what Codex renders. At this limit Codex 0.160.1 renders both declarations
+completely: every member it still offers as `unknown` is one the server
+publishes without a constraint. Codex does not follow a JSON-pointer reference
+inside a tool's input schema and offers the referring member as `unknown`, so
+`save_record` publishes its typed changes inline, without such references.
+Each keyed row publishes its shared members once, as one closed object joined
+with its new-row (`key`) and existing-row (`id`) identity alternatives; Codex
+renders that as an intersection type. Codex renders a patterned member as a
+plain string, so the `changes` description states the new-row label pattern and
+the `$<key>` reference form, which Codex keeps as a comment. The serialized
+declaration is about
+46 KB and Codex 0.160.1 delivers about 13 KB of text for it; both are byte
+counts, not model tokens.
+Repository
 settings, user settings, prompt text, ambient environment, and caller
 configuration cannot add, replace, retarget, or shorten the server registration.
 Agy has no supported confined registration adapter and fails closed.
@@ -696,11 +928,13 @@ cleanup settlement as the frozen review contract, and hands its path only to the
 host wiki-MCP server environment. A publication failure refuses conduit
 construction with `assignment_read_publication_failed` before any client exists.
 The worker retrieves the guidance through its assignment-only
-`workspace_read_page`; that route and its refusals are part of the delivery
-path below. Managed guidance carries the selected task, not a scope inventory:
-the frozen scope, its exclusions and bindings stay in the launcher authority,
-the bubblewrap namespace enforces filesystem access, and the worker tool
-profile enforces tool access.
+`workspace_read_wiki`; that route and its refusals are part of the delivery
+path below. Managed guidance carries the selected task together with the
+selected unit's authenticated readable and writable paths, frozen with the rest
+of the assignment. Presenting those paths grants nothing: the frozen scope, its
+exclusions and bindings stay in the launcher authority, the bubblewrap
+namespace enforces filesystem access, and the worker tool profile enforces tool
+access.
 
 The complete delivery path, its content rules, its four stable transport
 diagnostics, and the surviving non-presentation canonical reads are described in
@@ -761,6 +995,24 @@ field.
 `authority_digest`, `capability_registry_digest`, `trusted_source_bindings`, and
 nullable `operator_action_binding`. `trusted_source_bindings` is the complete
 bytewise-sorted population of closed `kind`/`id`/`digest` tuples.
+
+Two bindings are required and appear exactly once each. Every contract carries
+the `stdio_mcp_conduit_authority` binding of its minting authority. A contract
+minted for an advisory findings launch also carries one `advisory_review_source`
+binding whose `id` is the advisory `run_id` and whose `digest` commits to the
+five closed facts `role`, `assigned_unit`, `run_id`, `repository_root` and
+`materialization_root`. The materialization root is the private checkout the
+launcher captured the review into (see
+[launch and admission](mcp-dispatch-launch-and-admission.md)); that bound
+checkout is the review source, and no other artifact or environment variable
+names it. Launcher and host compute the binding digest through one
+normalization owner: each root is the real path of an existing root, so a
+symlinked root and its target agree while a retargeted link does not. A
+caller-supplied binding list may add other sources but may not remove,
+substitute, or duplicate a required binding, and may not add a review source to
+an authority that carries none. Two independent reviews of the same source are
+different runs and therefore carry different source bindings and contract
+digests.
 
 `operator_action_binding` is null unless a separately authenticated accepted
 action applies. Its decision form is closed at `decision_id` (exactly
@@ -910,7 +1162,9 @@ descriptor must be bound to an installed integration; the pytest integration
 resolves the launcher's `python3`, or for a target configured by published local
 test-runtime readiness exactly that record's prepared project interpreter, and
 locates its pytest runtime without importing it. A configured target whose
-readiness is missing, invalid or stale refuses; it never falls back to `PATH`. The runtime identity digests the interpreter binary, the installed
+interpreter cannot be resolved refuses; it never falls back to `PATH`. A
+record that is not authentic is never consumed, so its target is unconfigured. Inputs that changed since setup do not refuse (see
+[Runtime inputs at execution](local-test-runtime-setup.md#runtime-inputs-at-execution)). The runtime identity digests the interpreter binary, the installed
 Python provider entry and the complete package tree of every import package in
 pytest's installed requirement closure, resolved from distribution metadata with
 environment markers applied. Every input is re-measured before each confined
@@ -984,27 +1238,27 @@ dependencies the operator installed and local test-runtime detection
 published, inside the same sparse confinement. Codex and Claude reach one family-neutral composer
 (`test-execution/worker-runtime.mjs`) with only launcher-settled facts: the
 canonical repository, the worker checkout and the frozen worker scope
-authority. It loads the published readiness record, resolves each resolved
-scope member to its containing prepared environment (per ecosystem, longest
-containing installation root), and re-proves each such environment through the
-same runtime-input owner the verifier uses. An environment with no proved
+authority. It resolves each resolved scope member to its containing
+environment (per ecosystem, longest containing installation root) among the
+published environments and the ones the checkout itself declares by the one
+repository inventory, and resolves each such environment, as it is then,
+through the same current-runtime owner test runs and the verifier use: what
+the published configuration names is used as configured and everything else
+is located at launch. An environment with no proved
 runner is projected like any other. No caller supplies a root, mount, path,
 environment or readiness record, and no ancestor search is made. A repository
-that was never prepared gets no projection; the launch is unchanged.
+with no record is projected the same way from located inputs; only a scope
+that reaches no project of a repository that publishes nothing gets no
+projection, and that launch is unchanged.
 
-A current preparation that is `preparing` or `failed` is not a runtime the
-worker can use and is never read as "nothing prepared". When the worker's
-scope reaches any environment of that preparation, the composer throws
-`WorkerTestRuntimePreparationError` and the launch refuses before any worker
-starts with `agent_launch.worker_test_runtime.preparation_unusable.v1`. Its
-detail keeps the readiness code, the preparation identity, the required
-environments, the deciding failure, component and check codes, the producer's
-complete original result and the `readinessRecovery` wording, without bounding
-or path redaction. Both families refuse through the shared
-`launch-failure-cause.mjs` transport: Codex while its worker plan is built
-(`plan_build_threw`) and Claude in its spawn catch, each after its usual
-cleanup, with conduit cleanup evidence secondary. A worker whose scope reaches
-none of that preparation's environments composes nothing and launches.
+The state of setup is not a launch condition. A current preparation that is
+`preparing` or `failed` composes from the configuration it kept from the ready
+record it superseded, exactly as a ready record does; a first preparation that
+failed publishes no configuration and composes, like a repository that was
+never prepared, from located inputs. A record that is not authentic is never
+consumed. Neither the composer nor the spawn owner refuses a launch for the
+state of a record or for a record that changed or was removed after
+composition.
 
 The composer freezes one runtime identity (repository, checkout, selected unit,
 source digest, readiness digest, per-environment public ID, workspace members,
@@ -1069,23 +1323,32 @@ another project's dependencies. A harness started through `#!/usr/bin/env <name>
 keeps the interpreter its launcher search path resolved, so the projected
 commands never change the coding model, MCP host or connector executable.
 
-Apart from an unusable required preparation, a missing, invalid or stale
-runtime is not a dispatch gate. The affected rows
+A project whose runtime inputs can be neither taken from the configuration nor
+located is not a dispatch gate. The affected rows
 report the exact condition when the runtime is used, with its subject, effects,
 uncertainty, actor and action: `readinessRecovery` (the operator repairs the
 named installation, then local test-runtime detection, whose producer is
 `agent-chassis setup --test-runtimes`, runs again), or the missing dependency input files or workspace member
-directories for the coordinator to add to scope. The same applies to an
-incomplete installation (every missing executable and its expected path), a
-stale input or population, or a prepared link into a repository that is not a
-declared workspace member (local package provenance). No host runtime is substituted, and no
+directories for the coordinator to add to scope. The same applies to a
+link into a repository that is not a
+declared workspace member (local package provenance). A dependency input or an
+installed population that changed since setup is neither: the project is
+projected as it is, with the change recorded in its identity. No host runtime is substituted, and no
 readiness or completion summary claims a command ran.
 
+An executable the installation lacks is that one command's condition, not the
+project's: the command's own row reports `test_runtime_toolchain_incomplete`
+with the executable and its expected path, while the project and every other
+command of the same installation stay usable (a Go installation without
+`gofmt` still supplies `go`).
+
 The final pre-spawn check (`assertWorkerTestRuntimeMountsUnchanged`, reached
-from `spawnIsolated`) reloads the record and compares it with the projection's
-`identity.readiness_digest`. A preparation that changed after composition
-(preparing, failed or a newer ready record) refuses with the same code and
-`test_runtime_preparation_changed`. This is a launch-time check; it does not
+from `spawnIsolated`) covers what this launch actually binds: every projected
+read-only source, every dependency source and every host mountpoint must still
+be the same directory, and every mountpoint still empty. It does not consult
+the readiness record: saved measurements that changed, a record that was
+republished, or a record that was removed after composition do not refuse a
+launch whose own sources are intact. This is a launch-time check; it does not
 revoke a worker already running.
 
 Launch selection is frozen. Ordinary commands are evidence of execution with
@@ -1117,7 +1380,7 @@ Mountpoints follow the shared sparse-worker lifecycle:
 A Codex launch whose selected model is LiteLLM-routed (see
 [env reference](env-reference.md#per-model-litellm-routing-modelsid-vertexai))
 keeps its role's confinement, mounts and secret-environment policy unchanged.
-The route adds only argv and one file:
+The route adds only argv, one file and one proxy-bypass entry:
 
 - `-c model_provider="agent_launch_litellm"` and an inline
   `model_providers.agent_launch_litellm` table are inserted before the final
@@ -1140,11 +1403,46 @@ The route adds only argv and one file:
   shared gateway and its key are never stopped or removed by a launch.
 - The endpoint is loopback, so the confined child reaches it through the shared
   network namespace Codex roles already use.
+- The routed client's environment gains the gateway address in its proxy bypass
+  list, so it reaches the gateway without the caller's proxy (the exact rule is
+  in [Proxy environment](env-reference.md#proxy-environment)). The attachment
+  replaces the client's environment with a new one; the caller's environment,
+  the host wiki-MCP server's and the gateway's are not changed, and the
+  confined plan and an unconfined fallback spawn both use the client's.
 
 A gateway failure refuses the launch with the gateway's own code (for example
 `litellm_gateway_foreign_listener` or `litellm_runtime_install_failed`), its
 stage, correction and bounded detail. Diagnostics never include gateway log
 content, key bytes or Google tokens; they name the log path instead.
+
+## Proxy environment through the launch chain
+
+The caller's standard proxy variables are routing configuration, and the
+launcher carries them unchanged through every local launch boundary (the eight
+names and the exact forwarding rule are in
+[Proxy environment](env-reference.md#proxy-environment)):
+
+- The closed environment policy for confined children does not deny them. An
+  orchestrator, which launches under the deny policy alone, keeps them; the
+  Codex and Claude role allowlists both name them, from one shared list.
+- The host wiki-MCP server is started with the proxy variables of the launcher
+  process that mints its conduit, alongside that process's `PATH` and `HOME`.
+  The roles it dispatches inherit them from the host server through their own
+  allowlist.
+- The host wiki-MCP server is also started with `NODE_USE_ENV_PROXY=1` unless
+  the launcher process sets that variable itself, in which case its value is
+  passed on unchanged (including `0` and an empty value). Node's built-in
+  `fetch`, which the host server uses for its own requests, follows the proxy
+  variables only when this is enabled. It is set for the host server process
+  alone: no role allowlist names it, so dispatched roles and orchestrator
+  sessions do not receive it.
+- LiteLLM runtime setup and the shared gateway receive the same projection.
+
+Everything else about a launch is unchanged: `NODE_OPTIONS`, `NODE_PATH`,
+secret-named and posture variables are still denied, an allowlist still cannot
+re-admit a denied name, and namespaces, mounts, role boundaries and whether a
+launch is permitted do not depend on any proxy value. Forwarding is not an
+egress boundary: it does not limit what a launched process can reach.
 
 ## Optional stdio-MCP transcript capture
 

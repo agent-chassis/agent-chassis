@@ -39,7 +39,7 @@ const PARAMETER_SELECTION_SELECTOR = Object.freeze({ id: "0" });
 const PARAMETER_CONTRACT_IDENTITY_MEMBERS = Object.freeze([
   "profile_id", "profile_version", "profile_digest", "total", "returned", "omitted"
 ]);
-const CRITERION_IDENTITIES_MEMBER = "criterion_identities";
+const OBLIGATIONS_COLLECTION = "obligations";
 
 export function obligationCoverageQueryDetailRequestShape(zod, unitSchema) {
   return {
@@ -106,6 +106,17 @@ function criterionIdentities(carrier) {
   if (!Array.isArray(carrier.acceptance_criteria) || carrier.acceptance_criteria.length === 0) return null;
   return Object.fromEntries(carrier.acceptance_criteria.map((entry) => [String(entry.position), entry.identity]));
 }
+
+function caseLinks(carrier) {
+  if (!Array.isArray(carrier.obligations) || carrier.obligations.length === 0) return null;
+  return Object.fromEntries(carrier.obligations.map((row) => [row.obligation_id, row.case_id ?? null]));
+}
+
+const IDENTITY_PROJECTIONS = Object.freeze([
+  Object.freeze({ member: "criterion_identities", project: criterionIdentities }),
+  Object.freeze({ member: "case_links", project: caseLinks })
+]);
+const IDENTITY_PROJECTION_MEMBERS = Object.freeze(IDENTITY_PROJECTIONS.map(({ member }) => member));
 
 function journeyOf(carrier) {
   return [SELECTED_RESPONSE_MEMBERS_COLLECTION, ...Object.entries(carrier)
@@ -189,7 +200,7 @@ export function createObligationCoverageQuerySelection({
   function navigate(response, { expected, source }) {
     const page = response.page;
     const retained = page.retained_source;
-    const base = { source: { ref_id: retained.ref_id, sha256: retained.sha256 },
+    const base = { source: { ref_id: retained.ref_id },
       snapshot_identity: page.task_result_identity, collection: page.collection };
     const argumentsFor = (selection) => buildDetailArguments(
       { repository: retained.repository, unit: retained.unit }, selection);
@@ -261,25 +272,36 @@ export function createObligationCoverageQuerySelection({
     const collections = selectedResponseCollectionCounts(complete);
     const inlined = REQUIRED_SUMMARY_MEMBERS.filter((member) => Object.hasOwn(complete, member));
     const optional = OPTIONAL_SUMMARY_MEMBERS.filter((member) => Object.hasOwn(complete, member));
-    let omitted = [...optional];
-    const identities = criterionIdentities(complete);
-    let identitiesInline = false;
+
+    const projections = IDENTITY_PROJECTIONS.map(({ member, project }) =>
+      ({ member, value: project(complete), state: null })).filter((entry) => entry.value !== null);
+    let pending = [...optional];
+    const omittedMembers = () => [...projections.filter((entry) => entry.state === "omitted")
+      .map((entry) => entry.member), ...pending];
 
     const parameterSizes = parameterSelections(complete, queryIdentity);
     let parameter = parameterSizes[0] ?? null;
     const summaryFor = () => {
 
-      const start = omitted.some((member) => member !== CRITERION_IDENTITIES_MEMBER) ? journey[0] : journey[1];
-      const retrieval = start === undefined ? [] : [session.detailCall(binding,
-        { source, snapshot_identity: snapshotIdentity, collection: start },
-        { recommended: parameter === null })];
+      const omitted = omittedMembers();
+      const start = omitted.some((member) => !IDENTITY_PROJECTION_MEMBERS.includes(member))
+        ? journey[0] : journey[1];
+
+      const linksRead = omitted.includes("case_links");
+      const obligationsRead = linksRead ? [session.detailCall(binding,
+        { source, snapshot_identity: snapshotIdentity, collection: OBLIGATIONS_COLLECTION },
+        { recommended: parameter === null })] : [];
+      const retrieval = start === undefined || (linksRead && start === OBLIGATIONS_COLLECTION) ? []
+        : [session.detailCall(binding, { source, snapshot_identity: snapshotIdentity, collection: start },
+          { recommended: parameter === null && !linksRead })];
       const parameterReads = (parameter?.read ?? null) === null ? [] : [session.detailCall(binding,
         { source, snapshot_identity: snapshotIdentity, collection: PARAMETER_SELECTION_COLLECTION,
           selector: PARAMETER_SELECTION_SELECTOR, field_path: parameter.read })];
       return {
         ...Object.fromEntries(inlined.map((member) => [member, complete[member]])),
         ...(parameter === null ? {} : { parameter_selection: parameter.selection }),
-        ...(identitiesInline ? { [CRITERION_IDENTITIES_MEMBER]: identities } : {}),
+        ...Object.fromEntries(projections.filter((entry) => entry.state === "inline")
+          .map((entry) => [entry.member, entry.value])),
         selected_detail: {
           schema_version: OBLIGATION_COVERAGE_QUERY_SELECTED_SUMMARY_SCHEMA_VERSION,
           complete: false,
@@ -287,36 +309,45 @@ export function createObligationCoverageQuerySelection({
           snapshot_identity: snapshotIdentity,
           collections,
           omitted_members: omitted,
-          complete_retrieval: parameter === null
-            ? "Follow next_calls: each page names the next page or collection until none remain."
-            : "next_calls[0] reads parameter_selection.not_inline, each page naming the next; complete " +
-              "retrieval starts at the collection call."
+          complete_retrieval: linksRead
+            ? `${parameter === null ? "" : "next_calls[0] reads parameter_selection.not_inline, each page " +
+              "naming the next; "}the obligations call pages retained rows carrying each obligation_id and ` +
+              "its case_id; detail.selector.id is a row position, not an obligation_id; " +
+              "complete retrieval starts at the last call."
+            : parameter === null
+              ? "Follow next_calls: each page names the next page or collection until none remain."
+              : "next_calls[0] reads parameter_selection.not_inline, each page naming the next; complete " +
+                "retrieval starts at the collection call."
         },
-        next_calls: [...parameterReads, ...retrieval]
+        next_calls: [...parameterReads, ...obligationsRead, ...retrieval]
       };
     };
-    for (const size of parameterSizes) {
-      parameter = size;
+    let size = 0;
+    for (; size < parameterSizes.length; size += 1) {
+      parameter = parameterSizes[size];
       if (fits(summaryFor())) break;
+    }
+
+    for (const [index, entry] of projections.entries()) {
+
+      for (const later of projections.slice(index + 1)) later.state = "omitted";
+      entry.state = "inline";
+      if (!fits(summaryFor())) entry.state = "omitted";
+    }
+    while (!fits(summaryFor()) && size + 1 < parameterSizes.length) {
+      size += 1;
+      parameter = parameterSizes[size];
     }
     if (!fits(summaryFor())) {
       throw new RangeError(`${OBLIGATION_COVERAGE_QUERY_ROUTE} summary exceeds the complete-frame class`);
     }
-
-    if (identities !== null) {
-      identitiesInline = true;
-      if (!fits(summaryFor())) {
-        identitiesInline = false;
-        omitted = [CRITERION_IDENTITIES_MEMBER, ...omitted];
-      }
-    }
     for (const member of optional) {
       inlined.push(member);
-      const previous = omitted;
-      omitted = omitted.filter((candidate) => candidate !== member);
+      const previous = pending;
+      pending = pending.filter((candidate) => candidate !== member);
       if (!fits(summaryFor())) {
         inlined.pop();
-        omitted = previous;
+        pending = previous;
       }
     }
     return summaryFor();

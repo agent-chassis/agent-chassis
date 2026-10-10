@@ -6,7 +6,9 @@ import { deepFreeze } from './deterministic-projection-primitives.mjs';
 import { PROOF_AUTHORING_FIELDS, validateProofAuthoringAmendment as validateAmendment }
   from './obligation-coverage-carrier.mjs';
 
-import { ProofAuthoringError, assertProofAuthoringDraft } from './proof-contract.mjs';
+import { OBLIGATION_COVERAGE_UPSERT_TOOL, ProofAuthoringError, assertProofAuthoringDraft,
+  registeredRecoveryInstruction } from './proof-contract.mjs';
+import { FIND_PROOFS_TASK } from './proof-discovery-task.mjs';
 
 export { ProofAuthoringError, assertProofAuthoringDraft };
 const pinFields = Object.freeze(['profile_digest', 'parameter_contract_digest', 'admission_digest']);
@@ -28,14 +30,19 @@ export async function pinProofSelection(proofName, {
     ...Object.fromEntries(pinFields.map(key => [key, pack[key]])) });
 }
 
+const SELECTION_SAVE = registeredRecoveryInstruction({ route: OBLIGATION_COVERAGE_UPSERT_TOOL });
+
 export async function loadPinnedProofSelection(selection, {
   loadExact = loadExactAdmittedProofPackMeaning
 } = {}) {
   if (!selection?.proof_name) throw new ProofAuthoringError('proof_unselected',
-    'Select a proof through upsert', { field: 'proof_name' });
+    `No proof is selected. ${FIND_PROOFS_TASK} lists candidates for the caller's own property query and ` +
+      `selects none; the caller chooses proof.name. ${SELECTION_SAVE}`,
+    { field: 'proof_name', discovery_input: 'query' });
   if (selection.proof_version === null) throw new ProofAuthoringError('proof_unpinned',
-    'The saved proof name has no admitted pin; upsert an exact catalog name or remove the selection',
-    { field: 'proof_name', proof_name: selection.proof_name });
+    `The saved proof name has no admitted pin. ${FIND_PROOFS_TASK} reads that proof_name; the caller supplies ` +
+      `an exact catalog name as proof.name. ${SELECTION_SAVE} Removing the selection instead uses changes.remove.obligations.`,
+    { field: 'proof_name', proof_name: selection.proof_name, discovery_input: 'proof_name' });
   const pack = await loadExact({ profileId: selection.proof_name,
     profileVersion: selection.proof_version });
   for (const key of pinFields) if (pack[key] !== selection[key]) throw new ProofAuthoringError(

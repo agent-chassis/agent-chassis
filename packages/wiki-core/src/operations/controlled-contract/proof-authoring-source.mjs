@@ -2,7 +2,7 @@
 
 import { CASE_COMPONENT_FIELD, CASE_COMPONENT_FIELD_PATH, CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
   ControlledContractToolError, controlledContractContentDigest } from '../../lib/controlled-contract-tools.mjs';
-import { loadControlledContractPackage } from './package-runtime.mjs';
+import { loadControlledContractSharedContract } from './package-runtime.mjs';
 import {
   parseProofSourceUnitAddress,
   projectSavedProofCase,
@@ -10,6 +10,9 @@ import {
   resolveSavedProofContext,
   resolveSavedProofSource
 } from './saved-proof-source.mjs';
+import { birthProofAuthoringAuthority } from './saved-proof-source.mjs';
+import { resolveControlledContractRepository } from '../../lib/controlled-contract-tool-shared.mjs';
+export { resolveBirthSavedProofSource as resolveBirthProofAuthoringSource } from './saved-proof-source.mjs';
 
 export {
   parseProofSourceUnitAddress as parseProofAuthoringUnitAddress,
@@ -48,6 +51,11 @@ export function proofAuthoringCompletenessSummary(facts) {
     validation: { tool: 'workspace_validate_proof', arguments: {
       unit: facts.selectedUnit == null ? facts.wkId : `${facts.wkId}#${facts.selectedUnit}`,
       ...(facts.focus == null ? {} : { focus: facts.focus }) } } });
+}
+
+export function proofAuthoringObligationsAccounted(facts) {
+  const rows = (facts.resolution ?? facts.obligationResolution)?.rows ?? [];
+  return rows.length > 0 && rows.every(row => row.accounting?.status === 'accounted');
 }
 export function proofAuthoringIncompleteResult(facts) {
   const completeness = proofAuthoringCompletenessSummary(facts);
@@ -115,8 +123,13 @@ export async function assessProspectiveProofUses(uses) {
 }
 
 export async function inspectNativePublicationProofParameters({ repoRoot, wkId, focus, contract, sourceOverride }) {
-  const root = await resolveProofAuthoringSource({ repoRoot, wkId, focus, selectedUnit: null });
-  const pkg = await loadControlledContractPackage();
+  const birth = sourceOverride && birthProofAuthoringAuthority(sourceOverride);
+  if (birth && ((await resolveControlledContractRepository(repoRoot)).repository !==
+      (await resolveControlledContractRepository(sourceOverride.repoRoot)).repository || wkId !== sourceOverride.wkId ||
+      (focus ?? null) !== sourceOverride.focus)) throw new ControlledContractToolError(
+    'obligation_coverage_birth_source_invalid', 'Native inspection target differs from its authenticated birth facts', { changed: false });
+  const root = birth ? sourceOverride : await resolveProofAuthoringSource({ repoRoot, wkId, focus, selectedUnit: null });
+  const pkg = await loadControlledContractSharedContract();
   for (const definition of sourceOverride?.cases ?? root.cases) {
     if (contract.test_proofs.some(proof => proof.verification_claim_id === pkg.authoredCaseVerificationId(definition))) {
       throw new ControlledContractToolError('obligation_coverage_case_native_edit_forbidden',
@@ -127,7 +140,10 @@ export async function inspectNativePublicationProofParameters({ repoRoot, wkId, 
   const identities = [];
   for (const selectedUnit of [null, ...root.record.slices.map(slice => slice.id)]) {
     const resolved = sourceOverride?.selectedUnit === selectedUnit ? sourceOverride :
-      selectedUnit === null ? root : await resolveProofAuthoringSource({ repoRoot, wkId, focus, selectedUnit });
+      selectedUnit === null ? root : birth ? { ...root, selectedUnit,
+        unit: root.record.slices.find(slice => slice.id === selectedUnit),
+        source: root.sources.find(entry => entry.selectedUnit === selectedUnit).source }
+        : await resolveProofAuthoringSource({ repoRoot, wkId, focus, selectedUnit });
     if (resolved.source === null) continue;
     const assessment = await assessProspectiveProofParameters({ ...resolved,
       ...(sourceOverride ? { cases: sourceOverride.cases } : {}),

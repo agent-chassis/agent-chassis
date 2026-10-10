@@ -20,6 +20,7 @@ test("one public backend generation exposes the bound-state and exclusion owners
   assert.deepEqual(await backend.observeTerminalCandidateBoundState("WK-1864"), { state: "unbound" });
   const calls = [];
   const value = await backend.withTerminalCandidateAdvanceExclusion({
+    mainRepo,
     wkId: "WK-1864",
     evaluateTerminalReviewCandidateStatus: () => {
       calls.push("status");

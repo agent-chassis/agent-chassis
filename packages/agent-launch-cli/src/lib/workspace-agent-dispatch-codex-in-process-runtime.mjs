@@ -2,6 +2,11 @@ import { BACKEND_REFUSAL_CODES } from "./workspace-agent-dispatch-backend.mjs";
 import { isRuntimeBlockerCode } from
   "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { superviseChildLaunch } from "./workspace-agent-launch-core.mjs";
+import { buildCodexSessionStartHookOverrides } from "@agent-chassis/agent-launch-core/src/lib/codex-session-hook-config.mjs";
+import {
+  buildCodexUsageHookIdentity,
+  prepareCodexSessionUsageLaunch
+} from "@agent-chassis/agent-launch-core/src/lib/native-usage-codex-session.mjs";
 import { BubblewrapIsolationError } from "./launch-isolation.mjs";
 import { assertGitMetadataProjectionComposed } from "./launch-isolation-findings-git-metadata.mjs";
 import { attachStdioMcpConduitLaunchOutcome } from "./stdio-mcp-conduit-contract.mjs";
@@ -130,6 +135,12 @@ function releaseRouteWithChild(route, child) {
   return child;
 }
 
+function routedPlainLaunchPlan(route, plan, plainLaunchPlan) {
+  return route.attachment?.attached === true
+    ? { ...plainLaunchPlan, args: plan.args, env: plan.env }
+    : plainLaunchPlan;
+}
+
 async function launchCodexWithModelRoute({
   input,
   role,
@@ -230,6 +241,29 @@ async function launchCodexWithModelRoute({
     subject,
     runId: input?.run_id ?? null
   });
+
+  const prepareDispatchUsage = (launchPlan) => (launchPlan?.mode === "headless" && typeof launchPlan.runDir === "string"
+      && typeof launchPlan.env?.CODEX_HOME === "string"
+    ? prepareCodexSessionUsageLaunch({
+        workspaceDir: input?.advisory_review_input?.repository ?? input?.worktree_provisioning?.main_repo
+          ?? workspaceDir ?? planCwd,
+        identity: { run_id: input?.run_id, attempt_id: input?.run_id,
+          repo: input?.worktree_provisioning?.main_repo ?? workspaceDir, subject, role,
+          route: "dispatched_role", mode: "headless" },
+        bindingDir: launchPlan.runDir,
+        codexHome: launchPlan.env.CODEX_HOME,
+        checkpoints: true
+      })
+    : { tap: null, usageHook: null });
+
+  const unenforcedArgsWithUsage = (launchPlan, usage) => {
+    const args = Array.isArray(launchPlan.args) ? [...launchPlan.args] : launchPlan.args;
+    if (usage.usageHook !== null && launchPlan.command === "codex" && Array.isArray(args)) {
+      injectCodexConfigOverridesBeforeFinalPositional(args,
+        buildCodexSessionStartHookOverrides([buildCodexUsageHookIdentity(usage.usageHook)]));
+    }
+    return args;
+  };
   const cleanupIdentityRefusal = adoptCodexFirstPlan(attemptResources, artifacts.bwrapPlan);
   if (cleanupIdentityRefusal !== null) {
     return cleanupIdentityRefusal;
@@ -288,14 +322,15 @@ async function launchCodexWithModelRoute({
         if (plainRouteRefusal !== null) {
           return attemptResources.settle(plainRouteRefusal);
         }
-        if (Array.isArray(failOpenLaunchPlan.args) && failOpenLaunchPlan.args !== artifacts.plan.args) {
-          injectCodexConfigOverridesBeforeFinalPositional(failOpenLaunchPlan.args, [...route.attachment.overrides]);
-        }
+        const plainLaunchPlan = routedPlainLaunchPlan(route, artifacts.plan, failOpenLaunchPlan);
+
+        const earlyUsage = prepareDispatchUsage(artifacts.plan);
         const plainLaunch = await launchWorkspaceAgentFamilyLaunchLifecycle({
           command: failOpenLaunchPlan.command,
-          args: failOpenLaunchPlan.args,
+          args: unenforcedArgsWithUsage(plainLaunchPlan, earlyUsage),
+          stdoutTap: earlyUsage.tap,
           cwd: failOpenLaunchPlan.cwd,
-          env: failOpenLaunchPlan.env,
+          env: plainLaunchPlan.env,
           options: {
             stdio: ["ignore", "pipe", "pipe"],
             detached: false
@@ -320,7 +355,7 @@ async function launchCodexWithModelRoute({
             attachProvenanceToSupervisedResult(supervised, {
               finalPath,
               logPath,
-              env: failOpenLaunchPlan.env,
+              env: plainLaunchPlan.env,
               sandboxDecision: failOpenPlan.sandbox_decision
             })
         });
@@ -334,6 +369,8 @@ async function launchCodexWithModelRoute({
   }
   const plan = artifacts.plan;
   let bwrapPlan = artifacts.bwrapPlan;
+  const nativeUsage = prepareDispatchUsage(plan);
+  if (nativeUsage.usageHook !== null) plan.nativeUsageHook = nativeUsage.usageHook;
 
   let conduit = null;
   try {
@@ -503,14 +540,14 @@ async function launchCodexWithModelRoute({
         if (plainRouteRefusal !== null) {
           return attemptResources.settle(plainRouteRefusal);
         }
-        if (Array.isArray(failOpenLaunchPlan.args) && failOpenLaunchPlan.args !== plan.args) {
-          injectCodexConfigOverridesBeforeFinalPositional(failOpenLaunchPlan.args, [...route.attachment.overrides]);
-        }
+        const plainLaunchPlan = routedPlainLaunchPlan(route, plan, failOpenLaunchPlan);
+
         const plainLaunch = await launchWorkspaceAgentFamilyLaunchLifecycle({
           command: failOpenLaunchPlan.command,
-          args: failOpenLaunchPlan.args,
+          args: unenforcedArgsWithUsage(plainLaunchPlan, nativeUsage),
+          stdoutTap: nativeUsage.tap,
           cwd: failOpenLaunchPlan.cwd,
-          env: failOpenLaunchPlan.env,
+          env: plainLaunchPlan.env,
           options: {
             stdio: ["ignore", "pipe", "pipe"],
             detached: false
@@ -535,7 +572,7 @@ async function launchCodexWithModelRoute({
             attachProvenanceToSupervisedResult(supervised, {
               finalPath: lateFinalPath,
               logPath: lateLogPath,
-              env: failOpenLaunchPlan.env,
+              env: plainLaunchPlan.env,
               sandboxDecision: failOpenPlan.sandbox_decision
             })
         });
@@ -587,6 +624,7 @@ async function launchCodexWithModelRoute({
     family: "codex",
 
     killTimeoutMs,
+    stdoutTap: nativeUsage.tap,
     passthrough: { finalPath, logPath, codexRole, workspaceDir }
   });
 

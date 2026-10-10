@@ -1,13 +1,33 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { runGitAsync } from "../../../agent-launch-core/src/lib/git.mjs";
 import { resolveCapturedWkBase } from "./worktree-substrate-identity.mjs";
 import {
-  assertAuthenticatedControlledContractGeneration,
+  assertControlledContractGenerationState,
   authenticatedControlledContractGenerationMetadataFromFields,
-  authenticatedControlledContractGenerationMatchesMetadata,
-  projectAuthenticatedControlledContractGeneration
+  controlledContractGenerationStateMatchesMetadata,
+  isControlledContractGenerationAbsence,
+  projectControlledContractGenerationState
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-generation-authentication.mjs";
+import {
+  OID_RE, TERMINAL_WK_CANDIDATE_CODES, TerminalWkCandidateError, WK_RE,
+  assertBaseAncestor, assertRefTransactionFences, authorityGitArgs, canonicalOid,
+  classifyAncestryObservation,
+  defaultTerminalCandidateRunGit, fail, failGit, isPlainObject, mintGitFailure,
+  observeAfterFailedWrite, oidReForObjectFormat
+} from "./terminal-wk-candidate-ref-publication.mjs";
+
+export {
+  TERMINAL_WK_CANDIDATE_CODES,
+  TERMINAL_WK_CANDIDATE_GIT_DIAGNOSIS_CAPTURES,
+  TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
+  TerminalWkCandidateError,
+  closedTerminalWkCandidateGitDiagnosis,
+  defaultTerminalCandidateRunGit,
+  projectTerminalWkCandidateFailure,
+  projectTerminalWkCandidateGitDiagnosis,
+  projectTerminalWkCandidateRefDisagreements,
+  readExactWkRecordBlobObservation
+} from "./terminal-wk-candidate-ref-publication.mjs";
 
 export const TERMINAL_WK_CANDIDATE_SCHEMA_VERSION = "agent_launch.terminal_wk_candidate.v2";
 
@@ -15,30 +35,12 @@ const TERMINAL_WK_CANDIDATE_SCHEMA_VERSIONS = Object.freeze(new Set([
   TERMINAL_WK_CANDIDATE_SCHEMA_VERSION
 ]));
 
-export const TERMINAL_WK_CANDIDATE_CODES = Object.freeze({
-  INVALID_ARGUMENT: "agent_launch.terminal_wk_candidate.invalid_argument.v1",
-  GIT_FAILED: "agent_launch.terminal_wk_candidate.git_failed.v1",
-
-  BASE_INVALID: "agent_launch.terminal_wk_candidate.base_invalid.v1",
-  INPUT_MOVED: "agent_launch.terminal_wk_candidate.input_moved.v1",
-
-  CONFLICT: "agent_launch.terminal_wk_candidate.conflict.v1",
-  CANDIDATE_INVALID: "agent_launch.terminal_wk_candidate.candidate_invalid.v1",
-  CANDIDATE_REF_DISAGREES: "agent_launch.terminal_wk_candidate.candidate_ref_disagrees.v1",
-  BINDING_MISMATCH: "agent_launch.terminal_wk_candidate.binding_mismatch.v1",
-
-  CONTROLLED_GENERATION_STALE:
-    "agent_launch.terminal_wk_candidate.controlled_generation_stale.v1"
-});
-
 export const TERMINAL_WK_CANDIDATE_IDENTITY = Object.freeze({
   name: "agent-launch terminal candidate",
   email: "terminal-candidate@agent-launch.local",
   date: "2000-01-01T00:00:00Z"
 });
 
-const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const WK_RE = /^WK-\d{4}$/u;
 const INITIATIVE_RE = /^IN-\d{4}$/u;
 const WK_REF_RE = /^refs\/heads\/wk\/(IN-\d{4})\/(WK-\d{4})$/u;
 
@@ -52,282 +54,6 @@ const VERSIONED_CANDIDATE_REF_PREFIX =
   "refs/agent-launch/terminal-candidates-v1";
 const CURRENT_CANDIDATE_REF_FORMAT =
   "%(refname)%00%(objectname)%00%(objecttype)%00%(symref)";
-
-export class TerminalWkCandidateError extends Error {
-  constructor(message, { code, detail = null, cause = null } = {}) {
-    super(`terminal WK candidate: ${message}`);
-    this.name = "TerminalWkCandidateError";
-    this.code = code;
-    this.detail = detail;
-    if (cause !== null) this.cause = cause;
-  }
-}
-
-function fail(code, message, detail = null, cause = null) {
-  throw new TerminalWkCandidateError(message, { code, detail, cause });
-}
-
-function isPlainObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function boundedFailureMessage(message) {
-  return String(message ?? "").slice(0, 4096);
-}
-
-const NATIVE_ERROR_FACTS = Object.freeze([
-  ["code", "string"], ["errno", "number"], ["syscall", "string"], ["path", "string"]
-]);
-
-function nativeErrorFacts(error) {
-  if (error === null || typeof error !== "object") return null;
-  const facts = {};
-  for (const [field, type] of NATIVE_ERROR_FACTS) {
-    let value;
-    try { value = error[field]; } catch { value = undefined; }
-    if (typeof value === type) facts[field] = type === "string" ? value.slice(0, 512) : value;
-  }
-  return Object.keys(facts).length === 0 ? null : Object.freeze(facts);
-}
-
-const PRODUCTION_RUNNER_RESULTS = new WeakSet();
-
-const NATIVE_GIT_DIAGNOSES = new WeakMap();
-
-function nativeGitDiagnosis(result) {
-  if (!PRODUCTION_RUNNER_RESULTS.has(result)) return null;
-  const trace2 = result.trace2;
-  if (!isPlainObject(trace2) || typeof trace2.state !== "string") return null;
-  return closedTerminalWkCandidateGitDiagnosis({
-    capture: trace2.state,
-    diagnostics: Array.isArray(trace2.diagnostics) ? trace2.diagnostics : []
-  });
-}
-
-export const TERMINAL_WK_CANDIDATE_GIT_DIAGNOSIS_CAPTURES = Object.freeze([
-  "captured",
-  "none_emitted",
-  "unavailable",
-  "malformed",
-  "incomplete",
-  "capture_failed",
-  "overflow",
-  "not_started"
-]);
-const GIT_DIAGNOSIS_CAPTURE_SET = new Set(TERMINAL_WK_CANDIDATE_GIT_DIAGNOSIS_CAPTURES);
-
-export function closedTerminalWkCandidateGitDiagnosis(value) {
-  try {
-    if (!isPlainObject(value) || !GIT_DIAGNOSIS_CAPTURE_SET.has(value.capture) ||
-        !Array.isArray(value.diagnostics)) return null;
-    const diagnostics = [];
-    for (const entry of value.diagnostics) {
-      if (!isPlainObject(entry) || typeof entry.msg !== "string" ||
-          typeof entry.fmt !== "string") return null;
-      diagnostics.push(Object.freeze({ msg: entry.msg, fmt: entry.fmt }));
-    }
-    return Object.freeze({ capture: value.capture, diagnostics: Object.freeze(diagnostics) });
-  } catch {
-    return null;
-  }
-}
-
-function gitFailureDetail(result, facts) {
-  const error = result?.spawn_error ?? result?.error ?? null;
-  const stderr = typeof result?.stderr === "string" ? result.stderr : null;
-  const production = PRODUCTION_RUNNER_RESULTS.has(result);
-  const detail = {
-    ...facts,
-    status: result?.status ?? null,
-    signal: result?.signal ?? null,
-    ...(result?.overflow === true ? { output_overflow: true } : {}),
-    ...(result?.timed_out === true ? { timed_out: true } : {}),
-    ...(error === null ? {} : { native_error: nativeErrorFacts(error) }),
-    stderr,
-    stderr_bytes: production ? result.stderr_bytes
-      : stderr === null ? null : Buffer.byteLength(stderr, "utf8")
-  };
-  if (production && isPlainObject(result.trace2)) {
-    Object.defineProperty(detail, "git_trace2", {
-      value: result.trace2, enumerable: false, writable: false, configurable: false
-    });
-  }
-  return detail;
-}
-
-function gitFailureCause(result) {
-  if (result?.spawn_error instanceof Error) return result.spawn_error;
-  return result?.error instanceof Error ? result.error : null;
-}
-
-function mintGitFailure(code, message, result, facts) {
-  const error = new TerminalWkCandidateError(message, {
-    code, detail: gitFailureDetail(result, facts), cause: gitFailureCause(result)
-  });
-  const diagnosis = nativeGitDiagnosis(result);
-  if (diagnosis !== null) {
-    const mechanical = boundedMechanicalDetail(error.detail);
-    NATIVE_GIT_DIAGNOSES.set(error, Object.freeze({
-      code,
-      git_operation: mechanical?.git_operation ?? null,
-      git_status: mechanical?.git_status ?? null,
-      diagnosis
-    }));
-  }
-  return error;
-}
-
-function failGit(code, message, result, facts) {
-  throw mintGitFailure(code, message, result, facts);
-}
-
-async function observeAfterFailedWrite(observe, writeFailure) {
-  try {
-    return await observe();
-  } catch (observationError) {
-    if (!(observationError instanceof TerminalWkCandidateError)) {
-      writeFailure.detail.reobservation_failure = observationError;
-      throw writeFailure;
-    }
-    const error = new TerminalWkCandidateError(
-      String(observationError.message).replace(/^terminal WK candidate: /u, ""), {
-        code: observationError.code,
-        detail: { ...(isPlainObject(observationError.detail) ? observationError.detail : {}),
-          write_failure: writeFailure },
-        cause: observationError
-      });
-    const registered = NATIVE_GIT_DIAGNOSES.get(observationError);
-    if (registered !== undefined) NATIVE_GIT_DIAGNOSES.set(error, registered);
-    throw error;
-  }
-}
-
-function classifyAncestryObservation(result) {
-  if (result?.ok === true && (result.status === undefined || result.status === 0)) return "ancestor";
-  const completed = result?.status === 1 && result?.signal == null && result?.error == null &&
-    result?.spawn_error == null && result?.timed_out !== true && result?.overflow !== true;
-  if (!completed) return "failed";
-  const trace2 = result.trace2;
-  if (trace2 === undefined) return "not_ancestor";
-  return isPlainObject(trace2) && trace2.state === "none_emitted" ? "not_ancestor" : "failed";
-}
-
-export function projectTerminalWkCandidateGitDiagnosis(error) {
-  if ((typeof error !== "object" || error === null) && typeof error !== "function") return null;
-  return NATIVE_GIT_DIAGNOSES.get(error) ?? null;
-}
-
-export function projectTerminalWkCandidateRefDisagreements(value) {
-  try {
-    if (!Array.isArray(value) || value.length === 0 || value.length > 32) return null;
-    const projected = [];
-    for (const entry of value) {
-      if (!isPlainObject(entry) || Object.getPrototypeOf(entry) !== Object.prototype) return null;
-      const { ref, expected, actual } = entry;
-      if (typeof ref !== "string" || ref.length === 0 || ref.length > 1024) return null;
-      for (const oid of [expected, actual]) {
-        if (oid !== null && (typeof oid !== "string" || !OID_RE.test(oid))) return null;
-      }
-      projected.push(Object.freeze({ ref, expected, actual }));
-    }
-    return Object.freeze(projected);
-  } catch {
-    return null;
-  }
-}
-
-function boundedMechanicalDetail(detail) {
-  if (!isPlainObject(detail)) return null;
-  const projected = {};
-  if (Array.isArray(detail.args)) {
-    projected.git_args = detail.args.slice(0, 32).map((arg) => String(arg).slice(0, 256));
-    const operation = detail.args.find((arg) => typeof arg === "string" && !arg.startsWith("-"));
-    if (operation !== undefined) projected.git_operation = operation.slice(0, 256);
-  }
-  for (const field of ["ref", "path", "oid"]) {
-    if (typeof detail[field] === "string") projected[`git_${field}`] = detail[field].slice(0, 1024);
-  }
-  const disagreements = projectTerminalWkCandidateRefDisagreements(detail.ref_disagreements);
-  if (disagreements !== null) projected.ref_disagreements = disagreements;
-  if (detail.status !== undefined) {
-    projected.git_status = detail.status === null ? null : Number(detail.status);
-  }
-  if (detail.signal !== undefined) {
-    projected.git_signal = typeof detail.signal === "string" ? detail.signal : null;
-  }
-  if (detail.output_overflow === true) projected.git_output_overflow = true;
-  if (isPlainObject(detail.native_error)) projected.git_native_error = { ...detail.native_error };
-  if (Object.hasOwn(detail, "stderr_bytes")) {
-    if (Number.isSafeInteger(detail.stderr_bytes)) projected.git_stderr_bytes = detail.stderr_bytes;
-  } else if (typeof detail.stderr === "string") {
-    projected.git_stderr_bytes = Buffer.byteLength(detail.stderr, "utf8");
-  }
-  return Object.keys(projected).length === 0 ? null : Object.freeze(projected);
-}
-
-export const TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE_MESSAGE =
-  "terminal WK candidate: unknown construction or recovery failure";
-
-const TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE = Object.freeze({
-  kind: "unknown_cause",
-  code: null,
-  name: null,
-  message: TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
-  detail: null
-});
-
-export function projectTerminalWkCandidateFailure(error) {
-  if (error instanceof TerminalWkCandidateError) {
-    const code = typeof error.code === "string" ? error.code : null;
-    const detail = boundedMechanicalDetail(error.detail);
-    const registered = projectTerminalWkCandidateGitDiagnosis(error);
-    return Object.freeze({
-      kind: "typed_candidate_error",
-      code,
-      message: boundedFailureMessage(error.message),
-      detail: registered === null || registered.code !== code ? detail
-        : Object.freeze({ ...(detail ?? {}), git_diagnosis: registered.diagnosis })
-    });
-  }
-  return TERMINAL_WK_CANDIDATE_UNKNOWN_FAILURE;
-}
-
-export async function defaultTerminalCandidateRunGit({ repo, args, env = null, input = undefined }) {
-  const result = await runGitAsync({
-    repo,
-    args,
-    quotePath: true,
-    input,
-    env: env === null ? process.env : { ...process.env, ...env },
-    maxBuffer: 64 * 1024 * 1024,
-    trace2Diagnostics: true
-  });
-  const stderr = typeof result.stderr === "string" ? result.stderr : "";
-  const facts = {
-    status: typeof result.status === "number" ? result.status : null,
-    signal: result.signal ?? null,
-    stdout: typeof result.stdout === "string" ? result.stdout : "",
-    stderr,
-    stderr_bytes: result.overflow === true ? null : Buffer.byteLength(stderr, "utf8"),
-    ...(result.trace2 === undefined ? {} : { trace2: result.trace2 })
-  };
-  const adapted = result.error
-    ? {
-        ok: false,
-        error: result.error,
-        ...(result.overflow === true ? { overflow: true } : {}),
-        ...(result.timed_out === true ? { timed_out: true } : {}),
-        ...(result.spawn_error === undefined ? {} : { spawn_error: result.spawn_error }),
-        ...facts
-      }
-    : { ok: result.status === 0, ...facts };
-  PRODUCTION_RUNNER_RESULTS.add(adapted);
-  return adapted;
-}
-
-function authorityGitArgs(args) {
-  return ["--no-replace-objects", ...args];
-}
 
 async function git(runGit, repo, args, { code = TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, message, env = null } = {}) {
   const authorityArgs = authorityGitArgs(args);
@@ -347,20 +73,6 @@ async function gitRaw(runGit, repo, args, { code = TERMINAL_WK_CANDIDATE_CODES.G
   return String(result.stdout ?? "");
 }
 
-function canonicalOid(value, field) {
-  const oid = String(value ?? "").trim();
-  if (!OID_RE.test(oid) || /^0+$/u.test(oid)) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH, `${field} is not a canonical object id`, { field, value: oid });
-  }
-  return oid;
-}
-
-function oidReForObjectFormat(objectFormat) {
-  if (objectFormat === "sha1") return /^[0-9a-f]{40}$/u;
-  if (objectFormat === "sha256") return /^[0-9a-f]{64}$/u;
-  return OID_RE;
-}
-
 function sha256(value) {
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
@@ -371,10 +83,9 @@ function generationFromInput(value, mainRepo, canonicalWkId) {
       "candidate requires the exact-W controlled generation identity");
   }
   try {
-    return assertAuthenticatedControlledContractGeneration(value, {
+    return assertControlledContractGenerationState(value, {
       repository: mainRepo,
-      wkId: canonicalWkId,
-      requireManifest: true
+      wkId: canonicalWkId
     });
   } catch (error) {
     fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
@@ -384,15 +95,65 @@ function generationFromInput(value, mainRepo, canonicalWkId) {
 
 function assertGenerationForCandidate(value, { mainRepo, canonicalWkId, wkTip }) {
   try {
-    return assertAuthenticatedControlledContractGeneration(value, {
+    return assertControlledContractGenerationState(value, {
       repository: mainRepo,
       wkId: canonicalWkId,
-      wkTipSha: wkTip,
-      requireManifest: true
+      wkTipSha: wkTip
     });
   } catch (error) {
     fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
       "exact-W controlled generation contradicts candidate W", null, error);
+  }
+}
+
+const historicalApplicability = new WeakMap();
+
+function historicalApplicabilityOf(value) {
+  return value !== null && typeof value === "object"
+    ? historicalApplicability.get(value) ?? null
+    : null;
+}
+
+function assertCurrentApplicability(value, operation) {
+  const historical = historicalApplicabilityOf(value);
+  if (historical !== null) {
+    fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
+      `a historical candidate version binding is observational and cannot authorize ${operation}`, {
+        version_ref: historical.version_ref,
+        version_identity: historical.version_identity,
+        candidate: historical.candidate
+      });
+  }
+}
+
+async function observeHistoricalSelectionRefs({ mainRepo, runGit, historical }) {
+  const refs = [
+    ...(historical.current_ref === null ? []
+      : [["current_ref", historical.current_ref, "current candidate ref"]]),
+    ...(historical.version_ref === null ? []
+      : [["version_ref", historical.version_ref, "immutable candidate version ref"]])
+  ];
+  const observations = [];
+  for (const [field, ref, subject] of refs) {
+    observations.push({
+      field, ref, subject,
+      actual: await observeExactDirectCommitRef({ mainRepo, ref, runGit, subject })
+    });
+  }
+  return observations;
+}
+
+async function assertHistoricalSelectionUnmoved({ mainRepo, runGit, historical }) {
+  for (const { field, ref, subject, actual } of
+    await observeHistoricalSelectionRefs({ mainRepo, runGit, historical })) {
+    if (actual !== historical.candidate) {
+      fail(TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED, `selected ${subject} moved or is absent`, {
+        field,
+        ref,
+        expected: historical.candidate,
+        actual
+      });
+    }
   }
 }
 
@@ -422,20 +183,6 @@ async function resolveRef(runGit, repo, ref, field) {
   return canonicalOid(await git(runGit, repo, ["rev-parse", "--verify", `${ref}^{commit}`], {
     message: `could not resolve ${field}`
   }), field);
-}
-
-async function assertBaseAncestor(runGit, repo, base, wkTip) {
-  const args = authorityGitArgs(["merge-base", "--is-ancestor", base, wkTip]);
-  const result = await runGit({ repo, args, env: null });
-  const observed = classifyAncestryObservation(result);
-  if (observed === "ancestor") return;
-  const facts = { args, base, wk_tip: wkTip };
-  if (observed === "not_ancestor") {
-    failGit(TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID,
-      "base is not an ancestor of the accumulated WK tip", result, facts);
-  }
-  failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
-    "could not complete the ancestry comparison of base and the accumulated WK tip", result, facts);
 }
 
 export function resolveTerminalWkCandidateBaseRef({
@@ -503,7 +250,34 @@ export async function freezeTerminalWkCandidateInputs({
   });
 }
 
-export async function freezeRecoveredTerminalWkCandidateInputs({
+export async function freezeRecoveredTerminalWkCandidateInputs(input = {}) {
+  return await freezeRecoveredCandidateInputs(input, null);
+}
+
+export async function freezeHistoricalTerminalWkCandidateInputs({
+  versionIdentity, ...input
+} = {}) {
+  const versionRef = deriveTerminalCandidateVersionRef({
+    canonicalWkId: input.canonicalWkId, versionIdentity
+  });
+  return await freezeRecoveredCandidateInputs(input, Object.freeze({
+    version_identity: versionIdentity,
+    version_ref: versionRef,
+    current_ref: null,
+    candidate: input.candidate
+  }));
+}
+
+export async function freezeObservedTerminalWkCandidateInputs(input = {}) {
+  return await freezeRecoveredCandidateInputs(input, Object.freeze({
+    version_identity: null,
+    version_ref: null,
+    current_ref: deriveTerminalCandidateCurrentRef({ canonicalWkId: input?.canonicalWkId }),
+    candidate: input?.candidate
+  }));
+}
+
+async function freezeRecoveredCandidateInputs({
   mainRepo,
   baseRef,
   wkRef,
@@ -511,7 +285,7 @@ export async function freezeRecoveredTerminalWkCandidateInputs({
   candidate,
   generationAuthentication = null,
   runGit = defaultTerminalCandidateRunGit
-} = {}) {
+} = {}, historical) {
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) || path.normalize(mainRepo) !== mainRepo ||
       typeof baseRef !== "string" || !BASE_REF_RE.test(baseRef) ||
       typeof wkRef !== "string" || !WK_REF_RE.test(wkRef) ||
@@ -521,6 +295,7 @@ export async function freezeRecoveredTerminalWkCandidateInputs({
     fail(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT,
       "launcher-owned recovered candidate inputs are incomplete or invalid");
   }
+  if (historical !== null) await assertHistoricalSelectionUnmoved({ mainRepo, runGit, historical });
   const repository = await resolveRepositoryIdentity(mainRepo, runGit);
   const generationIdentity = generationFromInput(
     generationAuthentication, mainRepo, canonicalWkId);
@@ -546,7 +321,9 @@ export async function freezeRecoveredTerminalWkCandidateInputs({
     fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
       "recovered candidate parent disagrees with immutable base metadata");
   }
-  const wkTip = await resolveRef(runGit, mainRepo, wkRef, "WK tip");
+
+  const wkTip = await resolveRef(runGit, mainRepo,
+    historical === null ? wkRef : metadata.wk_tip, "WK tip");
   if (wkTip !== metadata.wk_tip) {
     fail(TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED,
       "accumulated WK ref moved after candidate construction", {
@@ -556,7 +333,7 @@ export async function freezeRecoveredTerminalWkCandidateInputs({
   }
   assertGenerationForCandidate(generationIdentity, { mainRepo, canonicalWkId, wkTip });
   await assertBaseAncestor(runGit, mainRepo, base, wkTip);
-  return Object.freeze({
+  const frozen = Object.freeze({
     schema_version: metadata.schema_version,
     repository,
     main_repo: mainRepo,
@@ -568,6 +345,8 @@ export async function freezeRecoveredTerminalWkCandidateInputs({
     wk_tip: wkTip,
     controlled_generation: generationIdentity
   });
+  if (historical !== null) historicalApplicability.set(frozen, historical);
+  return frozen;
 }
 
 export async function freezeReconstructedTerminalWkCandidateInputs({
@@ -630,11 +409,10 @@ function assertFrozenShape(frozen) {
       "frozen candidate fork ref does not belong to its WK ref");
   }
   try {
-    assertAuthenticatedControlledContractGeneration(frozen.controlled_generation, {
+    assertControlledContractGenerationState(frozen.controlled_generation, {
       repository: frozen.main_repo,
       wkId: frozen.canonical_wk_id,
-      wkTipSha: frozen.wk_tip,
-      requireManifest: true
+      wkTipSha: frozen.wk_tip
     });
   } catch (error) {
     fail(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT,
@@ -650,7 +428,16 @@ export async function assertTerminalWkCandidateInputsUnmoved({
   assertFrozenShape(frozen);
   const observedRepository = await resolveRepositoryIdentity(frozen.main_repo, runGit);
 
-  const checks = WK_FORK_REF_RE.test(frozen.base_ref)
+  const historical = historicalApplicabilityOf(frozen);
+
+  const checks = historical !== null
+    ? [
+        ["repository", observedRepository.digest, frozen.repository.digest],
+        ...(await observeHistoricalSelectionRefs({
+          mainRepo: frozen.main_repo, runGit, historical
+        })).map(({ field, actual }) => [field, actual, historical.candidate])
+      ]
+    : WK_FORK_REF_RE.test(frozen.base_ref)
     ? [
         ["repository", observedRepository.digest, frozen.repository.digest],
         ["wk_tip", await observeExactDirectCommitRef({
@@ -813,7 +600,7 @@ function mintTerminalWkCandidateVersionDecision({
     base: binding.base,
     wk: binding.wk_tip,
     controlled_generation:
-      projectAuthenticatedControlledContractGeneration(binding.controlled_generation),
+      projectControlledContractGenerationState(binding.controlled_generation),
     tree: binding.candidate_tree,
     candidate_format: binding.schema_version
   });
@@ -847,7 +634,7 @@ export function assertTerminalWkCandidateVersionDecision(
         decision.candidate_format !== binding.schema_version ||
         decision.current_selection_ref !== binding.candidate_ref ||
         canonicalizeGeneration(decision.controlled_generation) !==
-          canonicalizeGeneration(projectAuthenticatedControlledContractGeneration(
+          canonicalizeGeneration(projectControlledContractGenerationState(
             binding.controlled_generation
           ))) {
       fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
@@ -859,6 +646,55 @@ export function assertTerminalWkCandidateVersionDecision(
 
 function canonicalizeGeneration(value) {
   return JSON.stringify(value);
+}
+
+const completedHistoricalVersionResults = new WeakSet();
+
+export function projectTerminalWkCandidateVersion(value) {
+  let version;
+  if (terminalCandidateVersionDecisions.has(value)) {
+    const decision = assertTerminalWkCandidateVersionDecision(value);
+    if (decision.immutable_version_target !== decision.candidate) {
+      fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
+        "candidate version projection requires a published immutable version", {
+          state: decision.state
+        });
+    }
+    version = {
+      version_identity: decision.version_identity,
+      candidate: decision.candidate,
+      base: decision.base,
+      wk: decision.wk,
+      tree: decision.tree,
+      generation: decision.controlled_generation
+    };
+  } else if (completedHistoricalVersionResults.has(value)) {
+    version = {
+      version_identity: value.version_identity,
+      candidate: value.binding.candidate,
+      base: value.binding.base,
+      wk: value.binding.wk_tip,
+      tree: value.binding.candidate_tree,
+      generation: projectControlledContractGenerationState(
+        value.binding.controlled_generation)
+    };
+  } else {
+    fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
+      "candidate version projection requires an authenticated version decision or a completed historical verification result");
+  }
+  return Object.freeze({
+    version_identity: version.version_identity,
+    candidate: version.candidate,
+    base: version.base,
+    wk: version.wk,
+    tree: version.tree,
+    controlled_generation: version.generation === null ? null : Object.freeze({
+      wk_id: version.generation.wk_id,
+      generation_digest: version.generation.generation_digest,
+      count: version.generation.count,
+      manifest_identity: version.generation.manifest_identity
+    })
+  });
 }
 
 export async function inspectTerminalWkCandidateVersion({
@@ -943,62 +779,6 @@ export async function observeExactDirectCommitRef({ mainRepo, ref, runGit, subje
   return rawTarget;
 }
 
-export async function readExactWkRecordBlobObservation({
-  mainRepo,
-  wkTip,
-  canonicalWkId,
-  runGit = defaultTerminalCandidateRunGit,
-  objectFormat
-} = {}) {
-  if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) || path.normalize(mainRepo) !== mainRepo ||
-      !["sha1", "sha256"].includes(objectFormat) ||
-      !oidReForObjectFormat(objectFormat).test(wkTip ?? "") ||
-      !WK_RE.test(canonicalWkId ?? "") || typeof runGit !== "function") {
-    fail(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT, "WK record observation inputs are invalid");
-  }
-  const recordPath = `wiki/work-records/${canonicalWkId}.json`;
-  const result = await runGit({
-    repo: mainRepo,
-    args: authorityGitArgs(["ls-tree", "-z", "--full-tree", wkTip, "--", recordPath]),
-    env: null
-  });
-  if (!result || result.ok !== true || result.error != null || result.signal != null ||
-      (result.status !== undefined && result.status !== 0)) {
-    failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not observe exact WK record path", result,
-      { args: authorityGitArgs(["ls-tree"]), path: recordPath });
-  }
-  const stdout = typeof result.stdout === "string" ? result.stdout : null;
-  if (stdout === null) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID, "WK record path observation is malformed", { path: recordPath });
-  }
-  if (stdout === "") return Object.freeze({ state: "absent", path: recordPath, wk_tip: wkTip });
-  if (!stdout.endsWith("\0")) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID, "WK record path observation is malformed", { path: recordPath });
-  }
-  const entries = stdout.slice(0, -1).split("\0");
-  if (entries.length !== 1) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID, "WK record path observation is ambiguous", { path: recordPath });
-  }
-  const match = /^(\d{6}) (blob|tree) ([0-9a-f]{40}|[0-9a-f]{64})\t([^\0]+)$/u.exec(entries[0]);
-  if (match === null || match[1] !== "100644" || match[2] !== "blob" || match[4] !== recordPath ||
-      /^0+$/u.test(match[3]) || !oidReForObjectFormat(objectFormat).test(match[3])) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID, "WK record path observation is not one canonical blob", {
-      path: recordPath
-    });
-  }
-  const oid = match[3];
-  const blobResult = await runGit({ repo: mainRepo, args: authorityGitArgs(["cat-file", "blob", oid]), env: null });
-  if (!blobResult || blobResult.ok !== true || blobResult.error != null || blobResult.signal != null ||
-      (blobResult.status !== undefined && blobResult.status !== 0)) {
-    failGit(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not read exact WK record blob", blobResult,
-      { args: authorityGitArgs(["cat-file", "blob", oid]), path: recordPath, oid });
-  }
-  if (typeof blobResult.stdout !== "string") {
-    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID, "WK record blob is unreadable", { path: recordPath, oid });
-  }
-  return Object.freeze({ state: "present", path: recordPath, wk_tip: wkTip, oid, content: blobResult.stdout });
-}
-
 export async function inspectTerminalReviewCandidateAuthority({
   mainRepo,
   initiative,
@@ -1032,7 +812,7 @@ export async function inspectTerminalReviewCandidateAuthority({
     generationAuthentication, mainRepo, canonicalWkId);
   assertGenerationForCandidate(currentGeneration, { mainRepo, canonicalWkId, wkTip: wk });
   const metadata = await readTerminalWkCandidateMetadata({ mainRepo, candidate, runGit });
-  const generationIdentityEqual = authenticatedControlledContractGenerationMatchesMetadata(
+  const generationIdentityEqual = controlledContractGenerationStateMatchesMetadata(
     currentGeneration, metadata.controlled_generation);
   const wkIdentityEqual = metadata.canonical_wk_id === canonicalWkId;
   const repositoryBindingEqual = metadata.repository_digest === repository.digest;
@@ -1072,7 +852,7 @@ export async function inspectTerminalReviewCandidateAuthority({
     embedded_wk: metadata.wk_tip, current_base: fork, current_wk: wk, candidate_tree: tree, embedded_w_tree: embeddedWTree, current_wk_tree: wkTree,
     wk_identity_equal: wkIdentityEqual, repository_binding_equal: repositoryBindingEqual,
     generation_identity: metadata.controlled_generation,
-    current_generation_identity: projectAuthenticatedControlledContractGeneration(currentGeneration),
+    current_generation_identity: projectControlledContractGenerationState(currentGeneration),
     generation_identity_equal: generationIdentityEqual,
     tree_equal: treeEqual, sole_parent_base: soleParentBase,
     fork_equal_base: forkEqualBase, base_ancestor_current_w: baseAncestorCurrentW,
@@ -1116,39 +896,6 @@ export function deriveTerminalCandidateVersionRef({ canonicalWkId, versionIdenti
   return `${VERSIONED_CANDIDATE_REF_PREFIX}/${canonicalWkId}/${versionIdentity}`;
 }
 
-async function createImmutableCandidateRef({ mainRepo, ref, candidate, runGit }) {
-  const observed = await observeExactDirectCommitRef({
-    mainRepo, ref, runGit, subject: "immutable candidate version ref"
-  });
-  if (observed !== null) {
-    if (observed === candidate) return "converged";
-    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
-      "immutable candidate version ref already names a different candidate", {
-        ref, ref_disagreements: [{ ref, expected: candidate, actual: observed }]
-      });
-  }
-  const args = authorityGitArgs(["update-ref", "--no-deref", "--stdin"]);
-  const input = `create ${ref} ${candidate}\n`;
-  const result = await runGit({ repo: mainRepo, args, input, env: null });
-  if (result?.ok === true && (result.status === undefined || result.status === 0) &&
-      result.error == null && result.signal == null && String(result.stderr ?? "") === "") {
-    return "created";
-  }
-
-  const facts = { args, ref, expected: candidate, transaction: input };
-  const writeFailure = mintGitFailure(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
-    "immutable candidate version ref could not be created", result, facts);
-  const winner = await observeAfterFailedWrite(() => observeExactDirectCommitRef({
-    mainRepo, ref, runGit, subject: "immutable candidate version ref"
-  }), writeFailure);
-  if (winner === candidate) return "converged";
-  if (winner === null) throw writeFailure;
-  failGit(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
-    "immutable candidate version ref names a different candidate after a failed create", result, {
-      ...facts, ref_disagreements: [{ ref, expected: candidate, actual: winner }]
-    });
-}
-
 export async function publishTerminalWkCandidateVersion({
   binding,
   expectedOld,
@@ -1160,15 +907,25 @@ export async function publishTerminalWkCandidateVersion({
   const versionRef = deriveTerminalCandidateVersionRef({
     canonicalWkId: binding.canonical_wk_id, versionIdentity
   });
-  const versionState = await createImmutableCandidateRef({
-    mainRepo: binding.main_repo, ref: versionRef, candidate: binding.candidate, runGit
+  const objectFormat = binding.repository.object_format;
+  const observedVersion = await observeExactDirectCommitRef({
+    mainRepo: binding.main_repo, ref: versionRef, runGit, objectFormat,
+    subject: "immutable candidate version ref"
   });
-  const selection = await casTerminalCandidateCurrentRef({
+  if (observedVersion !== null && observedVersion !== binding.candidate) {
+    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+      "immutable candidate version ref already names a different candidate", {
+        ref: versionRef,
+        ref_disagreements: [{ ref: versionRef, expected: binding.candidate, actual: observedVersion }]
+      });
+  }
+  const selection = await transactTerminalCandidateRefs({
     mainRepo: binding.main_repo,
     canonicalWkId: binding.canonical_wk_id,
     candidate: binding.candidate,
     expectedOld,
     verifyRefs,
+    version: { ref: versionRef, observed: observedVersion, objectFormat },
     runGit
   });
   const versionDecision = await inspectTerminalWkCandidateVersion({ binding, runGit });
@@ -1176,6 +933,9 @@ export async function publishTerminalWkCandidateVersion({
     binding,
     requireSelected: true
   });
+
+  const versionState = selection.state !== "converged" && observedVersion === null
+    ? "created" : "converged";
   return Object.freeze({ ...binding, version_identity: versionIdentity,
     version_ref: versionRef, version_state: versionState, selection,
     candidate_ref_state: selection.state,
@@ -1192,25 +952,26 @@ function durableForkRefForWkRef(wkRef) {
 }
 
 export async function casTerminalCandidateCurrentRef({
-  mainRepo,
-  canonicalWkId,
-  candidate,
-  expectedOld,
-  verifyRefs = [],
+  mainRepo, canonicalWkId, candidate, expectedOld, verifyRefs = [],
   runGit = defaultTerminalCandidateRunGit
 } = {}) {
+  return await transactTerminalCandidateRefs({
+    mainRepo, canonicalWkId, candidate, expectedOld, verifyRefs, version: null, runGit
+  });
+}
+
+async function transactTerminalCandidateRefs({
+  mainRepo, canonicalWkId, candidate, expectedOld, verifyRefs, version, runGit
+}) {
   const candidateRef = deriveTerminalCandidateCurrentRef({ canonicalWkId });
   canonicalOid(candidate, "candidate");
   if (expectedOld !== null) canonicalOid(expectedOld, "expected current candidate");
-  for (const { ref, oid } of verifyRefs) {
-    if (typeof ref !== "string" || ref.length === 0) {
-      fail(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT, "verified ref is invalid");
-    }
-    canonicalOid(oid, `verified ${ref}`);
-  }
+  assertRefTransactionFences(verifyRefs, [candidateRef, ...(version === null ? [] : [version.ref])]);
 
   const transaction = [
     ...verifyRefs.map(({ ref, oid }) => ["verify", ref, oid]),
+    ...(version === null ? []
+      : [[version.observed === null ? "create" : "verify", version.ref, candidate]]),
     expectedOld === null
       ? ["create", candidateRef, candidate]
       : ["update", candidateRef, candidate, expectedOld]
@@ -1226,7 +987,11 @@ export async function casTerminalCandidateCurrentRef({
     });
   }
 
-  const facts = { args, ref: candidateRef, expected_old: expectedOld, proposed: candidate, transaction };
+  const facts = {
+    args, ref: candidateRef, expected_old: expectedOld, proposed: candidate, transaction,
+    ...(version === null ? {} : { version_ref: version.ref, version_observed: version.observed }),
+    ref_effects: "uncertain"
+  };
   const writeFailure = mintGitFailure(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
     "current candidate transaction failed", advanced, facts);
   const reauthenticated = await observeAfterFailedWrite(() => Promise.all(
@@ -1240,22 +1005,37 @@ export async function casTerminalCandidateCurrentRef({
         subject: `verified ${ref}`
       })
     }))), writeFailure);
+  const versionActual = version === null ? candidate
+    : await observeAfterFailedWrite(() => observeExactDirectCommitRef({
+      mainRepo, ref: version.ref, runGit, objectFormat: version.objectFormat,
+      subject: "immutable candidate version ref"
+    }), writeFailure);
   const current = await observeAfterFailedWrite(
     () => readTerminalCandidateCurrentRef({ mainRepo, canonicalWkId, runGit }), writeFailure);
-  const factsMatch = reauthenticated.every(({ expected, actual }) => expected === actual);
+  const factsMatch = versionActual === candidate &&
+    reauthenticated.every(({ expected, actual }) => expected === actual);
   if (factsMatch && current === candidate) {
     return Object.freeze({ state: "converged", ref: candidateRef, candidate });
   }
+  const versionUnchanged = version === null || versionActual === version.observed;
   const refDisagreements = [
     ...reauthenticated.filter(({ expected, actual }) => expected !== actual),
+    ...(versionUnchanged || versionActual === candidate ? []
+      : [{ ref: version.ref, expected: candidate, actual: versionActual }]),
     ...(current === candidate || current === expectedOld ? []
       : [{ ref: candidateRef, expected: expectedOld, actual: current }])
   ];
-  if (refDisagreements.length === 0) throw writeFailure;
+  const refEffects = versionUnchanged && current === expectedOld ? "unchanged" : "uncertain";
+  if (refDisagreements.length === 0) {
+    writeFailure.detail.ref_effects = refEffects;
+    throw writeFailure;
+  }
   failGit(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
     "current candidate transaction lost to a conflicting ref value", advanced, {
       ...facts,
+      ref_effects: refEffects,
       actual: current,
+      ...(version === null ? {} : { version_actual: versionActual }),
       reauthenticated,
       ref_disagreements: refDisagreements
     });
@@ -1271,11 +1051,14 @@ function deterministicMessage(frozen) {
     `Repository: ${frozen.repository.digest}`,
 
     `Contract: ${frozen.canonical_wk_digest}`,
-    `Generation-Digest: ${generation.generation_digest}`,
-    `Generation-Count: ${generation.count}`,
-    `Manifest-Identity: ${generation.manifest_identity}`,
-    ...generation.descriptors.map(({ path: carrierPath, content_digest: contentDigest }) =>
-      `Carrier: ${carrierPath} ${contentDigest}`),
+
+    ...(isControlledContractGenerationAbsence(generation) ? [] : [
+      `Generation-Digest: ${generation.generation_digest}`,
+      `Generation-Count: ${generation.count}`,
+      `Manifest-Identity: ${generation.manifest_identity}`,
+      ...generation.descriptors.map(({ path: carrierPath, content_digest: contentDigest }) =>
+        `Carrier: ${carrierPath} ${contentDigest}`)
+    ]),
     ""
   ].join("\n");
 }
@@ -1309,6 +1092,9 @@ export async function readTerminalWkCandidateMetadata({
     const matches = [...commitBytes.matchAll(pattern)];
     return matches.length === 1 ? matches[0][1] : null;
   };
+
+  const generationLines = [...commitBytes.matchAll(
+    /^(?:Generation-Digest|Generation-Count|Manifest-Identity|Carrier):/gmu)].length;
   const base = exactlyOnce(/^Base: ([0-9a-f]{40}|[0-9a-f]{64})$/gmu);
   const wkTip = exactlyOnce(/^WK: ([0-9a-f]{40}|[0-9a-f]{64})$/gmu);
   const repositoryDigest = exactlyOnce(/^Repository: (sha256:[0-9a-f]{64})$/gmu);
@@ -1319,11 +1105,13 @@ export async function readTerminalWkCandidateMetadata({
   const carriers = [...commitBytes.matchAll(/^Carrier: ([^\n ]+) (sha256:[0-9a-f]{64})$/gmu)]
     .map((match) => ({ path: match[1], content_digest: match[2] }));
   if (firstLine === null || base === null || wkTip === null || repositoryDigest === null ||
-      canonicalWkDigest === null ||
-      generationDigest === null || generationCountText === null || manifestIdentity === null ||
-      carriers.length !== Number(generationCountText) ||
-      new Set(carriers.map(({ path: carrierPath }) => carrierPath)).size !== carriers.length ||
-      carriers.some(({ path: carrierPath }, index) => index > 0 && carriers[index - 1].path >= carrierPath)) {
+      canonicalWkDigest === null || (generationLines !== 0 && (
+        generationDigest === null || generationCountText === null || manifestIdentity === null ||
+        generationLines !== carriers.length + 3 ||
+        carriers.length !== Number(generationCountText) ||
+        new Set(carriers.map(({ path: carrierPath }) => carrierPath)).size !== carriers.length ||
+        carriers.some(({ path: carrierPath }, index) =>
+          index > 0 && carriers[index - 1].path >= carrierPath)))) {
     fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
       "candidate commit does not carry one exact immutable terminal metadata block");
   }
@@ -1334,14 +1122,15 @@ export async function readTerminalWkCandidateMetadata({
     wk_tip: wkTip,
     repository_digest: repositoryDigest,
     canonical_wk_digest: canonicalWkDigest,
-    controlled_generation: authenticatedControlledContractGenerationMetadataFromFields({
-      wkId: firstLine[1],
-      generationDigest,
-      count: Number(generationCountText),
-      manifestIdentity,
+    controlled_generation: generationLines === 0 ? null
+      : authenticatedControlledContractGenerationMetadataFromFields({
+          wkId: firstLine[1],
+          generationDigest,
+          count: Number(generationCountText),
+          manifestIdentity,
 
-      descriptors: carriers
-    })
+          descriptors: carriers
+        })
   });
 }
 
@@ -1371,7 +1160,7 @@ async function deriveTerminalWkCandidateIdentityWithGuard({ frozen, runGit, asse
     .update(commitBytes, "utf8")
     .digest("hex");
   await assertFacts({ frozen, runGit });
-  return Object.freeze({
+  const identity = Object.freeze({
     ...frozen,
     candidate,
     candidate_tree: tree,
@@ -1379,12 +1168,16 @@ async function deriveTerminalWkCandidateIdentityWithGuard({ frozen, runGit, asse
     candidate_ref: deriveTerminalCandidateCurrentRef({ canonicalWkId: frozen.canonical_wk_id }),
     candidate_ref_state: "derived"
   });
+  const historical = historicalApplicabilityOf(frozen);
+  if (historical !== null) historicalApplicability.set(identity, historical);
+  return identity;
 }
 
 export async function deriveTerminalWkCandidateIdentity({
   frozen,
   runGit = defaultTerminalCandidateRunGit
 } = {}) {
+  assertCurrentApplicability(frozen, "candidate derivation");
   return await deriveTerminalWkCandidateIdentityWithGuard({
     frozen,
     runGit,
@@ -1404,6 +1197,7 @@ export async function deriveRecoveredTerminalWkCandidateIdentity({
 }
 
 export async function deriveTerminalWkCandidate({ frozen, runGit = defaultTerminalCandidateRunGit } = {}) {
+  assertCurrentApplicability(frozen, "candidate object derivation");
   const identity = await deriveTerminalWkCandidateIdentity({ frozen, runGit });
   const commitEnv = {
     LC_ALL: "C",
@@ -1457,6 +1251,7 @@ export function terminalWkCandidateVerifyRefs(frozen) {
 }
 
 export async function constructTerminalWkCandidate({ frozen, runGit = defaultTerminalCandidateRunGit } = {}) {
+  assertCurrentApplicability(frozen, "candidate construction");
   assertFrozenShape(frozen);
   const expectedOld = await readTerminalCandidateCurrentRef({
     mainRepo: frozen.main_repo,
@@ -1479,6 +1274,69 @@ export async function constructTerminalWkCandidate({ frozen, runGit = defaultTer
 }
 
 export async function verifyTerminalWkCandidateObjectBinding({ binding, runGit = defaultTerminalCandidateRunGit } = {}) {
+  assertCurrentApplicability(binding, "current candidate verification");
+  return await verifyCandidateObjectBinding({ binding, runGit });
+}
+
+export async function verifyHistoricalTerminalWkCandidateVersion({
+  binding, runGit = defaultTerminalCandidateRunGit
+} = {}) {
+  const historical = historicalApplicabilityOf(binding);
+  if (historical === null) {
+    fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
+      "historical candidate verification requires a binding derived from its own exact-ref observation");
+  }
+  await verifyCandidateObjectBinding({ binding, runGit });
+  const versionIdentity = deriveTerminalWkCandidateVersionIdentity({ binding });
+  if (binding.candidate !== historical.candidate ||
+      (historical.version_identity !== null &&
+        versionIdentity !== historical.version_identity)) {
+    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
+      "selected immutable candidate version does not reproduce its version identity", {
+        version_ref: historical.version_ref,
+        expected_version_identity: historical.version_identity,
+        actual_version_identity: versionIdentity,
+        expected_candidate: historical.candidate,
+        actual_candidate: binding.candidate
+      });
+  }
+  let verified = historical;
+  if (historical.version_identity === null) {
+    const versionRef = deriveTerminalCandidateVersionRef({
+      canonicalWkId: binding.canonical_wk_id, versionIdentity
+    });
+    const versionTarget = await observeExactDirectCommitRef({
+      mainRepo: binding.main_repo, ref: versionRef, runGit,
+      subject: "immutable candidate version ref"
+    });
+    if (versionTarget !== binding.candidate) {
+      fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+        versionTarget === null
+          ? "selected candidate has no immutable candidate version ref"
+          : "immutable candidate version ref names a different candidate", {
+          ref: versionRef,
+          version_identity: versionIdentity,
+          ref_disagreements: [{ ref: versionRef, expected: binding.candidate, actual: versionTarget }]
+        });
+    }
+    verified = Object.freeze({
+      ...historical, version_identity: versionIdentity, version_ref: versionRef
+    });
+  }
+  await assertHistoricalSelectionUnmoved({
+    mainRepo: binding.main_repo, runGit, historical: verified
+  });
+  if (verified !== historical) historicalApplicability.set(binding, verified);
+  const completed = Object.freeze({
+    binding,
+    version_identity: verified.version_identity,
+    version_ref: verified.version_ref
+  });
+  completedHistoricalVersionResults.add(completed);
+  return completed;
+}
+
+async function verifyCandidateObjectBinding({ binding, runGit }) {
   if (!isPlainObject(binding) || !Object.isFrozen(binding) ||
       !TERMINAL_WK_CANDIDATE_SCHEMA_VERSIONS.has(binding.schema_version) ||
       !OID_RE.test(binding.candidate ?? "") || !OID_RE.test(binding.candidate_tree ?? "") ||
@@ -1513,3 +1371,5 @@ export async function verifyTerminalWkCandidateObjectBinding({ binding, runGit =
   }
   return binding;
 }
+
+export { oidReForObjectFormat };

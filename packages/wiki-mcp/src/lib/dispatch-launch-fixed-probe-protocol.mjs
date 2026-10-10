@@ -84,8 +84,8 @@ function connectFixedProbeMcp({ clientName, requestTimeoutMs = 15000,
 }
 
 // WK-2570: a managed worker's startup text carries no assignment body; the
-// probe retrieves it exactly as a worker does -- workspace_read_page
-// {assignment:true}, then every returned continuation -- and consumes the
+// probe retrieves it exactly as a worker does -- workspace_read_wiki
+// {assignment:true}, then its returned complete guidance selection -- and consumes the
 // startup text followed by the retrieved guidance.
 async function readFixedProbeAssignment(mcp) {
   const page = result => {
@@ -97,16 +97,17 @@ async function readFixedProbeAssignment(mcp) {
     }
     return result.structuredContent || JSON.parse(result.content[0].text);
   };
-  const first = page(await mcp.callTool("workspace_read_page", { assignment: true }));
-  let current = first;
-  let guidance = current.member.value;
-  let reads = 1;
-  while (Array.isArray(current.next_calls) && current.next_calls.length > 0) {
-    current = page(await mcp.callTool("workspace_read_page", current.next_calls[0].arguments));
-    guidance += current.member.value;
-    reads += 1;
+  const first = page(await mcp.callTool("workspace_read_wiki", { assignment: true }));
+  const next = first.next_calls?.find(call => call.arguments?.select?.field === "guidance");
+  if (!next || typeof next.tool !== "string") {
+    throw new Error("assignment_read_missing_guidance_selection:" + JSON.stringify(first));
   }
-  return { guidance, reads, source_digest: first.source_digest, identity: first.identity };
+  const selected = page(await mcp.callTool(next.tool, next.arguments));
+  if (selected.complete !== true || selected.field !== "guidance" ||
+      typeof selected.value !== "string" || !selected.identity || typeof first.revision !== "string") {
+    throw new Error("assignment_read_invalid_guidance_selection:" + JSON.stringify(selected));
+  }
+  return { guidance: selected.value, reads: 2, source_digest: first.revision, identity: selected.identity };
 }
 
 function fixedProbeDeliveredText(prompt, assignment) {

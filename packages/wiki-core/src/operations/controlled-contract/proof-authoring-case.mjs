@@ -1,10 +1,10 @@
-import { CASE_COMPONENT_FIELD, CASE_COMPONENT_FIELD_PATH, CASE_VERIFICATION_ASSOCIATION_FIELD,
-  CASE_VERIFICATION_ASSOCIATION_FIELD_PATH, CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
+import { CASE_COMPONENT_FIELD, CASE_COMPONENT_FIELD_PATH, CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
+  CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD_PATH, CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
   ControlledContractToolError, controlledContractContentDigest } from '../../lib/controlled-contract-tools.mjs';
 import { assertPackageValidContract } from './package-runtime.mjs';
 import { projectWorkRecordTestProofValidation, amendWorkRecordTestProofTarget, removeWorkRecordTestProofTarget,
   rebindWorkRecordTestProofVerificationIds } from '../../lib/work-record-test-proof-bindings.mjs';
-import { projectSavedProofCase } from './saved-proof-source.mjs';
+import { projectSavedProofCase, resolveUnselectedCaseAssociation } from './saved-proof-source.mjs';
 import { proofAuthoringRebindingIntents, remapProofAuthoringObligationLinks } from './proof-authoring-requirement-rebinding.mjs';
 import { reconcileProofAuthoringRequirementRetirement } from './proof-authoring-requirement-retirement.mjs';
 
@@ -29,10 +29,16 @@ const CASE_ASSOCIATION_CODES = new Set([
   'obligation_coverage_case_selector_ambiguous'
 ]);
 const caseAssociationRouting = initial => ({
-  field: CASE_VERIFICATION_ASSOCIATION_FIELD,
-  field_path: CASE_VERIFICATION_ASSOCIATION_FIELD_PATH,
+  field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
+  field_path: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD_PATH,
   guidance_path: caseAssociationGuidance(),
-  next_calls: [queryCall(initial)]
+  correction: 'An explicit case.verification must be a test_execution verification the obligation claims make ' +
+    'eligible: one listed there, or one that verifies a requirement listed there. A use of a shared case must not ' +
+    'list verifications that exclude that case\'s verification. Correct claims or the selection ' +
+    'in changes.obligations against the current revision. Omit case.verification to keep a saved selection or adopt a ' +
+    'sole eligible one; case:{id} is supplied only to choose a different or shared saved case. ' +
+    'No case is reassigned and no verification is chosen among several.',
+  next_calls: [queryCall(initial), saveCall(initial, 'changes.obligations')]
 });
 
 const UNLINKED_VERIFICATION_FIELD = 'requirements[].verification';
@@ -41,15 +47,18 @@ const RETIREMENT_CONFLICT_LIMIT = 32;
 const unitArguments = initial => ({
   unit: initial.selectedUnit === null ? initial.wkId : `${initial.wkId}#${initial.selectedUnit}`,
   ...(initial.focus ? { focus: initial.focus } : {}) });
-const queryCall = initial => ({ tool: 'workspace_controlled_contract_obligation_coverage_query',
-  arguments: unitArguments(initial) });
+const queryCall = initial => ({ tool: 'workspace_read_wiki',
+  arguments: { subject: unitArguments(initial).unit } });
+const saveCall = (initial, field) => ({ tool: 'save_record',
+  fixed_arguments: { unit: unitArguments(initial).unit, revision: initial.authoringIdentity },
+  required_authored_fields: [field] });
 
-function verificationConflictRecovery(initial, { verificationId, caseIds, initialVerifications, content,
-  changes }) {
+function verificationConflictRecovery(initial, { condition, correction }, { verificationId, caseIds,
+  initialVerifications, content, changes }) {
   const savedCaseIds = caseIds.filter(caseId => initialVerifications.get(caseId) === verificationId);
   const requestedCaseIds = caseIds.filter(caseId => !savedCaseIds.includes(caseId));
-  return { condition: 'verification_owned_by_another_case', field: CASE_VERIFICATION_ASSOCIATION_FIELD,
-    field_path: CASE_VERIFICATION_ASSOCIATION_FIELD_PATH, saved_case_ids: savedCaseIds,
+  return { condition, field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
+    field_path: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD_PATH, saved_case_ids: savedCaseIds,
     requested_case_ids: requestedCaseIds,
     obligation_ids: changes.map(item => content.obligations.find(row => row.obligation_id === item.obligation_id))
       .filter(row => requestedCaseIds.includes(row?.case_id)).map(row => row.obligation_id).sort(),
@@ -57,10 +66,10 @@ function verificationConflictRecovery(initial, { verificationId, caseIds, initia
       relation.role === 'verifies' && relation.source_claim_id === verificationId)
       .map(relation => relation.target_claim_id).sort(),
     guidance_path: additionalVerificationGuidance(),
-    next_calls: requestedCaseIds.length === 0 ? [] : [{ tool: 'workspace_controlled_contract_obligation_coverage_upsert',
-      fixed_arguments: { ...unitArguments(initial),
-        ...(typeof initial.revision === 'string' ? { expected_content_digest: initial.revision } : {}) },
-      required_authored_fields: ['contract_requirements.requirements'] }] };
+    correction,
+    next_calls: requestedCaseIds.length === 0 ? [] : [
+      saveCall(initial, 'changes.obligations'), saveCall(initial, 'changes.requirements')
+    ] };
 }
 
 function assertCaseComponentIdentities(pkg, contract, preparedChanges) {
@@ -289,9 +298,8 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
     remap(initial.caseSource?.content ?? blankSource(pkg, initial, null)));
   const intents = new Map();
 
-  const linkedVerificationClaimIds = new Set((initial.contract?.content.claims ?? [])
-    .filter(claim => claim.kind === 'verification' && claim.verification_method === 'test_execution')
-    .map(claim => claim.claim_id));
+  const eligibleVerificationIds = row => pkg.eligibleCaseVerificationIds(
+    initial.contract?.content ?? pkg.emptyCaseContract(), row);
 
   const preparedChanges = [];
   for (const item of [...changes].sort((left, right) =>
@@ -301,21 +309,16 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
       wk: initial.wkId, focus: initial.focus, unit: initial.selectedUnit, obligation: item.obligation_id }).slice(7,47)}`;
     row.case_id = caseId;
     if (!definitions.has(caseId) && (Object.keys(item.case).some(key => key !== 'case_id') || !item.case.case_id)) {
-      const linked = pkg.linkedNativeTestProofs(initial.contract?.content ?? pkg.emptyCaseContract(), { ...row, case_id: undefined });
-      const ids = [...new Set([...linked.map(p => p.verification_claim_id),
-        ...(row.controlled_contract_node_ids ?? []).filter(id => linkedVerificationClaimIds.has(id))])];
-      const association = condition => ({ condition, ...caseAssociationRouting(initial),
-        obligation_id: item.obligation_id, case_id: caseId,
-        verification_id: item.case.verification_id ?? null,
-        eligible_verification_ids: [...ids].sort(),
-        controlled_contract_node_ids: [...(row.controlled_contract_node_ids ?? [])].sort() });
-      if (ids.length > 1 && !item.case.verification_id) fail('case_selector_ambiguous',
-        'Select a canonical verification fact', association('ambiguous_linked_verification'));
+      const ids = eligibleVerificationIds(row);
+
       if (item.case.verification_id && !ids.includes(item.case.verification_id)) fail(
-        'case_selector_invalid', 'The verification selector is not an associated canonical fact',
-        association('unlinked_verification_selected'));
-      const verification = item.case.verification_id ?? ids[0];
-      const definition = { case_id: caseId, ...(verification ? { verification_id: verification } : {}) };
+        'case_selector_invalid', 'The verification selector is not an associated canonical fact', {
+          condition: 'unlinked_verification_selected', ...caseAssociationRouting(initial),
+          obligation_id: item.obligation_id, case_id: caseId,
+          verification_id: item.case.verification_id, eligible_verification_ids: ids,
+          controlled_contract_node_ids: [...(row.controlled_contract_node_ids ?? [])].sort() });
+      const definition = { case_id: caseId,
+        ...(item.case.verification_id ? { verification_id: item.case.verification_id } : {}) };
       definitions.set(caseId, definition); cases.push(definition);
     }
   }
@@ -324,16 +327,18 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
     const definition = definitions.get(row.case_id);
     if (!definition) fail('case_unknown', 'Reference an existing case or supply new case fields', { case_id: row.case_id });
     if (item.case.verification_id && item.case.verification_id !== definition.verification_id &&
-        !row.controlled_contract_node_ids?.includes(item.case.verification_id)) fail(
+        !eligibleVerificationIds(row).includes(item.case.verification_id)) fail(
       'case_selector_invalid', 'The canonical verification fact is not associated with this obligation', {
         condition: 'unlinked_verification_selected', ...caseAssociationRouting(initial),
         obligation_id: item.obligation_id, case_id: row.case_id,
         verification_id: item.case.verification_id,
 
         eligible_verification_ids: [...new Set([...(definition.verification_id ? [definition.verification_id] : []),
-          ...(row.controlled_contract_node_ids ?? []).filter(id => linkedVerificationClaimIds.has(id))])].sort(),
+          ...eligibleVerificationIds(row)])].sort(),
         controlled_contract_node_ids: [...(row.controlled_contract_node_ids ?? [])].sort() });
     const caseInput = structuredClone(item.case);
+
+    if (caseInput.target !== undefined) caseInput.target = pkg.storedNativeCaseTarget(caseInput.target);
     if (caseInput.component?.identity) {
       const reference = (initial.contract?.content.references ?? []).find(ref =>
         ref.type_term === caseInput.component.type_term && same(ref.identity, caseInput.component.identity));
@@ -359,9 +364,42 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
 
   for (const { definition, caseInput } of preparedChanges) merge(definition, caseInput);
   for (const intent of rebindingIntents) definitions.get(intent.case_id).verification_id = intent.value;
+
+  const verificationClaims = new Set([
+    ...(initial.previousContract?.claims ?? []), ...(initial.contract?.content.claims ?? [])
+  ].filter(claim => claim.kind === 'verification').map(claim => claim.claim_id));
+  const unitAddress = selected => selected === null ? initial.wkId : `${initial.wkId}#${selected}`;
+
+  const unselectedUses = new Map();
+  for (const item of obligations) {
+    const row = content.obligations.find(candidate => candidate.obligation_id === item.obligation_id);
+    if (!row?.case_id || definitions.get(row.case_id)?.verification_id !== undefined ||
+        !definitions.has(row.case_id)) continue;
+    unselectedUses.set(row.case_id, [...(unselectedUses.get(row.case_id) ?? []), row]);
+  }
+  const proposals = [];
+  for (const [caseId, rows] of [...unselectedUses].sort(([left], [right]) => left.localeCompare(right))) {
+    const association = resolveUnselectedCaseAssociation(pkg, { contract: initial.contract?.content ?? pkg.emptyCaseContract(),
+      cases, record: initial.record, selectedUnit: unitAddress(initial.selectedUnit),
+      definition: definitions.get(caseId), rows, verificationClaims,
+      uses: initial.sources.flatMap(entry => ((entry.selectedUnit === initial.selectedUnit ? content
+        : entry.selectedUnit === null ? rootContent : remap(entry.source?.content))?.obligations ?? [])
+        .map(row => ({ unit: unitAddress(entry.selectedUnit), row }))) });
+    if (association.eligible.length === 1 && association.candidates.length === 1) {
+      proposals.push({ caseId, verificationId: association.candidates[0] });
+    }
+  }
+  for (const { caseId, verificationId } of proposals) {
+    if (proposals.filter(other => other.verificationId === verificationId).length === 1) {
+      definitions.get(caseId).verification_id = verificationId;
+    }
+  }
+
+  const placeholderLinks = new Map((initial.cases ?? []).filter(prior => prior.verification_id === undefined &&
+    definitions.get(prior.case_id)?.verification_id !== undefined).map(prior =>
+    [pkg.authoredCaseVerificationId(prior), definitions.get(prior.case_id).verification_id]));
   if (rebinding !== null) assertNoStrandedCases(pkg, initial, rebinding, cases, initialVerifications);
 
-  const unitAddress = selected => selected === null ? initial.wkId : `${initial.wkId}#${selected}`;
   const retired = retirement === null ? null : reconcileProofAuthoringRequirementRetirement(retirement, {
     sources: initial.sources.map(entry => ({ selectedUnit: entry.selectedUnit, unit: unitAddress(entry.selectedUnit),
       content: entry.selectedUnit === initial.selectedUnit ? content
@@ -395,7 +433,7 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
         error.details?.verification_id).map(definition => definition.case_id);
       const selection = rebinding?.selections.find(entry => entry.case_ids?.some(id => caseIds.includes(id)));
       error.details = { ...error.details, changed: false, phase: 'admission', limb: 'mechanical_failure',
-        case_ids: caseIds, ...(selection === undefined ? verificationConflictRecovery(initial, {
+        case_ids: caseIds, ...(selection === undefined ? verificationConflictRecovery(initial, pkg.CASE_VERIFICATION_OWNERSHIP_RECOVERY, {
           verificationId: error.details?.verification_id, caseIds, initialVerifications, content, changes })
           : { field: selection.field, requirement_index: selection.requirement_index,
             guidance_path: rebindingGuidance() }) };
@@ -427,6 +465,16 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
       'The replacement retires a verification whose execution target another unit owns; replace the requirement through that unit', {
         owner_units: ownerUnits, selected_unit: address, requirement_index: owner.requirement_index,
         field: owner.field, verification_ids: [...verificationLinks.keys()].sort(), guidance_path: rebindingGuidance() });
+  }
+  if (placeholderLinks.size > 0) {
+
+    const selectedAddress = unitAddress(initial.selectedUnit);
+    const ownerUnits = rebindWorkRecordTestProofVerificationIds(record, placeholderLinks)
+      .filter(owner => owner !== selectedAddress);
+    if (ownerUnits.length > 0) fail('case_selector_cross_unit',
+      'Another unit owns the execution target of a case this save resolves; resolve the case through that unit', {
+        owner_units: ownerUnits, selected_unit: selectedAddress,
+        verification_ids: [...placeholderLinks.values()].sort() });
   }
   const unit = initial.selectedUnit === null ? record : record.slices.find(slice => slice.id === initial.selectedUnit);
   if (retired !== null) {
@@ -511,22 +559,19 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
     content: entry.selectedUnit === initial.selectedUnit ? selectedContent ?? undefined
       : entry.selectedUnit === null ? (cases.length || initial.caseSource ? rootContent : undefined)
         : retired?.contents.get(entry.selectedUnit) ?? remap(entry.source?.content) }));
-  const verificationClaims = new Set([
-    ...(initial.previousContract?.claims ?? []), ...(initial.contract?.content.claims ?? [])
-  ].filter(claim => claim.kind === 'verification').map(claim => claim.claim_id));
   for (const entry of sources) for (const row of entry.content?.obligations ?? []) {
     if (!row.case_id) continue;
     const definition = definitions.get(row.case_id);
     if (!definition) fail('case_unknown', 'A use references an absent case', { case_id: row.case_id });
-    const verification = pkg.authoredCaseVerificationId(definition);
 
-    const known = (row.controlled_contract_node_ids ?? []).filter(id =>
-      verificationClaims.has(id));
-    if (known.length > 0 && !known.includes(verification)) fail('case_selector_ambiguous',
+    if (definition.verification_id === undefined) continue;
+    const verification = definition.verification_id;
+
+    if (pkg.caseUseExcludesVerification(row, verification, verificationClaims)) fail('case_selector_ambiguous',
       'The use names a different verification fact from its shared case', {
         condition: 'shared_case_verification_conflict', ...caseAssociationRouting(initial),
         case_id: row.case_id, obligation_id: row.obligation_id,
-        verification_id: verification ?? null, eligible_verification_ids: verification ? [verification] : [],
+        verification_id: verification, eligible_verification_ids: [verification],
         controlled_contract_node_ids: [...(row.controlled_contract_node_ids ?? [])].sort() });
   }
   const sourceChanges = sources.filter(entry => entry.content && !same(entry.source?.content ?? null, entry.content));

@@ -138,6 +138,8 @@ function buildOrchestratorBwrapPlanForPosture({
   familyRuntimePolicyProfile = null,
   dispatchWorktreeRoot = null,
   stdioMcpConduit = null,
+
+  launchRole = null,
   resolveExecutable = resolveFamilyRuntimeExecutable
 } = {}) {
   if (!isNonEmptyString(repo)) {
@@ -204,6 +206,7 @@ function buildOrchestratorBwrapPlanForPosture({
     shareNet: true,
 
     installGitStatusWrapper: true,
+    launchRole,
 
     newSession
   });

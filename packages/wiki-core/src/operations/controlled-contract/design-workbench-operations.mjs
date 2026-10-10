@@ -15,8 +15,10 @@ import {
   CONTROLLED_CONTRACT_DESIGN_RESPONSE_KINDS
 } from "../../lib/controlled-contract-authoring-continuations.mjs";
 import { loadWorkRecordById } from "../../lib/work-record-store.mjs";
+import { scopedControlledContractWorkRecordStore } from "../../lib/controlled-contract-tool-shared.mjs";
 import { validateWorkRecord } from "../../lib/work-record-schema.mjs";
-import { loadControlledContractPackage } from "./package-runtime.mjs";
+import { loadControlledContractProofAuthoring, loadControlledContractProofIntents } from
+  "./package-runtime.mjs";
 import {
   CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE,
   inspectWorkRecordProofPosture,
@@ -243,7 +245,9 @@ async function proofSelectionAuthoringFacts(pkg, contract) {
 async function resolveContractRequirementAuthoringFacts({ input, canonicalSet,
   record, hasContract, resolvedContract = null }) {
 
-  const pkg = await loadControlledContractPackage();
+  const [{ NATIVE_CONTRACT_SCHEMA_V1 }, { PROOF_INTENT_ARTIFACT, describeProofPackAuthoring }] =
+    await Promise.all([loadControlledContractProofAuthoring(), loadControlledContractProofIntents()]);
+  const pkg = { NATIVE_CONTRACT_SCHEMA_V1, PROOF_INTENT_ARTIFACT, describeProofPackAuthoring };
 
   const { controlledContractRuntimeTestAuthoringVariants } =
     await import("./contract-requirement-input-schema.mjs");
@@ -333,7 +337,9 @@ async function resolveWorkbenchInput(input) {
 
   const ownerRequest = { repoRoot: input.repoRoot, wkId: input.wkId,
     focus: input.focus ?? null, selectedUnit: input.selectedUnit ?? null };
-  const loaded = await loadWorkRecordById({ dir: input.repoRoot, id: input.wkId });
+
+  const loaded = await loadWorkRecordById({ dir: input.repoRoot, id: input.wkId,
+    recordStore: scopedControlledContractWorkRecordStore({ repoRoot: input.repoRoot, wkId: input.wkId }) });
   const proofPosture = inspectWorkRecordProofPosture(loaded.record,
     { expectedRecordId: input.wkId });
   if (!proofPosture.valid) fail(
@@ -415,6 +421,12 @@ function currentSemanticRemedy(dimensionId, subject) {
       arguments: { ...addressed }
     });
   }
+
+  if (dimensionId === "acceptance_coverage") return Object.freeze({
+    capability: "acceptance_axis_inspection",
+    validation_tool: "workspace_validate_proof",
+    ...addressed
+  });
   return Object.freeze({
     capability: "saved_obligation_meaning_or_proof_resolution",
     read_tool: "workspace_controlled_contract_obligation_coverage_query",
@@ -503,6 +515,7 @@ async function evaluateControlledAcceptance(input, deps) {
   const initialClassified = projectClassifiedControlledContractDesignWorkbench(
     stated, initialClassification);
   const narrowed = narrowControlledContractDesignWorkbench(initialClassified);
+
   const classification =
     classifyControlledContractDesignWorkbenchActionability(narrowed);
   const classified = projectDiagnosticAndRepairFacts(

@@ -15,6 +15,10 @@ import {
 } from "./worktree-substrate-exact-unit.mjs";
 import { isPlainObject } from "./backend-review-identity.mjs";
 import { LAUNCHER_TRANSITION_FAILURES } from "./launcher-transition-plan.mjs";
+import {
+  CANONICAL_WK_CONTENT_SOURCE_KIND,
+  CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES
+} from "./controlled-carrier-attachment-primitive.mjs";
 
 const MANAGED_PROVISIONING_UNAVAILABLE =
   RUNTIME_BLOCKER_CODES.MANAGED_WORKTREE_PROVISIONING_UNAVAILABLE;
@@ -26,37 +30,27 @@ export const BASE_SELECTION_PREREQUISITE =
   "the canonical WK record must explicitly select base_branch before its first worker starts";
 export const BASE_SELECTION_NO_FALLBACK =
   "No checkout, HEAD, main or master fallback applies; after allocation the captured base is frozen.";
-export const BASE_SELECTION_EDITOR = "workspace_work_record_edit";
-export const BASE_SELECTION_FIELD_GUIDANCE = Object.freeze({
-  route: "workspace_tools_describe",
-  args: Object.freeze({
-    tool_name: BASE_SELECTION_EDITOR,
-    input_contract: Object.freeze({ kind: "field", field: "base_branch", scope: "record" })
-  }),
-  information: "The ordinary editor's record-level base_branch field contract: action, value constraints and request shape."
-});
+export const BASE_SELECTION_EDITOR = "save_record";
 
 export function baseSelectionMissingPreflightMessage(recordId) {
   return `Root ${recordId} selects no base_branch, so dispatch refuses before its first ` +
     `managed allocation (${BASE_SELECTION_MISSING_LAUNCH_REASON}). An operator chooses an ` +
     `existing canonical short local branch; author it on the root ${recordId}, not a slice, ` +
-    `through ${BASE_SELECTION_EDITOR} field base_branch with the root record's fresh ` +
-    "expected_source_digest (field guidance: workspace_tools_describe input_contract " +
-    '{kind:"field",field:"base_branch",scope:"record"}), then dispatch. ' +
+    `through ${BASE_SELECTION_EDITOR} changes.base_branch with the root record's fresh ` +
+    "revision from workspace_read_wiki({subject:root}), then retry start_agent on the original " +
+    "exact slice. The save requires the caller's branch choice; it is not an executable call yet. " +
     BASE_SELECTION_NO_FALLBACK;
 }
 
 function baseSelectionGuidanceRecovery() {
   return Object.freeze({
-    state: "guidance",
-    route: BASE_SELECTION_FIELD_GUIDANCE.route,
-    args: BASE_SELECTION_FIELD_GUIDANCE.args,
-    information: BASE_SELECTION_FIELD_GUIDANCE.information,
+    state: "no_supported_route",
+    route: null,
     responsible_actor: "operator",
     prerequisite: BASE_SELECTION_PREREQUISITE,
     operator_action:
-      `choose an existing canonical short local branch; author it on the root record's base_branch through ${BASE_SELECTION_EDITOR} with the root's fresh expected_source_digest`,
-    retry_condition: "resubmit the original workspace_agent_dispatch after the edit is accepted",
+      `choose an existing canonical short local branch; read the root through workspace_read_wiki and author changes.base_branch through ${BASE_SELECTION_EDITOR} with that root's fresh revision. The branch value is required caller input, not an executable correction`,
+    retry_condition: "resubmit the original start_agent after the save is accepted",
     explanation: BASE_SELECTION_NO_FALLBACK
   });
 }
@@ -71,7 +65,7 @@ function missingBaseRefRecovery() {
     operator_action:
       "create or restore the selected local branch at the intended commit, or correct base_branch before the WK is provisioned",
     retry_condition:
-      "retry workspace_agent_dispatch only after the prerequisite is confirmed",
+      "retry start_agent only after the prerequisite is confirmed",
     explanation:
       "no automatic recovery route is available; retry alone cannot create or repair the required ref"
   });
@@ -128,6 +122,29 @@ function classifySliceTipReconcileRefusal(error) {
     reason: boundedString(detail.reason),
     recovery_route: boundedString(detail.recovery_route)
   };
+}
+
+function exhaustedCanonicalWkContentRefresh(error) {
+  const details = error?.details;
+  if (error?.code !== CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED ||
+      !isPlainObject(details) || details.source_kind !== CANONICAL_WK_CONTENT_SOURCE_KIND ||
+      details.single_refresh?.exhausted !== true) {
+    return null;
+  }
+  return details;
+}
+
+function unsettledCanonicalWkContentRecovery() {
+  return Object.freeze({
+    state: "no_supported_route",
+    route: null,
+    responsible_actor: "coordinator",
+    prerequisite: "updates to the canonical WK record have settled",
+    retry_condition:
+      "a later explicit start_agent request is a new attempt; nothing resubmits it and it is not promised to succeed",
+    explanation:
+      "the canonical WK record changed during preparation and again during its single refresh, so preparation could not settle; the contract and its proofs were not found invalid, and no worker was started"
+  });
 }
 
 export function projectProvisioningRefusal(error, serialized, { requestedRepositoryAlias = null } = {}) {
@@ -207,18 +224,29 @@ export function projectProvisioningRefusal(error, serialized, { requestedReposit
       }
     };
   }
+  const unsettled = exhaustedCanonicalWkContentRefresh(error);
   return {
     accepted: false,
     refusal: {
       code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
       reason: MANAGED_PROVISIONING_UNAVAILABLE,
-      detail: Object.freeze({
+      detail: Object.freeze(unsettled === null ? {
         cause,
         diagnostic,
         recovery: Object.freeze({
           state: "no_supported_route",
           route: null
         })
+      } : {
+        cause,
+        diagnostic,
+
+        failure_stage: unsettled.stage,
+        source_kind: unsettled.source_kind,
+        source_path: unsettled.path,
+        preparation_refresh: unsettled.single_refresh,
+        actor_recovery: "coordinator",
+        recovery: unsettledCanonicalWkContentRecovery()
       })
     }
   };

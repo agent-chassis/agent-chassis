@@ -9,6 +9,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readdirSync,
   renameSync,
   unlinkSync,
   writeFileSync
@@ -21,9 +22,24 @@ import {
   resolveWorkRecordEntryMaterial
 } from "@agent-chassis/wiki-core/src/lib/work-record-entry-material.mjs";
 import {
-  resolveCanonicalControlledContractCarrierSet,
   resolveCanonicalControlledContractGenerationSelection
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-tools.mjs";
+import {
+  resolveControlledContractAttachmentGeneration
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
+
+import {
+  classifyControlledContractGenerationRepositoryPath,
+  controlledContractAssessmentAuthoredDependencies,
+  withControlledContractSourceObservation
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-tool-shared.mjs";
+import {
+  acceptanceCoverageCarrierPath
+} from "@agent-chassis/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs";
+import {
+  resolveSavedProofContext,
+  resolveSavedProofSource
+} from "@agent-chassis/wiki-core/src/operations/controlled-contract/saved-proof-source.mjs";
 
 export const FINDINGS_DESIGN_CAPTURE_CODES = Object.freeze({
   MISSING: "agent_launch.findings_design_capture.missing.v1",
@@ -32,6 +48,17 @@ export const FINDINGS_DESIGN_CAPTURE_CODES = Object.freeze({
 });
 
 const MAX_CANONICAL_INPUT_BYTES = 32 * 1024 * 1024;
+const CARRIER_SET_MANIFEST_SUFFIX = ".carrier-set-manifest.json";
+const CONTRACT_STORE = "wiki/contracts";
+
+function isRecordContractSource(recordId, basename) {
+  const classification = classifyControlledContractGenerationRepositoryPath({
+    wkId: recordId, repositoryPath: `${CONTRACT_STORE}/${basename}`
+  });
+  return classification.member === true ||
+    classification.classification === "malformed_active_candidate" ||
+    classification.reason === "server_owned_carrier_set_manifest";
+}
 
 function digest(bytes) {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
@@ -307,66 +334,236 @@ function canonicalManifestPath(recordId, focus) {
 
 async function captureSelectedContractInputs(repoRoot, recordId) {
   if (!existsSync(path.join(repoRoot, "wiki/contracts"))) return [];
-  let generation;
-  try {
-    generation = await resolveCanonicalControlledContractGenerationSelection({
-      repoRoot,
-      wkId: recordId
-    });
-  } catch (error) {
-    fail(/moved|changed/u.test(String(error?.message ?? ""))
-      ? FINDINGS_DESIGN_CAPTURE_CODES.MOVED
-      : FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED,
-    `wiki/contracts/${recordId}*`, error);
-  }
-  if (generation !== null) {
-    const captures = [];
-    for (const manifest of generation.manifests) {
-      const captured = captureRegularFile(repoRoot,
-        canonicalManifestPath(recordId, manifest.focus));
-      if (captured.digest !== manifest.manifest_content_digest) {
-        fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, captured.path);
-      }
-      captures.push(captured);
+  const resolve = async (resolver) => {
+    try {
+      return await resolver({ repoRoot, wkId: recordId });
+    } catch (error) {
+      fail(/moved|changed/u.test(String(error?.message ?? ""))
+        ? FINDINGS_DESIGN_CAPTURE_CODES.MOVED
+        : FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED,
+      `wiki/contracts/${recordId}*`, error);
     }
-    for (const descriptor of generation.descriptors) {
-      const selectedManifest = generation.manifests.find((entry) =>
+  };
+  const selection = await resolve(resolveCanonicalControlledContractGenerationSelection);
+  const population = await resolve(resolveControlledContractAttachmentGeneration);
+  const manifests = selection?.manifests ?? null;
+  if (population !== null &&
+      JSON.stringify(population.manifest_selection ?? null) !== JSON.stringify(manifests)) {
+    fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, `wiki/contracts/${recordId}*`);
+  }
+
+  const captures = [];
+  const capturedPaths = new Set();
+  const capture = (relativePath, expectedDigest, expectedByteLength = null) => {
+    const captured = captureRegularFile(repoRoot, relativePath);
+    if (captured.digest !== expectedDigest ||
+        (expectedByteLength !== null && captured.bytes.byteLength !== expectedByteLength)) {
+      fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, relativePath);
+    }
+    if (capturedPaths.has(relativePath)) return;
+    capturedPaths.add(relativePath);
+    captures.push(captured);
+  };
+
+  const manifestSelected = new Map();
+  if (selection !== null) {
+    const generationPath = (manifest, basename) => path.join(
+      "wiki/contracts/.carrier-generations", manifest.generation, basename);
+    for (const manifest of selection.manifests) {
+      capture(canonicalManifestPath(recordId, manifest.focus), manifest.manifest_content_digest);
+      capture(generationPath(manifest, "manifest.json"), manifest.manifest_content_digest);
+    }
+    for (const descriptor of selection.descriptors) {
+      const selectedManifest = selection.manifests.find((entry) =>
         entry.focus === descriptor.focus);
       if (!selectedManifest) {
         fail(FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED, descriptor.path);
       }
-      const sourceRelative = path.join(
-        "wiki/contracts/.carrier-generations",
-        selectedManifest.generation,
-        descriptor.basename
-      );
-      const captured = captureRegularFile(repoRoot, sourceRelative);
-      if (captured.digest !== descriptor.content_digest ||
-          captured.bytes.byteLength !== descriptor.byte_length) {
-        fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, descriptor.path);
-      }
-      captures.push(Object.freeze({ ...captured, path: descriptor.path }));
+      capture(generationPath(selectedManifest, descriptor.basename),
+        descriptor.content_digest, descriptor.byte_length);
+      manifestSelected.set(descriptor.basename, descriptor.content_digest);
     }
-    return captures;
   }
 
-  let canonicalSet;
-  try {
-    canonicalSet = await resolveCanonicalControlledContractCarrierSet({
-      repoRoot,
-      wkId: recordId,
-      focus: null
-    });
-  } catch (error) {
-    fail(FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED, `wiki/contracts/${recordId}*`, error);
-  }
-  return canonicalSet.members.map((member) => {
-    const relativePath = `wiki/contracts/${member.filename}`;
-    const captured = captureRegularFile(repoRoot, relativePath);
-    if (captured.digest !== member.content_digest) {
-      fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, relativePath);
+  for (const descriptor of population?.descriptors ?? []) {
+    if (manifestSelected.has(descriptor.basename)) {
+      if (manifestSelected.get(descriptor.basename) !== descriptor.content_digest) {
+        fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, descriptor.path);
+      }
+      continue;
     }
+    capture(descriptor.path, descriptor.content_digest, descriptor.byte_length);
+  }
+  return captures;
+}
+
+async function captureConsumedMappingContracts(repoRoot, record, dependencyRecordIds, focuses) {
+  if (dependencyRecordIds.length === 0) {
+    return { captures: [], absent_paths: [], consulted: [] };
+  }
+  const store = path.join(repoRoot, "wiki", "contracts");
+  const consumed = new Map();
+  const absent = new Set();
+  const consultedIds = new Set();
+  const dependencyOf = (repositoryPath) => {
+    const [, name = ""] = /^wiki\/contracts\/(?:\.carrier-generations\/[0-9a-f]{64}\/)?([^/]+)$/u
+      .exec(repositoryPath) ?? [];
+    return dependencyRecordIds.find((id) => name === id || name.startsWith(`${id}.`) || name.startsWith(`${id}-`)) ?? null;
+  };
+  let dependencyOpened = false;
+  const recorder = Object.freeze({
+    schema_version: "controlled-contract-generation-source-observation.v1",
+    source: Object.freeze({ kind: "capture_selection_recorder", record_id: record.id }),
+    repository: repoRoot,
+    wk_id: record.id,
+    dependency_wk_ids: dependencyRecordIds,
+    store_root_population: true,
+    storeEntries: async () => {
+      try {
+        return readdirSync(store, { withFileTypes: true });
+      } catch (error) {
+        if (error?.code === "ENOENT") return [];
+        throw error;
+      }
+    },
+    readFile: async (repositoryPath) => {
+      const dependencyId = dependencyOf(repositoryPath);
+      const dependency = dependencyId !== null;
+      if (dependency) {
+        dependencyOpened = true;
+        consultedIds.add(dependencyId);
+      }
+      const absolute = path.join(repoRoot, ...repositoryPath.split("/"));
+      let observed;
+      try {
+        observed = lstatSync(absolute);
+      } catch (error) {
+        if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
+          if (dependency) absent.add(repositoryPath);
+          return null;
+        }
+        throw error;
+      }
+      if (!observed.isFile()) return { ordinary: false, bytes: null };
+      const bytes = readFileSync(absolute);
+      if (dependency) consumed.set(repositoryPath, digest(bytes));
+      return { ordinary: true, bytes };
+    }
+  });
+  const units = [null, ...(Array.isArray(record.slices) ? record.slices : []).map((slice) => slice?.id)
+    .filter((id) => typeof id === "string")];
+  for (const focus of focuses) {
+    for (const selectedUnit of units) {
+      dependencyOpened = false;
+      try {
+        await withControlledContractSourceObservation(recorder, async () => resolveSavedProofContext(
+          await resolveSavedProofSource({ repoRoot, wkId: record.id, focus, selectedUnit }), {}));
+      } catch (error) {
+        if (dependencyOpened) {
+          fail(FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED, `wiki/contracts/${dependencyRecordIds.join(",")}*`, error, {
+            dependency_diagnostic: Object.freeze({ code: error?.code ?? null, message: error?.message ?? null,
+              unit: selectedUnit === null ? record.id : `${record.id}#${selectedUnit}`, focus })
+          });
+        }
+      }
+    }
+  }
+  const captures = [...consumed.entries()].sort(([left], [right]) => (left < right ? -1 : 1)).map(([repositoryPath, read]) => {
+    const captured = captureRegularFile(repoRoot, repositoryPath);
+    if (captured.digest !== read) fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, repositoryPath);
     return captured;
+  });
+  let names = [];
+  if (consultedIds.size > 0) {
+    try {
+      names = readdirSync(store);
+    } catch (error) {
+      if (error?.code !== "ENOENT") fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, CONTRACT_STORE, error);
+    }
+  }
+  return {
+    captures,
+    absent_paths: [...absent].filter((repositoryPath) => !consumed.has(repositoryPath)).sort(),
+    consulted: [...consultedIds].sort().map((recordId) => Object.freeze({
+      record_id: recordId,
+      present: Object.freeze(names.filter((name) => isRecordContractSource(recordId, name)).sort())
+    }))
+  };
+}
+
+async function captureCanonicalRecordDefinitionInputs({
+  mainRepo,
+  recordId,
+  initiallyAuthenticatedRecord,
+  resolveSupplement = null
+}) {
+  const repoRoot = path.resolve(mainRepo);
+  const recordPath = `wiki/work-records/${recordId}.json`;
+  const recordCapture = captureRegularFile(repoRoot, recordPath);
+  const record = parseCapturedRecord(recordCapture, recordId);
+  if (initiallyAuthenticatedRecord !== null &&
+      computeWorkRecordSourceDigest(initiallyAuthenticatedRecord) !==
+        computeWorkRecordSourceDigest(record)) {
+    fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, recordPath);
+  }
+  const supplement = resolveSupplement === null ? { captures: [], fields: {} }
+    : await resolveSupplement({ repoRoot, record, recordCapture });
+  const contractCaptures = await captureSelectedContractInputs(repoRoot, recordId);
+
+  const dependencies = controlledContractAssessmentAuthoredDependencies(record);
+
+  const absentPaths = [];
+  const dependencyCaptures = [];
+  for (const dependency of dependencies.files) {
+    if (existsSync(path.join(repoRoot, dependency.path))) {
+      dependencyCaptures.push(captureRegularFile(repoRoot, dependency.path));
+    } else {
+      absentPaths.push(dependency.path);
+    }
+  }
+
+  const focuses = [null, ...contractCaptures.map((capture) => path.basename(capture.path))
+    .filter((name) => name.startsWith(`${recordId}-`) && name.endsWith(CARRIER_SET_MANIFEST_SUFFIX))
+    .map((name) => name.slice(recordId.length + 1, -CARRIER_SET_MANIFEST_SUFFIX.length))];
+  for (const focus of focuses) {
+    for (const unit of [null, ...(Array.isArray(record.slices) ? record.slices : []).map((slice) => slice?.id)]) {
+      if (unit !== null && (typeof unit !== "string" || !/^SLICE-[0-9]{3,}$/u.test(unit))) continue;
+      const carrierPath = path.relative(repoRoot, acceptanceCoverageCarrierPath(repoRoot, recordId, focus, unit))
+        .split(path.sep).join("/");
+      if (existsSync(path.join(repoRoot, carrierPath))) dependencyCaptures.push(captureRegularFile(repoRoot, carrierPath));
+      else absentPaths.push(carrierPath);
+    }
+  }
+  const mapping = await captureConsumedMappingContracts(repoRoot, record,
+    dependencies.contract_record_ids, focuses);
+  dependencyCaptures.push(...mapping.captures);
+  absentPaths.push(...mapping.absent_paths);
+  const captured = new Set();
+  const files = [recordCapture, ...supplement.captures, ...contractCaptures, ...dependencyCaptures]
+
+    .filter((capture) => !captured.has(capture.path) && captured.add(capture.path));
+  for (const capture of files) {
+    assertCaptureStillCurrent(capture);
+  }
+  return Object.freeze({
+    record,
+    record_source_digest: computeWorkRecordSourceDigest(record),
+    ...supplement.fields,
+    files: Object.freeze(files),
+
+    absent: Object.freeze({
+      paths: Object.freeze([...new Set(absentPaths)].filter((repositoryPath) => !captured.has(repositoryPath)).sort()),
+      related_contracts: Object.freeze(mapping.consulted)
+    })
+  });
+}
+
+export async function captureCanonicalProofDefinitionInputs({ mainRepo, recordId }) {
+  return Object.freeze({
+    schema_version: "workspace-agent-captured-proof-definition-inputs.v1",
+    ...await captureCanonicalRecordDefinitionInputs({
+      mainRepo, recordId, initiallyAuthenticatedRecord: null
+    })
   });
 }
 
@@ -378,57 +575,47 @@ export async function captureCanonicalDesignReviewInputs({
 
   repository = null
 }) {
-  const repoRoot = path.resolve(mainRepo);
-  const recordPath = `wiki/work-records/${recordId}.json`;
-  const recordCapture = captureRegularFile(repoRoot, recordPath);
-  const record = parseCapturedRecord(recordCapture, recordId);
-  if (initiallyAuthenticatedRecord !== null &&
-      computeWorkRecordSourceDigest(initiallyAuthenticatedRecord) !==
-        computeWorkRecordSourceDigest(record)) {
-    fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, recordPath);
-  }
-  const selected = selectedSliceId === null ? record
-    : record.slices?.find((slice) => slice?.id === selectedSliceId) ?? record;
-  const entryCaptures = new Map([[recordId, recordCapture]]);
-  const entryMaterial = await resolveWorkRecordEntryMaterial({
-    record,
-    selected,
-    repository,
-    dir: repoRoot,
-    loadWorkRecordById: async ({ id }) => {
-      let captured = entryCaptures.get(id);
-      if (!captured) {
-        captured = captureRegularFile(repoRoot, `wiki/work-records/${id}.json`);
-        entryCaptures.set(id, captured);
+  const resolveSupplement = async ({ repoRoot, record, recordCapture }) => {
+    const selected = selectedSliceId === null ? record
+      : record.slices?.find((slice) => slice?.id === selectedSliceId) ?? record;
+    const entryCaptures = new Map([[recordId, recordCapture]]);
+    const entryMaterial = await resolveWorkRecordEntryMaterial({
+      record,
+      selected,
+      repository,
+      dir: repoRoot,
+      loadWorkRecordById: async ({ id }) => {
+        let captured = entryCaptures.get(id);
+        if (!captured) {
+          captured = captureRegularFile(repoRoot, `wiki/work-records/${id}.json`);
+          entryCaptures.set(id, captured);
+        }
+        const sourceRecord = parseCapturedRecord(captured, id);
+        return { valid: true, record: sourceRecord,
+          source_digest: computeWorkRecordSourceDigest(sourceRecord), diagnostics: [] };
       }
-      const sourceRecord = parseCapturedRecord(captured, id);
-      return { valid: true, record: sourceRecord,
-        source_digest: computeWorkRecordSourceDigest(sourceRecord), diagnostics: [] };
-    }
-  });
-  if (!entryMaterial.ok) {
-
-    const diagnostic = entryMaterial.diagnostic ?? null;
-    fail(FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED, diagnostic?.path ?? "sections.material_refs", null, {
-      material_diagnostic: diagnostic === null ? null : Object.freeze({
-        code: diagnostic.code ?? null,
-        message: diagnostic.message ?? null,
-        path: diagnostic.path ?? null
-      })
     });
-  }
-  const contractCaptures = await captureSelectedContractInputs(repoRoot, recordId);
-  const files = [recordCapture, ...[...entryCaptures.entries()]
-    .filter(([id]) => id !== recordId).map(([, capture]) => capture), ...contractCaptures];
-  for (const capture of files) {
-    assertCaptureStillCurrent(capture);
-  }
+    if (!entryMaterial.ok) {
+
+      const diagnostic = entryMaterial.diagnostic ?? null;
+      fail(FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED, diagnostic?.path ?? "sections.material_refs", null, {
+        material_diagnostic: diagnostic === null ? null : Object.freeze({
+          code: diagnostic.code ?? null,
+          message: diagnostic.message ?? null,
+          path: diagnostic.path ?? null
+        })
+      });
+    }
+    return {
+      captures: [...entryCaptures.entries()].filter(([id]) => id !== recordId).map(([, capture]) => capture),
+      fields: { entry_material: entryMaterial }
+    };
+  };
   return Object.freeze({
     schema_version: "workspace-agent-frozen-design-review-inputs.v1",
-    record,
-    record_source_digest: computeWorkRecordSourceDigest(record),
-    entry_material: entryMaterial,
-    files: Object.freeze(files)
+    ...await captureCanonicalRecordDefinitionInputs({
+      mainRepo, recordId, initiallyAuthenticatedRecord, resolveSupplement
+    })
   });
 }
 
@@ -494,12 +681,64 @@ export function materializeCanonicalDesignReviewInputs({ capture, checkoutPath }
       if (temporaryExists && existsSync(temporary)) unlinkSync(temporary);
     }
   }
-  return Object.freeze({
-    root: checkout,
-    files: Object.freeze(capture.files.map((input) => Object.freeze({
-      path: input.path,
-      digest: input.digest,
-      byte_length: input.bytes.byteLength
-    })))
-  });
+  const suppressed = suppressInheritedAbsentSources({ capture, checkout });
+  const files = Object.freeze(capture.files.map((input) => Object.freeze({
+    path: input.path,
+    digest: input.digest,
+    byte_length: input.bytes.byteLength
+  })));
+  return Object.freeze({ root: checkout, files, suppressed });
+}
+
+function suppressInheritedAbsentSources({ capture, checkout }) {
+  const captured = new Set(capture.files.map((input) => input.path));
+  const suppressed = new Set();
+  const remove = (repositoryPath) => {
+    if (captured.has(repositoryPath) || suppressed.has(repositoryPath)) return;
+    const target = resolveContainedTarget(checkout, repositoryPath);
+    const parent = path.dirname(target);
+    const components = inspectPathComponents(parent, repositoryPath, {
+      leafKind: "directory", allowMissing: true, missingCode: FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED
+    });
+    if (components.length !== absolutePathComponents(parent).length) return;
+    let observed;
+    try {
+      observed = lstatSync(target);
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, repositoryPath, error);
+    }
+
+    if (!observed.isFile() && !observed.isSymbolicLink()) {
+      fail(FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED, repositoryPath);
+    }
+    try {
+      unlinkSync(target);
+    } catch (error) {
+      fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, repositoryPath, error);
+    }
+    suppressed.add(repositoryPath);
+  };
+  const store = path.join(checkout, "wiki", "contracts");
+  let names = [];
+  try {
+    const components = inspectPathComponents(store, CONTRACT_STORE, {
+      leafKind: "directory", allowMissing: true, missingCode: FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED
+    });
+    if (components.length === absolutePathComponents(store).length) names = readdirSync(store).sort();
+  } catch (error) {
+    if (error?.code === FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED) throw error;
+    fail(FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED, CONTRACT_STORE, error);
+  }
+  for (const name of names) {
+    if (isRecordContractSource(capture.record.id, name)) remove(`${CONTRACT_STORE}/${name}`);
+  }
+  for (const repositoryPath of capture.absent.paths) remove(repositoryPath);
+  for (const related of capture.absent.related_contracts) {
+    const present = new Set(related.present);
+    for (const name of names) {
+      if (!present.has(name) && isRecordContractSource(related.record_id, name)) remove(`${CONTRACT_STORE}/${name}`);
+    }
+  }
+  return Object.freeze([...suppressed].sort());
 }

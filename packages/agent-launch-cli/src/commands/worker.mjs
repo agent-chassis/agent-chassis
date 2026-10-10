@@ -28,19 +28,25 @@ Canonical implementation-worker dispatch. The canonical option grammar is
 \`agent-launch worker <unit> [--profile <profile>] [--app <app>] [--model <model>]\`:
 \`worker\` is authority role only; \`--profile\` selects a canonical launcher
 profile (default: worker); \`--app\` asserts the app derived from the selected
-model. Supported worker apps are codex and claude; agy is roadmap/WIP
-and should be used only with --dry-run-json for planning or experimental
-validation. \`--model\` explicitly selects a registered model.
+model. The live worker app is claude. The direct live Codex worker route is
+retired: a launch that resolves to codex, by \`--app codex\` or by its profile
+or model, refuses before any client is started, and a Codex implementation
+worker is started through the managed \`start_agent\` tool of an orchestrator
+session instead. \`--dry-run-json\` planning is unaffected for every app. agy
+is roadmap/WIP and should be used only with --dry-run-json for planning or
+experimental validation. \`--model\` explicitly selects a registered model.
 \`worker_spark\` is a profile, not a role.
 
 Options:
   --profile <profile>            Canonical launcher profile (worker, worker_spark)
   --app codex|claude             Assert the app derived from the selected model
+                                 (codex: --dry-run-json planning only)
   --app agy                      Unsupported; fails closed
   --model <model>                Select a registered model explicitly
   --opus                         Alias for --model opus (Claude model shorthand)
   --sonnet                       Alias for --model sonnet (Claude model shorthand)
   --spark                        Shorthand for --profile worker_spark
+                                 (a Codex profile: planning only)
   --family codex|claude|agy      Deprecated alias for --app
   --dry-run-json                 Emit canonical plan JSON without spawning
 
@@ -49,10 +55,16 @@ Options:
 refuse via the resolver-owned FAST_PROFILE_REFUSAL_DIAGNOSTIC.
 `;
 
+export const CODEX_DIRECT_WORKER_RETIRED_REASON = "codex_direct_worker_retired";
+export const CODEX_DIRECT_WORKER_RETIRED_MESSAGE =
+  "the direct live Codex worker route is retired and no client was started. " +
+  "Start a Codex implementation worker through the managed start_agent tool of an orchestrator session " +
+  "(agent-launch orchestrator <IN-####>). --dry-run-json planning and live --app claude workers are unaffected.";
+
 const AGY_WORKER_LIVE_REFUSAL_REASON = "agy_worker_live_dispatch_planning_only";
 const AGY_WORKER_LIVE_REFUSAL_MESSAGE =
   "app agy is roadmap/WIP for this release; use --dry-run-json for planning only. " +
-  "Live worker dispatch is supported for codex and claude.";
+  "Live worker dispatch is supported for claude.";
 
 export async function runWorker(argv, io = {}, { backend: injectedBackend } = {}) {
   const parsed = parseWorkerArgs(argv);
@@ -118,6 +130,11 @@ export async function runWorker(argv, io = {}, { backend: injectedBackend } = {}
     return;
   }
 
+  if (resolved.app === "codex") {
+    refuseCodexLiveWorker(io);
+    return;
+  }
+
   await dispatchWorkerSharedPipeline({ resolved, parsed }, io, { backend: injectedBackend });
 }
 
@@ -143,6 +160,14 @@ function emitWorkerDryRunPlan({ io, parsed, resolved }) {
   writeLine(io.stdout, JSON.stringify(plan, null, 2));
 }
 
+function refuseCodexLiveWorker(io) {
+  writeStderr(
+    io.stderr,
+    `agent-launch worker: ${CODEX_DIRECT_WORKER_RETIRED_REASON}: ${CODEX_DIRECT_WORKER_RETIRED_MESSAGE}\n`
+  );
+  process.exitCode = 1;
+}
+
 function refuseAgyLiveWorker(io) {
   writeStderr(
     io.stderr,
@@ -153,6 +178,10 @@ function refuseAgyLiveWorker(io) {
 
 export async function dispatchWorkerSharedPipeline({ resolved, parsed }, io, { backend: injectedBackend } = {}) {
 
+  if (resolved?.app === "codex") {
+    refuseCodexLiveWorker(io);
+    return;
+  }
   const liveBackend = injectedBackend ?? createCliDispatchBackend({ resolvedProfile: resolved });
   const launch = await liveBackend.startLaunch({
     caller_session_id: generateCliSessionId(),

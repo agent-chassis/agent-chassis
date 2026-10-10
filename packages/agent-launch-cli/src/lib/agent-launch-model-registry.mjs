@@ -168,6 +168,17 @@ export const MODEL_REGISTRY = Object.freeze([
       vertex_model: "claude-sonnet-5-5"
     })
   ]),
+
+  Object.freeze([
+    "vertex-gemini-3.8-flash",
+    Object.freeze({
+      app: "codex",
+      backend: "codex",
+      codex_profile: "worker",
+      default_effort: "medium",
+      vertex_model: "gemini-3.8-flash"
+    })
+  ]),
   Object.freeze([
     "fable",
     Object.freeze({

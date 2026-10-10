@@ -1,10 +1,9 @@
 import { SEARCH_SOURCE_TEXT_MAX_SCALARS } from
   "@agent-chassis/wiki-core/src/operations/read-search-source.mjs";
+import { FILTER_KEYS } from "@agent-chassis/wiki-core/src/operations/search.mjs";
 
 export const SEARCH_FILTER_FIELDS = Object.freeze([
-  "kind", "type", "status", "priority", "owner", "area", "initiative", "retrieval_role",
-  "canonicality", "maintenance_mode", "knowledge_role", "evidence_stage", "retrieval_visibility",
-  "lifecycle", "sensitivity", "topic", "history", "profile", "extensionNamespaces", "limit"
+  ...FILTER_KEYS, "history", "profile", "extensionNamespaces", "limit"
 ]);
 
 export function getWorkspaceSearchValidationIssues(args) {

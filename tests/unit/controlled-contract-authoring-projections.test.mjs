@@ -4,7 +4,7 @@ import test from "node:test";
 
 import {
   applyControlledContractCarrierPatch
-} from "@agent-chassis/controlled-contract";
+} from "@agent-chassis/controlled-contract/carrier-patch";
 
 import {
   AUTHORING_LIMITS,
@@ -37,7 +37,7 @@ test("the carrier patch its one consumer reaches still patches and still refuses
     "../../packages/wiki-core/src/operations/controlled-contract/carrier-operations.mjs",
     import.meta.url), "utf8");
   assert.match(consumer,
-    /import \{ applyControlledContractCarrierPatch \} from\s*\n?\s*"@agent-chassis\/controlled-contract";/u,
+    /import \{ applyControlledContractCarrierPatch \} from\s*\n?\s*"@agent-chassis\/controlled-contract\/carrier-patch";/u,
     "carrier-operations must reach the primitive through the package that owns it");
 
   const obligation = { obligation_id: "OBL-PATCH-ROUNDTRIP", statement: "current" };

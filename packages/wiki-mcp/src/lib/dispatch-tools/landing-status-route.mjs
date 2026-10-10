@@ -1,4 +1,15 @@
 import { DISPATCH_BLOCKER_CODES, WK_LANDING_STATUS_TOOL_NAME } from "../dispatch-tool-constants.mjs";
+import { z } from "zod";
+import { buildNextCall, isCanonicalNextCallTool } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { createWkPublicationSelectionSchema, validateWkPublicationSelection } from
+  "@agent-chassis/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
+import { captureDiagnosticEvidence } from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
+import { parseToolProfile, shouldExposeTool } from "../tool-profile.mjs";
+import { resolveObligationCoverageQueryContext } from "../controlled-contract-query-context.mjs";
+import { guardToolHandler, jsonContent, describeRetentionFailure } from "../mcp-response.mjs";
+import { createToolInputValidationError, projectToolInputValidationFailure } from "../register-tool.mjs";
+import { registeredToolRequestContracts } from "../registered-tool-request-contracts.mjs";
+import { retainSelectedResponseSource, readSelectedResponseProjection, selectedResponseLocatorSchema } from "../selected-response-snapshot.mjs";
 import {
   buildBlockedDispatchResult,
   buildDispatchMechanicalRefusal,
@@ -10,6 +21,236 @@ import {
   producerEstablishedRecovery,
   projectRecordedFailureDetail
 } from "../dispatch-tool-helpers.mjs";
+import { buildDispatchContinuation, recordOwnerRegisteredRequestSchema, registrarGuidanceAuthority,
+  requestSchemaAuthorityForRegistration } from "../dispatch-tool-helpers.mjs";
+
+export const CHECK_LANDING_TOOL_NAME = "workspace_check_landing";
+export const CHECK_LANDING_INPUT_SCHEMA = z.object({
+  subject: z.string().regex(/^WK-[0-9]{4}$/u),
+  selection: createWkPublicationSelectionSchema(z).optional()
+}).strict();
+
+export const CHECK_LANDING_ORIGINAL_INPUT_SCHEMA = z.object({ subject: CHECK_LANDING_INPUT_SCHEMA.shape.subject,
+  source: selectedResponseLocatorSchema(z)
+}).strict();
+
+function parseLandingRequest(request, schema = CHECK_LANDING_INPUT_SCHEMA) {
+  const parsed = schema.safeParse(request);
+  if (!parsed.success) throw createToolInputValidationError({
+    tool: CHECK_LANDING_TOOL_NAME, validationError: parsed.error });
+  if (parsed.data.selection !== undefined) {
+
+    const validated = validateWkPublicationSelection(parsed.data.selection);
+    if (!validated.ok) throw new TypeError(`publication selection schema disagrees: ${validated.detail.field}`);
+    parsed.data.selection = validated.selection;
+  }
+  return parsed.data;
+}
+
+export function buildCheckLandingRequest(request, { requestSchemaAuthority = null } = {}) {
+  const args = parseLandingRequest(request);
+  const serving = registrarGuidanceAuthority(requestSchemaAuthority);
+  const call = !isCanonicalNextCallTool(CHECK_LANDING_TOOL_NAME) ||
+      serving?.registeredTools?.has(CHECK_LANDING_TOOL_NAME) !== true ? null
+    : buildDispatchContinuation({ tool: CHECK_LANDING_TOOL_NAME, arguments: args,
+      successPredicate: { fact: "landing.observation_available", operator: "is_true" },
+      requestSchemaAuthority });
+  return call ?? Object.freeze({ kind: "intended_tool_request", tool: CHECK_LANDING_TOOL_NAME,
+    arguments: Object.freeze(args), callable: false });
+}
+
+const landingCause = (cause) => projectRecordedFailureDetail(cause,
+  { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION, nested: true });
+
+function checkLandingRecovery(cause, request, requestSchemaAuthority) {
+  const detail = cause?.detail ?? cause;
+  const recovery = producerEstablishedRecovery(detail, {
+    unchanged: "the specific landing observation prerequisite identified by this cause holds",
+    retryCondition: "observe the same publication only after that prerequisite changes",
+    unestablished: "the landing producer has not established a correction; its correction owner must supply one"
+  });
+  return { ...recovery,
+    ...(recovery.responsible_actor === null ? {
+      missing_component: "landing_observation_correction",
+      owner: "launcher-owned handoff and landing observer"
+    } : {}),
+    intended_request: buildCheckLandingRequest(request, { requestSchemaAuthority }) };
+}
+
+function checkLandingRefusal(request, { code = DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+  reason, cause, recovery, workspace = null, authority = null }) {
+  return { ...buildBlockedDispatchResult({ blockerCode: code, reason, detail: landingCause(cause),
+    refusal: buildDispatchMechanicalRefusal({ code, route: CHECK_LANDING_TOOL_NAME,
+      decidingFacts: [{ field: "landing.request_observable", value: false }],
+      observedFacts: { "landing.request_observable": false, "landing.observation_available": false }, noSupportedRoute: true,
+      recovery: { ...recovery, intended_request: recovery.intended_request ?? buildCheckLandingRequest(request) } }) }),
+    subject: { repo: workspace?.repo ?? null, unit: request.subject }, authority_identity: authority,
+    request_mode: request.selection === undefined ? "current" : "explicit",
+    ...(request.selection === undefined ? {} : { selection: request.selection, selection_authenticated: false }),
+    effects: { object_cache_fetch: "not_attempted" } };
+}
+
+export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env = process.env,
+  responseEnv = env, requestSchemaAuthority = null, ownerCall = null, ownerRequestSchema = null } = {}) {
+  async function bindingFor(subject) {
+    const context = await resolveObligationCoverageQueryContext({ env, workspace });
+    return { route: CHECK_LANDING_TOOL_NAME, repository: workspace.repo,
+      unit: subject, authority_identity: context.identity };
+  }
+
+  const present = (source, binding) => readSelectedResponseProjection(source, { env: responseEnv, expected: binding,
+    project: ({ carrier }) => ({ ...carrier, original: { source },
+      next_calls: [...(carrier.next_calls ?? []), ...(ownerCall === null ? [] : [ownerCall(source)])] }) });
+
+  function compositionFailure(request) {
+    let role;
+    try { role = parseToolProfile(env); } catch (error) {
+      return checkLandingRefusal(request, { reason: "check_landing_session_profile_unavailable",
+        cause: { stage: "session", reason: "tool_profile_unavailable", message: error.message },
+        recovery: ownedNoRouteRecovery({ responsibleActor: "launcher",
+          prerequisite: "the launcher binds this server's session tool profile",
+          missingComponent: "WIKI_MCP_TOOL_PROFILE" }) });
+    }
+    if (!shouldExposeTool(role, CHECK_LANDING_TOOL_NAME)) {
+      return checkLandingRefusal(request, { reason: "check_landing_role_forbidden",
+        cause: { stage: "entitlement", role, required_roles: ["orchestrator", "operator"] },
+        recovery: ownedNoRouteRecovery({ responsibleActor: "launcher",
+          prerequisite: "an orchestrator or operator session invokes this observation",
+          missingComponent: "landing_observer_session_entitlement" }) });
+    }
+    if (typeof workspace?.repo !== "string" || !workspace.repo ||
+        typeof workspace?.dir !== "string" || !workspace.dir) {
+      return checkLandingRefusal(request, { reason: "check_landing_session_repository_missing",
+        cause: { stage: "session", reason: "session_repository_missing" },
+        recovery: ownedNoRouteRecovery({ responsibleActor: "launcher",
+          prerequisite: "the launcher supplies the resolved session repository",
+          missingComponent: "session_workspace",
+          operatorAction: "start the server with its canonical WIKI_MCP_WORKSPACE_DIR binding" }) });
+    }
+    return null;
+  }
+
+  async function respond(input) {
+    const request = parseLandingRequest(input);
+    const failure = compositionFailure(request);
+    if (failure !== null) return { result: jsonContent(failure, { env: responseEnv }), source: null, originalRequest: null };
+    const binding = await bindingFor(request.subject);
+    let body;
+    if (typeof wkLandingStatusAdapter !== "function") {
+      body = checkLandingRefusal(request, { reason: "check_landing_observer_unavailable", workspace,
+        authority: binding.authority_identity,
+        cause: { stage: "composition", reason: "wk_landing_status_adapter_missing" },
+        recovery: { ...MISSING_OBSERVER_RECOVERY,
+          intended_request: buildCheckLandingRequest(request, { requestSchemaAuthority }),
+          retry_condition: "repeat the same check_landing request after the launcher composes the observer" } });
+    } else {
+      try {
+        const outcome = await wkLandingStatusAdapter({ assigned_unit: request.subject,
+          ...(request.selection === undefined ? {} : { selection: request.selection }) });
+        if (outcome?.accepted !== true) {
+          const cause = outcome?.refusal ?? { stage: "adapter", reason: "landing_adapter_returned_no_observation" };
+          body = checkLandingRefusal(request, { reason: "check_landing_observer_refused", workspace,
+            authority: binding.authority_identity, cause,
+            recovery: checkLandingRecovery(cause, request, requestSchemaAuthority) });
+        } else {
+          const landing = outcome.landing;
+          body = { schema_version: "workspace-check-landing.v1", accepted: true,
+            subject: { repo: workspace.repo, unit: request.subject }, authority_identity: binding.authority_identity,
+            request_mode: request.selection === undefined ? "current" : "explicit",
+            selection: landing.selection ?? null, selection_authenticated: landing.selection_authenticated === true,
+            state: landing.state, transport: landing.transport, landing_authority: landing.landing_authority,
+            observed_base: landing.observed_base, landed_publication: landing.landed_publication,
+            effects: landing.effects, cause: landing.cause == null ? null : landingCause(landing.cause),
+            observed_facts: { "landing.observation_available": landing.state !== "unavailable" },
+            ...(landing.state === "unavailable" || landing.state === "contradictory"
+              ? { recovery: checkLandingRecovery(landing.cause, { subject: request.subject,
+                ...(landing.selection == null ? request.selection === undefined ? {} : { selection: request.selection }
+                  : { selection: landing.selection }) }, requestSchemaAuthority) } : {}),
+            next_calls: [] };
+        }
+      } catch (error) {
+        const cause = landingCause({ stage: "adapter", reason: "landing_adapter_failed",
+          evidence: captureDiagnosticEvidence(error) });
+        body = checkLandingRefusal(request, { code: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
+          reason: "check_landing_adapter_exception", workspace, authority: binding.authority_identity,
+          cause, recovery: checkLandingRecovery(cause, request, requestSchemaAuthority) });
+        body = { ...body, effects: null, blocker: { ...body.blocker, detail: { ...body.blocker.detail,
+          effects_unavailable: "the adapter raised without an owner observation-effects carrier" } } };
+      }
+    }
+    let source = null;
+    try {
+      source = retainSelectedResponseSource({ binding: { ...binding, query_identity: request,
+        observation_identity: { selection: body.selection ?? null,
+          selection_authenticated: body.selection_authenticated === true, state: body.state ?? null,
+          observed_base: body.observed_base ?? null, landed_publication: body.landed_publication ?? null } },
+        carrier: { ...body, delivery: { transport_retention: "retained" } }, ownerCall, ownerRequestSchema }, { env: responseEnv });
+      const result = await present(source, binding);
+      return Object.freeze({ source, originalRequest: Object.freeze({ subject: request.subject, source }), result });
+    } catch (error) {
+
+      const delivery = landingCause(describeRetentionFailure(error,
+        { operation: "retain_check_landing_response", subject: request.subject }));
+      return { source: null, originalRequest: null,
+        result: jsonContent({ ...body, delivery: { state: "failed",
+          transport_retention: source === null ? "uncertain" : "retained", cause: delivery } }, { env: responseEnv }) };
+    }
+  }
+
+  async function original(input) {
+    const request = parseLandingRequest(input, CHECK_LANDING_ORIGINAL_INPUT_SCHEMA);
+    const failure = compositionFailure({ subject: request.subject });
+    if (failure !== null) return jsonContent(failure, { env: responseEnv });
+
+    return present(Object.freeze({ ...request.source }), await bindingFor(request.subject));
+  }
+
+  const handler = async (input) => (await respond(input)).result;
+  const config = Object.freeze({ description: "Observe the session WK's current or exactly selected publication landing through the existing landing owner. Orchestrator/operator only.",
+    inputSchema: CHECK_LANDING_INPUT_SCHEMA });
+  return Object.freeze({ name: CHECK_LANDING_TOOL_NAME, config, inputSchema: CHECK_LANDING_INPUT_SCHEMA,
+    respond, handler, call: guardToolHandler(handler, { name: CHECK_LANDING_TOOL_NAME, env: responseEnv }),
+    readOriginal: guardToolHandler(original, { name: CHECK_LANDING_TOOL_NAME, env: responseEnv }),
+    repeatRequest: (request) => buildCheckLandingRequest(request, { requestSchemaAuthority }) });
+}
+
+export async function projectCheckLandingInputFailure({ args, validationError, requestContract,
+  registeredTools = null }) {
+  const failure = await projectToolInputValidationFailure({ tool: CHECK_LANDING_TOOL_NAME, args,
+    validationError, requestContract });
+  if (!validationError.issues.some((issue) => issue.path.length === 2 &&
+      issue.path[0] === "selection" && issue.path[1] === "version")) return failure;
+  const current = { subject: args?.subject };
+  const call = failure.next_calls.length === 0 && isCanonicalNextCallTool(CHECK_LANDING_TOOL_NAME) &&
+    registeredTools?.has(CHECK_LANDING_TOOL_NAME) === true && await requestContract.acceptsArguments(current)
+    ? buildNextCall({ tool: CHECK_LANDING_TOOL_NAME, arguments: current }) : null;
+  return { ...failure,
+    correction: "Correct the explicit pin by copying the COMPLETE selection the publication owner returned, " +
+      "unchanged. Do not build one from a worker or delivery commit or the literal \"current\"; a " +
+      "well-formed selection is still authenticated, so format alone establishes nothing.",
+    current_observation_alternative: call === null ? null : {
+      label: "OPTIONAL ALTERNATIVE: observe CURRENT publication status instead of an explicit pin",
+      changes_request: "from the explicitly selected publication to the current one",
+      not_a_correction: "this is not the requested pinned read and repairs no failed publication",
+      call
+    },
+    next_calls: call === null ? failure.next_calls : [call] };
+}
+
+export function registerCheckLandingTool({ registerTool, ...composition }) {
+  const requestSchemaAuthority = requestSchemaAuthorityForRegistration(registerTool);
+  const task = createCheckLandingTask({ ...composition, requestSchemaAuthority });
+
+  const requestContracts = registeredToolRequestContracts(registerTool);
+  registerTool(task.name, requestContracts === null ? task.config : { ...task.config,
+    inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: {
+      ...jsonContent(await projectCheckLandingInputFailure({ args, validationError,
+        requestContract: requestContracts.contractFor(task.name),
+        registeredTools: registrarGuidanceAuthority(requestSchemaAuthority)?.registeredTools }),
+      { env: composition.responseEnv ?? composition.env ?? process.env }), isError: true } }) }, task.call);
+  recordOwnerRegisteredRequestSchema({ registerTool, toolName: task.name, declaredInput: task.inputSchema });
+  return task;
+}
 
 const observedCause = (value) => projectRecordedFailureDetail(value,
   { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION });

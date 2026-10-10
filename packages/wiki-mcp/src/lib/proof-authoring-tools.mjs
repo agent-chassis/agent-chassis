@@ -16,6 +16,7 @@ import { obligationCoverageQueryOperation, refuseObligationCoverageQuery,
   resolveObligationCoverageQueryRevision } from
   '@agent-chassis/wiki-core/src/operations/controlled-contract/obligation-coverage-query.mjs';
 import { assertObligationCoverageQueryScope, obligationCoverageQueryAuthorityIdentity,
+  parseQueryObservationIdentity, queryObservationIdentity,
   resolveObligationCoverageQueryContext } from './controlled-contract-query-context.mjs';
 import { createObligationCoverageQuerySelection, OBLIGATION_COVERAGE_QUERY_ROUTE } from
   './controlled-contract-query-response.mjs';
@@ -39,18 +40,6 @@ function upsertDeclaration(z, focus) {
 }
 
 const QUERY_LIVE_SELECTORS = Object.freeze(['focus', 'obligation_id', 'parameter_detail', 'inventory', 'view']);
-
-function queryObservationIdentity(focus, revision) {
-  if (revision === null) return null;
-  return focus === undefined || focus === null ? revision : `${focus}@${revision}`;
-}
-
-function parseQueryObservationIdentity(observation) {
-  if (typeof observation !== 'string') return null;
-  const at = observation.lastIndexOf('@');
-  return at < 0 ? { focus: null, revision: observation }
-    : { focus: observation.slice(0, at), revision: observation.slice(at + 1) };
-}
 
 function createQueryHandler({ respond, identity, sessionEnv, responseEnv, querySourceDeps,
   resolveWorkspace, z }) {

@@ -19,13 +19,16 @@ import {
   isLosslessMcpSpillDelivery,
   jsonContent,
   measureMcpInlineResultBytes,
+  measureMcpSerializedResultBytes,
   normalizeMcpToolResult,
   readSpilledMcpContentReference,
   structuredToolResult
 } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+
 import {
   CARRIER_FINDING_KINDS,
   assertStructuredCarrier,
+  deliveredAdmissionBytes,
   structuredCarrierFindings
 } from "../helpers/mcp-journey-accounting.mjs";
 
@@ -50,9 +53,13 @@ function textAlone(result) {
   return JSON.parse(texts[0].text);
 }
 
-function assertCompleteResultWithinLimit(result, limit = INLINE_BYTE_LIMIT) {
-  const bytes = utf8Bytes(JSON.stringify(result));
-  assert.ok(bytes <= limit, `complete result used ${bytes} bytes against a ${limit}-byte limit`);
+function physicalBytes(result) {
+  return utf8Bytes(JSON.stringify(result));
+}
+
+function assertAdmittedWithinLimit(result, limit = INLINE_BYTE_LIMIT) {
+  const bytes = deliveredAdmissionBytes(result);
+  assert.ok(bytes <= limit, `result admitted ${bytes} bytes against a ${limit}-byte limit`);
 }
 
 async function withSpillDirectory(callback) {
@@ -86,17 +93,20 @@ function readReferenceToEnd(reference, env) {
   }
 }
 
-function payloadWithFrameBytes(targetBytes, { isError = false } = {}) {
+function payloadWithAdmissionBytes(targetBytes) {
   const prefix = "quote \" backslash \\ newline \n tab \t é 🔥 ";
-  const at = (padding, extra = "") => ({
+  const at = (padding) => ({
     schema_version: "boundary-response.v1",
-    value: `${prefix}${extra}${"x".repeat(padding)}`
+    value: `${prefix}${"x".repeat(padding)}`
   });
-  const base = measureMcpInlineResultBytes(at(0), { isError });
-  const remainder = targetBytes - base;
-  const payload = remainder % 2 === 0 ? at(remainder / 2) : at((remainder - 5) / 2, "\n");
-  assert.equal(measureMcpInlineResultBytes(payload, { isError }), targetBytes);
+  const payload = at(targetBytes - utf8Bytes(JSON.stringify(at(0))));
+  assert.equal(utf8Bytes(JSON.stringify(payload)), targetBytes);
   return payload;
+}
+
+function handFrame(value, { isError = false } = {}) {
+  return { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value,
+    ...(isError ? { isError: true } : {}) };
 }
 
 test("a success publishes its value in structuredContent and its compact serialization in one text block", () => {
@@ -115,7 +125,7 @@ test("a success publishes its value in structuredContent and its compact seriali
 
   assert.deepEqual(result.content, [{ type: "text", text: JSON.stringify(payload) }]);
   assert.deepEqual(textAlone(result), result.structuredContent);
-  assertCompleteResultWithinLimit(result, getResponseSpillConfig().inlineByteLimit);
+  assertAdmittedWithinLimit(result, getResponseSpillConfig().inlineByteLimit);
 });
 
 test("a structured error publishes its envelope in both representations and keeps isError", () => {
@@ -131,7 +141,7 @@ test("a structured error publishes its envelope in both representations and keep
   assert.equal(result.isError, true);
   assert.deepEqual(readCarrier(result), envelope);
   assert.deepEqual(textAlone(result), envelope);
-  assertCompleteResultWithinLimit(result, getResponseSpillConfig().inlineByteLimit);
+  assertAdmittedWithinLimit(result, getResponseSpillConfig().inlineByteLimit);
 });
 
 test("an unstructured throw is translated once into the structured refusal carrier", () => {
@@ -158,27 +168,44 @@ test("an unstructured throw is translated once into the structured refusal carri
   assert.equal(fromText.refusal.code, "mcp_response.handler_exception.v1");
 });
 
-test("inline admission is exact at the final-frame boundary with escaped and Unicode payloads", async () => {
+test("inline admission is exact at the larger-representation boundary with escaped and Unicode payloads", async () => {
   await withSpillDirectory(async (stateDir) => {
     const env = spillEnv(stateDir);
     for (const isError of [false, true]) {
-      const atLimit = payloadWithFrameBytes(INLINE_BYTE_LIMIT, { isError });
+      const atLimit = payloadWithAdmissionBytes(INLINE_BYTE_LIMIT);
+      assert.equal(measureMcpInlineResultBytes(atLimit, { isError }), INLINE_BYTE_LIMIT);
       const inline = isError
         ? errorContent({ envelope: atLimit }, { env })
         : jsonContent(atLimit, { env });
       assert.deepEqual(readCarrier(inline), atLimit);
-      assert.equal(utf8Bytes(JSON.stringify(inline)), INLINE_BYTE_LIMIT);
+      assert.deepEqual(textAlone(inline), atLimit);
+      assert.deepEqual(inline, handFrame(atLimit, { isError }));
+      assert.equal(utf8Bytes(JSON.stringify(inline.structuredContent)), INLINE_BYTE_LIMIT);
+      assert.equal(utf8Bytes(inline.content[0].text), INLINE_BYTE_LIMIT);
+
+      assert.ok(physicalBytes(inline) > 2 * INLINE_BYTE_LIMIT, `${physicalBytes(inline)}`);
       assert.equal(inline.isError, isError ? true : undefined);
 
-      const overLimit = payloadWithFrameBytes(INLINE_BYTE_LIMIT + 1, { isError });
+      const overLimit = payloadWithAdmissionBytes(INLINE_BYTE_LIMIT + 1);
+      assert.equal(measureMcpInlineResultBytes(overLimit, { isError }), INLINE_BYTE_LIMIT + 1);
       const spilled = isError
         ? errorContent({ envelope: overLimit }, { env })
         : jsonContent(overLimit, { env });
       const envelope = readCarrier(spilled);
       assert.equal(envelope.response_spilled, true);
       assert.equal(spilled.isError, isError ? true : undefined);
-      assert.equal(envelope.measurement.complete_frame_bytes, INLINE_BYTE_LIMIT + 1);
-      assertCompleteResultWithinLimit(spilled);
+      assert.deepEqual(envelope.measurement, {
+        schema_version: "mcp-response-spill-measurement.v2",
+        compared: "admission_bytes_exceeded_inline_byte_limit",
+        admission_bytes: INLINE_BYTE_LIMIT + 1,
+        serialized_result_bytes: physicalBytes(handFrame(overLimit, { isError })),
+        inline_byte_limit: INLINE_BYTE_LIMIT,
+        retained_payload_bytes: utf8Bytes(JSON.stringify(overLimit, null, 2)),
+        retained_payload_encoding: "application/json; charset=utf-8; indent=2",
+        meaning: envelope.measurement.meaning
+      });
+      assert.match(envelope.measurement.meaning, /serialized_result_bytes .* was not compared/u);
+      assertAdmittedWithinLimit(spilled);
       assert.deepEqual(
         JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8")),
         overLimit
@@ -187,7 +214,76 @@ test("inline admission is exact at the final-frame boundary with escaped and Uni
   });
 });
 
-test("preserved protocol metadata is part of the measured frame and is kept", async () => {
+test("a result whose larger representation fits stays inline although its combined frame exceeds the limit", async () => {
+  await withSpillDirectory(async (stateDir) => {
+    const env = spillEnv(stateDir);
+
+    const payload = payloadWithAdmissionBytes(6_000);
+    const direct = jsonContent(payload, { env });
+    const guarded = await guardToolHandler(async () => ({ structuredContent: payload }), { name: "max", env })({});
+    for (const result of [direct, guarded]) {
+      assert.equal(result.structuredContent.response_spilled, undefined);
+      assert.deepEqual(result, handFrame(payload));
+      assert.deepEqual(readCarrier(result), payload);
+      assert.deepEqual(textAlone(result), result.structuredContent);
+      assert.ok(physicalBytes(result) > INLINE_BYTE_LIMIT, `${physicalBytes(result)}`);
+      assert.equal(deliveredAdmissionBytes(result), 6_000);
+    }
+
+    assert.equal(measureMcpInlineResultBytes(payload), deliveredAdmissionBytes(guarded));
+
+    for (const isError of [false, true]) {
+      assert.equal(measureMcpSerializedResultBytes(payload, { isError }), physicalBytes(handFrame(payload, { isError })));
+    }
+    assert.equal(measureMcpSerializedResultBytes(payload), physicalBytes(guarded));
+    assert.ok(measureMcpSerializedResultBytes(payload) > INLINE_BYTE_LIMIT);
+    assert.equal(measureMcpSerializedResultBytes({ value: 1n }), Number.POSITIVE_INFINITY, "no JSON form");
+    assert.strictEqual(normalizeMcpToolResult(guarded, { env }), guarded);
+  });
+});
+
+test("the guard measures the regenerated mirror, not stale or additional handler text", async () => {
+  await withSpillDirectory(async (stateDir) => {
+    const env = spillEnv(stateDir);
+    const payload = payloadWithAdmissionBytes(INLINE_BYTE_LIMIT);
+
+    const result = await guardToolHandler(async () => ({
+      content: [{ type: "text", text: "stale ".repeat(4_000) }, { type: "text", text: "extra" }],
+      structuredContent: payload
+    }), { name: "stale", env })({});
+    assert.deepEqual(result, handFrame(payload));
+  });
+});
+
+test("handler-added fields after the helper are admitted exactly at the boundary and spill one byte over", async () => {
+  await withSpillDirectory(async (stateDir) => {
+    const env = spillEnv(stateDir);
+    for (const isError of [false, true]) {
+      const base = { schema_version: "handler-mutated.v1", selected_unit: "WK-1#SLICE-1" };
+
+      const padding = INLINE_BYTE_LIMIT - utf8Bytes(JSON.stringify(base)) - utf8Bytes(',"added":""');
+      const mutate = (extra) => async () => {
+        const shaped = isError ? errorContent({ envelope: base }, { env }) : jsonContent(base, { env });
+        shaped.structuredContent = { ...shaped.structuredContent, added: `é${"y".repeat(padding - 2 + extra)}` };
+        return shaped;
+      };
+      const fits = await guardToolHandler(mutate(0), { name: "mutated", env })({});
+      assert.equal(utf8Bytes(JSON.stringify(fits.structuredContent)), INLINE_BYTE_LIMIT);
+      assert.deepEqual(fits, handFrame(fits.structuredContent, { isError }));
+      assert.equal(fits.structuredContent.added.length, padding - 1);
+
+      const over = await guardToolHandler(mutate(1), { name: "mutated", env })({});
+      const envelope = readCarrier(over);
+      assert.equal(envelope.response_spilled, true);
+      assert.equal(over.isError, isError ? true : undefined);
+      assert.equal(envelope.measurement.admission_bytes, INLINE_BYTE_LIMIT + 1);
+      const original = JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8"));
+      assert.equal(original.added, `é${"y".repeat(padding - 1)}`);
+    }
+  });
+});
+
+test("preserved protocol metadata and nonmirrored content are bounded in addition to the larger representation", async () => {
   await withSpillDirectory(async (stateDir) => {
     const env = spillEnv(stateDir);
     const payload = { schema_version: "meta-bearing.v1", ok: true };
@@ -197,18 +293,51 @@ test("preserved protocol metadata is part of the measured frame and is kept", as
     assert.deepEqual(readCarrier(small), payload);
     assert.deepEqual(small._meta, _meta);
 
-    const fitting = payloadWithFrameBytes(INLINE_BYTE_LIMIT - 64);
-    const bigMeta = { "example.org/trace": "m".repeat(256) };
-    const spilled = normalizeMcpToolResult({ ...jsonContent(fitting, { env }), _meta: bigMeta }, { env });
-    const envelope = readCarrier(spilled);
-    assert.equal(envelope.response_spilled, true);
-    assert.deepEqual(spilled._meta, bigMeta);
-    assert.ok(envelope.measurement.complete_frame_bytes > INLINE_BYTE_LIMIT);
-    assertCompleteResultWithinLimit(spilled);
-    assert.deepEqual(
-      JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8")),
-      fitting
-    );
+    const bigMeta = { "example.org/trace": "m\"é".repeat(80) };
+    const metaBytes = utf8Bytes(JSON.stringify({ _meta: bigMeta }));
+    const image = { type: "image", data: "aGVsbG8=".repeat(20), mimeType: "image/png" };
+    const imageBytes = utf8Bytes(JSON.stringify({ content: [image] }));
+    const extras = {
+      _meta: [metaBytes, (result) => ({ ...result, _meta: bigMeta }), (result) => result._meta, bigMeta],
+      nonmirrored_block: [imageBytes, (result) => ({ ...result, content: [...result.content, image] }),
+        (result) => result.content.slice(1), [image]]
+    };
+    for (const [label, [extraBytes, attach, extract, expected]] of Object.entries(extras)) {
+      const fitting = payloadWithAdmissionBytes(INLINE_BYTE_LIMIT - extraBytes);
+      const inline = normalizeMcpToolResult(attach(jsonContent(fitting, { env })), { env });
+      assert.equal(inline.structuredContent.response_spilled, undefined, label);
+      assert.deepEqual(inline.structuredContent, fitting, label);
+      assert.deepEqual(extract(inline), expected, label);
+      assert.equal(deliveredAdmissionBytes(inline), INLINE_BYTE_LIMIT, label);
+
+      const overflowing = payloadWithAdmissionBytes(INLINE_BYTE_LIMIT - extraBytes + 1);
+      const spilled = normalizeMcpToolResult(attach(jsonContent(overflowing, { env })), { env });
+      const envelope = spilled.structuredContent;
+      assert.equal(envelope.response_spilled, true, label);
+      assert.deepEqual(extract(spilled), expected, label);
+      assert.equal(envelope.measurement.admission_bytes, INLINE_BYTE_LIMIT + 1, label);
+      assert.equal(envelope.measurement.serialized_result_bytes,
+        physicalBytes(attach(handFrame(overflowing))), label);
+      assertAdmittedWithinLimit(spilled);
+      assert.deepEqual(
+        JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8")),
+        overflowing, label
+      );
+    }
+  });
+});
+
+test("forced retention states that no admission comparison occurred", async () => {
+  await withSpillDirectory(async (stateDir) => {
+    const env = spillEnv(stateDir);
+    const payload = { schema_version: "forced.v1", ok: true };
+    const result = jsonContent(payload, { env, forceSpill: true });
+    const { measurement } = readCarrier(result);
+    assert.equal(measurement.compared, "not_compared_retention_forced");
+    assert.equal(measurement.admission_bytes, null);
+    assert.equal(measurement.serialized_result_bytes, null);
+    assert.match(measurement.meaning, /no inline admission comparison occurred/u);
+    assert.equal(isLosslessMcpSpillDelivery(result), true);
   });
 });
 
@@ -229,7 +358,7 @@ test("a spilled response carries the reference once and reconstructs the origina
     assert.equal(spilled.schema_version, "wiki-mcp-spilled-response.v1");
     assert.equal(spilled.response_spilled, true);
     assert.equal(spilled.content_reference.kind, "wiki_mcp_response_content_reference");
-    assertCompleteResultWithinLimit(result);
+    assertAdmittedWithinLimit(result);
 
     const firstRange = readSpilledMcpContentReference(
       { ref_id: spilled.content_reference.ref_id, offset: 0, length: 512 },
@@ -258,7 +387,7 @@ test("an oversized structured error keeps isError and continues to the original 
     assert.equal(result.isError, true);
     const spilled = readCarrier(result);
     assert.equal(spilled.response_spilled, true);
-    assertCompleteResultWithinLimit(result);
+    assertAdmittedWithinLimit(result);
     assert.deepEqual(
       JSON.parse(readReferenceToEnd(spilled.content_reference, env).toString("utf8")),
       envelope
@@ -287,7 +416,7 @@ test("a spill-persistence failure is one bounded structured refusal with no part
     assert.equal(refusal.cause_diagnostic.path, path.join(blocker, "response-spill"));
     assert.deepEqual(refusal.cause_diagnostic_redactions, []);
     assert.ok(!JSON.stringify(result).includes("refusal-payload-marker"));
-    assertCompleteResultWithinLimit(result);
+    assertAdmittedWithinLimit(result);
   });
 });
 
@@ -401,19 +530,22 @@ test("inline admission is exact at both the production default and the supported
     ]) {
       const limit = getResponseSpillConfig(env).inlineByteLimit;
       for (const isError of [false, true]) {
-        const atLimit = payloadWithFrameBytes(limit, { isError });
+        const atLimit = payloadWithAdmissionBytes(limit);
         const inline = isError ? errorContent({ envelope: atLimit }, { env }) : jsonContent(atLimit, { env });
         assert.deepEqual(readCarrier(inline), atLimit, label);
         assert.deepEqual(textAlone(inline), atLimit, label);
-        assert.equal(utf8Bytes(JSON.stringify(inline)), limit, label);
+        assert.deepEqual(inline, handFrame(atLimit, { isError }), label);
+        assert.ok(physicalBytes(inline) > 2 * limit, label);
 
-        const overLimit = payloadWithFrameBytes(limit + 1, { isError });
+        const overLimit = payloadWithAdmissionBytes(limit + 1);
         const spilled = isError ? errorContent({ envelope: overLimit }, { env }) : jsonContent(overLimit, { env });
         const envelope = readCarrier(spilled);
         assert.equal(envelope.response_spilled, true, label);
-        assert.equal(envelope.measurement.complete_frame_bytes, limit + 1, label);
+        assert.equal(envelope.measurement.admission_bytes, limit + 1, label);
+        assert.equal(envelope.measurement.serialized_result_bytes,
+          physicalBytes(handFrame(overLimit, { isError })), label);
         assert.equal(spilled.isError, isError ? true : undefined, label);
-        assertCompleteResultWithinLimit(spilled, limit);
+        assertAdmittedWithinLimit(spilled, limit);
         assert.deepEqual(textAlone(spilled), envelope, label);
       }
     }

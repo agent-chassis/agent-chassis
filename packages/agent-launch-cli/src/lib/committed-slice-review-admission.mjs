@@ -11,6 +11,7 @@ import {
 import { createWorkerScopeTreeReader } from "./backend-worker-scope-tree.mjs";
 import { deriveCanonicalUnitScope } from "./canonical-unit-scope.mjs";
 import { resolveCommitWriteScopeMatcher } from "./exact-slice-commit-binding.mjs";
+import { runMaybeAsyncGenerator } from "./slice-integration-authorization.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import {
   classifyExplicitBaseMergeTreeResult,
@@ -80,8 +81,7 @@ function digest(value) {
     .digest("hex")}`;
 }
 
-function git(runGit, repo, args, reason) {
-  const result = runGit({ repo, args });
+function gitOutput(result, args, reason) {
   if (result?.ok !== true) {
     fail(reason, {
       args,
@@ -90,6 +90,10 @@ function git(runGit, repo, args, reason) {
     });
   }
   return String(result.stdout ?? "").trim();
+}
+
+function git(runGit, repo, args, reason) {
+  return gitOutput(runGit({ repo, args }), args, reason);
 }
 
 function oid(value, label) {
@@ -238,30 +242,31 @@ function parseWorktrees(raw) {
   return entries;
 }
 
-function assertServerMintedCommitChain({ runGit, mainRepo, subject, baseSha, reviewedSha }) {
-  const lines = git(
-    runGit,
-    mainRepo,
-    ["rev-list", "--reverse", "--parents", `${baseSha}..${reviewedSha}`],
-    "committed_range_unresolvable"
-  ).split("\n").filter(Boolean);
-  if (lines.length === 0) fail("committed_range_empty");
-  let expectedParent = baseSha;
-  for (const line of lines) {
-    const parts = line.trim().split(/\s+/u);
-    if (parts.length !== 2 || parts[1] !== expectedParent) {
-      fail("committed_range_not_linear", { commit: parts[0] ?? null });
+export function assertServerMintedCommitChain({ runGit, mainRepo, subject, baseSha, reviewedSha }) {
+  return runMaybeAsyncGenerator(function* serverMintedChainSteps() {
+    const read = (args) => runGit({ repo: mainRepo, args });
+    const rangeArgs = ["rev-list", "--reverse", "--parents", `${baseSha}..${reviewedSha}`];
+    const lines = gitOutput(yield read(rangeArgs), rangeArgs, "committed_range_unresolvable")
+      .split("\n").filter(Boolean);
+    if (lines.length === 0) fail("committed_range_empty");
+    let expectedParent = baseSha;
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/u);
+      if (parts.length !== 2 || parts[1] !== expectedParent) {
+        fail("committed_range_not_linear", { commit: parts[0] ?? null });
+      }
+      const commit = oid(parts[0], "committed_range_commit");
+      const messageArgs = ["show", "-s", "--format=%B", commit];
+      const message = gitOutput(yield read(messageArgs), messageArgs, "commit_message_unreadable");
+      const expectedMessage = `${COMMIT_SUBJECT_PREFIX}${subject} (base ${expectedParent.slice(0, 12)})\n\nWk-Slice: ${subject}`;
+      if (message !== expectedMessage) {
+        fail("trusted_commit_binding_mismatch", { commit });
+      }
+      expectedParent = commit;
     }
-    const commit = oid(parts[0], "committed_range_commit");
-    const message = git(runGit, mainRepo, ["show", "-s", "--format=%B", commit], "commit_message_unreadable");
-    const expectedMessage = `${COMMIT_SUBJECT_PREFIX}${subject} (base ${expectedParent.slice(0, 12)})\n\nWk-Slice: ${subject}`;
-    if (message !== expectedMessage) {
-      fail("trusted_commit_binding_mismatch", { commit });
-    }
-    expectedParent = commit;
-  }
-  if (expectedParent !== reviewedSha) fail("committed_range_tip_mismatch");
-  return Object.freeze(lines.map((line) => line.split(/\s+/u)[0]));
+    if (expectedParent !== reviewedSha) fail("committed_range_tip_mismatch");
+    return Object.freeze(lines.map((line) => line.split(/\s+/u)[0]));
+  });
 }
 
 function resolveExactWorktree({

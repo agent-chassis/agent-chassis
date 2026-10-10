@@ -1,12 +1,29 @@
+import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
+
 import { createTaskResultSnapshotRegistry, TaskResultSnapshotError } from '@agent-chassis/controlled-contract';
 import { discoverCompleteControlledProofIntentsOperation,
   discoverControlledProofIntentsOperation } from '@agent-chassis/wiki-core';
 import { createControlledContractRefusal } from '@agent-chassis/wiki-core/src/operations/controlled-contract/refusal.mjs';
-import { CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE } from '@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs';
-import { PROOF_INTENT_DISCOVERY_CATALOG, PROOF_INTENT_DISCOVERY_QUERY_POLICY, isProofIntentDiscoveryQueryWithinLimit, proofVerificationCapability } from '@agent-chassis/controlled-contract/proof-intent-discovery';
+import { buildGuidanceCall } from '@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs';
+import { CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE,
+  ControlledContractToolError } from '@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs';
+import { PROOF_INTENT_DISCOVERY_CATALOG, PROOF_INTENT_DISCOVERY_QUERY_POLICY, isProofIntentDiscoveryQueryWithinLimit, proofVerificationCapability, readProofDiscoverySourceIdentity } from '@agent-chassis/controlled-contract/proof-intent-discovery';
+import { FIND_PROOFS_TASK, PROOF_NAME_INPUT_SCHEMA } from '@agent-chassis/controlled-contract/proof-discovery-task';
+import { loadExactAdmittedProofPackMeaning } from '@agent-chassis/controlled-contract/proof-packs';
+import { describePackParameters, loadPackParameterContract } from '@agent-chassis/controlled-contract/pack-parameters';
+import nativeContractSchema from '@agent-chassis/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json' with { type: 'json' };
+import testProofSchema from '@agent-chassis/controlled-contract/schema/controlled-acceptance-test-proof-definitions.v1.schema.json' with { type: 'json' };
+import { recordAuthoringChangeSchema } from '@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs';
+import { WIKI_MCP_ASSIGNED_UNIT_ENV_VAR, WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR, WIKI_MCP_COMMIT_RUN_ID_ENV_VAR,
+  WIKI_MCP_TOOL_PROFILE_ENV_VAR } from './launcher-run-credential.mjs';
 import { measureMcpInlineResultBytes } from './mcp-response.mjs';
+import { authoringSchemaMembers, familyAuthoringFacts, familyChoiceFacts, projectIndex, projectIndexSummary, projectProof,
+  projectProofSummary } from './proof-discovery-response.mjs';
 import { createToolInputValidationError } from './register-tool.mjs';
-import { scalarRangeBytesWithinDeliveryBound, selectedResponseDeliveryBound } from './selected-response-snapshot.mjs';
+import { readSelectedResponseProjection, retainSelectedResponseSource, scalarRangeBytesWithinDeliveryBound,
+  selectedResponseCorrectableError, selectedResponseDeliveryBound, selectedResponseDetailSchema,
+  selectedResponseQueryInvalidError, selectedResponseRequestSchema } from './selected-response-snapshot.mjs';
 
 export const PROOF_DISCOVERY_TOOL = 'workspace_controlled_proof_intents_discover';
 const domain = 'proof_discovery';
@@ -54,10 +71,10 @@ function providerFacts(provider) {
     ...(provider.families.length ? { families: provider.families } : {}),
     listed_families: LISTED_FAMILIES,
     ...(identified === null
-      ? { missing_selection: 'provider identity, node_id form and falsification fields are ' +
+      ? { missing_selection: 'provider identity, selector form and falsification fields are ' +
           'per family: name one listed family, or read every family through case_authoring' }
       : { family_id: identified, family_facts: 'next_calls.case_authoring returns this ' +
-          'family\'s provider identity, node_id form and falsification facts' }),
+          'family\'s provider identity, selector form and falsification facts' }),
 
     not_established: [SUPPORT_STATES.candidate_proof, SUPPORT_STATES.listed_family,
       SUPPORT_STATES.target_uninspected]
@@ -209,9 +226,16 @@ export function createProofDiscoverySession({ discover = discoverControlledProof
   discoverComplete = discover === discoverControlledProofIntentsOperation
     ? discoverCompleteControlledProofIntentsOperation : discover,
 
+  resolveCurrentSourceIdentity,
+
   verificationCapability = proofVerificationCapability,
   maximumBytes = selectedResponseDeliveryBound(), now, capacity, onMeasured = () => {} } = {}) {
 
+  const packagedOwner = discover === discoverControlledProofIntentsOperation &&
+    discoverComplete === discoverCompleteControlledProofIntentsOperation;
+  if (resolveCurrentSourceIdentity === undefined && !packagedOwner) throw new TypeError(
+    'proof discovery session: an injected discover or discoverComplete requires its own resolveCurrentSourceIdentity');
+  const currentSourceIdentity = resolveCurrentSourceIdentity ?? readProofDiscoverySourceIdentity;
   const context = { rangeBytes: scalarRangeBytesWithinDeliveryBound(maximumBytes), verificationCapability };
   const project = page => projectProofDiscoveryResponse(page, context);
   const measure = page => measureMcpInlineResultBytes(project(page));
@@ -285,7 +309,7 @@ export function createProofDiscoverySession({ discover = discoverControlledProof
           constraints: candidate.constraints, refinements: candidate.refinements,
           observations: candidate.observations, capabilities: candidate.capabilities };
         const clauses = [{ assertion: candidate.assertion },
-          ...candidate.exclusions.map(exclusion => ({ exclusion: exclusion.replace(/-/gu, ' ') })),
+          ...candidate.exclusions.map(exclusion => ({ exclusion })),
           ...comparisonClauses(candidate)];
         return clauses.map((clause, index) => ({ id: `${candidate.id}/${index}`,
           proof_name: candidate.proof_name, clause,
@@ -296,14 +320,8 @@ export function createProofDiscoverySession({ discover = discoverControlledProof
         query: result.query ?? null, catalogue_total: result.candidate_count };
       const identity = registry.put({ domain, result: { candidates, scope, ...context },
         sourceIdentity: result.source_identity, recovery: action(request),
-        resolveCurrentSourceIdentity: async () => {
-          try { return (await search()).source_identity; }
-          catch (error) {
 
-            if (error.code === 'proof_discovery_source_changed') return error.details.source_identity;
-            throw error;
-          }
-        } });
+        resolveCurrentSourceIdentity: async () => currentSourceIdentity() });
       page = await registry.query({ domain, identity, collection: direct ? 'scope' : 'candidates',
         selector: direct ? { proof_name: args.proof_name } : null, maximumItems: 256,
         recovery: action(request) });
@@ -317,7 +335,8 @@ const FIELD_PATH_MAX_SEGMENTS = 32;
 export function registerProofDiscoveryTool({ defineTool, z, jsonContent, errorContent,
   discover = discoverControlledProofIntentsOperation,
   discoverComplete = discover === discoverControlledProofIntentsOperation
-    ? discoverCompleteControlledProofIntentsOperation : discover }) {
+    ? discoverCompleteControlledProofIntentsOperation : discover,
+  resolveCurrentSourceIdentity }) {
 
   const nonEmpty = () => z.string().min(1);
   const fields = {
@@ -343,7 +362,7 @@ export function registerProofDiscoveryTool({ defineTool, z, jsonContent, errorCo
   const advertisedInputSchema = z.object(optional(...Object.keys(fields))).strict();
 
   const allowedFieldSets = inputSchema.options.map(option => Object.keys(option.shape));
-  const session = createProofDiscoverySession({ discover, discoverComplete });
+  const session = createProofDiscoverySession({ discover, discoverComplete, resolveCurrentSourceIdentity });
   defineTool(PROOF_DISCOVERY_TOOL, {
     description: 'Find proof candidates by the property to establish, browse compactly with no query, or inspect a known proof_name. Ranked bounded pages give compact rows (identity, match kind, relevant limitation, capability, detail_action); a query adds no unmatched proof and continuation reaches every match. A candidate\'s detail holds its complete assertion and exclusions. ' +
       `Query limit: ${PROOF_INTENT_DISCOVERY_QUERY_POLICY.maximum_bytes} UTF-8 bytes. ` +
@@ -359,4 +378,358 @@ export function registerProofDiscoveryTool({ defineTool, z, jsonContent, errorCo
       return jsonContent(await session.run(parsed));
     } catch (error) { return errorContent(createControlledContractRefusal(error)); }
   }, { losslessDelivery: true });
+}
+
+const SOURCE_CHANGED_FACTS = Object.freeze({
+  subject: 'the proof definitions this server process loaded',
+  effects: 'none: nothing was retained and no canonical source was written',
+  uncertainty: 'whether the files present now form one coherent built generation',
+  capable_actor: 'operator',
+  supported_action: 'restart the MCP server so the package loads one generation',
+  missing_capability: 'in-process refresh: the package records no identity of its loaded ' +
+    'implementation, validators or vocabulary, so a coherent data-only change cannot be told ' +
+    'from a change of loaded code'
+});
+
+export function createFindProofsInputContract(z) {
+  const nonEmpty = () => z.string().min(1);
+  const proofName = meaning => z.string().min(PROOF_NAME_INPUT_SCHEMA.minLength).describe(meaning);
+  const part = z.union([
+    z.object({ kind: z.literal('overview') }).strict(),
+    z.object({ kind: z.literal('authoring') }).strict(),
+    z.object({ kind: z.literal('parameter'), name: nonEmpty() }).strict(),
+    z.object({ kind: z.literal('constraint'), ref: nonEmpty() }).strict()
+  ]).describe('Fresh read: one semantic part of proof_name; omitted, the combined answer. ' +
+    'For a returned result use selection.part.');
+  const fields = {
+
+    query: nonEmpty().max(PROOF_INTENT_DISCOVERY_QUERY_POLICY.maximum_bytes)
+      .describe(PROOF_INTENT_DISCOVERY_QUERY_POLICY.accepted_form),
+    target_family: nonEmpty().describe('One listed test family id; selects authoring context only. ' +
+      'Fresh proof_name or query request only, never beside result or selection.'),
+    proof_name: proofName('Fresh read of the CURRENT catalogue: an exact proof catalog entry name.'),
+    part,
+    result: selectedResponseDetailSchema(z).shape.source
+      .describe('An original result returned by this task, passed back unchanged. Valid alone.'),
+
+    selection: z.object({
+      proof_name: proofName('A proof listed in the result beside this selection.').optional(),
+      part: part.describe('One semantic part of the selected proof; omitted, the combined answer.').optional()
+    }).strict().describe('Reads within a returned original: requires result beside it. ' +
+      'Takes no top-level proof_name, part, query or target_family.')
+  };
+  const inputSchema = z.union([
+
+    z.object({}).strict(),
+    z.object({ query: fields.query, target_family: fields.target_family.optional() }).strict(),
+    z.object({ proof_name: fields.proof_name, target_family: fields.target_family.optional(),
+      part: fields.part.optional() }).strict(),
+    z.object({ result: fields.result, selection: fields.selection.optional() }).strict()
+  ]);
+  const advertisedInputSchema = z.object(Object.fromEntries(Object.entries(fields)
+    .map(([name, field]) => [name, field.optional()]))).strict();
+  const allowedFieldSets = inputSchema.options.map(option => Object.keys(option.shape));
+
+  const fieldNames = Object.keys(fields);
+  const requires = (option, name) => {
+    const permitted = Object.keys(option.shape);
+    const required = permitted.filter(field => field !== name && !option.shape[field].isOptional());
+    const forbidden = fieldNames.filter(field => !permitted.includes(field));
+    return { ...(required.length ? { required } : {}),
+      ...(forbidden.length ? { not: { anyOf: forbidden.map(field => ({ required: [field] })) } } : {}) };
+  };
+  const dependencies = Object.fromEntries(fieldNames.map(name => {
+    const permitting = inputSchema.options.filter(option => Object.hasOwn(option.shape, name))
+      .map(option => requires(option, name));
+    return [name, permitting.length === 1 ? permitting[0] : { anyOf: permitting }];
+  }));
+  const publishedInputSchemaProjection = converted => ({ ...converted, dependencies });
+  return Object.freeze({ inputSchema, advertisedInputSchema, allowedFieldSets, publishedInputSchemaProjection,
+
+    retainedSelectionSchema: inputSchema.options.find(option => Object.hasOwn(option.shape, 'selection')) });
+}
+
+export function createFindProofsSession({ workspace, z, sessionEnv = process.env, responseEnv = process.env,
+  discover = discoverControlledProofIntentsOperation,
+  discoverComplete = discover === discoverControlledProofIntentsOperation
+    ? discoverCompleteControlledProofIntentsOperation : discover,
+  resolveCurrentSourceIdentity,
+  verificationCapability = proofVerificationCapability,
+
+  authoringChangeSchema = () => recordAuthoringChangeSchema('work_item', 'existing'),
+  caseAuthoring = () => upsertGuidance.case_authoring,
+  onMeasured = () => {} }) {
+  if (typeof workspace?.repo !== 'string' || workspace.repo.length === 0) throw new TypeError(
+    'find_proofs session: the trusted workspace repository is required');
+  const packagedOwner = discover === discoverControlledProofIntentsOperation &&
+    discoverComplete === discoverCompleteControlledProofIntentsOperation;
+  if (resolveCurrentSourceIdentity === undefined && !packagedOwner) throw new TypeError(
+    'find_proofs session: an injected discover or discoverComplete requires its own resolveCurrentSourceIdentity');
+  const currentSourceIdentity = resolveCurrentSourceIdentity ?? readProofDiscoverySourceIdentity;
+  const contract = createFindProofsInputContract(z);
+
+  const requestSchema = { ...selectedResponseRequestSchema(contract.advertisedInputSchema),
+    ...selectedResponseRequestSchema(contract.inputSchema) };
+  const bound = selectedResponseDeliveryBound(responseEnv);
+  const fits = payload => measureMcpInlineResultBytes(payload) <= bound;
+  const invalid = (reason, details) => selectedResponseQueryInvalidError(FIND_PROOFS_TASK, reason, details);
+  const correctable = (reason, details, args, prerequisite, successCondition) =>
+    selectedResponseCorrectableError(FIND_PROOFS_TASK, reason, details,
+      { arguments: args, requestSchema, prerequisite, successCondition });
+
+  const sessionFact = name => typeof sessionEnv?.[name] === 'string' && sessionEnv[name].trim().length > 0
+    ? sessionEnv[name].trim() : null;
+  const authorityIdentity = () => ({ role: sessionFact(WIKI_MCP_TOOL_PROFILE_ENV_VAR),
+    assigned_unit: sessionFact(WIKI_MCP_ASSIGNED_UNIT_ENV_VAR),
+    launch_ref: sessionFact(WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR),
+    run_id: sessionFact(WIKI_MCP_COMMIT_RUN_ID_ENV_VAR) });
+  const expectedBinding = () => ({ route: FIND_PROOFS_TASK, repository: workspace.repo, unit: null,
+    authority_identity: authorityIdentity() });
+
+  const observedSources = discovery => {
+    const sources = { discovery, authoring_schema: digestOf(authoringChangeSchema()),
+      family_facts: digestOf(caseAuthoring()), parameter_value_schema: digestOf([
+        nativeContractSchema.$defs.reference.properties.identity, testProofSchema.$defs.test_selector]) };
+    return { identity: digestOf(sources), ...sources };
+  };
+
+  function selectedFamily(request, recognition, authoring) {
+    const explicit = request.target_family ?? null;
+    if (explicit !== null && !Object.hasOwn(authoring.families, explicit)) {
+      const { target_family: _family, ...withoutFamily } = request;
+      throw correctable('target_family_unknown',
+        { target_family: explicit, listed_families: Object.keys(authoring.families) }, withoutFamily,
+        'target_family is one listed family id',
+        'the call repeats the preserved query or proof request without the invalid target_family; ' +
+          'query recognition may still select a listed family; it does not select the requested invalid family');
+    }
+    const family = explicit ?? (recognition.status === 'identified' ? recognition.families[0] : null);
+    return family === null ? null : familyAuthoringFacts(authoring, family);
+  }
+
+  async function capture(request) {
+    const queried = Object.hasOwn(request, 'query');
+
+    const browsing = !queried && !Object.hasOwn(request, 'proof_name');
+    if (queried && !isProofIntentDiscoveryQueryWithinLimit(request.query)) {
+      throw invalid('query_exceeds_byte_limit', { field: 'query',
+        measurement: PROOF_INTENT_DISCOVERY_QUERY_POLICY.measurement,
+        byte_length: Buffer.byteLength(request.query, 'utf8'),
+        maximum_bytes: PROOF_INTENT_DISCOVERY_QUERY_POLICY.maximum_bytes,
+        caller_action: 'send the property in fewer bytes; no shorter query is invented for the caller' });
+    }
+    const authoring = caseAuthoring();
+    let result;
+    try {
+      result = queried ? await discoverComplete({ query: request.query })
+        : await discover(browsing ? {} : { proof_name: request.proof_name });
+    } catch (error) { throw discoveryRefusal(error, request); }
+    const recognition = result.provider_context ?? UNSPECIFIED_PROVIDER;
+    const family = selectedFamily(request, recognition, authoring);
+
+    const parameterDescriptions = new Map();
+    const parametersFor = async candidate => {
+      const provenance = candidate.provenance;
+      const key = digestOf(provenance);
+      if (!parameterDescriptions.has(key)) {
+        const pack = await loadExactAdmittedProofPackMeaning({ profileId: provenance.profile_id,
+          profileVersion: provenance.profile_version });
+        for (const field of ['profile_digest', 'admission_digest', 'parameter_contract_digest']) {
+          if (pack[field] !== provenance[field]) throw Object.assign(
+            new Error('proof parameter definition differs from the discovery answer'),
+            { code: 'proof_discovery_source_changed', details: { field, changed: false } });
+        }
+        parameterDescriptions.set(key, describePackParameters(loadPackParameterContract(pack)));
+      }
+      const description = parameterDescriptions.get(key);
+      return candidate.refinements.map(refinement => {
+        const parameter = description.parameters.find(entry => entry.name === refinement.name);
+        if (parameter === undefined) throw new TypeError(`discovery parameter has no owner: ${refinement.name}`);
+
+        const identity = nativeContractSchema.$defs.reference.properties.identity;
+        return { ...refinement, value_kind: parameter.value_kind, source: parameter.source,
+          value_schema: parameter.value_kind === 'test_assertion_selector' ? testProofSchema.$defs.test_selector
+            : { anyOf: [identity, { type: 'array', items: identity }] } };
+      });
+    };
+    const parameters = [];
+    try {
+      for (const candidate of result.candidates) parameters.push(await parametersFor(candidate));
+    } catch (error) { throw discoveryRefusal(error, request); }
+    const carrier = {
+      request, mode: queried ? 'search' : browsing ? 'browse' : 'detail', query: result.query ?? null,
+      population: queried ? { matches: result.candidates.length, catalogue: result.candidate_count }
+        : browsing ? { catalogue: result.candidates.length } : { matches: 1 },
+      recognition, family,
+
+      ...(family === null ? { family_choices: familyChoiceFacts(authoring) } : {}),
+      authoring_members: authoringSchemaMembers(authoringChangeSchema()),
+
+      case_choices: { identity: authoring.case_identity,
+        association: authoring.verification_association.authoring },
+      source: observedSources(result.source_identity.discovery),
+      proofs: result.candidates.map((candidate, index) => ({
+        proof_name: candidate.proof_name, profile_version: candidate.profile_version,
+        ...(queried ? { match_kind: candidate.ranking.match_kind } : {}),
+        short_description: candidate.short_description, usage: candidate.usage,
+        assertion: candidate.assertion, exclusions: candidate.exclusions,
+        constraints: candidate.constraints, refinements: parameters[index],
+        observations: candidate.observations, capabilities: candidate.capabilities,
+        provenance: candidate.provenance, associations: candidate.associations,
+        comparisons: comparisonClauses(candidate).map(clause => clause.comparison),
+        verification_capability: verificationCapability(candidate.proof_name)
+      }))
+    };
+
+    const after = observedSources((await currentSourceIdentity()).discovery);
+    if (!isDeepStrictEqual(after, carrier.source)) {
+      throw discoveryRefusal(Object.assign(new Error('proof definitions moved while the answer was composed'),
+        { code: 'proof_discovery_source_changed', details: { changed: false } }), request);
+    }
+    const { part: _part, ...queryIdentity } = request;
+    const locator = retainSelectedResponseSource({ carrier,
+      binding: { ...expectedBinding(), query_identity: queryIdentity, observation_identity: carrier.source },
+      ownerCall: source => ({ tool: FIND_PROOFS_TASK, arguments: { result: source } }), ownerRequestSchema: requestSchema },
+    { env: responseEnv });
+    return { carrier, locator, currentness: 'current' };
+  }
+
+  function discoveryRefusal(error, request) {
+    const code = error?.code;
+    const details = { ...(error?.details ?? {}) };
+    if (code === 'proof_discovery_identity_unknown') Object.assign(details, {
+      subject: request.proof_name, effects: 'none', capable_actor: 'caller',
+      recovery: { task: FIND_PROOFS_TASK, missing_input: 'query',
+        accepted: PROOF_INTENT_DISCOVERY_QUERY_POLICY.accepted_form,
+        meaning: 'no proof has this exact name; a search needs the property the caller wants established' } });
+    else if (code === 'proof_discovery_source_changed') Object.assign(details, SOURCE_CHANGED_FACTS);
+    else return error;
+    return new ControlledContractToolError(code, error.message, details);
+  }
+
+  async function currentnessOf(binding) {
+    try {
+      return isDeepStrictEqual(observedSources((await currentSourceIdentity()).discovery),
+        binding.observation_identity) ? 'current' : 'changed';
+    } catch { return 'unavailable'; }
+  }
+
+  const selected = (locator, selection) => readSelectedResponseProjection(locator, { env: responseEnv,
+    expected: expectedBinding(), project: async ({ binding, carrier }) =>
+      answer({ carrier, locator, currentness: await currentnessOf(binding) }, selection, () => true) });
+
+  function answer({ carrier, locator, currentness }, selection, admits) {
+    const indexCall = { result: locator };
+    const named = selection.proof_name ?? null;
+    if (named === null && carrier.mode !== 'detail') {
+      if (selection.part !== undefined) throw correctable('part_requires_proof_name',
+        { part: selection.part, population: carrier.population }, indexCall,
+        'a part is selected within one proof of this result: name selection.proof_name',
+        `the call returns this result's complete ${carrier.mode === 'search' ? 'match index' : 'catalogue'}; ` +
+          'it does not return the requested part');
+      return projectIndex(carrier, locator, currentness);
+    }
+    const proof = named === null ? carrier.proofs[0] : carrier.proofs.find(entry => entry.proof_name === named);
+    if (proof === undefined) throw correctable('proof_name_not_in_result',
+      { proof_name: named, population: carrier.population }, indexCall,
+      'selection.proof_name is a proof of this original result; another proof is a fresh proof_name request',
+      'the call returns this original result without the selection; it does not return the requested proof');
+    const part = selection.part ?? null;
+    const projected = projectProof(carrier, locator, currentness, proof, part, admits);
+    if (projected.unknown) {
+      const { reason, ...subject } = projected.unknown;
+      throw correctable(reason, { proof_name: proof.proof_name, ...subject },
+        { result: locator, selection: { proof_name: proof.proof_name, part: { kind: 'overview' } } },
+        'the part names a parameter or constraint the selected proof lists',
+        'the call returns the same proof\'s overview with valid parameter names and unattached constraint refs; ' +
+          'use its authoring and parameter selections for attached refs; it does not return the requested part');
+    }
+    return projected.payload;
+  }
+
+  function compact(captured) {
+    const { carrier, locator, currentness } = captured;
+    const complete = answer(captured, {}, fits);
+    if (fits(complete)) return complete;
+    return carrier.mode === 'detail' ? projectProofSummary(carrier, locator, currentness, carrier.proofs[0])
+      : projectIndexSummary(carrier, locator, currentness);
+  }
+
+  return { contract, requestSchema, bound, async run(args) {
+    if (Object.hasOwn(args, 'result')) {
+      return { selected: await selected({ ref_id: args.result.ref_id },
+        args.selection ?? {}) };
+    }
+    const captured = await capture(args);
+
+    if (args.part !== undefined) return { selected: await selected(captured.locator, { part: args.part }) };
+    const payload = compact(captured);
+    const bytes = measureMcpInlineResultBytes(payload);
+    if (bytes > bound) throw invalid('summary_exceeds_delivery_bound', { measured_bytes: bytes,
+      bound_bytes: bound, metric: 'larger MCP representation', result: captured.locator,
+      effects: 'the original result is retained complete; nothing was truncated' });
+    onMeasured({ payload, bytes });
+    return { payload };
+  } };
+}
+
+const digestOf = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+
+export function registerFindProofsTool({ defineTool, z, jsonContent, errorContent, workspace, sessionEnv,
+  responseEnv, ...owners }) {
+  const session = createFindProofsSession({ workspace, z, sessionEnv, responseEnv, ...owners });
+  const { inputSchema, advertisedInputSchema, allowedFieldSets, publishedInputSchemaProjection,
+    retainedSelectionSchema } = session.contract;
+
+  const retainedRequestRefusal = args => {
+    if (args === null || typeof args !== 'object' || Array.isArray(args) ||
+        !(Object.hasOwn(args, 'selection') || Object.hasOwn(args, 'result'))) return null;
+    const parsed = retainedSelectionSchema.safeParse(args);
+    if (parsed.success) return null;
+    if (Object.hasOwn(args, 'result')) return createToolInputValidationError({ tool: FIND_PROOFS_TASK,
+      validationError: parsed.error, details: { allowed_field_sets: allowedFieldSets } });
+    const { issues } = parsed.error;
+    const current = issues.length === 1 && args.selection.proof_name !== undefined
+      ? { proof_name: args.selection.proof_name,
+        ...(args.selection.part === undefined ? {} : { part: args.selection.part }) } : null;
+    return createToolInputValidationError({ tool: FIND_PROOFS_TASK,
+      validationError: { message: `selection requires a result returned by ${FIND_PROOFS_TASK}.`, issues },
+      details: { allowed_field_sets: allowedFieldSets, missing_input: 'result',
+        correction: 'A selection reads within one original result: pass the result a ' +
+          `${FIND_PROOFS_TASK} call returned, unchanged, beside the selection. No result is invented.` },
+      nextCalls: current !== null && inputSchema.safeParse(current).success ? [buildGuidanceCall({
+        tool: FIND_PROOFS_TASK, arguments: current,
+        information: 'Reads the CURRENT catalogue entry for this proof_name instead. It is a different ' +
+          'request: not the retained original the refused selection needs, and no substitute for it.' },
+      { requestSchema: session.requestSchema, registeredTools: [FIND_PROOFS_TASK] })] : [] });
+  };
+  defineTool(FIND_PROOFS_TASK, {
+    description: 'Browse the proof catalogue: call with no arguments first for every proof name with its ' +
+      'short description. Two request forms follow; never mix them. ' +
+      'Fresh read of the CURRENT catalogue: {proof_name, part?, target_family?}, or {query, target_family?} ' +
+      'to search by the property to establish. ' +
+      'Read from a returned original: {result, selection?: {proof_name?, part?}}. ' +
+      'selection requires the returned result beside it; result alone is valid. Top-level proof_name and ' +
+      'part belong to a fresh read. target_family belongs to a fresh proof_name or query request, never ' +
+      'to a selection. ' +
+      'A search returns every lexical match in rank order and selects none. A proof answer carries its ' +
+      'exact admitted assertion, exclusions, parameter and constraint index, and the save changes it ' +
+      `establishes. Query limit: ${PROOF_INTENT_DISCOVERY_QUERY_POLICY.maximum_bytes} UTF-8 bytes. ` +
+      'Read-only for canonical sources; executes and credits nothing.',
+    inputSchema,
+    advertisedInputSchema,
+    publishedInputSchemaProjection,
+    inputValidationErrorProjector: ({ args, validationError }) => ({ terminal_result: errorContent(
+      retainedRequestRefusal(args) ?? createToolInputValidationError({ tool: FIND_PROOFS_TASK, validationError,
+        details: { allowed_field_sets: allowedFieldSets } })) })
+  }, async args => {
+    try {
+      const { selected, payload } = await session.run(inputSchema.parse(args));
+
+      return selected ?? jsonContent(payload);
+    } catch (error) {
+      return errorContent(error?.envelope ? error : createControlledContractRefusal(error));
+    }
+  }, { losslessDelivery: true });
+  return session;
 }

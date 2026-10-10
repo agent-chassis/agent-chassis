@@ -574,7 +574,19 @@ test("WK-1691#SLICE-002 unsafe detail shapes omit the discriminator entirely", a
   const captured = await runStatusEnvelope(postcheckError(getterDetail));
   assert.equal(Object.hasOwn(captured.blocker.detail, "postcheck_mismatch_field"), false);
   assert.equal(Object.hasOwn(captured.blocker.detail, "evidence"), false, "the capture is not published");
-  assert.equal(readOperatorOnlyEvidence(captured.blocker.detail.retained_evidence)
+  assert.equal(captured.blocker.detail.retained_evidence.retained, false);
+  assert.equal(captured.blocker.detail.retained_evidence.reason, "observed_by_read");
+  assert.equal(captured.blocker.detail.retained_evidence.audience, "operator");
+  assert.equal(Object.hasOwn(captured.blocker.detail.retained_evidence, "ref_id"), false);
+  getterInvoked = false;
+  const recorded = buildDispatchToolExceptionDetail("workspace_agent_run_status",
+    postcheckError(getterDetail));
+  assert.equal(getterInvoked, true);
+  assert.equal(Object.hasOwn(recorded, "postcheck_mismatch_field"), false);
+  assert.equal(Object.hasOwn(recorded, "evidence"), false, "the capture is not published");
+  assert.equal(recorded.retained_evidence.retained, true);
+  assert.equal(recorded.retained_evidence.audience, "operator");
+  assert.equal(readOperatorOnlyEvidence(recorded.retained_evidence)
     .thrown.value.properties.detail.field, "sliceRef");
 });
 

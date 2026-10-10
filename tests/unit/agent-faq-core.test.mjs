@@ -79,8 +79,18 @@ test("both seed entries carry actor and routes", () => {
   const forkTools = graphImpact.fork.flatMap((branch) =>
     branch.routes.map((route) => route.tool)
   );
-  assert.ok(forkTools.includes("workspace_code_index_impact"));
+  assert.ok(forkTools.includes("query_code_index"));
   assert.ok(forkTools.includes("workspace_record_graph_impact_evidence"));
+  assert.match(graphImpact.cause, /Graph-dependent operations automatically ensure the shared committed-HEAD index/u);
+  for (const route of [...graphImpact.routes, ...graphImpact.fork.flatMap((branch) => branch.routes)]
+    .filter(({ tool }) => tool === "query_code_index")) {
+    assert.doesNotMatch(route.note, /It ensures the shared committed index again|it automatically retries ensure\/rebuild/u);
+  }
+  for (const route of [graphImpact.routes[0], graphImpact.fork[1].routes[0]]) {
+    assert.match(route.note, /retry the original graph-dependent operation/iu);
+    assert.match(route.note, /The original operation strictly ensures the shared committed index/u);
+    assert.match(route.note, /query_code_index reads the published index immediately and requests background refresh/u);
+  }
 });
 
 test("get-by-id returns null for an unknown id", () => {

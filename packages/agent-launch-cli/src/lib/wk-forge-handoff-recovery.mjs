@@ -323,7 +323,7 @@ export function authenticateWkCloseoutProjection({
       !Array.isArray(observedRecord.slices)) {
     return { ok: false, reason: "record_identity_mismatch" };
   }
-  if (candidateRecord.status === "done" || observedRecord.status !== "review") {
+  if (typeof observedRecord.status !== "string" || observedRecord.status.length === 0) {
     return { ok: false, reason: "unsupported_parent_status" };
   }
   if (!admissibleUpdated(candidateRecord.updated, observedRecord.updated)) {

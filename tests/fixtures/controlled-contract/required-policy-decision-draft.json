@@ -1,0 +1,48 @@
+{
+  "id": "DEC-9194",
+  "record_kind": "decision",
+  "title": "DRAFT EXPERIMENT: an interface taking a caller-supplied callback states its answer to an invalid callback return",
+  "status": "proposed",
+  "date": "2026-10-09",
+  "owners": [],
+  "updated": "2026-10-09",
+  "updated_by": "fixture",
+  "sections": {
+    "context": "Disposable test fixture, not a canonical decision. It shows a decision referencing a pattern sidecar. It is one interpretation motivated by proposed DEC-0194 clauses 2.e and 5, which state broad criteria and do not contain this concrete rule.",
+    "decision": "1. An interface that takes a caller-supplied callback states the failure it answers when the callback's return is invalid.\n\n2. That definition has a verification definition that verifies it.\n\n3. That definition has a same-subject obligation.",
+    "consequences": "Assessment derives one independently required instance of the rule per inventoried interface. The inventory is supplied, not discovered."
+  },
+  "area": "controlled-contract",
+  "related": [
+    "DEC-0194"
+  ],
+  "enforcement": {
+    "schema_version": "decision-required-patterns.prototype.v2",
+    "rules": [
+      {
+        "rule_id": "invalid-callback-return-failure",
+        "applies_to": {
+          "inventory_kind": "model_endpoint_usage_callback"
+        },
+        "patterns": {
+          "path": "required-policy-decision-draft.patterns.json",
+          "content_digest": "sha256:48b632b2e7f1ab792db14c19a1dc04ce935c4236de560dab69d5b6cd49a0741d"
+        },
+        "clauses": {
+          "invalid-return-answers-usage-invalid-error": [
+            "1"
+          ],
+          "invalid-return-answers-usage-invalid-error-verification": [
+            "2"
+          ],
+          "invalid-return-answers-usage-invalid-error-verifies": [
+            "2"
+          ]
+        },
+        "obligation_pattern_ids": [
+          "invalid-return-answers-usage-invalid-error"
+        ]
+      }
+    ]
+  }
+}

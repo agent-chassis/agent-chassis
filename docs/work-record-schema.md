@@ -118,6 +118,33 @@ The public schema distinction is:
   launcher exclusions), captures the referenced
   WK closure through the launcher-owned frozen source set, and grants no worker
   MCP access or additional authority.
+- `sections.dispositions`, when present at the root or on a slice, is an array
+  of saved review judgments. Each row is the closed object
+  `{id, review_run_id, entry, selection, disposition, rationale?}`: a
+  unit-unique positive `id` the store allocates, the producer run identity, the
+  immutable `entry:{entry_id, version_id}` the judgment is about, exactly one
+  `selection` (`{finding_id}` for a producer finding, or `{offset, length}` for
+  an exact Unicode-scalar extent of that entry version), and an `accept`,
+  `reject` or `defer` judgment. A row's source is never caller-attested: the
+  named entry version must be a single capture of authenticated original
+  findings, and `review_run_id` is read from that version's own provenance. A
+  judgment or its rationale may change; its source cannot, and one occurrence
+  holds at most one judgment. Rows are authored meaning, so they are part of
+  the work-record source digest. They record a coordinator's judgment only:
+  saving one runs no review, mints no approval and integrates nothing. An
+  explicit integration attempt reads them at the revision it holds and learns
+  `present` with that revision and the rows, `absent`, a `source_mismatch`
+  against a revision that moved, or `unavailable` with the original cause.
+  Before returning `present`, the reader resolves every row's exact entry
+  version within that unit, requires captured-findings provenance and the
+  matching producer run, checks finding membership through the shared
+  disposition validator, and bounds prose extents against that version's text
+  in Unicode scalars. It validates and computes the revision from one loaded
+  snapshot; a revision mismatch takes precedence over invalid source references.
+  Invalid references return `unavailable` with the specific source-owner cause,
+  without dropping rows or substituting a newer version. Valid reads preserve
+  judgments and rationale and perform no writes, integration, recapture or retry;
+  `accept`, `reject` and `defer` grant no integration authority.
 - `proof_posture` is the sole persistent controlled-acceptance disposition
   carrier. Required posture records `controlled_contract.required:true` with no
   exemption. Explicit opt-out records `required:false`, the canonical exemption,
@@ -191,6 +218,17 @@ concrete acceptance and validation. For review or redteam work, `write_scope` is
 normally empty unless the assignment explicitly authorizes writing findings to a
 coordination surface.
 
+Ready-slice shaping fixes the findings case. Selecting reviewer or redteam
+shaping (`shaping_mode: "reviewer"` or `"redteam"`) determines that the slice
+edits nothing, so the shaping owner persists `write_scope: []` when a slice is
+created and when an existing slice is explicitly reshaped; the author does not
+supply the field. An explicit `[]` is accepted and changes nothing. A non-empty
+`write_scope` contradicts the selected shaping and refuses before anything is
+written. Nothing is derived in the other direction: creating an implementation
+slice, or reshaping a slice to implementation, requires an authored non-empty
+`write_scope`. Edit authority is never inferred from `read_scope`,
+`repo_paths`, or `expected_edit_targets`.
+
 ### Findings units
 
 A findings unit is one whose `work_kind` is `review` or `redteam`. `work_kind` is
@@ -232,24 +270,33 @@ from terminal whole-WK review. The accepted vocabulary is closed:
 | `redteam` | `redteam` | omitted | absent |
 | non-findings | unchanged | any | invalid |
 
-`terminal_whole_wk` is reviewer-only. An authored value is always preserved
-exactly. Omission defaults to `standalone` for `review` work only; an omitted
-redteam purpose stays ABSENT on every read surface and is never manufactured,
-migrated, or inferred.
+The table describes a record as it is read. `terminal_whole_wk` is
+reviewer-only. A stored value is always preserved exactly. Reading supplies
+`standalone` for an absent purpose on `review` work only; a redteam unit stored
+without a purpose reads as ABSENT on every read surface, and no read, projection,
+validation pass, or launcher step manufactures, migrates, or infers one.
 
-Omission and contradiction are different facts and are treated differently. An
-omitted redteam purpose is absence: a record at rest carrying one validates
-clean, and only the authoring routes below refuse it. A conflicting role or an
-incompatible purpose value is a contradiction and is an error wherever it is
-read.
+Omission and contradiction are different facts and are treated differently. A
+stored redteam unit with no purpose is absence: the record validates clean and
+is never rewritten by reading it. A conflicting role or an incompatible purpose
+value is a contradiction and is an error wherever it is read.
 
-The `workspace_work_record_ready_slice` authoring operation additionally
-requires an explicitly authored `review_purpose: "standalone"` for redteam
-shaping, on create and on update alike. Omission refuses before persistence,
-naming the field path `review_purpose`, the accepted value `standalone`, and the
-retry. That requirement is a property of the authoring call, not a lifecycle
-status and not a property of a stored record: a historical redteam unit that
-omitted the purpose remains valid and is never rewritten.
+Shaping is where the redteam purpose is written. Selecting redteam shaping
+(`shaping_mode: "redteam"`) states the standalone adversarial intent once, so
+the ready-slice shaping owner derives and persists `review_purpose: "standalone"`
+when a slice is created and when an existing slice is explicitly reshaped,
+including one stored without a purpose. The author does not supply the field. An
+explicit `standalone` is accepted and changes nothing. An explicit
+`terminal_whole_wk`, a value outside the vocabulary, or a conflicting
+`work_kind` or dispatch role refuses before anything is written; a supplied
+contradiction is never overwritten by the derived value. An update that selects
+no shaping derives nothing: it preserves the stored purpose, and it refuses for a
+stored redteam slice that has none. That refusal names the correction: retry the
+same call with `shaping_mode: "redteam"`, and the owner derives the purpose.
+
+Terminal whole-WK review stays a distinct, explicit choice: it is authored only
+as `review_purpose: "terminal_whole_wk"` under reviewer shaping. Redteam shaping
+never selects it and never sets or changes the record's completion policy.
 
 Raw slice upsert and scaffold construction derive the technical role from
 `work_kind` when the caller omitted it, so a findings unit is never silently
@@ -290,6 +337,35 @@ actually ran, including failures, skips, or runtime blockers.
   launch readiness.
 - `requires_escalation` records whether the work needs accepted escalation
   evidence before launch.
+
+The persisted `dispatch_intent` is always the complete four-member object.
+What an author supplies depends on the operation:
+
+- Ready-slice shaping (`changes.ready_slices` on `save_record`, and the same
+  member at record creation) takes a **partial** `dispatch_intent`. Every
+  member is optional, and an author states only the control flags being
+  changed, for example
+  `{ id: "SLICE-001", dispatch_intent: { requires_graph_impact: true } }`.
+  `intended_agent_role` and `target_unit` are derived from the selected or
+  saved shaping. Each omitted control flag is resolved on its own: an update
+  keeps that flag's saved value, and creation uses `false`. An explicit
+  `false` overrides a saved `true`. An empty object, like an omitted
+  `dispatch_intent`, changes no flag. The shaping owner then persists the
+  complete object.
+- A supplied `intended_agent_role` or `target_unit` is a consistency
+  assertion, not a second source: a value that contradicts the shaping refuses
+  with `ready_slice_shaping_conflict` or `ready_slice_invalid_field`. An
+  unknown member, a non-boolean control flag, and a non-object value refuse too.
+  On an update that selects no `shaping_mode`, a saved slice whose shape is not
+  one of implementation, reviewer, or redteam refuses with
+  `ready_slice_unsupported_effective_shape` at `shaping_mode`; an update never
+  defaults a control flag the saved slice does not carry as a boolean, and
+  refuses with the same code at that flag until the author states it. No refusal
+  publishes any member of its save.
+- Every other route that writes `dispatch_intent`, including a raw slice
+  definition (`changes.slices`), replaces the whole field with the object
+  supplied. It does not merge with the saved value, so a partial object there is
+  not completed on the author's behalf.
 
 Dispatch readiness is read-only derived evidence. It evaluates a selected record
 or slice against the work-record contract and returns a decision such as

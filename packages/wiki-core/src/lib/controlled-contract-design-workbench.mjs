@@ -1,10 +1,8 @@
 import { resolveControlledContractDeclarationPopulation } from './controlled-contract-runtime-proof-eligibility.mjs';
 import { createHash } from "node:crypto";
 
-import {
-  isAcceptanceCoverageComplete,
-  projectStableTestProofSelector
-} from "@agent-chassis/controlled-contract";
+import { isAcceptanceCoverageComplete } from "@agent-chassis/controlled-contract/acceptance-coverage";
+import { projectStableTestProofSelector } from "@agent-chassis/controlled-contract/test-proof";
 import {
   CONTROLLED_CONTRACT_AUTHORING_STAGES,
   CONTROLLED_CONTRACT_AUTHORING_TERMINAL_STAGE

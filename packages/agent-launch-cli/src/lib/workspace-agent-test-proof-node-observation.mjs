@@ -5,7 +5,7 @@ import {
   parseTestProofModuleFaultWitnessName,
   verifyTestProofModuleFaultExpectation
 } from "./workspace-agent-test-proof-module-fault-contract.mjs";
-import { isLauncherTestFailureDiagnostic } from
+import { isLauncherTestFailureDiagnostic, unavailableTestFailureDiagnostic } from
   "./workspace-agent-test-proof-error-diagnostic.mjs";
 import { stableRuntimeTestIdFromParts } from
   "./workspace-agent-test-proof-node-reporter.mjs";
@@ -39,6 +39,12 @@ export function launcherNodeTestReporterUrl() {
   return url.href;
 }
 
+export function launcherNodeTestRunReporterUrl(repositoryRoot) {
+  const url = new URL("./workspace-agent-test-proof-node-reporter.mjs", import.meta.url);
+  url.searchParams.set("launcher_repository_root", repositoryRoot);
+  return url.href;
+}
+
 export function launcherNodeTestFaultLoaderUrl(configuration) {
   const url = new URL(NODE_TEST_PROOF_FAULT_LOADER_URL);
   url.searchParams.set("configuration", Buffer.from(JSON.stringify(configuration))
@@ -64,7 +70,18 @@ export function projectObservedTestFact(event) {
     }) };
 }
 
-function selectedIdentityNotObserved(expectation, testEvents) {
+function reportedStartupFailure(report, { exitCode, wrapperStatus }) {
+  if (report === undefined || report === null || exitCode === 0 || wrapperStatus !== "failed") return null;
+  const lost = { path: "/native_report", reason: "native_report_unreadable" };
+  const reported = report.startup_failure;
+  if (reported === undefined || reported === null) {
+    return unavailableTestFailureDiagnostic(report.unreadable === true ? [lost] : undefined);
+  }
+  if (!isLauncherTestFailureDiagnostic(reported)) return unavailableTestFailureDiagnostic([lost]);
+  return report.unreadable !== true ? reported : { ...reported, issues: [...reported.issues, lost] };
+}
+
+function selectedIdentityNotObserved(expectation, testEvents, { exitCode, nativeReport } = {}) {
   const target = expectation?.target;
   const candidates = testEvents.map(projectObservedTestFact)
     .sort((left, right) => Number(right.file === target) - Number(left.file === target) ||
@@ -80,6 +97,8 @@ function selectedIdentityNotObserved(expectation, testEvents) {
   const wrapperErrorCodes = [...new Set(wrapper?.error_codes ?? [])].sort();
   const failures = testEvents.filter((event) => event.type === "test:fail")
     .map(projectObservedTestFact);
+  const startupFailure = reportedStartupFailure(nativeReport,
+    { exitCode, wrapperStatus: wrapper?.status ?? null });
   return {
     valid: false,
     code: "test_proof_selected_identity_not_observed",
@@ -93,7 +112,8 @@ function selectedIdentityNotObserved(expectation, testEvents) {
       file_wrapper_status: wrapper?.status ?? null,
       file_wrapper_error_codes: wrapperErrorCodes,
       observed_failures: failures,
-      observed_failure_count: failures.length
+      observed_failure_count: failures.length,
+      ...(startupFailure === null ? {} : { failure_diagnostic: startupFailure })
     }
   };
 }
@@ -374,7 +394,8 @@ export function observeLauncherNodeTestRun({
   stdout,
   exitCode,
   expectation,
-  reporterProtocolOverflow = false
+  reporterProtocolOverflow = false,
+  nativeReport
 } = {}) {
   const authenticated = authenticateLauncherNodeTestEvents({ stdout, reporterProtocolOverflow });
   if (!authenticated.valid) return { valid: false, code: authenticated.code };
@@ -410,7 +431,7 @@ export function observeLauncherNodeTestRun({
   );
   const targetFailureObserved = targetFailureEvents.length > 0;
   if (!targetPassObserved && !targetFailureObserved) {
-    const notObserved = selectedIdentityNotObserved(expectation, testEvents);
+    const notObserved = selectedIdentityNotObserved(expectation, testEvents, { exitCode, nativeReport });
 
     const selectedSkip = expectation?.capability === "candidate_execution"
       ? testEvents.find(({ test_id: testId, status }) =>

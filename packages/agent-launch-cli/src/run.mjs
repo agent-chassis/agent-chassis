@@ -24,7 +24,11 @@ Canonical role commands (operator surface):
   worker <unit-address> [--profile <profile>] [--app <app>] [--model <model>] [--spark]
                                              Dispatch an implementation worker
                                              (--spark is shorthand for
-                                             --profile worker_spark)
+                                             --profile worker_spark). Live for
+                                             --app claude; a launch that resolves
+                                             to codex is retired and refuses
+                                             (use an orchestrator's start_agent),
+                                             --dry-run-json still plans it
   review <unit-address> [--profile <profile>] [--app <app>] [--model <model>]
                                              Dispatch a findings-only review worker
   redteam <subject> [--profile <profile>] [--app <app>] [--model <model>]

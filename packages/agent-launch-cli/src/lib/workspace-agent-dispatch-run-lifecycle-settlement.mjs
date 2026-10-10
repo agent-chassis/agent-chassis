@@ -37,6 +37,7 @@ import {
 } from "@agent-chassis/agent-launch-core/src/lib/durable-runtime-state.mjs";
 
 import { readStdioMcpConduitTerminalFailure } from "./stdio-mcp-conduit-contract.mjs";
+import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
 
 export function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -297,6 +298,7 @@ export function buildAcceptedLaunchEnvelope(record, startReviewResult, workerAdm
     caller_session_id: record.caller_session_id,
     status: record.status,
     terminal: record.terminal,
+    ...(record.launch_observation === undefined ? {} : { launch_observation: record.launch_observation }),
     started_at: record.started_at,
     updated_at: record.updated_at,
     exit: record.exit,
@@ -360,6 +362,7 @@ export async function finalizeLaunchOutcome(params) {
     runs,
     captureSliceReviewTerminalResult,
     settleFormalReviewAttestation,
+    onLaunchCompletion = null,
     run_id,
     monitor_handle,
     app,
@@ -370,12 +373,14 @@ export async function finalizeLaunchOutcome(params) {
     workspace_alias,
     caller_session_id,
     startedAt,
+    clock = Date.now,
     reviewerLaunchIdentity,
     workerAdmissionDiagnostic,
     sessionContract = null,
     findingsLifecycle = false
   } = params;
   const publishManagedRunResult = params.publishManagedRunResult ?? null;
+  const assessManagedRunResult = params.assessManagedRunResult ?? null;
 
   let pendingManagedRunIdentity = params.pendingManagedRunIdentity ?? null;
 
@@ -488,7 +493,12 @@ export async function finalizeLaunchOutcome(params) {
 
     terminal_structured_role_result_mode:
       readLauncherObservedTerminalResultMode(executorResult),
-    final_result: null
+    final_result: null,
+    ...(params.projectRunRecord ? { launch_observation: Object.freeze({
+      child_started: Number.isInteger(executorResult.pid) && executorResult.pid > 0,
+      child_termination_observed: childTerminationObserved,
+      enforcement: executorResult.enforcement ?? null
+    }) } : {})
   };
   Object.defineProperty(record, "findings_lifecycle", {
     value: findingsLifecycle === true,
@@ -535,7 +545,7 @@ export async function finalizeLaunchOutcome(params) {
     pendingRetained: pendingIdentityRetained,
     reservationHolder
   });
-  await publishCapturedManagedRunResult(record, publishManagedRunResult);
+  await publishCapturedManagedRunResult(record, publishManagedRunResult, assessManagedRunResult);
   const startReviewResult = deriveBackendReviewResult(record);
   if (record.terminal) {
     await settleRequestedFormalAttestation(
@@ -555,7 +565,24 @@ export async function finalizeLaunchOutcome(params) {
     }
   }
 
-  return buildAcceptedLaunchEnvelope(record, startReviewResult, workerAdmissionDiagnostic);
+  if (params.projectRunRecord && record.terminal) record.producer_settlement_finished = true;
+
+  const envelope = buildAcceptedLaunchEnvelope(record, startReviewResult, workerAdmissionDiagnostic);
+  if (params.projectRunRecord && record.terminal && onLaunchCompletion !== null) await onLaunchCompletion(record, Promise.resolve());
+  if (!record.terminal && onLaunchCompletion !== null) {
+    onLaunchCompletion(record, executorResult.completion);
+  }
+
+  if (role === "worker" && !record.terminal && typeof executorResult.running?.then === "function") {
+    executorResult.running.then(() => {
+      if (record.terminal || record.status !== "launching" ||
+          readObservedChildTermination(executorResult)) return;
+      record.status = "running";
+      record.updated_at = new Date(clock()).toISOString();
+    });
+  }
+  return params.projectRunRecord ? { ...envelope,
+    producer_observation: params.projectRunRecord(record) } : envelope;
 }
 
 function captureTerminalObservation(record, observed) {
@@ -629,9 +656,63 @@ function executionIdentityRepairRequirement(record, dispatchTuple) {
   });
 }
 
-async function publishCapturedManagedRunResult(record, publisher) {
+export async function correctManagedRunResultPublication(request, dependencies) {
+  const outcomes = { assessment: null, publication: null, verification: null };
+  let stage = "assessment";
+  let appended = false;
+  const failed = (cause = null, evidence = null) => ({
+    ok: false, state: "failed", stage, appended, ...outcomes,
+    ...(cause === null ? {} : { cause }), ...(evidence === null ? {} : { evidence })
+  });
+  try {
+    const { assessPublication, publishResult } = dependencies;
+    if (typeof assessPublication !== "function" || typeof publishResult !== "function") {
+      throw new TypeError("result publication correction requires assessPublication and publishResult functions");
+    }
+    outcomes.assessment = await assessPublication(request);
+    if (outcomes.assessment?.ok === false) return failed();
+    if (!isPlainObject(outcomes.assessment) || outcomes.assessment.ok !== true ||
+        !["already_recorded", "append_admissible"].includes(outcomes.assessment.state)) {
+      return failed("managed_run_result_publication_contract_invalid");
+    }
+    if (outcomes.assessment.state === "already_recorded") {
+      return { ok: true, state: "observed", appended, ...outcomes };
+    }
+    stage = "publication";
+    appended = null;
+    outcomes.publication = await publishResult(request);
+    if (!isPlainObject(outcomes.publication)) {
+      return failed("managed_run_result_publication_contract_invalid");
+    }
+    if (outcomes.publication?.ok === false && outcomes.publication.appended === undefined) {
+      appended = false;
+      return failed();
+    }
+    if (typeof outcomes.publication?.appended === "boolean") appended = outcomes.publication.appended;
+    if (outcomes.publication?.ok === false) return failed();
+    if (outcomes.publication?.ok !== true || appended === null) {
+      return failed("managed_run_result_publication_contract_invalid");
+    }
+    stage = "verification";
+    outcomes.verification = await assessPublication(request);
+    if (outcomes.verification?.ok === false) return failed();
+    if (outcomes.verification?.ok === true && outcomes.verification.state === "append_admissible") {
+      return failed("managed_run_result_publication_not_observed");
+    }
+    if (!isPlainObject(outcomes.verification) || outcomes.verification.ok !== true ||
+        outcomes.verification.state !== "already_recorded") {
+      return failed("managed_run_result_publication_contract_invalid");
+    }
+    return { ok: true, state: appended ? "appended" : "observed", appended, ...outcomes };
+  } catch (error) {
+    return failed(null, captureDiagnosticEvidence(error));
+  }
+}
+
+async function publishCapturedManagedRunResult(record, publisher, assessPublication = null) {
   if (record.role !== "worker" || !record.terminal || record.final_result === null ||
       typeof publisher !== "function" || record.final_result_durability === "durable") return;
+  if (record.result_publication !== undefined) return;
   const dispatchTuple = record.managed_execution_tuple ?? null;
   if (dispatchTuple === null || dispatchTuple.assigned_unit !== record.subject ||
       dispatchTuple.launch_ref !== record.monitor_handle ||
@@ -643,6 +724,53 @@ async function publishCapturedManagedRunResult(record, publisher) {
       reason: repair.defect,
       repair_required: repair
     });
+    if (typeof assessPublication === "function") record.result_publication = Object.freeze({
+      state: "unavailable", result: record.final_result, attempts: 0,
+      initial: Object.freeze({ outcome: record.final_result_publication_failure, evidence: null, appended: false }),
+      correction: null
+    });
+    return;
+  }
+  if (typeof assessPublication === "function") {
+    const request = Object.freeze({ subject: record.subject, dispatchTuple, result: record.final_result });
+    const retain = (fields) => {
+      record.result_publication = Object.freeze({ ...record.result_publication, ...fields });
+    };
+
+    retain({ state: "publishing", result: request.result, attempts: 1, initial: null, correction: null });
+    record.final_result_durability = "pending";
+    let outcome = null, evidence = null, appended = null;
+    try {
+      outcome = await publisher(request);
+      if (typeof outcome?.appended === "boolean") appended = outcome.appended;
+      else if (outcome?.ok === false) appended = false;
+    } catch (error) {
+      evidence = captureDiagnosticEvidence(error);
+    }
+    const initial = Object.freeze({ outcome, evidence, appended });
+    retain({ initial });
+    if (isPlainObject(outcome) && outcome.ok === true && appended !== null && evidence === null) {
+      retain({ state: "available" });
+      record.final_result_durability = "durable";
+      return;
+    }
+    const originalFailure = Object.freeze({
+      code: outcome?.code ?? outcome?.refusal?.code ?? "managed_run_result_publication_failed",
+      reason: outcome?.refusal?.reason ?? null,
+      outcome, evidence, appended, run_id: record.run_id
+    });
+    record.final_result_publication_failure = originalFailure;
+    retain({ state: "correcting" });
+    const correction = await correctManagedRunResultPublication(request, {
+      assessPublication,
+      publishResult: (input) => {
+        retain({ attempts: 2 });
+        return publisher(input);
+      }
+    });
+    retain({ state: correction.ok === true ? "available" : "unavailable", correction });
+    record.final_result_durability = correction.ok === true ? "durable" : "unavailable";
+    if (correction.ok === true) delete record.final_result_publication_failure;
     return;
   }
   try {
@@ -731,7 +859,8 @@ export async function settleAndProjectRunStatus(
     clock,
     captureSliceReviewTerminalResult,
     settleFormalReviewAttestation,
-    publishManagedRunResult = null
+    publishManagedRunResult = null,
+    assessManagedRunResult = null
   } = {}
 ) {
   if (!record.terminal && typeof record.probe === "function") {
@@ -745,7 +874,7 @@ export async function settleAndProjectRunStatus(
     }
   }
 
-  await publishCapturedManagedRunResult(record, publishManagedRunResult);
+  await publishCapturedManagedRunResult(record, publishManagedRunResult, assessManagedRunResult);
 
   const reviewResult = deriveBackendReviewResult(record);
   if (record.terminal) {
@@ -793,6 +922,7 @@ export function buildRunStatusEnvelope(record, reviewResult) {
             ? { final_result_publication_failure: record.final_result_publication_failure }
             : {})
         }),
+    ...(record.result_publication === undefined ? {} : { result_publication: record.result_publication }),
     ...(record.session_contract === undefined
       ? {}
       : {

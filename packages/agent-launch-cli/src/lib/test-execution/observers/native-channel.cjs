@@ -2,7 +2,9 @@
 
 const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
+const { createRequire } = require("node:module");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const { captureTestFailureDiagnostic, unavailableTestFailureDiagnostic } =
   require("../../workspace-agent-test-proof-diagnostic-graph.cjs");
@@ -17,6 +19,22 @@ function loadConfig(configPath = process.env[CONFIG_ENV]) {
     throw new Error("unsupported launcher test-proof observer configuration");
   }
   return config;
+}
+
+function projectModule(config) {
+  if (typeof config?.project_directory !== "string" || !path.isAbsolute(config.project_directory)) {
+    throw new Error("the launcher test-proof observer configuration names no project directory");
+  }
+  return path.join(config.project_directory, "launcher-test-proof.cjs");
+}
+
+function projectRequire(config) {
+  return createRequire(projectModule(config));
+}
+
+function importProjectModule(config, specifier) {
+  return new vm.Script("(specifier) => import(specifier)", { filename: projectModule(config),
+    importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER }).runInThisContext()(specifier);
 }
 
 function createChannel(config, role) {
@@ -68,8 +86,10 @@ module.exports = {
   CONFIG_ENV,
   createChannel,
   failureDiagnostic,
+  importProjectModule,
   installReachSink,
   loadConfig,
+  projectRequire,
   repositoryPath,
   sameTitles
 };

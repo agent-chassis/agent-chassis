@@ -191,7 +191,8 @@ test("WK-2194: aggregate discovery-notes budget remains bounded after adapter re
   assert.equal(report.target, SLICE_021_MAX_AGGREGATE_NOTES_CHARS);
 
   assert.ok(report.current_value < 46752);
-  assert.equal(report.denominator, 106);
+
+  assert.equal(report.denominator, 107);
   assert.equal(report.debt_added, 204);
   assert.ok(report.debt_retired >= 17937);
   assert.deepEqual(report.added_entry_names, [

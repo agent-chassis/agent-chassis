@@ -2,10 +2,14 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import {
   CONTROLLED_CONTRACT_MAX_JSON_BYTES,
+  digestBytes,
   fail,
   normalizeControlledContractIdentity,
   classifyControlledContractRepositoryPath,
   resolveControlledContractRepository,
+  resolveControlledContractGenerationStore,
+  readControlledContractGenerationStoreEntries,
+  scopedControlledContractSourceObservation,
   inspectCarrierFile,
   deepFreezePlainData
 } from "./controlled-contract-tool-shared.mjs";
@@ -30,8 +34,49 @@ export function authenticatedControlledContractRuntimeMembers(selection) {
   return members;
 }
 
+async function inspectObservedCarrierSetMember(file, context, {
+  observation, carrierSetFailure
+}) {
+  const repositoryPath = path.relative(observation.repository, file)
+    .split(path.sep).join("/");
+  const member = { ...context, path: repositoryPath, source: observation.source };
+  let observed;
+  try {
+    observed = await observation.readFile(repositoryPath);
+  } catch (error) {
+    carrierSetFailure("partial_generation", "generation member is absent or unreadable", {
+      ...member,
+      operation: "readFile",
+      cause_code: typeof error?.code === "string" ? error.code : null
+    }, error);
+  }
+  if (observed === null) {
+    carrierSetFailure("partial_generation", "generation member is absent or unreadable", {
+      ...member,
+      operation: "lstat",
+      cause_code: "ENOENT"
+    });
+  }
+  if (observed.ordinary !== true || !Buffer.isBuffer(observed.bytes)) {
+    carrierSetFailure("member_mismatch", "generation member is not one exact regular file", {
+      ...member,
+      operation: "validate_file_identity"
+    });
+  }
+  if (observed.bytes.byteLength === 0 ||
+      observed.bytes.byteLength > CONTROLLED_CONTRACT_MAX_JSON_BYTES) {
+    carrierSetFailure("member_mismatch", "generation member exceeds its exact byte boundary", {
+      ...member,
+      operation: "validate_byte_boundary",
+      observed_byte_length: observed.bytes.byteLength,
+      maximum_bytes: CONTROLLED_CONTRACT_MAX_JSON_BYTES
+    });
+  }
+  return { bytes: observed.bytes, digest: digestBytes(observed.bytes) };
+}
+
 export async function resolveCanonicalControlledContractCarrierSetImpl({
-  repoRoot, wkId, focus = null
+  repoRoot, wkId, focus = null, observation = null
 }, publication) {
   const {
     carrierSetFailure,
@@ -39,12 +84,24 @@ export async function resolveCanonicalControlledContractCarrierSetImpl({
     inspectCarrierSetMember
   } = publication;
   normalizeControlledContractIdentity({ wkId, focus });
-  const store = await resolveControlledContractRepository(repoRoot);
+  observation ??= scopedControlledContractSourceObservation({ repoRoot, wkId });
+  const store = await resolveControlledContractGenerationStore(repoRoot, observation);
   const manifestPath = carrierSetManifestPath(store, wkId, focus);
-  const visible = await inspectCarrierFile(manifestPath, { required: false });
+  const visible = await inspectCarrierFile(manifestPath, { required: false, observation });
   const members = [];
   if (visible === null) {
-    const entries = await readdir(store.contracts, { withFileTypes: true });
+
+    if (observation !== null && observation.store_root_population !== true) {
+      carrierSetFailure("manifest_missing",
+        "observed source publishes no carrier-set manifest for this focus", {
+          wk_id: wkId,
+          focus: focus ?? null,
+          source: observation.source
+        });
+    }
+    const entries = observation === null
+      ? await readdir(store.contracts, { withFileTypes: true })
+      : await readControlledContractGenerationStoreEntries(store, observation);
     for (const entry of entries) {
       const classification = classifyControlledContractRepositoryPath({
         wkId, repositoryPath: `wiki/contracts/${entry.name}`
@@ -63,7 +120,7 @@ export async function resolveCanonicalControlledContractCarrierSetImpl({
         "controlled_contract_carrier_set_member_mismatch",
         "legacy canonical carrier is not one regular file", { basename: entry.name });
       const inspected = await inspectCarrierFile(path.join(store.contracts, entry.name), {
-        required: true
+        required: true, observation
       });
       members.push(canonicalSetMemberDescriptor({
         filename: entry.name,
@@ -113,15 +170,20 @@ export async function resolveCanonicalControlledContractCarrierSetImpl({
     if (member.member_kind !== "carrier" && member.member_kind !== "evaluation_input") {
       continue;
     }
-    const inspected = await inspectCarrierSetMember(
-      path.join(generationDir, member.filename), CONTROLLED_CONTRACT_MAX_JSON_BYTES, {
-        filename: member.filename,
-        generation: generationId,
-        generation_path: generationPath,
-        wk_id: wkId,
-        focus: focus ?? null
-      }
-    );
+    const memberContext = {
+      filename: member.filename,
+      generation: generationId,
+      generation_path: generationPath,
+      wk_id: wkId,
+      focus: focus ?? null
+    };
+    const inspected = observation === null
+      ? await inspectCarrierSetMember(
+        path.join(generationDir, member.filename), CONTROLLED_CONTRACT_MAX_JSON_BYTES,
+        memberContext)
+      : await inspectObservedCarrierSetMember(
+        path.join(generationDir, member.filename), memberContext,
+        { observation, carrierSetFailure });
     if (inspected.digest !== member.content_digest ||
         inspected.bytes.byteLength !== member.byte_length) {
       carrierSetFailure("digest_mismatch", "manifest-selected carrier content differs", {
@@ -136,7 +198,8 @@ export async function resolveCanonicalControlledContractCarrierSetImpl({
   }
   members.sort((left, right) => left.filename.localeCompare(right.filename));
   const embedded = await inspectCarrierFile(path.join(generationDir, "manifest.json"), {
-    required: true
+    required: true,
+    observation
   });
   if (embedded.digest !== visible.digest) carrierSetFailure("manifest_mismatch",
     "visible and generation-embedded manifests differ");
@@ -165,10 +228,12 @@ export async function resolveCanonicalControlledContractCarrierDirectory({
   return path.join(store.contracts, ".carrier-generations", canonicalSet.generation);
 }
 
-async function publishedCarrierSetManifestFocuses(store, wkId) {
+async function publishedCarrierSetManifestFocuses(store, wkId, {
+  carrierSetFailure, observation = null
+}) {
   let entries;
   try {
-    entries = await readdir(store.contracts, { withFileTypes: true });
+    entries = await readControlledContractGenerationStoreEntries(store, observation);
   } catch (error) {
     fail("controlled_contract_generation_enumeration_failed",
       "canonical controlled-contract generation could not be enumerated", {
@@ -197,8 +262,13 @@ export async function assertCanonicalCarrierSetIsNotFencedLegacyImpl({
   repoRoot, wkId, canonicalSet, store = null
 }, { carrierSetFailure }) {
   if (canonicalSet?.source === "manifest") return;
-  store ??= await resolveControlledContractRepository(repoRoot);
-  const focuses = await publishedCarrierSetManifestFocuses(store, wkId);
+  const observation = scopedControlledContractSourceObservation({ repoRoot, wkId });
+  store ??= observation === null
+    ? await resolveControlledContractRepository(repoRoot)
+    : await resolveControlledContractGenerationStore(repoRoot, observation);
+  const focuses = await publishedCarrierSetManifestFocuses(store, wkId, {
+    carrierSetFailure, observation
+  });
   if (focuses.length === 0) return;
   carrierSetFailure("manifest_missing",
     "a published carrier-set manifest fences this record's legacy root carriers", {
@@ -209,12 +279,15 @@ export async function assertCanonicalCarrierSetIsNotFencedLegacyImpl({
 }
 
 export async function resolveCanonicalControlledContractGenerationSelectionImpl({
-  repoRoot, wkId
+  repoRoot, wkId, observation = null
 }, publication) {
   const { carrierSetFailure } = publication;
   normalizeControlledContractIdentity({ wkId, focus: null });
-  const store = await resolveControlledContractRepository(repoRoot);
-  const focuses = await publishedCarrierSetManifestFocuses(store, wkId);
+  observation ??= scopedControlledContractSourceObservation({ repoRoot, wkId });
+  const store = await resolveControlledContractGenerationStore(repoRoot, observation);
+  const focuses = await publishedCarrierSetManifestFocuses(store, wkId, {
+    carrierSetFailure, observation
+  });
   if (focuses.length === 0) return null;
   const manifests = [];
   const descriptors = [];
@@ -222,7 +295,7 @@ export async function resolveCanonicalControlledContractGenerationSelectionImpl(
   const selectedBasenames = new Set();
   for (const focus of focuses) {
     const canonicalSet = await resolveCanonicalControlledContractCarrierSetImpl({
-      repoRoot, wkId, focus
+      repoRoot, wkId, focus, observation
     }, publication);
     if (canonicalSet.source !== "manifest") carrierSetFailure("manifest_missing",
       "published carrier-set manifest disappeared during generation selection",
@@ -244,7 +317,7 @@ export async function resolveCanonicalControlledContractGenerationSelectionImpl(
         wkId, repositoryPath: `wiki/contracts/${member.filename}`
       });
       const inspected = await inspectCarrierFile(
-        path.join(generationDirectory, member.filename), { required: true });
+        path.join(generationDirectory, member.filename), { required: true, observation });
       if (inspected.digest !== member.content_digest ||
           inspected.bytes.byteLength !== member.byte_length) {
         carrierSetFailure("digest_mismatch",

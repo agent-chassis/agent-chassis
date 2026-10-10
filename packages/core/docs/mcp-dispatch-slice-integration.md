@@ -45,7 +45,7 @@ repository selected.
   `terminal_candidate_recovery_current_ref_absent` verdict is genuine absence. A
   failed read, an invalid candidate or an authentication failure is never absence:
   it keeps its authenticated cause, stops that attempt before any forge effect,
-  and the registered `workspace_wk_forge_handoff` route reports it with
+  and the registered `workspace_publish_work` route reports it with
   `stage: "candidate_resolution"`. Recovery consults no current landing state.
 - **The fence holds before any external effect.** Repository, WK, fork, tip,
   candidate identity, tree, parent and controlled generation are rechecked under
@@ -61,13 +61,14 @@ repository selected.
   publication neither merges nor completes the WK on the base branch.
 - **Closeout preserves the published bytes.** Before initial publication, both
   workflows keep `C` beneath exactly two WK-only commits carrying the actual
-  applicable closure evidence and then the parent review-to-done transition, so
+  applicable closure evidence under the parent status the live record actually
+  holds, and then the parent's transition to `done`, so
   the initially published pull request already carries parent status `done`;
   that status is branch-local until a confirmed merge. A workflow without
   terminal review has no terminal-review record fabricated for it. Merge takes
   the exact authenticated pull-request head only on confirmed mergeability and
   adds no commits, and an unmerged, unknown, moved or foreign state leaves the
-  canonical parent in review. The confirmed merged base record is canonical, and a reconciliation
+  canonical parent exactly as it was. The confirmed merged base record is canonical, and a reconciliation
   failure is a typed partial success.
 
 ## Authority boundary and ownership map
@@ -95,6 +96,8 @@ The consuming-repository boundary has three explicit owners:
    CCE boundary decision before invoking the integration primitive. It owns
    integration admission and canonical state transitions; it does not infer
    authority from review text or result fields.
+   `slice-integration-policy.mjs` owns the exact-target CCE policy authorizer;
+   the backend composes one instance for fresh integration and record recovery.
 3. `registerCommittedSliceIntegrationRoute` and its
    `projectIntegrationSuccess` helper in
    `packages/wiki-mcp/src/lib/dispatch-tools/committed-slice-integration-route.mjs`
@@ -103,13 +106,11 @@ The consuming-repository boundary has three explicit owners:
    Evidence counts and dispositions are correlation output only; projection
    never becomes a second registry, producer, or policy gate.
 
-The public request is
-`workspace_integrate_committed_slice({repo?, subject, dispositions?})`.
-`subject` is a canonical address such as `work record`; `repo` is the optional
-configured repository alias; and `dispositions`, when present, is the registered
-array of `{review_run_id, finding_id, disposition}` entries. There is no
-`comment_dispositions` argument. The request carries no target, ref, receipt,
-review verdict, policy decision, or integration authority.
+The public request is `integrate_work({delivery:{ref_id}})`. The delivery
+owner authenticates its canonical subject, commit, source and managed attempt.
+Saved dispositions are read from that same source by the existing owner; a
+saved disposition alone never requests integration. The request has no repository
+selector, replacement subject, ref, target, review verdict or authority carrier.
 
 A refused request returns `accepted: false` with the blocker and the canonical
 `refusal` carrier. For a backend refusal, `blocker.detail` is the producer's
@@ -198,7 +199,8 @@ forces, infers a restore target, or overwrites a concurrent update. A lost
 compensation race or ref-store/read failure is a typed partial-transaction result
 carrying the bounded ref, published commit, authenticated prior tip, observed tip
 when known, and canonical-transition disposition. No partial path reports
-committed or submitted success.
+committed or submitted success. The effects every outcome reports are defined in
+[Exact commit transaction and immutable integration](#exact-commit-transaction-and-immutable-integration).
 
 Replay equivalence is authenticated delivery identity, not commit SHA. The
 current exact slice tip converges only when its single parent is the exact
@@ -212,14 +214,18 @@ converges, a different winner refuses without overwrite, and an indeterminate re
 fails closed.
 
 The closed-input materializer uses a throwaway index, so advancing the attached
-slice ref does not rewrite the retained worktree's ordinary index. Canonical
+slice ref does not itself rewrite the retained worktree's ordinary index;
+delivery aligns that index afterwards, as described under
+[Worker checkout finalization](#worker-checkout-finalization), and a delivery
+whose finalization is still pending leaves it at the diff base. Canonical
 committed-slice reviewer admission accepts exactly two index states: already
 reconciled to the reviewed target, or still equal to the authenticated diff base.
 In the latter state it independently verifies the target's changed-path set,
 tracked modifications and deletions, added and ignored files, blob contents, and
 file modes against the reviewed commit. An arbitrary staged state, extra file, or
-filesystem drift refuses before reviewer spawn. Trusted integration owns the
-later base-to-target index reconciliation after the independent CCE policy boundary.
+filesystem drift refuses before reviewer spawn. Integration never touches the
+slice worktree: after its ref movement it finalizes only the WK's own checkout,
+as described under [WK checkout finalization](#wk-checkout-finalization).
 
 ### Authenticated historical launcher-index recovery
 
@@ -713,7 +719,21 @@ already-integrated work before fresh committed-range admission, through
 `reconcileIntegratedSliceRecordOnly`. Only pending or blocked bookkeeping is
 answered there; a delivery whose record is already reconciled continues to fresh
 admission, whose existing answer for already-applied work is unchanged, and no
-write is made. A pending record is repaired through the existing compound CAS writer
+write is made. That observation and repair run inside the WK's existing
+cross-process authority exclusion (`withControlledContractAuthorityExclusion`,
+the lock `integrateCommittedSlice` and carrier publication already take), entered
+before anything is observed; the selected unit is resolved again once it is held,
+and it is released before any fresh integration acquires the same non-reentrant
+lock. An exclusion that cannot be acquired is not "no integrated delivery": the
+request returns the owner's exact cause
+(`controlled_contract_wk_authority_lock_timeout` or
+`controlled_contract_wk_authority_lock_unavailable`) as a `backend_unavailable`
+refusal that states prior integration was not observed, with no record or ref
+change and no fresh admission. A release that fails after the observation or
+repair completed (`controlled_contract_wk_authority_lock_ownership_changed`) is
+thrown as the owner's own error with the completed result in its detail: a
+written repair or a null observation stays the fact it is, and the request does
+not continue to fresh admission. A pending record is repaired through the existing compound CAS writer
 (`driveRecordCasWrite`) and the existing validated record writer: every attempt
 rereads the record and live WK tip, re-authenticates the exact evidence or
 marker, recomputes sibling completeness and keeps slice `done` plus a final
@@ -811,6 +831,114 @@ invocation advanced the ref, the server compensates that exact publication with
 compensation is a typed partial transaction. An idempotently pre-existing delivery
 was not published by the invocation and is never compensated.
 
+Delivery publishes one ref: the assigned exact slice ref,
+`refs/heads/slice/<initiative>/<wk>/<slice>`. Before any Git work, the launcher
+binding must prove that its output branch is that slice's branch and that its
+selected unit is the assigned slice; a binding whose output branch names the WK
+branch, a sibling slice, or anything else, or whose selected unit is not that
+slice, is refused before materialization, scope measurement, publication, or any
+status write. Delivery has no WK-ref publication path: it never advances the WK
+ref or the base branch, and it changes no lifecycle status other than the
+assigned slice's move to `review`. Advancing the WK ref is integration's
+authority alone.
+
+The delivery request supplies no caller fields: `{}` and an omitted MCP
+`arguments` member both mean `{}`. One strict empty-object field schema owns
+what `tools/list` advertises — an object with no properties and
+`additionalProperties: false` — and authoritative field validation. The
+authoritative schema derives a Zod `.default({})` from that same object, so only
+true `undefined` becomes `{}`. The existing registrar forwards the parsed object
+to the handler. Identity, scope, refs, and the commit message are launcher-owned
+and are never request fields. Omission grants no authority: the same launcher
+authentication, binding and scope checks apply.
+
+A request the schema refuses reaches no delivery handler and has no effect: no
+binding is resolved, nothing is materialized or published, and the unit's status
+is not written. Where the refusal is raised depends on the request shape:
+
+| Request `arguments` | Refused by | Result |
+| --- | --- | --- |
+| A record with any field — unknown, identity-bearing, or message-shaped | Tool registrar | `tool_input_validation_failed` with the validator's own diagnostics naming every rejected key, and `next_calls` |
+| `null`, an array, or a scalar | MCP protocol envelope, before the registrar | A native protocol error; it carries no `next_calls` |
+
+Whether the serving SDK forwards omission or supplies `{}`, the public boundary
+admits the same normalized empty object. Explicit `null`, arrays, scalars and
+nonempty objects remain invalid; no unknown field is stripped.
+
+`next_calls` is the one complete corrective call,
+`{tool, arguments: {}, recommended: true}`, naming the registered delivery tool.
+It carries nothing the caller supplied; no field is silently stripped to make a
+refused request pass. Submitting it on the same launcher-authenticated session
+delivers.
+
+The handler's internal guard requires the normalized object: only `{}` is
+admitted, before the launcher binding is resolved. A direct invocation that
+bypasses the registrar with an absent argument, `null`, an array, or a scalar is
+a closed-schema violation, and a message-shaped or binding-shaped field keeps
+its own diagnostic.
+
+Once materialization has been attempted, every outcome — success, refusal, or
+thrown failure — carries the same transaction facts. Four effects are reported
+independently, and none is inferred from another:
+
+| Field | Values | Meaning |
+| --- | --- | --- |
+| `commit_object` | `created`, `not_created`, `unknown` | Whether the candidate commit object exists. `not_created` is a refusal before materialization; `unknown` is a materialization that threw. |
+| `delivery_ref` | `unchanged`, `advanced`, `restored`, `unknown` | What this invocation did to the exact delivery ref. |
+| `submitted_for_review` | `true`, `false`, `null` | Whether the assigned unit reached `review`. `null` is not established either way. |
+| `checkout` | `complete`, `pending`, `superseded`, `not_attempted` | The worker checkout's own finalization, attempted only after publication and review submission succeeded. See [Worker checkout finalization](#worker-checkout-finalization). |
+
+`committed` keeps one meaning: delivery publication and the exact unit's review
+submission are both established. A successful submission and a valid
+already-`review` no-op are both committed; a partial or uncertain settlement
+never is. Checkout finalization never changes `committed`: a delivery whose
+checkout is `pending` or `superseded` is committed and submitted, and the
+response's `outcome` is `partial` rather than `delivered`.
+
+`transaction` retains the identities that are known: `ref`, `base_sha`,
+`delivered_tree`, `candidate_commit`, `delivery_commit`, `prior_tip`,
+`attempted_commit`, `published_commit`, and `observed_tip`. `candidate_commit` is
+the object this invocation materialized; `delivery_commit` is the delivery the ref
+owner selected. An equivalent replay returns the existing selected delivery while
+`candidate_commit` still names the candidate that was only compared against it.
+
+`transaction.canonical_review` keeps the status writer's raw `valid`, `written`,
+`no_op`, and `status` as returned, with `null` for a fact it did not state. Only a
+result naming the exact assigned unit can speak for that unit:
+
+- an explicit no-write result, or a written result whose status is not `review`,
+  reports `submitted_for_review: false`;
+- a canonical write whose publication is unknown, a thrown transition, a
+  malformed result, and a wrong-unit result report `null`.
+
+A restored ref does not resolve that uncertainty: `delivery_ref: restored` and
+`submitted_for_review: null` are reported together.
+
+A publication that throws is classified from the stage evidence the ref owner
+attached to its failure, never from the error code alone:
+
+| Evidence | `delivery_ref` |
+| --- | --- |
+| Conflict naming this ref and base and a different observed tip | `unchanged`, with that `observed_tip` |
+| Read failure naming this ref and base, raised before the compare-and-swap | `unchanged` |
+| Read failure after the compare-and-swap was attempted | `unknown` |
+| Any other exception, or a code without that evidence | `unknown` |
+
+A failed or indeterminate publication invokes neither the canonical transition
+nor compensation. A failure thrown while materializing, verifying scope, or
+publishing names its `stage` (`materialization`, `scope_verification`,
+`publication`) beside the same facts.
+
+Compensation runs only for a publication this invocation performed. When it
+fails, the observed concurrent tip is kept and `delivery_ref` is `unknown` unless
+the published commit was observed still in place.
+
+The thrown transition, compensation, and stage failures are each serialized whole,
+nested causes included, as that block's `cause`, with
+`diagnostic_serialization.state: "complete"`. A value that cannot be serialized
+losslessly reports `state: "failed"` with the serializer's own failure, and leaves
+every sibling cause and every identity above intact.
+
 After integration, the integrated ref/status result is immutable. Cleanup is a
 separate post-success disposition: `state: "failed"` becomes a finalized delivery
 with cleanup pending, not a failed or replayable integration. Recovery
@@ -824,12 +952,22 @@ authenticated integration, keyed by repository, unit, exact delivery and base.
 This lets the original worker monitor recognize a completion even when an
 earlier pre-integration failure occurred before its frozen review context was
 retained. Observation must still authenticate the launcher-minted run, monitor,
-retry and binding pair, the delivery parent and live slice/WK refs, and the
+retry and binding pair, the delivery chain and live slice/WK refs, and the
 integration's original boundary-authorization target. A refused or in-flight
 attempt creates no entry. The index is process-local and non-authoritative after
 restart: absence continues through the durable recovery path, including its
 unchanged canonical-generation checks and `controlled_contract_generation_missing`
 refusal.
+
+The base in that key, and the `delivery_base_sha` durable recovery reports, is
+the delivery's original base: the `base_sha` frozen in the authenticated slice
+binding, never the delivery tip's immediate parent, which for a multi-commit
+delivery is an earlier delivery commit. Both the live lookup and durable
+recovery authenticate the complete server-minted chain from that base to the
+delivery with the same validator pre-integration admission uses. An empty,
+non-linear, wrong-subject, malformed or unreadable chain refuses as
+`reviewed_delivery_base_mismatch` with the validator's cause; it is never
+absence, a recovered completion, or grounds for a fresh integration.
 
 Git is authoritative about an integration that already happened. Neither the
 index key nor durable recovery depends on the slice's current canonical
@@ -848,3 +986,659 @@ new-worker actions keep their own current-contract checks. A refusal by one of
 those later actions is published as that action's failure and leaves the
 delivery reported as integrated. Integration of one delivery is not completion of
 the WK: cleanup and coordination that remain pending are reported as pending.
+
+### Delivery originals
+
+Every invocation that reaches an admitted exact-slice binding retains one
+complete original of what happened, after its transaction outcome is fixed and
+before that outcome is returned: success and equivalent replay, a write-scope
+refusal, an unproven or thrown review transition, a returned or thrown
+compensation, and a failure thrown while materializing, verifying scope, or
+publishing. A request refused before admission — a missing assignment or
+launcher tuple, a binding that fails its proof, or a malformed request — retains
+nothing and reports no original. A replay is its own invocation with its own
+original; it never rewrites an earlier one.
+
+The original holds what each owner actually returned or threw, before the bounded
+response keeps only part of it:
+
+| Member | Content |
+| --- | --- |
+| `identity` | The server-resolved repository and unit, the `launch_ref`/`run_id`/`retry_id` tuple, and the identity-store binding exactly as stored |
+| `materialization`, `scope_verification`, `publication`, `canonical_review`, `compensation`, `checkout` | `{state: "returned", result}` with the owner's whole return value (and, for the review transition, its `validation`), `{state: "threw", cause}` with the thrown value whole, or `{state: "not_attempted"}` |
+| `outcome` | The response as emitted, and whether it was an error result |
+
+A phase that did not run is `not_attempted`, which is distinct from an owner
+result that is `null` or unknown. Unfamiliar owner fields are kept. A generation
+identity appears only if an owner supplied one; none is derived from a digest.
+The response's `committed`, `commit_object`, `delivery_ref`,
+`submitted_for_review` and `checkout` are the single transaction projection and are recorded as
+part of `outcome`; the original adds observations, not a second interpretation.
+
+Every admitted outcome reports retention separately from its transaction effects:
+
+- `original: {available: true, operator_only: true, locator: {ref_id}}`
+  when the original was kept. The locator is output metadata only. It names no
+  reader call and no usable file path, and it opens no public read.
+- When the original cannot be kept — it holds a value the lossless serializer
+  refuses, or the response state cannot be written — the call returns an error
+  result that says so and still states the settled transaction:
+  `output: {state: "failed", failed_output: "complete_original", stage, unit,
+  response_state_owner, recoverable: false}`, where `stage` is
+  `original_serialization` or `original_retention`, and
+  `original: {available: false, locator: null, operator_only: true,
+  retention_failure}` carrying the failed operation, the affected unit, and the
+  owner's own cause.
+
+A retention failure changes nothing else. The delivery is not compensated,
+recommitted, resubmitted, or retried, the retention is not retried, and a
+transaction failure the invocation already had is reported as it was. The lost
+original is not recoverable and is never described as such. This failure response
+stays within the response bound: if the complete outcome and cause do not fit,
+the settled effects and identities are kept and every fact left out is named in
+`omitted_facts`; if the retention cause alone does not fit, it is replaced by
+`cause_omitted: true`. No unbounded original or log is returned in its place.
+
+Retention and reading go through one private adapter, `createDeliveryOriginals`
+in `packages/wiki-mcp/src/lib/task-deliver-work-result.mjs`. It registers no tool
+and adds no request parameter; `workspace_deliver_work` appears only as the
+producer identity recorded with the retained bytes. It is constructed from
+trusted server configuration — the configured workspace, the identity-store
+binding, the launcher credential and assigned unit, and the response-state
+environment, which for the registered handler is the server's own. The binding
+must pass the same exact-slice proof delivery uses, or construction refuses. The
+validated configuration is copied and frozen. This establishes that the trusted
+configuration is consistent; it does not authenticate a credential a caller
+supplies.
+
+- `retain({original})` alone validates and normalizes the complete original
+  through the lossless diagnostic serializer, once, then passes that carrier to
+  the existing selected-response writer and returns the `{ref_id}`
+  locator. The handler performs no preliminary complete-original normalization.
+  A value that cannot be kept exactly fails there, by path, before retention.
+  Nothing is dropped.
+- `read({result})` takes that locator and returns the complete original.
+
+The private adapter's `retentionFailureStage()` accessor reports the observed
+phase of its last synchronous failed retain, cleared on each attempt. The phase
+changes from `original_serialization` to `original_retention` only after
+normalization succeeds and before the selected-response writer is called. The
+adapter rethrows the owner's exact error without wrapping or annotating it; the
+handler uses the accessor for stage reporting. Failure while constructing the
+original before that call remains `original_serialization`. The store's JSON
+encoding and the separate small cause projections keep their existing owners.
+
+Retention and verified reading are the selected-response source owner's. Each
+original is bound to the producer, repository, and unit, with the exact run tuple
+as its query identity and the rest of the verified launcher binding — base,
+output branch, worktree, scopes, and the binding's own `source_digest` and
+`source_version` — as its authority identity. A read supplies that complete
+binding, so a different repository, unit, run, retry, or launcher binding is
+refused before any content is returned.
+
+The retained bytes are marked operator-only: holding a locator does not open the
+public ranged content reader, which refuses them. Session-authenticated private
+producer access is described below; no public or managed-worker reader is
+activated. An original outlives the server process that
+retained it and is exactly as durable as the response state it lives in. A read
+performs no delivery, capture, retention, Git or status mutation, compensation,
+integration, or proof execution, and never reconstructs a transaction from
+current Git or record state.
+
+## Retained integration originals
+
+The incumbent integration route uses a private, in-process composition that
+retains the complete original of a completed integration outcome and reads it
+back. This originals owner is not itself a registered tool. It is handed one complete
+producer carrier — the request selection, the authenticated source facts it had,
+the result, and any supplied policy or disposition facts — and that carrier is
+retained unchanged, including members the composition does not know.
+
+The dispatch backend captures into it once per shared integration attempt, when
+that attempt settles: its result or thrown failure, with the authenticated
+delivery, base and target the attempt ran on. Concurrent requests that joined
+the attempt resolve that one original, as does a later request answered from the
+settled result. Capture completes before any of them returns: the settled result
+is held behind its attempt's capture, so a request served from it never receives
+the result without the same original, or the same capture failure, and no read
+starts a capture.
+
+A request answered before any shared attempt is captured once as well, before it
+returns: an unavailable backend or integration adapter, an invalid or missing
+subject, a canonical-resolution or admission refusal, and an already-integrated
+or record-only reconciliation answer. The answer and its classification are
+retained exactly as their owner returned them, and each explicit request outside
+an attempt has its own original. An error thrown on those paths is rethrown as
+the same object after its evidence is retained; a completed recovery result it
+carries is kept beside that evidence as observed, so a completed null
+observation and a completed repair stay distinct and neither is relabelled. The
+original records only the source facts that were observed: its `source` is null
+when the request ended before an admitted delivery and base existed. A capture
+that itself fails is recorded beside the answer or error without changing it,
+and starts no further admission, integration, repair or capture. A backend
+configured without retention captures nothing.
+
+Every `integrate_work` response carries an `original`
+member. When available it holds the retained `locator` (`ref_id`, `sha256`), the
+verified JSON `file` whose `carrier` is the complete original, and the
+`carrier_member` holding this answer (`result` or `thrown`). The route publishes
+the original the backend registered for that exact result or thrown error, after
+reading it back through the private composition; it never retains a backend
+answer again and never substitutes current state. Otherwise `available` is
+false, `locator` and `file` are null, and `unavailable.reason` states the actual
+condition beside the unchanged outcome: `backend_capture_not_registered`,
+`backend_capture_failed`, `retention_failed`, `retained_original_unreadable`
+(missing, changed, foreign, or a session without the grant),
+`handler_capture_failed`, `repository_unresolved`, or
+`retained_summary_unrecognized` when the backend's capture returned something
+other than the private composition's summary. Nothing is retried to repair
+publication.
+
+When the result states an integration and the WK commit it produced, and the
+retained original names the integrated subject, `next_calls` also carries one
+optional `verify_proof({subject, git_sha})` call. It is pinned to that WK commit
+(`delivery.integrated_sha`), never to the worker's delivery commit
+(`delivery.commit`) and never to a branch that may move later, and it follows
+the retained read and any recovery call. A refused or unconfirmed integration,
+or one whose original names no subject, offers none.
+
+A refusal the handler makes before calling the backend — rejected caller
+authority, an invalid subject, an unavailable backend — and a handler-origin
+exception are retained once by the route, complete, with a null `source`, against
+the server's configured default repository and its own session. An unresolved
+repository keeps the operation's refusal and discloses no file. Projected detail
+writes no second evidence file: withheld fields name the same original and
+carrier member. A backend error thrown after a completed recovery publishes that
+`completed_recovery_result` beside the failure, read from that same error
+whether or not its original is available: the short facts of a completed repair
+or observation, or null for a completed observation that found nothing. The
+complete frame is measured against the selected-response delivery bound; detail
+that does not fit is replaced by an explicit omission naming the same original,
+and the codes, known effects and `original` member stay inline.
+
+The serving host passes one trusted fixed repository binding directly to the
+runtime and `integrateWorkBackendOptions`; no repository-selection callback
+participates in integration or original capture. Construction authenticates the
+checkout's canonical path against the provisioning main repository and freezes
+the binding. At completion the one installed retention callback canonicalizes
+that fixed checkout again against the pinned main path. An unresolvable or
+retargeted checkout records its specific capture failure beside the integration's
+occurred effects; nothing is retained or implicitly retried. A symlink to the
+same canonical checkout preserves identity. Retained repository identities can
+only authenticate equality with this binding; they cannot retarget the runtime.
+
+Access follows the session, never the request. The launcher-minted session role
+must hold the central grant of `integrate_work`; any other
+role is refused before anything is retained or disclosed. Each original is bound
+to the integration producer, its subject and the single configured repository,
+and a read names only the retained result by `ref_id` and `sha256`. A request
+whose subject is absent or is not an exact slice binds a null subject, which the
+summary repeats; the original's own request keeps what was asked, unshortened. A source
+retained by another producer or for another repository, a changed or missing
+artifact, and any further read argument refuse with the owning cause.
+
+Retention and reading answer with one compact summary measured as a complete
+frame against the selected-response delivery bound, the retained locator, and
+the verified file that holds the retained envelope with the complete original
+as its `carrier`. The summary repeats only short facts the original's result
+states and names a written record by identity. A summary that would exceed the
+bound keeps a minimal form instead: every known effect small enough to state is
+still stated, each omitted fact is named, and the original is never shortened.
+A refusal with no agent run and a partial outcome are retained like any other
+original. When the response store cannot keep the bytes, the answer reports
+that cause beside the outcome the original states, with the original marked
+unavailable; the known effects are reported even when the summary is minimal,
+and integration is not retried to obtain an original.
+
+Reading performs no integration, repair, retention or current-record read, so a
+later integration never changes what an earlier original returns. Originals
+live in the response spill store and are exactly as durable as it is: marked
+operator only for incumbent public readers, and gone when that store is removed.
+The registered `get_run_result` facade delegates a verified integration
+selection to this same originals owner for an entitled orchestrator. It delivers
+a bounded summary and complete permitted semantic members through the shared
+selected-response class.
+
+## Worker delivery preparation
+
+`packages/wiki-mcp/src/lib/task-deliver-work.mjs` exports
+`createDeliverWorkSurface({ workspace, sessionEnv, responseEnv, z,
+executionFactory, writeStatus })`. `workspace` is the trusted `{repo, dir}`;
+`sessionEnv` carries the launcher-authenticated worker contract and independently
+resolved unit/run/retry tuple. `responseEnv` supplies the incumbent response
+state. Defaults use the real transaction, status writer and Zod. Dependency
+configuration is host-owned. The returned `{inputContract, prepare}` accepts an
+omitted request or `{}` identically; every other argument shape or member refuses
+before effects. The schema and execution factory are supplied by the existing private
+`createWorkspaceCommitExecution` owner; the old commit tool is not registered.
+
+The production registrar constructs this importable composition and registers
+`workspace_deliver_work` for workers only. `prepare(request)` runs delivery
+once through the existing binding, materialization, containment, publication,
+review-status and compensation owners, then returns
+`{registered:false, body, isError, continuations, delivery}`. `isError` preserves
+the execution owner's error channel separately from transaction outcome: returned
+transaction refusals retain their JSON channel, while thrown/input/authentication
+and retained-original failures use the error channel. `delivery.delivered` is
+false because preparation itself supplies no transport. `delivery.measured_bytes`
+measures the complete frame, with that error flag, against the shared 8 KiB
+selected-response bound. Configuration below the incumbent inline minimum still
+selects 8 KiB. The prepared summary never spills.
+
+The pure `prepareDeliverWorkResponse` export in
+`task-deliver-work-response.mjs` consumes observed facts and changes no repository,
+status or response state. Its body names producer `workspace_deliver_work`, the
+trusted repository, authenticated subject, selected `{commit,base}`, known tree,
+measured changed-path count or explicit unmeasured status, and independent
+commit-object/ref/submission effects. It preserves uncertainty. A materialized
+candidate never substitutes for the ref owner's selected delivery. Known
+incomplete effects are partial; a restored ref with proven non-submission is
+refused. Tests, proofs, integration, forge publication and parent completion are
+false for this invocation. Publishing the delivery ref establishes none of
+those effects.
+
+Transaction outcome and output state remain separate. Original serialization or
+retention failure after successful delivery keeps the delivered facts, reports
+failed output, and offers response-state repair rather than successful completion
+or a blind delivery retry. Bounded diagnostics preserve their owners' codes,
+authority classification and separate transition/compensation causes. Omitted
+collections and large scalar detail are identified explicitly; identifiers are
+never shortened into false selectors. Complete admitted originals remain with
+the existing lossless retention owner. If the launcher assignment cannot be
+authenticated before admission, the bounded refusal identifies the actual failed
+condition, its native code and authentication or binding-resolution stage, and
+the launcher provisioning / identity-store recovery owner. It starts no delivery
+effects, selects no delivery and reports original availability `not_captured`
+with a null locator and no original continuation. No separate original is
+required or retained for that unauthenticated attempt. A caller-claimed unit
+never becomes an authenticated subject. Returned refusals and thrown errors
+keep their existing channels; neither supplies successful completion guidance.
+
+Retained-original continuations use the exact `get_run_result` selector
+`{result:{ref_id}}`. The common reader authenticates a worker or
+orchestrator through the producer entrypoint below, then presents the bounded
+summary or a complete permitted semantic member. Input corrections use the
+registered delivery request `{}`. No generic byte reader or integration call is
+added to delivery. Binding refusals identify launcher provisioning and the
+identity-store owner; containment refusals require repair of the assigned scope
+relation; uncertain publication, review or compensation requires reconciliation
+by the delivery-ref and canonical unit-status owners. Delivery supplies no new
+reconciliation capability.
+
+On successful delivery with successful output, guidance reuses the managed
+worker protocol owner: delivery is already complete, emit diagnostic
+`agent-role-result.v1` evidence, then terminate. Neither evidence nor termination
+approves or integrates a delivery. The public composition grant is worker-only;
+real launcher session authentication also enforces it before delivery. The
+shared reader admits authenticated workers and orchestrators to the retained
+delivery original without another transaction, retention store or role bypass.
+
+### Session-authenticated delivery-original access
+
+`task-deliver-work-result.mjs` exports
+`readDeliveryOriginalForSession({workspace, sessionEnv, responseEnv, request})`.
+`workspace` is the trusted host's configured `{repo, dir}`, `sessionEnv` contains
+the launcher-startup session facts, and `responseEnv` selects the existing
+response state. The only request is exactly `{result:{ref_id}}`; subject,
+role, credentials, source, run, retry, repository and paths are not request
+arguments. The result is the complete original carrier as an internal in-process
+value. This export is unregistered and defines no public response or unbounded
+MCP delivery.
+
+`resolveLauncherRunState` authenticates the presented session against the
+launcher-expected contract. The existing managed-test identity helpers require
+the authenticated role's identity facts. Only workers and orchestrators are
+eligible for delivery originals; reviewer, redteam, operator, absent, malformed
+and mismatched session facts refuse. A role name or locator alone grants nothing.
+The configured repository remains trusted host context; the fixture's repository
+alias is not a new launcher session identifier.
+
+A worker resolves only its session's exact assigned unit and launcher
+`launch_ref`/`run_id`/`retry_id` through `resolveWorktreeBinding` under
+`workspace.dir`. The existing exact-slice verifier and `createDeliveryOriginals`
+adapter compare the entire expected retained binding: producer, configured
+repository, unit, launcher tuple and complete immutable authority identity,
+including base, source, scope, worktree and output branch. A retained carrier or
+caller field never selects the worker's authority.
+
+An orchestrator first authenticates its existing coordination session over the
+host-configured repository. A launcher-owned delivery receipt selects the
+producer storage before `readSelectedResponseSource` checks the delivery producer
+and configured repository and selects the sealed original's unit and producer tuple. That tuple selects its retained identity-store binding;
+the same exact verifier and adapter perform the full comparison. It is a
+historical selector within the authorized repository population and conveys no
+mutation authority. There is no current-unit, latest-result or HEAD lookup.
+
+Reading performs no Git operation, live canonical-unit read, execution,
+verification, capture, original serialization, retention, status write, ref movement,
+compensation, retry, integration or cleanup. Source movement, unit-file removal,
+later retained results and serving-process restart preserve an explicitly
+selected original while its identity binding and response artifact remain
+retained. No additional lifetime is promised: changing the retained identity
+breaks its full match, and removing either owner makes the read unavailable.
+Session authentication, identity-store resolution, exact verification and
+selected-response missing, corrupt or foreign-artifact errors propagate with
+their native causes. Missing bytes are never recreated and refusals disclose no
+carrier.
+
+The private source/installed composition tests use different producer and reader
+subprocesses, authenticate both permitted roles, preserve genuine scope refusals,
+and compare complete large Unicode carriers, including unknown nested causes,
+false and null. They independently compare refs, canonical-unit bytes when
+present, identity-store bytes and response artifacts across successful and
+refused reads. Installed production imports stay within one reused installed
+package set and the relevant owner bytes match the tested working source. The
+large authored carrier tests establish serializer/read completeness, not a
+transaction outcome. Generic spill/ranged access retains `operator_only` denial.
+
+The registered shared result facade delegates an entitled delivery worker or
+orchestrator to this producer export rather than duplicating its authority
+checks. Other producers keep their own grants. Public selected detail preserves
+the shared owner's branded response; missing, corrupt or foreign originals keep
+their real owner refusal and are never recaptured by a read.
+
+## Durable delivery receipts and separate response stores
+
+Worker and coordinator response stores remain separate. The production conduit
+projects its runtime response directory for an orchestrator; a worker uses its
+existing host response-spill configuration. Delivery bytes remain in the
+producer's spill. No caller supplies a path, repository identity or storage
+selector, and no original is copied into the coordinator store.
+
+After a successful commit and original retention, the delivery producer records
+one `delivery_receipt_recorded` informational event through the existing managed
+attempt journal owner. Its closed receipt binds the configured repository,
+assigned unit, dispatch attempt, independently verified slice producer tuple,
+delivered source digest/version, exact delivery commit/base, original reference
+and digest, and host-owned response-state directory. The existing binding-pair
+relation attaches it to the exact retained dispatch attempt. Publication is
+idempotent for identical bytes and refuses rebinding. This event changes no
+reservation election, lifecycle transition or integration state.
+
+`get_run_result({subject, attempt_id?})` discovers receipts from the selected
+launcher-authenticated attempt. Before returning a delivery reference and its
+exact read call, the producer reader authenticates the journal partition,
+repository, dispatch/slice binding pair, source, base and full retained binding.
+The shared result interface returns bounded delivery summaries and semantic
+member reads. The authenticated orchestrator summary supplies the exact
+`integrate_work({delivery:{ref_id}})` approval call. Integration uses the
+same receipt-selected producer store and existing complete-original reader.
+Observation originals remain a different producer and cannot approve delivery.
+Receipt lookup and every result read perform no integration, publication,
+canonical mutation, launch or linkage repair.
+
+The journal and identity-store owners preserve discovery after worker exit and
+coordinator restart. Existing retention governs both bytes and bindings; a
+receipt adds no lifetime extension. Missing or corrupt retained artifacts and
+changed identity bindings keep their owner causes. Reads neither recreate bytes
+nor search an alternative store.
+
+If the commit and review submission succeed but receipt publication fails,
+`workspace_deliver_work` states those successful transaction effects beside
+`output.state: failed`, the specific publication cause, and an exact empty
+request for recovery. A new serving composition inventories only originals
+bound to its authenticated producer attempt through the existing retention
+owner. The retained successful original is republished through the journal
+owner; the commit transaction and canonical transition are bypassed. An already
+published receipt is idempotent, including publication that committed before
+reporting failure, so a repeated empty request cannot repeat that transaction.
+The response labels the effects as historical and states this invocation's
+`commit_transaction_executed: false`. Receipt recovery never stands in for an
+outstanding checkout: when the retained delivery's `checkout` is not `complete`,
+the same empty request also finishes that, as described under
+[Worker checkout finalization](#worker-checkout-finalization). Retained
+originals that name different deliveries refuse instead of selecting one. This
+recovery requires the existing original and identity owners to retain their
+data; it grants no recreation or lifetime authority.
+
+## Connected production delivery
+
+The source and installed connected journeys use real production stdio
+registration and the production conduit/session response configuration, with
+separate worker and orchestrator stores. Fixture setup creates the assigned
+unit, worktree, retained attempt and saved review dispositions through existing
+owners; it does not model an external model dispatch. The worker delivers and
+exits. The coordinator obtains the locator only from public subject observation,
+reads it, restarts, reads it again and explicitly approves that exact delivery.
+Tests compare Git and canonical snapshots around reads and wrong producer,
+repository, attempt, digest, unit, run and source refusals. Neither an observation
+alone nor a receipt read has integration effects.
+
+After explicit integration, a separate fixture actor invokes the existing
+terminal-candidate owner, records fixture closeout and calls public publication
+to a fixture-owned Git destination. The published eligible candidate preserves
+the delivered content. Candidate creation and publication are separate actions;
+result reads and integration never invoke them. Source and installed journeys
+reuse the existing confined lifecycle and installed package fixtures and report
+the tested package origin. These observations establish behavior, not clean
+release provenance or external model execution.
+
+## Registered explicit integration composition
+
+`createIntegrateWorkTask` in `wiki-mcp/src/lib/task-integrate-work.mjs` composes
+the host's `preparedDispatchBackend` for one trusted `{workspace, sessionEnv,
+responseEnv}` configuration. The host binds its provisioning main repository to
+that workspace and installs the existing saved-disposition reader,
+integration-original retention and shared delivery finalization through
+`integrateWorkBackendOptions`. Its
+`prepare(request)` returns bounded response data; `backend` is the same backend
+whose attempts performed the operation. The importable
+`registerIntegrateWorkTools({registerTool, ...configuration})` registers this
+handler through the supplied SDK registration boundary. The production composer
+injects the same prepared backend used by start and result observation. Result
+reads and child completion never invoke integration.
+
+The closed request is `{delivery: {ref_id}}`. It selects the automatically
+retained delivery producer original. The verified original supplies the unit,
+selected commit, original launcher base and exact run/retry binding; these are
+not additional caller inputs. The reference identifies one artifact and its
+digest authenticates its bytes. No repository, subject, policy, judgment, tuple,
+ref or moving-tip argument is accepted. The existing authenticated delivery
+reader and central integration entitlement admit the session before selection.
+The registered tool requires an authenticated orchestrator.
+
+The backend independently checks the selected binding and the literal minted
+commit chain, and compares the live delivery ref with the approved commit before
+any cache return or recovery. Record repair repeats the fence under the existing
+WK exclusion. Fresh admission must agree with the approved original base and
+commit; a differing merge base is not substituted silently. Existing primitive
+binding checks, ref CAS, compound record CAS and sibling completeness remain the
+effect owners. The task never prepares a terminal candidate or launches work.
+A failed current fence preserves any previously confirmed cached integration as
+a partial result with the refusal cause. Without authenticated historical facts,
+a cold fence refusal reports unconfirmed integration rather than invented absence.
+
+A configured `readIntegrationDispositions` constructor dependency reads the
+selected unit's saved rows once inside an actual shared attempt. It has the
+`readSavedReviewDispositions` signature. Finding and Unicode-scalar prose rows,
+exact entry/version/run references, judgments and rationale reach configured
+policy intact. They supply advisory context, never integration approval or a
+local veto. Configured reads do not fall back to inline annotations. The reader's
+`present`, `absent`, `source_mismatch` and `unavailable` states and causes are
+retained. The full canonical source digest, distinct from the narrower review
+contract projection, binds the read to the primitive's guarded canonical loader
+under its existing lock before ref CAS. Confirmed writes advance this attempt's
+own expected revision; unexplained changes refuse. Repair reads under the same
+exclusion using its current expected source digest. Configured policy without an
+existing admitted repair target keeps its missing-target refusal and the already
+applied Git fact.
+
+When saved-source movement refuses before effects, the adapter's existing
+read-only observer may establish that no integration occurred. A completed null
+observation reports `refused` with `effects.integrated: false` only while the
+delivery ref still identifies the approved commit. A moved or unavailable
+identity, or a failed observation, keeps `unresolved` with a null integration
+effect. The original source cause and any confirmed effects remain stated;
+this observation starts no retry or repair.
+
+Concurrent calls approving the same exact delivery share repair, execution,
+finalization and original capture. Successful completed calls return the same
+original without reading newer judgments. A new explicit request after an
+incomplete attempt can consume a newer saved revision; it cannot change older
+originals. Authenticated cold recovery repairs only missing bookkeeping,
+retirement and checkout finalization. Failed acquisition or release never
+authorizes fresh fallthrough.
+The incumbent finalizer in `dispatch-integration-finalization.mjs` uses an exact
+producer-associated binding pair and the existing identity retirement owner;
+missing or ambiguous identity leaves cleanup pending beside confirmed integration.
+Original reads through the existing shared result facade perform no integration,
+repair, capture or retry.
+
+### Owned checkout synchronization
+
+Delivery and integration both publish commits by ref compare-and-swap from an
+index that is not the checkout's own, so each leaves one launcher-owned checkout
+behind the commit its branch now names. One owner brings such a checkout to that
+commit: `synchronizeOwnedWorktreeCheckout` in
+`agent-launch-cli/src/lib/owned-worktree-checkout.mjs`. Each lifecycle
+authenticates its own trusted binding and supplies the exact checkout, the exact
+commit it selected and the one mutation it permits; neither holds
+synchronization mechanics of its own, and the slice-review surface uses the same
+owner's physical measurement and index mutation under its own validation. The
+owner creates no worktree, moves no ref, selects no checkout and publishes
+nothing.
+
+| Mutation | Lifecycle | What may change |
+| --- | --- | --- |
+| `index_only` | worker delivery | The ordinary index, after the physical checkout is proved to be exactly the target tree. No file is written. |
+| `index_and_files` | WK integration | Index and files together, by Git's two-tree merge from an authenticated unmodified earlier materialization. |
+
+The owner proves the checkout before it changes anything: the canonical bound
+path, membership of the configured repository, a live Git worktree registration,
+`HEAD` attached to the bound branch, a full (non-sparse) checkout and the branch
+tip. The state it finds is authenticated exactly rather than assumed, because
+`HEAD` has already moved. The previous materialization is the nearest
+first-parent ancestor of the target whose tree the ordinary index equals entry
+for entry; no ancestor is chosen by similarity, and an index that equals no
+examined commit is not authenticated.
+
+Unexpected content is reported as
+`agent_launch.owned_worktree_checkout.unexpected_local_changes.v1` before
+anything is updated: an index that is no authenticated commit's tree (staged
+changes), a tracked file that differs, and an untracked file. The owner does not
+merge around such a change; the index and every file are left as found, and the
+cause states how many paths of each kind were seen. A history that cannot be
+read back within the examined bound is `previous_materialization_unauthenticated`
+and is likewise refused without a guess. Ignored files are not checkout state:
+ordinary ignored content such as installed dependencies is left alone and is not
+a violation, but an ignored file standing where an index-and-files update adds a
+path is `ignored_file_obstructs` and is never overwritten.
+
+A locked index, an unwritable index, an unwritable directory, a moved or
+unregistered worktree, a checkout that left its branch, Git's own refusal of the
+update and any other Git failure are distinct codes, and each leaves the checkout
+as it was. Identity and target are proved again immediately before the one
+mutation. Nothing is reset, cleaned, deleted or forced. Afterwards the owner
+proves the branch tip again and that the checkout is a clean exact checkout of
+the target tree; `complete` means exactly that. When the branch has already left
+the target, a newer commit owns the checkout: it is neither rewound nor
+described as holding the earlier commit, and the owner answers
+`agent_launch.owned_worktree_checkout.superseded_by_newer_commit.v1`.
+
+The owner takes no authority exclusion; a lifecycle that needs one holds it
+around the call.
+
+### Worker checkout finalization
+
+A delivery commits the worker's physical files, so after publication those files
+are the delivery while the worker's ordinary index still names the commit the
+slice started from. After immutable scope verification, publication of the
+selected delivery and a successful review transition, `workspace_deliver_work`
+therefore finalizes the worker's own checkout through
+`wiki-mcp/src/lib/delivery-checkout-finalization.mjs`. A review failure is
+compensated and returned before this step, so finalization never runs for a
+delivery that did not stand.
+
+The leaf resolves and verifies the worker's exact launcher binding again and asks
+the shared owner for an `index_only` update to `transaction.delivery_commit`, the
+delivery the ref owner selected. An equivalent replay therefore finalizes the
+existing delivery and never the candidate it only compared. The owner measures
+the physical checkout through an isolated index and a private object directory:
+its tracked contents and modes and every untracked non-ignored path must be
+exactly the delivery tree. Only then is the ordinary index aligned. A later
+edit, a new untracked file, or an index staged to anything but an earlier commit
+of the slice branch or the delivery itself is unexpected content, and nothing is
+changed. No physical file is ever written, and the WK branch and checkout are
+not touched: delivery integrates nothing.
+
+Finalization is reported beside the transaction effects and never changes them.
+`effects.checkout` is `complete` for a clean exact checkout of the delivery. A
+failure keeps the created commit, the delivery ref and the review submission as
+stated, reports `effects.checkout: "pending"` with the owner's code and message
+under the `checkout` stage, and makes the outcome `partial`; the complete owner
+answer is the retained original's `checkout` member. `superseded` means the
+slice branch already left this delivery, so no retry of it can finish.
+
+A pending checkout is finished only by an explicit repeat of the same closed
+request. `workspace_deliver_work({})` finds the retained delivery of the
+authenticated attempt, and when its `checkout` is not `complete` it finalizes
+only that: no object is materialized, no ref moves, no review transition runs and
+nothing is integrated. The response states
+`commit_transaction_executed: false` and
+`checkout_finalization_attempted: true`. The attempt's outcome is retained as a
+new original that names the one it continues; earlier originals are never
+rewritten, and the latest one answers a later repeat. A completed checkout is
+not finalized again. A retry whose own original cannot be retained still states
+what it did. Reading an original, by anyone, repairs nothing.
+
+### WK checkout finalization
+
+Integration advances the WK branch by ref compare-and-swap only, so the WK's own
+registered worktree would otherwise keep the index and physical files of an older
+WK commit while its `HEAD` names the integrated one. The integration finalizer
+therefore also brings that existing checkout to the exact integrated tree,
+through `synchronizeIntegratedWkWorktree` in
+`agent-launch-cli/src/lib/integrated-wk-worktree.mjs`: a thin wrapper that
+authenticates the WK half of the delivery's binding pair and asks the shared
+owner for an `index_and_files` update. The worker's slice worktree is not its
+concern and is left exactly as delivery finalized it, so after an integration
+that did not replay, the slice and WK checkouts are two clean copies of one
+commit; the exact-commit test source selects among them
+([local test runtime setup](local-test-runtime-setup.md)).
+
+The WK worktree is integration-owned and holds no local edits. The only expected
+difference from the integrated commit is the stale index and files that ref-only
+integration leaves. Its previous materialization may sit no further back than
+the WK's fixed fork. A launcher record snapshot or an earlier unfinished
+finalization leaves the checkout more than one commit behind, and files such a
+commit added are absent from the old index; the older ancestor is then the
+authenticated one and those files are added with the rest. The update follows a
+stat-only index refresh whose failures keep their own cause.
+
+The whole operation runs inside the WK's authority exclusion, which every
+integration of that WK also takes; the exclusion is not reentrant and the
+finalizer holds none when it calls the wrapper. When the WK tip has already left
+this delivery's integrated commit, a newer integration owns the checkout. The
+response keeps `integrated: true`, reports `effects.checkout: "superseded"` and
+outcome `partial` with the owner's superseded cause, and the retained original
+names the newer tip. No same-delivery checkout retry is offered, because none
+could finish; an outstanding record or retirement correction still supplies its
+own recovery call.
+
+Checkout finalization and identity retirement are independent; neither outcome
+hides or prevents the other. A checkout failure keeps `integrated: true` and the
+confirmed record and retirement effects, reports `effects.checkout: "pending"`
+with the owner's code and message, and makes the outcome `partial`. A pending
+result is never cached as success. An explicit request for the same delivery, in
+the same process or after a restart, passes the same approval fence, observes the
+integration as already applied and finishes only the outstanding finalization;
+it repeats no ref movement, record write, launch or integration execution.
+
+`integrate-work.v1` responses distinguish `integrated`, `partial`, `refused` and
+`unresolved`. Unconfirmed integration effects are explicit nulls; confirmed
+effects remain stated even when original storage fails. Responses
+state confirmed integration/record/retirement/checkout effects, the consumed source state,
+revision and row count, policy posture and original availability. Complete rows,
+receipts and diagnostic causes remain in the automatically retained original.
+The bounded response supplies its exact result-read call. Partial completion
+with an outstanding record, retirement or checkout correction also supplies the explicit
+same-selection recovery call and its condition. An immutable approval refusal
+suppresses that correction call while keeping the original read, cause and
+confirmed effects.
+Transport interruption does not cancel an attempt or trigger another one.
+
+The production registration, role grant and returned result calls use these
+same owners. Private source/installed compositions establish owner behavior only;
+actual combined-server journeys establish public reachability. The delivery
+producer refuses a second distinct publication for one binding. A result read
+never repairs or recaptures the delivery or integration original.

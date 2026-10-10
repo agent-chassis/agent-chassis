@@ -177,6 +177,8 @@
         "id",
         "proof_name",
         "profile_version",
+        "short_description",
+        "usage",
         "assertion",
         "matching_assertion",
         "essential_limitation",
@@ -198,6 +200,11 @@
         },
         "profile_version": {
           "$ref": "#/$defs/semver"
+        },
+        "short_description": {
+          "type": "string",
+          "maxLength": 120,
+          "pattern": "^\\S(?:[^\\n\\r]*\\S)?$"
         },
         "assertion": {
           "type": "string"
@@ -226,7 +233,29 @@
         "refinements": {
           "type": "array",
           "items": {
-            "type": "object"
+            "type": "object",
+            "required": [
+              "name",
+              "refinements",
+              "applicability"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "refinements": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "applicability": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "observations": {
@@ -297,6 +326,61 @@
               "type": "array",
               "items": {
                 "type": "object"
+              }
+            }
+          }
+        },
+        "usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requires",
+            "fits",
+            "does_not_fit"
+          ],
+          "properties": {
+            "requires": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "fits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "example",
+                "why"
+              ],
+              "properties": {
+                "example": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "why": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "does_not_fit": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "example",
+                "why"
+              ],
+              "properties": {
+                "example": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "why": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }

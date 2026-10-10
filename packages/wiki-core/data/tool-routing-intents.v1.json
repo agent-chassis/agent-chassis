@@ -117,6 +117,7 @@
       "controlled_contract_integration_test_design_assessment",
       "controlled_contract_assessment",
       "controlled_contract_verify_proof",
+      "ordinary_test_run",
       "dispatch_role_call",
       "dispatch_readiness",
       "run_monitoring",
@@ -761,6 +762,60 @@
           "replace": "caller-selected carrier, authoring owner, or mutation route",
           "with": "the exact workspace_controlled_contract_obligation_coverage_query recovery_call returned by workspace_verify_proof, followed by ordinary upsert correction",
           "when": "runtime inventory or runtime-test selection is missing or invalid"
+        }
+      ]
+    },
+    {
+      "intent": "ordinary_test_run",
+      "tie_break_rank": 16,
+      "use_when": [
+        "The user asks to run one ordinary repository test file, or one native test selected in it, and see its native outcome; this grants no proof credit."
+      ],
+      "match_phrases": [
+        "run this ordinary test file",
+        "run ordinary test",
+        "run test file",
+        "run the test file",
+        "run one test file",
+        "workspace run test"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_run_test",
+        "required_authored_fields": [
+          {
+            "name": "file",
+            "any_of": [
+              "repository_relative_test_file"
+            ]
+          },
+          {
+            "name": "runner",
+            "any_of": [
+              "runtime_runner"
+            ]
+          }
+        ]
+      },
+      "forbidden_first_tools": [],
+      "allowed_next_call_families": [
+        "ordinary_test_run"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "file",
+          "required": true,
+          "accepted_sources": [
+            "user-provided repository-relative test file",
+            "prior workspace_run_test answer"
+          ],
+          "if_missing": "ask for the one repository-relative test file and its runtime runner; do not ask for a command, arguments, environment variables or a root"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "shell test command or saved-proof verification",
+          "with": "workspace_run_test for an ordinary file run, or workspace_verify_proof for saved proofs",
+          "when": "the task is to see a test file's native outcome rather than verify proofs"
         }
       ]
     },

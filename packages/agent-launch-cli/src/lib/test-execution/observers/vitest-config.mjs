@@ -6,12 +6,16 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import channelModule from "./native-channel.cjs";
+
+const { projectRequire } = channelModule;
+
 export const LAUNCHER_RUNNER = fileURLToPath(new URL("./vitest-runner.mjs", import.meta.url));
 
-export async function loadProjectVitest(projectDir = process.cwd()) {
-  const projectRequire = createRequire(path.join(projectDir, "launcher-test-proof.cjs"));
-  const vitest = await import(pathToFileURL(projectRequire.resolve("vitest/node")).href);
-  const version = JSON.parse(readFileSync(projectRequire.resolve("vitest/package.json"), "utf8")).version;
+export async function loadProjectVitest(config) {
+  const project = projectRequire(config);
+  const vitest = await import(pathToFileURL(project.resolve("vitest/node")).href);
+  const version = JSON.parse(readFileSync(project.resolve("vitest/package.json"), "utf8")).version;
   return { vitest, version };
 }
 
@@ -43,10 +47,9 @@ function resolvedOptionsText(config) {
   return unrepresentable === null ? { text } : { bypass: unrepresentable };
 }
 
-async function loadTsconfigResolution(projectDir) {
+async function loadTsconfigResolution(config) {
   try {
-    const viteRequire = createRequire(createRequire(path.join(projectDir, "launcher-test-proof.cjs"))
-      .resolve("vite/package.json"));
+    const viteRequire = createRequire(projectRequire(config).resolve("vite/package.json"));
     const rolldown = await import(pathToFileURL(viteRequire.resolve("rolldown/experimental")).href);
     return typeof rolldown.resolveTsconfig === "function" && typeof rolldown.TsconfigCache === "function"
       ? rolldown : null;
@@ -102,7 +105,7 @@ export function launcherCacheKeyGenerator({ reuse, tsconfigResolution }) {
   };
 }
 
-export async function resolveLauncherVitest({ vitest, moduleCache = null, projectDir = process.cwd() }) {
+export async function resolveLauncherVitest({ vitest, config, moduleCache = null }) {
   const resolved = await vitest.resolveConfig({ ...baseOptions() });
   if (resolved.test?.runner) return { customRunner: true };
   const options = { ...baseOptions(), runner: LAUNCHER_RUNNER, fsModuleCache: false };
@@ -111,7 +114,7 @@ export async function resolveLauncherVitest({ vitest, moduleCache = null, projec
   let builtIn = null;
   await vitest.resolveConfig({ ...options, config: false },
     { plugins: [launcherPlugin((config) => { builtIn = pluginSignatures(config); })] });
-  const tsconfigResolution = await loadTsconfigResolution(projectDir);
+  const tsconfigResolution = await loadTsconfigResolution(config);
   let decided = false;
   let generator = null;
   const plugin = launcherPlugin((config) => {

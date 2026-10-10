@@ -33,7 +33,9 @@ import {
   runCrashDurablePlanSync
 } from "@agent-chassis/wiki-core/src/lib/crash-durable-state.mjs";
 
-export const LITELLM_GATEWAY_STATE_SCHEMA_VERSION = "agent-launch-litellm-gateway-state.v1";
+import { PROXY_ENVIRONMENT_NAMES, projectProxyEnvironment } from "./proxy-environment.mjs";
+
+export const LITELLM_GATEWAY_STATE_SCHEMA_VERSION = "agent-launch-litellm-gateway-state.v2";
 export const LITELLM_PINNED_VERSION = "1.103.0";
 export const LITELLM_RUNTIME_PYTHON_SERIES = "3.12";
 export const LITELLM_RUNTIME_LOCK_PATH = fileURLToPath(
@@ -76,9 +78,22 @@ function fail(code, message, options) {
   throw new LiteLlmGatewayError(code, message, options);
 }
 
-const GATEWAY_PASSTHROUGH_ENV = Object.freeze([
-  "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "NO_PROXY", "no_proxy"
-]);
+function proxyIdentities(proxyEnvironment) {
+  const identities = {};
+  for (const name of PROXY_ENVIRONMENT_NAMES) {
+    identities[name] = Object.hasOwn(proxyEnvironment, name)
+      ? sha256(JSON.stringify([name, proxyEnvironment[name]]))
+      : null;
+  }
+  return Object.freeze(identities);
+}
+
+function isProxyIdentityRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const names = Object.keys(value);
+  return names.length === PROXY_ENVIRONMENT_NAMES.length && PROXY_ENVIRONMENT_NAMES.every((name) =>
+    Object.hasOwn(value, name) && (value[name] === null || typeof value[name] === "string"));
+}
 
 const DEFAULT_START_TIMEOUT_MS = 180_000;
 const DEFAULT_LOCK_TIMEOUT_MS = 20 * 60_000;
@@ -244,11 +259,13 @@ function readState(paths) {
     record = null;
   }
   if (record?.schema_version !== LITELLM_GATEWAY_STATE_SCHEMA_VERSION ||
-      typeof record.config_digest !== "string" || typeof record.base_url !== "string") {
+      typeof record.config_digest !== "string" || typeof record.base_url !== "string" ||
+      !isProxyIdentityRecord(record.proxy_identities)) {
     fail(LITELLM_GATEWAY_ERROR_CODES.STATE_INVALID,
       `gateway state record ${paths.state} is unreadable or not a current state record`, {
         stage: "state",
-        correction: `stop any LiteLLM gateway serving this port, then remove ${paths.state}`,
+        correction: "set [vertexai] port to a free port to start a separate gateway, or have the operator of " +
+          `the LiteLLM gateway serving this port stop it and then remove ${paths.state}`,
         detail: { state_path: paths.state }
       });
   }
@@ -323,8 +340,8 @@ export function probePortListener({ host, port, timeoutMs = PROBE_TIMEOUT_MS }) 
   });
 }
 
-function gatewayEnvironment({ env, home, executable, key, credentialsFile }) {
-  const closed = {
+function gatewayEnvironment({ proxyEnvironment, home, executable, key, credentialsFile }) {
+  return {
     GOOGLE_APPLICATION_CREDENTIALS: credentialsFile,
     PATH: `${path.dirname(executable)}:/usr/bin:/bin`,
     HOME: home,
@@ -333,12 +350,9 @@ function gatewayEnvironment({ env, home, executable, key, credentialsFile }) {
     LITELLM_MASTER_KEY: key,
 
     LITELLM_LOCAL_MODEL_COST_MAP: "True",
-    LITELLM_LOG: "ERROR"
+    LITELLM_LOG: "ERROR",
+    ...proxyEnvironment
   };
-  for (const name of GATEWAY_PASSTHROUGH_ENV) {
-    if (typeof env?.[name] === "string" && env[name].length > 0) closed[name] = env[name];
-  }
-  return closed;
 }
 
 function startFailure(code, message, { paths, detail, correction }) {
@@ -349,7 +363,9 @@ function startFailure(code, message, { paths, detail, correction }) {
   });
 }
 
-async function startGateway({ settings, paths, routes, models, provisionRuntime, env, spawn, probe, now, wait, startTimeoutMs }) {
+async function startGateway({
+  settings, paths, routes, models, provisionRuntime, proxyEnvironment, spawn, probe, now, wait, startTimeoutMs
+}) {
   const runtime = await provisionRuntime();
   ensurePrivateDirectory(paths.home, { label: "gateway home" });
   let key = readKey(paths);
@@ -374,7 +390,8 @@ async function startGateway({ settings, paths, routes, models, provisionRuntime,
     ], {
       cwd: paths.home,
       env: gatewayEnvironment({
-        env, home: paths.home, executable: runtime.executable, key, credentialsFile: settings.credentials_file
+        proxyEnvironment, home: paths.home, executable: runtime.executable, key,
+        credentialsFile: settings.credentials_file
       }),
       detached: true,
       stdio: ["ignore", logFd, logFd]
@@ -452,6 +469,9 @@ export async function ensureLiteLlmGateway({
     throw new Error("the LiteLLM gateway requires the declared absolute service-account key path");
   }
 
+  const proxyEnvironment = projectProxyEnvironment(env);
+  const proxyIdentity = proxyIdentities(proxyEnvironment);
+
   const sortedRoutes = [...routes]
     .map(({ model, upstream }) => ({ model, upstream }))
     .sort((left, right) => left.model.localeCompare(right.model));
@@ -506,12 +526,38 @@ export async function ensureLiteLlmGateway({
             reason: observed.reason ?? null }
         });
     }
-    if (record.config_digest !== configDigest) {
+    const differingProxyKeys = PROXY_ENVIRONMENT_NAMES.filter((name) =>
+      record.proxy_identities[name] !== proxyIdentity[name]);
+    const configurationDiffers = record.config_digest !== configDigest;
+    if (configurationDiffers || differingProxyKeys.length > 0) {
+      const differences = [];
+      const corrections = [];
+      if (differingProxyKeys.length > 0) {
+        differences.push(`a different proxy environment (${differingProxyKeys.join(", ")})`);
+        corrections.push(`relaunch with the ${differingProxyKeys.join(", ")} settings the running gateway was ` +
+          "started with, or set [vertexai] port to a free port to start a separate gateway");
+      }
+      if (configurationDiffers) {
+        differences.push("a different configuration");
+        corrections.push("align [vertexai] project/location across repositories, or give this configuration " +
+          "its own [vertexai] port");
+      }
       fail(LITELLM_GATEWAY_ERROR_CODES.CONFIG_CONFLICT,
-        `the running gateway on port ${settings.port} was started with a different configuration`, {
+        `the running gateway at ${baseUrl} was started with ${differences.join(" and ")}`, {
           stage: "readiness",
-          correction: "align [vertexai] project/location across repositories, or give this configuration its own [vertexai] port",
-          detail: { state_path: paths.state, running_generation: record.generation ?? null }
+          correction: corrections.join("; "),
+          detail: {
+            state_path: paths.state,
+            endpoint: baseUrl,
+            running_generation: record.generation ?? null,
+            differing_categories: [
+              ...(differingProxyKeys.length > 0 ? ["proxy_environment"] : []),
+              ...(configurationDiffers ? ["gateway_configuration"] : [])
+            ],
+            differing_proxy_keys: differingProxyKeys,
+
+            effects: { running_gateway: "untouched", state_record: "unchanged", gateway_started: false }
+          }
         });
     }
     return { base_url: record.base_url, key_path: paths.key, generation: record.generation, reused: true };
@@ -524,12 +570,14 @@ export async function ensureLiteLlmGateway({
     const racedPublished = await observePublished({ underLock: true });
     if (racedPublished !== null) return racedPublished;
     const started = await startGateway({
-      settings, paths, routes: sortedRoutes, models: sortedModels, provisionRuntime, env, spawn, probe, now, wait, startTimeoutMs
+      settings, paths, routes: sortedRoutes, models: sortedModels, provisionRuntime, proxyEnvironment, spawn, probe,
+      now, wait, startTimeoutMs
     });
     try {
       publishState(paths.state, `${JSON.stringify({
         schema_version: LITELLM_GATEWAY_STATE_SCHEMA_VERSION,
         config_digest: configDigest,
+        proxy_identities: proxyIdentity,
         generation: started.runtime.generation,
         base_url: started.baseUrl,
         pid: started.pid,

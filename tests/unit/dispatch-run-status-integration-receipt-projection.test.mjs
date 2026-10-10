@@ -139,9 +139,12 @@ test("WK-2691: the reproduced leak — the integration receipt publishes the wri
     assert.equal(observed.structured.proof_verification.grants_authority, false);
 
     const before = unprojectedBytes(observed, record);
-    const savedFraction = (before - observed.bytes) / before;
+    const after = measureMcpInlineResultBytes(observed.structured);
+    const savedFraction = (before - after) / before;
     assert.ok(savedFraction >= 0.7,
-      `record-heavy default response must lose at least 70% of its bytes; ${before} -> ${observed.bytes}`);
+      `record-heavy default response must lose at least 70% of its admission bytes; ${before} -> ${after}`);
+
+    assert.ok(observed.bytes > after);
   } finally {
     await scope.dispose();
   }
@@ -398,7 +401,7 @@ test("WK-2691: the receipt projection replaces one named member and passes every
   assert.match(failedRetention.retrieval.meaning, /no current read substitutes/u);
 });
 
-test("WK-2691: a spilled response names the frame it compared apart from the payload it retained", async () => {
+test("WK-2691 / WK-2716: a spilled response names the admission bytes it compared apart from the wire frame and the payload it retained", async () => {
   const scope = createTestResourceScope();
   try {
     const dir = await scope.acquire("spill-measure",
@@ -408,26 +411,32 @@ test("WK-2691: a spilled response names the frame it compared apart from the pay
     const limit = activeMcpInlineByteLimit(env);
 
     const at = length => ({ schema_version: "test.v1", blob: "z".repeat(length) });
-    const payload = at(limit + 1 - measureMcpInlineResultBytes(at(0)));
+    const compact = value => Buffer.byteLength(JSON.stringify(value), "utf8");
+    const payload = at(limit + 1 - compact(at(0)));
+    assert.equal(compact(payload), limit + 1);
     assert.equal(measureMcpInlineResultBytes(payload), limit + 1);
+    const wire = Buffer.byteLength(JSON.stringify({ content: [{ type: "text", text: JSON.stringify(payload) }],
+      structuredContent: payload }), "utf8");
+    const retainedBytes = Buffer.byteLength(JSON.stringify(payload, null, 2), "utf8");
 
     const envelope = readStructuredResult(jsonContent(payload, { env }));
     assert.equal(envelope.response_spilled, true);
     assert.equal(envelope.reason, "response_exceeds_inline_byte_limit");
 
     assert.equal(envelope.inline_byte_limit, limit);
-    assert.ok(envelope.total_bytes < limit,
-      "the retained payload is smaller than the limit, which is not a contradiction");
+    assert.equal(envelope.total_bytes, retainedBytes);
     const measurement = envelope.measurement;
-    assert.equal(measurement.schema_version, "mcp-response-spill-measurement.v1");
-    assert.equal(measurement.compared, "complete_frame_bytes_exceeded_inline_byte_limit");
+    assert.equal(measurement.schema_version, "mcp-response-spill-measurement.v2");
+    assert.equal(measurement.compared, "admission_bytes_exceeded_inline_byte_limit");
     assert.equal(measurement.inline_byte_limit, limit);
     assert.equal(measurement.retained_payload_bytes, envelope.total_bytes);
-    assert.ok(measurement.complete_frame_bytes > limit,
-      `the compared frame must exceed the limit; ${measurement.complete_frame_bytes} <= ${limit}`);
+    assert.equal(measurement.admission_bytes, limit + 1);
 
-    assert.ok(measurement.complete_frame_bytes > envelope.total_bytes);
-    assert.match(measurement.meaning, /complete_frame_bytes/u);
+    assert.equal(measurement.serialized_result_bytes, wire);
+    assert.ok(measurement.serialized_result_bytes > 2 * limit);
+    assert.equal(Object.hasOwn(measurement, "complete_frame_bytes"), false);
+    assert.match(measurement.meaning, /admission_bytes/u);
+    assert.match(measurement.meaning, /serialized_result_bytes .* was not compared/u);
     assert.doesNotMatch(measurement.meaning, /two-channel|text channel/u);
     assert.match(measurement.retained_payload_encoding, /indent=2/u);
   } finally {
@@ -435,7 +444,7 @@ test("WK-2691: a spilled response names the frame it compared apart from the pay
   }
 });
 
-test("WK-2691 remediation: normalization reports its oversized frame while deliberate retention stays unmeasured", async () => {
+test("WK-2691 remediation: normalization reports its oversized admission while deliberate retention stays unmeasured", async () => {
   const scope = createTestResourceScope();
   try {
     const dir = await scope.acquire("normalize-spill-measure",
@@ -453,14 +462,20 @@ test("WK-2691 remediation: normalization reports its oversized frame while delib
     const measured = readStructuredResult(normalized);
     assert.equal(measured.response_spilled, true);
     assert.equal(measured.measurement.compared,
-      "complete_frame_bytes_exceeded_inline_byte_limit");
-    assert.ok(measured.measurement.complete_frame_bytes > limit);
+      "admission_bytes_exceeded_inline_byte_limit");
+
+    const expected = Buffer.byteLength(JSON.stringify(payload), "utf8") +
+      Buffer.byteLength(JSON.stringify({ protocol_extension: { preserved: true } }), "utf8");
+    assert.equal(measured.measurement.admission_bytes, expected);
+    assert.ok(measured.measurement.serialized_result_bytes > measured.measurement.admission_bytes);
     assert.equal(normalized.protocol_extension.preserved, true);
 
     const retained = readStructuredResult(jsonContent(payload, { env, forceSpill: true }));
     assert.equal(retained.response_spilled, true);
     assert.equal(retained.measurement.compared, "not_compared_retention_forced");
-    assert.equal(retained.measurement.complete_frame_bytes, null);
+    assert.equal(retained.measurement.admission_bytes, null);
+    assert.equal(retained.measurement.serialized_result_bytes, null);
+    assert.match(retained.measurement.meaning, /no inline admission comparison occurred/u);
   } finally {
     await scope.dispose();
   }

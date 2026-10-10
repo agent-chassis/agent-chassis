@@ -411,4 +411,14 @@ async function controlledContractOperation(callback) {
   }
 }
 
+export async function proofAuthoringOperation(callback) {
+  return controlledContractOperation(async () => {
+    try { return await callback(); }
+    catch (error) {
+      error.details = { ...error.details, limb: error.details?.limb ?? 'mechanical_failure' };
+      throw error;
+    }
+  });
+}
+
 export { controlledContractOperation };

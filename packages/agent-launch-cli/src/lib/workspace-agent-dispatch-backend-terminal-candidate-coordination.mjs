@@ -36,7 +36,7 @@ import { projectDispatchFailureDetail } from
 import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
-} from "./terminal-review-materialization.mjs";
+} from "./terminal-candidate-checkout.mjs";
 import {
   assertTerminalWkCandidateVersionDecision,
   closedTerminalWkCandidateGitDiagnosis,
@@ -74,8 +74,6 @@ const TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION =
   "agent_launch.terminal_candidate_failure_projection.v1";
 const TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE =
   "terminal WK candidate: typed construction or recovery failure";
-const TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE =
-  "terminal WK candidate: unknown construction or recovery failure";
 const TERMINAL_CANDIDATE_FAILURE_PROJECTION_KEYS = Object.freeze([
   "schema_version",
   "kind",
@@ -102,13 +100,6 @@ const TERMINAL_CANDIDATE_GIT_OPERATIONS = Object.freeze(new Set([
 const TERMINAL_CANDIDATE_FAILURE_CODES = Object.freeze(
   new Set(Object.values(TERMINAL_WK_CANDIDATE_CODES))
 );
-const UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION = Object.freeze({
-  schema_version: TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
-  kind: "unknown_cause",
-  code: null,
-  message: TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
-  detail: null
-});
 
 function enumerableDataProperties(value, allowedKeys, requiredKeys = allowedKeys) {
   try {
@@ -170,19 +161,14 @@ function closedTerminalCandidateFailureProjection(value) {
     TERMINAL_CANDIDATE_FAILURE_PROJECTION_KEYS
   );
   if (projection === null ||
-      projection.schema_version !== TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION) {
-    return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
-  }
-  if (projection.kind === "unknown_cause" && projection.code === null &&
-      projection.message === TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE &&
-      projection.detail === null) return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
-  if (projection.kind !== "typed_candidate_error" ||
+      projection.schema_version !== TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION ||
+      projection.kind !== "typed_candidate_error" ||
       !TERMINAL_CANDIDATE_FAILURE_CODES.has(projection.code) ||
       projection.message !== TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE) {
-    return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
+    return null;
   }
   const detail = closedTerminalCandidateTypedDetail(projection.detail, projection.code);
-  if (detail === undefined) return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
+  if (detail === undefined) return null;
   return Object.freeze({
     schema_version: TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
     kind: "typed_candidate_error",
@@ -193,7 +179,7 @@ function closedTerminalCandidateFailureProjection(value) {
 }
 
 function terminalCandidateFailureEvidence(error) {
-  return projectDispatchFailureDetail({ evidence: captureDiagnosticEvidence(error) });
+  return projectDispatchFailureDetail({ evidence: captureDiagnosticEvidence(error) }, { nested: true });
 }
 
 function terminalCandidateFailureFromThrown(error) {
@@ -414,6 +400,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
   }
 
   async function withTerminalCandidateAdvanceExclusion({
+    mainRepo,
     wkId,
     evaluateTerminalReviewCandidateStatus,
     run
@@ -427,8 +414,10 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     if (before?.state !== "candidate_stale_w") {
       throw terminalCandidateExclusionRefusal("candidate_not_stale_w");
     }
+
     const repoRoot = worktreeProvisioningConfig?.mainRepo;
-    if (typeof repoRoot !== "string") {
+    if (typeof mainRepo !== "string" || mainRepo.length === 0 ||
+        typeof repoRoot !== "string" || repoRoot.length === 0 || mainRepo !== repoRoot) {
       throw terminalCandidateExclusionRefusal("repository_root_unavailable");
     }
     return withControlledContractAuthorityExclusion({
@@ -1086,7 +1075,13 @@ export function createBackendTerminalCandidateCoordination(ctx) {
       return { ok: true, context };
     } catch (error) {
 
-      if (isTerminalReviewLifecycleRefusal(error)) {
+      let lifecycleRefusal = false;
+      try {
+        lifecycleRefusal = isTerminalReviewLifecycleRefusal(error);
+      } catch {
+        lifecycleRefusal = false;
+      }
+      if (lifecycleRefusal) {
         return { ok: false, refusal: terminalReviewLifecycleManagedRefusal(error, reviewAddress.subject) };
       }
       const recoveryFailure = terminalCandidateFailureFromThrown(error);
@@ -1101,10 +1096,9 @@ export function createBackendTerminalCandidateCoordination(ctx) {
         refusal: managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
           capability: "wk_context_review",
           reason: recoveryReason,
-          recovery_code: recoveryFailure.code,
           subject: reviewAddress.subject,
-          message: recoveryFailure.message,
-          recovery_detail: recoveryFailure,
+          ...(recoveryFailure === null ? {}
+            : { recovery_code: recoveryFailure.code, recovery_detail: recoveryFailure }),
           recovery_diagnostic: recoveryDiagnostic,
           ...terminalCandidateFailureEvidence(error)
         })

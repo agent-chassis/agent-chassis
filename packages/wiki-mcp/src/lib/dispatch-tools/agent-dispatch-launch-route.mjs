@@ -10,10 +10,14 @@ import {
   AGENT_DISPATCH_SCHEMA_VERSION,
   DISPATCH_BLOCKER_CODES
 } from "../dispatch-tool-constants.mjs";
-import { buildBlockedDispatchResult } from "../dispatch-tool-helpers.mjs";
-import { projectPublicFinalResult } from "../dispatch-final-result-projection.mjs";
+import {
+  buildBlockedDispatchResult,
+  projectDispatchFailureDetail
+} from "../dispatch-tool-helpers.mjs";
 import {
   backendRefusalCarrier,
+  projectAdvisoryDispatchRefusal,
+  projectCompactDispatchRefusal,
   projectPublicBackendDetail,
   publicBackendBlockerCode
 } from "./agent-dispatch-refusal-projection.mjs";
@@ -24,7 +28,7 @@ import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descr
 
 const RUN_STATUS_TOOL_NAME = "workspace_agent_run_status";
 
-async function advisoryRunStatusCall({ requestContracts, repository, launch }) {
+async function runStatusCall({ requestContracts, repository, launch }) {
   const contract = requestContracts?.contractFor?.(RUN_STATUS_TOOL_NAME) ?? null;
   if (contract === null || typeof launch?.subject !== "string" || typeof launch?.run_id !== "string") {
     return null;
@@ -35,13 +39,33 @@ async function advisoryRunStatusCall({ requestContracts, repository, launch }) {
     : null;
 }
 
+async function acceptedDispatchReceipt({ launch, repository, requestContracts }) {
+  const statusCall = await runStatusCall({ requestContracts, repository, launch });
+  return {
+    schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
+    accepted: true,
+    run_id: launch.run_id,
+    monitor_handle: launch.monitor_handle,
+    role: launch.role,
+    subject: launch.subject,
+    status: launch.status,
+    terminal: launch.terminal,
+    ...(statusCall === null ? {} : { next_calls: [statusCall] }),
+    ...(launch.resumed === true ? { resumed: true } : {})
+  };
+}
+
 const DISPATCH_LAUNCH_BACKEND_REASON = "launch_backend_unavailable";
-const DISPATCH_LAUNCH_BACKEND_DETAIL = Object.freeze({
-  missing_backend: "workspace_agent_run_lifecycle",
-  intended_owner: "WK-0526#launcher-admission-wiring",
-  description:
-    "No launcher-side update seam is wired to advance workspace_agent_dispatch monitor handles from pending_launch through launching/running/terminal. Dispatch fails closed at admission so callers see a stable structured blocker instead of an indefinitely pending monitor handle. A separate WK must deliver the launch backend; agents must not work around this with wrapper, shell, env, bwrap, temp worktree, or graph-impact side-channel launch."
-});
+const DISPATCH_LAUNCH_BACKEND_MISSING = "workspace_agent_run_lifecycle";
+
+function routingFailureDetail(routingDecision, env) {
+  const refusal = routingDecision?.refusal ?? null;
+  return projectDispatchFailureDetail({
+    ...(typeof refusal?.code === "string" ? { code: refusal.code } : {}),
+    reason: routingDecision?.reason ?? refusal?.reason ?? null,
+    detail: routingDecision?.detail ?? refusal?.detail ?? null
+  }, { env });
+}
 
 export async function executeAdvisoryReviewDispatch({
   args,
@@ -53,7 +77,9 @@ export async function executeAdvisoryReviewDispatch({
   dispatchSessionIdentity,
   formalResultContract,
   jsonContent,
-  requestContracts = null
+  responseEnv = process.env,
+  requestContracts = null,
+  projectAcceptedLaunch = acceptedDispatchReceipt
 }) {
   if (typeof dispatchBackend?.startAdvisoryReview !== "function") {
     return jsonContent({
@@ -92,25 +118,16 @@ export async function executeAdvisoryReviewDispatch({
       : {})
   });
   if (launch?.accepted !== true) {
-    return jsonContent({
-      ...launch,
-      schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
-      transport: "mcp",
-      subject_kind: subjectKind
-    });
+    return jsonContent(projectAdvisoryDispatchRefusal(launch, {
+      role: args.role,
+      subject: args.subject,
+      subjectKind,
+      env: responseEnv
+    }));
   }
-  const statusCall = await advisoryRunStatusCall({ requestContracts, repository: workspace.repo, launch });
-  return jsonContent({
-    ...launch,
-    schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
-    transport: "mcp",
-    subject_kind: subjectKind,
-    ...(Object.hasOwn(launch, "final_result")
-      ? { final_result: projectPublicFinalResult(launch.final_result) }
-      : {}),
-    blocker: null,
-    ...(statusCall === null ? {} : { next_calls: [statusCall] })
-  });
+  return jsonContent(await projectAcceptedLaunch({
+    launch, repository: workspace.repo, requestContracts
+  }));
 }
 
 export async function executeAgentDispatchLaunch({
@@ -128,21 +145,25 @@ export async function executeAgentDispatchLaunch({
   jsonContent,
   requestSchemaAuthority = null,
   reassessmentAvailable = false,
-  responseEnv = process.env
+  responseEnv = process.env,
+  requestContracts = null,
+  projectAcceptedLaunch = acceptedDispatchReceipt,
+  buildMissingBaseGuidance = null
 }) {
-  const admissionDetail = {
+
+  const admissionFacts = Object.freeze({
     role: args.role,
     subject: args.subject,
     subject_kind: subjectKind,
     readiness: readiness
-      ? {
+      ? Object.freeze({
           decision_code: readiness.decision_code,
           dispatchable: readiness.dispatchable,
           record_id: readiness.record_id ?? null,
           unit: readiness.unit ?? null
-        }
+        })
       : null
-  };
+  });
 
   if (!dispatchBackend) {
     return jsonContent(buildTransitionRefusal({
@@ -150,7 +171,7 @@ export async function executeAgentDispatchLaunch({
       failure: LAUNCHER_TRANSITION_FAILURES.RUNTIME_BACKEND_UNAVAILABLE,
       blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
       reason: DISPATCH_LAUNCH_BACKEND_REASON,
-      detail: { ...DISPATCH_LAUNCH_BACKEND_DETAIL, admission: admissionDetail }
+      detail: { missing_backend: DISPATCH_LAUNCH_BACKEND_MISSING, admission: admissionFacts }
     }));
   }
 
@@ -162,7 +183,10 @@ export async function executeAgentDispatchLaunch({
 
       blockerCode: LAUNCHER_TRANSITION_FAILURES.PROSPECTIVE_LIFECYCLE_UNAVAILABLE.code,
       reason: routingDecision?.reason ?? "launcher_transition_selection_unavailable",
-      detail: { admission: admissionDetail, routing: routingDecision ?? null }
+      detail: {
+        admission: admissionFacts,
+        routing: routingFailureDetail(routingDecision, responseEnv)
+      }
     }));
   }
 
@@ -172,13 +196,12 @@ export async function executeAgentDispatchLaunch({
     readiness: projectBoundedExactPolicyPayloadIssueReadiness(readiness),
     findingsRouteAdmission: null
   });
-  admissionDetail.launcher_transition_plan = prospectiveTransitionPlan;
-  if (admissionDetail.readiness !== null) {
-    admissionDetail.readiness = Object.freeze({
-      ...admissionDetail.readiness,
-      launcher_transition_plan: prospectiveTransitionPlan
-    });
-  }
+  const launchReadiness = admissionFacts.readiness === null
+    ? null
+    : Object.freeze({
+        ...admissionFacts.readiness,
+        launcher_transition_plan: prospectiveTransitionPlan
+      });
 
   const launch = await dispatchBackend.startLaunch({
     caller_session_id: dispatchSessionIdentity,
@@ -186,7 +209,7 @@ export async function executeAgentDispatchLaunch({
     subject: args.subject,
     workspace_alias: workspace.repo,
     workspace_dir: workspace.dir,
-    readiness: admissionDetail.readiness,
+    readiness: launchReadiness,
     launcher_transition_plan: prospectiveTransitionPlan,
     app: dispatchApp,
     model: dispatchModel,
@@ -244,32 +267,18 @@ export async function executeAgentDispatchLaunch({
           previousPlan: prospectiveTransitionPlan
         }));
       }
-      return jsonContent(Object.freeze({
-        ...buildBlockedDispatchResult({
-          blockerCode: publicBackendCode,
-          reason: backendClassification.cause.code,
-          detail: publicBackendDetail,
-          nextAction: backendClassification.next_action,
-          refusal: backendRefusalCarrier(backendClassification, {
-            role: args.role,
-            subject: args.subject
-          })
-        }),
-        run_id: null,
-        monitor_handle: null,
 
-        readiness: settledReadiness,
-        ...(settledReadiness.launcher_transition_plan === activeTransitionPlan
-          ? {}
-          : { launcher_transition_plan: activeTransitionPlan }),
-        ...(typeof launch?.review_dispatch_id === "string"
-          ? { review_dispatch_id: launch.review_dispatch_id }
-          : {}),
-        ...(typeof launch?.attempt_id === "string" ? { attempt_id: launch.attempt_id } : {}),
-        ...(typeof launch?.transition_id === "string"
-          ? { transition_id: launch.transition_id }
-          : {})
-      }));
+      return jsonContent(projectCompactDispatchRefusal(buildBlockedDispatchResult({
+        blockerCode: publicBackendCode,
+        reason: backendClassification.cause.code,
+        detail: publicBackendDetail,
+        nextAction: backendClassification.next_action,
+        refusal: backendRefusalCarrier(backendClassification, {
+          role: args.role,
+          subject: args.subject,
+          requestSchemaAuthority
+        })
+      }), { readiness: settledReadiness, plan: settledTransitionPlan, source: readiness }));
     }
 
     const baseSelection = await decideBaseSelectionRecovery({
@@ -279,7 +288,8 @@ export async function executeAgentDispatchLaunch({
       subject: args.subject,
       workspace,
       requestSchemaAuthority,
-      reassessmentAvailable
+      reassessmentAvailable,
+      buildMissingBaseGuidance
     });
     if (baseSelection?.kind === "reassess") {
       return Object.freeze({ reassess: baseSelection.evidence });
@@ -294,7 +304,8 @@ export async function executeAgentDispatchLaunch({
       previousPlan: prospectiveTransitionPlan,
       refusal: baseSelection?.refusal ?? backendRefusalCarrier(backendClassification, {
         role: args.role,
-        subject: args.subject
+        subject: args.subject,
+        requestSchemaAuthority
       })
     }));
   }
@@ -310,13 +321,14 @@ export async function executeAgentDispatchLaunch({
       failure: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED,
       blockerCode: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED.code,
       reason: "launcher_transition_projection_diverged",
-      detail: { admission: admissionDetail },
+      detail: { admission: admissionFacts },
       previousPlan: prospectiveTransitionPlan
     }));
   }
+
   const managedWkAllocation = launch.managed_wk_allocation ?? null;
   const acceptedReadiness = managedWkAllocation === null
-    ? admissionDetail.readiness
+    ? launchReadiness
     : projectPublicReadiness(readiness, acceptedTransitionPlan, managedWkAllocation);
   if (managedWkAllocation !== null &&
       acceptedReadiness?.managed_wk_allocation !== managedWkAllocation) {
@@ -325,43 +337,13 @@ export async function executeAgentDispatchLaunch({
       failure: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED,
       blockerCode: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED.code,
       reason: "managed_wk_allocation_projection_diverged",
-      detail: { admission: admissionDetail },
+      detail: { admission: admissionFacts },
       previousPlan: prospectiveTransitionPlan
     }));
   }
-  return jsonContent({
-    schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
-    accepted: true,
-    transport: "mcp",
-    run_id: launch.run_id,
-    monitor_handle: launch.monitor_handle,
-    app: launch.app ?? dispatchApp,
-    model: launch.model ?? dispatchModel ?? null,
-    backend: launch.backend ?? null,
-    role: launch.role,
-    subject: launch.subject,
-    subject_kind: subjectKind,
-    status: launch.status,
-    terminal: launch.terminal,
-    started_at: launch.started_at,
-    updated_at: launch.updated_at,
-    ...(launch.review_result ? { review_result: launch.review_result } : {}),
-    readiness: acceptedReadiness,
-    ...(typeof launch.review_dispatch_id === "string"
-      ? { review_dispatch_id: launch.review_dispatch_id }
-      : {}),
-    ...(typeof launch.attempt_id === "string" ? { attempt_id: launch.attempt_id } : {}),
-    ...(typeof launch.transition_id === "string" ? { transition_id: launch.transition_id } : {}),
-    ...(launch.resumed === true ? { resumed: true } : {}),
-    ...(launch.attempt_lineage_resolution === undefined
-      ? {}
-      : { attempt_lineage_resolution: launch.attempt_lineage_resolution }),
-    ...(acceptedReadiness?.launcher_transition_plan === acceptedTransitionPlan
-      ? {}
-      : { launcher_transition_plan: acceptedTransitionPlan }),
-    final_result: projectPublicFinalResult(launch.final_result ?? null),
-    blocker: null
-  });
+  return jsonContent(await projectAcceptedLaunch({
+    launch, repository: workspace.repo, requestContracts
+  }));
 }
 
 export { LAUNCHER_TRANSITION_FAILURES };

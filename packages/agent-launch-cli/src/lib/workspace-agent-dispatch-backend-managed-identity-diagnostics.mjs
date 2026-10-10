@@ -83,7 +83,7 @@ export function correctiveStatusReconciliationRecovery(subject, observed) {
     unit: observed.record_id,
     slice_unit: subject,
     responsible_actor: "launcher",
-    next_action: "retry_workspace_agent_run_status_same_subject",
+    next_action: "get_run_result",
     exact_subject: subject,
     launcher_retirement_required: true,
     filesystem_cleanup_forbidden: true,
@@ -91,7 +91,7 @@ export function correctiveStatusReconciliationRecovery(subject, observed) {
     preserve_review_status: true,
     replacement_review_required: false,
     notification:
-      "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; retry workspace_agent_run_status with the exact subject"
+      "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; get_run_result for the exact subject only observes launcher state and retires nothing"
   });
 }
 

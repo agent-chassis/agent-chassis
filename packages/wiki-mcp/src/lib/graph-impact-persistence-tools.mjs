@@ -24,24 +24,25 @@ import {
   normalizeGraphImpactUnit
 } from "./graph-impact-response-boundary.mjs";
 import { resolveCommittedHead } from "@agent-chassis/wiki-core/src/lib/sidecar-repository-identity.mjs";
-import { readSelectedResponseSource, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
+import { z as zod } from "zod";
+import { readSelectedResponseEvidence, selectedResponseDetailSchema, selectedResponseQueryInvalidError } from
+  "./selected-response-snapshot.mjs";
 import { GRAPH_IMPACT_VERBOSE_NEXT_ACTION } from "./code-index-tools.mjs";
 import { describeRetainedObservation } from "./code-index-query-response.mjs";
+import { CODE_INDEX_QUERY_ROUTE } from "./code-index-query-tools.mjs";
 
-const IMPACT_ROUTE = "workspace_code_index_impact";
+const IMPACT_ROUTE = CODE_INDEX_QUERY_ROUTE;
 const RECORDER_ROUTE = "workspace_record_graph_impact_evidence";
 const SOURCE_EXCLUSIVE_ARGUMENTS = Object.freeze(["paths", "graph_impact", "graph_impact_summary",
   "graph_impact_summary_ref"]);
-const SOURCE_LOCATOR_KEYS = Object.freeze(["ref_id", "sha256"]);
+
+const SOURCE_LOCATOR_SCHEMA = selectedResponseDetailSchema(zod).shape.source;
 
 function isSelectedSourceLocator(value) {
-  return isPlainObject(value) && Object.keys(value).length === SOURCE_LOCATOR_KEYS.length &&
-    SOURCE_LOCATOR_KEYS.every((key) => Object.hasOwn(value, key)) &&
-    typeof value.ref_id === "string" && /^[A-Za-z0-9._-]{1,200}$/u.test(value.ref_id) &&
-    typeof value.sha256 === "string" && /^[a-f0-9]{64}$/u.test(value.sha256);
+  return SOURCE_LOCATOR_SCHEMA.safeParse(value).success;
 }
 
-function readRetainedImpactAnswer(args, repository) {
+function readRetainedImpactAnswer(args, repository, env = process.env) {
   const conflicting = SOURCE_EXCLUSIVE_ARGUMENTS.filter((field) =>
     args[field] !== undefined && args[field] !== null);
   if (conflicting.length > 0) {
@@ -54,16 +55,20 @@ function readRetainedImpactAnswer(args, repository) {
   }
   if (!isSelectedSourceLocator(args.graph_impact_source)) {
     throw selectedResponseQueryInvalidError(RECORDER_ROUTE, "graph_impact_source_invalid",
-      { accepted_form: "the exact selected_detail.source {ref_id, sha256} of a workspace_code_index_impact answer" });
+      { accepted_form: `the exact selected_detail.source {ref_id} of a ${IMPACT_ROUTE} change-impact answer` });
   }
-  const envelope = readSelectedResponseSource(args.graph_impact_source, { route: RECORDER_ROUTE,
+  const { envelope, evidence } = readSelectedResponseEvidence(args.graph_impact_source, { env, route: RECORDER_ROUTE,
     expected: { route: IMPACT_ROUTE, repository, unit: null } });
   const { workspaceRepo: _workspaceRepo, ...answer } = envelope.carrier;
   if (answer.query_kind !== "impact") {
     throw selectedResponseQueryInvalidError(RECORDER_ROUTE, "graph_impact_source_not_impact",
       { query_kind: typeof answer.query_kind === "string" ? answer.query_kind : null });
   }
-  return { answer, binding: envelope.binding };
+  return { answer, binding: envelope.binding, evidence };
+}
+
+export function readRetainedGraphImpact(source, { repository, responseEnv = process.env }) {
+  return readRetainedImpactAnswer({ graph_impact_source: source }, repository, responseEnv);
 }
 
 function isPlainObject(value) {
@@ -343,7 +348,7 @@ export function registerGraphImpactPersistenceTools({
     "workspace_record_graph_impact_evidence",
     {
       description:
-        "Persist WK/slice graph-impact evidence. Unit-only mode computes it now from trusted unit paths. graph_impact_source {ref_id,sha256}, the selected_detail.source of an earlier workspace_code_index_impact answer, records that exact original server-side without re-evaluating it. Summary courier mode requires supported provenance. Caller roots or shell output grant no authority. Prospective evidence must validate.",
+        "Persist WK/slice graph-impact evidence. Unit-only mode computes it now from trusted unit paths. graph_impact_source {ref_id}, the selected_detail.source of an earlier query_code_index change-impact answer, records that exact original server-side without re-evaluating it. Summary courier mode requires supported provenance. Caller roots or shell output grant no authority. Prospective evidence must validate.",
       inputSchema: {
         repo: z.string().optional(),
         unit: z.string(),
@@ -417,14 +422,13 @@ export function registerGraphImpactPersistenceTools({
               ? {} : { next_action: nextAction }),
             mode: "retained_source",
             observation,
-            graph_impact_source: { ref_id: args.graph_impact_source.ref_id,
-              sha256: args.graph_impact_source.sha256 }
+            graph_impact_source: { ref_id: args.graph_impact_source.ref_id }
           }));
         }
 
         if (isPlainObject(args.graph_impact) && args.graph_impact.query_kind === "impact") {
           throw selectedResponseQueryInvalidError(RECORDER_ROUTE, "consolidated_impact_requires_source", {
-            accepted_form: "graph_impact_source: the selected_detail.source {ref_id, sha256} of the workspace_code_index_impact answer"
+            accepted_form: `graph_impact_source: the selected_detail.source {ref_id} of the ${IMPACT_ROUTE} change-impact answer`
           });
         }
 

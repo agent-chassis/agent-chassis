@@ -210,8 +210,13 @@ const TEST_PROOF_PROVIDER_AUTHORING_FACTS = deepFreeze(TEST_PROOF_PROVIDER_FAMIL
     languages: [...family.runtime.languages],
     runner: family.runtime.runner,
     runner_id: family.runtime.runner_id,
+
     selector: { kind, provider_qualified: family.selector.qualified,
       node_id_form: family.selector.grammar?.statement ?? null,
+      ...(family.selector.grammar?.authored === undefined ? {}
+        : { authored: { member: family.selector.grammar.authored.member,
+          form: family.selector.grammar.authored.form,
+          schema: family.selector.grammar.authored.schema } }),
       source_suffixes: [...family.source_suffixes] },
     candidate_execution: providerIdentity(candidate),
     falsifier_execution: { ...providerIdentity(falsifier),
@@ -242,6 +247,21 @@ function nativeSelectorRefusal(pointer, expected, actual) {
     pointer, expected_identity: expected ?? null, actual_identity: actual ?? null });
 }
 
+function nativeCandidateProvider(providerId, providerVersion, pointers) {
+  const descriptor = descriptorById(providerId);
+  const grammar = familyForKind(descriptor?.selector_kind)?.selector.grammar ?? null;
+  if (descriptor === null || grammar === null ||
+      !descriptor.capabilities.includes("candidate_execution")) {
+    return { refusal: nativeSelectorRefusal(pointers.provider_id,
+      "installed native candidate provider", providerId) };
+  }
+  if (providerVersion !== descriptor.provider_version) {
+    return { refusal: nativeSelectorRefusal(pointers.provider_version,
+      descriptor.provider_version, providerVersion) };
+  }
+  return { descriptor, grammar };
+}
+
 function resolveNativeTestSelector(selector, { path = undefined,
   pointer = "/test_selector" } = {}) {
   if (!selector || typeof selector !== "object" || Array.isArray(selector) ||
@@ -249,17 +269,10 @@ function resolveNativeTestSelector(selector, { path = undefined,
       NATIVE_SELECTOR_FIELDS.some((field) => !Object.hasOwn(selector, field))) {
     return nativeSelectorRefusal(pointer, NATIVE_SELECTOR_FIELDS, selector ?? null);
   }
-  const descriptor = descriptorById(selector.provider_id);
-  const grammar = familyForKind(descriptor?.selector_kind)?.selector.grammar ?? null;
-  if (descriptor === null || grammar === null ||
-      !descriptor.capabilities.includes("candidate_execution")) {
-    return nativeSelectorRefusal(`${pointer}/provider_id`,
-      "installed native candidate provider", selector.provider_id);
-  }
-  if (selector.provider_version !== descriptor.provider_version) {
-    return nativeSelectorRefusal(`${pointer}/provider_version`,
-      descriptor.provider_version, selector.provider_version);
-  }
+  const { descriptor, grammar, refusal } = nativeCandidateProvider(selector.provider_id,
+    selector.provider_version, { provider_id: `${pointer}/provider_id`,
+      provider_version: `${pointer}/provider_version` });
+  if (refusal !== undefined) return refusal;
   const resolved = grammar.resolve(selector.node_id);
   if (!resolved.valid) {
     return nativeSelectorRefusal(`${pointer}/node_id`, resolved.expected, selector.node_id ?? null);
@@ -270,6 +283,48 @@ function resolveNativeTestSelector(selector, { path = undefined,
   return Object.freeze({ valid: true, code: null, selector_kind: descriptor.selector_kind,
     provider_id: descriptor.provider_id, provider_version: descriptor.provider_version,
     node_id: selector.node_id, path: resolved.path, selection: resolved.selection });
+}
+
+const NATIVE_SELECTOR_LITERAL_MEMBER = "node_id";
+
+function resolveAuthoredNativeTestTarget(target, { pointer = "/target" } = {}) {
+  const { descriptor, grammar, refusal } = nativeCandidateProvider(target?.provider?.provider_id,
+    target?.provider?.provider_version, { provider_id: `${pointer}/provider/provider_id`,
+      provider_version: `${pointer}/provider/provider_version` });
+  if (refusal !== undefined) return refusal;
+  const selector = target.selector !== null && typeof target.selector === "object" &&
+    !Array.isArray(target.selector) ? target.selector : {};
+  const member = grammar.authored?.member ?? NATIVE_SELECTOR_LITERAL_MEMBER;
+  const form = grammar.authored?.form ?? grammar.statement;
+  const other = Object.keys(selector).find((key) => key !== member);
+  if (other !== undefined) {
+    return Object.freeze({ ...nativeSelectorRefusal(`${pointer}/selector/${other}`,
+      `selector.${member}: ${form}`, selector[other] ?? null), replacement_member: member });
+  }
+  if (!Object.hasOwn(selector, member)) {
+    return nativeSelectorRefusal(`${pointer}/selector/${member}`, form, null);
+  }
+  const identity = { provider_id: descriptor.provider_id, provider_version: descriptor.provider_version };
+  if (grammar.authored === undefined) {
+    return resolveNativeTestSelector({ ...identity, node_id: selector[member] },
+      { path: target.path, pointer: `${pointer}/selector` });
+  }
+  const composed = grammar.authored.compose(target.path, selector[member]);
+  if (!composed.valid) {
+    return nativeSelectorRefusal(composed.member === "path" ? `${pointer}/path`
+      : `${pointer}/selector/${member}`, composed.expected,
+    (composed.member === "path" ? target.path : selector[member]) ?? null);
+  }
+  return resolveNativeTestSelector({ ...identity, node_id: composed.node_id },
+    { path: target.path, pointer });
+}
+
+function authoredNativeTestSelector(selector) {
+  const resolved = resolveNativeTestSelector(selector);
+  const authored = resolved.valid
+    ? familyForKind(resolved.selector_kind).selector.grammar.authored : undefined;
+  return authored === undefined ? { [NATIVE_SELECTOR_LITERAL_MEMBER]: selector?.node_id }
+    : { [authored.member]: authored.read(resolved.selection) };
 }
 
 function testProofSelectorKind(selector) {
@@ -524,8 +579,10 @@ export {
   TEST_RUNTIME_ENVIRONMENT_ID_RE,
   TEST_RUNTIME_RUNNER_CATALOG,
   TestProofProviderCatalogError,
+  authoredNativeTestSelector,
   composeFamilies as composeTestProofProviderFamilies,
   isTestProofSourcePath,
+  resolveAuthoredNativeTestTarget,
   resolveNativeTestSelector,
   resolveTestProofProviderCompatibility,
   testProofFalsifierProvider,

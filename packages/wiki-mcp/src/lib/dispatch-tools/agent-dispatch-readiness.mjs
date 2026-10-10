@@ -3,9 +3,6 @@
 import { AGENT_DISPATCH_SUBJECT_KIND_INITIATIVE } from
   "../dispatch-tool-constants.mjs";
 import {
-  WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME
-} from "../work-record-write-tools.mjs";
-import {
   nextActionForControlledAcceptanceRecovery,
   nextActionForDecisionCode,
   nextActionForFreeLocalDecisionCode
@@ -16,8 +13,8 @@ import { MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE } from
   "@agent-chassis/wiki-core/src/lib/work-record-dispatch.mjs";
 import {
   boundedRecoveryDetail,
-  continuationOrNull,
-  missingInitiativeAssignmentRefusal,
+  authoredReadinessGuidance,
+  missingInitiativeAuthoring,
   namedAuthoredReadinessClassification
 } from "./agent-dispatch-refusal-projection.mjs";
 import { orchestrateWorkerReadiness } from "./agent-dispatch-worker-readiness.mjs";
@@ -35,14 +32,14 @@ export async function orchestrateAgentDispatchReadiness({
   validateDispatch,
   validateLaunchIntent,
   revalidatePrivateHandoff,
-  generateGraphImpactEvidence,
   refreshAdmissionEvidence,
   loadReviewerSubjectAdmissionContext,
   buildTransitionRefusal,
   readinessFailure,
   launcherTransitionFailures,
   jsonContent,
-  requestSchemaAuthority = null
+  requestSchemaAuthority = null,
+  requestContracts = null
 }) {
   const readinessDispatchRole = args.role === "worker" ? "implementation" : "read_only";
   let readiness = null;
@@ -101,6 +98,11 @@ export async function orchestrateAgentDispatchReadiness({
             );
         const nextAction = nextActionForControlledAcceptanceRecovery(
           readiness, fallbackNextAction);
+        const initiativeAuthoring = readinessDecisionCode === MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE
+          ? missingInitiativeAuthoring(readiness) : null;
+        const guidance = await authoredReadinessGuidance({ subject: initiativeAuthoring?.unit ?? args.subject,
+          readiness, code: classification.code, requestSchemaAuthority, requestContracts,
+          initiative: initiativeAuthoring });
         return {
           response: refuse({
             failure: readinessFailure(readiness),
@@ -108,6 +110,10 @@ export async function orchestrateAgentDispatchReadiness({
             reason: "work_record_not_dispatchable",
             detail: boundedRecoveryDetail(readiness, {
               readiness_reasons: readiness.reasons ?? [],
+              ...(initiativeAuthoring === null ? {} : { initiative_authoring: initiativeAuthoring }),
+              ...(guidance.limitation === undefined ? {} : {
+                readiness_guidance_limitation: guidance.limitation
+              }),
               ...(isPaidTier && Array.isArray(readiness.validation_hints) &&
               readiness.validation_hints.length > 0
                 ? { readiness_validation_hints: readiness.validation_hints }
@@ -125,23 +131,7 @@ export async function orchestrateAgentDispatchReadiness({
             carried: controlledAcceptanceBlocked ? {
               controlled_acceptance_recovery: readiness.controlled_acceptance_recovery
             } : null,
-            refusal: readinessDecisionCode === MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE
-              ? missingInitiativeAssignmentRefusal({
-                  readiness, code: classification.code, requestSchemaAuthority
-                })
-              : null,
-            continuation: continuationOrNull({
-              tool: controlledAcceptanceBlocked
-                ? "workspace_controlled_contract_obligation_coverage_query"
-                : WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME,
-              arguments: { unit: args.subject },
-              predicate: { fact: "wk.dispatchable", operator: "is_true" },
-              prerequisite: controlledAcceptanceBlocked
-                ? "the selected unit controlled-acceptance proof posture is absent, incomplete, or invalid"
-                : "the selected unit is not dispatchable under its authored contract",
-              successCondition:
-                "workspace_agent_dispatch reports the same unit dispatchable once the authored contract is corrected"
-            })
+            refusal: guidance.refusal ?? null
           }),
           readiness
         };
@@ -155,7 +145,6 @@ export async function orchestrateAgentDispatchReadiness({
         validateDispatch,
         validateLaunchIntent,
         revalidatePrivateHandoff,
-        generateGraphImpactEvidence,
         refreshAdmissionEvidence,
         buildTransitionRefusal,
         readinessFailure,

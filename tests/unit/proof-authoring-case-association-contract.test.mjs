@@ -7,20 +7,25 @@ import {
   buildStableTestProofBindingTemplate
 } from "@agent-chassis/controlled-contract";
 import {
+  CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
   CASE_VERIFICATION_ASSOCIATION_FIELD,
   NATIVE_TEST_CASE_AUTHORING_GUIDANCE,
   applyNativeTestProofCase,
+  caseUseExcludesVerification,
+  eligibleCaseVerificationIds,
   emptyCaseContract
 } from "@agent-chassis/controlled-contract/native-test-cases";
 import {
   PROOF_PREREQUISITE_CODES
 } from "@agent-chassis/controlled-contract/proof-contract";
 import {
+  OCCURRENCE_CORRECTION_CLAUSES,
+  occurrenceRecoveryFacts,
   occurrenceRecoverySummary,
   typedBindingFailurePaths
 } from "@agent-chassis/controlled-contract/executable-map";
 import {
-  CASE_VERIFICATION_ASSOCIATION_FIELD_PATH,
+  CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD_PATH,
   CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH,
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA,
   CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
@@ -28,6 +33,7 @@ import {
   CONTROLLED_CONTRACT_REQUIREMENT_REQUEST_GUIDANCE_LOCATIONS
 } from "../../packages/wiki-core/src/lib/controlled-contract-tools.mjs";
 import {
+  proofAuthoringGroupDiagnosis,
   projectProofAuthoringDiagnosticGroups
 } from "../../packages/wiki-core/src/operations/controlled-contract/proof-authoring-diagnostic-projection.mjs";
 
@@ -91,7 +97,8 @@ test("typed case recovery preserves property paths while keeping prose bounded",
   ]);
   const prose = occurrenceRecoverySummary(diagnostic, { summary: "static fallback" });
   assert.match(prose, /reported 3 failed field paths/u);
-  assert.match(prose, /case_authoring\.verification_association/u);
+  assert.match(prose, /Correct the case's verification association/u);
+  assert.doesNotMatch(prose, /upsert/u);
   for (const path of typedBindingFailurePaths(diagnostic)) {
     assert.doesNotMatch(prose, new RegExp(path.replaceAll("/", "\\/"), "u"));
   }
@@ -126,7 +133,8 @@ test("the incomplete-binding recovery advertises only inputs the named tool decl
   assert.equal(entry.detail_facts.includes("owner_details"), true);
   assert.equal(entry.required_facts.includes("verification_id"), true);
 
-  assert.match(entry.recovery.summary, /case_authoring/u);
+  assert.match(entry.recovery.summary, /obligations\[\]\.case /u);
+  assert.doesNotMatch(entry.recovery.summary, /upsert/u);
   assert.doesNotMatch(entry.recovery.summary, /verification_id/u);
   assert.doesNotMatch(entry.recovery.summary, /controlled_contract_node_ids/u);
   assert.match(entry.recovery.summary, /never supply or edit the derived binding itself/u);
@@ -186,6 +194,11 @@ test("the eligibility relationship is published once and routes to the identity 
   assert.match(member.eligible, /test_execution/u);
   assert.match(member.correction, /controlled_contract_node_ids/u);
 
+  assert.match(member.eligible, /explicit verifies relationship ties to a requirement claim it lists/u);
+  assert.match(member.eligible, /executable binding exists never changes it/u);
+  assert.doesNotMatch(JSON.stringify(member), /leaves no eligible verification/u);
+  assert.match(member.authoring.omit_when, /requirement makes each verification that verifies it eligible/u);
+
   assert.match(member.derived_from_association, /never authored/u);
 
   const population = CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE
@@ -200,8 +213,21 @@ test("the eligibility relationship is published once and routes to the identity 
     location.path.join(".") === CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH.join("."));
   assert.ok(bound, "the authored case field binds a request location");
   assert.deepEqual([...bound.guidance_path], ["case_authoring", "verification_association"]);
-  assert.equal(CASE_VERIFICATION_ASSOCIATION_FIELD_PATH,
-    `$.${CASE_VERIFICATION_ASSOCIATION_FIELD}`);
+
+  assert.deepEqual([CASE_VERIFICATION_ASSOCIATION_FIELD, CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD],
+    ["obligations[].case.verification_id", "obligations[].case.verification"]);
+  assert.equal(CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD_PATH, "$.obligations[].case.verification");
+  assert.equal(OCCURRENCE_CORRECTION_CLAUSES.association.field, CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD);
+});
+
+test("the case purpose names every authored member and the authority routes to it", () => {
+  const purpose = NATIVE_TEST_CASE_AUTHORING_GUIDANCE.purpose;
+  assert.match(purpose, /^Author case\.target, case\.observation and case\.falsification for an obligation verified by test_execution/u);
+
+  assert.match(purpose, /case\.observation \(the derived binding's observable_result comes from it\)/u);
+  const routed = CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE.authority.case_members;
+  assert.deepEqual(routed.arguments.input_contract, { kind: "guidance", path: ["case_authoring", "purpose"] });
+  assert.equal(CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE.case_authoring.purpose, purpose);
 });
 
 test("a native case-association refusal names the deciding field and the identities it considered", () => {
@@ -217,7 +243,7 @@ test("a native case-association refusal names the deciding field and the identit
     { verification_id: "claim-absent" }));
   assert.equal(wrong.code, "obligation_coverage_case_selector_invalid");
   assert.equal(wrong.details.condition, "unassociated_declaration");
-  assert.equal(wrong.details.field, CASE_VERIFICATION_ASSOCIATION_FIELD);
+  assert.equal(wrong.details.field, CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD);
   assert.equal(wrong.details.verification_id, "claim-absent");
   assert.equal(wrong.details.obligation_id, "OBL-ONE");
   assert.deepEqual(wrong.details.eligible_verification_ids, ["claim-one", "claim-two"]);
@@ -236,4 +262,131 @@ test("a native case-association refusal names the deciding field and the identit
   assert.equal(bound.verification_claim_id, "claim-two");
   assert.equal(bound.observable_result.proposition_id, "prop-claim-two",
     "the proposition identity is derived from the named claim, never authored");
+});
+
+test("one owner computes the eligible verifications and the shared-use exclusion", () => {
+  const contract = emptyCaseContract();
+  contract.claims.push(verificationClaim("claim-two"), verificationClaim("claim-one"),
+    { claim_id: "claim-behavior", kind: "behavior" },
+    { ...verificationClaim("claim-inspected"), verification_method: "inspection" },
+    verificationClaim("claim-declared"));
+
+  contract.relations.push({ role: "verifies", source_claim_id: "claim-declared", target_claim_id: "claim-behavior" });
+  contract.test_proofs.push({ test_proof_id: "test-proof-declared", verification_claim_id: "claim-declared" });
+  const eligible = links => eligibleCaseVerificationIds(contract, { case_id: "case-ignored",
+    controlled_contract_node_ids: links });
+
+  assert.deepEqual(eligible(["claim-two", "claim-inspected", "claim-one", "claim-absent"]), ["claim-one", "claim-two"]);
+  assert.deepEqual(eligible(["claim-one", "claim-two"]), eligible(["claim-two", "claim-one"]));
+  assert.deepEqual(eligible(["claim-behavior"]), ["claim-declared"]);
+  assert.deepEqual(eligible([]), []);
+  assert.deepEqual(eligibleCaseVerificationIds(emptyCaseContract(), { controlled_contract_node_ids: ["claim-one"] }), []);
+
+  contract.claims.push({ claim_id: "claim-shared", kind: "behavior" }, verificationClaim("claim-shared-a"),
+    verificationClaim("claim-shared-b"), { ...verificationClaim("claim-shared-inspected"), verification_method: "inspection" });
+  for (const source of ["claim-shared-b", "claim-shared-inspected", "claim-shared-a"]) {
+    contract.relations.push({ role: "verifies", source_claim_id: source, target_claim_id: "claim-shared" });
+  }
+  contract.relations.push({ role: "refines", source_claim_id: "claim-two", target_claim_id: "claim-behavior" });
+
+  contract.test_proofs.push({ test_proof_id: "test-proof-placeholder", verification_claim_id: "claim-placeholder" });
+  const unbound = { ...contract, test_proofs: [] };
+  const bound = { ...contract, test_proofs: [...contract.test_proofs,
+    ...["claim-one", "claim-shared-a"].map(id => ({ test_proof_id: `test-proof-${id}`, verification_claim_id: id }))] };
+  const populations = links => [unbound, contract, bound].map(variant =>
+    eligibleCaseVerificationIds(variant, { controlled_contract_node_ids: links }));
+  for (const [links, expected] of [
+    [["claim-declared"], ["claim-declared"]],
+    [["claim-behavior"], ["claim-declared"]],
+    [["claim-shared"], ["claim-shared-a", "claim-shared-b"]],
+    [["claim-shared", "claim-behavior", "claim-one"], ["claim-declared", "claim-one", "claim-shared-a", "claim-shared-b"]],
+    [["claim-shared-inspected", "claim-placeholder", "claim-absent"], []],
+    [[], []]
+  ]) {
+    assert.deepEqual(populations(links), [expected, expected, expected], JSON.stringify(links));
+  }
+
+  const claims = new Set(["claim-one", "claim-two"]);
+  const use = links => ({ controlled_contract_node_ids: links });
+  assert.equal(caseUseExcludesVerification(use(["claim-two"]), "claim-one", claims), true);
+  assert.equal(caseUseExcludesVerification(use(["claim-one", "claim-two"]), "claim-one", claims), false);
+  assert.equal(caseUseExcludesVerification(use(["claim-behavior"]), "claim-one", claims), false,
+    "a use that links no verification constrains nothing");
+});
+
+test("the omission and choice behavior is stated once, in the save's own vocabulary", () => {
+  const member = NATIVE_TEST_CASE_AUTHORING_GUIDANCE.verification_association;
+  assert.match(member.omission, /unresolved draft/u);
+  assert.doesNotMatch(member.omission, /is ambiguous and must be named/u);
+  const authoring = member.authoring;
+  assert.deepEqual([authoring.method, authoring.field, authoring.links_field],
+    ["test_execution", CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD, "obligations[].claims"]);
+  const identity = NATIVE_TEST_CASE_AUTHORING_GUIDANCE.case_identity;
+  assert.equal(identity.field, "obligations[].case");
+
+  assert.equal(JSON.stringify([authoring, identity]).includes("verification_id"), false);
+  assert.equal(JSON.stringify([authoring, identity]).includes("case_id"), false);
+});
+
+test("an unselected case's recovery carries every candidate and names only the real choice", () => {
+  const candidates = Array.from({ length: 40 }, (_, index) => `claim-${String(index).padStart(2, "0")}`);
+  const withAssociation = association => ({ ...typedDiagnostic([{ instancePath: "/observable_result",
+    keyword: "required", params: { missingProperty: "proposition_id" } }]),
+  problem: { cause: { owner_details: { diagnostics: [{ instancePath: "/observable_result", keyword: "required",
+    params: { missingProperty: "proposition_id" } }] }, case_association: association } } });
+  const facts = condition => ({ condition, case_id: "case-one", selected: false,
+    eligible_verification_ids: candidates, candidate_verification_ids: candidates, blocked: [],
+    required_choice: { field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD, links_field: "obligations[].claims",
+      choose_one_of: candidates } });
+  const several = occurrenceRecoveryFacts(withAssociation(facts("ambiguous_linked_verification")));
+
+  assert.deepEqual(several.corrections, ["association"]);
+  assert.deepEqual(several.association.candidate_verification_ids, candidates,
+    "all forty candidates survive: no short-list bound applies to the candidate population");
+  const prose = occurrenceRecoverySummary(withAssociation(facts("ambiguous_linked_verification")), { summary: "unused" });
+  assert.match(prose, /name one of candidate_verification_ids in obligations\[\]\.case\.verification/u);
+  assert.doesNotMatch(prose, /claim-0/u, "identities stay in the typed facts");
+  const none = occurrenceRecoverySummary(withAssociation({ ...facts("no_eligible_verification"),
+    eligible_verification_ids: [], candidate_verification_ids: [] }), { summary: "unused" });
+  assert.match(none, /lists no eligible test_execution verification/u);
+
+  assert.equal(Object.hasOwn(occurrenceRecoveryFacts(typedDiagnostic([])), "association"), false);
+});
+
+test("a selected diagnosis keeps an owner's bounded diagnostics as typed facts and no dossier", () => {
+  const PROVIDER = "obligation_coverage_native_binding_provider_unresolved";
+  const subjectOf = ownerDetails => {
+    const grouped = groupedWith({ category: "system_capability", code: PROVIDER,
+      affected_obligation_ids: ["OBL-A"],
+      occurrences: [{ obligation_id: "OBL-A", diagnostic: { code: PROVIDER,
+        path: "/obligations/0/case_id", owner_code: "stable_test_proof_provider_strategy_mismatch",
+        owner_details: ownerDetails,
+        problem: { category: "system_capability", cause: { kind: "selected_route_prerequisite",
+          case_id: "case-a", owner_code: "stable_test_proof_provider_strategy_mismatch",
+          owner_details: ownerDetails, actor_recovery: "none" } } } }] });
+    const [projected] = projectProofAuthoringDiagnosticGroups({ grouped,
+      resultIdentity: grouped.identity_digest, wkId: "WK-9999" }).groups;
+    return proofAuthoringGroupDiagnosis({ projected, raw: grouped.groups[0],
+      recoveryFacts: () => null, publicRecovery: () => null }).subjects[0];
+  };
+
+  const subject = subjectOf({ diagnostics: {
+    diagnostic_projection_version: "controlled-contract.bounded-diagnostic-projection.v2",
+    total_count: 4, returned_count: 2, omitted_count: 2, truncated: true,
+    diagnostics: [
+      { code: "stable_test_proof_provider_strategy_mismatch", pointer: "/falsifiers/0/execution_provider/strategy",
+        keyword: "providerCompatibility", reason_code: "stable_test_proof_provider_refused",
+        expected_identity: "[\"scalar_return\"]", actual_identity: "dependency_failure",
+        message: "raw owner message", owner_facts: { stack: "internal" } },
+      { code: "stable_test_proof_provider_missing", pointer: "/traversal_provider" }] } });
+  assert.deepEqual(subject, { obligation_id: "OBL-A", path: "/obligations/0/case_id",
+    owner_code: "stable_test_proof_provider_strategy_mismatch", case_id: "case-a",
+    owner_diagnostics: { total_count: 4, omitted_count: 2, truncated: true, diagnostics: [
+      { code: "stable_test_proof_provider_strategy_mismatch", pointer: "/falsifiers/0/execution_provider/strategy",
+        expected_identity: "[\"scalar_return\"]", actual_identity: "dependency_failure" },
+      { code: "stable_test_proof_provider_missing", pointer: "/traversal_provider" }] } });
+
+  for (const details of [null, { field: "x" }, { diagnostics: [{ instancePath: "/x", keyword: "required" }] }]) {
+    assert.equal(Object.hasOwn(subjectOf(details), "owner_diagnostics"), false, JSON.stringify(details));
+  }
 });

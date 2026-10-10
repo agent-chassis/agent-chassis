@@ -1,0 +1,216 @@
+
+
+import { isDeepStrictEqual } from "node:util";
+
+import { assertControlledContractOperationInput, ControlledContractToolError } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
+import { resolveObligationCoverageQueryRevision } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/obligation-coverage-query.mjs";
+import { usedCorrectionDefinitions } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/proof-authoring-diagnostic-projection.mjs";
+import { narrowCapturedDiagnosis } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/proof-validation-operations.mjs";
+import { parseProofSourceUnitAddress } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/saved-proof-source.mjs";
+
+import { describeRetainedObservation } from "./code-index-query-response.mjs";
+import { CONTRACT_ASSESSMENT_ROUTE, contractAssessmentAuthorityIdentity, parseQueryObservationIdentity,
+  queryObservationIdentity } from "./controlled-contract-query-context.mjs";
+import { describeRetentionFailure, jsonContent, measureMcpInlineResultBytes } from "./mcp-response.mjs";
+import { readSelectedResponseProjection, readSelectedResponseSource, retainSelectedResponseSource,
+  selectedResponseDeliveryBound, selectedResponseQueryInvalidError } from
+  "./selected-response-snapshot.mjs";
+import { assessCurrentContractWithContext, resolveContractAssessmentContext } from "./task-assess-contract.mjs";
+
+const RETAIN_OPERATION = "retain_contract_assessment_original";
+
+const SPILL_PERSISTENCE_FAILED_CODE = "mcp_response.spill_persistence_failed.v1";
+const isPersistenceFailure = (error) => error?.code === SPILL_PERSISTENCE_FAILED_CODE &&
+  error.envelope?.code === SPILL_PERSISTENCE_FAILED_CODE && error.envelope.response_spilled === false;
+
+const refuse = (code, message, details) => {
+  throw new ControlledContractToolError(code, message, { changed: false, limb: "mechanical_failure", ...details });
+};
+
+function parseOriginalRequest(request) {
+  assertControlledContractOperationInput(request, ["unit", "source", "diagnosis_id", "obligation_id"]);
+  const { unit, source } = request;
+  const keys = source !== null && typeof source === "object" ? Object.keys(source).sort() : [];
+  if (keys.length !== 1 || keys[0] !== "ref_id") {
+    refuse("obligation_coverage_request_invalid",
+      "source names one retained original by exactly its ref_id",
+      { phase: "request", rejected_arguments: ["source"] });
+  }
+
+  const selectors = {};
+  for (const [key, name] of [["diagnosis_id", "diagnosisId"], ["obligation_id", "obligationId"]]) {
+    if (!Object.hasOwn(request, key)) continue;
+    if (typeof request[key] !== "string" || request[key].length === 0) {
+      refuse("obligation_coverage_request_invalid", `${key}, when supplied, is a nonempty string`,
+        { phase: "request", failed_condition: "selector_not_a_nonempty_string", rejected_arguments: [key] });
+    }
+    selectors[name] = request[key];
+  }
+  if (selectors.obligationId !== undefined && selectors.diagnosisId === undefined) {
+    refuse("obligation_coverage_request_invalid",
+      "obligation_id restricts a selected diagnosis and requires diagnosis_id",
+      { phase: "request", failed_condition: "obligation_without_diagnosis", rejected_arguments: ["obligation_id"] });
+  }
+
+  if (unit !== undefined) parseProofSourceUnitAddress(unit);
+  return { ...(unit === undefined ? {} : { unit }), source: { ref_id: source.ref_id },
+    ...selectors };
+}
+
+function selectRetainedDiagnosis(carrier, { unit, diagnosisId, obligationId }) {
+  const { diagnosis_inventory: inventory, selection } = carrier;
+  const subject = { unit, diagnosis_id: diagnosisId, original_selection: selection,
+    ...(obligationId === undefined ? {} : { obligation_id: obligationId }) };
+  const notFound = (failedCondition, message, details = {}) => refuse(
+    "obligation_coverage_diagnostic_group_not_found", message,
+    { phase: "retained_selection", failed_condition: failedCondition, subject, next_calls: [], ...details });
+  const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  if (!isRecord(inventory) || !Array.isArray(inventory.diagnoses) || !isRecord(inventory.families) ||
+      !isRecord(inventory.corrections) || !Array.isArray(inventory.population?.obligation_ids) ||
+      typeof inventory.complete !== "boolean") {
+    notFound("retained_diagnosis_inventory_malformed",
+      "This retained original holds no well-formed diagnosis inventory; it is not repaired by reassessment");
+  }
+  const outside = (failedCondition, message) => refuse("obligation_coverage_obligation_not_found", message,
+    { phase: "retained_selection", failed_condition: failedCondition, subject, obligation_id: obligationId,
+      next_calls: [] });
+  if (obligationId !== undefined && !inventory.population.obligation_ids.includes(obligationId)) {
+    outside("obligation_outside_original_population",
+      "The obligation is outside the population this original assessed; a read never changes its population");
+  }
+  if (inventory.group_selectable !== true) {
+    notFound("original_has_no_selectable_diagnoses",
+      "This original assessed no saved obligations; its findings name no selectable diagnosis");
+  }
+  const matches = inventory.diagnoses.filter((entry) => entry?.diagnostic_group_id === diagnosisId);
+  if (matches.length === 0 && !inventory.complete) {
+    notFound("retained_diagnosis_inventory_incomplete",
+      "An owner failed when this original was captured, so its diagnoses were not all observed; " +
+      "the requested one is not retained and is not thereby unknown",
+      { unavailable_families: Object.entries(inventory.families)
+        .filter(([, family]) => family?.status !== "complete")
+        .map(([family, state]) => ({ family, status: state?.status, failure: state?.failure })) });
+  }
+  if (matches.length !== 1) {
+    notFound(matches.length === 0 ? "diagnosis_unknown_in_complete_inventory" : "retained_diagnosis_identity_ambiguous",
+      "The diagnosis is not one diagnosis of this retained original");
+  }
+  const [diagnosis] = matches;
+  if (!Array.isArray(diagnosis.subjects)) {
+    notFound("retained_diagnosis_malformed", "The retained diagnosis records no subjects");
+  }
+  const subjects = obligationId === undefined ? diagnosis.subjects
+    : diagnosis.subjects.filter((entry) => entry?.obligation_id === obligationId);
+  if (obligationId !== undefined && subjects.length === 0) {
+    outside("obligation_not_a_diagnosis_subject", "The obligation is not a subject of this retained diagnosis");
+  }
+  const missing = [...new Set(subjects.flatMap((entry) => entry?.corrections ?? []))]
+    .filter((clause) => !Object.hasOwn(inventory.corrections, clause));
+  if (missing.length > 0) {
+    notFound("retained_correction_definition_missing",
+      `The retained original lacks the correction definitions its diagnosis references: ${missing.join(", ")}`);
+  }
+
+  return { diagnosis_id: diagnosisId, ...(obligationId === undefined
+    ? { diagnosis, corrections: usedCorrectionDefinitions(subjects, inventory.corrections) }
+    : narrowCapturedDiagnosis(inventory, diagnosis, subjects)) };
+}
+
+export function createContractAssessmentResults({ workspace, sessionEnv = process.env,
+  responseEnv = process.env, sourceDeps = {}, assessmentDeps = {} }) {
+
+  const responseOwner = (envelope, options) => jsonContent(envelope, { env: responseEnv, ...options,
+    selectedAccess: () => ({ operator_only: true }) });
+
+  async function captureCurrent(selection) {
+    const { carrier, context } = await assessCurrentContractWithContext({ workspace, selection },
+      { sessionEnv, sourceDeps, assessmentDeps });
+    const revision = carrier.assessment.content_digest ?? null;
+    const binding = { route: CONTRACT_ASSESSMENT_ROUTE, repository: workspace.repo, unit: carrier.unit,
+      query_identity: { focus: carrier.focus, selection: carrier.selection,
+        population_kind: carrier.source_authority.population_kind },
+      observation_identity: queryObservationIdentity(carrier.focus, revision),
+      authority_identity: contractAssessmentAuthorityIdentity(context, { unit: carrier.unit }) };
+    let locator;
+    try {
+      locator = retainSelectedResponseSource({ binding, carrier }, { responseOwner });
+    } catch (error) {
+
+      if (!isPersistenceFailure(error)) throw error;
+
+      return { binding, retentionError: error, read: { carrier, original: { available: false, locator: null, revision,
+        retention_failure: describeRetentionFailure(error, { operation: RETAIN_OPERATION,
+          subject: { unit: carrier.unit, selection: carrier.selection } }) } } };
+    }
+    return { binding, read: { carrier, original: { available: true, locator, revision } } };
+  }
+
+  async function captureOriginal(request) {
+    const { request: parsed, context } = await resolveContractAssessmentContext(
+      { workspace, sessionEnv, sourceDeps }, () => parseOriginalRequest(request));
+
+    const { binding, carrier } = readSelectedResponseSource(parsed.source, { env: responseEnv, expected: {
+      route: CONTRACT_ASSESSMENT_ROUTE, repository: workspace.repo } });
+    const mismatch = (field) => {
+      throw selectedResponseQueryInvalidError(CONTRACT_ASSESSMENT_ROUTE, "source_binding_mismatch",
+        { binding_field: field });
+    };
+    const unit = binding.unit;
+    if (typeof unit !== "string" || !isDeepStrictEqual(binding.authority_identity,
+      contractAssessmentAuthorityIdentity(context, { unit }))) mismatch("authority_identity");
+    if ((parsed.unit ?? unit) !== unit) mismatch("unit");
+    if (carrier.unit !== unit || carrier.repository !== workspace.repo) mismatch("carrier");
+    const address = parseProofSourceUnitAddress(unit);
+    const observation = await describeRetainedObservation(binding, async (retained) => {
+      const { focus } = parseQueryObservationIdentity(retained.observation_identity);
+      return queryObservationIdentity(focus, await resolveObligationCoverageQueryRevision({
+        repoRoot: context.sourceRoot, wkId: address.wkId, selectedUnit: address.selectedUnit, focus }));
+    });
+
+    const selected = parsed.diagnosisId === undefined ? {}
+      : { selected_diagnosis: selectRetainedDiagnosis(carrier, { ...parsed, unit }) };
+    return { binding, read: { carrier, ...selected,
+      original: { available: true, locator: parsed.source, revision: carrier.assessment.content_digest ?? null,
+        selection: binding.query_identity },
+      source_revision_currentness: { state: observation.state,
+        ...(observation.state === "unavailable" ? { cause: observation.unavailable_reason } : {}) },
+
+      assessment_context_currentness: "not_observed" } };
+  }
+
+  async function deliver({ binding, read, retentionError }, project, { selectedMeaning }) {
+    const payload = project(read);
+    const bytes = measureMcpInlineResultBytes(payload);
+    const bound = selectedResponseDeliveryBound(responseEnv);
+    if (bytes <= bound) return jsonContent(payload, { env: responseEnv });
+    if (read.original.locator === null) {
+
+      throw retentionError;
+    }
+    if (!selectedMeaning) {
+      throw new ControlledContractToolError("proof_validation_answer_exceeds_compact_class",
+        `The fresh assessment answer measures ${bytes} bytes, above the ${bound}-byte compact class`,
+        { changed: false, phase: "delivery", scope: { unit: read.carrier.unit }, measured_bytes: bytes, limit: bound,
+          reason: "a fresh assessment answer is a compact summary and is not given complete delivery",
+          next_calls: [] });
+    }
+
+    return readSelectedResponseProjection(read.original.locator, { env: responseEnv,
+      expected: binding, route: CONTRACT_ASSESSMENT_ROUTE,
+      project: ({ carrier }) => project({ ...read, carrier }) });
+  }
+
+  return Object.freeze({
+    current: async (selection) => (await captureCurrent(selection)).read,
+    original: async (request) => (await captureOriginal(request)).read,
+    deliverCurrent: async (selection, project) =>
+      deliver(await captureCurrent(selection), project, { selectedMeaning: false }),
+    deliverOriginal: async (request, project) =>
+      deliver(await captureOriginal(request), project, { selectedMeaning: true })
+  });
+}

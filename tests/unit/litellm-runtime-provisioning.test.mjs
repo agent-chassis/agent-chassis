@@ -75,7 +75,11 @@ test("first use installs a private venv with hash-locked host pip and publishes 
   const root = stateRoot(t);
   const runner = fakeRunner();
   const first = await provisionLiteLlmRuntime({
-    stateRoot: root, env: { HTTPS_PROXY: "http://proxy:3128", GOOGLE_APPLICATION_CREDENTIALS: "/x" },
+    stateRoot: root,
+    env: {
+      HTTPS_PROXY: "http://proxy:3128", ALL_PROXY: "socks5h://proxy.invalid:1080", http_proxy: "", no_proxy: "*",
+      GOOGLE_APPLICATION_CREDENTIALS: "/x"
+    },
     runProcess: runner.run, findExecutable: () => PYTHON
   });
   assert.equal(first.executable, path.join(root, "runtimes", first.generation, "venv", "bin", "litellm"));
@@ -85,7 +89,14 @@ test("first use installs a private venv with hash-locked host pip and publishes 
   }
   assert.equal(install.command, PYTHON.real, "the host interpreter drives pip against the private venv");
   assert.equal(install.env.PIP_CONFIG_FILE, "/dev/null");
-  assert.equal(install.env.HTTPS_PROXY, "http://proxy:3128");
+
+  const suppliedProxies = {
+    HTTPS_PROXY: "http://proxy:3128", ALL_PROXY: "socks5h://proxy.invalid:1080", http_proxy: "", no_proxy: "*"
+  };
+  for (const call of runner.calls) {
+    assert.deepEqual(Object.fromEntries(Object.entries(call.env)
+      .filter(([name]) => /^(https?|all|no)_proxy$/i.test(name))), suppliedProxies, call.args.join(" "));
+  }
   assert.equal(install.env.GOOGLE_APPLICATION_CREDENTIALS, undefined);
   const ready = path.join(root, "runtimes", `${first.generation}.ready.json`);
   assert.equal(statSync(ready).mode & 0o777, 0o600);

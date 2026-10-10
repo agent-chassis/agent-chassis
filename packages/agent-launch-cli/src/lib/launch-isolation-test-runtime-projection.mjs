@@ -15,11 +15,7 @@ import {
   createMissingDirectoryLeaf,
   releasePreparedDirectoriesOnRefusal
 } from "./launch-isolation-worker-scope.mjs";
-import { TEST_RUNTIME_READINESS_CODES, loadReadiness } from "./test-runtime-setup/readiness.mjs";
-import {
-  WorkerTestRuntimePreparationError,
-  isComposedWorkerTestRuntime
-} from "./test-execution/worker-runtime.mjs";
+import { isComposedWorkerTestRuntime } from "./test-execution/worker-runtime.mjs";
 
 const REFUSED = BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.TEST_RUNTIME_PROJECTION_REFUSED;
 
@@ -120,7 +116,24 @@ export function prepareWorkerTestRuntimeMounts({ workerTestRuntime = null, spars
   });
 }
 
-export function planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds = [] }) {
+export function planTestExecutionCheckoutWrites({ repoReal }) {
+  const administration = path.join(repoReal, ".git");
+  let stat;
+  try {
+    stat = lstatSync(administration);
+  } catch (error) {
+    if (error?.code === "ENOENT") return Object.freeze({ gitAdministration: null });
+    refuse(`the checkout's Git administration could not be inspected: ${administration}`,
+      { git_administration: administration, errno: error?.code ?? null });
+  }
+  if (!stat.isDirectory() && !stat.isFile()) {
+    refuse(`the checkout's Git administration is not a directory or a worktree pointer file, so it cannot ` +
+      `stay read-only in a writable checkout: ${administration}`, { git_administration: administration });
+  }
+  return Object.freeze({ gitAdministration: administration });
+}
+
+export function planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds = [], checkoutWrites = null }) {
   const missing = [];
   for (const bind of readOnlyBinds) {
     const dst = bind?.dst;
@@ -171,7 +184,9 @@ export function planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds = [] }) {
       const child = path.join(dir, entry.name);
       if (created.has(child)) continue;
       if (entry.isSymbolicLink()) args.push("--symlink", readlinkSync(child), child);
-      else args.push("--ro-bind", child, child);
+      else if (checkoutWrites === null || child === checkoutWrites.gitAdministration) {
+        args.push("--ro-bind", child, child);
+      } else args.push("--bind", child, child);
     }
   }
   for (const mountpoint of [...missing].sort()) {
@@ -212,23 +227,7 @@ function unchangedDirectory(expected) {
   } catch { return false; }
 }
 
-function assertPreparationUnchanged(identity) {
-  if (identity === null || identity.readiness_digest === null) return;
-  const current = loadReadiness(identity.repository);
-  if (current.ok && current.record.readiness_digest === identity.readiness_digest) return;
-  const environments = identity.projects.map(({ environment }) => environment);
-  throw new WorkerTestRuntimePreparationError({
-    code: TEST_RUNTIME_READINESS_CODES.PREPARATION_CHANGED,
-    message: `the test-runtime preparation changed after this launch was composed (${current.ok
-      ? "a newer ready preparation" : current.code})`,
-    detail: { ...(current.detail ?? {}), current_code: current.ok ? null : current.code,
-      readiness_digest: current.ok ? current.record.readiness_digest : current.detail?.readiness_digest ?? null },
-    recovery: current.recovery
-  }, { environments, repository: identity.repository, composedDigest: identity.readiness_digest });
-}
-
 export function assertWorkerTestRuntimeMountsUnchanged(prepared) {
-  assertPreparationUnchanged(prepared?.identity ?? null);
   for (const source of prepared?.sources ?? []) {
     if (unchangedDirectory(source)) continue;
     refuse(`projected runtime source changed before spawn: ${source.src}`,

@@ -24,8 +24,16 @@ export function resolveAgentRoleGuidePath(guide) {
   return path.join(ROLE_GUIDE_DIR, `${guide}.md`);
 }
 
+export function resolveOrchestratorAuthoringVignettePath() {
+  return path.join(ROLE_GUIDE_DIR, "orchestrator-authoring-vignette.md");
+}
+
 export function renderAgentRoleGuideReadReference(guide) {
-  return `Read your ${guide} guide before acting: ${resolveAgentRoleGuidePath(guide)}`;
+  const guidePath = resolveAgentRoleGuidePath(guide);
+  return guide === "orchestrator"
+    ? `Read your orchestrator guide at ${guidePath} and the authoring vignette at ` +
+      `${resolveOrchestratorAuthoringVignettePath()} before authoring.`
+    : `Read your ${guide} guide before acting: ${guidePath}`;
 }
 
 export function readAgentRoleGuide(guide) {

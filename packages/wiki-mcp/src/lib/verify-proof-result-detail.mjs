@@ -1,7 +1,7 @@
 import { projectDiagnostic, STRUCTURED_DIAGNOSTIC_SCHEMA_VERSION }
   from "../../../wiki-core/src/lib/diagnostic-projection.mjs";
 import { classifyMutationOutcome, countMutationOutcomes } from
-  "@agent-chassis/controlled-contract";
+  "@agent-chassis/controlled-contract/test-proof-mutation-outcome";
 import { projectSelectedTestFailureDiagnostic } from
   "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-error-diagnostic.mjs";
 import { fitWholePrefix, projectVerifyProofSummaryRow } from "./verify-proof-result-summary.mjs";
@@ -99,6 +99,88 @@ function projectProofRecovery(proof) {
     next_step: "Read this proof's selected detail for its recorded falsifier facts; an unchanged-input retry is not implied."
   });
 }
+
+export const VERIFY_PROOF_TEST_FAILURE_DIAGNOSIS_SCHEMA_VERSION =
+  "workspace-verify-proof-test-failure-diagnosis.v1";
+const DIAGNOSIS_MESSAGE_INLINE_BYTES = 1024;
+const DIAGNOSIS_IDENTITY_INLINE_BYTES = 160;
+const DIAGNOSIS_RELATED_CODE_LIMIT = 16;
+const DIAGNOSIS_ISSUE_LIMIT = 8;
+const DIAGNOSIS_DETAIL_LIMIT = 8;
+const utf8Bytes = (text) => Buffer.byteLength(text, "utf8");
+
+export function distillSelectedTestFailure(selection) {
+  const issues = Array.isArray(selection?.issues) ? selection.issues : [];
+  const frame = {
+    schema_version: VERIFY_PROOF_TEST_FAILURE_DIAGNOSIS_SCHEMA_VERSION,
+    status: selection?.status ?? "invalid",
+    ...(selection?.origin === undefined ? {} : { origin: { ...selection.origin } })
+  };
+
+  const issueFacts = { issues: issues.slice(0, DIAGNOSIS_ISSUE_LIMIT).map(({ path, reason }) => ({ path, reason })),
+    ...(issues.length <= DIAGNOSIS_ISSUE_LIMIT ? {} : { issues_omitted: issues.length - DIAGNOSIS_ISSUE_LIMIT }) };
+  const root = selection?.error;
+  if (frame.status !== "captured" || root === null || typeof root !== "object") {
+    return Object.freeze({ ...frame, ...issueFacts });
+  }
+  const retained = new Set();
+  const related = [];
+  const visit = (error, isRoot) => {
+    if (error === null || typeof error !== "object" || error.ref !== undefined) return;
+    if (!isRoot) related.push(error);
+    if (error.stack !== undefined) retained.add("stack");
+    if (error.native_details !== undefined) retained.add("native_details");
+    if (error.cause !== undefined) visit(error.cause, false);
+    for (const member of error.aggregate_errors ?? []) visit(member, false);
+    for (const field of ["expected", "actual", "value"]) {
+      if (error[field]?.type === "error") visit(error[field].error, false);
+    }
+  };
+  visit(root, true);
+  if (root.cause !== undefined) retained.add("cause");
+  if (root.aggregate_errors !== undefined) retained.add("aggregate_errors");
+  const error = {};
+  for (const field of ["name", "message", "code", "operator", "generated_message"]) {
+    const value = root[field];
+    if (value === undefined) continue;
+    const limit = field === "message" ? DIAGNOSIS_MESSAGE_INLINE_BYTES : DIAGNOSIS_IDENTITY_INLINE_BYTES;
+    if (typeof value !== "string" || utf8Bytes(value) <= limit) error[field] = value;
+    else {
+      error[`${field}_retained`] = { utf8_bytes: utf8Bytes(value) };
+      retained.add(field);
+    }
+  }
+  if (root.location !== undefined) error.location = { ...root.location };
+  for (const field of ["expected", "actual", "value"]) {
+    if (root[field] === undefined) continue;
+    error[field] = root[field].type === "error" ? { type: "error", deferred: true } : { ...root[field] };
+  }
+
+  if (Array.isArray(root.native_details)) {
+    error.native_details = root.native_details.slice(0, DIAGNOSIS_DETAIL_LIMIT)
+      .filter(({ label }) => typeof label === "string" && utf8Bytes(label) <= DIAGNOSIS_IDENTITY_INLINE_BYTES)
+      .map(({ label, text, utf8_bytes: bytes }) => ({ label, deferred: true,
+        utf8_bytes: typeof text === "string" ? utf8Bytes(text) : bytes }));
+  }
+  const codes = [...new Set(related.map(({ code }) => code).filter((code) =>
+    typeof code === "string" && utf8Bytes(code) <= DIAGNOSIS_IDENTITY_INLINE_BYTES))];
+  return Object.freeze({
+    ...frame,
+    error,
+    ...(related.length === 0 ? {} : { related_errors: {
+      count: related.length,
+      codes: codes.slice(0, DIAGNOSIS_RELATED_CODE_LIMIT),
+      codes_omitted: Math.max(0, codes.length - DIAGNOSIS_RELATED_CODE_LIMIT)
+    } }),
+    ...(retained.size === 0 ? {} : { retained_fields: [...retained].sort() }),
+    ...issueFacts
+  });
+}
+
+export function distillTestFailureDiagnostic(diagnostic) {
+  return distillSelectedTestFailure(projectSelectedTestFailureDiagnostic(diagnostic));
+}
+
 export function projectObservedIdentity(event) {
   if (!event || !TEST_ID_RE.test(event.test_id) ||
       (event.file !== null && typeof event.file !== "string") ||
@@ -201,6 +283,7 @@ export function projectPublicVerifyProofAggregate(result) {
       unproven: unsatisfied, not_executable: counts.not_executable, ready: counts.ready,
       nonready: counts.nonready, execution_not_started: counts.execution_not_started },
     proof_results: Object.freeze(proofResults),
+    ...(result.proof_opt_outs === undefined ? {} : { proof_opt_outs: structuredClone(result.proof_opt_outs) }),
     diagnostics: projectPublicDiagnostic(result.diagnostics ?? [], "diagnostics", redactions),
     diagnostic_redactions: redactions,
 
@@ -229,6 +312,14 @@ const SELECTED_JOIN_FACTS = Object.freeze(["join_kind", "arity", "owner_code", "
   "resolved_node_identity", "case_id"]);
 const isScalar = (value) => value === null || ["string", "number", "boolean"].includes(typeof value);
 
+const MISSING_SELECTION_IDENTITY = Object.freeze(["code", "obligation_id", "field"]);
+function missingSelectionFact(details) {
+  const fact = details?.missing_selection;
+  return fact !== null && typeof fact === "object" && !Array.isArray(fact) &&
+    MISSING_SELECTION_IDENTITY.every((key) => typeof fact[key] === "string")
+    ? Object.fromEntries(MISSING_SELECTION_IDENTITY.map((key) => [key, fact[key]])) : null;
+}
+
 function competingVerificationIds(entry) {
   const ids = entry?.details?.verification_ids;
   return Array.isArray(ids) && ids.every((id) => typeof id === "string") ? ids : null;
@@ -251,6 +342,11 @@ function selectedDiagnostic(entry, idLimit) {
       if (!Object.hasOwn(details, key) || !isScalar(details[key]) || Object.hasOwn(facts, key)) continue;
       facts[key] = details[key];
       published.add(key);
+    }
+    const missingSelection = missingSelectionFact(details);
+    if (missingSelection !== null) {
+      facts.missing_selection = missingSelection;
+      published.add("missing_selection");
     }
     if (Object.keys(details).some((key) => !published.has(key))) retained.push("details");
   } else if (Object.hasOwn(entry, "details") && !isScalar(entry.details)) retained.push("details");
@@ -289,7 +385,7 @@ function selectedTestFailure(proof) {
       diagnostic: event.failure_diagnostic === undefined
         ? { status: "not_captured",
           meaning: "the provider recorded no structured failure diagnostic for this test" }
-        : projectSelectedTestFailureDiagnostic(event.failure_diagnostic)
+        : distillTestFailureDiagnostic(event.failure_diagnostic)
     })
   };
 }
@@ -300,11 +396,43 @@ function selectedFailedRelationships(proof, subject) {
     (!byObligation || id === subject) && status !== "proven");
 }
 
+const CHECK_LIMITATION_PROPERTIES = Object.freeze({
+  body_not_single_scalar_return: 'The function body is not exactly one scalar literal return.',
+  return_not_scalar: 'The return is not a supported scalar literal.',
+  return_literal_unsupported: 'The returned expression is not a supported scalar literal.',
+  async_function_unsupported: 'The function is asynchronous.',
+  function_not_synchronous: 'The function is not synchronous.',
+  decorated_function_unsupported: 'The function is decorated.',
+  function_generic: 'The function is generic.'
+});
+
+export function projectProofCheckLimitations(proof) {
+  return (proof.observed_evidence?.capability_limitations ?? []).map(limitation => {
+    const member = limitation.check_kind === 'falsifier'
+      ? proof.observed_evidence?.falsifier_outcomes?.find(row => row.falsifier_id === limitation.check_id)
+      : undefined;
+    const mutation = member?.mutation;
+    const reason = limitation.detail?.reason;
+    return {
+      ...structuredClone(limitation),
+      ...(mutation?.strategy === undefined ? {} : { strategy: mutation.strategy }),
+      ...(mutation?.module_path === undefined ? {} : { module_path: mutation.module_path }),
+      ...(mutation?.function_name === undefined ? {} : { function_name: mutation.function_name }),
+      ...(CHECK_LIMITATION_PROPERTIES[reason] === undefined ? {} : {
+        explanation: CHECK_LIMITATION_PROPERTIES[reason] }),
+      next_step: 'Report this check’s capability limitation alongside the candidate outcome. ' +
+        'This result establishes no retry, waiver or production-code repair.'
+    };
+  });
+}
+
 function projectSelectedProof(proof, subject, ids) {
   const row = projectVerifyProofSummaryRow(proof);
   const byObligation = subject !== proof.test_proof_id;
   return {
     ...row,
+    ...(proof.observed_evidence?.capability_limitations?.length ? {
+      check_limitations: projectProofCheckLimitations(proof) } : {}),
 
     ...(proof.timing === undefined ? {} : { timing: structuredClone(proof.timing) }),
     obligations: row.obligations.filter(({ obligation_id: id }) => !byObligation || id === subject),

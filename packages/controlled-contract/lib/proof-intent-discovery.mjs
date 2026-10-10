@@ -2,17 +2,15 @@ import { readFileSync } from "node:fs";
 
 import { discoveryLimitation, discoverySourceIdentity } from "./proof-discovery-scope.mjs";
 
-import { compiledValidatorCacheAvailability, packagedCompiledValidators }
+import { packagedCompiledValidators }
   from "./compiled-validator-cache.mjs";
 import {
   PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR,
   ProofIntentDiscoveryError,
-  assertPackagedProofIntentMetadata,
-  deriveProofIntentDiscovery,
-  packagedDiscovery,
   normalizeProofIntentDiscoveryCatalog,
   normalizeSearchText,
-  readPackagedProofIntentMetadata,
+  capturePackagedProofIntentMetadata,
+  readProofIntentMetadataFileIdentity,
   validateProofIntentCatalog
 } from "./proof-intent-metadata.mjs";
 import { TEST_PROOF_PROVIDER_AUTHORING_FACTS } from "./test-proof-provider-registry.mjs";
@@ -83,27 +81,29 @@ function isProofIntentDiscoveryQueryWithinLimit(query) {
     Buffer.byteLength(query, "utf8") <= MAX_DISCOVERY_QUERY_BYTES;
 }
 
-const packagedMetadata = readPackagedProofIntentMetadata();
+const capturedMetadata = capturePackagedProofIntentMetadata();
+const packagedMetadata = capturedMetadata.document;
 const PROOF_INTENT_DISCOVERY_CATALOG = deepFreeze(structuredClone(packagedMetadata.discovery.catalog));
 const PROOF_INTENT_DISCOVERY_CATALOG_DIGEST = packagedMetadata.discovery.catalog_digest;
 
 const PROOF_VERIFICATION_CAPABILITIES = deepFreeze(structuredClone(
   packagedMetadata.discovery.verification_capabilities));
-if (compiledValidatorCacheAvailability().available) {
-  assertPackagedProofIntentMetadata("discovery", packagedMetadata.discovery,
-    packagedDiscovery(await deriveProofIntentDiscovery()));
-}
 const { validateProofIntentDiscoveryResult } = await packagedCompiledValidators(
   PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.groupId,
   PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.declaration,
   PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.directory,
   { rebuildCommand: PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.rebuildCommand });
+
+const runtimeSourceIdentity = (inputs, metadata) => ({ discovery: canonicalDigest({ inputs, metadata }) });
+const currentDiscoveryInputs = discoverySourceIdentity(PROOF_INTENT_DISCOVERY_CATALOG,
+  JSON.parse(readFileSync(new URL("../profiles/catalog.json", import.meta.url), "utf8")));
 const discoveryPopulation = Object.freeze({
   population: deepFreeze(structuredClone(packagedMetadata.discovery.population)),
-  sourceIdentity: deepFreeze(structuredClone(packagedMetadata.discovery.source_identity)),
+  sourceIdentity: deepFreeze(runtimeSourceIdentity(packagedMetadata.discovery.source_identity.discovery,
+    capturedMetadata.sha256)),
 
-  currentSourceIdentity: discoverySourceIdentity(PROOF_INTENT_DISCOVERY_CATALOG,
-    JSON.parse(readFileSync(new URL("../profiles/catalog.json", import.meta.url), "utf8")))
+  currentSourceIdentity: () => runtimeSourceIdentity(currentDiscoveryInputs().discovery,
+    readProofIntentMetadataFileIdentity())
 });
 
 function proofVerificationCapability(proofName) {
@@ -169,12 +169,14 @@ function prepareRequest(options) {
     "proof_intent_discovery_query_invalid",
     "search query must contain at least one letter or number after normalization"
   );
-  const queryTerms = sortedUnique(normalizedText.split(" "));
+  const queryTokens = normalizedText.split(" ");
+  const queryTerms = sortedUnique(queryTokens);
   const searchLimit = limit ?? MAX_DISCOVERY_RETURNED_INTENTS;
   return {
     mode: "search",
     query: { normalized_text: queryTerms.join(" "), terms: queryTerms },
     queryTerms,
+    queryTokens,
     limit: searchLimit
   };
 }
@@ -226,27 +228,47 @@ const inverseDocumentFrequency = (searchIndex, source, term) => Math.log(
 const PROVIDER_TERM_FAMILIES = new Map();
 for (const family of TEST_PROOF_PROVIDER_AUTHORING_FACTS) {
   for (const term of family.identity_terms.map(normalizeSearchText)) {
-    if (term.length === 0 || term.includes(" ")) continue;
+    if (term.length === 0) continue;
     PROVIDER_TERM_FAMILIES.set(term, sortedUnique([...(PROVIDER_TERM_FAMILIES.get(term) ?? []),
       family.family_id]));
   }
 }
+const PROVIDER_TERM_MAX_TOKENS = Math.max(...[...PROVIDER_TERM_FAMILIES.keys()]
+  .map(term => term.split(" ").length));
 
-function providerContext(queryTerms) {
-  const providerTerms = (queryTerms ?? []).filter(term => PROVIDER_TERM_FAMILIES.has(term));
+function providerSpans(queryTokens) {
+  const providerTerms = [];
+  const propertyTokens = [];
+  for (let position = 0; position < queryTokens.length;) {
+    let matched = null;
+    for (let length = Math.min(PROVIDER_TERM_MAX_TOKENS, queryTokens.length - position); length > 0; length--) {
+      const term = queryTokens.slice(position, position + length).join(" ");
+      if (PROVIDER_TERM_FAMILIES.has(term)) { matched = { term, length }; break; }
+    }
+    if (matched === null) { propertyTokens.push(queryTokens[position]); position += 1; continue; }
+    providerTerms.push(matched.term);
+    position += matched.length;
+  }
+  return { providerTerms: sortedUnique(providerTerms), propertyTerms: sortedUnique(propertyTokens) };
+}
+
+function providerContext(queryTokens) {
+  const { providerTerms, propertyTerms } = providerSpans(queryTokens ?? []);
   const families = providerTerms.length === 0 ? [] : providerTerms
     .map(term => PROVIDER_TERM_FAMILIES.get(term))
     .reduce((left, right) => left.filter(family => right.includes(family)));
   return {
-    status: providerTerms.length === 0 ? "unspecified" : families.length === 1 ? "identified" :
-      families.length === 0 ? "conflicting" : "ambiguous",
-    provider_terms: providerTerms,
-    families
+    context: {
+      status: providerTerms.length === 0 ? "unspecified" : families.length === 1 ? "identified" :
+        families.length === 0 ? "conflicting" : "ambiguous",
+      provider_terms: providerTerms,
+      families
+    },
+    propertyTerms
   };
 }
 
-function searchCandidate(candidate, index, queryTerms, providerTerms, searchIndex) {
-  const propertyTerms = queryTerms.filter(term => !providerTerms.includes(term));
+function searchCandidate(candidate, index, propertyTerms, providerTerms, searchIndex) {
   const reasons = searchableSources(candidate).map(source => ({ ...source,
     matched_terms: propertyTerms.filter(term => normalizeSearchText(source.source_value).split(" ").includes(term))
   })).filter(source => source.matched_terms.length);
@@ -267,9 +289,10 @@ function searchCandidate(candidate, index, queryTerms, providerTerms, searchInde
 }
 
 function rankProofIntentCandidates(population, { queryTerms, providerTerms = [], limit = null,
+  propertyTerms = queryTerms.filter(term => !providerTerms.includes(term)),
   searchIndex = createProofIntentSearchIndex(population) }) {
   const matches = population.map((candidate, index) => {
-    const ranking = searchCandidate(candidate, index, queryTerms, providerTerms, searchIndex);
+    const ranking = searchCandidate(candidate, index, propertyTerms, providerTerms, searchIndex);
     if (ranking === null) return null;
     const { intents, ...scope } = candidate;
     return { ...scope, matching_assertion: scope.assertion,
@@ -307,23 +330,27 @@ function canonicalProofIntentDiscoveryJson(result) {
   return bytes.toString("utf8");
 }
 
+function readProofDiscoverySourceIdentity() {
+  return discoveryPopulation.currentSourceIdentity();
+}
+
 function discoverProofIntentsInternal(options, unexpectedArguments, { completeSearch }) {
   const prepared = prepareRequest(validateOptions(options, unexpectedArguments));
   const request = completeSearch && prepared.mode === "search"
     ? { ...prepared, limit: null } : prepared;
   const population = discoveryPopulation;
-  const current = population.currentSourceIdentity();
+  const current = readProofDiscoverySourceIdentity();
   if (canonicalDigest(current) !== canonicalDigest(population.sourceIdentity)) {
     throw new ProofIntentDiscoveryError("proof_discovery_source_changed",
       "The loaded discovery definitions changed; reload the package/server before fresh discovery.",
       { changed: false, source_identity: current });
   }
-  const provider = providerContext(request.queryTerms);
-  const propertySearch = request.mode === "search" &&
-    provider.provider_terms.length < request.queryTerms.length;
+  const { context: provider, propertyTerms } = providerContext(request.queryTokens);
+  const propertySearch = request.mode === "search" && propertyTerms.length > 0;
   let matches = propertySearch ? rankProofIntentCandidates(population.population, {
     queryTerms: request.queryTerms,
     providerTerms: provider.provider_terms,
+    propertyTerms,
     limit: null,
     searchIndex: productionSearchIndex
   }) : population.population.map(candidate => {
@@ -389,6 +416,7 @@ export {
   proofIntentDiscoveryQueryCause,
   proofVerificationCapability,
   rankProofIntentCandidates,
+  readProofDiscoverySourceIdentity,
   validateProofIntentCatalog,
   validateProofIntentDiscoveryResult
 };

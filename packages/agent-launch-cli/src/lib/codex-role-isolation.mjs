@@ -7,6 +7,7 @@ import {
   LAUNCHER_UNSANDBOXED_OPT_IN_ENV_KEY,
   resolveLauncherPaidNodeEngineEnforcementPosture
 } from "@agent-chassis/agent-launch-core/src/lib/config.mjs";
+import { PROXY_ENVIRONMENT_NAMES } from "@agent-chassis/agent-launch-core/src/lib/proxy-environment.mjs";
 
 import { DEFAULT_SYSTEM_READ_ONLY_ROOTS } from "./launch-isolation.mjs";
 import { resolveLauncherOwnedHostHome } from "./launcher-runtime-home-policy.mjs";
@@ -83,7 +84,8 @@ export const CODEX_ROLE_FORWARDED_ENV_ALLOWLIST = Object.freeze([
   "AGENT_ROLE",
   "AGENT_IN",
   "AGENT_WK",
-  "AGENT_SUBJECT"
+  "AGENT_SUBJECT",
+  ...PROXY_ENVIRONMENT_NAMES
 ]);
 
 export const CODEX_BWRAP_ENV_POLICY = Object.freeze({

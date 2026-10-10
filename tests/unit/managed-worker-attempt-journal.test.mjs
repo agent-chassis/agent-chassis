@@ -535,3 +535,135 @@ test("last recorded invocation forwards, omits or refuses a deficient outcome su
   events = eventsBeforeDeficient;
   assert.equal(page().ok, true, "the current population remains readable");
 });
+
+test("delivery receipts preserve election and reject changed producer bindings", async () => {
+  const { projectManagedAttemptObservations } = await import(
+    "../../packages/agent-launch-core/src/lib/managed-run-observation.mjs");
+  const dispatchTuple = { ...tuple("wkdb_0123456789abcdef"), launch_ref: "wkmh_0123456789abcdef" };
+  let events = buildPrefix([ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED]);
+  events = admitAttemptCommand({ repository: REPO, subject: SUBJECT, events, attempt: tuple(),
+    kind: ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED, payload: { dispatch_tuple: dispatchTuple } }).events;
+  const receipt = { repository: REPO, unit: SUBJECT, producer: "workspace_deliver_work",
+    producer_tuple: { launch_ref: dispatchTuple.launch_ref, run_id: `${dispatchTuple.run_id}.slice`, retry_id: 0 },
+    source: { digest: GENERATION, version: "work-record.v1" },
+    delivery: { commit: "c".repeat(40), base: WK_TIP },
+    result: { ref_id: "resp-delivery-1", sha256: "d".repeat(64) },
+    storage: { state_dir: "/host/worker-response-state" } };
+  const record = (value, dispatch = dispatchTuple) => admitAttemptCommand({ repository: REPO,
+    subject: SUBJECT, events, attempt: tuple(), kind: ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED,
+    payload: { dispatch_tuple: dispatch, invocation_id: receipt.result.ref_id, receipt: value } });
+  const before = reduce(events);
+  const priorProjection = projectManagedAttemptObservations({ repository: REPO, subject: SUBJECT, events });
+  const admitted = record(receipt);
+  assert.equal(admitted.admitted, true);
+  events = admitted.events;
+  assert.deepEqual(reduce(events).next_command, before.next_command);
+  assert.deepEqual(reduce(events).reservation, before.reservation);
+  const projected = projectManagedAttemptObservations({ repository: REPO, subject: SUBJECT, events });
+  assert.equal(projected.ok, true);
+  assert.deepEqual(projected.attempts[0].delivery_receipts[0].receipt, receipt);
+  assert.equal(projected.attempts[0].last_lifecycle_kind, priorProjection.attempts[0].last_lifecycle_kind);
+  assert.equal(record(receipt).appended, false);
+  for (const replacement of [
+    { ...receipt, producer: "start_agent" }, { ...receipt, unit: OTHER_SUBJECT },
+    { ...receipt, producer_tuple: { ...receipt.producer_tuple, retry_id: 1 } },
+    { ...receipt, producer_tuple: { ...receipt.producer_tuple, launch_ref: "foreign" } },
+    { ...receipt, result: { ...receipt.result, sha256: "wrong" } },
+    { ...receipt, storage: { state_dir: "caller-relative" } },
+    { ...receipt, storage: { ...receipt.storage, selector: "extra" } }
+  ]) assert.equal(record(replacement).admitted, false);
+  assert.equal(record(receipt, { ...dispatchTuple, run_id: "foreign-attempt" }).admitted, false);
+});
+
+test("recorded run originals bind one immutable result without lifecycle effects", async () => {
+  const { selectManagedAttempt } = await import("../../packages/agent-launch-core/src/lib/managed-run-observation.mjs");
+  const kinds = ATTEMPT_EVENT_KINDS, dispatch = tuple("original-attempt");
+  let events = buildPrefix([kinds.RESERVATION_CLAIMED]);
+  const append = (kind, payload, attempt = tuple()) => admitAttemptCommand({ repository: REPO,
+    subject: SUBJECT, events, attempt, kind, payload });
+  events = append(kinds.PENDING_PUBLISHED, { dispatch_tuple: dispatch }).events;
+  const result = { outcome: "failed", text: "Complete failure 原始🙂".repeat(600), nested: { code: "F" } };
+  const original = { dispatch_tuple: dispatch, result_digest: digestOf(result),
+    original_result: { ref_id: "resp-original-F", sha256: "c".repeat(64) } };
+  assert.equal(append(kinds.RUN_ORIGINAL_RECORDED, original).refusal.code,
+    ATTEMPT_JOURNAL_REFUSALS.ILLEGAL_TRANSITION);
+  const beforeResult = events;
+  events = append(kinds.RUN_RESULT_RECORDED, { dispatch_tuple: dispatch, result_digest: digestOf(result), result }).events;
+  const before = reduce(events), recorded = events;
+  const bound = append(kinds.RUN_ORIGINAL_RECORDED, original);
+  assert.equal(bound.appended, true);
+  events = bound.events;
+  assert.equal(append(kinds.RUN_ORIGINAL_RECORDED, structuredClone(original)).appended, false);
+  const lifecycle = value => JSON.parse(JSON.stringify(value, (key, field) =>
+    ["event_count", "history_total", "terminal_digest"].includes(key) ? undefined : field));
+  assert.deepEqual(lifecycle(reduce(events)), lifecycle(before),
+    "binding changes no lifecycle, reservation, release or election fact");
+  const selected = selectManagedAttempt({ repository: REPO, subject: SUBJECT, events, attemptId: dispatch.run_id });
+  assert.deepEqual(selected.selected.original_result, original.original_result);
+  assert.deepEqual(selected.selected.result, result);
+  assert.equal(selected.selected.last_lifecycle_kind, kinds.RESERVATION_CLAIMED);
+  assert.equal(selected.selected.released, false);
+  const rechain = source => source.map((event, index, rows) => {
+    event.sequence = index; event.prior_digest = index === 0 ? null : rows[index - 1].digest;
+    const { digest, ...unsigned } = event; event.digest = digestOf(unsigned); return event;
+  });
+  const defects = [
+    value => { value.extra = true; },
+    value => { delete value.original_result; },
+    value => { value.original_result.extra = true; },
+    value => { value.original_result.ref_id = ""; },
+    value => { value.original_result.ref_id = "../foreign"; },
+    value => { value.original_result.ref_id = "a".repeat(201); },
+    value => { value.original_result.ref_id = ["resp-original-F"]; },
+    value => { value.original_result.sha256 = "invalid"; },
+    value => { value.original_result.sha256 = ["c".repeat(64)]; },
+    value => { value.original_result = null; },
+    value => { value.result_digest = "sha256:wrong"; },
+    ...["assigned_unit", "launch_ref", "run_id", "retry_id"].map(field => value => {
+      value.dispatch_tuple[field] = field === "retry_id" ? 9 : "foreign";
+    })
+  ];
+  for (const mutate of defects) {
+    const altered = structuredClone(original); mutate(altered);
+    assert.equal(append(kinds.RUN_ORIGINAL_RECORDED, altered).admitted, false);
+    const journal = structuredClone(events); journal.at(-1).payload = altered;
+    assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT, events: rechain(journal) }).valid, false,
+      "recomputed digest does not authorize a contradictory original");
+  }
+  for (const field of ["ref_id", "sha256"]) {
+    const conflicting = structuredClone(original);
+    conflicting.original_result[field] = field === "ref_id" ? "resp-second-original" : "d".repeat(64);
+    assert.equal(append(kinds.RUN_ORIGINAL_RECORDED, conflicting).admitted, false);
+    const second = structuredClone(bound.event); second.payload = conflicting;
+    assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT,
+      events: rechain([...structuredClone(events), second]) }).valid, false);
+  }
+  const corrupt = structuredClone(events); corrupt.at(-1).payload.original_result.ref_id = "resp-tampered";
+  assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT, events: corrupt }).refusal.code,
+    ATTEMPT_JOURNAL_REFUSALS.DIGEST_MISMATCH);
+  const outOfOrder = rechain([...structuredClone(beforeResult), structuredClone(bound.event)]);
+  assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT, events: outOfOrder }).refusal.code,
+    ATTEMPT_JOURNAL_REFUSALS.ILLEGAL_TRANSITION);
+  const changedResult = structuredClone(recorded.at(-1)); changedResult.payload.result.text = "S";
+  changedResult.payload.result_digest = digestOf(changedResult.payload.result);
+  assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT,
+    events: rechain([...structuredClone(events), changedResult]) }).valid, false, "later result cannot invalidate an earlier binding");
+  const changedBinding = structuredClone(beforeResult.at(-1)); changedBinding.payload.dispatch_tuple.retry_id = 99;
+  assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT,
+    events: rechain([...structuredClone(events), changedBinding]) }).valid, false,
+    "later pending bytes cannot retarget an already bound original");
+  events = append(kinds.ATTEMPT_TERMINAL, { reason: "completed" }).events;
+  events = append(kinds.RESERVATION_RELEASED, { reason: "completed" }).events;
+  assert.equal(append(kinds.RUN_ORIGINAL_RECORDED, original).appended, false);
+  const released = selectManagedAttempt({ repository: REPO, subject: SUBJECT, events, attemptId: dispatch.run_id });
+  assert.equal(released.selected.released, true);
+  assert.equal(released.selected.last_lifecycle_kind, kinds.RESERVATION_RELEASED);
+  let unboundReleased = events.filter(event => event.kind !== kinds.RUN_ORIGINAL_RECORDED);
+  unboundReleased = rechain(structuredClone(unboundReleased));
+  assert.equal(admitAttemptCommand({ repository: REPO, subject: SUBJECT, events: unboundReleased,
+    attempt: tuple(), kind: kinds.RUN_ORIGINAL_RECORDED, payload: original }).appended, true);
+  const other = buildPrefix([kinds.RESERVATION_CLAIMED], { subject: OTHER_SUBJECT,
+    attempt: { ...tuple(), assigned_unit: OTHER_SUBJECT } });
+  assert.equal(reduceAttemptJournal({ repository: REPO, subject: OTHER_SUBJECT, events: other }).refusal, null,
+    "original corruption is partition-local");
+});

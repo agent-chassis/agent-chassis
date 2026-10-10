@@ -9,15 +9,16 @@ import { TEST_RUNTIME_RUNNER_CATALOG, testProofProviderFamily } from
   "@agent-chassis/controlled-contract/test-proof";
 
 import { DEFAULT_SYSTEM_READ_ONLY_ROOTS } from "../launch-isolation-executable.mjs";
+import { discoverRepositoryEnvironments } from "../test-runtime-setup/discovery.mjs";
 import { ATTEMPT_SCRATCH_ROOT, DEPENDENCY_ECOSYSTEMS } from "../test-runtime-setup/ecosystems.mjs";
 import {
   TEST_RUNTIME_READINESS_CODES,
-  loadReadiness,
+  loadExecutionConfiguration,
   readinessRecovery,
-  resolveReadyEnvironmentInputs,
-  runnerNotProvedStatement,
-  resolveReadyRunnerInputs
+  resolveCurrentEnvironmentInputs,
+  resolveCurrentRunnerInputs
 } from "../test-runtime-setup/readiness.mjs";
+import { TestRuntimeSetupError, resolveConfiguredExecutable } from "../test-runtime-setup/toolchains.mjs";
 
 export const ATTEMPT_HOME = `${ATTEMPT_SCRATCH_ROOT}/home`;
 export const ATTEMPT_WORK_ROOT = `${ATTEMPT_SCRATCH_ROOT}/work`;
@@ -189,8 +190,7 @@ function composeRuntimeInputs(ready, { repositoryRoot = null, workProjectDir, sc
     }
     const roots = toolchain.root && !isUnderSystemRoot(toolchain.root) ? [toolchain.root] : [];
     for (const root of roots) toolchainBinds.push({ src: root, dst: root, toolchain: name });
-    toolchainIdentity[name] = { version: toolchain.version, source: toolchain.source,
-      content_digest: toolchain.content_digest };
+    toolchainIdentity[name] = ready.provenance.toolchains[name];
   }
   const ecosystem = DEPENDENCY_ECOSYSTEMS[ready.preparation.ecosystem];
 
@@ -235,33 +235,45 @@ function composeRuntimeInputs(ready, { repositoryRoot = null, workProjectDir, sc
     projectDir: ready.projectDir,
     environment: ready.environment,
     preparation: ready.preparation,
+
     identity: Object.freeze({
-      readiness_digest: ready.readiness_digest,
+      readiness_digest: ready.readiness_digest ?? null,
+      ...(ready.record_status === "ready" ? {} : { configuration_record_status: ready.record_status }),
       environment: ready.environment.id,
       toolchains: toolchainIdentity,
-      dependencies: Object.freeze({
-        ecosystem: ready.preparation.ecosystem,
-        status: ready.preparation.status,
-        source: ready.preparation.source ?? null,
-        inputs_digest: ready.preparation.inputs_digest,
-        content_digest: ready.preparation.content_digest ?? null
-      })
+      dependencies: ready.provenance.dependencies
     })
   });
 }
 
+export function configuredExecutableFailure(runtime, command) {
+  const owner = Object.entries(runtime.toolchains ?? {}).find(([, toolchain]) =>
+    Object.values(toolchain.executables ?? {}).includes(command))?.[0] ??
+    (command === runtime.values?.python ? "python" : null);
+  if (owner === null) return null;
+  try {
+    resolveConfiguredExecutable(owner, command);
+    return null;
+  } catch (error) {
+    if (!(error instanceof TestRuntimeSetupError)) throw error;
+    return Object.freeze({ ok: false, code: error.code, message: error.message,
+      detail: { ...error.detail, authority_limb: "mechanical" }, recovery: readinessRecovery() });
+  }
+}
+
 export function resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot, descriptor, project,
-  candidateRecord = null, workProjectDir = null, scratchRoot = ATTEMPT_SCRATCH_ROOT, compilerCache = false }) {
-  const ready = resolveReadyRunnerInputs({ repositoryRoot, checkoutRoot, descriptor, project,
-    candidateRecord });
+  candidateRecord = null, located = null, workProjectDir = null, scratchRoot = ATTEMPT_SCRATCH_ROOT,
+  compilerCache = false }) {
+  const ready = resolveCurrentRunnerInputs({ repositoryRoot, checkoutRoot, descriptor, project,
+    candidateRecord, located });
   if (!ready.ok) return ready;
   return composeRuntimeInputs(ready, { repositoryRoot, workProjectDir, scratchRoot, compilerCache });
 }
 
 export function resolveEnvironmentRuntimeInputs({ repositoryRoot, checkoutRoot, ecosystem, project,
-  candidateRecord = null, workProjectDir = null, scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
-  const ready = resolveReadyEnvironmentInputs({ repositoryRoot, checkoutRoot, ecosystem, project,
-    candidateRecord });
+  candidateRecord = null, located = null, workProjectDir = null, scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
+  const ready = resolveCurrentEnvironmentInputs({ repositoryRoot, checkoutRoot, ecosystem, project,
+    candidateRecord, located });
   if (!ready.ok) return ready;
   return composeRuntimeInputs(ready, { workProjectDir, scratchRoot });
 }
@@ -291,103 +303,71 @@ function routeFailure(code, message, detail, recovery) {
     detail, recovery }) });
 }
 
-function unrecordedInstallationRoot({ checkoutRoot, environment, target, record }) {
-  const ecosystem = DEPENDENCY_ECOSYSTEMS[environment.ecosystem];
-  const recorded = new Set((record.environments ?? []).filter((entry) =>
-    entry.ecosystem === environment.ecosystem).map(({ project }) => project));
-  const members = new Set(environment.members.map((member) =>
-    environment.project === "." ? member : `${environment.project}/${member}`));
-  for (let directory = path.posix.dirname(target); directory !== "." && directory !== environment.project;
-    directory = path.posix.dirname(directory)) {
-    if (!contains(environment.project, directory) || recorded.has(directory) || members.has(directory)) continue;
-    let declared;
-    try {
-      declared = ecosystem.manifests(path.join(checkoutRoot, directory));
-    } catch {
-      declared = null;
-    }
-    if (declared?.status === "present") return directory;
-  }
-  return null;
+function declaredEnvironment(declared, runner) {
+  return Object.freeze({ id: declared.id, ecosystem: declared.ecosystem, project: declared.project,
+    members: declared.members, runners: Object.freeze([]),
+    toolchains: Object.freeze([...new Set([...DEPENDENCY_ECOSYSTEMS[declared.ecosystem].toolchains,
+      ...(runner.toolchains ?? [])])].sort()) });
 }
 
 export function resolveProofEnvironment({ repositoryRoot, checkoutRoot = repositoryRoot, target, runner,
-  environment = null }) {
-  const loaded = loadReadiness(repositoryRoot);
+  environment = null, unconfigured = "discover" }) {
+  const loaded = loadExecutionConfiguration(repositoryRoot);
   const recovery = readinessRecovery();
   const route = { requested_environment: environment, runner: runner.runner_id,
     suffix_ecosystems: suffixEcosystems(target) };
-  if (!loaded.ok) {
-    if (loaded.code !== TEST_RUNTIME_READINESS_CODES.NOT_READY) {
-      return { configured: true, ok: false, failure: loaded };
-    }
-    return environment === null ? { configured: false, failure: loaded }
-      : routeFailure(TEST_RUNTIME_READINESS_CODES.ENVIRONMENT_UNKNOWN,
-        `no prepared environment ${environment} is published for this repository`,
-        { ...route, target, prepared_environments: [] }, recovery);
+  const ecosystem = runner.dependency_ecosystem;
+  const published = loaded.configuration.environments ?? [];
+  if (published.length === 0 && unconfigured === "launcher" && environment === null) {
+    return { configured: false, failure: null };
   }
-  const { record } = loaded;
-  const environments = record.environments ?? [];
-  const applicable = environments.filter((entry) => entry.ecosystem === runner.dependency_ecosystem &&
-    entry.runners.includes(runner.runner_id) && contains(entry.project, target));
+
+  const declared = discoverRepositoryEnvironments(checkoutRoot, TEST_RUNTIME_RUNNER_CATALOG.runners,
+    { targets: [target] });
+  const declaredOwning = declared.filter((entry) => entry.ecosystem === ecosystem &&
+    contains(entry.project, target));
+  const owning = published.filter((entry) => entry.ecosystem === ecosystem && contains(entry.project, target));
+  const applicable = [...new Set([...owning, ...declaredOwning].map(({ id }) => id))].sort();
   let selected;
   if (environment !== null) {
-    selected = environments.find(({ id }) => id === environment) ?? null;
+    selected = published.find(({ id }) => id === environment) ?? null;
+    if (selected === null) {
+
+      const named = declared.find(({ id }) => id === environment) ?? null;
+      if (named !== null) selected = declaredEnvironment(named, runner);
+    }
     if (selected === null) {
       return routeFailure(TEST_RUNTIME_READINESS_CODES.ENVIRONMENT_UNKNOWN,
-        `no prepared environment ${environment} is published for this repository`,
-        { ...route, target, prepared_environments: environments.map(({ id }) => id),
-          valid_choices: applicable.map(({ id }) => id) }, recovery);
+        `no environment ${environment} is published or declared by this checkout`,
+        { ...route, target, prepared_environments: published.map(({ id }) => id), valid_choices: applicable },
+        recovery);
     }
-    const reason = selected.ecosystem !== runner.dependency_ecosystem ? "ecosystem_mismatch"
-      : !selected.runners.includes(runner.runner_id) ? "runner_not_proved"
-        : !contains(selected.project, target) ? "target_outside_environment" : null;
+    const reason = selected.ecosystem !== ecosystem ? "ecosystem_mismatch"
+      : !contains(selected.project, target) ? "target_outside_environment" : null;
     if (reason !== null) {
       return routeFailure(TEST_RUNTIME_READINESS_CODES.ENVIRONMENT_INCOMPATIBLE,
-        `prepared environment ${environment} cannot run ${runner.runner_id} for ${target}: ${reason}`,
-        { ...route, target, reason, environment_runners: selected.runners,
-          valid_choices: applicable.map(({ id }) => id) }, recovery);
+        `environment ${environment} cannot run ${runner.runner_id} for ${target}: ${reason}`,
+        { ...route, target, reason, environment_runners: selected.runners, valid_choices: applicable }, recovery);
     }
   } else {
-    const project = selectContainingProject(environments.filter((entry) =>
-      entry.ecosystem === runner.dependency_ecosystem).map(({ project: root }) => root), target);
+    const project = selectContainingProject([...owning, ...declaredOwning].map(({ project: root }) => root),
+      target);
     if (project === null) return { configured: false, failure: null };
-    selected = environments.find((entry) => entry.ecosystem === runner.dependency_ecosystem &&
-      entry.project === project);
-
-    const nearer = unrecordedInstallationRoot({ checkoutRoot, environment: selected, target, record });
-    if (nearer !== null) {
-      return routeFailure(TEST_RUNTIME_READINESS_CODES.INVENTORY_STALE,
-        `${nearer} declares its own ${selected.ecosystem} dependencies but was not inventoried by setup`,
-        { ...route, target, environment: selected.id, unrecorded_project: nearer }, recovery);
-    }
-    if (!selected.runners.includes(runner.runner_id)) {
-      return routeFailure(TEST_RUNTIME_READINESS_CODES.RUNNER_NOT_PREPARED,
-        `environment ${selected.id} owns ${target} but did not prove ${runner.runner_id}`,
-        { ...route, target, environment: selected.id, environment_runners: selected.runners,
-          valid_choices: applicable.map(({ id }) => id) },
-        readinessRecovery(runnerNotProvedStatement(runner, selected.project)));
-    }
-  }
-  const added = unrecordedInstallationRoot({ checkoutRoot, environment: selected, target, record });
-  if (added !== null) {
-    return routeFailure(TEST_RUNTIME_READINESS_CODES.INVENTORY_STALE,
-      `${added} declares its own ${selected.ecosystem} dependencies but was not inventoried by setup`,
-      { ...route, target, environment: selected.id, unrecorded_project: added }, recovery);
+    selected = owning.find((entry) => entry.project === project) ??
+      declaredEnvironment(declaredOwning.find((entry) => entry.project === project), runner);
   }
   return Object.freeze({ configured: true, ok: true, project: selected.project,
-    environment: selected, applicable: Object.freeze(applicable.map(({ id }) => id)), route: Object.freeze({ ...route, environment: selected.id,
+    environment: selected, published: published.includes(selected), applicable: Object.freeze(applicable),
+    route: Object.freeze({ ...route, environment: selected.id,
       basis: environment === null ? "saved_runner_binding_and_project_ownership" : "named_environment" }) });
 }
 
-export function resolveConfiguredPytestRuntime({ repositoryRoot, checkoutRoot, target, runner,
-  environment = null }) {
-  const located = resolveProofEnvironment({ repositoryRoot, checkoutRoot, target, runner, environment });
+export function configuredPytestRuntime({ located, runtime }) {
   if (!located.configured) return { configured: false };
   if (!located.ok) return located;
-  const runtime = resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot, descriptor: runner,
-    project: located.project });
   if (!runtime.ok) return { configured: true, ok: false, failure: runtime };
+  const unavailable = configuredExecutableFailure(runtime, runtime.executables.python);
+  if (unavailable !== null) return { configured: true, ok: false, failure: unavailable };
   return { configured: true, ok: true, project: located.project, route: located.route,
     interpreter: runtime.executables.python, readiness_digest: runtime.identity.readiness_digest,
     toolchains: runtime.identity.toolchains, dependencies: runtime.identity.dependencies,

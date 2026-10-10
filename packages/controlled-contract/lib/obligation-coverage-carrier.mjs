@@ -1,4 +1,6 @@
 import { compiledValidators } from "./compiled-validator-cache.mjs";
+import { PROOF_NAME_INPUT_SCHEMA } from "./proof-discovery-task.mjs";
+import { adaptRawSchemaDiagnostic } from "./bounded-diagnostic-projection.mjs";
 
 import OBLIGATION_COVERAGE_SCHEMA from
   "../schema/resolved-obligation-coverage.v1.schema.json" with { type: "json" };
@@ -37,8 +39,8 @@ export const PROOF_AUTHORING_FIELD_SCHEMAS = deepFreeze({
     const schema = property.$ref ? OBLIGATION_DRAFT_SCHEMA.$defs[property.$ref.split('/').at(-1)] : property;
     return [key, key === 'mechanism' ? { anyOf: [schema, { type: 'null' }] } : schema];
   })),
-  proof_name: { type: 'string', minLength: 1, description: 'Exact proof catalog entry name, not a ' +
-    'title or case ID; see workspace_controlled_proof_intents_discover. Unknown names refuse.' },
+  proof_name: { ...PROOF_NAME_INPUT_SCHEMA, description: 'Exact proof catalog entry name, not a ' +
+    'title or case ID; see workspace_find_proofs. Unknown names refuse.' },
   parameters: { type: 'object', additionalProperties: true },
   clear_parameters: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
   refresh_proof_version: { const: true },
@@ -71,12 +73,10 @@ const { validateSchema } = await compiledValidators(
   { schemas: [OBLIGATION_DRAFT_SCHEMA], validators: { validateSchema: OBLIGATION_COVERAGE_SCHEMA } }
 );
 
-function schemaDiagnostics(validator = validateSchema) {
-  return (validator.errors ?? []).map((error) => ({
-    code: "obligation_coverage_schema_invalid",
-    pointer: error.instancePath || "/",
-    keyword: error.keyword,
-    message: error.message ?? "obligation coverage schema validation failed"
+function schemaDiagnostics(validator, document) {
+  return (validator.errors ?? []).map((error) => adaptRawSchemaDiagnostic(error, {
+    code: "obligation_coverage_schema_invalid", document,
+    message: "obligation coverage schema validation failed"
   })).sort((left, right) =>
     compareCodeUnits(left.pointer, right.pointer) ||
     compareCodeUnits(left.keyword, right.keyword) ||
@@ -189,7 +189,7 @@ function validateObligationCoverageCarrier(carrier) {
       message: "Resolve the authored draft before reading complete mapping fields" }]
   });
   const schemaValid = validateSchema(carrier);
-  const schemaErrors = schemaValid ? [] : schemaDiagnostics();
+  const schemaErrors = schemaValid ? [] : schemaDiagnostics(validateSchema, carrier);
   const diagnostics = schemaValid ? semanticDiagnostics(carrier) : [];
   const valid = schemaValid && diagnostics.length === 0;
   return deepFreeze({
@@ -274,7 +274,7 @@ function validateObligationCoverageDraft(carrier) {
   }
   const valid = schemaValid && diagnostics.length === 0;
   return deepFreeze({ schema_valid: schemaValid, schema_errors: jsonValid && !schemaValid
-    ? schemaDiagnostics(validateDraftSchema) : [], diagnostics, valid,
+    ? schemaDiagnostics(validateDraftSchema, carrier) : [], diagnostics, valid,
     carrier: valid ? structuredClone(carrier) : null });
 }
 

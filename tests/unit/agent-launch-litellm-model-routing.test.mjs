@@ -155,6 +155,36 @@ test("an explicit --model override selects its model first, then that model's ro
   }
 });
 
+test("Gemini 3.8 Flash resolves through the shipped Vertex route for every Codex role", (t) => {
+  const model = "vertex-gemini-3.8-flash";
+  const config = [
+    KEY_TABLE,
+    `[models."${model}"]`, "use_litellm = true",
+    ...["worker", "reviewer", "redteam", "orchestrator"].flatMap((role) => [
+      `[roles.${role}]`, `model = "${model}"`,
+      `effort = "${role === "worker" ? "medium" : "high"}"`
+    ])
+  ].join("\n");
+  const dir = repoWithConfig(t, config);
+  for (const role of CODEX_ROLES) {
+    const resolved = resolveLauncherProfile({ role, env: {}, dir });
+    assert.equal(resolved.ok, true, JSON.stringify(resolved));
+    const selection = resolved.value.model_selection;
+    assert.equal(selection.model, model);
+    assert.equal(selection.app, "codex");
+    assert.equal(selection.effort, role === "worker" ? "medium" : "high");
+    assert.equal(selection.route.kind, MODEL_ROUTE_KINDS.LITELLM);
+    assert.equal(selection.route.upstream_model, "vertex_ai/gemini-3.8-flash");
+    assert.equal(selection.route.gateway.vertex_location, "global");
+    assert.ok(selection.route.gateway_routes.some((route) =>
+      route.model === model && route.upstream === "vertex_ai/gemini-3.8-flash"));
+  }
+  const missingKey = parseAgentLaunchRoleConfigSource(`[models."${model}"]\nuse_litellm = true`);
+  const refusal = resolveRoleModelSelection({ role: "worker", model, snapshot: missingKey });
+  assert.equal(refusal.ok, false);
+  assert.equal(refusal.reason, "model_route_vertex_credentials_undeclared");
+});
+
 test("the MCP dispatch funnel returns the identical frozen selection for dispatched roles", (t) => {
   const dir = repoWithConfig(t, ROUTED_CONFIG);
   for (const role of ["worker", "reviewer", "redteam"]) {
@@ -287,7 +317,8 @@ test("only a declared Vertex mapping can be routed, and the gateway serves exact
 
   assert.deepEqual(liteLlmGatewayRoutes(), [
     { model: "vertex-claude-opus-5-5", upstream: "vertex_ai/claude-opus-5-5" },
-    { model: "vertex-claude-sonnet-5-5", upstream: "vertex_ai/claude-sonnet-5-5" }
+    { model: "vertex-claude-sonnet-5-5", upstream: "vertex_ai/claude-sonnet-5-5" },
+    { model: "vertex-gemini-3.8-flash", upstream: "vertex_ai/gemini-3.8-flash" }
   ]);
   const undeclared = resolveRoleModelSelection({ role: "worker", model: ROUTED_MODEL, snapshot });
   assert.equal(undeclared.ok, false);

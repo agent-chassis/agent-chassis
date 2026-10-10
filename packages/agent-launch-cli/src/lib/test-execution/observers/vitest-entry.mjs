@@ -11,10 +11,10 @@ const config = loadConfig(process.argv[2]);
 const channel = createChannel(config, "vitest.entry");
 const moduleCache = config.runner_options?.module_cache ?? null;
 try {
-  const { vitest, version } = await loadProjectVitest();
+  const { vitest, version } = await loadProjectVitest(config);
   channel.emit("session_start", { runner: { name: "vitest", version } });
 
-  const route = await resolveLauncherVitest({ vitest, moduleCache });
+  const route = await resolveLauncherVitest({ vitest, config, moduleCache });
   if (route.customRunner) {
     channel.emit("runtime_error", { code: "test_proof_native_runner_unsupported",
       message: "the project configures its own Vitest runner" });

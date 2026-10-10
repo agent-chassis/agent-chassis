@@ -133,7 +133,7 @@ async function dispatchRoleReview(argv, io, { backend: injectedBackend } = {}) {
   }
 
   const resolution = resolveLauncherProfile({
-    role: "review",
+    role: "reviewer",
     profileName: parsed.profileName,
     app: parsed.app,
     model: parsed.model,

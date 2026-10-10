@@ -83,6 +83,7 @@ test("an unrecognised code is reported as a tooling gap, not guessed", () => {
 });
 
 const WORKBENCH_REASON_CODES = Object.freeze([
+  "acceptance_coverage_carrier_absent",
   "acceptance_coverage_population_empty", "acceptance_criterion_population_empty",
   "assessment_actionable_gaps_present", "assessment_population_retrieval_missing",
   "assessment_source_stale", "assessment_unavailable", "conflicting",
@@ -354,4 +355,38 @@ test("a semantic cause publishes its meaning, typed subjects and correction rout
     validation_tool: "workspace_validate_proof" });
   assert.equal(semanticCauseSubject(correction.occurrences[0]).obligation_id, null,
     "a population-level cause names no obligation");
+});
+
+test("recovery is authored only where one row carries both the transition and its write", () => {
+  const write = { read_tool: "read", write_tool: "write", validation_tool: "validate" };
+  const authenticated = owner => ({ status: "authenticated", semantic_owner: owner });
+  const unavailable = { status: "unavailable", semantic_owner: null };
+  const observed = (rowId, reason, authority, guidance) => ({ ...row(rowId,
+    { reasons: [reason], nonActionable: "no_single_incumbent_semantic_transition" }),
+  diagnostic_provenance: { owner: "observer" }, repair_authority: authority,
+  recovery_guidance: guidance });
+  const recovery = rows => projectControlledContractTerminalGapDetails({
+    workbench: { subject: { wk_id: "WK-2729" }, actionable_rows: [], non_actionable_rows: rows } })
+    .groups.map(group => [group.recovery.status, group.recovery.actor_recovery,
+      semanticCauseCorrection(group)?.semantic_owner ?? null, group.repair_authority.status]);
+  const absent = "acceptance_coverage_carrier_absent";
+  const inspection = { capability: "acceptance_axis_inspection", validation_tool: "validate" };
+  assert.equal(classifyControlledContractTerminalGapCode(absent), "missing_proof_or_evidence");
+  assert.deepEqual(recovery([observed("acceptance:absent", absent, unavailable, inspection)]),
+    [["inspection_only", "none", null, "unavailable"]]);
+  assert.deepEqual(recovery([observed("acceptance:absent", absent,
+    authenticated("acceptance_coverage"), inspection)]),
+  [["inspection_only", "none", null, "unavailable"]],
+  "an internal descriptor without a write remedy is not a repair");
+  assert.deepEqual(recovery([observed("one", absent, authenticated("acceptance_coverage"), null),
+    observed("two", absent, unavailable, write)]),
+  [["inspection_only", "none", null, "unavailable"]],
+  "another row's write tool does not complete this row's authority");
+  assert.deepEqual(recovery([observed("one", "obligation_coverage_statement_missing",
+    authenticated("obligation_coverage"), write)]),
+  [["authored_correction_available", "agent", "obligation_coverage", "authenticated"]]);
+  assert.deepEqual(recovery([observed("one", "a_code_nobody_defined",
+    authenticated("obligation_coverage"), write)].map(entry =>
+    ({ ...entry, non_actionable_reason: undefined }))),
+  [["system_owner_failure", "system_owner", null, "unavailable"]]);
 });

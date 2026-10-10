@@ -60,6 +60,19 @@ An `advertisedInputSchema`, when present, is only a compact discovery
 projection; it never admits input. `workspace_tools_describe` can return the
 complete projected contract for a named compact declaration.
 
+A registration may also declare a `publishedInputSchemaProjection`: a pure
+JSON Schema rewrite of what the SDK converts from the schema it publishes. The
+registrar lists the projected schema in `tools/list` and retains it as that
+tool's published request schema, so both state one declaration. The projection
+is declaration-only, like the schema it rewrites: it admits and refuses
+nothing, and the complete `inputSchema` still validates every call. It exists
+for equivalent forms the SDK conversion cannot state; an intersection member
+loses `additionalProperties: false` there. `save_record` uses it to publish
+each keyed row as one closed object of the row's shared members joined with
+its new-row and existing-row identity alternatives, each keeping its own
+required members and forbidding the other identity. A registrar created after
+its server installed `tools/list` refuses a projected registration.
+
 Contract-level requirements and explicit controlled-acceptance applicability
 are fields on the ordinary obligation-coverage upsert. Query returns their
 saved projection, and explicit proof validation reports their problems.
@@ -89,10 +102,8 @@ carry the same trust-envelope fields, including `schema_version`, `source_kind`,
 
 Query parity is exposed through CLI `wiki code-index context-for-path`,
 `impact`, `find-references`, `definition`, `callers`, and `callees` with
-`--json`, and the MCP `workspace_code_index_context_for_path`,
-`workspace_code_index_impact`, `workspace_code_index_find_references`,
-`workspace_code_index_definition`, `workspace_code_index_callers`, and
-`workspace_code_index_callees` routes with `verbose:true`.
+`--json`, and the MCP `query_code_index` route, whose retained complete
+answer for each question is the same envelope.
 Those tools return derived, non-canonical SCIP evidence only: provider
 descriptor(s), coverage, freshness/dirty-worktree state, and per-result
 `resolution.state` remain part of the machine-readable envelope. When the SCIP

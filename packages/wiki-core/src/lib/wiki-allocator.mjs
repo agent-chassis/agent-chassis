@@ -203,7 +203,7 @@ async function scanAllocatorState(targetDir, manifest) {
 
 export async function collectOccupiedAllocatedRecordValues(targetDir, definition) {
   const occupied = new Set();
-  if (definition.stateKey === "initiative") {
+  if (["decision", "initiative"].includes(definition.stateKey)) {
     await collectAllocatedJsonKindRecordValues(targetDir, definition, occupied);
   } else {
     await collectAllocatedMarkdownValues(targetDir, definition, occupied);

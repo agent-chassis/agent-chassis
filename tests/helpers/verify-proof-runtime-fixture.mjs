@@ -49,6 +49,8 @@ export function runtimeFixture(t, source, { selector = { name: "selected", nesti
   writeFileSync(path.join(worktree, target), source);
   mkdirSync(path.dirname(path.join(worktree, dependencyPath)), { recursive: true });
   writeFileSync(path.join(worktree, dependencyPath), dependencySource);
+
+  writeFileSync(path.join(worktree, "package.json"), '{"type":"module"}\n');
   for (const [relative, content] of Object.entries(consumerFiles)) {
     mkdirSync(path.dirname(path.join(worktree, relative)), { recursive: true });
     writeFileSync(path.join(worktree, relative), content);

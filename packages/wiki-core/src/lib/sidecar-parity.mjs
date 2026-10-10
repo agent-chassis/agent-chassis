@@ -13,9 +13,9 @@ export const SIDECAR_PARITY_SURFACE_EXPECTATIONS = Object.freeze({
   status: Object.freeze({
     owner: "WK-0035",
     cliCommand: "code-index status --json",
-    mcpTool: "workspace_code_index_status",
-    inputContract: "status accepts repository/cache selection inputs owned by WK-0035",
-    outputContract: "CLI JSON and MCP structuredContent must be the same sidecar result envelope",
+    mcpTool: "query_code_index",
+    inputContract: "the CLI accepts repository/cache selection inputs owned by WK-0035; MCP takes status:true alone for the current repository",
+    outputContract: "the MCP compact status envelope states the same publication, HEAD and freshness facts as the CLI sidecar result envelope",
     parityTestOwner: "WK-0035"
   }),
   build: Object.freeze({
@@ -29,17 +29,17 @@ export const SIDECAR_PARITY_SURFACE_EXPECTATIONS = Object.freeze({
   impact: Object.freeze({
     owner: "WK-2535",
     cliCommand: "code-index impact --json",
-    mcpTool: "workspace_code_index_impact",
+    mcpTool: "query_code_index",
     inputContract: "impact accepts exactly one paths, patch, parsed diff or live Git subject",
-    outputContract: "CLI JSON and MCP verbose structuredContent must be the same sidecar result envelope",
+    outputContract: "the MCP retained original must be the same sidecar result envelope as CLI JSON; its response is the compact summary",
     parityTestOwner: "WK-2535"
   }),
   context_for_path: Object.freeze({
     owner: "WK-0041",
     cliCommand: "code-index context-for-path --json",
-    mcpTool: "workspace_code_index_context_for_path",
+    mcpTool: "query_code_index",
     inputContract: "context path inputs are owned by WK-0041 and path validation prerequisites",
-    outputContract: "CLI JSON and MCP structuredContent must be the same sidecar result envelope",
+    outputContract: "the MCP retained original must be the same sidecar result envelope as CLI JSON; its response is the compact summary",
     parityTestOwner: "WK-0041"
   })
 });
@@ -68,6 +68,11 @@ function sortJsonKeys(value) {
 
 function stableJson(value) {
   return JSON.stringify(sortJsonKeys(value));
+}
+
+function withoutPreparation(envelope) {
+  const { preparation: _preparation, ...rest } = envelope;
+  return rest;
 }
 
 function parseCliJson(cliJson) {
@@ -123,7 +128,7 @@ export function compareSidecarCliMcpParity({ surface, cliJson, mcpResult }) {
   const normalizedCli = normalizeSidecarCliJsonOutput(cliJson);
   const normalizedMcp = normalizeSidecarMcpStructuredContent(mcpResult);
 
-  if (stableJson(normalizedCli) !== stableJson(normalizedMcp)) {
+  if (stableJson(withoutPreparation(normalizedCli)) !== stableJson(withoutPreparation(normalizedMcp))) {
     throw new Error(
       `Sidecar ${surface} CLI JSON and MCP structuredContent differ for ${expectation.parityTestOwner}`
     );

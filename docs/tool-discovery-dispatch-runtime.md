@@ -193,15 +193,15 @@ The taxonomy categories are: `role_policy`, `caller_identity`,
 `graph_impact_persistence`, and `operator_recovery`. The descriptor's
 `graph_impact_state_map` field names the graph-impact state codes.
 
-Graph-impact evidence is supplementary to dispatch. Dispatch still prepares
-the committed-HEAD graph automatically, once per request, and reuses that one
-outcome for every later readiness, launch-intent and CCE phase. A successful
-preparation threads its trusted envelope as evidence. A typed host graph
-failure (an unbuildable committed index) or a preparation that yields no
-envelope is carried only as bounded evidence (its code and status reason), and
-dispatch continues. No graph state, and no graph preparation or persistence
-outcome, is a dispatch refusal. Any other exception raised during preparation is
-an unexpected error and propagates instead of launching. Explicit graph-impact
+Graph-impact evidence is supplementary to dispatch. Starting a worker never
+builds, repairs, updates, or waits for the code index: preview, readiness,
+launch-intent, CCE evaluation, backend admission and worker planning read the
+index status without preparing it and consume stored graph-impact evidence only
+when it is valid for the selected unit and current snapshot. A missing or stale
+graph is reported as it was read and left unassessed. Files clustered without
+their import relationships carry no graph-derived cluster count or blast radius
+to CCE, however fresh the index is. No graph state is a dispatch refusal.
+Explicit graph-impact
 queries still return their concrete typed failure when no result can be
 produced; they never report fabricated impact or success.
 
@@ -212,6 +212,64 @@ shape-validated; an unknown key or malformed `detail`, `consumer_notes`,
 `recovery`, `aliases`, `reasons`, or `wk_0532_subset` value refuses the load
 before any taxonomy value is accepted. A published taxonomy therefore always
 matches its canonical descriptor.
+
+### Registered recovery: correction versus inspection
+
+An entry's structured `recovery` is a template: a route, its fixed `arguments`,
+and `argument_bindings` naming the refusal fact that fills each remaining
+argument. Its `kind` states what following the route can do:
+
+- `structured_route` names a call that can change the blocking fact.
+  `registryRecoveryContinuation` projects it into a callable continuation.
+- `capability_inspection` and `run_observation` name a call that only reports
+  the blocking fact. `registryRecoveryInspection` projects it into the tool,
+  arguments and information of a guidance call, and
+  `registryRecoveryContinuation` returns nothing for it, so an observation is
+  never published as a correction.
+
+Both projections resolve bindings only from facts the refusal observed. A
+missing fact yields no call, and no role, subject or other argument is
+defaulted. The serving registration's request contract validates the result.
+
+`managed_lifecycle_required` and `managed_worktree_provisioning_unavailable`
+are capability inspections. Each names the read-only `workspace_read_wiki` read
+of the package document the `start_agent` tool advertises:
+`{reference:{tool_name:"start_agent", path:"docs/mcp-operation-reference.md"}}`.
+The package owner serves it from the serving package, so a consuming repository
+needs no local copy and a workspace file at the same path is never served. A
+session launched without a package documentation carrier refuses the read with
+`package_docs_carrier_unavailable`. The capability projection reads this same
+registered inspection and offers it beside every unavailable plane. The
+`start_agent` capability preview is not the registered inspection: guidance
+admits only read-only tools. It remains where the facts are reported, for an
+explicit role that is never defaulted. Neither read starts a child, writes
+anything, admits a launch or repairs a capability. The coordinator corrects a
+lifecycle refusal by explicitly starting an exact canonical slice through the
+managed lifecycle; the operator restores an unavailable provisioning source.
+
+`managed_slice_tip_reconcile_required` is a correction: `start_agent` with
+`role:"reviewer"` and the exact retained slice as `subject`. The launcher
+declares that call as its next action and treats no other name as callable. The
+refusal offers the call and starts nothing; the coordinator makes it explicitly.
+
+The public `start_agent` response carries that correction in `next_calls` and
+`allowed_next_calls`. It is the one backend-originated call the response
+forwards: the launcher classified it, the mechanical carrier validated it as a
+same-tool start against the `start_agent` contract the serving registrar
+enrolled, it names the refused request's exact subject with only `role` and
+`subject`, and the serving full request contract accepts it. Any other backend
+call stays out of `next_calls`. When the correction cannot be offered, the
+refusal keeps its original blocker and `correction_limitation` names why.
+
+`agent_launch.managed_corrective_status.launcher_retirement_incomplete.v1` is a
+run observation: `get_run_result` for the exact slice subject. The launcher owns
+the retirement, so the read reports state and retires or cleans up nothing. The
+refusal supplies no attempt identity, so none is bound or chosen.
+
+The `reviewer_write_scope_nonempty` reason on `role_policy_violation` carries no
+remediation. It names a reviewer's own non-empty effective mutation scope. A
+write-bearing implementation slice remains a valid subject of a read-only
+findings action, so no separate review unit is authored for it.
 
 ### Producer-to-code state table
 

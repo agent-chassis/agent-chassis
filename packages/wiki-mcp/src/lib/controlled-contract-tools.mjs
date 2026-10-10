@@ -20,10 +20,10 @@ import { assertNoControlledContractRawResponse } from "./mcp-response.mjs";
 const CONTROLLED_CONTRACT_ROUTE_METADATA = Object.freeze([
   ["workspace_controlled_proof_intents_discover", "sha256:d47d4f56248f499ba17b503a1a5b49415143c108f66c515217b727fcdbdfb917"],
   ["workspace_verify_proof", "sha256:f2266de5997e022eb080dd1a4b2e45a748b9698fc0ddfdf376c0dfc13c649156"],
-  ["workspace_controlled_contract_obligation_coverage_upsert", "sha256:c7e1c4ddf01c883615c7e72177d8a11aee6ae315541ec5de533ae9ad714c688e"],
+  ["workspace_controlled_contract_obligation_coverage_upsert", "sha256:e47265d3ea881a89a6cabedd94a7197707d40d5f1caa0962f10ed133465fdadf"],
   ["workspace_controlled_contract_obligation_coverage_remove", "sha256:0738fab5bb5549392b9113c2fff30162a14be8ef97353ae5c568cb08907671a4"],
   ["workspace_controlled_contract_obligation_coverage_query", "sha256:24539c1169690917875f9171012d68342f0ae07a3f56ca84cd6d52daa2165d19"],
-  ["workspace_validate_proof", "sha256:df190eb822ba7419d3ce1a2d5d28fdea75baa85e52925ca6ae8519a304fdb108"]
+  ["workspace_validate_proof", "sha256:9c3d12f679f3d57af7136636979ed06a572dcb707f39eac5ec961c94d235a569"]
 ].map(([name, discoveryMetadataSha256]) => Object.freeze({
   name,
   discoveryMetadataSha256

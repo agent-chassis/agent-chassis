@@ -194,7 +194,10 @@ test("WK-1781 composition refusal publishes its specific identity and deployment
   assert.doesNotMatch(entry.consumer_notes, /operator_recovery_needed/);
 });
 
-test("managed lifecycle blockers have distinct stable categories and structured recovery", () => {
+const RETIRED_RECOVERY_TOOLS =
+  /workspace_(?:coordination_preflight|agent_dispatch|agent_run_status|work_record_ready_slice|work_record_summary|read_page)/u;
+
+test("managed lifecycle blockers have distinct stable categories and inspection-only recovery", () => {
   const lifecycle = getRuntimeBlockerEntry("managed_lifecycle_required");
   const provisioning = getRuntimeBlockerEntry("managed_worktree_provisioning_unavailable");
 
@@ -207,11 +210,23 @@ test("managed lifecycle blockers have distinct stable categories and structured 
   assert.equal(provisioning.actor_recovery, "operator");
 
   for (const entry of [lifecycle, provisioning]) {
-    assert.deepEqual(entry.recovery?.kind, "structured_route");
-    assert.equal(entry.recovery?.route, "workspace_coordination_preflight");
+
+    assert.equal(entry.recovery?.kind, "capability_inspection");
+    assert.equal(entry.recovery?.route, "workspace_read_wiki");
+    assert.deepEqual(entry.recovery.arguments,
+      { reference: { tool_name: "start_agent", path: "docs/mcp-operation-reference.md" } });
+    assert.equal(Object.hasOwn(entry.recovery, "argument_bindings"), false);
+    assert.match(entry.consumer_notes, /inspection/);
     const recovery = JSON.stringify(entry.recovery);
     assert.doesNotMatch(recovery, /\b(?:shell|env|environment|wrapper|root)\b/i);
+
+    assert.doesNotMatch(JSON.stringify(entry), RETIRED_RECOVERY_TOOLS, entry.code);
   }
+  assert.match(provisioning.consumer_notes, /operator restores/i);
+  assert.match(provisioning.recovery.success_condition, /cannot produce the capability/i);
+  assert.match(provisioning.recovery.success_condition, /until the operator restores/i);
+  assert.doesNotMatch(JSON.stringify(getRuntimeBlockerEntry("mcp_reviewer_dispatch_missing")),
+    RETIRED_RECOVERY_TOOLS);
 });
 
 test("WK-1694 the slice-tip reconciliation blocker is coordinator-owned review recovery, not a provisioning-capability failure", () => {
@@ -227,14 +242,16 @@ test("WK-1694 the slice-tip reconciliation blocker is coordinator-owned review r
   assert.equal(reconcile.actor_recovery, "coordinator");
   assert.notEqual(reconcile.actor_recovery, provisioning.actor_recovery);
   assert.equal(reconcile.recovery.kind, "structured_route");
-  assert.equal(reconcile.recovery.route, "workspace_agent_dispatch");
+  assert.equal(reconcile.recovery.route, "start_agent");
   assert.notEqual(reconcile.recovery.route, provisioning.recovery.route);
-  assert.notEqual(
-    reconcile.recovery.route,
-    "workspace_coordination_preflight",
-    "reconciliation recovery is exact-slice review, never a capability preflight"
-  );
-  assert.equal(reconcile.recovery.arguments.role, "reviewer");
+  assert.notEqual(reconcile.recovery.kind, provisioning.recovery.kind,
+    "reconciliation recovery is exact-slice review, never a capability inspection");
+
+  assert.deepEqual(reconcile.recovery.arguments, { role: "reviewer" });
+  assert.deepEqual(reconcile.recovery.argument_bindings, { subject: "slice_subject" });
+  assert.match(reconcile.consumer_notes, /explicitly starts a reviewer for the exact slice subject/i);
+  assert.match(reconcile.consumer_notes, /starts nothing itself/i);
+  assert.doesNotMatch(JSON.stringify(reconcile), RETIRED_RECOVERY_TOOLS);
 
   assert.match(reconcile.summary, /provisioning is available/i);
   assert.match(reconcile.detail, /before any attempt binding, ref mutation, worktree mutation/i);
@@ -247,7 +264,8 @@ test("WK-1694 the slice-tip reconciliation blocker is coordinator-owned review r
   assert.doesNotMatch(JSON.stringify(reconcile.recovery), /\b(?:shell|env|environment|wrapper|root)\b/i);
 
   assert.equal(provisioning.actor_recovery, "operator");
-  assert.equal(provisioning.recovery.route, "workspace_coordination_preflight");
+  assert.equal(provisioning.recovery.kind, "capability_inspection");
+  assert.equal(provisioning.recovery.route, "workspace_read_wiki");
 });
 
 test("deferred managed runtime codes are not published", () => {
@@ -913,36 +931,32 @@ test("no registered recovery template leaves an argument unresolved (AUDIT-REFUS
 test("managed_lifecycle_required no longer publishes a wrong-role, already-true remedy", () => {
 
   const recovery = getRuntimeBlockerEntry("managed_lifecycle_required").recovery;
-  assert.equal(recovery.route, "workspace_coordination_preflight");
-  assert.equal(recovery.arguments.role, "coordinator");
+  const entry = getRuntimeBlockerEntry("managed_lifecycle_required");
+  assert.equal(recovery.route, "workspace_read_wiki");
   assert.equal(
-    Object.hasOwn(recovery.arguments, "target_dispatch_role"),
+    /role/u.test(JSON.stringify(recovery.arguments)),
     false,
     "the dispatch role must not be hard-coded to one role"
   );
-  assert.equal(recovery.argument_bindings.target_dispatch_role, "refused_dispatch_role");
-  assert.match(recovery.prerequisite, /no fresh managed-lifecycle capability fact/i);
 
-  assert.match(recovery.success_condition, /the dispatch role the refusal names/i);
+  assert.match(recovery.success_condition, /changes no capability fact/i);
+  assert.match(recovery.success_condition, /leaves the refusal in force/i);
+  assert.match(entry.consumer_notes, /another role neither answers nor discharges/i);
+  assert.match(entry.consumer_notes, /no role is defaulted/i);
 });
 
-test("the reviewer remediation names the exact structured authoring call (AUTHREADY-005)", () => {
-  const remediation = getRuntimeBlockerEntry("role_policy_violation")
-    .reasons.find(({ reason }) => reason === "reviewer_write_scope_nonempty").remediation;
+test("the reviewer write-scope reason is effective mutation authority, with no separate-unit remediation", () => {
 
-  assert.equal(remediation.route, "workspace_work_record_ready_slice");
-  assert.equal(isCanonicalNextCallTool(remediation.route), true);
-
-  assert.equal(remediation.arguments.review_purpose, "standalone");
-  assert.equal(remediation.arguments.shaping_mode, "review");
-  assert.deepEqual(remediation.arguments.write_scope, []);
-  assert.deepEqual(unresolvedArgumentNames(remediation.arguments), []);
-  assert.equal(remediation.argument_bindings.unit, "reviewed_parent_wk_unit");
-
-  assert.equal(Object.hasOwn(remediation, "suggested_unit_id_examples"), false);
-  assert.equal(Object.hasOwn(remediation, "repo_paths"), false);
-  assert.match(remediation.summary, /server-allocated slice id/i);
-  assert.doesNotMatch(JSON.stringify(remediation), /WK-#####/u);
+  const reason = getRuntimeBlockerEntry("role_policy_violation")
+    .reasons.find((entry) => entry.reason === "reviewer_write_scope_nonempty");
+  assert.equal(Object.hasOwn(reason, "remediation"), false);
+  assert.deepEqual(reason.required_write_scope, []);
+  assert.match(reason.summary, /effective mutation scope/i);
+  assert.match(reason.summary, /not the write_scope of the unit under review/i);
+  assert.ok(reason.not_remediation.includes("authoring a separate review unit for a write-bearing subject"));
+  assert.ok(reason.not_remediation.includes("escalating or broadening filesystem write authority"));
+  assert.doesNotMatch(JSON.stringify(reason), RETIRED_RECOVERY_TOOLS);
+  assert.doesNotMatch(JSON.stringify(reason), /WK-#####|suggested_unit_id_examples/u);
 });
 
 import { readFileSync } from "node:fs";

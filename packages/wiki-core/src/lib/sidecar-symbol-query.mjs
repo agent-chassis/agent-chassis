@@ -2,13 +2,12 @@ import path from "node:path";
 
 import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
 import { assembleCallNavigationResult } from "./sidecar-call-query.mjs";
-import {
-  resolveCommittedSidecarSnapshot,
-  sameGraphSnapshot,
-  unavailableCommittedSnapshot
-} from "./sidecar-committed-preparation.mjs";
+import { sameGraphSnapshot, unavailableCommittedSnapshot } from "./sidecar-committed-preparation.mjs";
+import { committedEnvelopeFields, prepareCommittedQuery, runSnapshotQuery } from
+  "./sidecar-query-selection.mjs";
 import { readSidecarSymbolSelection } from "./sidecar-store.mjs";
 import { normalizeSidecarNavigationInput } from "./sidecar-navigation-input.mjs";
+import { compactNavigationFreshness } from "./sidecar-query-projection.mjs";
 import { fitNavigationSummary, projectNativeNavigation } from "./sidecar-navigation-projection.mjs";
 import { resolveNativeNavigation } from "./sidecar-navigation-resolution.mjs";
 import { assembleNativeNavigationResult } from "./sidecar-navigation-source-query.mjs";
@@ -35,14 +34,6 @@ function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function symbolResultField(queryKind) {
-  if (queryKind === "find_references") return "references";
-  if (queryKind === "definition") return "definitions";
-  if (queryKind === "symbol_callers") return "callers";
-  if (queryKind === "symbol_callees") return "callees";
-  return null;
-}
-
 function compactSymbolStatusReason(result, resolutionState) {
   const resolutionReason = result?.symbol_resolution?.status_reason;
   if (typeof resolutionReason === "string" && resolutionReason.length > 0) {
@@ -58,15 +49,24 @@ function compactSymbolStatusReason(result, resolutionState) {
 }
 
 function compactSymbolNextAction(result, queryKind, resolutionState) {
+  const action = unresolvedNextAction(result, queryKind, resolutionState);
+
+  return action !== null && result?.staleness === "stale"
+    ? `${action} This answer describes graph_snapshot.repository_commit, not freshness.current_head; ` +
+      "a symbol added since then appears after the refresh publishes."
+    : action;
+}
+
+function unresolvedNextAction(result, queryKind, resolutionState) {
   const callGraphQuery = CALL_QUERY_KINDS.has(queryKind);
   if (
     result?.scip_state?.scip_available !== true ||
     result?.scip_state?.graph_available !== true ||
     (callGraphQuery && result?.scip_state?.call_graph_available === false)
   ) {
-    return "Automatic committed-HEAD preparation runs every required SCIP provider before it " +
-      "publishes, so an unavailable provider fails preparation instead of publishing incomplete " +
-      "coverage; provision the provider and retry. When no SCIP provider applies to the committed " +
+    return "Committed preparation runs every required SCIP provider before it publishes, so an " +
+      "unavailable provider fails preparation instead of publishing incomplete coverage; " +
+      "provision the provider and retry. When no SCIP provider applies to the committed " +
       "sources, symbol results stay unavailable. Status is read-only. Unsupported call " +
       "attribution is not repaired by provisioning; use definition or reference results.";
   }
@@ -86,25 +86,16 @@ export function projectSidecarSymbolQueryForMcp(result, { verbose = false, fits 
   }
 
   const queryKind = result?.query_kind ?? null;
-  const resultField = symbolResultField(queryKind);
-  const allResults = resultField && Array.isArray(result?.[resultField]) ? result[resultField] : [];
-  const returned = Math.min(allResults.length, MCP_SYMBOL_QUERY_RESULT_LIMIT);
   const resolutionState = result?.symbol_resolution?.state ?? "unresolved";
   return projectNativeNavigation(result, {
     query_kind: queryKind,
     verbose: false,
     symbol: result?.symbol ?? null,
-    freshness: {
-      state: result?.staleness ?? "unknown"
-    },
+
+    freshness: compactNavigationFreshness(result),
     resolution: {
       state: resolutionState,
       status_reason: compactSymbolStatusReason(result, resolutionState)
-    },
-    result_count: {
-      total: allResults.length,
-      returned,
-      truncated: allResults.length > returned
     },
     next_action: compactSymbolNextAction(result, queryKind, resolutionState)
   }, { limit });
@@ -177,7 +168,7 @@ function createCallGraphUnavailableState(layer, statusReason = SCIP_CALL_GRAPH_U
 }
 
 function createSymbolQueryEnvelope({
-  status,
+  prepared,
   layer,
   queryKind,
   input,
@@ -189,16 +180,14 @@ function createSymbolQueryEnvelope({
   scipStateOverride = null,
   navigation
 }) {
+  const { status } = prepared;
   const scipState = scipStateOverride || createScipUnavailableState(layer);
   return createSidecarResultEnvelope({
     source_kind: "scip",
     canonicality: "derived",
     evidence_basis: "scip",
-    index_head: status.index_head,
-    index_tree: status.index_tree,
-    dirty_state: status.dirty_state,
-    dirty_details: status.dirty_details,
-    staleness: status.staleness,
+
+    ...committedEnvelopeFields(prepared),
     derived_evidence: [
       ...status.derived_evidence.map(cloneJson),
       {
@@ -211,13 +200,6 @@ function createSymbolQueryEnvelope({
         provenance: provenance({ evidenceBasis: "explicit_metadata" })
       }
     ],
-    cache_path: status.cache_path,
-    artifact_path: status.artifact_path,
-    artifact_exists: status.artifact_exists,
-    artifact_schema_version: status.artifact_schema_version,
-    expected_artifact_schema_version: status.expected_artifact_schema_version,
-    graph_snapshot: cloneJson(status.graph_snapshot),
-    status_reason: status.status_reason,
     query_kind: queryKind,
     input,
     symbol: symbolResolution.symbol,
@@ -278,32 +260,32 @@ function callGraphAvailability(layer) {
     : { available: false, statusReason: SCIP_CALL_GRAPH_UNAVAILABLE };
 }
 
-async function selectCommittedSymbols({ dir, cacheDir, input }) {
-  const prepared = await resolveCommittedSidecarSnapshot({
-    dir: path.resolve(String(dir || ".")),
-    cacheDir,
-    dirtyState: true
-  });
-  if (!prepared.available) throw unavailableCommittedSnapshot(prepared.outcome, prepared.status);
+async function selectCommittedSymbols({ dir, cacheDir, input, context }) {
+  const prepared = await prepareCommittedQuery({ dir: path.resolve(String(dir || ".")), cacheDir },
+    context);
   const selection = readSidecarSymbolSelection({ repoRoot: prepared.repoRoot, cacheDir,
     symbol: input.symbol, documentPath: input.path });
   if (!sameGraphSnapshot(selection.publication, prepared.graph_snapshot)) {
     throw unavailableCommittedSnapshot("repository_snapshot_changed", prepared.status);
   }
-  return { status: prepared.status, selection, repoRoot: prepared.repoRoot };
+  return { prepared, selection, repoRoot: prepared.repoRoot };
 }
 
-async function buildNavigationQuery(options, queryKind) {
+async function buildNavigationQuery(options, queryKind, context) {
   const input = normalizeSidecarNavigationInput(options);
+  return runSnapshotQuery(context, () => evaluateNavigationQuery(input, queryKind, context));
+}
+
+async function evaluateNavigationQuery(input, queryKind, context) {
   const publicInput = { symbol: input.symbol ?? null, path: input.path ?? null,
     line: input.line ?? null, character: input.character ?? null };
-  const { status, selection, repoRoot } = await selectCommittedSymbols({ dir: input.dir,
-    cacheDir: input.cacheDir, input: publicInput });
+  const { prepared, selection, repoRoot } = await selectCommittedSymbols({ dir: input.dir,
+    cacheDir: input.cacheDir, input: publicInput, context });
   const layer = layerFromStore(selection);
   const callQuery = CALL_QUERY_KINDS.has(queryKind);
   if (layer.scip_available !== true || layer.graph_available === false) {
     const statusReason = layer.status_reason || "scip_indexer_unavailable";
-    return createSymbolQueryEnvelope({ status, layer, queryKind, input: publicInput,
+    return createSymbolQueryEnvelope({ prepared, layer, queryKind, input: publicInput,
       symbolResolution: { symbol: publicInput.symbol, resolution: {
         kind: publicInput.symbol ? "explicit_symbol" : "path_position", state: "unresolved",
         status_reason: statusReason, candidates: [] } },
@@ -315,7 +297,7 @@ async function buildNavigationQuery(options, queryKind) {
     const availability = callGraphAvailability(layer);
     const answer = await assembleCallNavigationResult({ repoRoot, selection, navigation, queryKind,
       callGraphAvailable: availability.available });
-    return createSymbolQueryEnvelope({ status, layer, queryKind, input: publicInput,
+    return createSymbolQueryEnvelope({ prepared, layer, queryKind, input: publicInput,
       symbolResolution: { symbol: answer.symbol, resolution: answer.symbol_resolution },
       callers: answer.callers, callees: answer.callees, navigation: answer,
       scipStateOverride: availability.available ? null
@@ -323,7 +305,7 @@ async function buildNavigationQuery(options, queryKind) {
   }
   const answer = await assembleNativeNavigationResult({ repoRoot, selection, queryKind, navigation });
   return createSymbolQueryEnvelope({
-    status,
+    prepared,
     layer,
     queryKind,
     input: publicInput,
@@ -334,18 +316,18 @@ async function buildNavigationQuery(options, queryKind) {
   });
 }
 
-export async function getSidecarSymbolReferences(options = {}) {
-  return buildNavigationQuery(options, "find_references");
+export async function getSidecarSymbolReferences(options = {}, context = null) {
+  return buildNavigationQuery(options, "find_references", context);
 }
 
-export async function getSidecarSymbolDefinition(options = {}) {
-  return buildNavigationQuery(options, "definition");
+export async function getSidecarSymbolDefinition(options = {}, context = null) {
+  return buildNavigationQuery(options, "definition", context);
 }
 
-export async function getSidecarSymbolCallers(options = {}) {
-  return buildNavigationQuery(options, "symbol_callers");
+export async function getSidecarSymbolCallers(options = {}, context = null) {
+  return buildNavigationQuery(options, "symbol_callers", context);
 }
 
-export async function getSidecarSymbolCallees(options = {}) {
-  return buildNavigationQuery(options, "symbol_callees");
+export async function getSidecarSymbolCallees(options = {}, context = null) {
+  return buildNavigationQuery(options, "symbol_callees", context);
 }

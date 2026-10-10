@@ -39,6 +39,10 @@ export async function resolveCommittedSidecarSnapshot({
     repoRoot,
     status,
     graph_snapshot: structuredClone(snapshot),
-    build: ensured.build
+    build: ensured.build,
+    action: ensured.action ?? null,
+    ...(ensured.publication_outcome === undefined ? {}
+      : { publication_outcome: ensured.publication_outcome }),
+    ...(ensured.changed === undefined ? {} : { changed: ensured.changed })
   };
 }

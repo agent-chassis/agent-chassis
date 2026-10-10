@@ -4,13 +4,16 @@ import { withControlledContractAuthorityExclusion } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
 import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
 import {
-  assertAuthenticatedWkForgeHandoffResult,
-  buildGhForge,
-  defaultRunGit
+  assertAuthenticatedWkForgeHandoffLandingInput,
+  projectAuthenticatedWkPublicationSelection,
+  validateWkPublicationSelection
 } from "./wk-forge-handoff.mjs";
+import { defaultRunGit } from "./wk-forge-command.mjs";
+import { buildGhForge } from "./wk-forge-gh-adapter.mjs";
 import {
   HANDOFF_TRANSPORTS,
   isAncestor,
+  LANDING_OBJECT_CACHE_FETCH,
   observeLandingBaseTip,
   observeRemoteRef
 } from "./wk-handoff-destination.mjs";
@@ -312,13 +315,16 @@ async function observeGitLanding({ mainRepo, handoff, runGit }) {
   const base = observeLandingBaseTip({
     repo: mainRepo, transport, remote, baseBranch: handoff.base_branch, runGit
   });
+  const objectCacheFetch = base.object_cache_fetch;
   if (base.kind === "unobservable") {
     return landingOutcome(WK_LANDING_STATES.UNAVAILABLE, {
+      objectCacheFetch,
       cause: { stage: "landing_base", reason: "landing_base_unobservable", evidence: base.evidence }
     });
   }
   if (base.kind === "absent") {
     return landingOutcome(WK_LANDING_STATES.CONTRADICTORY, {
+      objectCacheFetch,
       cause: { stage: "landing_base", reason: "landing_base_absent", ref: base.ref }
     });
   }
@@ -329,6 +335,7 @@ async function observeGitLanding({ mainRepo, handoff, runGit }) {
   } catch (error) {
     return landingOutcome(WK_LANDING_STATES.UNAVAILABLE, {
       observedBase,
+      objectCacheFetch,
       cause: { stage: "ancestry", reason: "exact_head_ancestry_unobservable",
         evidence: captureDiagnosticEvidence(error) }
     });
@@ -336,6 +343,7 @@ async function observeGitLanding({ mainRepo, handoff, runGit }) {
   if (landed) {
     return landingOutcome(WK_LANDING_STATES.LANDED, {
       observedBase,
+      objectCacheFetch,
       landedPublication: deepFreeze({
         schema_version: GIT_LANDED_PUBLICATION_SCHEMA_VERSION,
         transport,
@@ -360,12 +368,14 @@ async function observeGitLanding({ mainRepo, handoff, runGit }) {
     if (branch.kind === "unobservable") {
       return landingOutcome(WK_LANDING_STATES.UNAVAILABLE, {
         observedBase,
+        objectCacheFetch,
         cause: { stage: "destination_branch", reason: "destination_branch_unobservable", evidence: branch.evidence }
       });
     }
     if (branch.kind === "absent" || branch.sha !== handoff.commit) {
       return landingOutcome(WK_LANDING_STATES.CONTRADICTORY, {
         observedBase,
+        objectCacheFetch,
         cause: {
           stage: "destination_branch",
           reason: branch.kind === "absent"
@@ -377,7 +387,7 @@ async function observeGitLanding({ mainRepo, handoff, runGit }) {
       });
     }
   }
-  return landingOutcome(WK_LANDING_STATES.AWAITING_HUMAN_LANDING, { observedBase });
+  return landingOutcome(WK_LANDING_STATES.AWAITING_HUMAN_LANDING, { observedBase, objectCacheFetch });
 }
 
 async function observeHostedLanding({ mainRepo, handoff, deps }) {
@@ -412,8 +422,13 @@ async function observeHostedLanding({ mainRepo, handoff, deps }) {
   );
 }
 
-function landingOutcome(state, { observedBase = null, landedPublication = null, cause = null }) {
-  return { state, observedBase, landedPublication, cause };
+function landingOutcome(state, {
+  observedBase = null,
+  landedPublication = null,
+  cause = null,
+  objectCacheFetch = LANDING_OBJECT_CACHE_FETCH.NOT_ATTEMPTED
+}) {
+  return { state, observedBase, landedPublication, cause, objectCacheFetch };
 }
 
 function projectHandoff(handoff) {
@@ -428,11 +443,21 @@ function projectHandoff(handoff) {
   };
 }
 
-function landingObservation(assignedUnit, { state, handoff = null, outcome = null, cause = null }) {
+function landingObservation(assignedUnit, {
+  state,
+  handoff = null,
+  outcome = null,
+  cause = null,
+  objectCacheFetch = LANDING_OBJECT_CACHE_FETCH.NOT_ATTEMPTED,
+  selection = undefined
+}) {
   return deepFreeze({
     schema_version: WK_LANDING_OBSERVATION_SCHEMA_VERSION,
     assigned_unit: assignedUnit,
     state,
+    ...(handoff !== null
+      ? { selection: projectAuthenticatedWkPublicationSelection(handoff), selection_authenticated: true }
+      : selection === undefined ? {} : { selection, selection_authenticated: false }),
     transport: handoff?.transport ?? null,
     landing_authority: handoff === null
       ? null
@@ -442,16 +467,21 @@ function landingObservation(assignedUnit, { state, handoff = null, outcome = nul
     handoff: handoff === null ? null : projectHandoff(handoff),
     observed_base: outcome?.observedBase ?? null,
     landed_publication: outcome?.landedPublication ?? null,
-    cause: outcome?.cause ?? cause
+    cause: outcome?.cause ?? cause,
+    effects: { object_cache_fetch: outcome?.objectCacheFetch ?? objectCacheFetch }
   });
 }
 
 export async function observeAuthenticatedHandoffLanding({ mainRepo, handoff, deps = {} } = {}) {
-  assertAuthenticatedWkForgeHandoffResult(handoff);
+  const retained = assertAuthenticatedWkForgeHandoffLandingInput(handoff);
   const outcome = handoff.transport === HANDOFF_TRANSPORTS.HOSTED
     ? await observeHostedLanding({ mainRepo, handoff, deps })
     : await observeGitLanding({ mainRepo, handoff, runGit: deps.runGit ?? defaultRunGit });
-  return landingObservation(handoff.assigned_unit, { state: outcome.state, handoff, outcome });
+  return retained.landing_only === true
+    ? deepFreeze({ state: outcome.state, observed_base: outcome.observedBase,
+        landed_publication: outcome.landedPublication, cause: outcome.cause,
+        effects: { object_cache_fetch: outcome.objectCacheFetch } })
+    : landingObservation(handoff.assigned_unit, { state: outcome.state, handoff, outcome });
 }
 
 function landingRequestRefusal(reason, facts) {
@@ -462,7 +492,7 @@ function landingRequestRefusal(reason, facts) {
   };
 }
 
-export async function observeWkHandoffLanding({ mainRepo, assignedUnit, deps = {} } = {}) {
+export async function observeWkHandoffLanding({ mainRepo, assignedUnit, selection, deps = {} } = {}) {
   if (!WK_RE.test(assignedUnit ?? "")) {
     return landingRequestRefusal("assigned_unit_invalid", {
       assigned_unit: typeof assignedUnit === "string" ? assignedUnit : null,
@@ -487,32 +517,59 @@ export async function observeWkHandoffLanding({ mainRepo, assignedUnit, deps = {
         "authenticated existing-publication observer"
     });
   }
+  if (selection !== undefined) {
+    const validated = validateWkPublicationSelection(selection);
+    if (!validated.ok) return validated;
+    selection = validated.selection;
+  }
   const runGit = deps.runGit ?? defaultRunGit;
+
+  let objectCacheFetch = LANDING_OBJECT_CACHE_FETCH.NOT_ATTEMPTED;
   let observation;
   try {
     observation = await withControlledContractAuthorityExclusion({
       repoRoot: mainRepo,
       wkId: assignedUnit,
       run: async (authorityContext) => {
-        const observed = await deps.observeAuthenticatedHandoff(assignedUnit, authorityContext);
+        const observed = await deps.observeAuthenticatedHandoff(assignedUnit, authorityContext, selection);
+        objectCacheFetch = observed?.landing?.effects.object_cache_fetch ?? objectCacheFetch;
         if (observed?.ok !== true) {
+          if (observed?.category === "request_invalid") return observed;
           return landingObservation(assignedUnit, {
             state: observed?.category === "publication_disagreement"
               ? WK_LANDING_STATES.CONTRADICTORY
               : WK_LANDING_STATES.UNAVAILABLE,
-            cause: {
+            selection,
+            objectCacheFetch,
+            cause: observed?.landing?.cause ?? {
               stage: "handoff",
               category: observed?.category ?? null,
               detail: observed?.detail ?? null
             }
           });
         }
-        return observeAuthenticatedHandoffLanding({ mainRepo, handoff: observed.result, deps: { ...deps, runGit } });
+        if (observed.landing !== undefined) {
+          return landingObservation(assignedUnit, {
+            state: observed.landing.state, handoff: observed.result, selection,
+            outcome: {
+              observedBase: observed.landing.observed_base,
+              landedPublication: observed.landing.landed_publication,
+              cause: observed.landing.cause, objectCacheFetch
+            }
+          });
+        }
+        const landing = await observeAuthenticatedHandoffLanding({
+          mainRepo, handoff: observed.result, deps: { ...deps, runGit }
+        });
+        objectCacheFetch = landing.effects.object_cache_fetch;
+        return landing;
       }
     });
   } catch (error) {
     observation = landingObservation(assignedUnit, {
       state: WK_LANDING_STATES.UNAVAILABLE,
+      objectCacheFetch,
+      selection,
       cause: {
         stage: "observation",
         reason: "landing_observation_failed",
@@ -520,5 +577,5 @@ export async function observeWkHandoffLanding({ mainRepo, assignedUnit, deps = {
       }
     });
   }
-  return { ok: true, result: observation };
+  return observation?.ok === false ? observation : { ok: true, result: observation };
 }

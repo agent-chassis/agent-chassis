@@ -1,10 +1,7 @@
 
 
 import { z } from "zod";
-import {
-  buildSidecarIndex,
-  getSidecarIndexStatus
-} from "@agent-chassis/wiki-core";
+import { buildSidecarIndex } from "@agent-chassis/wiki-core";
 import {
   getSidecarSymbolCallers,
   getSidecarSymbolCallees,
@@ -15,31 +12,12 @@ import {
   compactGraphImpactSummaryAffectedSurfaces,
   createBoundedGraphImpactResponse
 } from "./graph-impact-response-boundary.mjs";
-import { codeIndexDetailSchema, createCodeIndexNavigationHandler } from "./code-index-query-response.mjs";
-import { SELECTED_CODE_ANSWER_CONTRACT, createCodeIndexSelection, registerCodeIndexQueryTools }
-  from "./code-index-query-tools.mjs";
+import { publishedQueryContext } from "@agent-chassis/wiki-core/src/lib/sidecar-published-preparation.mjs";
+import { registerCodeIndexQueryTools } from "./code-index-query-tools.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
-
-const CODE_INDEX_NAVIGATION_CONTRACT = `ambiguity keeps all candidates. ${SELECTED_CODE_ANSWER_CONTRACT}`;
-const describeCodeIndexNavigationRoute = (subject) =>
-  `SCIP ${subject} with committed source; ${CODE_INDEX_NAVIGATION_CONTRACT}`;
-
-const codeIndexNavigationInputSchema = () => z.object({
-  repo: z.string().optional(),
-  symbol: z.string().optional(),
-  path: z.string().optional(),
-  line: z.union([z.number(), z.string()]).optional(),
-  character: z.union([z.number(), z.string()]).optional(),
-  cacheDir: z.string().optional(),
-  detail: codeIndexDetailSchema(z).optional()
-}).strict();
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
 }
 
 function cloneJsonSerializable(value) {
@@ -126,19 +104,6 @@ export function createGraphImpactToolResponse({
   return response;
 }
 
-function createCompactCodeIndexStatusResponse(workspaceRepo, result) {
-  return {
-    workspaceRepo,
-    dirty_state: result?.dirty_state ?? "unknown",
-    staleness: result?.staleness ?? "unknown",
-    artifact_exists: result?.artifact_exists ?? false,
-    status_reason: result?.status_reason ?? null,
-    index_head: result?.index_head ?? null,
-    graph_available: result?.graph_state?.graph_available === true,
-    scip_state: result?.scip_state ? cloneJson(result.scip_state) : null
-  };
-}
-
 function codeIndexWriterHandler({ rebuild, workspaceRepos, jsonContent, errorContent }) {
   return async (args) => {
     try {
@@ -161,13 +126,13 @@ const codeIndexWriterInputSchema = () => ({
 });
 
 export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonContent, errorContent,
-  env = process.env }) {
+  env = process.env, published = publishedQueryContext() }) {
   const shared = { workspaceRepos, jsonContent, errorContent };
   registerTool(
     "workspace_code_index_build",
     {
       description:
-        "Optionally prepare the configured repo's ignored code-index cache now; queries prepare it automatically.",
+        "Prepare the configured repo's ignored code-index cache for the current HEAD and wait for it; queries answer from the published index and refresh it in the background.",
       inputSchema: codeIndexWriterInputSchema()
     },
     codeIndexWriterHandler({ rebuild: false, ...shared })
@@ -177,71 +142,16 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
     "workspace_code_index_rebuild",
     {
       description:
-        "Optionally force a clean rebuild that re-extracts every committed source; queries prepare the ignored cache automatically.",
+        "Force a clean rebuild that re-extracts every committed source and wait for it; queries answer from the published index and refresh it in the background.",
       inputSchema: codeIndexWriterInputSchema()
     },
     codeIndexWriterHandler({ rebuild: true, ...shared })
   );
 
-  registerTool(
-    "workspace_code_index_status",
-    {
-      description:
-        "Report read-only base and SCIP identity/freshness for a configured repo without building, rebuilding, or running providers. Compact by default; verbose:true adds derived evidence, graph state, and artifact paths.",
-      inputSchema: {
-        repo: z.string().optional(),
-        cacheDir: z.string().optional(),
-        verbose: z.boolean().optional()
-      }
-    },
-    async (args) => {
-      try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const result = await getSidecarIndexStatus({
-          ...args,
-          dir: workspace.dir
-        });
-        if (args.verbose === true) {
-          return jsonContent({ workspaceRepo: workspace.repo, ...result });
-        }
-        return jsonContent(createCompactCodeIndexStatusResponse(workspace.repo, result));
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
-
-  registerTool(
-    "workspace_code_index_find_references",
-    { description: describeCodeIndexNavigationRoute("references"), inputSchema: codeIndexNavigationInputSchema() },
-    createCodeIndexNavigationHandler({ query: getSidecarSymbolReferences, ...shared,
-      session: createCodeIndexSelection({ env, route: "workspace_code_index_find_references", workspaceRepos }) })
-  );
-
-  registerTool(
-    "workspace_code_index_definition",
-    { description: describeCodeIndexNavigationRoute("definitions"), inputSchema: codeIndexNavigationInputSchema() },
-    createCodeIndexNavigationHandler({ query: getSidecarSymbolDefinition, ...shared,
-      session: createCodeIndexSelection({ env, route: "workspace_code_index_definition", workspaceRepos }) })
-  );
-
-  registerTool(
-    "workspace_code_index_callers",
-    { description: describeCodeIndexNavigationRoute("callers"), inputSchema: codeIndexNavigationInputSchema() },
-    createCodeIndexNavigationHandler({ query: getSidecarSymbolCallers, ...shared,
-      session: createCodeIndexSelection({ env, route: "workspace_code_index_callers", workspaceRepos }) })
-  );
-
-  registerTool(
-    "workspace_code_index_callees",
-    { description: describeCodeIndexNavigationRoute("callees"), inputSchema: codeIndexNavigationInputSchema() },
-    createCodeIndexNavigationHandler({ query: getSidecarSymbolCallees, ...shared,
-      session: createCodeIndexSelection({ env, route: "workspace_code_index_callees", workspaceRepos }) })
-  );
-
   registerCodeIndexQueryTools({
     registerTool,
     env,
+    published,
     navigation: {
       definition: getSidecarSymbolDefinition,
       references: getSidecarSymbolReferences,

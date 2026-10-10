@@ -14,6 +14,8 @@ order and repo map.
 - [local-package-install.md](local-package-install.md) — installing the
   packages from a local build.
 - [adoption.md](adoption.md) — adopting the contract in a new or existing repo.
+- [vertex-ai-inference.md](vertex-ai-inference.md) — run Codex inference through
+  the local LiteLLM gateway to Vertex AI.
 
 ## Operating and enforcement model
 
@@ -54,6 +56,11 @@ order and repo map.
   per-family launcher runtime-state facts.
 - [agent-launch-run-provenance.md](agent-launch-run-provenance.md) — the
   `agent-run-provenance.v1` envelope and run inspection.
+
+## Test tooling
+
+- [semgrep.md](semgrep.md) — the shared Semgrep runner and the explicit test
+  lint: rules, inline exceptions, coverage accounting and retained reports.
 
 ## Records and coordination reference
 

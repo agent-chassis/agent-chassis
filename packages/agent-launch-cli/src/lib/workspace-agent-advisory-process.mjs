@@ -2,6 +2,9 @@ import { captureLauncherAgentSessionContract } from "./stdio-mcp-conduit-authori
 import { resolveLaunchSelection } from "./workspace-agent-dispatch-run-lifecycle-selection.mjs";
 import { finalizeAdvisoryProcessLaunch } from "./workspace-agent-advisory-result-settlement.mjs";
 import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
+import { bindAdvisoryReviewInputToRun } from "./workspace-agent-advisory-review-contract.mjs";
+
+import { prepareAdvisoryExecutionSubstrate } from "./workspace-agent-advisory-execution-substrate.mjs";
 
 export function createAdvisoryProcessRunner({
   executors,
@@ -11,7 +14,9 @@ export function createAdvisoryProcessRunner({
   clock,
   runIdFactory,
   monitorHandleFactory,
-  settleFormalReviewAttestation = null
+  settleFormalReviewAttestation = null,
+  captureTerminalOriginal = false,
+  onLaunchCompletion = null
 }) {
   return async function startAdvisoryProcess(input = {}) {
     const reviewInput = input.advisory_review_input;
@@ -34,7 +39,11 @@ export function createAdvisoryProcessRunner({
     const startedAt = new Date(clock()).toISOString();
     let executorResult;
     let sessionContract = null;
+
+    let boundReviewInput = reviewInput;
     try {
+      boundReviewInput = bindAdvisoryReviewInputToRun(reviewInput, run_id);
+      await prepareAdvisoryExecutionSubstrate(boundReviewInput);
       const captured = await captureLauncherAgentSessionContract(() =>
         selection.familyExecutor({
           caller_session_id: input.caller_session_id,
@@ -53,7 +62,7 @@ export function createAdvisoryProcessRunner({
           model_selection: selection.resolvedModelSelection,
           routeKind: selection.routeKind,
           applicable: selection.applicable,
-          advisory_review_input: reviewInput
+          advisory_review_input: boundReviewInput
         })
       );
       executorResult = captured.result;
@@ -79,6 +88,8 @@ export function createAdvisoryProcessRunner({
       executorResult,
       runs,
       settleFormalReviewAttestation,
+      onLaunchCompletion,
+      captureTerminalOriginal,
       run_id,
       monitor_handle,
       app: selection.app,
@@ -89,7 +100,7 @@ export function createAdvisoryProcessRunner({
       workspace_alias: input.workspace_alias,
       caller_session_id: input.caller_session_id,
       startedAt,
-      advisoryReviewInput: reviewInput,
+      advisoryReviewInput: boundReviewInput,
       sessionContract,
       cleanup: input.cleanup ?? null
     });

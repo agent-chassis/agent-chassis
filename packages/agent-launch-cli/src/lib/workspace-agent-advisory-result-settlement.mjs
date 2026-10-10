@@ -114,11 +114,13 @@ export function resolveManagedFindingsSourceFromRecord(record, reference, {
       Buffer.byteLength(text, "utf8") !== decoded.utf8_bytes) {
     return Object.freeze({ ok: false, state: "changed" });
   }
+  const schema = boundedSchemaObservation(text, record);
   return Object.freeze({ ok: true, state: "available", text,
     provenance: Object.freeze({ source_kind: "original_managed_findings",
       run_id: decoded.run, monitor_handle: decoded.monitor, subject: decoded.subject,
       repository: decoded.repository, value_digest: decoded.value_digest,
-      utf8_bytes: decoded.utf8_bytes, authority: "advisory_only", attestation: false }) });
+      utf8_bytes: decoded.utf8_bytes, authority: "advisory_only", attestation: false,
+      ...(schema.adherent ? { findings: schema.result.findings } : {}) }) });
 }
 
 function advisoryProjection(normalized, record) {
@@ -247,6 +249,8 @@ export async function finalizeAdvisoryProcessLaunch({
   executorResult,
   runs,
   settleFormalReviewAttestation,
+  captureTerminalOriginal = false,
+  onLaunchCompletion = null,
   run_id,
   monitor_handle,
   app,
@@ -335,7 +339,12 @@ export async function finalizeAdvisoryProcessLaunch({
     record.cleanup?.();
   }
   runs.set(run_id, record);
-  return launchEnvelope(record);
+  const envelope = launchEnvelope(record);
+  if (captureTerminalOriginal && record.terminal && onLaunchCompletion !== null) await onLaunchCompletion(record, Promise.resolve());
+  if (!record.terminal && onLaunchCompletion !== null) {
+    onLaunchCompletion(record, executorResult.completion);
+  }
+  return envelope;
 }
 
 export async function settleAndProjectAdvisoryProcess(record, {
@@ -369,6 +378,10 @@ export async function settleAndProjectAdvisoryProcess(record, {
     await settleFormalAttestation(record, settleFormalReviewAttestation);
     record.cleanup?.();
   }
+  return projectAdvisoryProcess(record);
+}
+
+export function projectAdvisoryProcess(record) {
   const envelope = {
     schema_version: WORKSPACE_AGENT_DISPATCH_RUN_STATUS_SCHEMA_VERSION,
     accepted: true,

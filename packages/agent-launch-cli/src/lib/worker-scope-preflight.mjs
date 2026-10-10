@@ -116,7 +116,12 @@ function evaluateAtProspectiveBase({ prospective, mainRepo, unitAddress, record,
   const base = Object.freeze({
     ref: prospective.scope_existence_base.base_ref,
     sha: prospective.scope_existence_base.base_sha,
-    source: prospective.source
+    source: prospective.source,
+
+    ...(prospective.base_selection === undefined ? {} : {
+      selection: prospective.base_selection,
+      publication_target: prospective.scope_existence_base.base_ref
+    })
   });
   try {
     resolveFrozenWorkerScopeAuthority({

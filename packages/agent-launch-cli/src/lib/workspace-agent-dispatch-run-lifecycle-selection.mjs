@@ -71,6 +71,21 @@ export function resolveDispatchSelection({
   });
   if (!targetProjection.ok) return targetProjection;
 
+  const selected = resolveDispatchModelSelection({ role, app, model, workspaceDir, configRootDir, modelRegistry });
+  return selected.ok ? { ...selected, ...targetProjection } : selected;
+}
+
+export function resolveDispatchModelSelection({ role, app, model, workspaceDir,
+  configRootDir = null, modelRegistry = undefined }) {
+  const appToken = typeof app === "string" && app.trim().length > 0 ? app.trim() : null;
+  const modelToken = typeof model === "string" && model.trim().length > 0 ? model.trim() : null;
+  if (appToken !== null && !BACKEND_SUPPORTED_APPS.includes(appToken)) return {
+    ok: false, reason: "unsupported_app",
+    detail: refusalDetail({ app: appToken, supported_apps: [...BACKEND_SUPPORTED_APPS] })
+  };
+  if (!validateLauncherFamilyRole(role).ok) return {
+    ok: false, reason: "unsupported_role", detail: refusalDetail({ role })
+  };
   const modelConfigDir = typeof configRootDir === "string" && configRootDir.length > 0
     ? configRootDir
     : workspaceDir;
@@ -149,7 +164,6 @@ export function resolveDispatchSelection({
   }
   return {
     ok: true,
-    ...targetProjection,
     app: runtime.app,
     model: runtime.model,
     backend: runtime.backend,

@@ -7,6 +7,7 @@ import {
 import { TEST_RUNTIME_ENVIRONMENT_ID_RE } from "@agent-chassis/controlled-contract/test-proof";
 
 import { assertProofAuthoringDraft } from "@agent-chassis/controlled-contract";
+import { assessProofObligationAccounting } from "@agent-chassis/controlled-contract/proof-contract";
 import { prepareProofObligationRuntime, PROOF_OBLIGATION_NOT_EXECUTABLE_CODES,
   ProofObligationResolutionError, resolveProofObligationRuntime } from
   "@agent-chassis/controlled-contract";
@@ -21,7 +22,7 @@ import { parseProofSourceUnitAddress as parseProofAuthoringUnitAddress } from ".
 import { obligationCoverageQueryCall } from "./coverage-recovery-guidance.mjs";
 import { executionTimeoutInputSchema, parseExecutionTimeout } from "../../lib/execution-timeout.mjs";
 
-const PUBLIC_KEYS = new Set(["environment", "git_sha", "repo", "source", "subject", "timeout"]);
+const PUBLIC_KEYS = new Set(["branch", "environment", "git_sha", "repo", "source", "subject", "timeout"]);
 
 const SOURCE_KEYS = new Set(["focus", "unit"]);
 
@@ -44,6 +45,9 @@ const ATTRIBUTABLE_TARGET_INTEGRITY_CODES = new Set([
   "test_proof_declared_target_duplicate",
   "validation_verification_binding_duplicate"
 ]);
+
+const PROOF_UNSELECTED_CODE = "obligation_coverage_proof_unselected";
+const PUBLIC_SELECTION_FIELDS = Object.freeze({ proof_name: "proof.name" });
 
 class VerifyProofOperationError extends Error {
   constructor(code, message, details = {}, options = undefined) {
@@ -122,7 +126,7 @@ function assertVerifyProofCallerShape(args, { authenticatedRole } = {}) {
   if (unsupported.length > 0) throw new VerifyProofOperationError(
     authority.length > 0 ? "verify_proof.caller_authority_forbidden.v1"
       : "verify_proof.input_invalid.v1",
-    "verify_proof accepts one canonical subject plus optional repository, source, timeout, environment and orchestrator git_sha",
+    "verify_proof accepts one canonical subject plus optional repository, source, timeout, environment and orchestrator branch or git_sha",
     { unsupported_keys: unsupported.sort() }
   );
   if (typeof args.subject !== "string" || args.subject.length === 0 ||
@@ -151,7 +155,30 @@ function assertVerifyProofCallerShape(args, { authenticatedRole } = {}) {
       "git_sha must be one complete lowercase hexadecimal Git object identity"
     );
   }
+  if (Object.hasOwn(args, "branch")) {
+    if (authenticatedRole !== "orchestrator") throw new VerifyProofOperationError(
+      "verify_proof.branch_role_forbidden.v1",
+      "only an authenticated orchestrator may select an execution branch",
+      { field: "branch" }
+    );
+    if (typeof args.branch !== "string" || args.branch.length === 0 ||
+        args.branch.length > 128) throw new VerifyProofOperationError(
+      "verify_proof.branch_invalid.v1",
+      "branch must be one WK ID, slice ID or canonical WK or slice branch name",
+      { field: "branch" }
+    );
+
+    if (Object.hasOwn(args, "git_sha")) throw new VerifyProofOperationError(
+      "verify_proof.execution_source_conflict.v1",
+      "branch and git_sha each select the execution source; name exactly one",
+      { field: "branch", conflicting_fields: ["branch", "git_sha"] }
+    );
+  }
   parseVerifyProofSource(args);
+}
+
+function verifyProofBranchContextWkId(args) {
+  return verifyProofPopulationSubject(args.subject)?.wkId ?? parseVerifyProofSource(args)?.wkId ?? null;
 }
 
 function forcedInvocationCoverageDiagnostics(proof, contract) {
@@ -255,9 +282,14 @@ function resolveVerifyProofOperation({ args, context }) {
   for (const declaration of context.testTargetDeclarations.executable_declarations) {
     for (const id of declaration.verification_ids) targetArities.set(id, (targetArities.get(id) ?? 0) + 1);
   }
-  const proofs = new Map(), diagnostics = [];
+  const proofs = new Map(), diagnostics = [], optedOut = [];
   for (const resolved of context.authoringResolution.rows) {
     const row = rows.get(resolved.obligation_id);
+
+    if (assessProofObligationAccounting(row).decision === 'opted_out') {
+      optedOut.push(row.obligation_id);
+      continue;
+    }
     const graph = context.nativeGraphs.get(row.obligation_id);
     const declaredRelationIds = [...new Set([
       ...(graph?.relationIds ?? []), ...(graph?.explicitRelations ?? [])
@@ -285,6 +317,9 @@ function resolveVerifyProofOperation({ args, context }) {
         : stageOrder.find(stage => !['complete', 'current', 'available'].includes(
           selectedAssessment.stages?.[stage]?.status)) ?? 'execution_evidence';
       const stageFacts = selectedAssessment?.stages?.[unavailableStage] ?? null;
+
+      const unselected = selectedAssessment !== null ? undefined : retainedProblems.find(entry =>
+        entry.code === PROOF_UNSELECTED_CODE && Object.hasOwn(PUBLIC_SELECTION_FIELDS, entry.field ?? ''));
       const reasonCode = unavailableStage === 'authored_inputs'
         ? 'verify_proof.author_inputs_unavailable.v1'
         : unavailableStage === 'canonical_sources'
@@ -302,7 +337,13 @@ function resolveVerifyProofOperation({ args, context }) {
           selected_proof_assessment: selectedAssessment,
           retained_diagnostics: retainedProblems,
           path: `/obligations/${source.obligations.indexOf(row)}`,
-          resolved_node_identity: resolved.resolved_identity
+          resolved_node_identity: resolved.resolved_identity,
+
+          ...(unselected === undefined ? {} : {
+            missing_selection: { code: unselected.code, obligation_id: row.obligation_id,
+              field: PUBLIC_SELECTION_FIELDS[unselected.field], explanation: unselected.reason },
+            recovery_call: obligationCoverageQueryCall({ wkId, focus: source.focus,
+              selectedUnit: source.selected_unit, obligationId: row.obligation_id }) })
         } };
       diagnostics.push(diagnostic);
       proofs.set(`unavailable:${row.obligation_id}`, {
@@ -327,12 +368,15 @@ function resolveVerifyProofOperation({ args, context }) {
       : resolveAttributableDeclaredTarget({
         workRecord: context.workRecord, selectedUnit: context.selectedUnit,
         reviewedTargetBinding: context.reviewedTargetBinding ?? null,
+        caseOwnedDeclarations: context.testTargetDeclarations,
         orchestrator: false, verificationId,
         controlledContractGeneration: context.contractGeneration,
         sourceSnapshotDigest: context.sourceSnapshotDigest
       });
+
     const target = ownedTarget === null ? null : { ...ownedTarget,
-      binding_count: nativeCaseTarget ? 1 : targetArities.get(verificationId) ?? 0 };
+      binding_count: nativeCaseTarget || ownedTarget.status === 'resolved' ? 1 :
+        ownedTarget.status === 'unavailable' ? 0 : targetArities.get(verificationId) ?? 0 };
     const resolution = resolveAttributableProofRuntime({
       prepared, obligationId: row.obligation_id, resolvedRow: resolved,
       resolvedNode: nodes.get(resolved.resolved_identity),
@@ -412,12 +456,14 @@ function resolveVerifyProofOperation({ args, context }) {
     contract_digest: context.canonicalContractDigest, obligation_coverage_digest: context.obligationCoverageDigest,
     execution_source_binding: context.executionSourceBinding, execution_pack: context.executionPack,
     diagnostics, proof_count: population.length, relationship_count: context.authoringResolution.rows.length,
-    proofs: population, eligible, ineligible
+    proofs: population, eligible, ineligible,
+
+    ...(optedOut.length === 0 ? {} : { proof_opt_outs: optedOut.sort(compare) })
   });
 }
 
 export { FORBIDDEN_AUTHORITY_KEYS as VERIFY_PROOF_FORBIDDEN_AUTHORITY_KEYS,
   RESOLUTION_SCHEMA_VERSION as VERIFY_PROOF_POPULATION_RESOLUTION_SCHEMA_VERSION,
-  VerifyProofOperationError, assertVerifyProofCallerShape, parseVerifyProofSource,
+  VerifyProofOperationError, assertVerifyProofCallerShape, parseVerifyProofSource, verifyProofBranchContextWkId,
   resolveVerifyProofOperation, verifyProofPopulationSubject, verifyProofTimeoutInputSchema,
   verifyProofTimeoutRefusal };

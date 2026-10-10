@@ -32,7 +32,7 @@ function executionOwnedPrerequisite(entry, row) {
 export async function resolveProofAuthoring(source, context = {}, owners = {}) {
   const { draft, parameter_only: parameterOnly, entries, map } =
     await resolveProofExecutableMap(source, context, owners);
-  const results = entries.map(({ row, semantic_diagnostics: semanticDiagnostics }, index) => {
+  const results = entries.map(({ row, semantic_diagnostics: semanticDiagnostics, accounting }, index) => {
     const facts = map.rows[index];
 
     const semanticStatus = semanticDiagnostics.length === 0 ? 'valid' : 'invalid';
@@ -42,8 +42,9 @@ export async function resolveProofAuthoring(source, context = {}, owners = {}) {
       entry.problem?.route_assessment?.effect === 'blocking' &&
       entry.problem.route_assessment.stage === 'authored_inputs' &&
       !executionOwnedPrerequisite(entry, row));
-    const authoringStatus = semanticStatus === 'valid' && authoringBlockers.length === 0
-      ? 'complete' : 'incomplete';
+
+    const authoringStatus = semanticStatus === 'valid' && accounting.status === 'accounted' &&
+      authoringBlockers.length === 0 ? 'complete' : 'incomplete';
     const canonicalCurrent = routeStages === null ||
       routeStages.canonical_sources.status === 'current';
     const rowStatus = authoringStatus === 'complete' && canonicalCurrent ? 'valid' : 'invalid';
@@ -53,7 +54,9 @@ export async function resolveProofAuthoring(source, context = {}, owners = {}) {
       semantic_status: semanticStatus,
       semantic_diagnostic_codes: diagnosticCodes(semanticDiagnostics),
       authoring_status: authoringStatus,
-      authoring_diagnostic_codes: diagnosticCodes([...semanticDiagnostics, ...authoringBlockers]),
+      authoring_diagnostic_codes: [...new Set([...accounting.diagnostic_codes,
+        ...diagnosticCodes([...semanticDiagnostics, ...authoringBlockers])])].sort(),
+      accounting,
       disposition: row.gap ? 'explicit_gap' : row.selection?.proof_name ? 'selected' : 'unselected',
       input_status: facts.input_status, construction_status: facts.construction_status,
       definition: facts.definition,

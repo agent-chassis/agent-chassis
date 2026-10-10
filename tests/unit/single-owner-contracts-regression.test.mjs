@@ -250,6 +250,12 @@ function assertPublicationManifestSerializationOwned(source) {
   );
 }
 
+function publicationValidationSource() {
+  return ["controlled-contract-carrier-set-publication.mjs",
+    "controlled-contract-authoring-validation.mjs", "controlled-contract-carrier-set-validation.mjs"]
+    .map(name => readFileSync(path.join(ROOT, "packages/wiki-core/src/lib", name), "utf8")).join("\n");
+}
+
 test("publication writes owner-canonical manifest bytes and a local serializer mutation is rejected", async (t) => {
   const repo = mkdtempSync(path.join(os.tmpdir(), "single-manifest-publication-owner-"));
   t.after(() => rmSync(repo, { recursive: true, force: true }));
@@ -278,9 +284,7 @@ test("publication writes owner-canonical manifest bytes and a local serializer m
   assert.equal(receipt.manifest_content_digest,
     `sha256:${createHash("sha256").update(ownerBytes).digest("hex")}`);
 
-  const publicationPath = path.join(ROOT,
-    "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs");
-  const publicationSource = readFileSync(publicationPath, "utf8");
+  const publicationSource = publicationValidationSource();
   assertPublicationManifestSerializationOwned(publicationSource);
   const localSerializerMutation = publicationSource.replace(
     "const manifestBytes = canonicalControlledContractCarrierSetManifestBytes(manifest);",
@@ -309,6 +313,5 @@ test("production ownership search finds one implementation for each corrected co
   assert.deepEqual(digestOwners.map(([file]) => path.relative(ROOT, file)), [
     "packages/wiki-core/src/lib/work-record-schema.mjs"
   ]);
-  assertPublicationManifestSerializationOwned(readFileSync(path.join(ROOT,
-    "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs"), "utf8"));
+  assertPublicationManifestSerializationOwned(publicationValidationSource());
 });

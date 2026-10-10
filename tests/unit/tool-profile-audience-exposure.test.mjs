@@ -67,7 +67,7 @@ test("reviewer and redteam get broad CONTENT reads + submit-for-review, but no p
       "workspace_search_repo",
       "workspace_read_page",
       "workspace_get_record",
-      "workspace_code_index_callers",
+      "query_code_index",
       "workspace_work_record_validate",
       "workspace_work_record_summary",
       SUBMIT_FOR_REVIEW
@@ -208,7 +208,7 @@ test("SLICE-008 workbench policy preserves exact exposure and removal mutants re
   for (const role of ["orchestrator", "operator"]) {
     const visible = classifiedNames.filter((name) =>
       shouldExposeToolFromPolicy(role, name, retainOnlyPolicy));
-    assert.equal(visible.length, role === "orchestrator" ? 63 : 81, role);
+    assert.equal(visible.length, role === "orchestrator" ? 58 : 75, role);
   }
 
   for (const [role, toolName] of [

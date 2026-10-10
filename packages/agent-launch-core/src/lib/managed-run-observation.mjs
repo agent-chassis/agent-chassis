@@ -1,6 +1,8 @@
 import {
   ATTEMPT_EVENT_KINDS,
+  ATTEMPT_JOURNAL_REFUSALS,
   MANAGED_WORKER_ATTEMPT_JOURNAL_SCHEMA_VERSION,
+  attemptJournalRefusal,
   attemptKey,
   canonicalJson,
   digestOf,
@@ -33,8 +35,10 @@ export function projectManagedAttemptObservations({ repository, subject, events 
         last_lifecycle_kind: null,
         result: null,
         result_digest: null,
+        original_result: null,
         failures: [],
-        proof_verifications: []
+        proof_verifications: [],
+        delivery_receipts: []
       };
       byAttempt.set(key, item);
     }
@@ -43,6 +47,8 @@ export function projectManagedAttemptObservations({ repository, subject, events 
     } else if (event.kind === ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED) {
       item.result = event.payload.result;
       item.result_digest = event.payload.result_digest;
+    } else if (event.kind === ATTEMPT_EVENT_KINDS.RUN_ORIGINAL_RECORDED) {
+      item.original_result = event.payload.original_result;
     } else if (event.kind === ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED) {
       item.proof_verifications.push(Object.freeze({
         invocation_id: event.payload.invocation_id,
@@ -50,6 +56,9 @@ export function projectManagedAttemptObservations({ repository, subject, events 
         sequence: event.sequence,
         digest: event.digest
       }));
+    } else if (event.kind === ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED) {
+      item.delivery_receipts.push(Object.freeze({ receipt: event.payload.receipt,
+        sequence: event.sequence, digest: event.digest }));
     } else if (event.kind === ATTEMPT_EVENT_KINDS.LIFECYCLE_FAILURE_RECORDED) {
       item.failures.push(Object.freeze({
         invocation_id: event.payload.invocation_id,
@@ -67,7 +76,8 @@ export function projectManagedAttemptObservations({ repository, subject, events 
     attempts: Object.freeze([...byAttempt.values()].map((item) => Object.freeze({
       ...item,
       failures: Object.freeze(item.failures),
-      proof_verifications: Object.freeze(item.proof_verifications)
+      proof_verifications: Object.freeze(item.proof_verifications),
+      delivery_receipts: Object.freeze(item.delivery_receipts)
     }))),
     prefix: Object.freeze({
       sequence: validated.events.length - 1,
@@ -75,6 +85,18 @@ export function projectManagedAttemptObservations({ repository, subject, events 
       event_count: validated.events.length
     })
   };
+}
+
+const ATTEMPT_SELECTION_REFUSAL_CODES = Object.freeze(new Set([
+  "attempt_selector_mismatch", "attempt_selection_ambiguous", "attempt_observation_unavailable"]));
+export function isManagedAttemptSelectionRefusal(observation) {
+  return observation?.ok === false && ATTEMPT_SELECTION_REFUSAL_CODES.has(observation.code);
+}
+
+export function managedObservationFailureFacts(observation) {
+  if (observation === null || typeof observation !== "object" || observation.ok !== false) return observation;
+  const { events: _events, attempts: _attempts, prefix: _prefix, repository: _repository, ...facts } = observation;
+  return facts;
 }
 
 export function selectManagedAttempt({ repository, subject, events, attemptId = null }) {
@@ -195,7 +217,11 @@ function summarizeLastRecordedInvocation(item) {
 function summarizeProofVerifications(population) {
   const outcomes = {};
   const statuses = {};
-  for (const { verification } of population) {
+  for (const { invocation_id, verification } of population) {
+    const current = recordedProofVerificationOutcomeSummary(verification);
+    if (!current.ok) return Object.freeze({ ok: false, code: current.code,
+      refusal: Object.freeze({ code: current.code, field: current.field,
+        reason: current.reason, invocation_id }) });
     const outcome = typeof verification?.outcome === "string" ? verification.outcome : "unknown";
     outcomes[outcome] = (outcomes[outcome] ?? 0) + 1;
     const status = typeof verification?.status === "string" ? verification.status : "none";
@@ -226,7 +252,8 @@ export function pageManagedAttemptDetail({
   kind,
   cursor = null,
   limit = 20,
-  invocationId = null
+  invocationId = null,
+  complete = false
 }) {
   if (!MANAGED_ATTEMPT_DETAIL_KINDS.includes(kind) || !Number.isInteger(limit) || limit < 1 || limit > 100) {
     return { ok: false, code: "attempt_detail_request_invalid" };
@@ -292,7 +319,7 @@ export function pageManagedAttemptDetail({
       : (selection.selected?.failures ?? []);
   const summary = kind === "proof_verification" ? summarizeProofVerifications(population) : null;
   if (summary?.ok === false) return summary;
-  const items = Object.freeze(population.slice(offset, offset + limit));
+  const items = Object.freeze(population.slice(offset, complete ? undefined : offset + limit));
   const nextOffset = offset + items.length;
   const hasMore = nextOffset < population.length;
   return Object.freeze({
@@ -320,4 +347,86 @@ export function pageManagedAttemptDetail({
 
 export function resultDigest(result) {
   return digestOf(result);
+}
+
+export const MANAGED_REVIEW_ORIGINAL_BINDING_SCHEMA_VERSION = "managed-review-original-binding.v1";
+const REVIEW_ORIGINAL_ENVELOPE_KEYS = Object.freeze(["schema_version", "repository", "subject", "sequence",
+  "prior_digest", "binding", "digest"]);
+const REVIEW_ORIGINAL_ROLES = Object.freeze(new Set(["reviewer", "redteam"]));
+
+export function reviewOriginalPartitionSubject(subject) {
+  return `review-original:${subject}`;
+}
+
+const hasExactKeys = (value, keys) => value !== null && typeof value === "object" && !Array.isArray(value) &&
+  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+
+function isValidReviewOriginalBinding(binding) {
+  return hasExactKeys(binding, ["run_id", "role", "original_result"]) &&
+    typeof binding.run_id === "string" && binding.run_id.length > 0 && REVIEW_ORIGINAL_ROLES.has(binding.role) &&
+    hasExactKeys(binding.original_result, ["ref_id", "sha256"]) &&
+    typeof binding.original_result.ref_id === "string" &&
+    /^[A-Za-z0-9._-]{1,200}$/u.test(binding.original_result.ref_id) &&
+    typeof binding.original_result.sha256 === "string" && /^[a-f0-9]{64}$/u.test(binding.original_result.sha256);
+}
+
+function validateReviewOriginalBindings({ repository, subject, events }) {
+  const refuse = (code, reason, sequence) => ({ ok: false, refusal: attemptJournalRefusal(code, reason, { sequence }) });
+  const bindings = [];
+  let priorDigest = null;
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    if (!hasExactKeys(event, REVIEW_ORIGINAL_ENVELOPE_KEYS) ||
+        event.schema_version !== MANAGED_REVIEW_ORIGINAL_BINDING_SCHEMA_VERSION) {
+      return refuse(ATTEMPT_JOURNAL_REFUSALS.UNEXPECTED_KEYS, "review original binding does not carry the closed envelope", index);
+    }
+    if (event.repository !== repository || event.subject !== subject || !isValidReviewOriginalBinding(event.binding) ||
+        bindings.some((binding) => binding.run_id === event.binding.run_id)) {
+      return refuse(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, "review original binding is invalid for this repository, subject or attempt", index);
+    }
+    if (event.sequence !== index || event.prior_digest !== priorDigest) {
+      return refuse(ATTEMPT_JOURNAL_REFUSALS.CHAIN_BROKEN, "review original binding does not chain to its predecessor", index);
+    }
+    const { digest, ...unsigned } = event;
+    if (digestOf(unsigned) !== digest) {
+      return refuse(ATTEMPT_JOURNAL_REFUSALS.DIGEST_MISMATCH, "review original binding digest does not match its content", index);
+    }
+    bindings.push(event.binding);
+    priorDigest = digest;
+  }
+  return { ok: true, bindings, terminal_digest: priorDigest };
+}
+
+export function admitReviewOriginalBinding({ repository, subject, events, binding }) {
+  const validated = validateReviewOriginalBindings({ repository, subject, events });
+  if (!validated.ok) return { admitted: false, refusal: validated.refusal };
+  if (!isValidReviewOriginalBinding(binding)) {
+    return { admitted: false, refusal: attemptJournalRefusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH,
+      "review original binding attempt, role or locator is invalid") };
+  }
+  const existing = validated.bindings.find((recorded) => recorded.run_id === binding.run_id) ?? null;
+  if (existing !== null) {
+    return canonicalJson(existing) === canonicalJson(binding)
+      ? { admitted: true, appended: false, events }
+      : { admitted: false, refusal: attemptJournalRefusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH,
+        "review original binding conflicts with the binding already recorded for this attempt") };
+  }
+  const unsigned = { schema_version: MANAGED_REVIEW_ORIGINAL_BINDING_SCHEMA_VERSION, repository, subject,
+    sequence: events.length, prior_digest: validated.terminal_digest,
+    binding: { run_id: binding.run_id, role: binding.role,
+      original_result: { ref_id: binding.original_result.ref_id, sha256: binding.original_result.sha256 } } };
+  return { admitted: true, appended: true,
+    events: [...events, Object.freeze({ ...unsigned, digest: digestOf(unsigned) })] };
+}
+
+export function selectReviewOriginalBinding({ repository, subject, events, attemptId = null }) {
+  const validated = validateReviewOriginalBindings({ repository, subject, events });
+  if (!validated.ok) return validated;
+  if (attemptId !== null) {
+    const review = validated.bindings.find((binding) => binding.run_id === attemptId) ?? null;
+    return review === null ? { ok: false, code: "attempt_selector_mismatch" } : { ok: true, review };
+  }
+  if (validated.bindings.length === 1) return { ok: true, review: validated.bindings[0] };
+  return { ok: false, code: validated.bindings.length > 1 ? "attempt_selection_ambiguous"
+    : "attempt_observation_unavailable" };
 }

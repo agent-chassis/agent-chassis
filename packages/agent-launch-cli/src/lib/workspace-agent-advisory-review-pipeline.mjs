@@ -157,6 +157,7 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
   worktreeProvisioningConfig,
   runGit,
   resolveTerminalCandidate = null,
+  readLaunchObservation = null,
 
   resolveConfiguredWorkspaceRepo = null
 } = {}) {
@@ -282,7 +283,7 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
       worktreeRoot,
       runGit
     });
-    let launched;
+    let launched, launchObservation;
     try {
       materializeCanonicalDesignReviewInputs({
         capture: resolvedMaterial.design_capture,
@@ -308,10 +309,13 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
         primaryErrorCode: typeof error?.code === "string" ? error.code : null
       });
       throw error;
+    } finally {
+      launchObservation = readLaunchObservation?.(materialized.private_snapshot.worktree_path) ?? null;
     }
     if (launched?.accepted !== true) materialized.cleanup();
     return Object.freeze({
       ...launched,
+      ...(readLaunchObservation === null ? {} : { launch_observation: launchObservation }),
       advisory_review_material: Object.freeze({
         schema_version: descriptor.schema_version,
         role: descriptor.role,

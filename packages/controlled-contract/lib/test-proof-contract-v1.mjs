@@ -814,151 +814,6 @@ function replaceStableTestProofBindings(options) {
   });
 }
 
-const CURRENT_DEFINITION_REAUTHORING_SCHEMA =
-  "controlled-contract-current-definition-reauthoring.v1";
-const RETIRED_CURRENT_DEFINITION_FIELDS = Object.freeze([
-  "coverage_disposition",
-  "runtime_test_identity"
-]);
-
-function currentDefinitionDiagnosticRows(diagnosticDetails) {
-  return Array.isArray(diagnosticDetails) ? diagnosticDetails : [];
-}
-
-function qualifyStableCurrentDefinitionReauthoring({ contract, diagnosticDetails }) {
-  if (!contract || typeof contract !== "object" || Array.isArray(contract) ||
-      contract.schema_version !== "controlled-acceptance-contract.v1" ||
-      contract.vocabulary_version !== "controlled-contract-vocabulary.v1" ||
-      contract.profile_id !== "acceptance-contract.standard.v1" ||
-      contract.test_proof_version !== "controlled-contract-test-proof.v1" ||
-      !Array.isArray(contract.test_proofs)) return null;
-  const rows = currentDefinitionDiagnosticRows(diagnosticDetails);
-  if (rows.length === 0) return null;
-  const retired = new Set(RETIRED_CURRENT_DEFINITION_FIELDS);
-  const byPointer = new Map();
-  let retiredFieldCount = 0;
-  for (const row of rows) {
-    const pointer = row?.definition_pointer;
-    const supportedUnexpected = row?.keyword === "additionalProperties" &&
-      row.property_kind === "unexpected" && retired.has(row.property_name);
-    const supportedMissing = row?.keyword === "required" &&
-      row.property_kind === "missing" && row.property_name === "test_selector";
-    if (row?.code !== "stable_contract_schema_invalid" ||
-        typeof pointer !== "string" ||
-        !/^\/test_proofs\/[0-9]+$/u.test(pointer) ||
-        (!supportedUnexpected && !supportedMissing)) return null;
-    const proofIndex = Number(pointer.slice("/test_proofs/".length));
-    const pointedProof = contract.test_proofs[proofIndex];
-    if (!pointedProof || typeof pointedProof !== "object" ||
-        (row.test_proof_id !== null && row.test_proof_id !== undefined &&
-          row.test_proof_id !== pointedProof.test_proof_id) ||
-        (row.verification_claim_id !== null && row.verification_claim_id !== undefined &&
-          row.verification_claim_id !== pointedProof.verification_claim_id)) return null;
-    if (supportedUnexpected) retiredFieldCount += 1;
-    const current = byPointer.get(pointer) ?? { unexpected: [], missing: [] };
-    (supportedUnexpected ? current.unexpected : current.missing).push(row.property_name);
-    byPointer.set(pointer, current);
-  }
-  if (retiredFieldCount === 0) return null;
-
-  const proofIds = new Set();
-  const verificationIds = new Set();
-  const definitions = [];
-  for (const [index, proof] of contract.test_proofs.entries()) {
-    if (!proof || typeof proof !== "object" || Array.isArray(proof) ||
-        typeof proof.test_proof_id !== "string" || proof.test_proof_id.length === 0 ||
-        typeof proof.verification_claim_id !== "string" ||
-        proof.verification_claim_id.length === 0 ||
-        proofIds.has(proof.test_proof_id) ||
-        verificationIds.has(proof.verification_claim_id)) return null;
-    proofIds.add(proof.test_proof_id);
-    verificationIds.add(proof.verification_claim_id);
-    const pointer = `/test_proofs/${index}`;
-    const defects = byPointer.get(pointer);
-    if (defects === undefined) continue;
-    const unexpected = [...new Set(defects.unexpected)].sort(compareCodeUnits);
-    const missing = [...new Set(defects.missing)].sort(compareCodeUnits);
-    if (unexpected.length === 0 || missing.length !== 1 ||
-        missing[0] !== "test_selector" ||
-        unexpected.some((field) => !Object.hasOwn(proof, field)) ||
-        Object.hasOwn(proof, "test_selector")) {
-      return null;
-    }
-    definitions.push(Object.freeze({
-      definition_pointer: pointer,
-      test_proof_id: proof.test_proof_id,
-      verification_claim_id: proof.verification_claim_id,
-      unexpected_fields: Object.freeze(unexpected),
-      missing_fields: Object.freeze(missing)
-    }));
-  }
-  if (definitions.length !== byPointer.size || definitions.length === 0) return null;
-  return deepFreeze({
-    schema_version: CURRENT_DEFINITION_REAUTHORING_SCHEMA,
-    source_shape: "stable_v1_retired_definition_fields",
-    affected_definition_count: definitions.length,
-    definitions,
-    selector: structuredClone(
-      VERIFICATION_BUNDLE_VOCABULARY.target_types.test_selector),
-    required_confirmation: "exact_unexpected_fields"
-  });
-}
-
-function reauthorStableCurrentDefinitionBindings({ contract, qualification, replacements }) {
-  if (qualification?.schema_version !== CURRENT_DEFINITION_REAUTHORING_SCHEMA ||
-      !Array.isArray(qualification.definitions) || !Array.isArray(replacements)) refuse(
-    "stable_current_definition_reauthoring_input_invalid", "/replacements",
-    "qualified stable-v1 correction and complete replacements", null
-  );
-  const qualifiedById = new Map(qualification.definitions.map((definition) =>
-    [definition.verification_claim_id, definition]));
-  if (replacements.length !== qualifiedById.size) refuse(
-    "stable_current_definition_reauthoring_population_incomplete", "/replacements",
-    [...qualifiedById.keys()].sort(compareCodeUnits),
-    replacements.map(({ verification_id: id }) => id).sort(compareCodeUnits)
-  );
-  const prospective = structuredClone(contract);
-  const proofById = new Map(prospective.test_proofs.map((proof, index) =>
-    [proof.verification_claim_id, { proof, index }]));
-  const seen = new Set();
-  for (const [index, replacement] of replacements.entries()) {
-    assertClosedInput(replacement, ["op", "verification_id", "binding"],
-      `/replacements/${index}`);
-    const qualified = qualifiedById.get(replacement.verification_id);
-    const stored = proofById.get(replacement.verification_id)?.proof;
-    if (replacement.op !== "replace" || qualified === undefined || stored === undefined ||
-        seen.has(replacement.verification_id)) refuse(
-      "stable_current_definition_reauthoring_identity_invalid",
-      `/replacements/${index}/verification_id`,
-      [...qualifiedById.keys()].sort(compareCodeUnits), replacement.verification_id ?? null
-    );
-    seen.add(replacement.verification_id);
-    const expected = structuredClone(stored);
-    for (const field of qualified.unexpected_fields) delete expected[field];
-    expected.test_selector = structuredClone(replacement.binding?.test_selector);
-    if (canonicalJsonBytes(expected).toString("utf8") !==
-        canonicalJsonBytes(replacement.binding).toString("utf8")) refuse(
-      "stable_current_definition_reauthoring_change_out_of_scope",
-      `/replacements/${index}/binding`,
-      "only the explicit selector and confirmed retired fields may change", null
-    );
-    prospective.test_proofs[proofById.get(replacement.verification_id).index] =
-      structuredClone(replacement.binding);
-  }
-  const validation = validateStableTestProofContract(prospective);
-  if (!validation.valid) refuse(
-    "stable_current_definition_reauthoring_result_invalid", "/test_proofs",
-    "valid complete current stable-v1 contract", "invalid", validation.diagnostics
-  );
-  const canonical = JSON.parse(canonicalJsonBytes(prospective).toString("utf8"));
-  return deepFreeze({
-    contract: canonical,
-    contract_digest: `sha256:${sha256(canonicalJsonBytes(canonical))}`,
-    changed_verification_ids: [...seen].sort(compareCodeUnits),
-    semantic_judgment: "not_performed_authoring_only"
-  });
-}
-
 const CONTRACT_DEFS = STABLE_CONTRACT_SCHEMA.$defs;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
@@ -1330,8 +1185,6 @@ function describeStableTestProofAuthoring() {
 }
 
 export {
-  CURRENT_DEFINITION_REAUTHORING_SCHEMA,
-  RETIRED_CURRENT_DEFINITION_FIELDS,
   STABLE_TEST_PROOF_AUTHORING_LIMITS,
   StableTestProofContractError,
   VERIFICATION_BUNDLE_FIELDS,
@@ -1345,8 +1198,6 @@ export {
   describeStableTestProofAuthoring,
   queryStableTestProofBindings,
   projectStableTestProofSelector,
-  qualifyStableCurrentDefinitionReauthoring,
-  reauthorStableCurrentDefinitionBindings,
   replaceStableTestProofBindings,
   resolveStableTestProofBindingPopulation,
   resolveStableTestProofProviderBindings,

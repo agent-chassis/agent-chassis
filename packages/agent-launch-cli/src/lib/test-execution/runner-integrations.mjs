@@ -32,10 +32,11 @@ export class RunnerIntegrationRegistrationError extends Error {
 export function bindRunnerIntegrations(catalog, integrations) {
   const bound = new Map();
   for (const integration of integrations) {
-    if (typeof integration?.setupProbe !== "function") {
+    const missing = ["setupProbe", "ordinaryInvocation"].filter((name) => typeof integration?.[name] !== "function");
+    if (missing.length > 0) {
       throw new RunnerIntegrationRegistrationError("runner_integration_incomplete",
-        `integration ${integration?.runner_id ?? "<unknown>"} lacks setupProbe`,
-        { runner_id: integration?.runner_id ?? null, missing: ["setupProbe"] });
+        `integration ${integration?.runner_id ?? "<unknown>"} lacks ${missing.join(", ")}`,
+        { runner_id: integration?.runner_id ?? null, missing });
     }
     if (bound.has(integration.runner_id)) {
       throw new RunnerIntegrationRegistrationError("runner_integration_duplicate",

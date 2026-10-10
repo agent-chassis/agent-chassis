@@ -80,10 +80,26 @@ async function composeRegisteredStatus() {
 
 function scriptedChild(observations) {
   const queue = [...observations];
+  let probes = 0;
+  let complete;
+  const completion = new Promise((resolve) => { complete = resolve; });
+  const exit = () => {
+    queue.splice(0, queue.length - 1);
+    complete();
+  };
+  if (queue.length === 1) exit();
   return {
-    accepted: true,
-    status: "launching",
-    probe: async () => (queue.length > 1 ? queue.shift() : queue[0])
+    handle: {
+      accepted: true,
+      status: "launching",
+      completion,
+      probe: async () => {
+        probes += 1;
+        return queue[0];
+      }
+    },
+    probes: () => probes,
+    exit
   };
 }
 
@@ -109,14 +125,22 @@ test("registered advisory run status publishes the same conduit carrier in compa
     final_result: null
   });
   const conduit = { runId: "stdio-mcp-advisory-status", readinessFailure: null, cleanupFailure: null };
-  const run = await registered.launch(
-    attachStdioMcpConduitLaunchOutcome(scriptedChild([RUNNING, killed]), conduit));
+  const child = scriptedChild([RUNNING, killed]);
+  const run = await registered.launch(attachStdioMcpConduitLaunchOutcome(child.handle, conduit));
 
   const running = await registered.status(run);
   assert.equal(running.accepted, true, JSON.stringify(running));
   assert.equal(running.terminal, false);
   assert.equal(Object.hasOwn(running, "exit"), false);
 
+  const probesWhileRunning = child.probes();
+  let completed = false;
+  child.handle.completion.then(() => { completed = true; });
+  await Promise.resolve();
+  assert.equal(completed, false, "a live child's completion is still pending");
+  child.exit();
+  assert.equal(await child.handle.completion, undefined);
+  assert.equal(child.probes(), probesWhileRunning, "exit and awaiting completion do not probe");
   conduit.readinessFailure = readinessTimeout();
   const compact = await registered.status(run);
   const expected = {
@@ -157,7 +181,7 @@ test("registered advisory run status keeps captured text beside the cause and fa
   });
   const failing = { runId: "stdio-mcp-advisory-text", readinessFailure: readinessTimeout(), cleanupFailure: null };
   const failedRun = await registered.launch(
-    attachStdioMcpConduitLaunchOutcome(scriptedChild([failedWithText]), failing));
+    attachStdioMcpConduitLaunchOutcome(scriptedChild([failedWithText]).handle, failing));
   const failed = await registered.status(failedRun, { include_final_result: true });
   assert.deepEqual(failed.exit, {
     code: 1,
@@ -178,7 +202,7 @@ test("registered advisory run status keeps captured text beside the cause and fa
   });
   const healthy = { runId: "stdio-mcp-advisory-healthy", readinessFailure: null, cleanupFailure: null };
   const healthyRun = await registered.launch(
-    attachStdioMcpConduitLaunchOutcome(scriptedChild([succeeded]), healthy));
+    attachStdioMcpConduitLaunchOutcome(scriptedChild([succeeded]).handle, healthy));
   const compact = await registered.status(healthyRun);
   const full = await registered.status(healthyRun, { include_final_result: true });
   for (const observed of [compact, full]) {

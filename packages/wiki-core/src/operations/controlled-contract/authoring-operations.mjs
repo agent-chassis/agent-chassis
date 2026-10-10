@@ -54,8 +54,6 @@ import { persistControlledContractReferenceCandidatePopulation } from
 import { loadWorkRecordById } from "../../lib/work-record-store.mjs";
 import { writeValidatedWorkRecord } from "../work-records-store-io.mjs";
 import { runControlledContractRepairTransaction } from "./repair-transaction.mjs";
-import { reauthorControlledContractCurrentDefinitions } from
-  "./current-definition-reauthoring.mjs";
 
 async function compileRequirementAnswer({ repoRoot, wkId, focus, response,
   expectedContentDigest, readCarrier }) {
@@ -257,8 +255,7 @@ export async function applyControlledContractDesignSemanticResponse({
   persistControlledAcceptanceProofPosture = persistControlledAcceptanceProofPostureOperation,
   persistReferenceCandidates = (request) =>
     persistControlledContractReferenceCandidatePopulation(request,
-      { loadRecord: loadWorkRecordById, writeRecord: writeValidatedWorkRecord }),
-  reauthorCurrentDefinitions = reauthorControlledContractCurrentDefinitions
+      { loadRecord: loadWorkRecordById, writeRecord: writeValidatedWorkRecord })
 } = {}) {
   const context = continuationRecord.workbench.owner_context;
   switch (continuationRecord.workbench.semantic_owner) {
@@ -328,12 +325,6 @@ export async function applyControlledContractDesignSemanticResponse({
       operations: controlledContractRequirementPatchOperations({ compiled }) });
   }
   case "test_proof": {
-    if (response.kind === "current_definition_reauthoring") {
-      return reauthorCurrentDefinitions({ repoRoot, wkId, focus,
-        expectedContentDigest: context.expected_content_digest,
-        qualification: context.qualification,
-        definitions: response.definitions });
-    }
 
     const binding = await composeRuntimeTestReplacement({ repoRoot, wkId, focus,
       response, verificationClaimId: context.verification_claim_id,

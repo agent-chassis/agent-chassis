@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+import { consumeAdvisoryExecutionSubstrate } from "./workspace-agent-advisory-execution-substrate.mjs";
 
 import { parseWorkRecordUnitAddress } from "@agent-chassis/agent-launch-core";
 import {
@@ -15,6 +16,8 @@ import {
   resolveCodexSourceHome
 } from "./workspace-agent-codex-runtime-facts.mjs";
 import { buildCodexWritableSandboxArgs } from "./codex-role-write-scope.mjs";
+import { buildCodexRoleGuideHookConfigOverrides } from "./codex-role-guide-hook.mjs";
+import { injectCodexConfigOverridesBeforeFinalPositional } from "./codex-role-mcp-env.mjs";
 import {
   LAUNCHER_WRITE_POSTURE_FAMILIES,
   resolveLauncherRoleWritePosture
@@ -175,6 +178,13 @@ export function buildCodexRoleBubblewrapPlan(plan, {
   const childArgs = childCommand === "codex"
     ? stripNestedCodexSandboxArgs(realpathArgs)
     : realpathArgs;
+
+  if (childCommand === "codex") {
+
+    injectCodexConfigOverridesBeforeFinalPositional(
+      childArgs, buildCodexRoleGuideHookConfigOverrides(plan.role,
+        plan.nativeUsageHook ? { usageHook: plan.nativeUsageHook } : {}));
+  }
   const workerSecretMaskInputs = isCodexOrchestratorRole(plan.role)
     ? { readOnlyRoots: [], maskTmpfsDirs: [] }
     : buildWorkerSecretMaskInputs({ workspaceDir: plan.repo });
@@ -194,6 +204,8 @@ export function buildCodexRoleBubblewrapPlan(plan, {
     plan.advisory_review_input === undefined
     ? null
     : resolveAdvisoryReviewGitMetadataProjection(plan.advisory_review_input);
+  const substrateRoots = gitMetadataProjection === null ? []
+    : consumeAdvisoryExecutionSubstrate(plan.advisory_review_input).read_only_binds;
   return buildBubblewrapLaunchPlan({
     repo: plan.repo,
     command: childCommand,
@@ -209,10 +221,11 @@ export function buildCodexRoleBubblewrapPlan(plan, {
     readOnlyRoots: Array.isArray(plan.isolation.read_only_roots)
       ? [
           ...plan.isolation.read_only_roots,
+          ...substrateRoots,
           ...workerSecretMaskInputs.readOnlyRoots,
           ...orchestratorManagedWorktreeReadRoots
         ]
-      : [...workerSecretMaskInputs.readOnlyRoots, ...orchestratorManagedWorktreeReadRoots],
+      : [...substrateRoots, ...workerSecretMaskInputs.readOnlyRoots, ...orchestratorManagedWorktreeReadRoots],
     requiredReadOnlyFiles: Array.isArray(plan.isolation.required_read_only_files)
       ? [...plan.isolation.required_read_only_files]
       : [],

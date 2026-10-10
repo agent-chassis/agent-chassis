@@ -7,6 +7,8 @@ import { getRecordKindSpec, validateRecordByKind } from "./work-record-kind-regi
 import { renderRecordByKindMarkdown } from "./work-record-kind-renderer.mjs";
 import { computeWorkRecordSourceDigest } from "./work-record-schema.mjs";
 import { ensureDirectory } from "./wiki-shared.mjs";
+import { composeWorkRecordPersistenceDiagnostic, persistenceOutcomeFields,
+  WORK_RECORD_PUBLICATION_STATES } from "../operations/work-record-persistence-diagnostics.mjs";
 
 const KIND_RECORD_WRITE_LOCK_FILE = ".kind-record-write.lock";
 const KIND_RECORD_WRITE_LOCK_STALE_AFTER_MS = 60_000;
@@ -604,17 +606,34 @@ export async function writeValidatedKindRecord({
   const absoluteJsonPath = path.resolve(targetRoot, relativeJsonPath);
   const absoluteMarkdownPath = path.resolve(targetRoot, relativeMarkdownPath);
 
-  await ensureDirectory(path.dirname(absoluteJsonPath));
-
+  const { NOT_PUBLISHED, PUBLISHED, UNKNOWN } = WORK_RECORD_PUBLICATION_STATES;
+  let canonicalState = NOT_PUBLISHED, projectionState = NOT_PUBLISHED;
+  let phase = "staging", result = null;
+  const failure = (cause, failedPhase) => {
+    const { diagnostic } = composeWorkRecordPersistenceDiagnostic({
+      phase: failedPhase, cause, publicationState: canonicalState, recordId,
+      canonicalRecordPath: relativeJsonPath,
+      failureRole: result?.diagnostics.some(entry => entry.code === "kind_record_write_failed") ? "secondary" : "primary"
+    });
+    result = { ...result, ok: false, diagnostics: [...(result?.diagnostics ?? []), {
+      ...diagnostic, code: "kind_record_write_failed", category: "kind_record_write_failed",
+      operation: "kind_record_write_failed", cause_name: diagnostic.cause.name,
+      cause_message: diagnostic.cause.message,
+      message: `canonical ${kind} persistence failed during ${failedPhase}: ${diagnostic.cause.message}`
+    }] };
+  };
   let jsonTemp = null;
   let markdownTemp = null;
   try {
+    await ensureDirectory(path.dirname(absoluteJsonPath));
     jsonTemp = await writeFileToTemp(absoluteJsonPath, serializeRecord(record));
     markdownTemp = await writeFileToTemp(absoluteMarkdownPath, projection.markdown);
 
+    phase = "lock_acquisition";
     const writeResult = await withKindRecordWriteLock(targetRoot, async () => {
       const observation = await observeOnDiskDigest(absoluteJsonPath, relativeJsonPath);
       if (observation.status === "unobservable") {
+        phase = "lock_release";
         return { status: "observation_failed", diagnostic: observation.diagnostic };
       }
       const currentDigest = observation.digest;
@@ -624,23 +643,33 @@ export async function writeValidatedKindRecord({
           ? expectedSourceDigest
           : currentDigest;
       if (currentDigest !== guardDigest) {
+        phase = "lock_release";
         return { status: "stale", current_source_digest: currentDigest };
       }
       try {
+        phase = "canonical_publication";
+        canonicalState = UNKNOWN;
         await rename(jsonTemp.tempPath, absoluteJsonPath);
+        canonicalState = PUBLISHED;
+        phase = "projection_publication";
+        projectionState = UNKNOWN;
         await rename(markdownTemp.tempPath, absoluteMarkdownPath);
-      } catch {
+        projectionState = PUBLISHED;
+      } catch (error) {
+        failure(error, phase);
+        phase = "lock_release";
         return { status: "write_failed" };
       }
+      phase = "lock_release";
       return { status: "written" };
     });
 
     if (writeResult.status === "observation_failed") {
-      return refusal([writeResult.diagnostic], sourceDigest);
+      result = refusal([writeResult.diagnostic], sourceDigest);
     }
 
     if (writeResult.status === "stale") {
-      return {
+      result = {
         ok: false,
         written: false,
         source_digest: sourceDigest,
@@ -659,48 +688,26 @@ export async function writeValidatedKindRecord({
       };
     }
 
-    if (writeResult.status === "write_failed") {
-      return refusal(
-        [
-          {
-            code: "kind_record_write_failed",
-            severity: "error",
-            message: `failed to write canonical ${kind} record`,
-            path: relativeJsonPath
-          }
-        ],
-        sourceDigest
-      );
-    }
+    if (writeResult.status === "written") result = { ok: true, diagnostics: [] };
   } catch (error) {
-    return refusal(
-      [
-        {
-          code: "kind_record_write_failed",
-          severity: "error",
-          message: `failed to write canonical ${kind} record: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-          path: relativeJsonPath
-        }
-      ],
-      sourceDigest
-    );
-  } finally {
-    if (jsonTemp) {
-      await rm(jsonTemp.tempDir, { recursive: true, force: true });
-    }
-    if (markdownTemp) {
-      await rm(markdownTemp.tempDir, { recursive: true, force: true });
-    }
+    failure(error, phase);
   }
 
+  for (const temp of [jsonTemp, markdownTemp]) {
+    if (temp) {
+      try { await rm(temp.tempDir, { recursive: true, force: true }); }
+      catch (error) { failure(error, "cleanup"); }
+    }
+  }
   return {
-    ok: true,
-    written: true,
-    source_digest: sourceDigest,
-    diagnostics: [],
+    ...result,
+    ...persistenceOutcomeFields(canonicalState, { ok: result.ok }),
+    source_digest: canonicalState === UNKNOWN ? null : canonicalState === PUBLISHED ? sourceDigest : result.source_digest ?? null,
     canonical_record_path: relativeJsonPath,
-    canonical_markdown_path: relativeMarkdownPath
+    canonical_markdown_path: relativeMarkdownPath,
+    participants: {
+      canonical_json: persistenceOutcomeFields(canonicalState, { ok: canonicalState === PUBLISHED }),
+      generated_markdown: persistenceOutcomeFields(projectionState, { ok: projectionState === PUBLISHED })
+    }
   };
 }

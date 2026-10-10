@@ -2,7 +2,8 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { coverageUnitArguments } from
   "../../../wiki-core/src/operations/controlled-contract/coverage-recovery-guidance.mjs";
-import { projectObservedIdentity } from "./verify-proof-result-detail.mjs";
+import { distillSelectedTestFailure, distillTestFailureDiagnostic, projectObservedIdentity }
+  from "./verify-proof-result-detail.mjs";
 import { PROVIDER_REFUSAL_PRECEDENCE } from "@agent-chassis/controlled-contract";
 import { VERIFY_PROOF_EXECUTION_FAILURE_CODES } from
   "../../../agent-launch-cli/src/lib/workspace-agent-verify-proof-capability.mjs";
@@ -14,7 +15,7 @@ import { TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES } from
   "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-provider-registry.mjs";
 import { TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE } from
   "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-contract.mjs";
-import { isLauncherTestFailureDiagnostic, projectSelectedTestFailureDiagnostic } from
+import { isLauncherTestFailureDiagnostic } from
   "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-error-diagnostic.mjs";
 import { publicRunFacts } from
   "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-run-facts.mjs";
@@ -102,8 +103,25 @@ export const ORCHESTRATOR_RUNTIME_FAILURES = Object.freeze({
   [ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.WORKTREE_MOVED]:
     "stabilize_the_configured_current_worktree_then_retry",
   [ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.EXACT_DEPENDENCY_PROJECTION]:
-    "repair_the_authenticated_exact_candidate_dependency_projection_then_retry"
+    "repair_the_authenticated_exact_candidate_dependency_projection_then_retry",
+  [ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.CURRENT_DEFINITIONS]:
+    "author_or_repair_the_named_current_proof_definition_source_then_retry"
 });
+
+const DEFINITION_SOURCE_UNIT_RE = /^WK-[0-9]{4}(?:#SLICE-[0-9]{3,})?$/u;
+export function projectedDefinitionSourceFacts(detail) {
+  const source = detail?.definition_source;
+  if (source === undefined) return {};
+  const text = (value) => value === null || typeof value === "string" && value.length > 0 &&
+    value.length <= 4096 && !/[\u0000-\u001f\u007f]/u.test(value);
+  if (source === null || typeof source !== "object" || Array.isArray(source) ||
+      Object.keys(source).some((key) => !["unit", "focus", "path", "cause"].includes(key)) ||
+      typeof source.unit !== "string" || !DEFINITION_SOURCE_UNIT_RE.test(source.unit) ||
+      !text(source.path ?? null) || !text(source.cause ?? null) || !text(source.focus ?? null)) {
+    return null;
+  }
+  return { definition_source: { ...source } };
+}
 
 const OID_RE = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
 export function projectedDependencyProjectionFacts(detail) {
@@ -371,6 +389,53 @@ export function projectedSourceSelectionDetail(error) {
     match_count: details.match_count, choice_count: projected.length }, choices: projected };
 }
 
+const SOURCE_UNIT_FORBIDDEN_CODE = "verify_proof.source_unit_forbidden.v1";
+
+export function isVerifyProofSourceUnitForbidden(error) {
+  return error?.code === SOURCE_UNIT_FORBIDDEN_CODE;
+}
+
+function parsedUnit(unit) {
+  try {
+    return parseProofAuthoringUnitAddress(unit);
+  } catch {
+    return null;
+  }
+}
+
+export function projectedSourceUnitForbidden(error, { subject = null, request = null } = {}) {
+  const details = error.details;
+  if (details === null || typeof details !== "object" || Array.isArray(details) ||
+      !canonicalSubject(details.subject) || (subject !== null && details.subject !== subject)) return null;
+  const sourceUnit = details.source_unit;
+  if (sourceUnit !== undefined && parsedUnit(sourceUnit) === null) return null;
+  if (details.wk_id !== undefined && parsedUnit(details.wk_id)?.selectedUnit !== null) return null;
+  const authorizedUnit = details.authorized_unit ?? null;
+  const facts = { subject: details.subject,
+    ...(sourceUnit === undefined ? {} : { source_unit: sourceUnit }),
+    ...(details.wk_id === undefined ? {} : { wk_id: details.wk_id }),
+    authorized_unit: typeof authorizedUnit === "string" ? authorizedUnit : null };
+  const requestedUnit = sourceUnit ?? details.subject;
+  const requested = parsedUnit(requestedUnit);
+  const authorized = parsedUnit(authorizedUnit);
+  if (requested === null || authorized === null || authorized.wkId !== requested.wkId ||
+      authorizedUnit === requestedUnit || details.wk_id !== undefined) {
+    return { details: facts, alternative: null };
+  }
+  return { details: facts, alternative: {
+    requested_subject: details.subject,
+    requested_unit: requestedUnit,
+    authorized_unit: authorizedUnit,
+    relation: requested.selectedUnit === null && authorized.selectedUnit !== null
+      ? "assigned_slice_of_requested_wk" : "other_unit_of_requested_wk",
+    fulfills_requested_subject: false,
+    executed: false,
+    meaning: "the offered call verifies only this session's authorized unit; the requested subject " +
+      "remains unverified by this session and needs a session authorized for it",
+    call: { tool: "verify_proof", arguments: { subject: authorizedUnit } }
+  } };
+}
+
 const TEST_ID_RE = /^test-[a-f0-9]{64}$/u;
 const DIGEST_RE = /^sha256:[a-f0-9]{64}$/u;
 const WK_ID_RE = /^WK-[0-9]{4}$/u;
@@ -388,7 +453,9 @@ export function projectProofAuthoringRecoveryCall(call, { wkId = null, source = 
     if (typeof obligationId !== "string" || !WK_ID_RE.test(source?.wkId ?? "")) return null;
     const expected = { ...coverageUnitArguments({ wkId: source.wkId, focus: source.focus ?? null,
       selectedUnit: source.selectedUnit ?? null }), obligation_id: obligationId };
-    return isDeepStrictEqual({ ...args }, expected) ? structuredClone(call) : null;
+    return isDeepStrictEqual({ ...args }, expected)
+      ? { tool: "workspace_read_wiki", arguments: { subject: source.selectedUnit === null || source.selectedUnit === undefined
+        ? source.wkId : `${source.wkId}#${source.selectedUnit}` } } : null;
   }
   const argumentKeys = Object.keys(args);
   if (!argumentKeys.includes("unit") ||
@@ -397,7 +464,48 @@ export function projectProofAuthoringRecoveryCall(call, { wkId = null, source = 
       (wkId !== null && args.unit !== wkId) ||
       (Object.hasOwn(args, "focus") &&
         (typeof args.focus !== "string" || !FOCUS_RE.test(args.focus)))) return null;
-  return structuredClone(call);
+  return { tool: "workspace_read_wiki", arguments: { subject: args.unit } };
+}
+
+export async function projectProofAuthoringAcquisition({ call, recovery, intent,
+  requestContracts, receivingRole, resolveAuthoringSource }) {
+  const contract = requestContracts?.contractFor(call.tool) ?? null;
+  const accepted = contract !== null && await contract.acceptsArguments(call.arguments);
+  const matchesSource = call.arguments.subject === intent.source.unit;
+  let sourceCause;
+  let reason = !accepted ? contract === null ? "reader_not_registered"
+    : "authoring_subject_rejected_by_registered_reader" : "focused_authoring_selection_unavailable";
+  if (!matchesSource) reason = "authoring_source_identity_mismatch";
+  if (intent.source.focus_status === "unknown") reason = "authoring_source_identity_unavailable";
+  if (accepted && matchesSource && intent.source.focus_status !== "unknown" && intent.source?.focus == null) {
+    if (resolveAuthoringSource === undefined) reason = "reader_source_context_unavailable";
+    else {
+      let context;
+      try { context = await resolveAuthoringSource(); }
+      catch (error) {
+        if (error?.code !== "obligation_coverage_query_source_unavailable") throw error;
+        sourceCause = { code: error.code, message: error.message, details: structuredClone(error.details) };
+      }
+      if (sourceCause !== undefined) reason = "reader_source_unavailable";
+      else if (context.identity.source.kind === "canonical_workspace") return { call, recovery };
+      else if (context.identity.source.kind === "frozen_review_materialization") reason = "reader_serves_frozen_review_source";
+      else throw new TypeError("proof authoring acquisition has an unsupported authenticated source kind");
+    }
+  }
+  const { recovery_call: _call, ...facts } = recovery;
+  return { call: null, recovery: { ...facts, acquisition: {
+    code: "verify_proof.authoring_acquisition_unavailable.v1",
+    state: "no_supported_route",
+    missing_capability: "read_saved_proof_authoring_context",
+    receiving_role: receivingRole,
+    ...structuredClone(intent),
+    reason,
+    ...(sourceCause === undefined ? {} : { cause: sourceCause }),
+    correction_boundary: {
+      owner: "workspace_read_wiki",
+      required_correction: "An entitled acquisition of the exact saved source and obligation is required; adding a capability or changing role authority requires an operator decision."
+    }
+  } } };
 }
 
 export const TEST_PROOF_FAILURES = Object.freeze({
@@ -412,7 +520,9 @@ export const TEST_PROOF_FAILURES = Object.freeze({
         ? { ...(packageCode ? { cause_code: packageCode } : {}),
             authority_limb: "mechanical_failure", admissibility_effect: "none",
             ...(projectProofAuthoringRecoveryCall(detail?.recovery_call) === null ? {} : {
-              recovery_call: projectProofAuthoringRecoveryCall(detail.recovery_call)
+              recovery_call: projectProofAuthoringRecoveryCall(detail.recovery_call),
+              authoring_source: { unit: detail.recovery_call.arguments.unit,
+                focus: detail.recovery_call.arguments.focus ?? null }
             }) }
         : null;
     }
@@ -522,6 +632,10 @@ const LAUNCHER_ATTRIBUTION_OBSERVATION_CODES = new Set([
   "test_proof_structured_events_unselected_execution",
   "test_proof_structured_test_identity_duplicate"
 ]);
+
+const PUBLISHED_DETAIL_CODES = new Set([...LAUNCHER_ATTRIBUTION_OBSERVATION_CODES,
+  ...NATIVE_SOURCE_OBSERVATION_CODES]);
+const LATER_STAGES = new Set(["falsifier", "traversal", "receipt"]);
 const LAUNCHER_OBSERVATION_DEFECT_ACTION = "report_the_launcher_selected_test_observation_defect";
 const LAUNCHER_OBSERVATION_CORRECTION_OWNER = "launcher_test_proof_provider";
 
@@ -537,6 +651,22 @@ const SELECTED_TEST_CORRECTIONS = Object.freeze({
   })
 });
 
+const CHECK_SHAPE_LIMITATION_REASONS = new Set([
+  "async_function_unsupported",
+  "body_not_single_scalar_return",
+  "decorated_function_unsupported",
+  "function_not_synchronous",
+  "return_literal_unsupported",
+  "return_not_scalar"
+]);
+const CHECK_SHAPE_LIMITATION_ACTION = "report_the_launcher_provider_check_shape_limitation";
+
+function checkShapeLimitation(details) {
+  return NATIVE_SOURCE_OBSERVATION_CODES.has(details.structured_observation_code) &&
+    ["falsifier", "traversal"].includes(details.execution_stage) &&
+    CHECK_SHAPE_LIMITATION_REASONS.has(details.structured_observation_detail?.reason);
+}
+
 function selectedTestCorrection(details) {
   return details.structured_observation_code === NATIVE_INSTRUMENTATION_UNSUPPORTED_CODE
     ? SELECTED_TEST_CORRECTIONS[details.structured_observation_detail?.reason] ?? null : null;
@@ -546,6 +676,10 @@ function noRetryCorrection(recoveryAction, details) {
   if (recoveryAction === LAUNCHER_OBSERVATION_DEFECT_ACTION) {
     return { correction_owner: LAUNCHER_OBSERVATION_CORRECTION_OWNER,
       condition: details.structured_observation_code };
+  }
+  if (recoveryAction === CHECK_SHAPE_LIMITATION_ACTION) {
+    return { correction_owner: LAUNCHER_OBSERVATION_CORRECTION_OWNER,
+      condition: details.structured_observation_detail.reason };
   }
   const selection = selectedTestCorrection(details);
   return selection?.action === recoveryAction ? { correction_owner: selection.correction_owner,
@@ -564,6 +698,7 @@ function evidenceExecutionRecovery(details) {
   }
   const selection = selectedTestCorrection(details);
   if (selection !== null) return selection.action;
+  if (checkShapeLimitation(details)) return CHECK_SHAPE_LIMITATION_ACTION;
 
   if (NATIVE_SOURCE_OBSERVATION_CODES.has(details.structured_observation_code)) {
     return "repair_the_declared_native_proof_source_then_retry";
@@ -587,7 +722,7 @@ function publicObservedIdentity(event) {
   const { failure_diagnostic: cause, ...identity } = projectObservedIdentity(event);
   if (cause === undefined) return identity;
   if (!isLauncherTestFailureDiagnostic(cause)) return null;
-  return { ...identity, failure_diagnostic: projectSelectedTestFailureDiagnostic(cause) };
+  return { ...identity, failure_diagnostic: distillTestFailureDiagnostic(cause) };
 }
 
 function publicObservedIdentities(events) {
@@ -671,7 +806,8 @@ function projectFalsifierOutcome(falsifier) {
     isolated: falsifier.isolated,
     candidate_status: falsifier.candidate_status,
     falsified_status: falsifier.falsified_status,
-    mutation_observed: falsifier.mutation.observed
+    mutation_observed: falsifier.mutation.observed,
+    mutation: { strategy: falsifier.mutation.strategy, module_path: falsifier.mutation.module_path }
   };
 }
 
@@ -792,6 +928,32 @@ function projectedSelectedSkip(detail) {
     nesting: identity.nesting, status: identity.status };
 }
 
+function projectedPriorCandidateObservation(observation) {
+  if (observation === null || typeof observation !== "object" || Array.isArray(observation) ||
+      observation.stage !== "candidate" || !["passed", "failed"].includes(observation.status)) return null;
+  let identity;
+  try {
+    identity = publicObservedIdentity(observation);
+  } catch {
+    return null;
+  }
+  if (identity === null) return null;
+  return { test_id: identity.test_id, file: identity.file, name: identity.name,
+    nesting: identity.nesting, status: identity.status };
+}
+
+const CHECK_KINDS = new Set(["falsifier", "traversal"]);
+
+function projectedCheck(check) {
+  if (check === null || typeof check !== "object" || Array.isArray(check) ||
+      !CHECK_KINDS.has(check.check_kind) || !SAFE_IDENTITY_RE.test(check.check_id) ||
+      Object.keys(check).some((key) =>
+        !["check_kind", "check_id", "module_path", "function_name"].includes(key)) ||
+      (check.module_path !== undefined && !safeDeclaredTarget(check.module_path)) ||
+      (check.function_name !== undefined && !SAFE_IDENTITY_RE.test(check.function_name))) return null;
+  return { ...check };
+}
+
 const SELECTED_OBSERVATION_CODES = new Set([
   "test_proof_selected_identity_not_observed", TEST_PROOF_SELECTED_TEST_SKIPPED_CODE
 ]);
@@ -837,13 +999,26 @@ export function projectedEvidenceFailure(error, executionContext) {
     projected.provider_id = detail.provider.provider_id;
     projected.provider_version = detail.provider.provider_version;
   }
+  if (detail?.check !== undefined) {
+    const check = projectedCheck(detail.check);
+    if (check === null || check.check_kind !== projected.execution_stage) return null;
+    projected.check = check;
+  }
   const executionFailure = TEST_PROOF_EVIDENCE_FAILURES[error.code] === null;
   if (executionFailure || SELECTED_OBSERVATION_CODES.has(error.code)) {
     if (!SAFE_EXECUTION_STAGES.includes(projected.execution_stage)) return null;
-    const runFacts = publicRunFacts(detail?.run,
-      { attributionCodes: LAUNCHER_ATTRIBUTION_OBSERVATION_CODES });
+    const runFacts = publicRunFacts(detail?.run, { attributionCodes: PUBLISHED_DETAIL_CODES });
     if (runFacts === null) return null;
-    Object.assign(projected, runFacts);
+
+    Object.assign(projected, runFacts, runFacts.failure_diagnostic === undefined ? {} : {
+      failure_diagnostic: distillSelectedTestFailure(runFacts.failure_diagnostic) });
+  }
+
+  if (projected.selected_observation === undefined &&
+      LATER_STAGES.has(projected.execution_stage) &&
+      error.attempt_observation?.selected_observation !== undefined) {
+    const prior = projectedPriorCandidateObservation(error.attempt_observation.selected_observation);
+    if (prior !== null) projected.selected_observation = prior;
   }
   const stage = error.code.startsWith("test_proof_receipt_") ||
     error.code === "test_proof_runtime_evidence_invalid" ||

@@ -2,7 +2,7 @@
 
 import { ControlledContractToolError, assertControlledContractOperationInput } from
   '../../lib/controlled-contract-tools.mjs';
-import { loadControlledContractPackage } from './package-runtime.mjs';
+import { loadControlledContractProofAuthoring } from './package-runtime.mjs';
 import { resolveProofAuthoringSource } from './proof-authoring-source.mjs';
 import { bindProofAuthoringRevision } from './proof-authoring-revision.mjs';
 import { obligationCoverageResolutionInput } from './proof-authoring-persistence.mjs';
@@ -10,7 +10,8 @@ import { projectProofAuthoringCase } from './proof-authoring-case.mjs';
 import { projectProofAuthoringContractInputs } from './proof-authoring-contract-inputs.mjs';
 import { projectControlledContractReferenceClosure } from './contract-requirement-authoring.mjs';
 import { coverageUnitArguments } from './coverage-recovery-guidance.mjs';
-import { proofAuthoringOperation, validationContractInputsSummary } from './proof-authoring-operations.mjs';
+import { proofAuthoringOperation } from './refusal.mjs';
+import { CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE } from '../../lib/work-record-proof-posture.mjs';
 import { acceptanceCriterionInventory } from './acceptance-criterion-coverage.mjs';
 
 export const OBLIGATION_COVERAGE_QUERY_SCHEMA_VERSION = 'obligation-coverage-query.v1';
@@ -21,6 +22,23 @@ const POPULATION_MODES = Object.freeze(['all', 'assigned']);
 const unitAddress = value => value.selectedUnit === null ? value.wkId : `${value.wkId}#${value.selectedUnit}`;
 const byObligationId = (left, right) => left.obligation_id < right.obligation_id ? -1
   : left.obligation_id > right.obligation_id ? 1 : 0;
+
+function validationContractInputsSummary(resolved, contractInputs) {
+  const { requirements, controlled_acceptance: acceptance } = contractInputs;
+  return {
+    contract_content_digest: contractInputs.contract_content_digest,
+    controlled_acceptance: { status: acceptance.status, disposition: acceptance.disposition,
+
+      ...(acceptance.disposition === 'opted_out'
+        ? { provenance: CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE } : {}) },
+    requirements: { status: requirements.status,
+      total_requirements: requirements.selection.total_requirements,
+      reference_count: requirements.selection.reference_count,
+      residue_count: requirements.residue.length, note_count: requirements.notes.length },
+    detail_call: { tool: 'workspace_controlled_contract_obligation_coverage_query',
+      arguments: coverageUnitArguments(resolved) }
+  };
+}
 
 function requestInvalid(message, rejected, input) {
   throw new ControlledContractToolError('obligation_coverage_request_invalid', message, {
@@ -106,7 +124,7 @@ export async function queryControlledContractObligationCoverageOperation(input) 
       obligationCoverageResolutionInput(input)));
     const inventory = input.inventory === true;
     const present = resolved.source !== null;
-    const pkg = present ? await loadControlledContractPackage() : null;
+    const pkg = present ? await loadControlledContractProofAuthoring() : null;
     let rows = present ? [...resolved.rows].sort(byObligationId) : [];
     if (input.obligationId !== undefined) {
       const row = rows.find(entry => entry.obligation_id === input.obligationId);
@@ -166,7 +184,7 @@ export async function queryControlledContractObligationCoverageOperation(input) 
       global_annotations: 'all_notes_and_residue_retained' };
 
     const acceptanceCriteria = acceptanceCriterionInventory(
-      pkg ?? await loadControlledContractPackage(), resolved.unit);
+      pkg ?? await loadControlledContractProofAuthoring(), resolved.unit);
     const common = {
       schema_version: OBLIGATION_COVERAGE_QUERY_SCHEMA_VERSION,
       unit: unitAddress(resolved),

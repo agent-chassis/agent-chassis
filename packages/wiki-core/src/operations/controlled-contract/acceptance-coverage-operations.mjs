@@ -1,31 +1,23 @@
-import { proofAuthoringCompletenessSummary, proofAuthoringIncompleteResult } from './proof-authoring-source.mjs';
-import { proofAuthoringCarrierContent as obligationCoverageCarrierContent } from './proof-authoring-source.mjs';
-import { queryControlledContractObligationCoverageOperation } from
-  "./obligation-coverage-query.mjs";
+import { proofAuthoringCompletenessSummary, proofAuthoringIncompleteResult,
+  proofAuthoringObligationsAccounted } from './proof-authoring-source.mjs';
 export { upsertControlledContractObligationCoverageOperation, removeControlledContractObligationCoverageOperation,
   refuseMalformedControlledContractObligationCoverageRequest } from "./proof-authoring-operations.mjs";
 export { queryControlledContractObligationCoverageOperation } from "./obligation-coverage-query.mjs";
 import { obligationCoverageProjectionCursor, encodeObligationCoverageOperationCursor, decodeObligationCoverageOperationCursor } from "./proof-authoring-persistence.mjs";
 
 import { randomUUID } from "node:crypto";
-import { link, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { processStartIdentity } from
-  "../../lib/controlled-contract-carrier-set-publication.mjs";
-
 import {
   ControlledContractToolError,
-  assertControlledContractOperationInput,
   controlledContractContentDigest,
-  deriveCanonicalControlledContractAuthoringState,
   withCanonicalControlledContractSourceLease
 } from "../../lib/controlled-contract-tools.mjs";
 import { applyControlledContractCarrierPatch } from
-  "@agent-chassis/controlled-contract";
+  "@agent-chassis/controlled-contract/carrier-patch";
 import {
   deriveControlledContractAcceptanceCoverage,
-  deriveCriterionIdentitySet,
-  projectAcceptanceCoverage
+  deriveCriterionIdentitySet
 } from "../../lib/controlled-contract-acceptance-coverage.mjs";
 import { composeControlledContractCoverageAuthoringSkeleton }
   from "../../lib/controlled-contract-coverage-authoring-skeleton.mjs";
@@ -34,8 +26,6 @@ import {
   ACCEPTANCE_COVERAGE_CARRIER_VERSION,
   ACCEPTANCE_COVERAGE_MAX_BYTES,
   ACCEPTANCE_COVERAGE_MAX_ROWS,
-  OBLIGATION_COVERAGE_MAX_BYTES,
-  OBLIGATION_COVERAGE_MAX_ROWS,
   acceptanceCoverageAuthoringIdentity,
   acceptanceCoverageCarrierPath,
   acceptanceCoverageFactsFromRows,
@@ -58,16 +48,29 @@ import {
   assertConflictSetCurrent,
   planAcceptanceCoverageRebase,
   planObligationCoverageRebase,
-  projectRebaseConflictPage,
-  withOrderedCoverageLocks
+  projectRebaseConflictPage
 } from "./acceptance-coverage-rebase.mjs";
-import { loadControlledContractPackage } from "./package-runtime.mjs";
 import { controlledContractOperation } from "./refusal.mjs";
 import {
-  attachOwnerProducedRecovery,
   coverageSelectorRecovery,
   obligationCoverageDescribeCalls
 } from "./coverage-recovery-guidance.mjs";
+import {
+  ACCEPTANCE_COVERAGE_NON_AUTHORITY,
+  acceptanceCoverageCarrierIdentity,
+  acceptanceCoverageOperationInput,
+  acceptanceCoverageResolutionInput,
+  assertAcceptanceRebaseAttemptIdentity,
+  coverageAuthoringMutation,
+  coverageFamilyContinuationCalls,
+  decodeAcceptanceCoverageOperationCursor,
+  encodeAcceptanceCoverageOperationCursor,
+  materializeObligationCoverageRow,
+  ownerProducedCoverageRecovery,
+  projectPublicAcceptanceCoverage,
+  publicAcceptanceCoverageSelector,
+  validateObligationCoverageContent
+} from "./acceptance-coverage-operation-support.mjs";
 
 let controlledContractRefactorCoverageHook = null;
 
@@ -89,97 +92,6 @@ export function setControlledContractRefactorCoverageHookForTest(hook = null) {
 async function refactorCoverageBoundary(boundary, details) {
   if (controlledContractRefactorCoverageHook !== null) {
     await controlledContractRefactorCoverageHook(boundary, Object.freeze(details));
-  }
-}
-
-async function acquireRefactorCoverageLock(file) {
-  const lockFile = `${file}.lock`;
-  const processStart = await processStartIdentity(process.pid).catch(() => null);
-  if (processStart === null) throw new ControlledContractToolError(
-    "controlled_contract_coverage_rebase_lock_unavailable",
-    "coverage lock process identity is unavailable", { changed: false });
-  const record = { schema_version: "controlled-contract-refactor-coverage-lock.v1",
-    operation_token: randomUUID(), process_id: process.pid,
-    process_start_identity: processStart };
-  const create = async () => {
-    let handle = null;
-    try {
-      handle = await open(lockFile, "wx", 0o600);
-      await handle.writeFile(`${JSON.stringify(record)}\n`, "utf8");
-      await handle.sync();
-      return { file: lockFile, handle, record };
-    } catch (error) {
-      await handle?.close().catch(() => {});
-      if (handle !== null) await unlink(lockFile).catch(() => {});
-      throw error;
-    }
-  };
-  try {
-    return await create();
-  } catch (error) {
-    if (error?.code !== "EEXIST") throw error;
-  }
-  let existing;
-  try {
-    existing = JSON.parse(await readFile(lockFile, "utf8"));
-  } catch {
-    throw new ControlledContractToolError(
-      "controlled_contract_coverage_rebase_lock_unavailable",
-      "coverage lock owner is unverifiable and remains untouched", { changed: false });
-  }
-  const valid = existing?.schema_version ===
-      "controlled-contract-refactor-coverage-lock.v1" &&
-    typeof existing.operation_token === "string" &&
-    Number.isSafeInteger(existing.process_id) && existing.process_id > 0 &&
-    typeof existing.process_start_identity === "string";
-  if (!valid) throw new ControlledContractToolError(
-    "controlled_contract_coverage_rebase_lock_unavailable",
-    "coverage lock owner is unverifiable and remains untouched", { changed: false });
-  const observedStart = await processStartIdentity(existing.process_id).catch(() => undefined);
-  if (observedStart === undefined || observedStart === existing.process_start_identity) {
-    throw new ControlledContractToolError(
-      "controlled_contract_coverage_rebase_lock_unavailable",
-      "coverage persistence has a live or unverifiable owner", { changed: false });
-  }
-  const quarantine = `${lockFile}.stale-${existing.operation_token}-${randomUUID()}`;
-  try {
-    await rename(lockFile, quarantine);
-  } catch (error) {
-    throw new ControlledContractToolError(
-      "controlled_contract_coverage_rebase_lock_unavailable",
-      "coverage stale-lock recovery lost the ownership race",
-      { changed: false, cause: error?.code ?? null });
-  }
-  await refactorCoverageBoundary("coverage_stale_lock_quarantined", { file });
-  try {
-    const acquired = await create();
-    await unlink(quarantine).catch(() => {});
-    return acquired;
-  } catch (error) {
-    try {
-
-      await link(quarantine, lockFile);
-      await unlink(quarantine);
-    } catch (restoreError) {
-      if (restoreError?.code === "EEXIST") {
-        await unlink(quarantine).catch(() => {});
-      }
-    }
-    throw new ControlledContractToolError(
-      "controlled_contract_coverage_rebase_lock_unavailable",
-      "coverage stale-lock recovery lost the ownership race",
-      { changed: false, cause: error?.code ?? null });
-  }
-}
-
-async function releaseRefactorCoverageLock(lock) {
-  await lock.handle.close().catch(() => {});
-  let observed;
-  try { observed = JSON.parse(await readFile(lock.file, "utf8")); } catch { return; }
-  if (observed.operation_token === lock.record.operation_token &&
-      observed.process_id === lock.record.process_id &&
-      observed.process_start_identity === lock.record.process_start_identity) {
-    await unlink(lock.file).catch(() => {});
   }
 }
 
@@ -310,13 +222,6 @@ function coverageFamilyFile(family, input) {
     : acceptanceCoverageSourcePath(input.repoRoot, input.wkId, input.focus ?? null, null);
 }
 
-function coverageFamilyLockFiles(family, input) {
-  return family === "acceptance"
-    ? [acceptanceCoverageSourcePath(input.repoRoot, input.wkId, input.focus ?? null, null),
-      coverageFamilyFile(family, input)]
-    : [coverageFamilyFile(family, input)];
-}
-
 function coverageFamilyCandidates(input, coverage) {
   return CONTROLLED_CONTRACT_COVERAGE_FAMILIES.filter((family) =>
     coverage[family] !== null && coverage[family] !== undefined).map((family) =>
@@ -327,13 +232,8 @@ export async function prepareControlledContractRefactorCoverageSettlement({
   input, coverage
 }) {
   const candidates = coverageFamilyCandidates(input, coverage);
-  const locks = [];
   const staged = [];
   try {
-    for (const file of [...new Set(candidates.flatMap(({ family }) =>
-      coverageFamilyLockFiles(family, input)))].sort()) {
-      locks.push(await acquireRefactorCoverageLock(file));
-    }
     for (const candidate of candidates) {
       await refactorCoverageBoundary("coverage_prepare", {
         family: candidate.family
@@ -384,17 +284,11 @@ export async function prepareControlledContractRefactorCoverageSettlement({
     for (const entry of staged) if (entry.temporary !== null) {
       await unlink(entry.temporary).catch(() => {});
     }
-    for (const lock of locks.reverse()) {
-      await releaseRefactorCoverageLock(lock);
-    }
     throw error;
   }
   const release = async () => {
     for (const entry of staged) if (entry.temporary !== null) {
       await unlink(entry.temporary).catch(() => {});
-    }
-    for (const lock of locks.reverse()) {
-      await releaseRefactorCoverageLock(lock);
     }
   };
   return Object.freeze({
@@ -456,134 +350,36 @@ export async function prepareControlledContractRefactorCoverageSettlement({
 export async function prepareControlledContractRefactorCoverageReconciliation({
   input, coverage
 }) {
-  const candidates = coverageFamilyCandidates(input, coverage);
-  const lockFiles = [...new Set(candidates.flatMap(({ family }) =>
-    coverageFamilyLockFiles(family, input)))].sort();
-  const locks = [];
-  const release = async () => {
-    for (const lock of locks.reverse()) await releaseRefactorCoverageLock(lock);
-  };
-  try {
-    for (const file of lockFiles) locks.push(await acquireRefactorCoverageLock(file));
-    const receipts = {};
-    for (const candidate of candidates) {
-      const observedBytes = await readFile(candidate.file).catch((error) => {
-        if (error?.code === "ENOENT") return null;
-        throw error;
-      });
-      const observedDigest = observedBytes === null ? null
-        : controlledContractContentDigest(JSON.parse(observedBytes.toString("utf8")));
-      const prospectiveDigest = controlledContractContentDigest(candidate.item.content);
-      if (observedDigest !== prospectiveDigest) {
-        throw new ControlledContractToolError(
-          `${candidate.family}_coverage_rebase_stale`,
-          "visible coverage does not match the interrupted refactor settlement",
-          { changed: false,
-            expected_content_digest: prospectiveDigest,
-            actual_content_digest: observedDigest });
-      }
-      receipts[candidate.family] = Object.freeze({
-        source_content_digest: candidate.item.source_content_digest,
-        prospective_content_digest: prospectiveDigest,
-        changed: candidate.item.source_content_digest !==
-          prospectiveDigest
-      });
-    }
-    return Object.freeze({
-      commit: async () => Object.freeze(receipts),
-      compensate: async () => {},
-      finalize: release
+  const receipts = {};
+  for (const candidate of coverageFamilyCandidates(input, coverage)) {
+    const observedBytes = await readFile(candidate.file).catch((error) => {
+      if (error?.code === "ENOENT") return null;
+      throw error;
     });
-  } catch (error) {
-    await release();
-    throw error;
-  }
-}
-
-function acceptanceCoverageOperationInput(input, fields) {
-  return assertControlledContractOperationInput(input, [
-    "repoRoot", "wkId", "focus", "selectedUnit", ...fields
-  ]);
-}
-
-function acceptanceCoverageResolutionInput(input) {
-  return {
-    repoRoot: input.repoRoot,
-    wkId: input.wkId,
-    focus: input.focus ?? null,
-    selectedUnit: input.selectedUnit ?? null
-  };
-}
-
-function coverageFamilyContinuationCalls(input, family, operation = "query") {
-  if (family !== "obligation") return Object.freeze([]);
-  return Object.freeze([Object.freeze({
-    tool: "workspace_controlled_contract_obligation_coverage_query",
-    arguments: Object.freeze({
-      unit: input.selectedUnit === undefined || input.selectedUnit === null
-        ? input.wkId : `${input.wkId}#${input.selectedUnit}`,
-      ...(input.focus === undefined || input.focus === null
-        ? {} : { focus: input.focus })
-    })
-  })]);
-}
-
-function coverageAuthoringMutation(nextCalls, family, absent, resolved) {
-  const operation = family === "obligation"
-    ? "workspace_controlled_contract_obligation_coverage_upsert"
-    : "acceptance_coverage_authoring";
-  const call = nextCalls.find(({ tool }) => tool === operation);
-  return {
-    operation,
-    fixedArguments: structuredClone(call?.fixed_arguments ?? {
-      unit: resolved.selectedUnit === null
-        ? resolved.wkId : `${resolved.wkId}#${resolved.selectedUnit}`,
-      ...(resolved.focus === null ? {} : { focus: resolved.focus })
-    }),
-    receiptFedDigestFields: absent ? [] : [
-      "expected_content_digest",
-      ...(family === "acceptance"
-        ? ["carrier_identity.content_digest", "source_identity.content_digest"]
-        : [])
-    ]
-  };
-}
-
-async function ownerProducedCoverageRecovery(input, error, {
-  acceptance = false
-} = {}) {
-  let ownerState = null;
-  let upstreamDescribe = null;
-  try {
-    ownerState = await deriveCanonicalControlledContractAuthoringState({
-      repoRoot: input.repoRoot,
-      wkId: input.wkId,
-      focus: input.focus ?? null,
-      continuation: null,
-      request: {
-        wk_id: input.wkId,
-        ...(input.focus === undefined || input.focus === null
-          ? {} : { focus: input.focus })
-      }
-    });
-  } catch {
-
-  }
-  if (acceptance && (ownerState?.next_calls?.length ?? 0) === 0) {
-    try {
-      upstreamDescribe = await queryControlledContractObligationCoverageOperation(input);
-    } catch {
-
+    const observedDigest = observedBytes === null ? null
+      : controlledContractContentDigest(JSON.parse(observedBytes.toString("utf8")));
+    const prospectiveDigest = controlledContractContentDigest(candidate.item.content);
+    if (observedDigest !== prospectiveDigest) {
+      throw new ControlledContractToolError(
+        `${candidate.family}_coverage_rebase_stale`,
+        "visible coverage does not match the interrupted refactor settlement",
+        { changed: false,
+          expected_content_digest: prospectiveDigest,
+          actual_content_digest: observedDigest });
     }
+    receipts[candidate.family] = Object.freeze({
+      source_content_digest: candidate.item.source_content_digest,
+      prospective_content_digest: prospectiveDigest,
+      changed: candidate.item.source_content_digest !==
+        prospectiveDigest
+    });
   }
-  throw attachOwnerProducedRecovery(error, { input, ownerState, upstreamDescribe });
+  return Object.freeze({
+    commit: async () => Object.freeze(receipts),
+    compensate: async () => {},
+    finalize: async () => {}
+  });
 }
-
-const ACCEPTANCE_COVERAGE_NON_AUTHORITY = Object.freeze({
-  authoritative: false,
-  authors_mappings_only: true,
-  grants: Object.freeze([])
-});
 
 export function acceptanceCoverageCriterionIdentities(resolved) {
   return deriveCriterionIdentitySet({
@@ -672,16 +468,6 @@ function assertCompleteAcceptanceCoveragePopulation(rows, resolved) {
       }
     );
   }
-}
-
-function acceptanceCoverageCarrierIdentity(resolved) {
-  return Object.freeze({
-    carrier_kind: "controlled-acceptance",
-    wk_id: resolved.wkId,
-    focus: resolved.focus,
-    selected_unit: resolved.selectedUnit,
-    content_digest: resolved.carrier?.content_digest ?? null
-  });
 }
 
 function assertCriterionSelector(selector, resolved, name = "criterionSelector") {
@@ -812,9 +598,6 @@ async function persistAcceptanceCoverageCarrier({ input, content, bytes, expecte
   const file = acceptanceCoverageCarrierPath(
     input.repoRoot, input.wkId, input.focus ?? null, input.selectedUnit ?? null
   );
-  const sourceFile = acceptanceCoverageSourcePath(
-    input.repoRoot, input.wkId, input.focus ?? null, input.selectedUnit ?? null
-  );
   const temporaryFile = `${file}.tmp-${randomUUID()}`;
   let temporary = null;
   const openFile = persistenceEffects.openFile ?? open;
@@ -835,11 +618,8 @@ async function persistAcceptanceCoverageCarrier({ input, content, bytes, expecte
     repoRoot: input.repoRoot,
     wkId: input.wkId,
     focus: input.focus ?? null
-  }, async () => withOrderedCoverageLocks(
-    [`${sourceFile}.lock`, `${file}.lock`],
-    "acceptance_coverage_persistence_busy",
-    async () => {
-      try {
+  }, async () => {
+    try {
     const finalSnapshot = await resolveFacts(acceptanceCoverageResolutionInput(input), {
       requireCarrier: expectedSnapshot.carrier !== null
     });
@@ -886,17 +666,16 @@ async function persistAcceptanceCoverageCarrier({ input, content, bytes, expecte
         failure_code: error?.code ?? "acceptance_coverage_post_commit_failure"
       });
     }
-        return Object.freeze({ content_digest: expectedDigest, changed: true });
-      } finally {
-        if (temporary !== null) await temporary.close();
-        try {
-          await unlinkFile(temporaryFile);
-        } catch (error) {
-          if (error?.code !== "ENOENT") throw error;
-        }
+    return Object.freeze({ content_digest: expectedDigest, changed: true });
+    } finally {
+      if (temporary !== null) await temporary.close();
+      try {
+        await unlinkFile(temporaryFile);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
       }
     }
-  ));
+  });
 }
 
 function coveragePrePublicationRefusal(error) {
@@ -1354,146 +1133,6 @@ export async function patchControlledContractAcceptanceCoverageOperation(input, 
   });
 }
 
-const ACCEPTANCE_COVERAGE_OPERATION_CURSOR_VERSION =
-  "wiki-core-acceptance-coverage-operation-cursor.v1";
-const ACCEPTANCE_COVERAGE_PROJECTION_CURSOR_VERSION =
-  "acceptance-coverage-projection-cursor.v1";
-
-function validateAcceptanceCoverageProjectionCursor(cursor) {
-  try {
-    if (typeof cursor !== "string" || !/^[A-Za-z0-9_-]+$/u.test(cursor)) {
-      throw new Error("embedded projection cursor encoding is invalid");
-    }
-    const decoded = Buffer.from(cursor, "base64url");
-    if (decoded.toString("base64url") !== cursor) {
-      throw new Error("embedded projection cursor encoding is not canonical base64url");
-    }
-    const value = JSON.parse(decoded.toString("utf8"));
-    const keys = [
-      "version", "criterion_identity_digest", "projection_digest", "selector",
-      "offset"
-    ];
-    if (value === null || typeof value !== "object" || Array.isArray(value) ||
-        Object.keys(value).length !== keys.length ||
-        keys.some((key) => !Object.hasOwn(value, key)) ||
-        Object.keys(value).some((key) => !keys.includes(key)) ||
-        value.version !== ACCEPTANCE_COVERAGE_PROJECTION_CURSOR_VERSION ||
-        !/^[0-9a-f]{64}$/u.test(value.criterion_identity_digest) ||
-        !/^[0-9a-f]{64}$/u.test(value.projection_digest) ||
-        !Number.isSafeInteger(value.offset) || value.offset < 0) {
-      throw new Error("embedded projection cursor fields are invalid");
-    }
-    if (value.selector !== null) {
-      const selectorKeys = ["criterion_identity", "node_id"];
-      if (typeof value.selector !== "object" || Array.isArray(value.selector) ||
-          Object.keys(value.selector).length !== 1 ||
-          Object.keys(value.selector).some((key) => !selectorKeys.includes(key)) ||
-          typeof value.selector[Object.keys(value.selector)[0]] !== "string" ||
-          value.selector[Object.keys(value.selector)[0]].length === 0) {
-        throw new Error("embedded projection cursor selector is invalid");
-      }
-    }
-    return cursor;
-  } catch (error) {
-    throw new ControlledContractToolError(
-      "acceptance_coverage_cursor_invalid",
-      "continuation contains an invalid package projection cursor",
-      { changed: false, cause: error.message }
-    );
-  }
-}
-
-function decodeAcceptanceCoverageOperationCursor(cursor, joinedDigest) {
-  if (cursor === undefined) return undefined;
-  try {
-    if (typeof cursor !== "string" || !/^[A-Za-z0-9_-]+$/u.test(cursor)) {
-      throw new Error("continuation encoding is invalid");
-    }
-    const decoded = Buffer.from(cursor, "base64url");
-    if (decoded.toString("base64url") !== cursor) {
-      throw new Error("continuation encoding is not canonical base64url");
-    }
-    const value = JSON.parse(decoded.toString("utf8"));
-    if (value?.version === ACCEPTANCE_COVERAGE_PROJECTION_CURSOR_VERSION) {
-      throw new ControlledContractToolError(
-        "acceptance_coverage_cursor_wrong_layer",
-        "package projection continuation cannot be used at the public operation layer",
-        { changed: false }
-      );
-    }
-    const keys = ["version", "joined_source_digest", "projection_cursor"];
-    if (value === null || typeof value !== "object" || Array.isArray(value) ||
-        Object.keys(value).length !== keys.length ||
-        keys.some((key) => !Object.hasOwn(value, key)) ||
-        Object.keys(value).some((key) => !keys.includes(key))) {
-      throw new Error("continuation fields are invalid");
-    }
-    if (value.version !== ACCEPTANCE_COVERAGE_OPERATION_CURSOR_VERSION ||
-        typeof value.joined_source_digest !== "string" ||
-        typeof value.projection_cursor !== "string" ||
-        value.projection_cursor.length === 0) throw new Error(
-      "continuation identity is invalid"
-    );
-    if (value.joined_source_digest !== joinedDigest) {
-      throw new ControlledContractToolError(
-        "acceptance_coverage_cursor_stale",
-        "continuation belongs to different joined canonical sources"
-      );
-    }
-    return validateAcceptanceCoverageProjectionCursor(value.projection_cursor);
-  } catch (error) {
-    if (error instanceof ControlledContractToolError) throw error;
-    throw new ControlledContractToolError(
-      "acceptance_coverage_cursor_invalid", "continuation is malformed",
-      { cause: error.message }
-    );
-  }
-}
-
-function encodeAcceptanceCoverageOperationCursor(projectionCursor, joinedDigest) {
-  return Buffer.from(JSON.stringify({
-    version: ACCEPTANCE_COVERAGE_OPERATION_CURSOR_VERSION,
-    joined_source_digest: joinedDigest,
-    projection_cursor: projectionCursor
-  }), "utf8").toString("base64url");
-}
-
-function publicAcceptanceCoverageSelector(selector) {
-  if (selector === undefined) return undefined;
-  if (Object.hasOwn(selector, "criterionIdentity")) return Object.freeze({
-    kind: "criterion_identity",
-    criterion_identity: selector.criterionIdentity
-  });
-  return Object.freeze({ kind: "contract_node", node_id: selector.nodeId });
-}
-
-function projectPublicAcceptanceCoverage(input) {
-  try {
-    return projectAcceptanceCoverage(input);
-  } catch (error) {
-    if (error?.code === "acceptance_coverage_projection_cursor_stale") {
-      throw new ControlledContractToolError(
-        "acceptance_coverage_cursor_invalid",
-        "continuation contains tampered package projection currentness",
-        { changed: false, cause: error.message }
-      );
-    }
-    if (error?.code !== "acceptance_coverage_projection_cursor_invalid") throw error;
-    if (error.message === "cursor offset is outside the selected population") {
-      throw new ControlledContractToolError(
-        "acceptance_coverage_cursor_exhausted",
-        "continuation offset is at or beyond the current selected population",
-        { changed: false }
-      );
-    }
-    throw new ControlledContractToolError(
-      "acceptance_coverage_cursor_invalid",
-      "continuation contains an invalid package projection cursor",
-      { changed: false, cause: error.message }
-    );
-  }
-}
-
 export async function queryControlledContractAcceptanceCoverageOperation(input, {
   resolveFacts = resolveAcceptanceCoverageFacts
 } = {}) {
@@ -1563,220 +1202,7 @@ export async function queryControlledContractAcceptanceCoverageOperation(input, 
   });
 }
 
-function obligationCoverageCriterion(selector, resolved, name = "criterionSelector") {
-  exactObject(selector, ["kind", "criterion_identity"], name);
-  if (selector.kind !== "criterion_identity" ||
-      typeof selector.criterion_identity !== "string") {
-    throw new ControlledContractToolError(
-      "obligation_coverage_criterion_selector_invalid",
-      "criterion selector must be one describe-emitted criterion identity",
-      { changed: false, selector_kind: selector?.kind ?? null,
-        next_calls: coverageSelectorRecovery({ family: "obligation", input: resolved }) }
-    );
-  }
-  const criterion = resolved.criteria.find(
-    ({ identity }) => identity === selector.criterion_identity
-  );
-  if (!criterion) throw new ControlledContractToolError(
-    "obligation_coverage_criterion_selector_invalid",
-    "criterion selector does not identify a current selected-unit criterion",
-    { changed: false, selector_kind: selector.kind,
-      next_calls: coverageSelectorRecovery({ family: "obligation", input: resolved }) }
-  );
-  return criterion;
-}
-
-function obligationCoverageMutationSelector(selector, recoveryInput) {
-  exactObject(selector, ["kind", "obligation_id"], "obligationSelector");
-  if (selector.kind !== "obligation_id" ||
-      typeof selector.obligation_id !== "string" ||
-      !/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/u.test(selector.obligation_id)) {
-    throw new ControlledContractToolError(
-      "obligation_coverage_obligation_selector_invalid",
-      "mutation selector must identify one stable obligation ID",
-      { changed: false, selector_kind: selector?.kind ?? null,
-        next_calls: coverageSelectorRecovery({
-          family: "obligation", input: recoveryInput
-        }) }
-    );
-  }
-  return selector.obligation_id;
-}
-
-function obligationCoverageMechanism(mechanism, pkg, name) {
-  exactObject(mechanism, ["owner", "kind", "selector"], name);
-  if (typeof mechanism.owner !== "string" || mechanism.owner.length === 0 ||
-      !pkg.OBLIGATION_COVERAGE_MECHANISM_KINDS.includes(mechanism.kind) ||
-      typeof mechanism.selector !== "string" || mechanism.selector.length === 0) {
-    throw new ControlledContractToolError(
-      "obligation_coverage_mechanism_invalid",
-      `${name} must use the package-owned typed mechanism vocabulary`,
-      { changed: false }
-    );
-  }
-  return structuredClone(mechanism);
-}
-
-function obligationCoverageProof(proof, resolved, pkg, name) {
-  if (proof?.kind === "explicit_gap") {
-    exactObject(proof, ["kind", "gap_kind", "reason"], name);
-    if (!pkg.OBLIGATION_COVERAGE_GAP_KINDS.includes(proof.gap_kind) ||
-        typeof proof.reason !== "string" || proof.reason.length === 0) {
-      throw new ControlledContractToolError(
-        "obligation_coverage_gap_invalid",
-        `${name} must use the package-owned explicit-gap vocabulary`,
-        { changed: false }
-      );
-    }
-    return structuredClone(proof);
-  }
-  exactObject(proof, ["kind", "requested_intent", "selector"], name);
-  exactObject(proof.selector, ["kind", "component_id"], `${name}.selector`);
-  if (proof.kind !== "pack_mapping" ||
-      typeof proof.requested_intent !== "string" ||
-      typeof proof.selector.kind !== "string" ||
-      typeof proof.selector.component_id !== "string") {
-    throw new ControlledContractToolError(
-      "obligation_coverage_pack_mapping_invalid",
-      `${name} must select one exact server-admitted pack component`,
-      { changed: false }
-    );
-  }
-  const matches = resolved.selectedPacks.filter((pack) =>
-    pack.requested_intents.includes(proof.requested_intent) &&
-    pack.selectors.some((selector) =>
-      selector.kind === proof.selector.kind &&
-      selector.component_id === proof.selector.component_id
-    ));
-  if (matches.length !== 1) throw new ControlledContractToolError(
-    "obligation_coverage_pack_mapping_invalid",
-    "pack mapping does not resolve to exactly one selected proof-plan pack",
-    { changed: false, matching_pack_count: matches.length }
-  );
-  const [pack] = matches;
-  return {
-    kind: "pack_mapping",
-    pack_id: pack.pack_id,
-    requested_intent: proof.requested_intent,
-    profile_id: pack.profile_id,
-    profile_version: pack.profile_version,
-    selector: structuredClone(proof.selector),
-
-  };
-}
-
-async function materializeObligationCoverageRow(row, resolved, name = "row") {
-  exactObject(row, [
-    "obligation_id", "statement", "criterion_selector",
-    "controlled_contract_node_ids", "mechanism", "proof"
-  ], name);
-  if (typeof row.obligation_id !== "string" ||
-      !/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/u.test(row.obligation_id)) {
-    throw new ControlledContractToolError(
-      "obligation_coverage_obligation_id_invalid",
-      `${name}.obligation_id must be a stable obligation identity`,
-      { changed: false }
-    );
-  }
-  if (typeof row.statement !== "string" || row.statement.length === 0 ||
-      row.statement !== row.statement.trim() || /[\r\n]/u.test(row.statement)) {
-    throw new ControlledContractToolError(
-      "obligation_coverage_statement_not_atomic",
-      `${name}.statement must be one trimmed atomic statement`,
-      { changed: false, obligation_id: row.obligation_id }
-    );
-  }
-  const criterion = obligationCoverageCriterion(
-    row.criterion_selector, resolved, `${name}.criterion_selector`
-  );
-  if (!Array.isArray(row.controlled_contract_node_ids) ||
-      row.controlled_contract_node_ids.length === 0 ||
-      new Set(row.controlled_contract_node_ids).size !==
-        row.controlled_contract_node_ids.length ||
-      row.controlled_contract_node_ids.some((id) =>
-        typeof id !== "string" ||
-        !resolved.contractNodes.some((node) => node.id === id))) {
-    throw new ControlledContractToolError(
-      "obligation_coverage_contract_node_invalid",
-      `${name}.controlled_contract_node_ids must be exact current contract nodes`,
-      { changed: false, obligation_id: row.obligation_id }
-    );
-  }
-  const pkg = await loadControlledContractPackage();
-  const sourceLocatorDigest = obligationCoverageSourceLocatorDigest({
-    criterion: criterion.criterion,
-    criterionIdentity: criterion.identity,
-    criterionSetDigest: resolved.criterionIdentities.digest,
-    obligationId: row.obligation_id,
-    sourceLocator: criterion.source_locator,
-    statement: row.statement
-  });
-  return {
-    obligation_id: row.obligation_id,
-    source_locator: criterion.source_locator,
-    source_locator_digest: sourceLocatorDigest,
-    statement: row.statement,
-    controlled_contract_node_ids: structuredClone(row.controlled_contract_node_ids),
-    mechanism: obligationCoverageMechanism(row.mechanism, pkg, `${name}.mechanism`),
-    proof: obligationCoverageProof(row.proof, resolved, pkg, `${name}.proof`)
-  };
-}
-
 export { proofAuthoringCarrierContent as obligationCoverageCarrierContent } from './proof-authoring-source.mjs';
-
-async function validateObligationCoverageContent(resolved, rows) {
-  if (rows.length > OBLIGATION_COVERAGE_MAX_ROWS) throw new ControlledContractToolError(
-    "obligation_coverage_carrier_oversize",
-    "obligation-coverage source exceeds its complete-authoring bounds",
-    { changed: false, bound: "rows", maximum_rows: OBLIGATION_COVERAGE_MAX_ROWS,
-      maximum_bytes: OBLIGATION_COVERAGE_MAX_BYTES, row_count: rows.length,
-      byte_length: null }
-  );
-  const content = obligationCoverageCarrierContent(resolved, rows);
-  const pkg = await loadControlledContractPackage();
-  const validation = pkg.validateObligationCoverageDraft(content);
-  if (!validation.valid) {
-    const diagnostic = validation.diagnostics[0];
-    throw new ControlledContractToolError(
-      diagnostic?.code ?? "obligation_coverage_row_invalid",
-      "authored rows do not form one valid canonical obligation source",
-      { changed: false, schema_errors: validation.schema_errors,
-        diagnostics: validation.diagnostics }
-    );
-  }
-  const bytes = Buffer.from(`${JSON.stringify(validation.carrier, null, 2)}\n`, "utf8");
-  if (bytes.byteLength > OBLIGATION_COVERAGE_MAX_BYTES) {
-    throw new ControlledContractToolError(
-      "obligation_coverage_carrier_oversize",
-      "obligation-coverage source exceeds its complete-authoring bounds",
-      { changed: false, bound: "bytes", maximum_rows: OBLIGATION_COVERAGE_MAX_ROWS,
-        maximum_bytes: OBLIGATION_COVERAGE_MAX_BYTES, row_count: rows.length,
-        byte_length: bytes.byteLength }
-    );
-  }
-  return Object.freeze({ content: validation.carrier, bytes });
-}
-
-function assertAcceptanceRebaseAttemptIdentity(input, resolved) {
-  exactObject(input.carrierIdentity,
-    ["carrier_kind", "wk_id", "focus", "selected_unit", "content_digest"],
-    "carrierIdentity");
-  exactObject(input.sourceIdentity, ["source_kind", "content_digest"], "sourceIdentity");
-  const currentCarrier = acceptanceCoverageCarrierIdentity(resolved);
-  const currentSource = {
-    source_kind: resolved.source.source_kind,
-    content_digest: resolved.source.content_digest
-  };
-  if (JSON.stringify(input.carrierIdentity) !== JSON.stringify(currentCarrier) ||
-      JSON.stringify(input.sourceIdentity) !== JSON.stringify(currentSource) ||
-      input.expectedUnitDigest !== acceptanceCoverageUnitDigest(resolved)) {
-    throw new ControlledContractToolError(
-      "acceptance_coverage_rebase_stale",
-      "stale describe identity no longer matches server-resolved mapping facts",
-      { changed: false, fresh_describe_required: true }
-    );
-  }
-}
 
 export async function rebaseControlledContractAcceptanceCoverageOperation(input, {
   resolveFacts = resolveAcceptanceCoverageFacts,
@@ -1804,7 +1230,10 @@ export async function rebaseControlledContractAcceptanceCoverageOperation(input,
     const sourceFacts = await resolveSourceFacts(resolutionInput, {
       requireSource: true, allowIncomplete: true
     });
-    if (sourceFacts.resolution?.mapping === null) return proofAuthoringIncompleteResult(sourceFacts);
+
+    if (sourceFacts.resolution != null && !proofAuthoringObligationsAccounted(sourceFacts)) {
+      return proofAuthoringIncompleteResult(sourceFacts);
+    }
     if (!sourceFacts.sourceCurrent) throw new ControlledContractToolError(
       "acceptance_coverage_rebase_source_stale",
       "acceptance mapping cannot rebase before its obligation source is current",

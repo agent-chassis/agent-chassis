@@ -1,4 +1,4 @@
-import { readWorkRecordEntry, upsertWorkRecordEntry } from "@agent-chassis/wiki-core";
+import { readWorkRecordEntry, upsertWorkRecordEntry } from "@agent-chassis/wiki-core/src/operations/work-record-entries.mjs";
 import { WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES, WORK_RECORD_ENTRY_METADATA_PAGE_MAX,
   WORK_RECORD_SELECTION_MAX_UTF8_BYTES, isUnicodeScalarString } from "@agent-chassis/wiki-core/src/lib/work-record-entry-schema.mjs";
 import { WORK_RECORD_FRESHNESS_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
@@ -8,6 +8,14 @@ import { projectOrdinaryWriteFreshness } from "./write-response-boundary.mjs";
 import { workRecordEntryContent } from "./work-record-write-tool-schema-vocabulary.mjs";
 
 export function entryReadResultUsesCompactGuard(result){return result?.body===undefined;}
+
+export function retainedFindingsReferenceResolver(resolveRetainedFindingsSource,dispatchSessionIdentity){
+  return typeof resolveRetainedFindingsSource==="function"
+    ?({reference,repository})=>resolveRetainedFindingsSource({reference,repository,
+        caller_session_id:dispatchSessionIdentity})
+    :null;
+}
+
 export const WORKSPACE_WORK_RECORD_ENTRY_UPSERT_TOOL_NAME="workspace_work_record_entry_upsert";
 export const WORKSPACE_WORK_RECORD_ENTRY_READ_TOOL_NAME="workspace_work_record_entry_read";
 const bytes=value=>Buffer.byteLength(JSON.stringify(value),"utf8");
@@ -141,10 +149,7 @@ export function registerWorkRecordEntryTools({registerTool,workspaceRepos,z,json
         const result=projectOrdinaryWriteFreshness(await upsertWorkRecordEntry({dir:workspace.dir,repository:workspace.repo,
           unit:args.unit,entryId:args.entry_id,title:args.title,kind:args.kind,content:args.content,
           expectedSourceDigest:digest.value,
-          resolveExternalReference:typeof resolveRetainedFindingsSource==="function"
-            ?({reference,repository})=>resolveRetainedFindingsSource({reference,repository,
-                caller_session_id:dispatchSessionIdentity})
-            :null}));
+          resolveExternalReference:retainedFindingsReferenceResolver(resolveRetainedFindingsSource,dispatchSessionIdentity)}));
         const sized=withSize(result);
         return jsonContent(bytes(sized)>WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES?boundedRefusal(result):sized);
       }catch(error){return errorContent(error);}

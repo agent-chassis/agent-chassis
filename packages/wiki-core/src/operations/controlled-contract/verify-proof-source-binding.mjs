@@ -138,7 +138,7 @@ export async function resolveVerifyProofSourceBinding({ repoRoot, wkId, subject,
     const { map } = await resolveProofExecutableMap(match.source.source.content, {
       ...context, obligation_ids: match.selected.map(row => row.obligation_id)
     });
-    return map;
+    return { map, testTargetDeclarations: context.test_target_declarations };
   } };
 }
 

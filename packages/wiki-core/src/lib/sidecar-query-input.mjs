@@ -24,8 +24,10 @@ export const SIDECAR_CODE_QUESTION_KINDS = Object.freeze(["impact", "context", "
 export const SIDECAR_CODE_QUESTION_RELATIONSHIPS = Object.freeze([
   "definition", "references", "callers", "callees"
 ]);
-const CODE_QUESTION_KEYS = new Set([...TRANSPORT_KEYS, ...CHANGE_SELECTORS, ...LOCATION_SELECTORS,
-  "path", "relationship"]);
+
+export const SIDECAR_CODE_QUESTION_FIELDS = Object.freeze([...CHANGE_SELECTORS, "path",
+  ...LOCATION_SELECTORS, "relationship", "includeSuppressed"]);
+const CODE_QUESTION_KEYS = new Set([...TRANSPORT_KEYS, ...SIDECAR_CODE_QUESTION_FIELDS]);
 
 export const SIDECAR_CODE_QUESTION_ALTERNATIVES = Object.freeze([
   "Change impact: supply exactly one of paths, patchText, diffRecords or liveGit:true; " +
@@ -103,8 +105,7 @@ export function normalizeSidecarImpactInput(options = {}) {
   if (present(options, "liveGit") && typeof options.liveGit !== "boolean") {
     throw invalidQueryInput("liveGit must be a boolean");
   }
-  const subjects = ["paths", "patchText", "diffRecords", "liveGit"].filter((key) =>
-    key === "liveGit" ? options.liveGit === true : present(options, key));
+  const subjects = suppliedSelectors(options, CHANGE_SELECTORS);
   if (subjects.length !== 1) {
     throw invalidQueryInput(subjects.length === 0
       ? "requires exactly one of paths, patchText, diffRecords or liveGit:true"

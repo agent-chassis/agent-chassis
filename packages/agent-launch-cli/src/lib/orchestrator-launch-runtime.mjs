@@ -1,9 +1,10 @@
 
 
 import path from "node:path";
+import { writeNativeUsagePointer } from "@agent-chassis/agent-launch-core/src/lib/native-usage-records.mjs";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
-import { openSync, closeSync } from "node:fs";
+import { openSync, closeSync, writeSync } from "node:fs";
 
 import {
   fileExists,
@@ -269,6 +270,77 @@ export async function recordOrchestratorSessionState({
   return record;
 }
 
+export const ORCHESTRATOR_HEADLESS_STREAM_DRAIN_TIMEOUT_MS = 2000;
+
+const HEADLESS_PLAIN_STDOUT_BYTES = 64 * 1024;
+
+function attachHeadlessNativeUsage({ child, tap, logPath }) {
+  if (!child?.stdout || typeof child.stdout.on !== "function") return null;
+  tap.started?.();
+  const fd = openSync(logPath, "a");
+  const append = (text) => {
+    try {
+      writeSync(fd, text);
+    } catch {
+
+    }
+  };
+  tap.bind(append);
+  const plain = [];
+  let plainBytes = 0;
+  const closed = new Promise((resolve) => {
+    for (const event of ["end", "close", "error"]) child.stdout.once(event, resolve);
+  });
+  child.stdout.on("data", (chunk) => {
+    try {
+      if (tap.events() === 0 && plainBytes < HEADLESS_PLAIN_STDOUT_BYTES) {
+        plain.push(chunk);
+        plainBytes += chunk.length;
+      }
+      tap.push(chunk);
+    } catch {
+
+    }
+  });
+  return {
+    async settle(exit) {
+      let timer;
+      const drained = await Promise.race([
+        closed.then(() => true),
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(false), ORCHESTRATOR_HEADLESS_STREAM_DRAIN_TIMEOUT_MS);
+          timer.unref?.();
+        })
+      ]);
+      clearTimeout(timer);
+      let settlement = null;
+      try {
+        tap.end({ drained });
+        if (tap.events() === 0) for (const chunk of plain) append(chunk);
+        settlement = await tap.settle({ exit });
+      } catch {
+        settlement = null;
+      }
+      try {
+        closeSync(fd);
+      } catch {
+
+      }
+      return settlement;
+    }
+  };
+}
+
+function nativeUsageSessionExtra(settlement) {
+  if (settlement === null) return {};
+  return { native_usage: {
+    invocation_id: settlement.record?.invocation_id ?? null,
+    status: settlement.record?.status ?? null,
+    record_path: settlement.retention?.ok === true ? settlement.retention.path : null,
+    retention_cause: settlement.retention?.ok === true ? null : settlement.retention?.cause?.code ?? null
+  } };
+}
+
 export async function superviseInteractiveOrchestratorLaunch({
   runtimeDir,
   descriptor = {},
@@ -277,6 +349,8 @@ export async function superviseInteractiveOrchestratorLaunch({
   recordSessionState = recordOrchestratorSessionState,
 
   stderr = process.stderr,
+
+  nativeUsage = null,
   signals = ORCHESTRATOR_FORWARDED_SIGNALS
 } = {}) {
   if (typeof spawnChild !== "function") {
@@ -311,6 +385,12 @@ export async function superviseInteractiveOrchestratorLaunch({
     });
 
     child = spawnChild();
+    const usageSink = nativeUsage === null ? null
+      : attachHeadlessNativeUsage({ child, tap: nativeUsage.tap, logPath: nativeUsage.logPath });
+
+    if (nativeUsage !== null && typeof nativeUsage.tap.recordsDir === "string") {
+      await writeNativeUsagePointer(runtimeDir, nativeUsage.tap.recordsDir).catch(() => {});
+    }
 
     let spawnError = null;
     child.once("error", (error) => {
@@ -329,6 +409,9 @@ export async function superviseInteractiveOrchestratorLaunch({
     if (spawnError) {
       throw spawnError;
     }
+
+    const usageExtra = nativeUsageSessionExtra(
+      usageSink === null ? null : await usageSink.settle({ code: exitCode, signal }));
 
     if (stdioMcpConduit !== null) {
 
@@ -364,6 +447,7 @@ export async function superviseInteractiveOrchestratorLaunch({
         status,
         extra: {
           ...(stdioMcpDiagnostic ?? {}),
+          ...usageExtra,
           pid: child.pid ?? null,
           exit_code: exit.code,
           exit_signal: exit.signal
@@ -410,6 +494,7 @@ export async function spawnOrchestratorAndWait({
   spawnLaunch,
   spawnOptions = {},
   stdio = ORCHESTRATOR_INTERACTIVE_STDIO,
+  nativeUsage = null,
   signals = ORCHESTRATOR_FORWARDED_SIGNALS
 } = {}) {
   if (typeof spawnLaunch !== "function") {
@@ -423,6 +508,7 @@ export async function spawnOrchestratorAndWait({
     runtimeDir,
     descriptor,
     signals,
+    nativeUsage,
 
     stdioMcpConduit: bwrapPlan.stdioMcpConduit ?? null,
     spawnChild: () =>

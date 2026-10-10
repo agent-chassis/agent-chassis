@@ -18,6 +18,134 @@ credential/config mount are app-specific runtime facts, not a shared runtime-sta
 implementation. Agy has no supported confined executor or registration adapter;
 the shared interface refuses it before launch and does not provision Gemini state.
 
+The handle returned by `superviseChildLaunch` carries a result-free
+`completion` promise alongside `probe` and `hasObservedChildTermination`. It is
+the supervisor's existing stdio flush gate: it resolves with no value once a
+terminal transition has been recorded and the watched stdout/stderr streams have
+drained (or the child-level `close`, spawn-error, forced-timeout or bounded
+post-exit drain path released them), and it never rejects. Awaiting
+`completion` alone never calls `probe`, never invokes the family parser and
+never captures the final result; the final result is still captured exactly
+once, through `probe`. `completion` is terminal/drain readiness only. It is not
+positive child-termination evidence — a spawn error or forced timeout resolves
+it while `hasObservedChildTermination()` stays `false` until a real exit is
+observed — and it grants no cleanup, settlement or integration authority. The
+launcher wrappers pass the same promise through unchanged.
+
+Run settlement initiated by monitoring or completion has one shared owner,
+`settleAndProjectRunRecord` in `workspace-agent-dispatch-run-settlement.mjs`,
+for worker and advisory records. Concurrent observers of the same run-record
+object share one in-flight settlement promise and its projection; ownership is
+released when that promise fulfills or rejects, and nothing settled is retained.
+Distinct record objects settle independently. After identity binding and registration,
+launchers subscribe once to completion of a nonterminal worker or advisory handle,
+before acknowledging launch. Completion initiates capture through the record's fully
+decorated probe, including existing conduit cleanup, result normalization and worker
+publication. It joins an in-flight observation; if that frame remains nonterminal,
+it then processes the terminal notification through the same owner. Already-resolved
+completion works. Startup-terminal outcomes retain their launch-finalizer settlement
+without another subscription, and accepted launch responses retain the startup snapshot.
+
+The subscriber handles rejection and retains separate diagnostic evidence, preserving
+captured child output and outcome if later settlement or advisory cleanup fails.
+Completion grants no positive process-death or integration authority. Worker publication
+still uses the authenticated execution tuple and existing journal owner; failed
+publication retains process-local output and its cause, without crash-durability claims.
+Advisory output remains process-local. Status and wait still initiate settlement;
+pure-reader conversion, live publication correction and public cutover remain unchanged.
+
+The journal store's internal synchronous `assessManagedRunResultPublication`
+reads and validates the committed prefix, selects the exact run, and uses core
+result admission with the original whole dispatch binding and complete result
+digest. `already_recorded` means admission proved identical recorded binding and
+payload; `append_admissible` means only that this observed prefix permits an append.
+Neither classification publishes a result or authorizes a later append.
+Read, selection and admission refusals retain their owner diagnostics; unexpected
+throws propagate unchanged. Missing, malformed, unreadable or incorrectly bound
+state and conflicting result bytes cannot classify successfully.
+
+Assessment creates no directories or locks, writes no bytes, and performs no
+retry, launch or integration. It can read a committed prefix while its partition
+lock is held without acquiring or stealing that lock. A later
+`recordManagedRunResult` revalidates through its existing locked publication owner,
+which can refuse after an intervening publication. This capability provides no
+automatic publication correction and does not activate a pure public result reader.
+
+The settlement owner also exports internal `correctManagedRunResultPublication`,
+with no production caller. Its required `assessPublication` and `publishResult`
+dependencies compose the existing authenticated readback and locked publisher;
+each receives the same complete `{subject, dispatchTuple, result}` request.
+An identical recorded result succeeds as `observed` without publishing. Only
+`append_admissible` permits one publication attempt, followed by one assessment;
+only `already_recorded` on that assessment permits verified success.
+
+The operation retains native assessment, publication and verification outcomes.
+It preserves the publisher's `appended` flag: a new append reports `appended`,
+while an intervening identical publication reports `observed`. Failures report
+their stage and preserve owner refusals or complete thrown diagnostic evidence.
+Known append effects remain separate from a verification failure; a publisher
+throw leaves append effects unknown (`appended: null`). A still-admissible
+verification fails with `managed_run_result_publication_not_observed`.
+Readable journal bytes do not independently prove a completed disk-sync barrier;
+the existing publisher's guarantees and failure uncertainty remain unchanged.
+
+This operation performs no second publication attempt, child probe, launch or
+integration and does not mutate its request or set result durability. The prepared
+producer composition below supplies lifetime ownership; this subordinate operation
+does not. Live publication and monitoring behavior remain unchanged.
+
+### Prepared producer composition
+
+`createPreparedWorkspaceAgentDispatchBackend(options = {})` in
+`workspace-agent-dispatch-backend.mjs` accepts the same ordinary backend options.
+It reuses backend assembly and selects `createPreparedDispatchRunLifecycle(ctx = {})`
+in `workspace-agent-dispatch-run-lifecycle.mjs`. Neither constructor is selected
+by current public registrations. The active `createWorkspaceAgentDispatchBackend`
+and `createDispatchRunLifecycle` retain observation-driven settlement until cutover.
+
+Backend assembly binds `publishManagedRunResult(request)` to `recordManagedRunResult`
+and `assessManagedRunResult(request)` to `assessManagedRunResultPublication`, both
+with its canonical managed main repository. These internal dependencies reach the
+startup launch finalizer and the single shared completion subscriber. Managed
+publication requires both owners; a prepared composition with a publisher but no
+authenticated assessor refuses construction. No caller-carried repository or tuple
+can replace the launch-retained execution binding used for publication.
+
+`publishCapturedManagedRunResult` owns the record's lifetime: one initial attempt,
+then at most one invocation of `correctManagedRunResultPublication`. Each publisher
+call is reserved before awaiting it. Correction assesses before deciding whether
+one locked append is admissible; a refused assessment never becomes an append.
+There is no timer, observer retry, second coalescer or settled promise cache.
+Missing or mismatched launch identity preserves the existing launcher repair facts
+and attempts no publication. Advisory output remains process-local.
+
+The immutable `result_publication` snapshots retain the original `result`, reserved
+publisher `attempts`, `initial` outcome/evidence/append effects, and separate
+`correction` outcome. States are `publishing`, `correcting`, `available` or
+`unavailable`. Initial throws keep complete diagnostic evidence and unknown append
+effects. Correction retains its stage, native refusals, verification and appended
+true/false/unknown. Successful recovery makes current durability available without
+erasing the failed initial attempt; exhaustion retains both causes and the exact
+process-local result. Readable readback adds no independent disk-sync guarantee.
+
+`projectCapturedRunRecord(record)` in `workspace-agent-dispatch-run-settlement.mjs`
+uses the existing worker status builder or pure `projectAdvisoryProcess(record)`.
+Prepared status and wait reuse exact selection and caller/subject authorization,
+then only project retained state. `producer_pending` exposes in-flight settlement;
+completion and settlement failures remain separate diagnostic evidence. Wait polls
+within its monotonic deadline, including when a terminal child is still publishing,
+and neither a timeout nor abandoning a wait cancels the producer. Reads initiate
+no probe, append, correction, attestation, cleanup, launch or integration. Restart
+readback uses the existing authenticated journal owner; no local output or old
+handle is recreated when it is absent, and no publication budget is rearmed.
+
+Coordinated adoption must select the prepared backend constructor in the shared
+server composition and bind public readers to these observational methods. The
+start schema/handler, material preview, root correction, result formatting,
+explicit integration, route retirement/discovery/guidance and complete source and
+installed adoption still require their respective owning changes in the joint
+cutover. These constructors activate none of those public surfaces.
+
 The shared part is the **vocabulary** used to classify per-family state, not a
 shared code path. Each family's runtime state falls into one of four classes:
 

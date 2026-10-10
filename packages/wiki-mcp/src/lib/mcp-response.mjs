@@ -1,35 +1,33 @@
-
+import { isDeepStrictEqual } from "node:util";
+import { buildPublicMechanicalRefusal } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
+import { PROCESS_ERROR_GUARDS_INSTALLED, SPILLED_RESPONSE_SCHEMA_VERSION, CONTENT_REFERENCE_READ_SCHEMA_VERSION, CONTENT_REFERENCE_KIND, REFACTOR_ITEM_REFERENCE_SCHEMA_VERSION, CONTENT_REFERENCE_READ_REFUSAL_SCHEMA_VERSION, CONTENT_REFERENCE_RANGED_READ_UNAVAILABLE_CODE, RESPONSE_REFUSAL_SCHEMA_VERSION, SPILL_PERSISTENCE_FAILED_CODE, SPILLED_ENVELOPE_FIELDS, CONTENT_REFERENCE_FIELDS, CONTENT_REFERENCE_READ_TOOL, VERIFY_PROOF_SUMMARY_SCHEMA_VERSION, VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION, RESULT_DIGEST_PATTERN, SPILL_MEASUREMENT_SCHEMA_VERSION, RETAINED_PAYLOAD_ENCODING, SPILL_MEASUREMENT_FIELDS, SPILL_COMPARISONS, spillMeasurement, SPILLED_REASON, DEFAULT_INLINE_BYTE_LIMIT, DEFAULT_PREVIEW_BYTE_LIMIT, MIN_INLINE_BYTE_LIMIT, MAX_REFERENCE_READ_BYTE_LIMIT, REF_ID_PATTERN, RETAINED_REF_ID_PATTERN, RESPONSE_BOUNDARY_ROUTE, hasExactKeys, isPositiveSafeInteger, isLosslessMcpSpillDelivery, isMintedSpillMeasurement, isMintedContentReference, hasOnlyGeneratedTextCarrier, isSpilledEnvelope } from "./mcp-response-shared.mjs";
+import { safeReadProperty, buildResponseMechanicalRefusal, normalizeDeclaredOperatorRecoveryEnvelope, untypedFailureEnvelope } from "./mcp-response-diagnostics.mjs";
+export { isReservedControlledContractAssessmentEnvelope, assertNoControlledContractRawResponse } from "./mcp-response-assessment.mjs";
+export { isLosslessMcpSpillDelivery, VERIFY_PROOF_SUMMARY_SCHEMA_VERSION, VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION } from "./mcp-response-shared.mjs";
+export { installProcessErrorGuards, createDiagnosticSink, createStdioShutdownController } from "./mcp-response-diagnostics.mjs";
 
 import {
   existsSync,
   closeSync,
+  linkSync,
   openSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   readSync,
   statSync,
+  unlinkSync,
   writeFileSync
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import {
-  buildPublicMechanicalRefusal,
-  isPlatformErrorCode,
-  isPreservableSemanticIdentity
-} from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
-import {
   projectDiagnostic
 } from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
 import { serializeWorkRecordDiagnosticValue } from
   "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
-import { createHash, randomUUID } from "node:crypto";
-import { isDeepStrictEqual } from "node:util";
+import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
-import {
-  CONTROLLED_CONTRACT_ASSESSMENT_COLLECTION_DESCRIPTORS,
-  CONTROLLED_CONTRACT_ASSESSMENT_PROJECTION_VOCABULARY,
-  assessmentCollectionDescriptor
-} from "@agent-chassis/controlled-contract/assessment-collection-descriptors";
 
 export {
   NEXT_CALLS_DESCRIPTOR_VERSION,
@@ -40,479 +38,6 @@ export {
   projectNextActionScalar
 } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
-import {
-  isRuntimeBlockerCode
-} from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
-import {
-  classifyMechanicalRuntimeBlocker
-} from "./dispatch-tools/runtime-blocker-classifier.mjs";
-
-const PROCESS_ERROR_GUARDS_INSTALLED = Symbol.for(
-  "agent-chassis.wiki-mcp.process-error-guards-installed"
-);
-
-const SPILLED_RESPONSE_SCHEMA_VERSION = "wiki-mcp-spilled-response.v1";
-const CONTENT_REFERENCE_READ_SCHEMA_VERSION = "wiki-mcp-content-reference-read.v1";
-const CONTENT_REFERENCE_KIND = "wiki_mcp_response_content_reference";
-const REFACTOR_ITEM_REFERENCE_SCHEMA_VERSION =
-  "controlled-contract-refactor-item-reference.v1";
-const CONTENT_REFERENCE_READ_REFUSAL_SCHEMA_VERSION =
-  "wiki-mcp-content-reference-read-refusal.v1";
-const CONTENT_REFERENCE_RANGED_READ_UNAVAILABLE_CODE =
-  "mcp_response.content_reference_ranged_read_unavailable.v1";
-
-const RESPONSE_REFUSAL_SCHEMA_VERSION = "mcp-response-refusal.v1";
-const SPILL_PERSISTENCE_FAILED_CODE = "mcp_response.spill_persistence_failed.v1";
-
-for (const code of [
-  SPILL_PERSISTENCE_FAILED_CODE,
-  CONTENT_REFERENCE_RANGED_READ_UNAVAILABLE_CODE
-]) {
-  if (!isRuntimeBlockerCode(code)) {
-    throw new Error(
-      `mcp-response publishes ${code}, which is not registered in runtime-blocker-codes.v1.json`
-    );
-  }
-}
-
-const SPILLED_ENVELOPE_FIELDS = Object.freeze([
-  "schema_version", "response_spilled", "reason", "inline_byte_limit", "total_bytes",
-  "measurement", "preview", "content_reference"
-]);
-const CONTENT_REFERENCE_FIELDS = Object.freeze([
-  "kind", "ref_id", "media_type", "encoding", "byte_count", "sha256", "read_tool", "range"
-]);
-const CONTENT_REFERENCE_READ_TOOL = "workspace_read_mcp_content_reference";
-
-export const VERIFY_PROOF_SUMMARY_SCHEMA_VERSION = "workspace-verify-proof-summary.v1";
-export const VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION = "workspace-verify-proof-aggregate.v1";
-const RESULT_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/u;
-
-const SPILL_MEASUREMENT_SCHEMA_VERSION = "mcp-response-spill-measurement.v1";
-const RETAINED_PAYLOAD_ENCODING = "application/json; charset=utf-8; indent=2";
-const SPILL_MEASUREMENT_FIELDS = Object.freeze([
-  "schema_version", "compared", "complete_frame_bytes", "inline_byte_limit",
-  "retained_payload_bytes", "retained_payload_encoding", "meaning"
-]);
-const SPILL_COMPARISONS = Object.freeze({
-
-  MEASURED: "complete_frame_bytes_exceeded_inline_byte_limit",
-
-  FORCED: "not_compared_retention_forced"
-});
-
-function spillMeasurement({ completeFrameBytes, inlineByteLimit, retainedPayloadBytes }) {
-  return {
-    schema_version: SPILL_MEASUREMENT_SCHEMA_VERSION,
-    compared: completeFrameBytes === null ? SPILL_COMPARISONS.FORCED : SPILL_COMPARISONS.MEASURED,
-    complete_frame_bytes: completeFrameBytes,
-    inline_byte_limit: inlineByteLimit,
-    retained_payload_bytes: retainedPayloadBytes,
-    retained_payload_encoding: RETAINED_PAYLOAD_ENCODING,
-    meaning: "inline admission compares complete_frame_bytes — the whole serialized " +
-      "CallToolResult, compact structuredContent, frame keys and protocol metadata included — " +
-      "against inline_byte_limit. total_bytes and retained_payload_bytes measure only the " +
-      "persisted indented payload, which is not the quantity admission compared."
-  };
-}
-
-const SPILLED_REASON = "response_exceeds_inline_byte_limit";
-const SPILLED_REF_ID_PREFIX = "resp-";
-const DEFAULT_INLINE_BYTE_LIMIT = 128 * 1024;
-const DEFAULT_PREVIEW_BYTE_LIMIT = 2048;
-const MIN_INLINE_BYTE_LIMIT = 8 * 1024;
-const MAX_REFERENCE_READ_BYTE_LIMIT = 64 * 1024;
-const REF_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
-
-const RESPONSE_BOUNDARY_ROUTE = "mcp_response";
-
-const CONTROLLED_CONTRACT_FORBIDDEN_RESPONSE_KEYS = new Set([
-  "content_reference", "raw", "raw_bytes", "carrier_bytes", "proof_bytes",
-  "artifact_bytes"
-]);
-
-const CONTROLLED_CONTRACT_RESERVED_ASSESSMENT_SCHEMA_VERSIONS = Object.freeze(new Set([
-  "controlled-contract-proof-assessment-summary.v1",
-  "controlled-contract-integration-assessment-summary.v1"
-]));
-
-export function isReservedControlledContractAssessmentEnvelope(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value) &&
-    CONTROLLED_CONTRACT_RESERVED_ASSESSMENT_SCHEMA_VERSIONS.has(value.schema_version);
-}
-
-function sameJson(left, right) {
-  return isDeepStrictEqual(left, right);
-}
-
-function assertAssessmentAuthority(value, toolName) {
-  const authority = value?.authority;
-  const falseKeys = [
-    "authoritative", "proof_authority", "requirement_authority", "admission_authority",
-    "dispatch_authority", "review_authority", "integration_authority",
-    "publication_authority", "completion_authority", "runtime_proof",
-    "lifecycle_transition"
-  ];
-  if (!authority || falseKeys.some((key) => authority[key] !== false) ||
-      authority.read_only !== true || authority.experimental !== true ||
-      !Array.isArray(authority.grants) || authority.grants.length !== 0) {
-    throw new Error(`${toolName ?? "controlled-contract route"} produced authorizing assessment semantics`);
-  }
-}
-
-function assertTypedContinuation(value, toolName) {
-  if (!sameJson(value?.continuation,
-    CONTROLLED_CONTRACT_ASSESSMENT_PROJECTION_VOCABULARY.continuation)) {
-    throw new Error(`${toolName ?? "controlled-contract route"} omitted typed lossless continuation`);
-  }
-}
-
-function assertTaskRelevantItem(item, descriptor, toolName) {
-  if (item?.schema_version === "controlled-contract-assessment-row-projection.v1") {
-    const fields = Array.isArray(item.fields)
-      ? item.fields.map((field) => field?.path?.length === 1 ? field.path[0] : null) : [];
-    if (!sameJson(fields, descriptor.fields)) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced an incomplete field inventory`);
-    }
-    return;
-  }
-  if (!sameJson(Object.keys(item).sort(), [...descriptor.fields].sort())) {
-    throw new Error(`${toolName ?? "controlled-contract route"} produced a non-task-relevant field`);
-  }
-}
-
-function assertAssessmentSemanticShape(value, toolName) {
-  const removedAssessmentFields = [
-    "completeness_exemption", "detail_digest", "result_digest",
-    "population_digest", "requirement_digest"
-  ];
-  const assertAssessmentEnvelope = (candidate) => {
-    if (typeof candidate.assessment_identity !== "string" ||
-        !/^[A-Za-z0-9_-]{43}$/u.test(candidate.assessment_identity) ||
-        candidate.supported_next_call !== null ||
-        removedAssessmentFields.some((field) => Object.hasOwn(candidate, field))) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced an invalid assessment envelope`);
-    }
-  };
-  if (isReservedControlledContractAssessmentEnvelope(value)) {
-    const family = value.family;
-    assertAssessmentEnvelope(value);
-    const descriptors = CONTROLLED_CONTRACT_ASSESSMENT_COLLECTION_DESCRIPTORS[family];
-    const keys = value.counts && typeof value.counts === "object"
-      ? Object.keys(value.counts) : [];
-    const expected = Array.isArray(descriptors)
-      ? descriptors.map(({ collection }) => collection) : [];
-    if (JSON.stringify(keys) !== JSON.stringify(expected) ||
-        !keys.every((key) => Number.isInteger(value.counts[key]) && value.counts[key] >= 0)) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced incomplete or invalid descriptor counts`);
-    }
-    const total = keys.reduce((sum, key) => sum + value.counts[key], 0);
-    if (value.total_count !== total || value.omitted_count !== total ||
-        !sameJson(value.compact_omission,
-          CONTROLLED_CONTRACT_ASSESSMENT_PROJECTION_VOCABULARY.compact_omission)) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced incorrect assessment totals`);
-    }
-    assertAssessmentAuthority(value, toolName);
-    assertTypedContinuation(value, toolName);
-  }
-  if (value?.schema_version === "controlled-contract-assessment-semantic-page.v1") {
-    assertAssessmentEnvelope(value);
-    if (!assessmentCollectionDescriptor(value.family, value.collection)) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced an undeclared assessment collection`);
-    }
-    if (!Array.isArray(value.items) || value.returned_count !== value.items.length ||
-        !Number.isInteger(value.offset) || value.offset < 0 ||
-        !Number.isInteger(value.matched_count) || !Number.isInteger(value.omitted_count) ||
-        value.returned_count < 0 || value.omitted_count < 0 ||
-        value.returned_count > 64 ||
-        value.offset + value.returned_count + value.omitted_count !== value.matched_count) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced incorrect assessment page counts`);
-    }
-    const descriptor = assessmentCollectionDescriptor(value.family, value.collection);
-    if (descriptor !== null) {
-      value.items.forEach((item) => assertTaskRelevantItem(item, descriptor, toolName));
-    }
-    assertAssessmentAuthority(value, toolName);
-    assertTypedContinuation(value, toolName);
-  }
-  if (value?.schema_version === "controlled-contract-assessment-field.v1") {
-    assertAssessmentEnvelope(value, value.family);
-    const descriptor = assessmentCollectionDescriptor(value.family, value.collection);
-    if (!Array.isArray(value.field_path) || value.field_path.length === 0 ||
-        descriptor === null || !descriptor.fields.includes(String(value.field_path[0])) ||
-        value.selector === null || typeof value.selector?.id !== "string" ||
-        Object.keys(value.selector).some((key) => key !== "id") ||
-        value.source_current !== true ||
-        !Number.isInteger(value.total) || value.total < 0) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced invalid field continuation`);
-    }
-    if (Array.isArray(value.fields) &&
-        (!Number.isInteger(value.offset) || value.offset < 0 ||
-         value.returned_count !== value.fields.length ||
-         !Number.isInteger(value.omitted_count) || value.omitted_count < 0 ||
-         value.offset + value.returned_count + value.omitted_count !== value.total)) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced incorrect field counts`);
-    }
-    if (Object.hasOwn(value, "value_base64") &&
-        (!Number.isInteger(value.offset) || value.offset < 0 ||
-         !Number.isInteger(value.length) || value.length < 0 ||
-         value.offset + value.length > value.total)) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced an invalid scalar range`);
-    }
-    assertAssessmentAuthority(value, toolName);
-    assertTypedContinuation(value, toolName);
-  }
-}
-
-function hasExactKeys(value, keys) {
-  return value !== null && typeof value === "object" && !Array.isArray(value) &&
-    sameJson(Object.keys(value).sort(), [...keys].sort());
-}
-
-function isPositiveSafeInteger(value) {
-  return Number.isSafeInteger(value) && value > 0;
-}
-
-export function isLosslessMcpSpillDelivery(result) {
-  if (result === null || typeof result !== "object" || Array.isArray(result)) return false;
-  const envelope = result.structuredContent;
-  if (!isSpilledEnvelope(envelope) || !hasExactKeys(envelope, SPILLED_ENVELOPE_FIELDS) ||
-      !hasOnlyGeneratedTextCarrier(result)) {
-    return false;
-  }
-  const { preview, content_reference: reference } = envelope;
-  const previewFields = preview?.omitted === true ? ["text", "bytes", "omitted"] : ["text", "bytes"];
-  if (envelope.reason !== SPILLED_REASON ||
-      !isPositiveSafeInteger(envelope.inline_byte_limit) ||
-      !isPositiveSafeInteger(envelope.total_bytes) ||
-      !isMintedSpillMeasurement(envelope.measurement, envelope) ||
-      !hasExactKeys(preview, previewFields) || typeof preview.text !== "string" ||
-      !Number.isSafeInteger(preview.bytes) || preview.bytes < 0) {
-    return false;
-  }
-  return isMintedContentReference(reference, envelope.total_bytes);
-}
-
-function isMintedSpillMeasurement(measurement, envelope) {
-  if (!hasExactKeys(measurement, SPILL_MEASUREMENT_FIELDS)) return false;
-  const framed = measurement.compared === SPILL_COMPARISONS.MEASURED;
-  return measurement.schema_version === SPILL_MEASUREMENT_SCHEMA_VERSION &&
-    (framed || measurement.compared === SPILL_COMPARISONS.FORCED) &&
-    (framed
-      ? isPositiveSafeInteger(measurement.complete_frame_bytes) &&
-        measurement.complete_frame_bytes > envelope.inline_byte_limit
-      : measurement.complete_frame_bytes === null) &&
-    measurement.inline_byte_limit === envelope.inline_byte_limit &&
-    measurement.retained_payload_bytes === envelope.total_bytes &&
-    measurement.retained_payload_encoding === RETAINED_PAYLOAD_ENCODING &&
-    typeof measurement.meaning === "string" && measurement.meaning.length > 0;
-}
-
-function isMintedContentReference(reference, totalBytes) {
-  return hasExactKeys(reference, CONTENT_REFERENCE_FIELDS) &&
-    reference.kind === CONTENT_REFERENCE_KIND &&
-    typeof reference.ref_id === "string" &&
-    reference.ref_id.startsWith(SPILLED_REF_ID_PREFIX) &&
-    REF_ID_PATTERN.test(reference.ref_id) &&
-    reference.media_type === "application/json" && reference.encoding === "utf8" &&
-    isPositiveSafeInteger(totalBytes) && reference.byte_count === totalBytes &&
-    typeof reference.sha256 === "string" && /^[a-f0-9]{64}$/u.test(reference.sha256) &&
-    reference.read_tool === CONTENT_REFERENCE_READ_TOOL &&
-    hasExactKeys(reference.range, ["offset", "length", "max_length"]) &&
-    reference.range.offset === 0 &&
-    isPositiveSafeInteger(reference.range.length) &&
-    isPositiveSafeInteger(reference.range.max_length) &&
-    reference.range.length <= reference.range.max_length &&
-    reference.range.length <= totalBytes;
-}
-
-export function assertNoControlledContractRawResponse(
-  value,
-  { toolName = null, losslessDelivery = false } = {}
-) {
-  if (losslessDelivery === true && isLosslessMcpSpillDelivery(value)) return value;
-  const seen = new Set();
-  const visit = (candidate) => {
-    if (candidate === null || typeof candidate !== "object") return;
-    if (seen.has(candidate)) return;
-    seen.add(candidate);
-    assertAssessmentSemanticShape(candidate, toolName);
-    if (candidate.schema_version === REFACTOR_ITEM_REFERENCE_SCHEMA_VERSION) {
-      if (!["plan", "receipt"].includes(candidate.resource_kind) ||
-          typeof candidate.item_identity !== "string" ||
-          candidate.content_reference?.kind !== CONTENT_REFERENCE_KIND) {
-        throw new Error("controlled-contract refactor item reference is malformed");
-      }
-      return;
-    }
-    if (candidate.kind === CONTENT_REFERENCE_KIND ||
-        candidate.schema_version === SPILLED_RESPONSE_SCHEMA_VERSION) {
-      throw new Error(`${toolName ?? "controlled-contract route"} produced a forbidden content-reference envelope`);
-    }
-    for (const [nestedKey, nested] of Object.entries(candidate)) {
-      if (CONTROLLED_CONTRACT_FORBIDDEN_RESPONSE_KEYS.has(nestedKey)) {
-        throw new Error(`${toolName ?? "controlled-contract route"} produced forbidden raw response field ${nestedKey}`);
-      }
-      visit(nested);
-    }
-  };
-  visit(value);
-  return value;
-}
-
-const MAX_CAUSE_DEPTH = 4;
-
-function safeReadProperty(target, key) {
-  if (target === null || target === undefined) return undefined;
-  try {
-    return target[key];
-  } catch {
-    return undefined;
-  }
-}
-
-function preservedCauseIdentity(error) {
-  let current = error;
-  for (let depth = 0; depth < MAX_CAUSE_DEPTH && current && typeof current === "object"; depth += 1) {
-
-    const code = safeReadProperty(current, "code");
-    if (typeof code === "string") {
-      if (isPlatformErrorCode(code)) return { identity: null, platform: true };
-      if (isPreservableSemanticIdentity(code)) return { identity: code, platform: false };
-    }
-    current = safeReadProperty(current, "cause");
-  }
-  return { identity: null, platform: false };
-}
-
-function buildResponseMechanicalRefusal({ code, decidingFacts, observedFacts, carried = null }) {
-  return buildPublicMechanicalRefusal({
-    code,
-    deciding_facts: decidingFacts,
-    no_supported_route: true,
-    recovery: { state: "no_supported_route" },
-    route: RESPONSE_BOUNDARY_ROUTE,
-    observed_facts: observedFacts,
-    ...(carried === null ? {} : { carried })
-  });
-}
-
-function authenticatedExternalCondition(value) {
-  const condition = safeReadProperty(value, "external_condition");
-  return safeReadProperty(value, "authenticated_external_condition") === true &&
-    typeof condition === "string" && condition.length > 0 && condition.length <= 256
-    ? condition
-    : null;
-}
-
-function untypedFailureEnvelope(error) {
-  const { identity, platform } = preservedCauseIdentity(error);
-  const preservableIdentity = identity === "operator_recovery_needed" ? null : identity;
-  const diagnostic = projectDiagnostic(error);
-  const decidingFacts = [
-    { field: "mcp_response.handler_completed", value: false }
-  ];
-  const observedFacts = { "mcp_response.handler_completed": false };
-  if (preservableIdentity !== null) {
-
-    decidingFacts.push({ field: "mcp_response.cause_identity", value: preservableIdentity });
-    observedFacts["mcp_response.cause_identity"] = preservableIdentity;
-  }
-  if (platform) {
-
-    decidingFacts.push({ field: "mcp_response.platform_error", value: true });
-    observedFacts["mcp_response.platform_error"] = true;
-  }
-  const externalCondition = authenticatedExternalCondition(error);
-  const classification = externalCondition !== null
-    ? classifyMechanicalRuntimeBlocker({
-        producer: "unexpected_external",
-        condition: "authenticated_condition",
-        detail: { authenticated: true, external_condition: externalCondition }
-      })
-    : preservableIdentity !== null && isRuntimeBlockerCode(preservableIdentity)
-      ? null
-      : classifyMechanicalRuntimeBlocker({
-          producer: "mcp_response",
-          condition: platform ? "platform_failure" : "handler_exception"
-        });
-  const code = classification?.code ?? preservableIdentity;
-  if (externalCondition !== null) {
-    decidingFacts.push({
-      field: "mcp_response.external_condition",
-      value: externalCondition
-    });
-    observedFacts["mcp_response.external_condition"] = externalCondition;
-  }
-  return {
-    schema_version: RESPONSE_REFUSAL_SCHEMA_VERSION,
-    code,
-    accepted: false,
-    owning_boundary: classification?.owning_boundary ?? "wiki-mcp.mcp-response",
-    next_calls: classification?.detail?.next_calls ?? [],
-    diagnostic: diagnostic.value,
-    diagnostic_redactions: diagnostic.redactions,
-    refusal: buildResponseMechanicalRefusal({
-      code,
-      decidingFacts,
-      observedFacts
-    })
-  };
-}
-
-function normalizeDeclaredOperatorRecoveryEnvelope(envelope) {
-  const declaredRefusal = safeReadProperty(envelope, "refusal");
-  const topLevelClaim = safeReadProperty(envelope, "code") === "operator_recovery_needed";
-  const nestedClaim = declaredRefusal !== null && typeof declaredRefusal === "object" &&
-    !Array.isArray(declaredRefusal) &&
-    safeReadProperty(declaredRefusal, "code") === "operator_recovery_needed";
-  if (!topLevelClaim && !nestedClaim) return envelope;
-
-  const externalCondition = authenticatedExternalCondition(envelope);
-  const classification = externalCondition === null
-    ? classifyMechanicalRuntimeBlocker({
-        producer: "mcp_response",
-        condition: "handler_exception"
-      })
-    : classifyMechanicalRuntimeBlocker({
-        producer: "unexpected_external",
-        condition: "authenticated_condition",
-        detail: { authenticated: true, external_condition: externalCondition }
-      });
-  const decidingFacts = externalCondition === null
-    ? [
-        { field: "mcp_response.handler_completed", value: false },
-        { field: "mcp_response.declared_operator_recovery_authenticated", value: false }
-      ]
-    : [
-        { field: "mcp_response.handler_completed", value: false },
-        { field: "mcp_response.external_condition", value: externalCondition }
-      ];
-  const observedFacts = Object.fromEntries(
-    decidingFacts.map(({ field, value }) => [field, value])
-  );
-  return {
-    schema_version: RESPONSE_REFUSAL_SCHEMA_VERSION,
-    code: classification.code,
-    accepted: false,
-    authority_limb: classification.authority_limb,
-    cause: classification.cause,
-    actor_recovery: classification.actor_recovery,
-    owning_boundary: classification.owning_boundary,
-    no_supported_route: true,
-    next_calls: classification.detail.next_calls,
-    ...(externalCondition === null ? {} : {
-      authenticated_external_condition: true,
-      external_condition: externalCondition
-    }),
-    refusal: buildResponseMechanicalRefusal({
-      code: classification.code,
-      decidingFacts,
-      observedFacts,
-      carried: { mechanical_classification: classification }
-    })
-  };
-}
 
 function contentReferenceReadUnavailable(reason) {
   const envelope = Object.freeze({
@@ -648,9 +173,101 @@ export function readOperatorOnlyEvidence(reference, { env = process.env } = {}) 
 
 export const RETAINED_ARTIFACT_READ_FAILURES = Object.freeze({
   INVALID_REFERENCE: "invalid_reference",
+  NOT_CURRENT: "locator_not_current",
   NOT_READABLE: "not_readable",
-  BYTES_MISMATCH: "bytes_mismatch"
+  METADATA_NOT_FOUND: "metadata_not_found",
+  METADATA_INVALID: "metadata_invalid",
+  EVIDENCE_MISMATCH: "evidence_digest_mismatch",
+  BYTES_MISMATCH: "bytes_mismatch",
+  UNPARSEABLE: "unparseable"
 });
+
+const RETAINED_METADATA_SCHEMA_VERSION = "wiki-mcp-content-reference-metadata.v1";
+const retainedReadFailure = (reason) =>
+  Object.assign(new Error(`retained artifact read failed: ${reason}`), { reason });
+
+export function readRetainedArtifact({ ref_id: refId, sha256 = null }, { stateDir }) {
+  if (typeof refId !== "string" || !REF_ID_PATTERN.test(refId)) {
+    throw retainedReadFailure(RETAINED_ARTIFACT_READ_FAILURES.INVALID_REFERENCE);
+  }
+  if (!RETAINED_REF_ID_PATTERN.test(refId)) {
+    throw retainedReadFailure(RETAINED_ARTIFACT_READ_FAILURES.NOT_CURRENT);
+  }
+  return readRetainedArtifactByMetadata({ ref_id: refId, sha256 }, { stateDir });
+}
+
+function readRetainedArtifactByMetadata({ ref_id: refId, sha256 }, { stateDir }) {
+  const fail = retainedReadFailure;
+  const payloadPath = referencePathForId(stateDir, refId);
+  let metadataText;
+  try {
+    metadataText = readFileSync(metadataPathForId(stateDir, refId), "utf8");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw fail(RETAINED_ARTIFACT_READ_FAILURES.METADATA_INVALID);
+
+    throw fail(existsSync(payloadPath) ? RETAINED_ARTIFACT_READ_FAILURES.METADATA_NOT_FOUND
+      : RETAINED_ARTIFACT_READ_FAILURES.NOT_READABLE);
+  }
+  let metadata;
+  try {
+    metadata = JSON.parse(metadataText);
+  } catch {
+    throw fail(RETAINED_ARTIFACT_READ_FAILURES.METADATA_INVALID);
+  }
+  if (metadata === null || typeof metadata !== "object" ||
+      metadata.schema_version !== RETAINED_METADATA_SCHEMA_VERSION || metadata.ref_id !== refId ||
+      !Number.isSafeInteger(metadata.byte_count) || metadata.byte_count < 0 ||
+      typeof metadata.sha256 !== "string" || !/^[a-f0-9]{64}$/u.test(metadata.sha256)) {
+    throw fail(RETAINED_ARTIFACT_READ_FAILURES.METADATA_INVALID);
+  }
+  if (sha256 !== null && sha256 !== metadata.sha256) {
+    throw fail(RETAINED_ARTIFACT_READ_FAILURES.EVIDENCE_MISMATCH);
+  }
+  let bytes;
+  try {
+    bytes = readFileSync(payloadPath);
+  } catch {
+    throw fail(RETAINED_ARTIFACT_READ_FAILURES.NOT_READABLE);
+  }
+  if (bytes.byteLength !== metadata.byte_count ||
+      createHash("sha256").update(bytes).digest("hex") !== metadata.sha256) {
+    throw fail(RETAINED_ARTIFACT_READ_FAILURES.BYTES_MISMATCH);
+  }
+  return { bytes, sha256: metadata.sha256, byte_count: metadata.byte_count };
+}
+
+const verifiedRetainedValues = new WeakMap();
+
+export function readRetainedJson(reference, { stateDir, allowNonCurrent = false }) {
+  const artifact = allowNonCurrent
+    ? readRetainedArtifactByMetadata({ ref_id: reference.ref_id, sha256: reference.sha256 ?? null }, { stateDir })
+    : readRetainedArtifact(reference, { stateDir });
+  let value;
+  try {
+    value = JSON.parse(artifact.bytes.toString("utf8"));
+  } catch {
+    throw retainedReadFailure(RETAINED_ARTIFACT_READ_FAILURES.UNPARSEABLE);
+  }
+  if (value !== null && typeof value === "object") verifiedRetainedValues.set(value, artifact.sha256);
+  return { value, source: Object.freeze({ ref_id: reference.ref_id, sha256: artifact.sha256 }) };
+}
+
+export function listRetainedArtifacts({ stateDir, nonCurrentPrefix }) {
+  let files;
+  try {
+    files = readdirSync(stateDir);
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+  const published = new Set(files.filter((file) => file.endsWith(".json.meta.json"))
+    .map((file) => file.slice(0, -".json.meta.json".length)));
+  return files.filter((file) => file.endsWith(".json") && !file.endsWith(".meta.json"))
+    .map((file) => file.slice(0, -".json".length))
+    .filter((refId) => published.has(refId) &&
+      (RETAINED_REF_ID_PATTERN.test(refId) || refId.startsWith(nonCurrentPrefix)))
+    .map((refId) => ({ ref_id: refId, current: RETAINED_REF_ID_PATTERN.test(refId) }));
+}
 
 export function readRetainedArtifactBytes({ ref_id: refId, sha256, byte_count: byteCount = null },
   { stateDir }) {
@@ -676,13 +293,15 @@ export function readRetainedArtifactBytes({ ref_id: refId, sha256, byte_count: b
 
 export function describeRetainedArtifactFile(reference, { env = process.env } = {}) {
   const stateDir = resolveStateDir(env);
-  const bytes = readRetainedArtifactBytes(reference, { stateDir });
+
+  const artifact = reference.sha256 === undefined ? readRetainedArtifact(reference, { stateDir })
+    : { bytes: readRetainedArtifactBytes(reference, { stateDir }), sha256: reference.sha256 };
   return Object.freeze({
     path: referencePathForId(stateDir, reference.ref_id),
     media_type: "application/json",
     encoding: "utf8",
-    byte_count: bytes.byteLength,
-    sha256: reference.sha256
+    byte_count: artifact.bytes.byteLength,
+    sha256: artifact.sha256
   });
 }
 
@@ -745,7 +364,33 @@ function serializedResultBytes(result) {
   return Buffer.byteLength(JSON.stringify(result), "utf8");
 }
 
+function resultAdmissionBytes(result) {
+  const { content, structuredContent, isError, ...protocol } = result;
+  const structuredBytes = structuredContent === undefined ? 0
+    : Buffer.byteLength(JSON.stringify(structuredContent), "utf8");
+  const blocks = Array.isArray(content) ? content : [];
+  const textBytes = blocks
+    .filter((block) => block && typeof block === "object" && block.type === "text")
+    .reduce((sum, block) => sum + Buffer.byteLength(String(block.text ?? ""), "utf8"), 0);
+  const nonmirrored = withoutTextCarriers(content);
+  const residual = {
+    ...protocol,
+    ...(isError === undefined || typeof isError === "boolean" ? {} : { isError }),
+    ...(content !== undefined && !Array.isArray(content) ? { content } : {}),
+    ...(nonmirrored.length > 0 ? { content: nonmirrored } : {})
+  };
+  const residualText = JSON.stringify(residual);
+  const residualBytes = residualText === "{}" ? 0 : Buffer.byteLength(residualText, "utf8");
+  return Math.max(structuredBytes, textBytes) + residualBytes;
+}
+
 export function measureMcpInlineResultBytes(payload, { isError = false } = {}) {
+  const canonical = canonicalizeStructuredPayload(payload);
+  if (!canonical) return Number.POSITIVE_INFINITY;
+  return resultAdmissionBytes(structuredToolResult(canonical.value, { isError }));
+}
+
+export function measureMcpSerializedResultBytes(payload, { isError = false } = {}) {
   const canonical = canonicalizeStructuredPayload(payload);
   if (!canonical) return Number.POSITIVE_INFINITY;
   return serializedResultBytes(structuredToolResult(canonical.value, { isError }));
@@ -755,11 +400,19 @@ export function activeMcpInlineByteLimit(env = process.env) {
   return getResponseSpillConfig(env).inlineByteLimit;
 }
 
-function serializedResultFits(result, limit) {
+function resultAdmissionFits(result, limit) {
   try {
-    return serializedResultBytes(result) <= limit;
+    return resultAdmissionBytes(result) <= limit;
   } catch {
     return false;
+  }
+}
+
+function admissionComparison(result) {
+  try {
+    return { admissionBytes: resultAdmissionBytes(result), serializedResultBytes: serializedResultBytes(result) };
+  } catch {
+    return null;
   }
 }
 
@@ -786,13 +439,6 @@ export function structuredToolResult(value, { isError = false } = {}) {
     result.isError = true;
   }
   return result;
-}
-
-function hasOnlyGeneratedTextCarrier(result) {
-  return Array.isArray(result?.content) && result.content.length === 1 &&
-    hasExactKeys(result.content[0], ["type", "text"]) &&
-    result.content[0].type === "text" &&
-    result.content[0].text === JSON.stringify(result.structuredContent);
 }
 
 function withoutTextCarriers(content) {
@@ -852,16 +498,6 @@ async function validateRequiredStructuredContent(result, { name, outputSchema })
       );
 }
 
-function isSpilledEnvelope(value) {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    value.schema_version === SPILLED_RESPONSE_SCHEMA_VERSION &&
-    value.response_spilled === true
-  );
-}
-
 function isTerminalResponseRefusalEnvelope(value) {
   return (
     value !== null &&
@@ -889,6 +525,43 @@ function metadataPathForId(stateDir, refId) {
   return `${referencePathForId(stateDir, refId)}.meta.json`;
 }
 
+const RETAINED_ALLOCATION_ATTEMPTS = 8;
+export const RETAINED_ALLOCATION_EXHAUSTED_CODE = "retained_handle_allocation_exhausted";
+const mintRetainedRefId = () => randomBytes(6).toString("base64url");
+
+export function allocateRetainedArtifact({ stateDir, bytes, metadataFor, mintRefId = mintRetainedRefId }) {
+  for (let attempt = 0; attempt < RETAINED_ALLOCATION_ATTEMPTS; attempt += 1) {
+    const refId = mintRefId();
+    if (typeof refId !== "string" || !RETAINED_REF_ID_PATTERN.test(refId)) {
+      throw new TypeError("a retained handle is eight base64url characters");
+    }
+    const payloadPath = referencePathForId(stateDir, refId);
+    const metadataPath = metadataPathForId(stateDir, refId);
+    if (existsSync(metadataPath)) continue;
+    const metadataText = `${JSON.stringify(metadataFor(refId), null, 2)}\n`;
+    try {
+      writeFileSync(payloadPath, bytes, { mode: 0o600, flag: "wx" });
+    } catch (error) {
+      if (error?.code === "EEXIST") continue;
+      throw error;
+    }
+    const pendingPath = `${metadataPath}.${process.pid}.${randomBytes(6).toString("hex")}.pending`;
+    writeFileSync(pendingPath, metadataText, { mode: 0o600, flag: "wx" });
+    try {
+      linkSync(pendingPath, metadataPath);
+    } catch (error) {
+      if (error?.code === "EEXIST") continue;
+      throw error;
+    } finally {
+      unlinkSync(pendingPath);
+    }
+    return refId;
+  }
+  throw Object.assign(new Error(
+    `no unused retained handle was allocated in ${RETAINED_ALLOCATION_ATTEMPTS} attempts`),
+  { code: RETAINED_ALLOCATION_EXHAUSTED_CODE, attempts: RETAINED_ALLOCATION_ATTEMPTS });
+}
+
 function buildPreview(buffer, previewByteLimit) {
   const previewBuffer = buffer.subarray(0, Math.min(previewByteLimit, buffer.byteLength));
   return {
@@ -899,33 +572,29 @@ function buildPreview(buffer, previewByteLimit) {
 
 function persistSpilledPayload(
   jsonText,
-  { env = process.env, config = null, completeFrameBytes = null, selectedAccess = null } = {}
+  { env = process.env, config = null, comparison = null, selectedAccess = null } = {}
 ) {
   const resolvedConfig = config ?? getResponseSpillConfig(env);
   const bytes = Buffer.from(jsonText, "utf8");
 
   mkdirSync(resolvedConfig.stateDir, { recursive: true, mode: 0o700 });
   const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const refId = `${SPILLED_REF_ID_PREFIX}${Date.now()}-${process.pid}-${randomUUID()}`;
-  const absolutePath = referencePathForId(resolvedConfig.stateDir, refId);
-  const metadataPath = metadataPathForId(resolvedConfig.stateDir, refId);
-
-  const access = selectedAccess === null ? null : selectedAccessMarker(selectedAccess({ ref_id: refId, sha256 }));
-  writeFileSync(absolutePath, bytes, { mode: 0o600 });
-  writeFileSync(
-    metadataPath,
-    `${JSON.stringify({
-      schema_version: "wiki-mcp-content-reference-metadata.v1",
-      ref_id: refId,
+  const refId = allocateRetainedArtifact({
+    stateDir: resolvedConfig.stateDir,
+    bytes,
+    metadataFor: (allocated) => ({
+      schema_version: RETAINED_METADATA_SCHEMA_VERSION,
+      ref_id: allocated,
       media_type: "application/json",
       encoding: "utf8",
       byte_count: bytes.byteLength,
       sha256,
       created_at: new Date().toISOString(),
-      ...(access === null ? {} : { selected_access: access })
-    }, null, 2)}\n`,
-    { mode: 0o600 }
-  );
+
+      ...(selectedAccess === null ? {}
+        : { selected_access: selectedAccessMarker(selectedAccess({ ref_id: allocated })) })
+    })
+  });
 
   return {
     schema_version: SPILLED_RESPONSE_SCHEMA_VERSION,
@@ -935,12 +604,12 @@ function persistSpilledPayload(
     total_bytes: bytes.byteLength,
 
     measurement: spillMeasurement({
-      completeFrameBytes,
+      comparison,
       inlineByteLimit: resolvedConfig.inlineByteLimit,
       retainedPayloadBytes: bytes.byteLength
     }),
 
-    preview: access === null ? buildPreview(bytes, resolvedConfig.previewByteLimit)
+    preview: selectedAccess === null ? buildPreview(bytes, resolvedConfig.previewByteLimit)
       : { text: "", bytes: 0 },
     content_reference: {
       kind: CONTENT_REFERENCE_KIND,
@@ -1019,7 +688,7 @@ export function persistVerifyProofCachedRecord({ kind, record, recordIdentity },
 }
 
 export function readVerifyProofCachedRecord({ ref_id: refId, sha256, byte_count: byteCount,
-  kind, record_identity: recordIdentity }, { stateDir }) {
+  kind, record_identity: recordIdentity }, { stateDir, includeVerifiedSource = false }) {
   let bytes;
   try {
     bytes = readRetainedArtifactBytes({ ref_id: refId, sha256, byte_count: byteCount }, { stateDir });
@@ -1045,7 +714,8 @@ export function readVerifyProofCachedRecord({ ref_id: refId, sha256, byte_count:
       (kind === "aggregate" && envelope.record.result_digest !== recordIdentity)) {
     throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.CORRUPT, "bound to another identity");
   }
-  return envelope.record;
+  return includeVerifiedSource ? { record: envelope.record, retained: envelope,
+    serializedBytes: bytes, source: { ref_id: refId, sha256 } } : envelope.record;
 }
 
 export const RUN_VALIDATION_INVENTORY_REFERENCE_SCHEMA_VERSION =
@@ -1121,17 +791,17 @@ function boundTerminalEnvelopeResult(envelope, { isError = false, config }) {
     return errorContent(new Error("MCP response envelope is not JSON-serializable"));
   }
   const result = structuredToolResult(canonical.value, { isError });
-  if (serializedResultBytes(result) <= config.inlineByteLimit) {
+  if (resultAdmissionBytes(result) <= config.inlineByteLimit) {
     return result;
   }
   const trimmed = canonicalizeStructuredPayload(dropEnvelopePreview(envelope)) ?? canonical;
   const trimmedResult = structuredToolResult(trimmed.value, { isError });
-  if (serializedResultBytes(trimmedResult) <= config.inlineByteLimit) {
+  if (resultAdmissionBytes(trimmedResult) <= config.inlineByteLimit) {
     return trimmedResult;
   }
   const bounded = canonicalizeStructuredPayload(canonicalTerminalEnvelopeFields(trimmed.value));
   const boundedResult = structuredToolResult(bounded.value, { isError });
-  return serializedResultFits(boundedResult, config.inlineByteLimit)
+  return resultAdmissionFits(boundedResult, config.inlineByteLimit)
     ? boundedResult
     : errorContent(new Error("Canonical MCP terminal envelope exceeds inline byte limit"));
 }
@@ -1183,13 +853,13 @@ function buildSpillPersistenceRefusal({ totalBytes, cause, config, core = null, 
 
 function spillOrRefuse(
   canonicalValue,
-  { isError = false, env = process.env, config, completeFrameBytes = null, selectedAccess = null }
+  { isError = false, env = process.env, config, comparison = null, selectedAccess = null }
 ) {
   const jsonText = JSON.stringify(canonicalValue, null, 2);
   let envelope;
 
   try {
-    envelope = persistSpilledPayload(jsonText, { env, config, completeFrameBytes, selectedAccess });
+    envelope = persistSpilledPayload(jsonText, { env, config, comparison, selectedAccess });
   } catch (cause) {
     const refusal = buildSpillPersistenceRefusal({
       totalBytes: Buffer.byteLength(jsonText, "utf8"),
@@ -1212,7 +882,7 @@ function shapeStructuredResult(
     env = process.env,
     config = null,
     forceSpill = false,
-    comparedCompleteFrameBytes = null,
+    comparedAdmission = null,
     selectedAccess = null
   } = {}
 ) {
@@ -1222,11 +892,11 @@ function shapeStructuredResult(
     return null;
   }
 
-  let completeFrameBytes = comparedCompleteFrameBytes;
+  let comparison = comparedAdmission;
   if (!forceSpill) {
     const inline = structuredToolResult(canonical.value, { isError });
-    completeFrameBytes = serializedResultBytes(inline);
-    if (completeFrameBytes <= resolvedConfig.inlineByteLimit) {
+    comparison = admissionComparison(inline);
+    if (comparison.admissionBytes <= resolvedConfig.inlineByteLimit) {
       return inline;
     }
     if (isSpilledEnvelope(canonical.value) || isTerminalResponseRefusalEnvelope(canonical.value)) {
@@ -1234,7 +904,7 @@ function shapeStructuredResult(
     }
   }
   return spillOrRefuse(canonical.value, {
-    isError, env, config: resolvedConfig, completeFrameBytes, selectedAccess
+    isError, env, config: resolvedConfig, comparison, selectedAccess
   });
 }
 
@@ -1340,6 +1010,33 @@ export function jsonContent(data, { env = process.env, forceSpill = false, selec
   return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
 }
 
+const selectedFullResults = new WeakMap();
+
+export function selectedFullContent({ source, retained, serializedBytes, member, projection }) {
+  const native = serializedBytes !== undefined;
+  const verified = native
+    ? Buffer.isBuffer(serializedBytes) && serializedBytes.length > 0 && retained === undefined &&
+      member === undefined && projection !== undefined &&
+      createHash("sha256").update(serializedBytes).digest("hex") === source?.sha256
+    : retained !== null && typeof retained === "object" &&
+      createHash("sha256").update(JSON.stringify(retained, null, 2), "utf8").digest("hex") ===
+        (verifiedRetainedValues.get(retained) ?? source?.sha256);
+  if ((member === undefined) === (projection === undefined)) {
+    throw new TypeError("selected-full delivery takes exactly one of member and projection");
+  }
+  const canonical = verified
+    ? canonicalizeStructuredPayload(projection === undefined ? retained[member] : projection) : null;
+  if (canonical === null || canonical.value === null || typeof canonical.value !== "object" ||
+      Array.isArray(canonical.value)) {
+    throw new TypeError(projection === undefined
+      ? "selected-full delivery requires an object member of the verified retained value"
+      : "selected-full delivery requires an object projection of the verified retained value");
+  }
+  const result = structuredToolResult(canonical.value);
+  selectedFullResults.set(result, canonical.jsonText);
+  return result;
+}
+
 export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   if (result === null || typeof result !== "object" || Array.isArray(result)) {
     return result;
@@ -1359,19 +1056,24 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   }
 
   const retainedContent = withoutTextCarriers(result.content);
+
+  const selectedFull = selectedFullResults.get(result);
+  if (selectedFull === canonical.jsonText && retainedContent.length === 0 &&
+      hasExactKeys(result, ["content", "structuredContent"])) {
+    if (hasOnlyGeneratedTextCarrier(result)) return result;
+    const regenerated = structuredToolResult(canonical.value);
+    selectedFullResults.set(regenerated, selectedFull);
+    return regenerated;
+  }
   const inline = structuredToolResult(canonical.value, { isError });
   const completeInline = { ...result, ...inline, content: [...inline.content, ...retainedContent] };
   if (isDeepStrictEqual(completeInline, result) &&
-      serializedResultFits(result, config.inlineByteLimit)) {
+      resultAdmissionFits(result, config.inlineByteLimit)) {
     return result;
   }
-  let completeFrameBytes = null;
-  try {
-    completeFrameBytes = serializedResultBytes(completeInline);
-  } catch {
 
-  }
-  if (completeFrameBytes !== null && completeFrameBytes <= config.inlineByteLimit) {
+  const comparison = admissionComparison(completeInline);
+  if (comparison !== null && comparison.admissionBytes <= config.inlineByteLimit) {
     return completeInline;
   }
   if (isSpilledEnvelope(canonical.value) || isTerminalResponseRefusalEnvelope(canonical.value)) {
@@ -1383,14 +1085,14 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
     env,
     config,
     forceSpill: true,
-    comparedCompleteFrameBytes: completeFrameBytes
+    comparedAdmission: comparison
   });
   if (!shaped) {
     return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
   }
   const completeSpill = { ...result, ...shaped, content: [...shaped.content, ...retainedContent] };
 
-  return serializedResultFits(completeSpill, config.inlineByteLimit)
+  return resultAdmissionFits(completeSpill, config.inlineByteLimit)
     ? completeSpill
     : shaped;
 }
@@ -1422,213 +1124,6 @@ export function guardToolHandler(
       }
       return errorContent(error, { env });
     }
-  };
-}
-
-export function installProcessErrorGuards({
-  processLike = process,
-  log = null,
-  diagnostics = null,
-  requestShutdown = null
-} = {}) {
-  if (!processLike || typeof processLike.on !== "function") {
-    throw new Error("installProcessErrorGuards requires a process-like object with .on()");
-  }
-  if (processLike[PROCESS_ERROR_GUARDS_INSTALLED]) {
-    return { installed: false };
-  }
-
-  let lastTerminalDiagnostic = null;
-
-  const failStop = ({ event, error, origin = null }) => {
-    const entry = {
-      level: "error",
-      message:
-        "wiki-mcp process-level invariant escaped its registered owner; failing stop",
-      event,
-      origin,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : null
-    };
-
-    let published = false;
-    if (diagnostics && typeof diagnostics.emit === "function") {
-      try {
-        published = diagnostics.emit(entry) === true;
-      } catch {
-
-        published = false;
-      }
-    }
-    lastTerminalDiagnostic = Object.freeze({ event, origin, published });
-
-    if (typeof log === "function") {
-      try {
-        log({ ...entry, diagnostic_published: published });
-      } catch {
-
-      }
-    }
-
-    if (diagnostics && typeof diagnostics.disable === "function") {
-      try {
-        diagnostics.disable();
-      } catch {
-
-      }
-    }
-
-    if (typeof requestShutdown === "function") requestShutdown(1);
-  };
-
-  processLike.on("unhandledRejection", (reason) => {
-    failStop({ event: "unhandledRejection", error: reason });
-  });
-  processLike.on("uncaughtException", (error, origin) => {
-    failStop({ event: "uncaughtException", error, origin });
-  });
-
-  Object.defineProperty(processLike, PROCESS_ERROR_GUARDS_INSTALLED, {
-    value: true,
-    enumerable: false,
-    configurable: false
-  });
-  return {
-    installed: true,
-    get lastTerminalDiagnostic() { return lastTerminalDiagnostic; }
-  };
-}
-
-export function createDiagnosticSink({
-  stderr = process.stderr,
-  serialize = JSON.stringify,
-  write = (stream, text) => stream.write(text),
-  log = null
-} = {}) {
-  let state = "active";
-  const disable = () => { state = "disabled"; };
-  if (stderr && typeof stderr.on === "function") {
-    stderr.on("error", disable);
-    stderr.on("close", disable);
-  }
-  const emit = (entry) => {
-    if (state !== "active") return false;
-    state = "emitting";
-    try {
-      write(stderr, `${serialize(entry)}\n`);
-      if (typeof log === "function") log(entry);
-
-      if (state === "emitting") state = "active";
-      return true;
-    } catch {
-      disable();
-      return false;
-    }
-  };
-  return {
-    emit,
-    disable,
-    get state() { return state; },
-    get disabled() { return state === "disabled"; }
-  };
-}
-
-export function createStdioShutdownController({
-  processLike = process,
-  stdin = process.stdin,
-  stdout = process.stdout,
-  stderr = process.stderr,
-  readPpid = () => processLike.ppid,
-  setIntervalFn = setInterval,
-  clearIntervalFn = clearInterval,
-  setTimeoutFn = setTimeout,
-  clearTimeoutFn = clearTimeout,
-  terminate = (code) => processLike.exit(code),
-  disableDiagnostics = () => {},
-  closeTimeoutMs = 2000
-} = {}) {
-  if (!processLike || typeof processLike.on !== "function") {
-    throw new Error("createStdioShutdownController requires a process-like object");
-  }
-  const on = (stream, event, handler) => {
-    if (!stream || typeof stream.on !== "function") {
-      throw new Error(`shutdown controller requires a ${event} stream listener`);
-    }
-    stream.on(event, handler);
-  };
-  let phase = "running";
-  let outcome = 0;
-  let eofObserved = false;
-  let serverCloseHook = null;
-  let cleanupPromise = null;
-  let cleanupCompletionPromise = null;
-  let cleanupHook = null;
-  let parentInterval = null;
-  let cleanupTimer = null;
-  let terminalActionTaken = false;
-  const initialPpid = readPpid();
-
-  const terminateOnce = (code) => {
-    if (terminalActionTaken) return;
-    terminalActionTaken = true;
-    if (cleanupTimer !== null) clearTimeoutFn(cleanupTimer);
-    if (parentInterval !== null) {
-      clearIntervalFn(parentInterval);
-      parentInterval = null;
-    }
-    phase = "terminated";
-    terminate(code);
-  };
-  const cleanup = () => {
-    if (cleanupPromise) return cleanupPromise;
-
-    cleanupHook = serverCloseHook;
-    cleanupPromise = Promise.resolve().then(() => (
-      typeof cleanupHook === "function" ? cleanupHook() : undefined
-    ));
-    return cleanupPromise;
-  };
-  const requestShutdown = (requestedOutcome = 1) => {
-    if (phase === "terminated") return cleanupPromise || Promise.resolve();
-    if (requestedOutcome === 1) outcome = 1;
-    if (phase === "running") phase = "closing";
-    const currentCleanup = cleanup();
-    if (cleanupTimer === null) cleanupTimer = setTimeoutFn(() => terminateOnce(1), closeTimeoutMs);
-    if (cleanupCompletionPromise === null) {
-      cleanupCompletionPromise = currentCleanup.then(
-        () => terminateOnce(outcome),
-        () => terminateOnce(1)
-      );
-    }
-    return currentCleanup;
-  };
-  on(stdin, "end", () => { eofObserved = true; requestShutdown(0); });
-  on(stdin, "close", () => requestShutdown(eofObserved ? 0 : 1));
-  on(stdin, "error", () => requestShutdown(1));
-  on(stdout, "close", () => requestShutdown(1));
-  on(stdout, "error", () => requestShutdown(1));
-  on(stderr, "close", disableDiagnostics);
-  on(stderr, "error", disableDiagnostics);
-
-  const initialPpidValid = Number.isInteger(initialPpid) && initialPpid > 1;
-  if (!initialPpidValid) {
-    requestShutdown(1);
-  } else {
-    parentInterval = setIntervalFn(() => {
-      if (readPpid() !== initialPpid) requestShutdown(1);
-    }, 250);
-    if (parentInterval && typeof parentInterval.unref === "function") parentInterval.unref();
-  }
-  return {
-    requestShutdown,
-    setServerCloseHook(hook) {
-      if (typeof hook !== "function") throw new TypeError("server close hook must be a function");
-      serverCloseHook = hook;
-    },
-    cleanup,
-    get phase() { return phase; },
-    get outcome() { return outcome; },
-    get parentInterval() { return parentInterval; }
   };
 }
 

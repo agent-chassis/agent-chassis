@@ -27,7 +27,7 @@ const QUERY_IDENTITY = Object.freeze({ focus: null, obligation_id: OBLIGATION, p
 const slot = (name, index) => ({ name, value_kind: "typed_referent", roles: [name],
   refinement_refs: [`/reference_roles/${index}`], applicability_refs: [`/claim_patterns/${index}`],
   purpose: `Declare ${name}.`, source: { policy: "canonical", mapping: "canonical-source" },
-  refinements: [{ ref: `/reference_roles/${index}/${"r".repeat(1300)}`, value: { role: name,
+  refinements: [{ ref: `/reference_roles/${index}/${"r".repeat(4000)}`, value: { role: name,
     allowed_type_terms: ["cc:runtime_component"], allowed_identity_kinds: ["repository_path"],
     cardinality: "exactly_one" } }],
   constraints: [{ ref: `/claim_patterns/${index}`, value: { pattern_id: `${name}-exists`,
@@ -74,6 +74,15 @@ test("the pin-fact-only size names every omitted field and its emitted reads com
   const first = await publish({ parameter_detail: { status: "current" }, parameter_contract: CONTRACT });
   assert.ok(measureMcpInlineResultBytes(first) <= selection.bound);
   const chosen = first.parameter_selection;
+
+  const utf8 = (value) => Buffer.byteLength(JSON.stringify(value), "utf8");
+  assert.ok(utf8(carrier({ parameter_detail: { status: "current" }, parameter_contract: CONTRACT })) > selection.bound);
+  assert.ok(utf8(first) + utf8(CONTRACT.parameters) > selection.bound, "the slots do not fit beside the summary");
+  assert.ok(utf8(first) + utf8(CONTRACT.parameters.map((parameter) => parameter.refinements)) > selection.bound,
+    "nor do their refinements");
+  for (const parameter of CONTRACT.parameters) {
+    assert.ok(utf8(parameter) < selection.bound, "a slot fits in one detail frame");
+  }
   assert.equal(chosen.complete, false);
   assert.equal(Object.hasOwn(chosen, "parameters"), false, "the slots do not fit");
   assert.equal(Object.hasOwn(chosen, "parameter_refinements"), false, "nor do their refinements");
@@ -87,6 +96,18 @@ test("the pin-fact-only size names every omitted field and its emitted reads com
   assert.deepEqual(Object.keys(fields), chosen.not_inline, "each named field is read once, in order");
   assert.deepEqual(composeParameterContract(chosen, fields), CONTRACT, "nothing is lost");
   t.diagnostic(`pin-fact-only parameter contract: ${ledger.calls + 1} calls`);
+});
+
+test("a result whose parameter contract fits is answered whole, without a parameter selection", async (t) => {
+  const { selection, publish } = harness(t);
+  const contract = { ...CONTRACT, parameters: [{ name: "component", value_kind: "typed_referent" }],
+    constraints: [] };
+  const row = { parameter_detail: { status: "current" }, parameter_contract: contract };
+  assert.ok(Buffer.byteLength(JSON.stringify(carrier(row)), "utf8") < selection.bound);
+  const first = await publish(row);
+  assert.equal(first.selected_detail.complete, true);
+  assert.equal(Object.hasOwn(first, "parameter_selection"), false);
+  assert.deepEqual(first.obligations[0].parameter_contract, contract);
 });
 
 test("an oversized unavailable-pin fact names its omitted fact and reads it whole", async (t) => {

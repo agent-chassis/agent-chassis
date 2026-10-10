@@ -1,7 +1,8 @@
 import { controlledContractContentDigest } from "../../lib/controlled-contract-tools.mjs";
 import { today } from "../../lib/wiki-shared.mjs";
 import {
-  inspectWorkRecordProofPosture
+  inspectWorkRecordProofPosture,
+  prepareControlledAcceptanceProofPostureAmendment
 } from "../../lib/work-record-proof-posture.mjs";
 import {
   compileControlledContractRequirements,
@@ -10,9 +11,6 @@ import {
 import {
   deriveControlledContractAuthoringVocabulary
 } from "./contract-requirement-vocabulary.mjs";
-import {
-  prepareControlledAcceptanceProofPostureAmendment
-} from "./proof-posture-operations.mjs";
 
 function contractInput(input, key) {
   return Object.hasOwn(input, key) ? input[key] : undefined;
@@ -49,6 +47,8 @@ export function compileProofAuthoringContractInputs({
   }
   let record = initial.record;
   let postureChanged = false;
+
+  let proofPosturePreparation = null;
   if (controlledAcceptance !== undefined) {
     const prepared = prepareControlledAcceptanceProofPostureAmendment({
       record,
@@ -56,8 +56,10 @@ export function compileProofAuthoringContractInputs({
       disposition: controlledAcceptance.disposition,
       rationale: controlledAcceptance.rationale ?? null,
       allowCorrection: true,
-      now
+      now,
+      sourceDigest: initial.recordSourceDigest
     });
+    proofPosturePreparation = prepared;
     record = prepared.record;
     postureChanged = prepared.changed;
   }
@@ -68,7 +70,8 @@ export function compileProofAuthoringContractInputs({
         controlledContractContentDigest(baseContract),
     requirementCompilation,
     record,
-    postureChanged
+    postureChanged,
+    proofPosturePreparation
   });
 }
 

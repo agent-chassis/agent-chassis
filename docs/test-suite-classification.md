@@ -354,7 +354,13 @@ bounded asynchronous owner (`tests/helpers/test-runner-output.mjs`, 1 MiB per
 sink). That includes forwarded suite output, progress, notices, diagnostics
 and the final lines. How it writes depends on the destination:
 
-- **Pipes and sockets:** written from the event loop by a nonblocking stream.
+- **Pipes and sockets:** classified by `fstat` and adopted by an explicit libuv
+  pipe handle, then written from the event loop by a nonblocking stream. This
+  also covers the Unix sockets used for captured subprocess output when the
+  launch sandbox denies `getsockname`; no socket metadata probe is needed. The
+  output owner owns the inherited fd. Adoption errors use the same latched
+  output-loss reporting and settlement as write errors. The Node `pipe_wrap`
+  boundary is exercised by the runner's output integration witnesses.
 - **TTYs and other character devices:** reopened through `/proc/self/fd/N` as
   the runner's own `O_NONBLOCK` file description (the shared description is
   untouched). A paused terminal returns `EAGAIN` and is retried on a timer.
@@ -413,6 +419,100 @@ recently. A span still open when its producer ended is reported as unfinished
 coverage. Test-body internals and production subprocesses are unmeasured, and
 `summary.json` names both. Native whole-test durations are never split into
 setup, body and cleanup.
+
+### Shared test evidence store
+
+`tests/helpers/test-evidence-store.mjs` records what a long witness has reached
+while it runs. It keeps one row per wrapped test execution in one SQLite
+database for the checkout, `scratch/test-evidence.sqlite`, located from the
+repository root the test passes in. The file is an ignored runtime artifact, not
+canonical evidence. Neither `HOME`, `TMPDIR` nor the run id selects a different
+database, and a test that needs an isolated database passes its own temporary
+`databasePath`.
+
+`withTestEvidence(t, { repoRoot, file, lane }, body)` wraps a test:
+
+- It inserts the row before `body` runs, so a failure during setup inside the
+  body is recorded. The row is keyed by an SQLite-issued `execution_id` and
+  carries the runner's run id, the repository-relative file, `t.name` and the
+  lane (for example `source` or `installed`). Starting the same case again, in
+  the same run or another, adds a row; it never reuses one.
+- `checkpoint({ checks, detail })` updates that row only: the check ledger, a
+  checkpoint count and the latest detail reference. It reads nothing back and
+  rewrites no earlier detail. Row state is bounded to 64 KiB; anything larger
+  belongs in an immutable blob whose `{ path, sha256, bytes }` reference is
+  stored instead. A blob may name its predecessor in `previous`, and
+  `readTestEvidenceDetail` follows that chain, verifying each blob.
+- On orderly completion the row becomes `passed` or `failed` and the owned
+  connection is closed. A process killed mid-test leaves its row `running`;
+  nothing marks it afterwards.
+
+The row is the helper's own status. Native outcome, duration and timing stay in
+the run's `events.jsonl` and are joined by run id, file and name.
+
+The run id comes from the runner's run context. Without a valid context the
+helper refuses with `test_evidence_store.run_context_absent.v1` or
+`test_evidence_store.run_context_invalid.v1` before it creates or opens
+anything; it never invents a run id.
+
+Each wrapped execution owns one connection, registered with `test-resource-scope`, with
+its statements prepared once. Every access is bounded by SQLite's busy timeout,
+at most 1000 ms, and is not retried: a longer wait fails with
+`test_evidence_store.lock_timeout.v1`. Any other storage failure is
+`test_evidence_store.storage_failed.v1`. Both name the database, the execution,
+the failed step, what is known about the row afterwards and what to do next, and
+keep the native error as their cause. A corrupt database is left as found and is
+never recreated. When a test failure and a reporting or cleanup failure coexist,
+the rejection is an `AggregateError` with the test failure first and as its
+cause; a reporting failure alone still fails the test.
+
+Each checkpoint publishes an `evidence_checkpoint` component event with the
+logical bytes it wrote and its elapsed time. Those written bytes are measured.
+That a checkpoint rereads no earlier report is established by inspecting the
+source; no read count is measured. `readTestEvidence` returns the rows matching
+a selector through a read-only connection.
+
+The coordinator proof-results witness
+(`tests/integration/get-run-result-coordinator-proof-results.test.mjs`) reports
+through this store. Its fixture writes each case's report as a chain of delta
+blobs under `scratch/wk2731-coordinator-proof-results-repair-validation/entry171/`:
+a delta holds the report fields that changed and only the calls, controls and
+expected outcomes added since the previous delta.
+
+## Filesystem observation capture
+
+`tests/helpers/test-filesystem-state.mjs` owns payload observations of a test
+tree: which entries exist and what bytes they hold. `captureFilesystemState` and
+`captureFilesystemStateSync` run the same steps; the asynchronous one awaits each
+request but also reads synchronously unless given asynchronous operations.
+`tests/helpers/protected-tree.mjs` owns inode, mode and link identity instead.
+
+One call is one fresh observation. Nothing is kept between calls, so every call
+enumerates and reads again, and a change of equal size and modification time is
+still seen. Within one call, requested roots that overlap lexically share each
+directory enumeration and each file read, and a file's base64 and SHA-256 views
+are computed from its captured bytes at most once, when first requested. A file
+symlink is read through to its target wherever that is, and each link path is
+its own entry. A directory symlink is never descended. The capture only reads,
+and it is not an atomic snapshot of a tree that changes underneath it. A failed
+enumeration or read throws, including a discovered entry that has since
+disappeared; no partial result is returned.
+
+Three existing observation APIs read through it and keep their own
+representations:
+
+| API | Population and order | Missing root |
+| --- | --- | --- |
+| `namespace(root)` (asynchronous) | everything under `wiki/` then `docs/`, per-directory `localeCompare` order, `/`-joined keys, a `<path>/` → `null` marker per directory, base64 for every other entry | rejects |
+| `directoryBytes(dir)` (synchronous) | regular files and file symlinks only, platform-relative keys in code-unit order, base64 | `{}` only when the root does not exist (`ENOENT`); every other failure throws, and a dangling root link is not a missing root |
+| `canonicalAuthoredState(dir)` (asynchronous) | `wiki/contracts/` then `wiki/work-records/` with each root's own marker, as `namespace` would list them; `digest` is the hash of `JSON.stringify(entries)` | a missing root contributes nothing; a present root that is not a directory also contributes nothing but is read, so a dangling or directory link or an unreadable file there rejects |
+
+`canonicalAuthoredState` touches only its two roots, so an unreadable file
+elsewhere under `wiki/` or `docs/` does not affect it, while a failure inside
+either root, or at a file-symlink target reached from one, still rejects. Each
+API and both entrypoints accept `{ operations }`, the four read operations the
+capture uses, so a test can count or fault them; a capture's `counts` say which
+operations ran, not how long they took.
 
 ## Designated process and Git helpers
 
@@ -481,12 +581,51 @@ The committed-slice review fixture declares its setup phases —
 attributes Git to the active phase. Git issued after setup (test bodies, the
 backend's review-context probe through the fixture runner) is counted as
 `outside_fixture_setup`.
-The fixture keeps an immutable base repository template per exact base-content
-key for the life of one test file. Every case copies its files and `.git`
-directory before creating mutable refs, worktrees and deliveries; no case
-shares a writable repository. Template creation and copy time remain attributed
-to the common setup phases, and the copies are explicit `measureComponentPhase`
-spans.
+The fixture's base repository — `git init`, repository identity, base content
+and the base commit — is a recipe of the
+[prepared test fixture cache](prepared-test-fixture-cache.md). It is built at
+most once per runner invocation and key and is shared by every test file in that
+invocation. Each fixture call receives a private copy of the files and the
+`.git` directory before it creates its own refs, worktrees and deliveries; no
+call shares a writable repository, and removing a call's tree leaves the
+published base in place.
+
+- **Key.** `wkId`, `initiative`, `sliceStatus`, `emptyDelivery`, and the base
+  files in write order with their exact bytes (a string and a `Buffer` holding
+  the same bytes are the same content), together with the fixed branch and
+  identity, the work record committed for an empty delivery, the sources of
+  `committed-slice-review-fixture.mjs` and `git-test-fixture.mjs`, and the
+  cache's runtime identity. Options that only shape the scenario after the base
+  commit, and the caller's temporary root, are not part of it.
+- **`fresh: true`** runs the same base preparation privately, without reading or
+  publishing the shared entry. It is a control for measurements and tests that
+  need cold work counts, not a recovery from a failure.
+- **`cacheWaitTimeoutMs`** (default 30,000) bounds the wait for another process
+  that is building the same base. It is separate from the per-command Git
+  timeout.
+- **Result.** `basePreparation` holds the cache's `key`, `outcome` (`built`,
+  `hit` or `fresh`) and `work` for that call.
+- **Failures.** A failure inside the base preparation (a path or write error, a
+  nonzero Git result, a Git fault) is thrown as itself, as it was before the
+  base was shared. The cache's own failures — an invalid wait budget, a wait
+  timeout, a corrupt entry — keep their `PreparedTestFixtureError` code. Nothing
+  retries without the cache.
+
+A call that builds the base, shared or fresh, runs that Git inside the four
+common phases. A call that reuses a published base completes the same four
+phases with no Git of its own. `common_preparations` therefore counts completed
+common phases in every mode, and it is not a build count. The builds are the
+`repositories_created` and base-commit Git counts, the cache's `build` spans, and
+`basePreparation.work.builds`. Identity hashing, waiting and the private copy
+are the cache's own spans and `work` fields, and they fall inside the fixture's
+elapsed time.
+
+`tests/integration/prepared-committed-slice-fixtures.test.mjs` runs the same
+default fixture call alternately fresh and shared and appends one
+`committed_slice_base_preparation_comparison` record to its component journal:
+medians of fixture, common-phase, build, hash, copy and wait time, Git init and
+base-commit counts, and the run's provenance with any missing field named. It
+compares one preparation in one process and asserts no time threshold.
 The admission and policy files call
 `enrollCommittedSliceGitMeasurement(import.meta.url)`. Without the runner's run
 context this does nothing. Under it, every fixture call in that file's process
@@ -537,6 +676,47 @@ status quo rather than a rule. Detection reuses the placement signal, so a
 import. `SUBPROCESS_MIGRATION_BACKLOG` records remaining work; an entry naming a
 file that has since migrated is itself a refusal, so the list cannot rot into a
 standing allowance.
+
+The explicit [test lint](semgrep.md#test-lint) reviews every test source for the
+same bypasses and reports them as advice. It does not replace this check, and a
+lint exception never waives enrollment.
+
+## Journey response accounting
+
+`tests/helpers/mcp-journey-accounting.mjs` owns what a deterministic MCP journey
+records about a response. A response has several representations, and each is
+serialized by its own owner. They are never substituted for one another, even
+when two of them hold the same value:
+
+| Representation | Owner | Used for |
+| --- | --- | --- |
+| Logical payload: `JSON.stringify(payload ?? null)` of the value the journey received, after any materialization | `serializeJourneyPayload` | the request's `response_digest`, its logical and displayed byte counts, and the `structured` display line |
+| Raw result frame | `displayLine` under `raw_result_frame` | the whole tool result exactly as returned |
+| Carrier text and structured value | `structuredCarrierFindings`, `carrierBytes` | the carrier contract and per-frame carrier bytes |
+| Admission bytes | `deliveredAdmissionBytes` | the contract's admission quantity |
+
+The public journey's `request()` serializes the logical payload once per
+observation and derives both the digest and the UTF-8 byte count from that one
+string. The string is local to the observation: it is not stored in the trace,
+the transport ledger or the manifest, and nothing is cached by object identity,
+so a later observation of a changed value is serialized again. An automatic
+retrieval page keeps its own digest and reports zero logical and displayed
+bytes; its parent request records the one materialized representation.
+
+`assertStructuredCarrier`, `channels` and the ordinary-edit provider's `tool`,
+`save`, `refusedSave` and journey-step checks format their failure message only
+on the failing branch. A failure is still raised by the same native assertion
+with the same operands, operator and message text, and every carrier finding is
+still computed and reported. Other assertions in these helpers format their
+messages eagerly.
+
+`tests/unit/mcp-journey-accounting.test.mjs` and
+`tests/integration/mcp-journey-accounting-requests.test.mjs` count serializations and
+diagnostic formatting with test-local observers. Those counts establish which
+operations run; they say nothing about speed. Durations come from the run's
+`events.jsonl` and component journals, measured with the observers off. A
+request's span contains its retrieval pages' spans, so spans are never summed,
+and a helper-level saving is not a suite-level one.
 
 ## Public snapshot behaviour
 

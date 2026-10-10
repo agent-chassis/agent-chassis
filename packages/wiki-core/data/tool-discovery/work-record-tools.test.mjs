@@ -17,21 +17,7 @@ import {
 const LEGACY_AGGREGATE_BASENAME = 'tool-discovery.v1.json';
 
 const WORK_RECORD_FRAGMENTS = [
-  {
-    file: 'work-record-core-mcp-tools.json',
-    mcp: [
-      'workspace_create_record',
-
-      'workspace_record_staleness_check',
-      'workspace_work_record_entry_read',
-      'workspace_work_record_entry_upsert',
-      'workspace_work_record_set_closure',
-      'workspace_work_record_set_status',
-      'workspace_work_record_summary',
-      'workspace_work_record_validate',
-    ],
-    cli: [],
-  },
+  { file: 'work-record-core-mcp-tools.json', mcp: [], cli: [] },
   {
     file: 'work-record-core-cli-tools.json',
     mcp: [],
@@ -45,19 +31,7 @@ const WORK_RECORD_FRAGMENTS = [
       'wiki-work-records-validate',
     ],
   },
-  {
-    file: 'work-record-edit-mcp-tools.json',
-    mcp: [
-      'workspace_work_record_delete_slice',
-      'workspace_work_record_ready_slice',
-      'workspace_work_record_refresh_admission_metrics',
-      'workspace_work_record_refresh_target_resolution_evidence',
-      'workspace_work_record_edit',
-      'workspace_work_record_shape_review_unit',
-      'workspace_work_record_upsert_slice',
-    ],
-    cli: [],
-  },
+  { file: 'work-record-edit-mcp-tools.json', mcp: [], cli: [] },
   {
     file: 'work-record-edit-cli-tools.json',
     mcp: [],
@@ -72,6 +46,31 @@ const WORK_RECORD_FRAGMENTS = [
   },
 ];
 
+const TASK_MCP_FRAGMENT = 'mcp-tools.json';
+
+const CURRENT_WORK_RECORD_MCP_ROUTES = [
+  'workspace_read_wiki',
+  'workspace_create_record',
+  'save_record',
+];
+
+const RETIRED_WORK_RECORD_MCP_ROUTES = [
+  'workspace_record_staleness_check',
+  'workspace_work_record_entry_read',
+  'workspace_work_record_entry_upsert',
+  'workspace_work_record_set_closure',
+  'workspace_work_record_set_status',
+  'workspace_work_record_summary',
+  'workspace_work_record_validate',
+  'workspace_work_record_delete_slice',
+  'workspace_work_record_ready_slice',
+  'workspace_work_record_refresh_admission_metrics',
+  'workspace_work_record_refresh_target_resolution_evidence',
+  'workspace_work_record_edit',
+  'workspace_work_record_shape_review_unit',
+  'workspace_work_record_upsert_slice',
+];
+
 const EXPECTED_MCP_TOOL_NAMES = WORK_RECORD_FRAGMENTS.flatMap((entry) => entry.mcp);
 
 const EXPECTED_CLI_COMMAND_NAMES = WORK_RECORD_FRAGMENTS.flatMap((entry) => entry.cli);
@@ -84,6 +83,18 @@ async function readJson(url) {
 
 async function readFragment(file) {
   return readJson(new URL(`./${file}`, import.meta.url));
+}
+
+async function readManifestFragments() {
+  const manifest = await readJson(new URL('./manifest.json', import.meta.url));
+  return Promise.all(manifest.fragments.map(async ({ file }) => [file, await readFragment(file)]));
+}
+
+async function readTaskTool(toolName) {
+  const fragment = await readFragment(TASK_MCP_FRAGMENT);
+  const tool = fragment.tools.find((entry) => entry.tool_name === toolName);
+  assert.ok(tool, `${toolName} must be present in ${TASK_MCP_FRAGMENT}`);
+  return tool;
 }
 
 async function readFamilyTools() {
@@ -197,6 +208,19 @@ test('work-record fragments register the expected MCP routes and CLI fallbacks',
   assert.deepEqual(cliNames, [...EXPECTED_CLI_COMMAND_NAMES].sort());
   assert.deepEqual(allNames, [...EXPECTED_TOOL_NAMES].sort());
 
+  const owners = new Map();
+  for (const [file, fragment] of await readManifestFragments()) {
+    for (const tool of fragment.tools) {
+      owners.set(tool.tool_name, [...(owners.get(tool.tool_name) ?? []), file]);
+    }
+  }
+  for (const route of CURRENT_WORK_RECORD_MCP_ROUTES) {
+    assert.deepEqual(owners.get(route), [TASK_MCP_FRAGMENT], `${route} has one owning fragment`);
+  }
+  for (const retired of RETIRED_WORK_RECORD_MCP_ROUTES) {
+    assert.equal(owners.has(retired), false, `${retired} is retired and must not be advertised`);
+  }
+
   for (const tool of familyTools) {
     assert.equal(
       /^workspace_(repo|write)$/.test(tool.tool_name),
@@ -219,138 +243,96 @@ test('work-record fragment entries carry full rich descriptor metadata', async (
   }
 });
 
-test('hot work-record tools carry routing guidance metadata', async () => {
-  const familyTools = await readFamilyTools();
+const TASK_ROUTE_BOUNDARY = 'The request needs an ungranted role, caller-selected repository or another task.';
 
-  assertRoutingGuidance(familyTools, 'workspace_work_record_summary', {
-    use_when: ['selected_work_record_context', 'selected_slice_detail'],
-    do_not_use_when: ['initiative status/action', 'dispatch readiness', 'work-record mutation'],
-    authoritative_for: ['compact selected_work_record_context', 'compact selected_slice_detail'],
-    recommended_first_call: {
-      routing_intents: ['selected_work_record_context', 'selected_slice_detail'],
-      arguments: { unit: '$unit_if_known' },
-      omit_null_arguments: true,
-    },
-    requires_prior_state: ['known WK-* or WK-*#SLICE-*'],
-    replacement_for_misuse: [
-      {
-        misuse_code: 'full_read_without_selected_resource',
-        routing_intent: 'selected_work_record_context',
-        use_instead: 'workspace_work_record_summary',
-      },
-      {
-        misuse_code: 'high_output_option_without_compact_first',
-        routing_intent: 'selected_slice_detail',
-        use_instead: 'workspace_work_record_summary',
-      },
-      {
-        misuse_code: 'bulk_sampling_without_lens',
-        routing_intent: 'initiative_frontier_lens',
-        use_instead: 'workspace_initiative_status',
-      },
-    ],
-  });
+function taskRouteGuidance(meaning, firstCallArguments) {
+  return {
+    use_when: [meaning],
+    do_not_use_when: [TASK_ROUTE_BOUNDARY],
+    authoritative_for: [meaning],
+    recommended_first_call: { operation: meaning, arguments: firstCallArguments, omit_null_arguments: true },
+    requires_prior_state: undefined,
+    replacement_for_misuse: undefined,
+  };
+}
 
-  const mutationTools = [
-    ['workspace_create_record', 'create', ['record kind', 'title/scope', 'no existing WK target'], ['allocator-backed record creation']],
-    ['workspace_work_record_set_status', 'status', ['unit', 'status'], ['status work-record mutations']],
-    ['workspace_work_record_set_closure', 'closure', ['unit', 'closure patch'], ['closure work-record mutations']],
-    ['workspace_work_record_upsert_slice', 'slice upsert', ['WK unit', 'slice body'], ['slice upsert work-record mutations']],
-    ['workspace_work_record_delete_slice', 'slice delete', ['WK unit', 'slice id'], ['slice delete work-record mutations']],
-    ['workspace_work_record_shape_review_unit', 'review unit shaping', ['unit', 'review role intent'], ['review-unit work-record mutations']],
-  ];
+const READ_WIKI_NOTES =
+  'Read compact canonical context, then one semantic selection from its returned reference. ' +
+  "A WK subject's context facts carry the advisory terminal_review_designation; a findings unit's " +
+  'context facts and each inventory:"slices" member carry its effective review_purpose when one exists. ' +
+  'Both are read-only observations of the saved record that grant or withhold no dispatch, admission, ' +
+  'integration or handoff decision.';
 
-  for (const [toolName, operation, requires_prior_state, authoritative_for] of mutationTools) {
-    const argumentsByTool = {
-      workspace_create_record: { type: 'wk', title: '$title_if_known' },
-      workspace_work_record_set_closure: { unit: '$unit_if_known' },
-    };
-    const recommendedArguments = argumentsByTool[toolName];
-    assertRoutingGuidance(familyTools, toolName, {
-      use_when: ['work_record_mutation', `mutation_operation=${operation}`],
-      do_not_use_when:
-        toolName === 'workspace_create_record'
-          ? ['existing WK/slice update', 'read-only context']
-          : ['read-only context', 'different mutation route'],
-      authoritative_for,
-      recommended_first_call: {
-        routing_intents: ['work_record_mutation'],
-        operation,
-        ...(recommendedArguments ? {
-          arguments: recommendedArguments,
-          omit_null_arguments: true,
-        } : {}),
-      },
-      requires_prior_state,
-      replacement_for_misuse: [
-        {
-          misuse_code: 'ignored_required_next_action',
-          routing_intent: 'work_record_mutation',
-          use_instead: toolName,
-        },
-      ],
-    });
-  }
-
-  assertRoutingGuidance(familyTools, 'workspace_work_record_edit', {
-    use_when: ['work_record_mutation', 'mutation_operation=ordinary authored field'],
-    do_not_use_when: [
-      'lifecycle or semantic-contract mutation',
-      'arbitrary path or bulk replacement',
-      'read-only context',
-    ],
-    authoritative_for: [
-      'WORK_RECORD_EDIT_FIELD_REGISTRY-driven bounded ordinary authored-field facade routing',
-    ],
-    recommended_first_call: {
-      routing_intents: ['work_record_mutation'],
-      operation: 'replace complete agent notes',
-      arguments: {
-        unit: 'WK-0000',
-        kind: 'scalar',
-        field: 'sections.agent_notes',
-        action: 'replace',
-        value: 'Complete replacement notes text',
-      },
-      omit_null_arguments: true,
-    },
-    requires_prior_state: [
-      'configured repository',
-      'canonical WK or slice unit',
-      'one registry-declared edit request',
-    ],
-    replacement_for_misuse: [{
-      misuse_code: 'ignored_required_next_action',
-      routing_intent: 'work_record_mutation',
-      use_instead: 'workspace_work_record_edit',
-    }],
-  });
-});
-
-const SUMMARY_ADVISORY_FACT_PHRASES = [
-  'review_purpose',
-  'terminal_review_designation',
-
-  'advisory, descriptive, fact-only',
-  'non-authorizing',
+const CURRENT_WORK_RECORD_ROUTE_CONTRACTS = [
+  {
+    toolName: 'workspace_read_wiki',
+    meaning: 'Read compact canonical context, then one semantic selection from its returned reference.',
+    notes: READ_WIKI_NOTES,
+    firstCallArguments: { subject: '$canonical_subject' },
+    task_ids: ['read-canonical'],
+    side_effects: ['read_only'],
+  },
+  {
+    toolName: 'workspace_create_record',
+    meaning: 'Create one draft with explicit initial meaning and retain creation and maintenance observations.',
+    firstCallArguments: { kind: '$record_kind', title: '$title', initial: '$initial' },
+    task_ids: ['create-work-record'],
+    side_effects: ['workspace_write'],
+  },
+  {
+    toolName: 'save_record',
+    meaning: 'Save one coherent change at the returned revision; immutable maintenance retries repeat no canonical mutation.',
+    firstCallArguments: { unit: '$unit', revision: '$revision', changes: '$changes' },
+    task_ids: ['contract-edit'],
+    side_effects: ['workspace_write'],
+  },
 ];
 
-test('workspace_work_record_summary discovery publishes the advisory terminal-review facts and their boundary', async () => {
-  const familyTools = await readFamilyTools();
-  const summaryTool = familyTools.find(
-    (entry) => entry.tool_name === 'workspace_work_record_summary',
+test('current work-record task routes carry routing guidance metadata', async () => {
+  const fragment = await readFragment(TASK_MCP_FRAGMENT);
+  assert.deepEqual(
+    CURRENT_WORK_RECORD_ROUTE_CONTRACTS.map(({ toolName }) => toolName).sort(),
+    [...CURRENT_WORK_RECORD_MCP_ROUTES].sort(),
+    'every current work-record route is pinned',
   );
-  assert.ok(summaryTool, 'workspace_work_record_summary must be present in the family');
-
-  const notes = summaryTool.notes;
-  assert.equal(typeof notes === 'string' && notes.length > 0, true, 'summary notes must be prose');
-  for (const phrase of SUMMARY_ADVISORY_FACT_PHRASES) {
-    assert.ok(
-      notes.includes(phrase),
-      `workspace_work_record_summary notes must publish "${phrase}"`,
+  for (const contract of CURRENT_WORK_RECORD_ROUTE_CONTRACTS) {
+    assertRoutingGuidance(
+      fragment.tools,
+      contract.toolName,
+      taskRouteGuidance(contract.meaning, contract.firstCallArguments),
     );
+    const tool = await readTaskTool(contract.toolName);
+    assertRichToolEntry(tool);
+    assert.equal(tool.notes, contract.notes ?? contract.meaning, `${contract.toolName} notes`);
+    assert.deepEqual(tool.task_ids, contract.task_ids, `${contract.toolName} task_ids`);
+    assert.deepEqual(tool.side_effects, contract.side_effects, `${contract.toolName} side_effects`);
+    assert.equal(tool.install_state, 'installed');
+    assert.equal(tool.runtime_posture, 'supported');
+    assert.equal(tool.recommended_route, 'mcp');
+    assert.ok(tool.docs_refs.includes('docs/mcp-operation-reference.md'), contract.toolName);
   }
 
+  const editOwners = [];
+  for (const [, candidate] of await readManifestFragments()) {
+    editOwners.push(...candidate.tools
+      .filter((tool) => tool.kind === 'mcp_tool' && tool.task_ids.includes('contract-edit'))
+      .map((tool) => tool.tool_name));
+  }
+  assert.deepEqual(editOwners, ['save_record']);
+});
+
+test('workspace_read_wiki discovery stays a read-only observation that claims no authority', async () => {
+  const readTool = await readTaskTool('workspace_read_wiki');
+
+  const notes = readTool.notes;
+  assert.equal(typeof notes === 'string' && notes.length > 0, true, 'read notes must be prose');
+  const published = [
+    notes,
+    ...readTool.use_when,
+    ...readTool.do_not_use_when,
+    ...readTool.authoritative_for,
+    readTool.recommended_first_call.operation,
+  ].join('\n');
   for (const claim of [
     'authorizes dispatch',
     'authorizes integration',
@@ -360,30 +342,34 @@ test('workspace_work_record_summary discovery publishes the advisory terminal-re
     'gates admission',
   ]) {
     assert.equal(
-      notes.includes(claim),
+      published.includes(claim),
       false,
-      `workspace_work_record_summary notes must not claim "${claim}"`,
+      `workspace_read_wiki discovery must not claim "${claim}"`,
     );
   }
 
-  assert.deepEqual(summaryTool.side_effects, ['read_only']);
-  assert.equal(summaryTool.kind, 'mcp_tool');
-  assert.equal(summaryTool.install_state, 'installed');
-  assert.equal(summaryTool.runtime_posture, 'supported');
-  assert.equal(summaryTool.recommended_route, 'mcp');
-  assert.deepEqual(summaryTool.task_ids, ['summarize-work-record']);
+  assert.deepEqual(readTool.side_effects, ['read_only']);
+  assert.equal(readTool.kind, 'mcp_tool');
+  assert.equal(readTool.install_state, 'installed');
+  assert.equal(readTool.runtime_posture, 'supported');
+  assert.equal(readTool.recommended_route, 'mcp');
+  assert.deepEqual(readTool.task_ids, ['read-canonical']);
   assert.ok(
-    summaryTool.docs_refs.includes('docs/mcp-operation-reference.md'),
-    'the durable operation reference documenting these fields must be discoverable',
+    readTool.docs_refs.includes('docs/mcp-operation-reference.md'),
+    'the durable operation reference must be discoverable',
   );
-  assert.ok(summaryTool.docs_refs.includes('docs/tool-discovery-surfaces.md'));
 
-  for (const tool of familyTools) {
-    if (tool.tool_name === 'workspace_work_record_summary') continue;
-    assert.equal(
-      String(tool.notes ?? '').includes('terminal_review_designation'),
-      false,
-      `${tool.tool_name} must not describe terminal_review_designation`,
-    );
-  }
+  assert.match(notes, /WK subject's context facts carry the advisory terminal_review_designation/u);
+  assert.match(notes, /each inventory:"slices" member carry its effective review_purpose when one exists/u);
+  assert.match(notes, /read-only observations of the saved record that grant or withhold no /u);
+  assert.deepEqual(readTool.recommended_first_call.arguments, { subject: '$canonical_subject' },
+    'the facts are reached from the default subject read, not from a dedicated input');
+
+  const candidates = [...await readFamilyTools(), ...(await readFragment(TASK_MCP_FRAGMENT)).tools];
+  assert.deepEqual(
+    candidates.filter((tool) => String(tool.notes ?? '').includes('terminal_review_designation'))
+      .map((tool) => tool.tool_name),
+    ['workspace_read_wiki'],
+    'only the current reader describes terminal_review_designation',
+  );
 });

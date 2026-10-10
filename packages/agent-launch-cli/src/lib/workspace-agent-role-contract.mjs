@@ -160,31 +160,12 @@ function normalizeSubjectPath(subject) {
 
 function renderFindingsSnapshotAcceptanceInstruction(subject) {
   const assignedUnit = toStringValue(subject).trim();
+  const sliceMatch = assignedUnit.match(/^(WK-\d{4})#SLICE-\d{3}$/u);
   const subjectPath = normalizeSubjectPath(subject);
-  const sliceMatch = assignedUnit.match(/^(WK-\d{4})#(SLICE-\d{3})$/u);
-  const selectionInstruction = sliceMatch
-    ? `Assigned unit: ${assignedUnit}; selected_slice is only the bare slice id. `
-    : `Assigned unit: ${assignedUnit}; use its record-level result. `;
-  if (!/^wiki\/work-records\/WK-\d{4}\.json$/u.test(subjectPath)) {
-    return `Snapshot acceptance: workspace_read_page arguments ${JSON.stringify({ path: subjectPath })}. ` +
-      selectionInstruction +
-      `Use its criteria and validation. ` +
-      'No live-main reads or inline mutable-record bytes.';
-  }
-
-  const acceptanceCall = (selectedSlice) => JSON.stringify(buildSelectedRecordMemberCall({
-    tool: "workspace_read_page",
-    identity: { path: subjectPath },
-    selectedSlice,
-    member: { path: ["acceptance"] }
-  }).arguments);
-  const calls = sliceMatch
-    ? `${acceptanceCall(sliceMatch[2])} and parent ${acceptanceCall(null)}`
-    : acceptanceCall(null);
-  return `Snapshot acceptance: workspace_read_page arguments ${calls}. ` +
-    selectionInstruction +
-    `Follow returned member calls for criteria and validation. ` +
-    'No live-main reads or inline mutable-record bytes.';
+  const subjects = sliceMatch ? [assignedUnit, sliceMatch[1]] : [assignedUnit || subjectPath];
+  return `Snapshot acceptance: workspace_read_wiki arguments ${subjects.map(subject =>
+    JSON.stringify({ subject })).join(" and parent ")}. Follow the returned reference and operative field selections ` +
+    "for criteria and validation. No live-main reads or inline mutable-record bytes.";
 }
 
 function formatBulletList(label, values) {

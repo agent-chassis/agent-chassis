@@ -1,4 +1,13 @@
 import path from "node:path";
+import { buildCodexSessionStartHookOverrides } from "@agent-chassis/agent-launch-core/src/lib/codex-session-hook-config.mjs";
+import {
+  buildCodexUsageHookIdentity,
+  prepareCodexSessionUsageLaunch
+} from "@agent-chassis/agent-launch-core/src/lib/native-usage-codex-session.mjs";
+import {
+  beginNativeUsageTask,
+  writeNativeUsagePointer
+} from "@agent-chassis/agent-launch-core/src/lib/native-usage-records.mjs";
 import { fileURLToPath } from "node:url";
 import { open } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -132,6 +141,7 @@ export {
 import {
   attachOperatorOrchestratorIsolation,
   runInteractiveOrchestratorChild,
+  notifyChildHeld,
   spawnDirectAndWait,
   spawnIsolatedAndWait
 } from "../lib/codex-role-orchestrator-runtime.mjs";
@@ -358,6 +368,10 @@ async function executePlan(plan, io) {
     return;
   }
 
+  if (isSupervisedOrchestratorPlan(plan) && typeof plan.repo === "string") {
+    plan.nativeUsageTask = beginNativeUsageTask({ workspaceDir: plan.repo });
+  }
+
   if ((plan.isolation?.worker_scope_authority ?? null) === null &&
       Array.isArray(plan.preparedNewWriteRoots) && plan.preparedNewWriteRoots.length > 0) {
     await ensureNewWorkerWriteRoots(plan.repo, plan.preparedNewWriteRoots, plan.role);
@@ -441,6 +455,35 @@ async function runPlannedChildWithRoute(plan, io, route) {
     return;
   }
 
+  const usageBindingDir = typeof plan.runDir === "string" ? plan.runDir
+    : typeof plan.runtimeDir === "string" ? plan.runtimeDir : null;
+  const nativeUsage = usageBindingDir !== null && typeof plan.env?.CODEX_HOME === "string"
+    ? prepareCodexSessionUsageLaunch({
+        workspaceDir: plan.repo,
+        identity: { repo: plan.repo, subject: plan.subject, role: plan.role,
+          route: supervisedOrchestratorPlan ? "orchestrator" : "direct_role",
+          mode: plan.mode === "interactive" ? "interactive" : "headless" },
+        bindingDir: usageBindingDir,
+        codexHome: plan.env.CODEX_HOME,
+        checkpoints: true,
+        begun: plan.nativeUsageTask?.task ? plan.nativeUsageTask : null
+      })
+    : null;
+  if (nativeUsage?.usageHook) plan.nativeUsageHook = nativeUsage.usageHook;
+
+  let childHeld = false;
+  const onChildHeld = () => {
+    if (childHeld) return;
+    childHeld = true;
+    nativeUsage?.tap?.started();
+  };
+  const settleNativeUsage = async () => {
+    if (!nativeUsage?.tap || !childHeld) return;
+    await nativeUsage.tap.settle({
+      exit: { code: Number.isInteger(process.exitCode) ? process.exitCode : 0, signal: null }
+    }).catch(() => {});
+  };
+
   if (isOperatorDirectLaunchPlan(plan)) {
     if (plan.stdioMcpConduit) {
       writeStderr(io.stderr,
@@ -457,12 +500,17 @@ async function runPlannedChildWithRoute(plan, io, route) {
     }
     route.attachment = await attachModelRouteForSpawn(plan, io);
     if (route.attachment === null) return;
-    const status = await spawnDirectAndWait(plan.command, plan.args, {
-      cwd: plan.repo,
-      env: plan.env,
-      stdio: "inherit"
-    });
-    process.exitCode = status ?? 0;
+    try {
+      onChildHeld();
+      const status = await spawnDirectAndWait(plan.command, unconfinedCodexArgs(plan), {
+        cwd: plan.repo,
+        env: plan.env,
+        stdio: "inherit"
+      });
+      process.exitCode = status ?? 0;
+    } finally {
+      await settleNativeUsage();
+    }
     return;
   }
 
@@ -525,15 +573,30 @@ async function runPlannedChildWithRoute(plan, io, route) {
     }
   }
 
-  if (supervisedOrchestratorPlan) {
-    await runInteractiveOrchestratorChild({ plan, io, bwrapPlan });
-    return;
+  try {
+    if (supervisedOrchestratorPlan && typeof nativeUsage?.records_dir === "string" && typeof plan.runtimeDir === "string") {
+
+      await writeNativeUsagePointer(plan.runtimeDir, nativeUsage.records_dir).catch(() => {});
+    }
+    if (supervisedOrchestratorPlan) {
+      await runInteractiveOrchestratorChild({ plan, io, bwrapPlan, onChild: onChildHeld });
+    } else if (plan.mode === "headless-verbose") {
+      await runHeadlessVerboseChild({ plan, io, bwrapPlan, plainSpawnDecision, onChild: onChildHeld });
+    } else {
+      await runHeadlessCaptureChild({ plan, io, bwrapPlan, plainSpawnDecision, onChild: onChildHeld });
+    }
+  } finally {
+    await settleNativeUsage();
   }
-  if (plan.mode === "headless-verbose") {
-    await runHeadlessVerboseChild({ plan, io, bwrapPlan, plainSpawnDecision });
-    return;
+}
+
+function unconfinedCodexArgs(plan) {
+  const args = Array.isArray(plan.args) ? [...plan.args] : [];
+  if (plan.command === "codex" && plan.nativeUsageHook) {
+    injectCodexConfigOverridesBeforeFinalPositional(args,
+      buildCodexSessionStartHookOverrides([buildCodexUsageHookIdentity(plan.nativeUsageHook)]));
   }
-  await runHeadlessCaptureChild({ plan, io, bwrapPlan, plainSpawnDecision });
+  return args;
 }
 
 export function isOperatorDirectLaunchPlan(plan) {
@@ -585,18 +648,19 @@ export async function runHeadlessVerboseChild({
   bwrapPlan,
   plainSpawnDecision = null,
   spawnEnforced = spawnIsolatedAndWait,
-  spawnPlain = spawnDirectAndWait
+  spawnPlain = spawnDirectAndWait,
+  onChild = null
 } = {}) {
   const runPlain = async (decision) => {
     if (plan.stdioMcpConduit) {
       throw new Error("plain spawn cannot carry the launcher-owned FIFO conduit");
     }
     emitCodexRolePlainSpawnNotice(plan, io, decision);
-    const status = await spawnPlain(plan.command, plan.args, {
+    const status = await spawnPlain(plan.command, unconfinedCodexArgs(plan), {
       cwd: plan.repo,
       env: plan.env,
       stdio: "inherit"
-    });
+    }, { onChild });
     process.exitCode = status ?? 0;
   };
   if (plainSpawnDecision) {
@@ -607,7 +671,7 @@ export async function runHeadlessVerboseChild({
     const status = await spawnEnforced(bwrapPlan, {
       env: plan.env,
       stdio: "inherit"
-    });
+    }, { onChild });
     process.exitCode = status;
   } catch (err) {
     await handleHeadlessLateBwrapFailure({ plan, io, error: err, runPlain });
@@ -620,7 +684,8 @@ export async function runHeadlessCaptureChild({
   bwrapPlan,
   plainSpawnDecision = null,
   spawnEnforced = spawnIsolated,
-  spawnPlain = spawn
+  spawnPlain = spawn,
+  onChild = null
 } = {}) {
   const intervalSeconds = resolveHeartbeatIntervalSeconds(plan.env);
   writeStderr(
@@ -673,13 +738,14 @@ export async function runHeadlessCaptureChild({
       }
     }
     if (!enforced) {
-      spawned = spawnPlain(plan.command, Array.isArray(plan.args) ? [...plan.args] : [], {
+      spawned = spawnPlain(plan.command, unconfinedCodexArgs(plan), {
         cwd: plan.repo,
         env: plan.env,
         stdio
       });
     }
     child = spawned;
+    notifyChildHeld(onChild, child);
     const terminal = await new Promise((resolve, reject) => {
       heartbeatTimer = setInterval(() => {
         void recordHeartbeatTick({ io, plan, startedAtEpoch, heartbeatTimeline });

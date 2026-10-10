@@ -2,7 +2,11 @@ import path from "node:path";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { ensureLauncherRuntimeStateDir } from "@agent-chassis/agent-launch-core/src/lib/config.mjs";
 import { isWithinRepo } from "./launch-isolation.mjs";
-import { buildClaudeNativePermissionSettings } from "./workspace-agent-claude-launch-support.mjs";
+import {
+  buildClaudeNativePermissionSettings,
+  buildClaudeRoleGuideCompactionHookSettings,
+  composeClaudeSettingsWithRoleGuideHook
+} from "./workspace-agent-claude-launch-support.mjs";
 
 import {
   BACKEND_REFUSAL_CODES
@@ -209,7 +213,9 @@ export async function mintClaudeNativePermissionSurface({
     writeScope,
     role,
     mcpToolNames,
-    env
+    env,
+
+    launchRole: role
   });
   if (!isClaudeNativePermissionSettingsArtifact(claudeSettings)) {
     return {
@@ -522,7 +528,12 @@ export async function mintLauncherOwnedClaudeNativePermissionSettings({
   ensureSettingsBaseDir = (dir) => mkdir(dir, { recursive: true }),
   makeSettingsDir = mkdtemp,
   writeSettings = writeFile,
-  buildSettings = buildClaudeNativePermissionSettings
+  buildSettings = buildClaudeNativePermissionSettings,
+
+  launchRole = null,
+  buildRoleGuideHookSettings = buildClaudeRoleGuideCompactionHookSettings,
+
+  usageHookSettings = null
 } = {}) {
   let ensured;
   try {
@@ -568,7 +579,23 @@ export async function mintLauncherOwnedClaudeNativePermissionSettings({
     const settings = buildSettings({ workspaceDir, writeScope, role, mcpToolNames });
     const settingsPath = path.join(settingsRoot, "settings.json");
     await writeSettings(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
-    return { ok: true, settingsPath, settingsRoot, settings };
+
+    let guideHook;
+    try {
+      guideHook = buildRoleGuideHookSettings(launchRole);
+    } catch (confinedSettingsError) {
+      return { ok: true, settingsPath, settingsRoot, settings,
+        confinedSettingsPath: null, confinedSettings: null, confinedSettingsError };
+    }
+    if (guideHook === null && usageHookSettings === null) {
+      return { ok: true, settingsPath, settingsRoot, settings,
+        confinedSettingsPath: settingsPath, confinedSettings: settings };
+    }
+    const confinedSettings = [guideHook, usageHookSettings].filter((fragment) => fragment !== null)
+      .reduce(composeClaudeSettingsWithRoleGuideHook, settings);
+    const confinedSettingsPath = path.join(settingsRoot, "confined-settings.json");
+    await writeSettings(confinedSettingsPath, `${JSON.stringify(confinedSettings, null, 2)}\n`, { mode: 0o600 });
+    return { ok: true, settingsPath, settingsRoot, settings, confinedSettingsPath, confinedSettings };
   } catch (err) {
     return {
       ok: false,

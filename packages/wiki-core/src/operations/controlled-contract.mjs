@@ -15,8 +15,6 @@ export {
   describeControlledContractAuthoringOperation,
   controlledContractAuthoringStateOperation
 } from "./controlled-contract/authoring-operations.mjs";
-export { reauthorControlledContractCurrentDefinitions } from
-  "./controlled-contract/current-definition-reauthoring.mjs";
 export {
   CONTROLLED_ACCEPTANCE_DECISION_CODES,
   classifyControlledAcceptanceStateOperation
@@ -78,4 +76,4 @@ export {
   upsertControlledContractObligationCoverageOperation
 } from "./controlled-contract/acceptance-coverage-operations.mjs";
 
-export { validateProofOperation } from "./controlled-contract/proof-authoring-operations.mjs";
+export { validateProofOperation } from "./controlled-contract/proof-validation-operations.mjs";

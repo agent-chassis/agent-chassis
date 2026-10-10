@@ -14,6 +14,7 @@ import {
   TERMINAL_STRUCTURED_ROLE_RESULT_MODES,
   resolveTerminalStructuredRoleResultMode
 } from "@agent-chassis/agent-launch-core/src/lib/work-record-launch-prompt.mjs";
+import { prepareNativeUsageLaunch } from "@agent-chassis/agent-launch-core/src/lib/native-usage-records.mjs";
 import { resolveLauncherRoleToolNames } from "./launcher-role-tool-profile.mjs";
 import { assertFrozenWorkerScopeAuthority } from "./workspace-agent-launch-core.mjs";
 import { assertCodexWorkerCommitCredentialBinding } from "./codex-role-mcp-env.mjs";
@@ -401,7 +402,16 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       const r = argvComposition.refusal;
       return await refuseAfterConduit(r.code, r.reason, r.detail);
     }
-    const argv = argvComposition.argv;
+
+    const nativeUsage = prepareNativeUsageLaunch({
+      family: "claude",
+      args: argvComposition.argv,
+      workspaceDir: canonicalRepo ?? provisioning?.main_repo ?? workspaceDir ?? defaultCwd,
+      identity: { run_id: input?.run_id, attempt_id: input?.run_id, repo: canonicalRepo ?? provisioning?.main_repo ?? workspaceDir, subject, role,
+        route: "dispatched_role", mode: "headless" },
+      resumed: false
+    });
+    const argv = nativeUsage.args;
 
     const hasAssignedWriteScope =
       writePosture.ok === true &&
@@ -465,7 +475,8 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       needsDirectoryScope,
       verifyWorkerWriteScope,
       writeScope,
-      writeScopeBaseline
+      writeScopeBaseline,
+      nativeUsageTap: nativeUsage.tap
     };
 
     const attemptResources = createAttemptPrecreatedResourceOwner({
@@ -478,7 +489,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
     try {
 
       const workerTestRuntime = managedImplementationWorker && workerScopeAuthority !== null
-        ? composeWorkerTestRuntime({ mainRepo: provisioning.main_repo, checkout: workspaceDir,
+        ? await composeWorkerTestRuntime({ mainRepo: provisioning.main_repo, checkout: workspaceDir,
           workerScopeAuthority })
         : null;
       child = spawn(commandLine.command, argv, {
@@ -491,6 +502,8 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
         workerTestRuntime,
 
         launchRole: role,
+
+        claudeSettings,
         nativeRepoWriteMechanism: effectiveNativeRepoWriteMechanism,
 
         runtimeRoots,

@@ -3,302 +3,9 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "mcp-tools.json",
-  "summary": "MCP discovery, router, read, search, package-scoped tool-doc read, wiki hygiene, docs-policy, contract-manifest, authoring-ergonomics report, and worker-delivery (commit, submit-for-review) tools.",
-  "tool_count": 29,
+  "summary": "Canonical task reads, authoring, execution, original outcomes and explicit lifecycle actions.",
+  "tool_count": 27,
   "tools": [
-    {
-      "tool_name": "workspace_tools_list",
-      "display_name": "Workspace tools list",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_tools_list",
-      "task_ids": [
-        "inspect-provenance"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 99,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-core/src/lib/tool-discovery.mjs",
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json"
-      ],
-      "notes": "Bounded catalog paging. total_count is the complete role/tier-visible set; returned_count is this page; truncated_count is what remains after offset. Follow next_calls: offset:next_offset with expected_source_digest and unchanged filters until has_more:false. A caller limit never relaxes the server byte bounds. Use describe for detail and rank.",
-      "use_when": [
-        "Browse the complete role/tier-visible catalog from an unknown starting tool.",
-        "Select a tool for one known task_id."
-      ],
-      "do_not_use_when": [
-        "An exact tool_name is known; use workspace_tools_describe with verbose:true."
-      ],
-      "authoritative_for": [
-        "current session role/tier-visible registered tool inventory"
-      ],
-      "recommended_first_call": {
-        "operation": "page until has_more:false",
-        "arguments": {
-          "offset": "$next_offset_or_zero",
-          "limit": "$same_page_limit",
-          "expected_source_digest": "$previous_page_source_digest_or_omit"
-        },
-        "omit_null_arguments": true
-      }
-    },
-    {
-      "tool_name": "workspace_tools_describe",
-      "display_name": "Workspace tools describe",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_tools_describe",
-      "task_ids": [
-        "inspect-provenance"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 100,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-core/src/lib/tool-discovery.mjs",
-        "packages/wiki-mcp/src/server.mjs"
-      ],
-      "notes": "Details for a known tool. Compact is default; verbose:true returns complete descriptor and schema. input_contract selects editor fields or whole kind:\"guidance\" values after visibility.",
-      "use_when": [
-        "Inspect complete metadata for a known tool_name."
-      ],
-      "do_not_use_when": [
-        "The tool name is unknown; page workspace_tools_list, filtered by a known task_id, first."
-      ],
-      "authoritative_for": [
-        "targeted complete descriptor-entry detail",
-        "role-visible ordinary-editor input guidance and source-bound inventory traversal",
-        "role-visible complete selections of registered authoring guidance"
-      ],
-      "recommended_first_call": {
-        "operation": "describe a known tool",
-        "arguments": {
-          "tool_name": "$known_tool_name"
-        },
-        "omit_null_arguments": true,
-        "routing_intents": [
-          "controlled_contract_input_guidance",
-          "dispatch_readiness"
-        ]
-      }
-    },
-    {
-      "tool_name": "workspace_tool_router_recommend",
-      "display_name": "Workspace tool router recommend",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_tool_router_recommend",
-      "task_ids": [
-        "inspect-provenance"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 116,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-core/data/tool-routing-intents.v1.json",
-        "packages/wiki-core/src/operations/tool-router.mjs",
-        "packages/wiki-mcp/src/lib/tool-profile.mjs",
-        "packages/wiki-mcp/src/server.mjs"
-      ],
-      "summary": "Compact read-only first-tool router for uncertain repo-agent tasks.",
-      "notes": "Read-only advisory router for unsure tool choice. Given a task description and optional initiative, unit, role, monitor handle, or known resources, returns matched, ambiguous, visibility_withheld, or unknown guidance. Every emitted next call satisfies the named tool's registered request contract; an incomplete proposal names its operation, known arguments, and required_authored_fields without an executable call. Ambiguity lists counted choices with a complete-set continuation; unknown returns one bounded recovery or no_supported_route. Responses carry no target schemas or catalogs. It does not dispatch, mutate, lint, or read records.",
-      "recommended_first_call": {
-        "operation": "recommend the first tool for an uncertain task",
-        "arguments": {
-          "task_description": "$task_description"
-        },
-        "omit_null_arguments": true
-      },
-      "use_when": [
-        "The caller is unsure which repo tool to call first for a coordination, retrieval, dispatch, monitoring, lint, docs, or work-record task.",
-        "A task appears to be starting with a broad search/read path but may have a compact structured first tool."
-      ],
-      "do_not_use_when": [
-        "The correct authoritative tool and exact arguments are already known.",
-        "The task needs the actual canonical record body, dispatch action, mutation, lint run, or generated artifact; call the authoritative tool after routing guidance instead."
-      ],
-      "authoritative_for": [
-        "advisory first-tool routing",
-        "bounded matched/ambiguous/unknown router recommendations"
-      ],
-      "requires_prior_state": [
-        "A short task description or one known identifier such as initiative, unit, role, or monitor_handle."
-      ]
-    },
-    {
-      "tool_name": "workspace_read_mcp_content_reference",
-      "display_name": "Workspace read MCP content reference",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_read_mcp_content_reference",
-      "task_ids": [
-        "read-canonical"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 94,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "runtime_env"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/mcp-integration.md",
-        "docs/tool-discovery.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-mcp/src/lib/mcp-response.mjs",
-        "packages/wiki-mcp/src/lib/tool-profile.mjs"
-      ],
-      "notes": "Reads one byte range of the content reference an oversized tool result returns with a bounded preview and ref_id. Request offset and a length within max_length, base64-decode each data_base64 range, and follow next_offset until eof to reassemble the complete payload; sha256 identifies the complete bytes. A selected task result (a workspace_verify_proof result, a closeout receipt or a code-index answer) is never served here: the read refuses with that result's exact owner call. Operator-retained evidence is refused with no route.",
-      "use_when": [
-        "A tool result returned a content reference ref_id instead of its complete inline payload."
-      ],
-      "do_not_use_when": [
-        "The complete payload was already returned inline; no content-reference read is needed.",
-        "The reference is a selected task result; follow its owner call (workspace_verify_proof with result, workspace_work_record_summary with receipt, or the code-index route with detail)."
-      ],
-      "authoritative_for": [
-        "byte-range reads of returned MCP response content references"
-      ],
-      "recommended_first_call": {
-        "operation": "read the first byte range of a returned content reference",
-        "arguments": {
-          "ref_id": "$returned_ref_id",
-          "offset": 0
-        },
-        "omit_null_arguments": true
-      }
-    },
-    {
-      "tool_name": "get_contract_manifest",
-      "display_name": "Get contract manifest",
-      "kind": "mcp_tool",
-      "entrypoint": "get_contract_manifest",
-      "task_ids": [
-        "inspect-provenance"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 93,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-        "packages/wiki-core/src/lib/contract.mjs",
-        "packages/wiki-core/contract/manifest.json"
-      ],
-      "notes": "Read-only MCP route that returns the shared wiki contract manifest (conventions, lint, schema, taxonomy, retrieval, query, and template references) from the checked-in contract tree. Takes no caller arguments and no caller-supplied filesystem root; the manifest is provenance/reference data, not authority to act.",
-      "use_when": [
-        "Inspect the shared wiki contract references this workspace publishes."
-      ],
-      "do_not_use_when": [
-        "The task needs permission to run an operation, or the content of a workspace record."
-      ],
-      "authoritative_for": [
-        "shared wiki contract reference inventory"
-      ],
-      "recommended_first_call": {
-        "operation": "get_contract_manifest",
-        "arguments": {},
-        "omit_null_arguments": true
-      }
-    },
     {
       "tool_name": "bootstrap_repo",
       "display_name": "Bootstrap repository",
@@ -874,90 +581,6 @@
       }
     },
     {
-      "tool_name": "workspace_search_repo",
-      "display_name": "Workspace search repo",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_search_repo",
-      "task_ids": [
-        "search-wiki"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 110,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "Bounded search of canonical repo wiki/docs sources. Default limit 8, maximum 50; follow next_calls for complete ranked traversal. Hits supply workspace_read_page calls for exact selected-source context. CLI fallback: `npm run wiki -- search --query <query> --json`.",
-      "use_when": [
-        "docs_lookup"
-      ],
-      "do_not_use_when": [
-        "initiative_status",
-        "initiative_next_action",
-        "dispatch_readiness",
-        "dispatch_role_call",
-        "selected_work_record_context when WK-* is known",
-        "selected_slice_detail when WK-*#SLICE-* is known"
-      ],
-      "authoritative_for": [
-        "docs_lookup:page_discovery"
-      ],
-      "recommended_first_call": {
-        "routing_intents": [
-          "docs_lookup"
-        ],
-        "arguments": {
-          "query": "$task_description"
-        },
-        "omit_null_arguments": true
-      },
-      "requires_prior_state": [
-        "natural-language query, docs/wiki path fragment, or durable id to search for"
-      ],
-      "replacement_for_misuse": [
-        {
-          "misuse_code": "search_used_for_status_aggregation",
-          "routing_intent": "initiative_status",
-          "use_instead": "workspace_initiative_status"
-        },
-        {
-          "misuse_code": "bulk_sampling_without_lens",
-          "routing_intent": "initiative_next_action",
-          "use_instead": "workspace_initiative_status"
-        },
-        {
-          "misuse_code": "dispatch_without_readiness_validation",
-          "routing_intent": "dispatch_readiness",
-          "use_instead": "workspace_validate_dispatch"
-        }
-      ]
-    },
-    {
       "tool_name": "workspace_build_search_index",
       "display_name": "Workspace build search index",
       "kind": "mcp_tool",
@@ -993,7 +616,7 @@
         "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
         "packages/wiki-core/src/operations/build-search-index.mjs"
       ],
-      "notes": "Write-capable MCP route that builds or refreshes the lexical wiki/docs search index for a configured workspace repository — the explicit index-builder companion to workspace_search_repo. Pass reindex:true for a full rebuild. Resolves the repository through configured aliases and accepts no caller-supplied filesystem root. CLI fallback: `npm run wiki -- build-search-index`.",
+      "notes": "Write-capable MCP route that builds or refreshes the lexical wiki/docs search index for a configured workspace repository \u2014 the explicit index-builder companion to workspace_search_repo. Pass reindex:true for a full rebuild. Resolves the repository through configured aliases and accepts no caller-supplied filesystem root. CLI fallback: `npm run wiki -- build-search-index`.",
       "use_when": [
         "An operator explicitly refreshes the configured repository's lexical search cache."
       ],
@@ -1010,303 +633,78 @@
       }
     },
     {
-      "tool_name": "workspace_read_page",
-      "display_name": "Workspace read page",
+      "tool_name": "workspace_run_test",
+      "display_name": "Run one ordinary test file",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_read_page",
+      "entrypoint": "workspace_run_test",
       "task_ids": [
-        "read-canonical"
+        "run-validation"
       ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 109,
+      "priority": 112,
       "side_effects": [
-        "read_only"
+        "process_spawn"
       ],
       "authority": [
         "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-        "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
-        "packages/wiki-mcp/src/lib/work-record-entry-tools.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "The ordinary selected canonical reader. Addresses one page by repo-relative path, or a canonical record by id, or a record and its slice by unit; exactly one of path, id and unit selects the read. Reads Markdown and canonical WK, IN and DEC JSON. A work record (optionally selected_slice, or a unit naming the slice) returns the lean {ok, unit, status, summary, next_calls} read; emitted calls repeat the caller's identity form. No whole-record or arbitrary JSON read: member:{path} pages one WK, slice, IN or DEC member or string range; members:[...] reads 1-16 in one bounded call; both pin the 16-hex source_digest. entry:{...} delegates one exact entry of that unit to the entry owner, whose emitted calls come back addressed to this reader; content_reference:{ref_id,offset,length} delegates one retained spill to its owner and takes no other selector. include_body reads Markdown page bodies only. A managed worker reads only its launcher-published frozen assignment with {assignment:true} and the continuations it returns; any other worker selector, and assignment from another session, refuses before any source is read. Conflicting, missing or foreign selections return a precise correction.",
-      "use_when": [
-        "docs_lookup with known repo path",
-        "canonical record read by durable id or unit without reconstructing a storage path",
-        "canonical initiative or decision read with exact registered JSON path",
-        "selected_slice_detail with selected_slice:<slice-id> or unit:<WK>#<slice>",
-        "one exact entry of a unit, or one retained content reference"
-      ],
-      "do_not_use_when": [
-        "initiative_status",
-        "initiative_next_action",
-        "dispatch_readiness",
-        "dispatch_role_call",
-        "selected_work_record_context first call"
-      ],
-      "authoritative_for": [
-        "docs_lookup:known_path_read",
-        "selected_slice_detail:canonical_page_projection"
-      ],
-      "recommended_first_call": {
-        "routing_intents": [
-          "docs_lookup"
-        ],
-        "arguments": {
-          "path": "$known_repo_relative_path"
-        },
-        "omit_null_arguments": true
-      },
-      "requires_prior_state": [
-        "known repo-relative Markdown path, exact registered canonical record path, or known WK plus selected_slice selector"
-      ],
-      "replacement_for_misuse": []
-    },
-    {
-      "tool_name": "workspace_read_tool_doc",
-      "display_name": "Workspace read tool doc",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_read_tool_doc",
-      "task_ids": [
-        "read-canonical",
-        "inspect-provenance"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 108,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
+        "launcher_backend",
         "runtime_env"
       ],
       "tier_visibility": [
         "free_local"
       ],
+      "audience": [
+        "agent"
+      ],
       "docs_refs": [
-        "docs/tool-discovery-schema.md",
-        "docs/tool-discovery-surfaces.md",
-        "docs/mcp-operation-reference.md",
-        "docs/mcp-repository-model.md"
+        "docs/local-test-runtime-setup.md",
+        "docs/mcp-selected-response-details.md"
       ],
       "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-mcp/src/lib/tool-doc-read-tools.mjs",
-        "packages/core/scripts/sync-public-docs.mjs",
-        "docs/mcp-operation-reference.md"
+        "packages/wiki-mcp/src/lib/run-test-tool.mjs",
+        "packages/wiki-mcp/src/lib/managed-test-source-context.mjs",
+        "packages/agent-launch-cli/src/lib/test-execution/ordinary-run.mjs",
+        "packages/agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs"
       ],
-      "notes": "Read one package-owned documentation reference that this session already advertises for a tool it can already see. Verbose discovery projects a scope-qualified doc_references entry naming this route; pass that tool_name and logical path back to get the bytes. Hidden tool names, unadvertised paths, absolute paths, traversal, an absent or mismatched documentation carrier, and a package-version mismatch refuse with typed diagnostics. The route never browses the package, never falls back to the consuming workspace, and never discloses installation roots. Workspace-owned references keep using workspace_read_page.",
+      "notes": "Runs one literal repository-relative test file with its prepared runtime runner against the server-authenticated source and reports the native process outcome with no proof credit. Every response is at most 1,024 UTF-8 bytes; stdout and stderr are clipped tails, and the complete settled result is retained for this route's own read and continue calls; retry reruns a refused request.",
       "use_when": [
-        "docs_lookup for an advertised package-scoped tool documentation reference"
+        "An authenticated orchestrator, worker or reviewer needs the native outcome of one repository test file (optionally one native selector) in its prepared runtime environment; an orchestrator names source {kind:current_main} or {kind:exact_sha,value}.",
+        "A failing run should be compared once with the same request on the source parent that an owned checkout already holds (compare_parent:true).",
+        "An earlier answer named omitted output or a retained view: copy its returned read or continue call exactly; each read names the selection that follows it, and reads never execute.",
+        "A refusal returned a retry call (for example a worker's source cleared, or an orchestrator's source named): invoke that exact call to run the corrected request as a new execution."
       ],
       "do_not_use_when": [
-        "reading a workspace-owned repository page",
-        "browsing arbitrary package or workspace files"
+        "The question is whether saved proofs hold; use verify_proof, which owns proof credit.",
+        "The task needs a command, arguments, environment variables, a root, a glob, a directory or another session's source; none is an input.",
+        "A worker or reviewer wants to name a source or an exact commit; their launcher-bound source is implicit."
       ],
       "authoritative_for": [
-        "docs_lookup:package_scoped_tool_documentation_read"
+        "the native outcome of one ordinary test-file run in a prepared runtime against an authenticated source, with at most one parent comparison, and the retained settled result"
       ],
       "recommended_first_call": {
         "routing_intents": [
-          "docs_lookup"
+          "ordinary_test_run"
         ],
+        "operation": "run one repository test file",
         "arguments": {
-          "tool_name": "$visible_tool_name",
-          "path": "$advertised_package_scoped_doc_reference"
+          "file": "$repository_relative_test_file",
+          "runner": "$runtime_runner",
+          "selector": "$optional_native_selector",
+          "compare_parent": "$optional_compare_parent",
+          "source": "$orchestrator_source_current_main_or_exact_sha"
         },
-        "omit_null_arguments": true
-      },
-      "requires_prior_state": [
-        "a verbose workspace_tools_describe result carrying doc_references for the selected tool"
-      ],
-      "replacement_for_misuse": [
-        {
-          "misuse_code": "package_doc_read_through_workspace_reader",
-          "routing_intent": "docs_lookup",
-          "use_instead": "workspace_read_tool_doc"
-        }
-      ]
-    },
-    {
-      "tool_name": "workspace_get_record",
-      "display_name": "Workspace get record",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_get_record",
-      "task_ids": [
-        "read-canonical"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 108,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "Preferred MCP canonical-record read surface for durable WK and registered IN/DEC IDs. No whole-record mode: compact IN/DEC results recover omitted members through member:{path} or members:[...] (1-16): immediate-member pages or exact string ranges pinned to the 16-hex source_digest. No arbitrary JSON or filesystem reads. Tracker WK selectors give bounded slice detail.",
-      "use_when": [
-        "selected canonical initiative or decision member is needed by durable id",
-        "selected_work_record_context after compact summary needs one canonical member",
-        "selected_slice_detail after compact summary needs the bounded slice projection"
-      ],
-      "do_not_use_when": [
-        "initiative_status",
-        "initiative_next_action",
-        "dispatch_readiness",
-        "dispatch_role_call",
-        "docs_lookup without known durable id",
-        "selected_work_record_context first call",
-        "selected_slice_detail first call"
-      ],
-      "authoritative_for": [
-        "selected_work_record_context:canonical_record_payload"
-      ],
-      "recommended_first_call": {
-        "routing_intents": [
-          "selected_work_record_context"
-        ],
-        "arguments": {
-          "id": "$known_durable_id"
-        },
-        "omit_null_arguments": true
-      },
-      "requires_prior_state": [
-        "known durable WK, IN, or DEC id and context justifying canonical payload"
-      ],
-      "replacement_for_misuse": [
-        {
-          "misuse_code": "full_read_without_selected_resource",
-          "routing_intent": "selected_work_record_context",
-          "use_instead": "workspace_work_record_summary"
-        },
-        {
-          "misuse_code": "high_output_option_without_compact_first",
-          "routing_intent": "selected_slice_detail",
-          "use_instead": "workspace_work_record_summary"
-        },
-        {
-          "misuse_code": "search_used_for_status_aggregation",
-          "routing_intent": "initiative_status",
-          "use_instead": "workspace_initiative_status"
-        }
-      ]
-    },
-    {
-      "tool_name": "workspace_generate_and_lint",
-      "display_name": "Workspace generate and lint",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_generate_and_lint",
-      "task_ids": [
-        "generate-and-lint"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 111,
-      "side_effects": [
-        "workspace_write"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-core/src/operations/generate-and-lint.mjs",
-        "packages/wiki-core/src/operations/generate.mjs",
-        "packages/wiki-core/src/operations/lint.mjs"
-      ],
-      "notes": "Regenerates non-canonical wiki views, then lints the configured workspace repository; canonical records and docs are untouched. Run it once after intended structural writes; a landed closeout write already runs it internally and reports its result. Optional max_findings bounds returned findings (omit for the compact default, 0 for counts only, or a positive integer; large caps produce large responses). CLI fallback: `npm run wiki -- generate-and-lint`. It is the sole executor of closeout checks: a closeout call runs it once internally and reports its result, so this route answers an explicit verification request rather than a required post-closeout chore.",
-      "use_when": [
-        "Generated wiki views must be refreshed and the workspace linted, including once after intended structural or closeout writes."
-      ],
-      "do_not_use_when": [
-        "Only read-only validation is wanted; use workspace_lint_repo."
-      ],
-      "authoritative_for": [
-        "generated wiki view refresh followed by the workspace lint result"
-      ],
-      "recommended_first_call": {
-        "operation": "regenerate views and lint the configured workspace repository",
-        "arguments": {},
         "omit_null_arguments": true
       }
     },
     {
-      "tool_name": "workspace_lint_repo",
-      "display_name": "Workspace lint repo",
+      "tool_name": "workspace_read_wiki",
+      "display_name": "workspace_read_wiki",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_lint_repo",
+      "entrypoint": "workspace_read_wiki",
       "task_ids": [
-        "lint-repo"
+        "read-canonical"
       ],
       "install_state": "installed",
       "runtime_posture": "supported",
@@ -1325,48 +723,40 @@
         "workspace_repo"
       ],
       "tier_visibility": [
-        "free_local"
+        "free_local",
+        "paid_cce"
       ],
       "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+        "docs/mcp-operation-reference.md"
       ],
       "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-        "packages/wiki-core/src/operations/lint.mjs",
-        "packages/wiki-core/src/operations/generate-and-lint.mjs"
+        "packages/wiki-mcp/src/lib/task-read-wiki.mjs"
       ],
+      "notes": "Read compact canonical context, then one semantic selection from its returned reference. A WK subject's context facts carry the advisory terminal_review_designation; a findings unit's context facts and each inventory:\"slices\" member carry its effective review_purpose when one exists. Both are read-only observations of the saved record that grant or withhold no dispatch, admission, integration or handoff decision.",
       "use_when": [
-        "A caller needs read-only validation of a configured workspace repository against the shared wiki contract."
+        "Read compact canonical context, then one semantic selection from its returned reference."
       ],
       "do_not_use_when": [
-        "Generated wiki views must be refreshed before validation; use workspace_generate_and_lint instead."
+        "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "workspace_lint:validation_result"
+        "Read compact canonical context, then one semantic selection from its returned reference."
       ],
-      "notes": "Read-only agent-safe MCP route that validates a configured workspace repository against the shared wiki contract without writing views, caches, or records; use workspace_generate_and_lint when views must be refreshed first. Optional max_findings bounds returned findings (omit for the compact default, 0 for counts only, or a positive integer with no hard upper bound; large caps can produce large responses).",
       "recommended_first_call": {
-        "routing_intents": [
-          "lint_repair"
-        ],
-        "operation": "lint configured workspace repository",
-        "arguments": {},
+        "operation": "Read compact canonical context, then one semantic selection from its returned reference.",
+        "arguments": {
+          "subject": "$canonical_subject"
+        },
         "omit_null_arguments": true
       }
     },
     {
-      "tool_name": "workspace_autofix_docs_backlinks",
-      "display_name": "Workspace autofix docs backlinks",
+      "tool_name": "workspace_create_record",
+      "display_name": "workspace_create_record",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_autofix_docs_backlinks",
+      "entrypoint": "workspace_create_record",
       "task_ids": [
-        "lint-repo"
+        "create-work-record"
       ],
       "install_state": "installed",
       "runtime_posture": "supported",
@@ -1375,7 +765,7 @@
         "agent",
         "operator"
       ],
-      "priority": 109,
+      "priority": 110,
       "side_effects": [
         "workspace_write"
       ],
@@ -1385,44 +775,42 @@
         "workspace_repo"
       ],
       "tier_visibility": [
-        "free_local"
+        "free_local",
+        "paid_cce"
       ],
       "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md"
+        "docs/mcp-operation-reference.md"
       ],
       "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-        "packages/wiki-core/src/operations/autofix-docs-backlinks.mjs",
-        "packages/wiki-core/src/operations/lint.mjs"
+        "packages/wiki-mcp/src/lib/task-create-record.mjs"
       ],
-      "notes": "Explicit opt-in MCP route for repairing only missing docs backlink comments in canonical docs pages. It is separate from read-only workspace_lint_repo and from workspace_generate_and_lint, which remain non-autofixing. The route recomputes fresh lint findings internally, only applies structured missing_docs_backlink findings after docs-root revalidation, and never accepts caller-supplied findings as write authority; optional path/id/comment inputs are narrowing filters only.",
+      "notes": "Create one draft with explicit initial meaning and retain creation and maintenance observations.",
       "use_when": [
-        "Repair missing canonical-doc backlink comments as a deliberate, explicitly requested write."
+        "Create one draft with explicit initial meaning and retain creation and maintenance observations."
       ],
       "do_not_use_when": [
-        "The task only inspects lint findings, repairs another lint class, or offers caller-supplied findings as write authority.",
-        "The request targets only selected pages and no narrowing filters are supplied; the empty-argument recipe repairs missing backlink comments across the repository."
+        "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "the missing-backlink repairs it recomputes and selects internally"
+        "Create one draft with explicit initial meaning and retain creation and maintenance observations."
       ],
       "recommended_first_call": {
-        "operation": "workspace_autofix_docs_backlinks",
-        "arguments": {},
+        "operation": "Create one draft with explicit initial meaning and retain creation and maintenance observations.",
+        "arguments": {
+          "kind": "$record_kind",
+          "title": "$title",
+          "initial": "$initial"
+        },
         "omit_null_arguments": true
       }
     },
     {
-      "tool_name": "workspace_docs_policy_validate",
-      "display_name": "Workspace docs policy validate",
+      "tool_name": "save_record",
+      "display_name": "save_record",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_docs_policy_validate",
+      "entrypoint": "save_record",
       "task_ids": [
-        "validate-docs-policy"
+        "contract-edit"
       ],
       "install_state": "installed",
       "runtime_posture": "supported",
@@ -1431,7 +819,62 @@
         "agent",
         "operator"
       ],
-      "priority": 105,
+      "priority": 110,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/orchestrator-authoring-vignette.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/task-save-record-tools.mjs"
+      ],
+      "notes": "Save one coherent change at the returned revision; immutable maintenance retries repeat no canonical mutation.",
+      "use_when": [
+        "Save one coherent change at the returned revision; immutable maintenance retries repeat no canonical mutation."
+      ],
+      "do_not_use_when": [
+        "The request needs an ungranted role, caller-selected repository or another task."
+      ],
+      "authoritative_for": [
+        "Save one coherent change at the returned revision; immutable maintenance retries repeat no canonical mutation."
+      ],
+      "recommended_first_call": {
+        "operation": "Save one coherent change at the returned revision; immutable maintenance retries repeat no canonical mutation.",
+        "arguments": {
+          "unit": "$unit",
+          "revision": "$revision",
+          "changes": "$changes"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_assess_contract",
+      "display_name": "workspace_assess_contract",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_assess_contract",
+      "task_ids": [
+        "controlled-contract-assessment"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
       "side_effects": [
         "read_only"
       ],
@@ -1441,41 +884,40 @@
         "workspace_repo"
       ],
       "tier_visibility": [
-        "free_local"
+        "free_local",
+        "paid_cce"
       ],
       "docs_refs": [
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+        "docs/mcp-operation-reference.md"
       ],
       "source_files": [
-        "packages/wiki-core/src/lib/docs-policy.mjs",
-        "packages/wiki-core/src/operations/docs-policy.mjs",
-        "packages/wiki-mcp/src/server.mjs"
+        "packages/wiki-mcp/src/lib/task-assess-contract-tools.mjs"
       ],
-      "notes": "Structured docs-policy validator that detects agent-facing non-MCP role-dispatch authority drift; operator/internal sections classified by heading are audience-scoped and do not automatically fail. CLI fallback: `npm run wiki -- docs-policy validate --json`.",
+      "notes": "Assess semantic completeness separately from capability and source currentness; executes and credits nothing.",
       "use_when": [
-        "Check agent-facing documentation for role-dispatch authority drift."
+        "Assess semantic completeness separately from capability and source currentness; executes and credits nothing."
       ],
       "do_not_use_when": [
-        "The task needs general wiki lint, code validation, or authorization to dispatch."
+        "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "audience-scoped docs-policy diagnostics"
+        "Assess semantic completeness separately from capability and source currentness; executes and credits nothing."
       ],
       "recommended_first_call": {
-        "operation": "workspace_docs_policy_validate",
-        "arguments": {},
+        "operation": "Assess semantic completeness separately from capability and source currentness; executes and credits nothing.",
+        "arguments": {
+          "unit": "$unit"
+        },
         "omit_null_arguments": true
       }
     },
     {
-      "tool_name": "workspace_authoring_ergonomics_report",
-      "display_name": "Workspace authoring ergonomics report",
+      "tool_name": "workspace_find_proofs",
+      "display_name": "workspace_find_proofs",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_authoring_ergonomics_report",
+      "entrypoint": "workspace_find_proofs",
       "task_ids": [
-        "inspect-provenance"
+        "controlled-contract-proof-selection"
       ],
       "install_state": "installed",
       "runtime_posture": "supported",
@@ -1484,63 +926,251 @@
         "agent",
         "operator"
       ],
-      "priority": 60,
+      "priority": 110,
       "side_effects": [
         "read_only"
       ],
       "authority": [
         "checked_in_descriptor",
-        "workspace_repo",
-        "work_record"
+        "runtime_env",
+        "workspace_repo"
       ],
       "tier_visibility": [
-        "free_local"
+        "free_local",
+        "paid_cce"
       ],
       "docs_refs": [
-        "docs/mcp-operation-reference.md",
-        "docs/mcp-integration.md",
-        "docs/tool-discovery.md"
+        "docs/mcp-operation-reference.md"
       ],
       "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-core/src/operations/authoring-ergonomics.mjs",
-        "packages/wiki-mcp/src/lib/authoring-ergonomics-tools.mjs",
-        "packages/wiki-mcp/src/server.mjs"
+        "packages/wiki-mcp/src/lib/proof-discovery-tools.mjs"
       ],
-      "summary": "Read-only compact authoring-ergonomics summary over one bounded evidence source, with an authenticated immutable snapshot for typed inspection. Advisory evidence only.",
+      "notes": "Browse the complete proof catalogue with no arguments, then select and read plausible proofs completely before choosing; a property query is optional.",
       "use_when": [
-        "turning a repository's fixed errors.log failure journal into typed ERG findings, causal clusters, and conformance evidence",
-        "evaluating a retained authoring-ergonomics-retained-smoke.v1 envelope against the four authoring-ergonomics conformance identities",
-        "asking which canonical work record owns the producer boundary a cluster was attributed to"
+        "Browse the complete proof catalogue with no arguments, then select and read plausible proofs completely before choosing; a property query is optional."
       ],
       "do_not_use_when": [
-        "a verdict, admission decision, or gate is wanted - every result here is advisory evidence",
-        "an arbitrary log path, alternate filename, or installation root must be analyzed - only the configured repository's fixed errors.log is resolvable",
-        "canonical record ownership must be asserted from a degraded or stale lookup"
+        "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "compact authoring-ergonomics advisory summary and immutable snapshot creation over one closed evidence source"
-      ],
-      "requires_prior_state": [
-        "for source_kind workspace_errors_log: nothing - the repository's fixed errors.log is resolved by the server",
-        "for source_kind retained_smoke_evidence: a complete authoring-ergonomics-retained-smoke.v1 envelope"
+        "Browse the complete proof catalogue with no arguments, then select and read plausible proofs completely before choosing; a property query is optional."
       ],
       "recommended_first_call": {
-        "arguments": {
-          "source_kind": "workspace_errors_log"
-        },
+        "operation": "Browse the complete proof catalogue with no arguments, then select and read plausible proofs completely before choosing; a property query is optional.",
+        "arguments": {},
         "omit_null_arguments": true
-      },
-      "notes": "Journal first call: {\"source_kind\":\"workspace_errors_log\"} reads fixed errors.log and accepts no caller path. source_kind retained_smoke_evidence requires the complete bounded envelope documented by the operation reference. The compact response returns one immutable snapshot and one workspace_authoring_ergonomics_report_query next call, never finding rows, episodes, clusters, raw events, an old full response, or report-local spill. Failure-only evidence remains unevaluable. Routing remains owner_resolved, owner_unresolved, or lookup_degraded."
+      }
     },
     {
-      "tool_name": "workspace_authoring_ergonomics_report_query",
-      "display_name": "Workspace authoring ergonomics report query",
+      "tool_name": "verify_proof",
+      "display_name": "verify_proof",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_authoring_ergonomics_report_query",
+      "entrypoint": "verify_proof",
       "task_ids": [
-        "inspect-provenance"
+        "controlled-contract-assessment"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "process_spawn",
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/task-verify-proof.mjs"
+      ],
+      "notes": "Execute selected saved proofs; read settled originals through get_run_result.",
+      "use_when": [
+        "Execute selected saved proofs; read settled originals through get_run_result."
+      ],
+      "do_not_use_when": [
+        "The request needs an ungranted role, caller-selected repository or another task."
+      ],
+      "authoritative_for": [
+        "Execute selected saved proofs; read settled originals through get_run_result."
+      ],
+      "recommended_first_call": {
+        "operation": "Execute selected saved proofs; read settled originals through get_run_result.",
+        "arguments": {
+          "subject": "$proof_subject"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_deliver_work",
+      "display_name": "workspace_deliver_work",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_deliver_work",
+      "task_ids": [
+        "worker-delivery"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/task-deliver-work.mjs"
+      ],
+      "notes": "Deliver the authenticated worker assignment with an empty request; never integrates.",
+      "use_when": [
+        "Deliver the authenticated worker assignment with an empty request; never integrates."
+      ],
+      "do_not_use_when": [
+        "The request needs an ungranted role, caller-selected repository or another task."
+      ],
+      "authoritative_for": [
+        "Deliver the authenticated worker assignment with an empty request; never integrates."
+      ],
+      "recommended_first_call": {
+        "operation": "Deliver the authenticated worker assignment with an empty request; never integrates.",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "get_run_result",
+      "display_name": "get_run_result",
+      "kind": "mcp_tool",
+      "entrypoint": "get_run_result",
+      "task_ids": [
+        "query-agent-run-status"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/task-get-run-result.mjs"
+      ],
+      "notes": "Observe a known attempt or read an authenticated original; reads launch and integrate nothing.",
+      "use_when": [
+        "Observe a known attempt or read an authenticated original; reads launch and integrate nothing."
+      ],
+      "do_not_use_when": [
+        "The request needs an ungranted role, caller-selected repository or another task."
+      ],
+      "authoritative_for": [
+        "Observe a known attempt or read an authenticated original; reads launch and integrate nothing."
+      ],
+      "recommended_first_call": {
+        "operation": "Observe a known attempt or read an authenticated original; reads launch and integrate nothing.",
+        "arguments": {
+          "subject": "$unit"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "start_agent",
+      "display_name": "start_agent",
+      "kind": "mcp_tool",
+      "entrypoint": "start_agent",
+      "task_ids": [
+        "dispatch-worker"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "process_spawn"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/task-start-agent-tools.mjs"
+      ],
+      "notes": "Start one saved canonical assignment or preview its action or configured capability; never integrates.",
+      "use_when": [
+        "Start one saved canonical assignment or preview its action or configured capability; never integrates."
+      ],
+      "do_not_use_when": [
+        "The request needs an ungranted role, caller-selected repository or another task."
+      ],
+      "authoritative_for": [
+        "Start one saved canonical assignment or preview its action or configured capability; never integrates."
+      ],
+      "recommended_first_call": {
+        "operation": "Start one saved canonical assignment or preview its action or configured capability; never integrates.",
+        "arguments": {
+          "subject": "$unit"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "integrate_work",
+      "display_name": "integrate_work",
+      "kind": "mcp_tool",
+      "entrypoint": "integrate_work",
+      "task_ids": [
+        "worker-delivery"
       ],
       "install_state": "installed",
       "runtime_posture": "supported",
@@ -1549,146 +1179,249 @@
         "agent",
         "operator"
       ],
-      "priority": 61,
+      "priority": 110,
       "side_effects": [
-        "read_only"
+        "workspace_write"
       ],
       "authority": [
         "checked_in_descriptor",
-        "workspace_repo",
-        "work_record"
+        "runtime_env",
+        "workspace_repo"
       ],
       "tier_visibility": [
-        "free_local"
+        "free_local",
+        "paid_cce"
       ],
       "docs_refs": [
-        "docs/mcp-operation-reference.md",
-        "docs/mcp-integration.md",
-        "docs/tool-discovery.md",
-        "docs/agent-tool-compliance-and-surface-rationalization.md"
+        "docs/mcp-operation-reference.md"
       ],
       "source_files": [
-        "packages/controlled-contract/lib/task-result-snapshots.mjs",
-        "packages/controlled-contract/lib/task-result-projection-vocabulary.mjs",
-        "packages/wiki-core/src/operations/authoring-ergonomics.mjs",
-        "packages/wiki-mcp/src/lib/authoring-ergonomics-tools.mjs",
-        "packages/wiki-mcp/src/server.mjs"
+        "packages/wiki-mcp/src/lib/task-integrate-work-tools.mjs"
       ],
-      "summary": "Read-only typed paging and selected-field inspection over one authenticated immutable authoring-ergonomics snapshot. Advisory evidence only.",
+      "notes": "Explicitly integrate one exact authenticated delivery; saved dispositions are advisory.",
       "use_when": [
-        "retrieving coverage, workflow, episode, metric, finding, cluster, axis, conformance, owner-routing, or diagnostic rows omitted from the compact report",
-        "selecting one stable finding identity or enumerating all findings with exact total, returned, remaining, and continuation accounting",
-        "continuing a page using the authenticated cursor returned by this operation"
+        "Explicitly integrate one exact authenticated delivery; saved dispositions are advisory."
       ],
       "do_not_use_when": [
-        "no snapshot identity has been returned by workspace_authoring_ergonomics_report",
-        "an expired retained-smoke snapshot is unavailable after restart when the caller cannot reattach the original bounded envelope; no incomplete report call is emitted",
-        "raw workspace access, a whole legacy response, or a live reread across pages is wanted",
-        "a mutation, lifecycle action, admission decision, or policy verdict is wanted"
+        "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "typed non-authorizing retrieval from one immutable authoring-ergonomics snapshot"
-      ],
-      "requires_prior_state": [
-        "a current snapshot identity and executable query continuation returned by workspace_authoring_ergonomics_report",
-        "the source_kind used to create that snapshot; retained-evidence recovery is callable only while the original bounded envelope remains available"
+        "Explicitly integrate one exact authenticated delivery; saved dispositions are advisory."
       ],
       "recommended_first_call": {
-        "operation": "workspace_authoring_ergonomics_report",
+        "operation": "Explicitly integrate one exact authenticated delivery; saved dispositions are advisory.",
         "arguments": {
-          "source_kind": "workspace_errors_log"
+          "delivery": "$delivery"
         },
         "omit_null_arguments": true
       }
     },
     {
-      "tool_name": "commit",
-      "display_name": "Worker commit delivery",
+      "tool_name": "workspace_inspect_candidate",
+      "display_name": "workspace_inspect_candidate",
       "kind": "mcp_tool",
-      "entrypoint": "commit",
+      "entrypoint": "workspace_inspect_candidate",
       "task_ids": [
-        "worker-delivery"
+        "query-terminal-review-candidate"
       ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "priority": 70,
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
       "side_effects": [
-        "record_write"
+        "read_only"
       ],
       "authority": [
-        "launcher_backend",
-        "work_record"
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
       ],
       "tier_visibility": [
-        "free_local"
+        "free_local",
+        "paid_cce"
       ],
       "docs_refs": [
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md"
+        "docs/mcp-operation-reference.md"
       ],
       "source_files": [
-        "packages/wiki-mcp/src/lib/workspace-commit-tool.mjs",
-        "packages/agent-launch-cli/src/lib/commit-tool-exposure-guard.mjs"
+        "packages/wiki-mcp/src/lib/task-inspect-candidate.mjs"
       ],
-      "notes": "Closed-input worker delivery primitive hosted by the launcher-owned wiki-MCP server. Accepts no caller-supplied fields; the server resolves the frozen per-run binding (write_scope, subject, worktree identity, base_sha, and output branch) from launcher-owned state. No transport credential, path, ref, branch, Git API, shell, or writer selector is exposed. Access is the central session-role-tool-access policy (worker), not this descriptor row.",
+      "notes": "Inspect the current or an immutable WK candidate version without constructing or advancing it.",
       "use_when": [
-        "A launcher-bound worker delivers the delta assigned to its own run."
+        "Inspect the current or an immutable WK candidate version without constructing or advancing it."
       ],
       "do_not_use_when": [
-        "Choosing caller Git paths, refs, identity or scope, or integrating, merging or promoting a delivery."
+        "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "launcher-bound delivery commit and review submission"
+        "Inspect the current or an immutable WK candidate version without constructing or advancing it."
       ],
       "recommended_first_call": {
-        "operation": "commit",
-        "arguments": {},
+        "operation": "Inspect the current or an immutable WK candidate version without constructing or advancing it.",
+        "arguments": {
+          "subject": "$wk"
+        },
         "omit_null_arguments": true
       }
     },
     {
-      "tool_name": "workspace_submit_for_review",
-      "display_name": "Submit assigned unit for review",
+      "tool_name": "workspace_advance_candidate",
+      "display_name": "workspace_advance_candidate",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_submit_for_review",
+      "entrypoint": "workspace_advance_candidate",
       "task_ids": [
-        "worker-delivery"
+        "advance-terminal-review-candidate"
       ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "priority": 70,
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
       "side_effects": [
-        "record_write"
+        "workspace_write"
       ],
       "authority": [
-        "work_record",
-        "runtime_env"
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
       ],
       "tier_visibility": [
-        "free_local"
+        "free_local",
+        "paid_cce"
       ],
       "docs_refs": [
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md"
+        "docs/mcp-operation-reference.md"
       ],
       "source_files": [
-        "packages/wiki-mcp/src/server.mjs"
+        "packages/wiki-mcp/src/lib/task-advance-candidate.mjs"
       ],
-      "notes": "Moves the launcher-assigned unit to review status for a runtime whose session role is granted this route. Accepts no caller-supplied unit, status, or other field. Access comes from the central session-role policy, not this descriptor row.",
+      "notes": "Explicitly advance one immutable candidate version to observed W; no integration or publication.",
       "use_when": [
-        "The launcher-assigned unit of a runtime granted this route is ready for review status."
+        "Explicitly advance one immutable candidate version to observed W; no integration or publication."
       ],
       "do_not_use_when": [
-        "The caller needs to choose a unit or status, or to integrate or complete work; this route accepts neither and grants no such authority."
+        "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "moving the launcher-assigned unit to review status"
+        "Explicitly advance one immutable candidate version to observed W; no integration or publication."
       ],
       "recommended_first_call": {
-        "operation": "move the assigned unit to review",
-        "arguments": {},
+        "operation": "Explicitly advance one immutable candidate version to observed W; no integration or publication.",
+        "arguments": {
+          "subject": "$wk",
+          "version": "$version"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_publish_work",
+      "display_name": "workspace_publish_work",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_publish_work",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/task-publish-work.mjs"
+      ],
+      "notes": "Publish the current exact WK candidate through configured handoff; no merge or completion.",
+      "use_when": [
+        "Publish the current exact WK candidate through configured handoff; no merge or completion."
+      ],
+      "do_not_use_when": [
+        "The request needs an ungranted role, caller-selected repository or another task."
+      ],
+      "authoritative_for": [
+        "Publish the current exact WK candidate through configured handoff; no merge or completion."
+      ],
+      "recommended_first_call": {
+        "operation": "Publish the current exact WK candidate through configured handoff; no merge or completion.",
+        "arguments": {
+          "subject": "$wk"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_check_landing",
+      "display_name": "workspace_check_landing",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_check_landing",
+      "task_ids": [
+        "query-terminal-review-candidate"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/dispatch-tools/landing-status-route.mjs"
+      ],
+      "notes": "Observe current or selected publication landing without publishing, merging or completing.",
+      "use_when": [
+        "Observe current or selected publication landing without publishing, merging or completing."
+      ],
+      "do_not_use_when": [
+        "The request needs an ungranted role, caller-selected repository or another task."
+      ],
+      "authoritative_for": [
+        "Observe current or selected publication landing without publishing, merging or completing."
+      ],
+      "recommended_first_call": {
+        "operation": "Observe current or selected publication landing without publishing, merging or completing.",
+        "arguments": {
+          "subject": "$wk"
+        },
         "omit_null_arguments": true
       }
     }

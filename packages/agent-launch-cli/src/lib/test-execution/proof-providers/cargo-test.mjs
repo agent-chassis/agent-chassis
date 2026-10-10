@@ -1,9 +1,9 @@
 
 
+import { lstatSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import integration from "../runner-integrations/cargo-test.mjs";
 import { finishRustFile, instrumentRustModule, instrumentRustTestFile }
   from "../source-instrumentation/rust.mjs";
 import { nativeRecordFailureDiagnostic } from "../../workspace-agent-test-proof-error-diagnostic.mjs";
@@ -100,6 +100,24 @@ function layout(attempt) {
   return { target, testRoot, libRoot, exactName: [...prefix, ...attempt.test].join("::") };
 }
 
+function layoutSources(attempt) {
+  const projectRoot = attempt.project === "." ? "" : attempt.project;
+  const found = [];
+  const walk = (relative, deep) => {
+    let names;
+    try { names = readdirSync(path.join(attempt.projectHost, relative)).sort(); } catch { return; }
+    for (const name of names) {
+      const child = `${relative}/${name}`;
+      const stat = lstatSync(path.join(attempt.projectHost, child));
+      if (stat.isDirectory() && deep) walk(child, deep);
+      else if (stat.isFile() && name.endsWith(".rs")) found.push(path.posix.join(projectRoot, child));
+    }
+  };
+  walk("src", true);
+  walk("tests", false);
+  return found;
+}
+
 async function instrument(attempt, { testRoot, libRoot }) {
   const files = new Map();
   const entry = (relative) => {
@@ -122,6 +140,8 @@ async function instrument(attempt, { testRoot, libRoot }) {
       functions: probed.functions, probes: probed.probes, ...(probed.mutation ?? {}) };
   }
   for (const root of roots) entry(root);
+
+  for (const relative of layoutSources(attempt)) entry(relative);
   const writes = [...files.entries()].map(([relative, file]) => ({
     path: attempt.workPath(relative),
     content: finishRustFile({ source: file.source, edits: file.edits, crateRoot: roots.has(relative),
@@ -140,7 +160,6 @@ export default nativeProviderImplementation({
   assets: [RUST_INSTRUMENTATION_ASSET],
   layout,
   instrument,
-  invocation: (attempt, { target, exactName }) => integration.invocation({
-    runtime: attempt.runtime, projectDir: attempt.workProject, target, exactName }),
+  proof: (_attempt, { target, exactName }) => ({ target, exactName }),
   report: () => cargoTestReport()
 });

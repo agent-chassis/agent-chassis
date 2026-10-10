@@ -301,13 +301,26 @@ export function upsertSlice(record, { slice } = {}) {
   const existing = clone.slices[index];
   const delegatedField = findExistingSliceDelegatedField(incoming);
   if (delegatedField) {
-    return refusal(
-      createDiagnostic(
+
+    const unit = `${clone.id}#${sliceId}`;
+    return refusal({
+      ...createDiagnostic(
         "field_owner_mismatch",
-        "slice.sections.tasks is owned by setWorkRecordTaskByUnit after slice creation; use workspace_work_record_edit with a task action",
+        `slice.sections.tasks is not replaced through a slice definition once the slice exists. Save the task ` +
+          `change on the slice unit instead: save_record with unit ${unit}, the current revision a read of that ` +
+          `unit returns, and changes.tasks. Author each task's action (${WORK_RECORD_TASK_EDIT_ACTIONS.join(", ")}) ` +
+          "with its value, or its text or index selector; none is supplied for you",
         { path: `slice.${delegatedField}` }
-      )
-    );
+      ),
+      details: {
+        changed: false,
+        unit,
+        next_calls: [
+          { tool: "workspace_read_wiki", arguments: { subject: unit } },
+          { tool: "save_record", fixed_arguments: { unit }, required_authored_fields: ["revision", "changes.tasks"] }
+        ]
+      }
+    });
   }
 
   const mergeResult = mergeSliceContractBody(existing, incoming);

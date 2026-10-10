@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import { registerDispatchTools } from "./dispatch-tools.mjs";
-import { prepareCommittedHeadGraphAdmission } from "./dispatch-tools/graph-admission.mjs";
 import { allocateLauncherTransitionPlan } from "@agent-chassis/agent-launch-core/src/lib/launcher-transition-plan.mjs";
 import { SidecarGraphIndexUnbuildableError } from "../../../wiki-core/src/lib/sidecar-graph-impact-artifact.mjs";
 
@@ -47,11 +46,10 @@ function harness({ initial = ready("recoverable_stale"), graphError = false } = 
   return { calls, phases, invoke: async () => (await handlers.get("workspace_agent_dispatch")({ role: "worker", subject: "WK-1769#SLICE-001" })).structuredContent };
 }
 
-test("registered route uses the exported helper for one graph/admission preparation", async () => {
-  assert.equal(typeof prepareCommittedHeadGraphAdmission, "function");
+test("registered route prepares no graph and refreshes admission once", async () => {
   const h = harness();
   assert.equal((await h.invoke()).accepted, true);
-  assert.deepEqual(h.calls, { graph: 1, admission: 1, backend: 1 });
+  assert.deepEqual(h.calls, { graph: 0, admission: 1, backend: 1 });
 });
 
 test("registered route preserves typed admission refusals and zero mutation", async () => {
@@ -61,19 +59,17 @@ test("registered route preserves typed admission refusals and zero mutation", as
   assert.deepEqual(h.calls, { graph: 0, admission: 0, backend: 0 });
 });
 
-test("a failed graph preparation is captured once and reused without refusing dispatch", async () => {
+test("a graph producer that would fail is never entered and no phase receives graph evidence", async () => {
   const h = harness({ graphError: true });
   const result = await h.invoke();
 
   assert.equal(result.accepted, true);
-  assert.deepEqual(h.calls, { graph: 1, admission: 1, backend: 1 });
+  assert.deepEqual(h.calls, { graph: 0, admission: 1, backend: 1 });
 
-  const later = h.phases.slice(1);
-  assert.equal(later.length, 3);
-  const captured = later[0].graph_preparation_failure;
-  assert.equal(captured.code, "base_artifact_corrupt");
-  for (const options of later) {
-    assert.equal(options.graph_preparation_failure, captured);
+  assert.equal(h.phases.length, 4);
+  for (const options of h.phases) {
+    assert.equal(options.suppress_live_graph_resolution, true);
+    assert.equal(Object.hasOwn(options, "graph_preparation_failure"), false);
     assert.equal(Object.hasOwn(options, "graph_impact"), false);
   }
 });

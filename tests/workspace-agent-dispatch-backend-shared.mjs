@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 
 import {
   BACKEND_FORBIDDEN_ENVELOPE_TOKENS,
-  createWorkspaceAgentDispatchBackend
+  createWorkspaceAgentDispatchBackend,
+  createPreparedWorkspaceAgentDispatchBackend
 } from "../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 
 import {
@@ -79,7 +80,15 @@ function wrapFixtureExecutors(options) {
 }
 
 export function createTestDispatchBackend(options = {}) {
-  return createWorkspaceAgentDispatchBackend({
+  return composeTestDispatchBackend(options, createWorkspaceAgentDispatchBackend);
+}
+
+export function createPreparedTestDispatchBackend(options = {}) {
+  return composeTestDispatchBackend(options, createPreparedWorkspaceAgentDispatchBackend);
+}
+
+function composeTestDispatchBackend(options, createBackend) {
+  return createBackend({
 
     managedStdioMcpCompositionAuthority:
       Object.prototype.hasOwnProperty.call(options, "managedStdioMcpCompositionAuthority")

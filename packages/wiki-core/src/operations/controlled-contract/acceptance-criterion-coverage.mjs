@@ -9,6 +9,11 @@ const LISTED_LIMIT = 8;
 const QUERY_TOOL = 'workspace_controlled_contract_obligation_coverage_query';
 const UPSERT_TOOL = 'workspace_controlled_contract_obligation_coverage_upsert';
 
+const UNIT_READ_TOOL = 'workspace_read_wiki';
+const UNKNOWN_CRITERION_CORRECTION = `Read the unit with ${UNIT_READ_TOOL}, then pass the returned reference with ` +
+  'select {"contract":"criteria"} for the current criterion identities of this unit, and name only those ' +
+  'identities in the obligation. A parent\'s criteria are not a slice\'s.';
+
 const unitAddress = ({ wkId, selectedUnit }) =>
   selectedUnit === null || selectedUnit === undefined ? wkId : `${wkId}#${selectedUnit}`;
 
@@ -18,7 +23,7 @@ export function acceptanceCriterionInventory(pkg, unit) {
       text: entry.text, text_sha256: controlledContractContentDigest(entry.text) }));
 }
 
-export function acceptanceCriterionAssociationOwner(inventory, { wkId, selectedUnit, focus = null }) {
+export function acceptanceCriterionAssociationOwner(inventory, { wkId, selectedUnit }) {
   const byIdentity = new Map(inventory.map(entry => [entry.identity, entry]));
   return (identities, obligationId) => {
     const unknown = identities.filter(identity => !byIdentity.has(identity));
@@ -27,8 +32,8 @@ export function acceptanceCriterionAssociationOwner(inventory, { wkId, selectedU
       'The obligation names acceptance criteria the selected unit does not currently have', {
         changed: false, phase: 'request', unit: unitAddress({ wkId, selectedUnit }),
         obligation_id: obligationId, unknown_criterion_identities: unknown,
-        next_calls: [{ tool: QUERY_TOOL, arguments: {
-          unit: unitAddress({ wkId, selectedUnit }), ...(focus ? { focus } : {}) } }]
+        correction: UNKNOWN_CRITERION_CORRECTION,
+        next_calls: [{ tool: UNIT_READ_TOOL, arguments: { subject: unitAddress({ wkId, selectedUnit }) } }]
       });
     return identities.map(identity => ({ identity,
       text_sha256: byIdentity.get(identity).text_sha256 }));

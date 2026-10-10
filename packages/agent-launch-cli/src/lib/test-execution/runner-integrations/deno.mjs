@@ -54,10 +54,21 @@ export default Object.freeze({
       args: dependencies.length === 0 ? ["info", "--json"]
         : ["check", "--cached-only", "--frozen", ...projectConfig(projectDir, projectDir), ...dependencies] };
   },
-  invocation: ({ runtime, hostProjectDir, projectDir, entry, writablePaths }) => ({
-    command: runtime.executables.deno,
-    args: ["test", "--frozen", "--cached-only", "--no-prompt", ...projectConfig(hostProjectDir, projectDir),
-      `--allow-write=${writablePaths.join(",")}`, entry],
-    cwd: projectDir
+  invocation,
+
+  ordinaryInvocation: ({ runtime, projectDir, file, selector, proof = null }) => ({
+    harness: Object.freeze({ kind: "deno" }),
+    invocation: invocation({ runtime, hostProjectDir: projectDir, projectDir, entry: proof?.entry ?? file,
+      writablePaths: proof?.writablePaths ?? [], filter: selector })
   })
 });
+
+function invocation({ runtime, hostProjectDir, projectDir, entry, writablePaths, filter = null }) {
+  return {
+    command: runtime.executables.deno,
+    args: ["test", "--frozen", "--cached-only", "--no-prompt", ...projectConfig(hostProjectDir, projectDir),
+      ...(writablePaths.length === 0 ? [] : [`--allow-write=${writablePaths.join(",")}`]),
+      ...(filter === null ? [] : [`--filter=${filter}`]), entry],
+    cwd: projectDir
+  };
+}

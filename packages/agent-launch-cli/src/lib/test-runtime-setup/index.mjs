@@ -164,28 +164,38 @@ function resolveEnvironments({ repositoryRoot, environments }) {
 }
 
 async function detectDependencies({ root, ecosystemName, project, projectDir, members, toolchains, env,
-  selection, measure }) {
+  selection, measure, complete = true }) {
   const ecosystem = DEPENDENCY_ECOSYSTEMS[ecosystemName];
   const base = { kind: "dependencies", ecosystem: ecosystemName, project,
     environment: testRuntimeEnvironmentId({ ecosystem: ecosystemName, project }) };
-  const inputs = measureProjectInputs(ecosystemName, projectDir, { members });
-  if (inputs.status === "lock_missing") {
+  let inputs;
+  try {
+    inputs = measureProjectInputs(ecosystemName, projectDir, { members });
+  } catch (error) {
+    return componentFromError(base, error);
+  }
+
+  if (inputs.status === "lock_missing" && complete) {
     return { ...base, status: "failed", code: "test_runtime_dependency_lock_missing",
       message: `project ${project} requires ${inputs.required} for ${ecosystemName} dependencies`,
       detail: { required: inputs.required } };
   }
-  const inputFiles = Object.keys(inputs.files).sort();
-  const none = () => ({ ...base, status: "ready", source: "none", record: { ecosystem: ecosystemName, project,
-    members, status: "none", inputs: inputFiles, inputs_digest: inputs.inputs_digest, workspace_links: [] } });
+  const inputFiles = Object.keys(inputs.files ?? {}).sort();
+  const without = (status) => ({ ...base, status: "ready", source: status, record: { ecosystem: ecosystemName,
+    project, members, status, inputs: inputFiles, inputs_digest: inputs.inputs_digest ?? null,
+    workspace_links: [] } });
+  const none = () => without("none");
   if (inputs.status === "none") return none();
+
   let detected;
   try {
-    detected = await ecosystem.detect({ repositoryRoot: root, projectDir, project, members, inputs, toolchains,
-      env, selection });
+    detected = await ecosystem.detect({ repositoryRoot: root, projectDir, project, members,
+      inputs: { ...inputs, files: inputs.files ?? {} }, toolchains, env, selection, complete });
   } catch (error) {
     return componentFromError(base, error);
   }
   if (detected.none === true) return none();
+  if (detected.absent === true) return without("absent");
   const exclude = detected.exclude ?? [];
   const identity = measure ? { content_digest: measurePopulationContent(detected.population, { exclude })
     .content_digest, fingerprint: fingerprintPopulation(detected.population, { exclude }) } : {};
@@ -314,6 +324,25 @@ export async function runTestRuntimeSetup({
   }
   return result("ready", { ...outcome.report, preparation,
     readiness_digest: settled.record.readiness_digest });
+}
+
+export async function locateEnvironmentInputs({ repositoryRoot, projectDir, ecosystem: ecosystemName, project,
+  members = [], toolchainNames, known = {}, toolchainExecutables = {}, selection = null, env = process.env }) {
+  const toolchains = { ...(known.toolchains ?? {}) };
+  for (const name of toolchainNames) {
+    if (toolchains[name]) continue;
+    try {
+      toolchains[name] = await resolveToolchain({ name, configuredExecutable: toolchainExecutables[name] ?? null,
+        env, measure: false, enforceRequirement: false });
+    } catch (error) {
+      return { ok: false, ...componentFromError({ kind: "toolchain", name }, error) };
+    }
+  }
+  if ((known.preparation ?? null) !== null) return { ok: true, toolchains, preparation: known.preparation };
+  const detected = await detectDependencies({ root: repositoryRoot, ecosystemName, project, projectDir, members,
+    toolchains, env, selection, measure: false, complete: false });
+  if (detected.status !== "ready") return { ok: false, ...detected };
+  return { ok: true, toolchains, preparation: detected.record };
 }
 
 async function detectAndVerify({ root, planned, facts, environmentFacts, selectionFacts, result,

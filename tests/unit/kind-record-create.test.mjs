@@ -4,8 +4,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
 
+import { collectOccupiedAllocatedRecordValues, nextId } from "../../packages/wiki-core/src/lib/wiki-allocator.mjs";
+import { loadManifest } from "../../packages/wiki-core/src/lib/contract.mjs";
+import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
 import { bootstrapRepo } from "../../packages/wiki-core/src/operations/bootstrap.mjs";
 import { createWikiRecord } from "../../packages/wiki-core/src/operations/create.mjs";
 import {
@@ -126,4 +129,39 @@ test("createWikiRecord births an IN as a canonical draft JSON with .md and prove
     assert.equal(typeof record.created, "string");
     assert.equal(record.updated, record.created);
   });
+});
+
+test("kind allocation skips canonical JSON without projections", async t => {
+  for (const kind of ['decision', 'initiative']) for (const initialize of [false, true]) {
+    await t.test(`${kind}: initialize ${initialize}`, async t => {
+      const resources = createTestResourceScope();
+      t.after(() => resources.dispose());
+      const repoRoot = await resources.acquire('allocator repository', () => mkdtemp(path.join(os.tmpdir(), 'kind-allocation-')),
+        root => rm(root, { recursive: true, force: true }));
+      await bootstrapRepo({ dir: repoRoot, repo: 'test/kind-allocation' });
+      const first = await createWikiRecord({ dir: repoRoot, type: kind, title: 'JSON authority' });
+      const json = first.absoluteFile, markdown = json.replace(/\.json$/u, '.md');
+      const before = await readFile(json);
+      await unlink(markdown);
+      if (initialize) await unlink(path.join(repoRoot, 'wiki/.id-state.json'));
+      else {
+        const file = path.join(repoRoot, 'wiki/.id-state.json');
+        const state = JSON.parse(await readFile(file)); state[kind] = 0;
+        await writeFile(file, JSON.stringify(state));
+      }
+      const second = await createWikiRecord({ dir: repoRoot, type: kind, title: 'Distinct next identity' });
+      assert.notEqual(second.id, first.id);
+      assert.deepEqual(await readFile(json), before);
+      const reserved = await nextId(repoRoot, kind, await loadManifest(), { reserve: true });
+      assert.equal((await createWikiRecord({ dir: repoRoot, type: kind, title: 'Reserved identity' })).id, reserved);
+      const gapId = `${first.id.split('-')[0]}-${String(Number(reserved.split('-')[1]) + 1).padStart(4, '0')}`;
+      const orphan = path.join(path.dirname(json), `${gapId}.md`);
+      await writeFile(orphan, 'Projection alone is not canonical');
+      assert.equal((await collectOccupiedAllocatedRecordValues(repoRoot, (await loadManifest()).types[kind])).has(Number(gapId.split('-')[1])), false);
+      await unlink(orphan);
+      const next = await createWikiRecord({ dir: repoRoot, type: kind, title: 'Projection-independent identity' });
+      assert.equal(next.id, gapId);
+      assert.deepEqual(await readFile(json), before);
+    });
+  }
 });

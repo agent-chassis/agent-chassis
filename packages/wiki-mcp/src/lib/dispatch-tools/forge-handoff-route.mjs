@@ -61,8 +61,8 @@ function retainedErrorLogOriginal({ retainedEvidence, original, assignedUnit, en
 function boundedDiagnosticAnswer({ answer, detail, original, assignedUnit, env }) {
   const complete = answer(detail);
   const inlineByteLimit = activeMcpInlineByteLimit(env);
-  const completeFrameBytes = measureMcpInlineResultBytes(complete);
-  if (completeFrameBytes <= inlineByteLimit) return complete;
+  const admissionBytes = measureMcpInlineResultBytes(complete);
+  if (admissionBytes <= inlineByteLimit) return complete;
   const detailObject = detail !== null && typeof detail === "object" && !Array.isArray(detail);
   const { retained_evidence: retainedEvidence, category, ...facts } = detailObject ? detail : { detail };
   const retained = retainedErrorLogOriginal({ retainedEvidence, original, assignedUnit, env });
@@ -79,7 +79,7 @@ function boundedDiagnosticAnswer({ answer, detail, original, assignedUnit, env }
   }
   const compact = {
     ...(category === undefined ? {} : { category }),
-    response_budget: { inline_byte_limit: inlineByteLimit, complete_frame_bytes: completeFrameBytes },
+    response_budget: { inline_byte_limit: inlineByteLimit, admission_bytes: admissionBytes },
     error_log: errorLog,
     ...(errorLogFailure === null ? {} : { error_log_failure: errorLogFailure }),
     facts_not_inline: []

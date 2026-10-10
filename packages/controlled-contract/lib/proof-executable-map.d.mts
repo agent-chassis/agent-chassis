@@ -1,6 +1,7 @@
 import type {
   ObligationCoverageDraft, ProofAuthoringPin
 } from "../current-obligation-coverage.mjs";
+import type { ProofObligationAccounting } from "./proof-contract.mjs";
 
 export interface ProofExecutableMapRow {
   readonly obligation_id: string;
@@ -25,6 +26,7 @@ export interface ProofExecutableMapEntry {
   readonly row: Readonly<Record<string, unknown>>;
   readonly semantic_diagnostics: readonly Readonly<Record<string, unknown>>[];
   readonly resolved: boolean;
+  readonly accounting: ProofObligationAccounting;
 }
 
 export declare function resolveProofExecutableMap(
@@ -71,6 +73,43 @@ export interface OccurrenceRecoveryFacts {
   readonly association_correction: boolean;
   readonly module_source_correction: boolean;
   readonly corrections: readonly OccurrenceCorrectionClause[];
+  /** Present only when the occurrence's case names no verification. */
+  readonly association?: OccurrenceCaseAssociation;
+}
+
+/** Selects one verification: `choose_one_of` lists the selectable verification identities. */
+export interface CaseVerificationSelectionChoice {
+  readonly field: 'obligations[].case.verification';
+  readonly links_field: string;
+  readonly choose_one_of: readonly string[];
+}
+
+/**
+ * The conditional recovery of condition `verification_owned_by_another_case`,
+ * where no verification is selectable. `field` is the case identity member to
+ * author `when` the obligation means the saved test, and `choose_one_of` then
+ * lists the saved case identities of the blocked entries (their
+ * `saved_case_ids`), never verification identities. `otherwise` names the
+ * member to author for a different test. Neither is selected.
+ */
+export interface CaseReuseChoice {
+  readonly field: 'obligations[].case.id';
+  readonly links_field: string;
+  readonly choose_one_of: readonly string[];
+  readonly when: string;
+  readonly otherwise: { readonly when: string; readonly field: string };
+  readonly correction: string;
+}
+
+/** What an author may select for a case that names no verification. */
+export interface OccurrenceCaseAssociation {
+  readonly condition: string;
+  readonly case_id: string;
+  readonly selected: false;
+  readonly eligible_verification_ids: readonly string[];
+  readonly candidate_verification_ids: readonly string[];
+  readonly blocked: readonly Readonly<Record<string, unknown>>[];
+  readonly required_choice: CaseVerificationSelectionChoice | CaseReuseChoice;
 }
 
 /** Null for every code other than obligation_coverage_native_binding_case_incomplete. */

@@ -16,8 +16,10 @@ import {
   attributeAffectedFiles,
   committedEnvelopeFields,
   composeCommittedPaths,
-  prepareCommittedQuery
+  prepareCommittedQuery,
+  runSnapshotQuery
 } from "./sidecar-query-selection.mjs";
+import { pinnedQueryContext } from "./sidecar-published-preparation.mjs";
 import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
 import { getSidecarSymbolDefinition } from "./sidecar-symbol-query.mjs";
 
@@ -46,7 +48,7 @@ function endpoints(records) {
   return { old_paths: oldPaths, new_paths: newPaths, affected_paths: pathsForDiffImpact(records) };
 }
 
-async function narrowSubjectPaths({ narrowing, validPaths, targetDir, cacheDir }) {
+async function narrowSubjectPaths({ narrowing, validPaths, targetDir, cacheDir, prepared }) {
   if (!narrowing) return null;
   const named = new Set();
   const sources = [];
@@ -61,7 +63,7 @@ async function narrowSubjectPaths({ narrowing, validPaths, targetDir, cacheDir }
   }
   if (narrowing.symbol !== undefined) {
     const definition = await getSidecarSymbolDefinition({ dir: targetDir, cacheDir,
-      symbol: narrowing.symbol });
+      symbol: narrowing.symbol }, pinnedQueryContext(prepared));
     const paths = uniqueStrings((Array.isArray(definition?.definitions) ? definition.definitions : [])
       .map((entry) => entry?.path).filter((value) => typeof value === "string")).sort(byText);
     for (const value of paths) named.add(value);
@@ -109,8 +111,12 @@ function impactState({ requested, validPaths, invalidPaths, graphState, diff, na
   };
 }
 
-export async function getSidecarQueryImpact(options = {}) {
+export async function getSidecarQueryImpact(options = {}, context = null) {
   const input = normalizeSidecarImpactInput(options);
+  return runSnapshotQuery(context, () => evaluateQueryImpact(input, context));
+}
+
+async function evaluateQueryImpact(input, context) {
   const targetDir = path.resolve(String(input.dir ?? "."));
   const diff = await normalizedDiff(input.subject, targetDir);
   const requested = input.subject.kind === "paths"
@@ -120,12 +126,12 @@ export async function getSidecarQueryImpact(options = {}) {
     .map(({ relative_path: value }) => value));
   const invalidPaths = validations.filter(({ ok }) => !ok).map(({ input_path: value }) => value);
   const includeSuppressed = input.includeSuppressed === true;
+  const prepared = await prepareCommittedQuery({ dir: targetDir, cacheDir: input.cacheDir }, context);
   const narrowing = await narrowSubjectPaths({ narrowing: input.narrowing, validPaths: acceptedPaths,
-    targetDir, cacheDir: input.cacheDir });
+    targetDir, cacheDir: input.cacheDir, prepared });
   const validPaths = narrowing === null ? acceptedPaths : narrowing.paths;
   const narrowed = narrowing === null ? null : { accepted_before: acceptedPaths.length,
     excluded: acceptedPaths.length - narrowing.paths.length };
-  const prepared = await prepareCommittedQuery({ dir: targetDir, cacheDir: input.cacheDir });
   const composed = await composeCommittedPaths({ prepared, cacheDir: input.cacheDir, targetDir,
     validPaths, includeSuppressed });
   const { status } = prepared;
@@ -140,7 +146,7 @@ export async function getSidecarQueryImpact(options = {}) {
     source_kind: "code_index",
     canonicality: "derived",
     evidence_basis: "path_match",
-    ...committedEnvelopeFields(status),
+    ...committedEnvelopeFields(prepared),
     canonical_refs: composed.canonical_refs,
     derived_evidence: [...composed.derived_evidence,
       { kind: "sidecar_impact_query", query_kind: "impact", subject: input.subject.kind,

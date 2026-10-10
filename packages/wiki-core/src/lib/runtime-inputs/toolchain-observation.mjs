@@ -28,7 +28,8 @@ function isEnvironment(value) {
     Object.values(value).every((entry) => typeof entry === "string");
 }
 
-function requestProblem({ description, executable, requiredRoles, source, probe, probeContext }) {
+function requestProblem({ description, executable, requiredRoles, source, probe, probeContext, locationOnly }) {
+  if (locationOnly !== undefined && typeof locationOnly !== "boolean") return "locationOnly must be a boolean";
   if (!Object.values(TOOLCHAIN_DESCRIPTIONS).includes(description)) return "description must be a shared description";
   if (!isAbsolutePath(executable)) return "executable must be a nonempty absolute path";
   if (!Array.isArray(requiredRoles) || requiredRoles.length === 0) return "requiredRoles must be a nonempty array";
@@ -95,13 +96,16 @@ async function describePython(request) {
       return invalidOutput(request, "describe", probed, `${field} is not a nonempty absolute path`);
     }
   }
-  if (typeof described.version !== "string" || !PYTHON_VERSION.test(described.version)) {
+  const versioned = typeof described.version === "string" && PYTHON_VERSION.test(described.version);
+  if (!versioned && request.locationOnly !== true) {
     return invalidOutput(request, "describe", probed, "version is not a numeric Python version");
   }
   const executables = { python: described.executable };
-  return componentFailure(request, described.prefix, executables) ?? { root: described.prefix, executables,
-    population: [described.executable, described.stdlib],
-    population_exclude: ["__pycache__", "site-packages", "dist-packages"], version: described.version };
+  return (request.locationOnly === true ? null : componentFailure(request, described.prefix, executables)) ??
+    { root: described.prefix, executables,
+      population: [described.executable, described.stdlib],
+      population_exclude: ["__pycache__", "site-packages", "dist-packages"],
+      version: versioned ? described.version : null };
 }
 
 async function locateRoot(request) {
@@ -144,16 +148,17 @@ async function observeLayout(request) {
   const roles = new Set([...requiredRoles, description.probe.executable]);
   const executables = Object.fromEntries(Object.entries(description.executables)
     .filter(([role]) => roles.has(role)).map(([role, relative]) => [role, path.join(root, relative)]));
-  const missing = componentFailure(request, root, executables);
+  const locationOnly = request.locationOnly === true;
+  const missing = locationOnly ? null : componentFailure(request, root, executables);
   if (missing !== null) return missing;
   const command = executables[description.probe.executable];
   const probed = await runProbe(request, "version", command, description.probe.args, {
     ...probeContext.env.version,
     PATH: [path.dirname(command), probeContext.env.version.PATH].filter(Boolean).join(path.delimiter),
     RUSTC: executables.rustc ?? "" });
-  if (probed.status === "failed") return { ...probed, root };
-  const version = description.probe.version(probed.text);
-  if (version === null) {
+  if (probed.status === "failed" && !locationOnly) return { ...probed, root };
+  const version = probed.status === "failed" ? null : description.probe.version(probed.text);
+  if (version === null && !locationOnly) {
     return { ...invalidOutput(request, "version", probed, "version text is not recognized"), root };
   }
   return { root, executables, population: description.population.map((relative) => path.join(root, relative)),

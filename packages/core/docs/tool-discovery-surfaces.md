@@ -289,40 +289,42 @@ content-reference routes remain registered with their own contracts and grants;
 see
 [MCP Operation Reference](mcp-operation-reference.md#ordinary-selected-canonical-reads-and-authoring-continuity).
 
-Ordinary code questions have one entrypoint, `workspace_code_index_impact`, with
-automatic index preparation. Its documented selectors choose the answer: exactly
+Code reads have one agent entrypoint, `query_code_index`, which answers from
+the published index and requests its background refresh. Its documented selectors choose the answer: exactly
 one of `paths`, `patchText`, `diffRecords` or `liveGit:true` asks combined path
 context and structural impact, narrowed by a compatible `path` or `symbol`;
 `symbol`, or `path` with `line` and optional `character`, asks the definition,
 reference, caller and callee owners, narrowed by `relationship`; `path` alone asks that
 file's context. Discovery publishes that precedence so a caller picks the
 information it wants rather than an engine, and a conflicting or empty selection
-returns the reachable alternatives. See the owning
+returns the reachable alternatives. `status: true` alone is its passive status
+read, and `detail` reads an answer it retained. See the owning
 [automatic preparation contract](mcp-repository-model.md#automatic-index-preparation)
 and the full rules in
 [MCP Operation Reference](mcp-operation-reference.md#ordinary-code-question-selectors-grounding-and-complete-retrieval).
-Impact discovery discloses the possible ignored-cache writes and typed
-preparation failures; it does not label automatic preparation as strictly
-read-only or require a separate build call. The dedicated
-`workspace_code_index_context_for_path` and the four navigation routes remain
-registered with identical role, disposition, audience and tier classification,
-so the consolidation moves no entitlement.
+Its discovery row discloses the possible ignored-cache write of an ordinary
+question's background refresh and states that status and detail reads write
+nothing; it does not label the route strictly read-only or require a separate
+build call. It names no repository, root, cache or commit. Its role,
+disposition, audience and tier classification are the paid-tier grants of the
+orchestrator, reviewer, redteam and operator roles.
 
 Its default response is compact: one complete frame within the compact class
 with exact totals, a truthful `impact_state`, bounded leading rows, the retained
-answer's opaque `selected_detail.source`, and a top-level `next_calls` entry
-selecting its first affected file. `detail` selects one collection of that
-retained answer by `selector.id`, `path`, `symbol` or `relationship` without
-evaluating the question again. For a selected affected file, `input_path`
-selects its relationships; `lines` selects absolute source lines within one
-retained region or file, and `candidates` exposes ambiguity by symbol and path.
-No cursor, byte range or field path exists. The file
-context and four navigation routes answer the same way, and none of the six has
-a verbose or `full_result` form. Discovery text makes that compact-then-detail
+answer's opaque `selected_detail.source`, and top-level `next_calls` that each
+select one complete collection the summary does not deliver whole. `detail`
+selects one collection of that retained answer by `selector.id`, `path`,
+`symbol` or `relationship` without evaluating the question again. For a
+selected affected file, `input_path` selects its relationships; `lines` selects
+absolute source lines within one retained region or file, and `candidates`
+exposes ambiguity by symbol and path. Pages come from the shared pager and a
+caller follows its emitted continuation. File context and symbol questions
+answer the same way, and no question has a verbose or `full_result` form.
+Discovery text makes that compact-then-detail
 split explicit so routine agents stay on the bounded path and recover omitted
 detail from the retained answer.
 
-`workspace_code_index_context_for_path` defaults to one complete frame within
+A file-context question (`path` alone) defaults to one complete frame within
 the same compact class. It carries the committed identity, the source's
 identity, state, and line count, the scalar graph and SCIP state (arrays become
 their exact counts), and the dirty-state and overlay trust facts. `graph_paths`
@@ -360,23 +362,32 @@ discoverable for `workspace_get_record`, `workspace_read_page`, and
   arguments. Discovery presents only selected recovery: selected slices,
   ordinary fields, entries and versions, and `member:{path}` pages of one
   canonical WK, slice, IN, or DEC member pinned to `source_digest`.
-- `workspace_work_record_summary` publishes two advisory terminal-review facts,
-  and discovery must make both findable from the default WK-level read rather
-  than only from a selected-slice call. Every emitted findings row — in `slices`,
-  in `review_state.review_slices`, and in selected findings-unit summaries,
-  compact and full alike — carries the effective `review_purpose` drawn from the
-  closed set `standalone` and `terminal_whole_wk`, with `terminal_whole_wk`
-  reviewer-only. An omitted purpose normalizes to `standalone` for `review` work
-  only. A `redteam` row shows an explicitly authored `standalone` and carries no
-  key when the unit authored none; implementation and other non-findings rows
-  carry no such key either. [Work-record schema](work-record-schema.md) is the
-  durable public contract for that vocabulary, and discovery text must not
-  restate it in a form that contradicts it.
-  Record-level output carries `terminal_review_designation` with a `state` of
+- `workspace_read_wiki` publishes two advisory terminal-review facts, and its
+  descriptor note and registered description must make both findable from the
+  default WK-level read rather than only from a selected-slice call. The path
+  is `workspace_read_wiki({subject:"work record"})` for the record's `facts`, the
+  `{reference,select:{inventory:"slices"}}` call that context emits for every
+  slice, and `workspace_read_wiki({subject:"work record"})` for one
+  selected unit's `facts`. No dedicated selector, input or grant exists for
+  them. A findings unit's `facts` and each findings member of the complete
+  slice inventory carry the effective `review_purpose` drawn from the closed set
+  `standalone` and `terminal_whole_wk`, with `terminal_whole_wk` reviewer-only.
+  An omitted purpose reads as `standalone` for `review` work only. A `redteam`
+  unit shows its stored `standalone` and carries no key when the unit stores
+  none: the reader reads the purpose and never derives or persists one.
+  Implementation and other non-findings units carry no such key either, and a
+  contradictory authored purpose stays a source diagnostic of the record's
+  `integrity` selection rather than becoming a default.
+  [Work-record schema](work-record-schema.md) is the durable public contract
+  for that vocabulary, and discovery text must not restate it in a form that
+  contradicts it.
+  A record's `facts` carry `terminal_review_designation` with a `state` of
   `missing`, `designated`, `ambiguous`, or `not_applicable`, the exact
   `eligible_count`, and `unit_id` only when exactly one unit is eligible.
   `not_applicable` is what a closed parent record, or one carrying no
-  implementation work, returns.
+  implementation work, returns. A slice's `facts` carry no designation. The
+  designation does not depend on unrelated parent facts such as an initiative
+  or acceptance.
 - Discovery text for those two fields must state their boundary as plainly as it
   states their content: they are advisory, descriptive, fact-only observations
   of the authored record. They remain inside the advisory consumer boundary
@@ -449,19 +460,19 @@ schemas and handler validation remain authoritative; projection creates no
 second request-schema source and changes neither response-channel policy nor
 byte-budget gates.
 
-Structured discovery for the findings-capable authoring routes —
-`workspace_work_record_ready_slice` and `workspace_work_record_upsert_slice` —
-must publish the complete conditional
-request contract, not a summary of it: the conditional redteam requirement
-(`shaping_mode: "redteam"` needs an explicitly authored
-`review_purpose: "standalone"`), the closed accepted purpose vocabulary, the
-reviewer/redteam role binding derived from `work_kind`, a complete executable
-redteam request example, and `docs/work-record-schema.md` as the durable public
-contract. A field the discovery example advertises must be accepted by the live
-route, and a field the live route requires must not exist only in prose. That
-publication belongs in the structured guidance fields (`use_when`,
-`requires_prior_state`, `authoritative_for`, `recommended_first_call.arguments`,
-`docs_refs`) rather than in `notes`, which is budgeted selection guidance.
+Findings units are shaped through `save_record` with `changes.ready_slices`.
+Selecting `shaping_mode: "redteam"` on a row supplies the standalone adversarial
+intent once: the ready-slice shaping owner derives and persists
+`review_purpose: "standalone"`, so guidance for this surface must not tell the
+author to supply that field. An explicit contradiction — a `terminal_whole_wk`
+or out-of-vocabulary purpose, or a conflicting `work_kind` or dispatch role —
+refuses before publication, and no member of that save is published. Terminal
+whole-WK review remains a distinct, explicit reviewer choice, authored as
+`review_purpose: "terminal_whole_wk"` under reviewer shaping; redteam shaping
+never selects it. [Work-record schema](work-record-schema.md#findings-units) is
+the durable public contract for the purpose vocabulary, the role binding, and
+these shaping rules, and discovery text must not restate them in a form that
+contradicts it.
 
 Each MCP tool's `side_effects` is also the canonical read-only authority for
 refusal guidance: a guidance next call may name only a tool whose entry

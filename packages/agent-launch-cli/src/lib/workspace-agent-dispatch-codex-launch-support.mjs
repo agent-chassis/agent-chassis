@@ -163,7 +163,11 @@ export function mapCodexArtifactsFailureToInProcessRefusal(failure) {
       });
     }
     case "build_bwrap_plan_threw":
-      return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "build_bwrap_plan_threw", { message });
+      return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "build_bwrap_plan_threw", {
+        message,
+        code: err?.code ?? null,
+        detail: err?.detail ?? null
+      });
     case "assert_bwrap_isolation":
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, "bubblewrap_unavailable", { code: err.code, message: err.message });
     case "assert_bwrap_threw":

@@ -206,7 +206,7 @@ Bootstrap does **not**:
 - build the graph-backed code-index sidecar — after bootstrap has written its
   repo files, make the worktree clean again (for example by committing those
   changes) before running `wiki code-index build`; until then,
-  `workspace_code_index_status` reports `staleness: missing`,
+  `query_code_index` with `status: true` reports `staleness: missing`,
 - run adoption verification or any readiness, dispatch, graph-impact, or coordination-preflight check
   against the target repo.
 

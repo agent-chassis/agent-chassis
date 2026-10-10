@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -20,9 +21,12 @@ import {
   FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION
 } from "../../../agent-launch-cli/src/lib/workspace-agent-findings-role-context.mjs";
 import {
+  ADVISORY_REVIEW_SOURCE_BINDING_KIND,
   LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES,
   WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR,
-  authenticateLauncherAgentSessionContract
+  authenticateLauncherAgentSessionContract,
+  digestAdvisoryReviewSourceFacts,
+  normalizeAdvisoryReviewSourceFacts
 } from "../../../agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
 
 export { WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR };
@@ -35,6 +39,8 @@ export const WIKI_MCP_TOOL_PROFILE_ENV_VAR = "WIKI_MCP_TOOL_PROFILE";
 export const WIKI_MCP_WORKSPACE_DIR_ENV_VAR = "WIKI_MCP_WORKSPACE_DIR";
 export const WIKI_MCP_AGENT_SESSION_CONTRACT_ENV_VAR =
   "WIKI_MCP_AGENT_SESSION_CONTRACT";
+export const WIKI_MCP_REVIEW_MATERIALIZATION_DIR_ENV_VAR =
+  "WIKI_MCP_REVIEW_MATERIALIZATION_DIR";
 export const FROZEN_REVIEW_CONTRACT_ARTIFACT_MAX_BYTES = PRIVATE_IMMUTABLE_ARTIFACT_MAX_BYTES;
 const AUTHENTICATED_MANAGED_FINDINGS_RUN_BINDINGS = new WeakMap();
 const MANAGED_FINDINGS_ROLES = Object.freeze(new Set(["reviewer", "redteam"]));
@@ -107,6 +113,119 @@ export function resolveLauncherAgentSessionContract(env = process.env) {
       "launcher agent session contract provenance is untrusted");
   }
   return authenticated;
+}
+
+export const FINDINGS_SOURCE_REFUSAL_CONDITIONS = Object.freeze({
+  ROLE_UNSUPPORTED: "findings_source_role_unsupported",
+  SESSION_UNAUTHENTICATED: "launcher_session_unauthenticated",
+  BINDING_ABSENT: "advisory_review_source_binding_absent",
+  BINDING_DUPLICATED: "advisory_review_source_binding_duplicated",
+  BINDING_MISMATCH: "advisory_review_source_binding_mismatch",
+  REPOSITORY_UNAVAILABLE: "advisory_review_repository_unavailable",
+  MATERIALIZATION_UNAVAILABLE: "review_materialization_unavailable",
+  MATERIALIZATION_UNREADABLE: "review_materialization_unreadable"
+});
+
+export class FindingsSourceRefusal extends Error {
+  constructor(code, message, subject) {
+    super(message);
+    this.name = "FindingsSourceRefusal";
+    this.code = code;
+    this.subject = Object.freeze({ ...subject });
+  }
+}
+
+function findingsSourceRefusal(code, message, subject) {
+  throw new FindingsSourceRefusal(code, message, subject);
+}
+
+export function advisoryReviewSourceBindings(contract) {
+  return (contract?.minting_provenance?.trusted_source_bindings ?? [])
+    .filter((binding) => binding?.kind === ADVISORY_REVIEW_SOURCE_BINDING_KIND);
+}
+
+export function resolveAuthenticatedFindingsSource(env = process.env) {
+  const role = trimmed(env?.[WIKI_MCP_TOOL_PROFILE_ENV_VAR]);
+  if (!MANAGED_FINDINGS_ROLES.has(role)) {
+    findingsSourceRefusal(FINDINGS_SOURCE_REFUSAL_CONDITIONS.ROLE_UNSUPPORTED,
+      "only a reviewer or redteam session has a findings source", { tool_profile: role });
+  }
+  let contract;
+  try {
+    contract = resolveLauncherAgentSessionContract(env);
+  } catch (error) {
+    if (!(error instanceof LauncherSessionContractRefusal)) throw error;
+    findingsSourceRefusal(FINDINGS_SOURCE_REFUSAL_CONDITIONS.SESSION_UNAUTHENTICATED,
+      `launcher findings session is unauthenticated (${error.code})`,
+      { tool_profile: role, launcher_refusal: error.code });
+  }
+  const assignedUnit = contract.assigned_unit.address;
+  const bindings = advisoryReviewSourceBindings(contract);
+  if (bindings.length === 0) {
+    findingsSourceRefusal(FINDINGS_SOURCE_REFUSAL_CONDITIONS.BINDING_ABSENT,
+      "launcher findings session has no bound review source", { assigned_unit: assignedUnit });
+  }
+  if (bindings.length > 1) {
+    findingsSourceRefusal(FINDINGS_SOURCE_REFUSAL_CONDITIONS.BINDING_DUPLICATED,
+      "launcher findings session carries more than one review source binding",
+      { assigned_unit: assignedUnit, binding_count: bindings.length });
+  }
+  const [binding] = bindings;
+  const runSubject = { assigned_unit: assignedUnit, run_id: binding.id };
+  const repositoryRoot = trimmed(env?.[WIKI_MCP_WORKSPACE_DIR_ENV_VAR]);
+  if (repositoryRoot === null || !path.isAbsolute(repositoryRoot)) {
+    findingsSourceRefusal(FINDINGS_SOURCE_REFUSAL_CONDITIONS.REPOSITORY_UNAVAILABLE,
+      "launcher findings session has no canonical repository root",
+      { ...runSubject, environment: WIKI_MCP_WORKSPACE_DIR_ENV_VAR });
+  }
+  const materializationRoot = trimmed(env?.[WIKI_MCP_REVIEW_MATERIALIZATION_DIR_ENV_VAR]);
+  const unavailable = (cause) => findingsSourceRefusal(
+    FINDINGS_SOURCE_REFUSAL_CONDITIONS.MATERIALIZATION_UNAVAILABLE,
+    `launcher findings review materialization is unavailable (${cause})`,
+    { ...runSubject, environment: WIKI_MCP_REVIEW_MATERIALIZATION_DIR_ENV_VAR, cause });
+  const unreadable = (error) => findingsSourceRefusal(
+    FINDINGS_SOURCE_REFUSAL_CONDITIONS.MATERIALIZATION_UNREADABLE,
+    `launcher findings review materialization could not be inspected (${error?.code ?? "unknown"})`,
+    { ...runSubject, environment: WIKI_MCP_REVIEW_MATERIALIZATION_DIR_ENV_VAR,
+      filesystem_error: typeof error?.code === "string" ? error.code : null });
+  if (materializationRoot === null) unavailable("not_configured");
+  if (!path.isAbsolute(materializationRoot)) unavailable("not_absolute");
+  let isDirectory;
+  try {
+    isDirectory = statSync(materializationRoot).isDirectory();
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") unavailable("missing");
+    unreadable(error);
+  }
+  if (!isDirectory) unavailable("not_a_directory");
+  let facts;
+  let digest;
+  try {
+    facts = normalizeAdvisoryReviewSourceFacts({
+      role,
+      assigned_unit: assignedUnit,
+      run_id: binding.id,
+      repository_root: repositoryRoot,
+      materialization_root: materializationRoot
+    });
+    digest = digestAdvisoryReviewSourceFacts(facts);
+  } catch (error) {
+    unreadable(error);
+  }
+
+  if (digest !== binding.digest) {
+    findingsSourceRefusal(FINDINGS_SOURCE_REFUSAL_CONDITIONS.BINDING_MISMATCH,
+      "launcher findings review source does not match its session binding",
+      { ...runSubject, unverified_facts: ["repository_root", "materialization_root"] });
+  }
+  return Object.freeze({
+    role,
+    assignedUnit,
+    runId: binding.id,
+    repositoryRoot: facts.repository_root,
+    sourceRoot: facts.materialization_root,
+    binding: Object.freeze({ kind: binding.kind, id: binding.id, digest: binding.digest })
+  });
 }
 
 function parseNonNegativeIntegerString(value, label) {

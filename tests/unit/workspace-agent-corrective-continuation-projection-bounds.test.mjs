@@ -27,14 +27,14 @@ function trustedError(overrides = {}) {
         slice_unit: "WK-1712#SLICE-001",
         exact_subject: "WK-1712#SLICE-001",
         responsible_actor: "launcher",
-        next_action: "retry_workspace_agent_run_status_same_subject",
+        next_action: "get_run_result",
         launcher_retirement_required: true,
         filesystem_cleanup_forbidden: true,
         preserve_substantive_review: true,
         preserve_review_status: true,
         replacement_review_required: false,
         notification:
-          "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; retry workspace_agent_run_status with the exact subject"
+          "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; get_run_result for the exact subject only observes launcher state and retires nothing"
       },
       ...overrides
     },

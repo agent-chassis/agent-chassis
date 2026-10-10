@@ -15,7 +15,8 @@ import {
   controlledContractStructuralDiffPaths
 } from "./controlled-carrier-attachment-primitive.mjs";
 import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
-import { assessWkHandoffRefresh, authenticateWkCloseoutChain } from "./wk-forge-handoff.mjs";
+import { assessWkHandoffRefresh } from "./wk-forge-handoff.mjs";
+import { authenticateWkCloseoutChain } from "./wk-forge-closeout-chain.mjs";
 import { observeAuthenticatedHandoffLanding, WK_LANDING_STATES } from "./wk-forge-landed-publication.mjs";
 import {
   git,
@@ -302,12 +303,13 @@ async function authenticatedRecordTransition({ runGit, mainRepo, checkout, hando
     });
   }
   if (chain === null || chain.completion !== handoff.commit ||
-      chain.closeoutRecord?.status !== "review" || chain.doneRecord?.status !== "done") return null;
+      typeof chain.closeoutRecord?.status !== "string" || chain.doneRecord?.status !== "done") return null;
   const review = treeEntries({ runGit, repo: checkout.path, commit: chain.closeout, paths: [recordPath] })
     .get(recordPath) ?? null;
   const done = treeEntries({ runGit, repo: checkout.path, commit: chain.completion, paths: [recordPath] })
     .get(recordPath) ?? null;
-  return review === null || done === null ? null : { path: recordPath, review, done };
+  return review === null || done === null ? null
+    : { path: recordPath, review, done, from: chain.closeoutRecord.status, to: chain.doneRecord.status };
 }
 
 function absoluteWorkingPath(repo, repositoryPath) {
@@ -350,7 +352,8 @@ function installDoneRecord({ runGit, repo, transition, expected }) {
       stage: "working_tree", reason: "selected_path_changed_during_preparation", path: transition.path
     });
   }
-  const installed = { path: transition.path, prior: { bytes: priorBytes, mode: priorMode }, written: null };
+  const installed = { path: transition.path, from: transition.from, to: transition.to,
+    prior: { bytes: priorBytes, mode: priorMode }, written: null };
   try {
     replaceWorkingFile(absolute, bytes, transition.done.mode === "100755" ? 0o755 : 0o644);
   } catch (error) {
@@ -459,7 +462,8 @@ function stageCoordinationFiles({ runGit, repo, handoff, head, selected, transit
         continue;
       }
       const s = staged.get(repositoryPath) ?? null;
-      if (transition?.path === repositoryPath && sameEntry(s, transition.review)) {
+      if (transition?.path === repositoryPath && sameEntry(s, transition.review) &&
+          !sameEntry(transition.review, transition.done)) {
 
         install = true;
         if (sameEntry(i, d)) alreadyStaged.push(repositoryPath);
@@ -572,7 +576,8 @@ function preparationProjection(selected, prepared) {
     newly_staged: prepared.owned.map((entry) => entry.path),
     already_staged: prepared.alreadyStaged,
     unaffected: prepared.unaffected,
-    record_transition: prepared.installed === null ? null : { path: prepared.installed.path, from: "review", to: "done" }
+    record_transition: prepared.installed === null ? null
+      : { path: prepared.installed.path, from: prepared.installed.from, to: prepared.installed.to }
   };
 }
 
@@ -642,12 +647,14 @@ export async function mergeWkHandoffIntoCheckout({ mainRepo, handoff, retained, 
       try {
         const binding = retained.generation_binding;
 
-        const owned = new Set([
-          ...controlledContractGenerationPopulationPaths(binding),
-          ...controlledContractRetainedGenerationPaths({
-            binding, since: handoff.parent, landing: handoff.commit
-          })
-        ]);
+        const owned = new Set(binding === null
+          ? [`wiki/work-records/${handoff.assigned_unit}.json`]
+          : [
+              ...controlledContractGenerationPopulationPaths(binding),
+              ...controlledContractRetainedGenerationPaths({
+                binding, since: handoff.parent, landing: handoff.commit
+              })
+            ]);
         selected = controlledContractStructuralDiffPaths({
           binding, before: head.sha, after: handoff.commit,
           gitDir: absoluteGitPath(runGit, target.path, ["rev-parse", "--absolute-git-dir"], "checkout_storage_unobservable")

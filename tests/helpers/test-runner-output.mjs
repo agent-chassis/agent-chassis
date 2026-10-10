@@ -2,6 +2,9 @@
 
 import { constants as fsConstants, fstatSync, openSync, write } from "node:fs";
 import net from "node:net";
+import { getSystemErrorName, getSystemErrorMessage } from "node:util";
+
+const { Pipe, constants: pipeConstants } = process.binding("pipe_wrap");
 
 const DEFAULT_MAX_QUEUE_BYTES = 1024 * 1024;
 const EAGAIN_RETRY_MS = 5;
@@ -97,7 +100,9 @@ function createFdSink({ fd, label, maxQueueBytes, onDrain, onError, transport = 
 }
 
 function createSocketSink({ fd, label, maxQueueBytes, onDrain, onError }) {
-  const socket = new net.Socket({ fd, readable: false, writable: true });
+  const handle = new Pipe(pipeConstants.SOCKET);
+  const openError = handle.open(fd);
+  const socket = new net.Socket({ handle, readable: false, writable: true });
 
   socket.unref();
   let failure = null;
@@ -128,6 +133,12 @@ function createSocketSink({ fd, label, maxQueueBytes, onDrain, onError }) {
     onDrain();
     notifyIdle();
   });
+  if (openError !== 0) {
+    const error = new Error(`Cannot adopt ${label} fd ${fd}: ${getSystemErrorMessage(openError)}`);
+    error.code = getSystemErrorName(openError);
+
+    socket.destroy(error);
+  }
 
   return Object.freeze({
     enqueue(chunk, { force = false } = {}) {

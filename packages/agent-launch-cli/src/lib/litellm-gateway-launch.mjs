@@ -16,6 +16,10 @@ import {
   publishPrivateFile,
   withExclusiveStateLock
 } from "@agent-chassis/agent-launch-core/src/lib/litellm-gateway.mjs";
+import {
+  projectProxyEnvironment,
+  withRoutedClientGatewayBypass
+} from "@agent-chassis/agent-launch-core/src/lib/proxy-environment.mjs";
 
 import { isLiteLlmRoute } from "./agent-launch-model-route.mjs";
 import {
@@ -47,7 +51,6 @@ export function liteLlmSeededInputs(stateRoot) {
 const PROBE_TIMEOUT_MS = 60_000;
 const INSTALL_TIMEOUT_MS = 20 * 60_000;
 const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
-const PROXY_ENV = Object.freeze(["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "NO_PROXY", "no_proxy"]);
 
 function fail(code, message, { stage, correction, detail } = {}) {
   throw new LiteLlmGatewayError(code, message, { stage, correction, detail });
@@ -70,11 +73,7 @@ function processCause(result) {
 }
 
 function setupEnv(env, extra) {
-  const closed = { PATH: "/usr/bin:/bin", LANG: "C.UTF-8", ...extra };
-  for (const name of PROXY_ENV) {
-    if (typeof env?.[name] === "string" && env[name].length > 0) closed[name] = env[name];
-  }
-  return closed;
+  return { PATH: "/usr/bin:/bin", LANG: "C.UTF-8", ...extra, ...projectProxyEnvironment(env) };
 }
 
 function runtimeLockDigest(lockPath = LITELLM_RUNTIME_LOCK_PATH) {
@@ -296,7 +295,9 @@ export async function attachCodexModelRoute(plan, {
   const gateway = await ensureGateway({ route: selection.route, env });
   const runKey = acquireLiteLlmRunKey({ keyPath: gateway.key_path, dir: secretDir });
   let overrides;
+  let clientEnv;
   try {
+    clientEnv = withRoutedClientGatewayBypass(plan.env ?? env, selection.route.gateway.host);
     overrides = Object.freeze(buildCodexModelProviderOverrides({
       modelSelection: selection,
       keyFilePath: runKey.path
@@ -307,6 +308,7 @@ export async function attachCodexModelRoute(plan, {
     throw error;
   }
   plan.model_route_run_key_path = runKey.path;
+  plan.env = clientEnv;
   return Object.freeze({
     attached: true,
     overrides,

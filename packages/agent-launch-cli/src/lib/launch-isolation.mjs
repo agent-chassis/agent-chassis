@@ -37,11 +37,8 @@ export { buildBubblewrapLaunchPlan } from "./launch-isolation-plan.mjs";
 
 export {
   GIT_STATUS_WRAPPER_ASSET_DIR,
+  GIT_STATUS_WRAPPER_COMMAND_DIRECTORIES,
   GIT_STATUS_WRAPPER_MOUNT_DIR,
-  GIT_STATUS_WRAPPER_PATHSPEC,
-  GIT_STATUS_WRAPPER_PATHSPEC_ENV_KEY,
-  GIT_STATUS_WRAPPER_REAL_GIT_ENV_KEY,
-  GIT_STATUS_WRAPPER_REPO_ENV_KEY,
   prepareGitStatusWrapperProjection
 } from "./launch-isolation-git-status-wrapper.mjs";
 

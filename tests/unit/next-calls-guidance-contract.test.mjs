@@ -21,43 +21,42 @@ import {
   isCanonicalReadOnlyTool
 } from "../../packages/wiki-core/src/lib/next-calls-canonical-tools.mjs";
 
-const DESCRIBE = "workspace_tools_describe";
-const EDITOR = "workspace_work_record_edit";
-const DISPATCH = "workspace_agent_dispatch";
+const READ = "workspace_read_wiki";
+const SAVE = "save_record";
+const START = "start_agent";
 const CODE = "agent_launch.launch_failed_before_start.v1";
 
-const DESCRIBE_SCHEMA = Object.freeze({
+const READ_SCHEMA = Object.freeze({
   type: "object",
-  properties: {
-    tool_name: { type: "string" },
-    verbose: { type: "boolean" },
-    input_contract: {}
-  },
+  properties: { subject: { type: "string" } },
+  required: ["subject"],
   additionalProperties: false
 });
-const DISPATCH_SCHEMA = Object.freeze({
+const START_SCHEMA = Object.freeze({
   type: "object",
   properties: { role: { type: "string" }, subject: { type: "string" } },
   required: ["subject"],
   additionalProperties: false
 });
-const EDITOR_SCHEMA = Object.freeze({
+const SAVE_SCHEMA = Object.freeze({
   type: "object",
-  properties: { unit: { type: "string" } },
+  properties: { unit: { type: "string" }, revision: { type: "string" },
+    changes: { type: "object", properties: { base_branch: { type: "string" } },
+      required: ["base_branch"], additionalProperties: false } },
+  required: ["unit", "revision", "changes"],
   additionalProperties: false
 });
-const SCHEMAS = new Map([[DESCRIBE, DESCRIBE_SCHEMA], [DISPATCH, DISPATCH_SCHEMA],
-  [EDITOR, EDITOR_SCHEMA]]);
-const REGISTERED = new Set([DESCRIBE, DISPATCH, EDITOR]);
+const SCHEMAS = new Map([[READ, READ_SCHEMA], [START, START_SCHEMA],
+  [SAVE, SAVE_SCHEMA]]);
+const REGISTERED = new Set([READ, START, SAVE]);
 
-const ARGS = Object.freeze({
-  tool_name: EDITOR,
-  input_contract: { kind: "field", field: "base_branch", scope: "record" }
-});
-const INFORMATION = "The ordinary editor's record-level base_branch field contract.";
+const ARGS = Object.freeze({ subject: "WK-0001" });
+const SAVE_ARGS = Object.freeze({ unit: "WK-0001", revision: "fixture-revision",
+  changes: Object.freeze({ base_branch: "main" }) });
+const INFORMATION = "The selected authored unit, its revision and base_branch field selection.";
 
 function guidanceEntry(overrides = {}) {
-  return { kind: "guidance", tool: DESCRIBE, arguments: ARGS, information: INFORMATION,
+  return { kind: "guidance", tool: READ, arguments: ARGS, information: INFORMATION,
     ...overrides };
 }
 
@@ -73,7 +72,7 @@ const OBSERVED = Object.freeze({
 function recovery(overrides = {}) {
   return {
     state: "guidance",
-    operation: DESCRIBE,
+    operation: READ,
     responsible_actor: "operator",
     prerequisite: "the root record selects no base_branch",
     information: INFORMATION,
@@ -90,7 +89,7 @@ function candidate(overrides = {}) {
     deciding_facts: FACTS,
     next_calls: [guidanceEntry()],
     recovery: recovery(),
-    route: DISPATCH,
+    route: START,
     ...overrides
   };
 }
@@ -111,10 +110,10 @@ function assertRejected(value, pattern, options = {}) {
 }
 
 test("side effects come from the canonical discovery owner", () => {
-  assert.deepEqual(canonicalToolSideEffects(DESCRIBE), ["read_only"]);
-  assert.equal(isCanonicalReadOnlyTool(DESCRIBE), true);
-  assert.equal(isCanonicalReadOnlyTool(EDITOR), false);
-  assert.equal(isCanonicalReadOnlyTool(DISPATCH), false);
+  assert.deepEqual(canonicalToolSideEffects(READ), ["read_only"]);
+  assert.equal(isCanonicalReadOnlyTool(READ), true);
+  assert.equal(isCanonicalReadOnlyTool(SAVE), false);
+  assert.equal(isCanonicalReadOnlyTool(START), false);
   assert.equal(canonicalToolSideEffects("not_a_tool"), null);
 });
 
@@ -125,7 +124,7 @@ test("a complete guidance refusal validates, builds deterministically and projec
     deciding_facts: FACTS,
     next_calls: [guidanceEntry()],
     recovery: recovery(),
-    route: DISPATCH,
+    route: START,
     observed_facts: OBSERVED,
     request_schemas: SCHEMAS,
     registered_tools: REGISTERED
@@ -139,39 +138,40 @@ test("a complete guidance refusal validates, builds deterministically and projec
 });
 
 test("guidance must be a canonical read: write, process and unknown tools refuse", () => {
-  assertRejected(candidate({ next_calls: [guidanceEntry({ tool: EDITOR, arguments: { unit: "WK-0001" } })],
-    recovery: recovery({ operation: EDITOR }) }), /not exactly read_only/u);
-  assertRejected(candidate({ next_calls: [guidanceEntry({ tool: DISPATCH,
-    arguments: { subject: "WK-0001#SLICE-001" } })], recovery: recovery({ operation: DISPATCH }) }),
+  assertRejected(candidate({ next_calls: [guidanceEntry({ tool: SAVE, arguments: SAVE_ARGS })],
+    recovery: recovery({ operation: SAVE }) }), /not exactly read_only/u);
+  assertRejected(candidate({ next_calls: [guidanceEntry({ tool: START,
+    arguments: { subject: "WK-0001#SLICE-001" } })], recovery: recovery({ operation: START }) }),
   /not exactly read_only/u);
   assertRejected(candidate({ next_calls: [guidanceEntry({ tool: "invented_reader" })] }),
     /canonical tool-discovery corpus/u);
-  assert.throws(() => buildNextCall(guidanceEntry({ tool: EDITOR, arguments: { unit: "WK-0001" } })),
+  assert.throws(() => buildNextCall(guidanceEntry({ tool: SAVE, arguments: SAVE_ARGS })),
     /read_only/u);
 });
 
 test("registrar authority is required: missing, foreign or unregistered schemas refuse", () => {
   assertRejected(candidate(), /registrar-scoped request schema/u, { requestSchemas: null });
   assertRejected(candidate(), /no authoritative request schema/u,
-    { requestSchemas: new Map([[DISPATCH, DISPATCH_SCHEMA]]) });
+    { requestSchemas: new Map([[START, START_SCHEMA]]) });
   assertRejected(candidate(), /does not accept/u,
-    { requestSchemas: new Map([[DESCRIBE, EDITOR_SCHEMA]]) });
+    { requestSchemas: new Map([[READ, SAVE_SCHEMA]]) });
   assertRejected(candidate(), /registered tool set/u, { registeredTools: null });
-  assertRejected(candidate(), /does not register/u, { registeredTools: new Set([DISPATCH]) });
-  assert.throws(() => buildGuidanceCall(guidanceEntry(), { requestSchema: DESCRIBE_SCHEMA }),
+  assertRejected(candidate(), /does not register/u, { registeredTools: new Set([START]) });
+  assert.throws(() => buildGuidanceCall(guidanceEntry(), { requestSchema: READ_SCHEMA }),
     /registered tool set/u);
   assert.throws(() => buildGuidanceCall(guidanceEntry(), { registeredTools: REGISTERED }),
     /no authoritative request schema/u);
   assert.deepEqual(buildGuidanceCall(guidanceEntry(), {
-    requestSchema: DESCRIBE_SCHEMA, registeredTools: REGISTERED
+    requestSchema: READ_SCHEMA, registeredTools: REGISTERED
   }), guidanceEntry());
 });
 
 test("arguments must be complete and schema-valid, information present and bounded", () => {
-  assertRejected(candidate({ next_calls: [guidanceEntry({ arguments: { tool_name: "<editor>" } })] }),
+  assertRejected(candidate({ next_calls: [guidanceEntry({ arguments: { subject: "<unit>" } })] }),
     /unresolved/u);
-  assertRejected(candidate({ next_calls: [guidanceEntry({ arguments: { tool_name: EDITOR, depth: 3 } })] }),
+  assertRejected(candidate({ next_calls: [guidanceEntry({ arguments: { subject: "WK-0001", depth: 3 } })] }),
     /does not accept/u);
+  assertRejected(candidate({ next_calls: [guidanceEntry({ arguments: {} })] }), /omits subject/u);
   assertRejected(candidate({ next_calls: [guidanceEntry({ arguments: undefined })] }),
     /complete argument object/u);
   assertRejected(candidate({ next_calls: [guidanceEntry({ information: "" })] }), /information/u);
@@ -185,11 +185,11 @@ test("kinds are disjoint: unknown kinds, predicates and mixed limbs refuse", () 
     { fact: "work_record.base_branch", operator: "is_present" } })] }), /states no predicate/u);
   assertRejected(candidate({ next_calls: [guidanceEntry({ prerequisite_predicate:
     { fact: "work_record.base_branch", operator: "is_present" } })] }), /states no predicate/u);
-  const corrective = { tool: DISPATCH, arguments: { subject: "WK-0001#SLICE-001" },
+  const corrective = { tool: START, arguments: { subject: "WK-0001#SLICE-001" },
     success_predicate: { fact: "dispatch.backend_accepted", operator: "is_true" } };
   assertRejected(candidate({ next_calls: [guidanceEntry(), corrective] }), /cannot mix/u);
   assertRejected(candidate({ recovery: {
-    state: "callable", prerequisite: "p", operation: DESCRIBE, success_condition: "s",
+    state: "callable", prerequisite: "p", operation: READ, success_condition: "s",
     success_predicate: { fact: "dispatch.backend_accepted", operator: "is_true" }
   } }), /not a corrective continuation/u);
   assertRejected(candidate({ next_calls: undefined, no_supported_route: true }),
@@ -210,7 +210,7 @@ test("guidance claims no repair, outcome or authority and keeps the blocker", ()
   assertRejected(candidate({ recovery: recovery({ responsible_actor: "anyone" }) }),
     /responsible_actor/u);
   assertRejected(candidate({ recovery: recovery({ prerequisite: "" }) }), /still-failed/u);
-  assertRejected(candidate({ recovery: recovery({ operation: "workspace_tools_list" }) }),
+  assertRejected(candidate({ recovery: recovery({ operation: "get_run_result" }) }),
     /no offered guidance entry/u);
 });
 
@@ -221,21 +221,21 @@ test("selection facts: published, observed-consistent and never caller knowledge
   assertRejected(candidate({ deciding_facts: [FACTS[0], { field: "work_record.base_branch",
     redacted: true, redaction_reason: "internal_identifier" }] }), /redacted data/u);
   assertRejected(candidate({ deciding_facts: [FACTS[0], { field: "work_record.base_branch",
-    omitted: true, retrieval: { kind: "complete", route: "workspace_get_record" } }] }),
+    omitted: true, retrieval: { kind: "complete", route: "workspace_read_wiki" } }] }),
   /unpublished value/u);
   assertRejected(candidate(), /contradicts/u,
     { observedFacts: { ...OBSERVED, "work_record.base_branch": "main" } });
-  const knowledge = { field: "dispatch.workspace_agent_dispatch_description_loaded", value: false };
+  const knowledge = { field: "dispatch.start_agent_description_loaded", value: false };
   assertRejected(candidate({ deciding_facts: [...FACTS, knowledge] }), /caller knowledge/u);
   assertRejected(candidate(), /caller knowledge/u,
-    { observedFacts: { ...OBSERVED, [`${DESCRIBE}.result_seen`]: false } });
+    { observedFacts: { ...OBSERVED, [`${READ}.result_seen`]: false } });
 });
 
 test("corrective predicate and convergence strictness is unchanged", () => {
   const predicate = { fact: "dispatch.backend_accepted", operator: "is_true" };
-  const corrective = buildContinuationCall({ tool: DISPATCH,
+  const corrective = buildContinuationCall({ tool: START,
     arguments: { subject: "WK-0001#SLICE-001" }, success_predicate: predicate },
-  { requestSchema: DISPATCH_SCHEMA });
+  { requestSchema: START_SCHEMA });
   const continuation = (list, facts = OBSERVED) => validateContinuationCalls(list, {
     observedFacts: facts, requestSchemas: SCHEMAS });
   assert.equal(continuation([corrective]).valid, true);
@@ -246,16 +246,19 @@ test("corrective predicate and convergence strictness is unchanged", () => {
   assert.equal(asGuidance.valid, false);
   assert.ok(asGuidance.errors.some((error) => /not a corrective continuation/u.test(error)));
 
-  assert.equal(validateNextCalls([{ tool: DESCRIBE }]).valid, true);
-  assert.equal(validateGuidanceCalls([{ tool: DESCRIBE }], {
+  assert.equal(validateNextCalls([{ tool: READ }]).valid, true);
+  assert.equal(validateGuidanceCalls([{ tool: READ }], {
     requestSchemas: SCHEMAS, registeredTools: REGISTERED }).valid, false);
+  assertRejected(candidate({ next_calls: [corrective], recovery: {
+    state: "callable", prerequisite: "p", operation: START,
+    success_condition: "accepted", success_predicate: predicate } }), /prerequisite_predicate/u);
   assert.equal(validate({
     schema_version: "public-mechanical-refusal.v1",
     code: CODE,
     deciding_facts: [FACTS[0]],
     next_calls: [corrective],
-    recovery: { state: "callable", prerequisite: "p", operation: DISPATCH,
+    recovery: { state: "callable", prerequisite: "p", operation: START,
       success_condition: "accepted", success_predicate: predicate },
-    route: "workspace_validate_dispatch"
+    route: "workspace_assess_contract"
   }).valid, true);
 });

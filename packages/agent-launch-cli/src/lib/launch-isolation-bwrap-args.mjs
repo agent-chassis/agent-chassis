@@ -5,6 +5,10 @@ import {
   projectStdioMcpChannelNamespaceArgs
 } from "./stdio-mcp-conduit-contract.mjs";
 
+import {
+  projectGitStatusWrapperNamespaceArgs
+} from "./launch-isolation-git-status-wrapper.mjs";
+
 export function buildBubblewrapArgs({
   systemRoots,
   shareNet,
@@ -13,13 +17,15 @@ export function buildBubblewrapArgs({
   executionScratchSource = null,
 
   repoNamespaceArgs = null,
+
+  testExecutionCheckoutWrites = null,
   tmpfsDirsResolved,
   sparseWorkerNamespace,
   repoReal,
   maskTmpfsDirsResolved,
   privateReadOnlyMaskDirsResolved = [],
   inRepoSecretFileMasks,
-  gitStatusWrapperReadOnlyBinds = [],
+  gitStatusWrapper = null,
   readOnly,
   homeReads,
   homeWritableFiles,
@@ -55,6 +61,13 @@ export function buildBubblewrapArgs({
   const provisionedGitBinds = provisionedGitIsolation?.readOnlyBinds ?? [];
   if (sparseWorkerNamespace === null && repoNamespaceArgs !== null) {
     bwrapArgs.push(...repoNamespaceArgs);
+  } else if (sparseWorkerNamespace === null && testExecutionCheckoutWrites !== null) {
+
+    bwrapArgs.push("--bind", repoReal, repoReal);
+    if (testExecutionCheckoutWrites.gitAdministration !== null) {
+      bwrapArgs.push("--ro-bind", testExecutionCheckoutWrites.gitAdministration,
+        testExecutionCheckoutWrites.gitAdministration);
+    }
   } else if (sparseWorkerNamespace === null) {
     bwrapArgs.push("--ro-bind", repoReal, repoReal);
   } else {
@@ -92,10 +105,6 @@ export function buildBubblewrapArgs({
     bwrapArgs.push("--remount-ro", repoReal);
   }
   for (const { src, dst } of readOnly) {
-    bwrapArgs.push("--ro-bind", src, dst);
-  }
-
-  for (const { src, dst } of gitStatusWrapperReadOnlyBinds) {
     bwrapArgs.push("--ro-bind", src, dst);
   }
   for (const { src, dst } of homeReads) {
@@ -140,6 +149,8 @@ export function buildBubblewrapArgs({
   for (const { src, dst } of roleGuideReadOnlyBinds) {
     bwrapArgs.push("--ro-bind", src, dst);
   }
+
+  bwrapArgs.push(...projectGitStatusWrapperNamespaceArgs(gitStatusWrapper));
 
   for (const { src, dst } of inRepoSecretFileMasks) {
     bwrapArgs.push("--ro-bind", src, dst);

@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { createLaunchFlow } from
@@ -8,6 +11,15 @@ import { createDispatchRunLifecycle } from
 import {
   computeWorkRecordSourceDigest
 } from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
+import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+
+async function reviewerWorkspace(t) {
+  const scope = createTestResourceScope();
+  t.after(() => scope.dispose());
+  return scope.acquire("review-lifecycle-workspace",
+    () => realpathSync(mkdtempSync(path.join(os.tmpdir(), "review-lifecycle-workspace-"))),
+    (created) => rmSync(created, { recursive: true, force: true }));
+}
 
 function staleTipOwnerCarrier({ tip, subject = "WK-2347#SLICE-003" } = {}) {
   return Object.freeze({
@@ -32,12 +44,17 @@ function staleTipOwnerCarrier({ tip, subject = "WK-2347#SLICE-003" } = {}) {
     }),
     controlled_acceptance_state: Object.freeze({
       schema_version: "controlled-acceptance-state.v1",
-      wk_id: "WK-2347", state: "complete",
+      wk_id: "WK-2347",
+      selected_unit: { kind: "slice", address: subject, record_id: "WK-2347",
+        slice_id: "SLICE-003" },
+      state: "complete",
       generation: "e".repeat(64),
       disposition: { required: true, exemption: null, classification: "standard",
-        classification_rationale: null },
+        classification_rationale: null, rationale_provenance: null },
       population: { dimension_count: 9, incomplete_row_count: 0,
         actionable_row_count: 0, non_actionable_row_count: 0 },
+      definition_readiness: null,
+      semantic: { admission: { admits: true } },
       mechanically_complete: true, recovery: null
     }),
     controlled_contract_generation: Object.freeze({
@@ -57,34 +74,35 @@ function staleTipOwnerCarrier({ tip, subject = "WK-2347#SLICE-003" } = {}) {
   });
 }
 
-function findingsSourceSelection(subject) {
+function findingsSourceSelection(subject, workspace) {
   return Object.freeze({
     schema_version: "workspace-agent-findings-snapshot-source-selection.v1",
     authority_kind: "canonical_unit",
     subject,
-    repository_path: "/tmp/reviewer",
+    repository_path: workspace,
     source_ref: "refs/heads/main",
     source_commit: "a".repeat(40)
   });
 }
 
-function findingsInput(subject = "WK-2405#SLICE-014") {
+function findingsInput(workspace, subject = "WK-2405#SLICE-014") {
   return {
     caller_session_id: "session-independent",
     role: "reviewer",
     app: "codex",
     model: "gpt-5.6-terra",
     subject,
-    workspace_dir: "/tmp/reviewer",
-    config_root_dir: "/tmp/reviewer",
+    workspace_dir: workspace,
+    config_root_dir: workspace,
     canonical_unit_write_scope: Object.freeze([]),
     readiness: Object.freeze({ dispatchable: true }),
     trusted_frozen_review_contract: Object.freeze({ review_subject: subject }),
-    findings_source_selection: findingsSourceSelection(subject)
+    findings_source_selection: findingsSourceSelection(subject, workspace)
   };
 }
 
-test("WK-2405 identical findings calls mint, register, and execute independently", async () => {
+test("WK-2405 identical findings calls mint, register, and execute independently", async (t) => {
+  const workspace = await reviewerWorkspace(t);
   const runs = new Map();
   let executions = 0;
   let runNumber = 0;
@@ -94,6 +112,7 @@ test("WK-2405 identical findings calls mint, register, and execute independently
     return {
       accepted: true,
       status: "launching",
+      completion: new Promise(() => {}),
       probe: async () => ({ status: "running" })
     };
   };
@@ -106,8 +125,8 @@ test("WK-2405 identical findings calls mint, register, and execute independently
     runIdFactory: () => `findings-run-${++runNumber}`,
     monitorHandleFactory: () => `findings-monitor-${++monitorNumber}`
   });
-  const first = await startLaunch(findingsInput());
-  const second = await startLaunch(findingsInput());
+  const first = await startLaunch(findingsInput(workspace));
+  const second = await startLaunch(findingsInput(workspace));
   assert.equal(first.accepted, true, JSON.stringify(first));
   assert.equal(second.accepted, true, JSON.stringify(second));
   assert.notEqual(first.run_id, second.run_id);
@@ -131,9 +150,14 @@ test("worker bootstrap precedes worker-only scope freeze and executor release", 
       return { ok: true, worker_provisioning_ticket: ticket };
     }
   });
+  Object.defineProperty(freezeWorkerScopeSnapshot,
+    "preflightManagedControlledAcceptance", {
+      value: async () => ({ ok: true })
+    });
   const executor = async () => {
     events.push("spawn");
-    return { accepted: true, status: "launching", probe: async () => ({ status: "running" }) };
+    return { accepted: true, status: "launching", completion: new Promise(() => {}),
+      probe: async () => ({ status: "running" }) };
   };
   const { startLaunch } = createLaunchFlow({
     executors: { codex: executor },
@@ -203,6 +227,10 @@ test("stale authenticated WK tips receive one owner settlement immediately befor
           };
         }
       });
+      Object.defineProperty(freezeWorkerScopeSnapshot,
+        "preflightManagedControlledAcceptance", {
+          value: async () => ({ ok: true })
+        });
       Object.defineProperty(freezeWorkerScopeSnapshot, "authenticateManagedWkTip", {
         value: () => {
           authenticationCalls += 1;
@@ -218,7 +246,7 @@ test("stale authenticated WK tips receive one owner settlement immediately befor
           authenticatedTip);
         assert.equal(input.launcher_transition_plan.lifecycle.settlement.wk_snapshot.tip,
           authenticatedTip);
-        return { accepted: true, status: "launching" };
+        return { accepted: true, status: "launching", completion: new Promise(() => {}) };
       };
       const { startLaunch } = createLaunchFlow({
         executors: { codex: executor },
@@ -324,7 +352,7 @@ function admissionLifecycle({ resolver, executor, runs = new Map() }) {
   return lifecycle;
 }
 
-function admissionLaunchInput(overrides = {}) {
+function admissionLaunchInput(workspace, overrides = {}) {
   return {
     caller_session_id: "session-wk2363",
     role: "reviewer",
@@ -332,17 +360,17 @@ function admissionLaunchInput(overrides = {}) {
     model: "gpt-5.6-terra",
     subject: REVIEW_UNIT_ADDRESS,
     workspace_alias: "wk2363",
-    workspace_dir: "/tmp/wk2363-review",
-    config_root_dir: "/tmp/wk2363-review",
+    workspace_dir: workspace,
+    config_root_dir: workspace,
     canonical_unit_write_scope: Object.freeze([]),
     readiness: Object.freeze({}),
     trusted_frozen_review_contract: Object.freeze({ review_subject: REVIEW_UNIT_ADDRESS }),
-    findings_source_selection: findingsSourceSelection(REVIEW_UNIT_ADDRESS),
+    findings_source_selection: findingsSourceSelection(REVIEW_UNIT_ADDRESS, workspace),
     ...overrides
   };
 }
 
-test("findings execution never consumes the alternate mutable review-target resolver", async () => {
+test("findings execution never consumes the alternate mutable review-target resolver", async (t) => {
   const store = { record: admissionCanonicalRecord() };
   let resolverCalls = 0;
   const resolver = () => {
@@ -350,10 +378,11 @@ test("findings execution never consumes the alternate mutable review-target reso
     return admissionResolverOver(store)();
   };
   const executor = async () => ({
-    accepted: true, status: "launching", probe: async () => ({ status: "running" })
+    accepted: true, status: "launching", completion: new Promise(() => {}),
+    probe: async () => ({ status: "running" })
   });
   const { startLaunch, getRunStatus } = admissionLifecycle({ resolver, executor });
-  const launched = await startLaunch(admissionLaunchInput());
+  const launched = await startLaunch(admissionLaunchInput(await reviewerWorkspace(t)));
   assert.equal(launched.accepted, true, JSON.stringify(launched));
   const status = await getRunStatus({
     monitor_handle: "review-monitor-admission",
@@ -363,17 +392,18 @@ test("findings execution never consumes the alternate mutable review-target reso
   assert.equal(Object.hasOwn(status, "admission_review_target_identity"), false);
 });
 
-test("a findings-only unit without a declared target gains no synthetic identity", async () => {
+test("a findings-only unit without a declared target gains no synthetic identity", async (t) => {
   const store = { record: admissionCanonicalRecord({ declareTarget: false }) };
   const executor = async () => ({
-    accepted: true, status: "launching", probe: async () => ({ status: "running" })
+    accepted: true, status: "launching", completion: new Promise(() => {}),
+    probe: async () => ({ status: "running" })
   });
   const { startLaunch, getRunStatus } = admissionLifecycle({
     resolver: admissionResolverOver(store),
     executor
   });
 
-  const launched = await startLaunch(admissionLaunchInput());
+  const launched = await startLaunch(admissionLaunchInput(await reviewerWorkspace(t)));
   assert.equal(launched.accepted, true, JSON.stringify(launched));
   const status = await getRunStatus({
     monitor_handle: "review-monitor-admission",
@@ -387,12 +417,13 @@ test("a findings-only unit without a declared target gains no synthetic identity
   assert.equal(status.accepted, true);
 });
 
-test("findings execution does not require an alternate canonical resolver", async () => {
+test("findings execution does not require an alternate canonical resolver", async (t) => {
   const executor = async () => ({
-    accepted: true, status: "launching", probe: async () => ({ status: "running" })
+    accepted: true, status: "launching", completion: new Promise(() => {}),
+    probe: async () => ({ status: "running" })
   });
   const { startLaunch, getRunStatus } = admissionLifecycle({ resolver: null, executor });
-  const launched = await startLaunch(admissionLaunchInput());
+  const launched = await startLaunch(admissionLaunchInput(await reviewerWorkspace(t)));
   assert.equal(launched.accepted, true, JSON.stringify(launched));
   const status = await getRunStatus({
     monitor_handle: "review-monitor-admission",

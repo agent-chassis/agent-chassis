@@ -1,7 +1,6 @@
 
 
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
-import { VERIFY_PROOF_TOOL_NAME } from "./verify-proof-public-result.mjs";
 
 const WK_ID_RE = /^WK-\d{4,}$/u;
 const COMMIT_RE = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -23,6 +22,6 @@ export function terminalCandidateVerifyProofCall({ sessionRole, repository, subj
   if (String(subject ?? "").split("#")[0] !== wkId) return null;
   if (materialization.verified !== true || materialization.candidate !== candidate ||
       materialization.canonical_wk_id !== wkId) return null;
-  return buildNextCall({ tool: VERIFY_PROOF_TOOL_NAME, recommended: false,
-    arguments: { repo: repository, subject: wkId, git_sha: candidate } });
+  return buildNextCall({ tool: "verify_proof", recommended: false,
+    arguments: { subject: wkId, git_sha: candidate } });
 }

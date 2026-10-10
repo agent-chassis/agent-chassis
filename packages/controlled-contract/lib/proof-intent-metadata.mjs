@@ -337,9 +337,12 @@ function metadataInputPaths() {
   return [...new Set(paths)].sort(compareCodeUnits);
 }
 
-function currentMetadataInputs() {
-  return metadataInputPaths().map((path) => ({ path,
-    sha256: createHash("sha256").update(readFileSync(new URL(path, packageRoot))).digest("hex") }));
+function currentMetadataInputs(capturedBytes) {
+  return metadataInputPaths().map((path) => {
+    const bytes = readFileSync(new URL(path, packageRoot));
+    if (capturedBytes) capturedBytes.set(path, bytes);
+    return { path, sha256: createHash("sha256").update(bytes).digest("hex") };
+  });
 }
 
 export function packagedDiscovery(discovery) {
@@ -379,24 +382,41 @@ export function proofIntentMetadataJson(document) {
 
 function staleMetadata(details) {
   return new ProofIntentMetadataError("proof_intent_metadata_stale",
-    `${PROOF_INTENT_METADATA_PATH} does not match the package inputs it was built from; ` +
-      `rebuild it with ${PROOF_INTENT_METADATA_BUILD_COMMAND}`,
+    (details.failure_limb === "mechanical_failure"
+      ? `${PROOF_INTENT_METADATA_PATH}: ${details.cause} Identity ${details.profile_id}@${details.profile_version}; ` +
+        `a package maintainer rebuilds with ${PROOF_INTENT_METADATA_BUILD_COMMAND} in the writing repository; ` +
+        "an installed consumer installs or reinstalls a corrected package."
+      : `${PROOF_INTENT_METADATA_PATH} does not match the package inputs it was built from; ` +
+        `rebuild it with ${PROOF_INTENT_METADATA_BUILD_COMMAND}`),
     { path: PROOF_INTENT_METADATA_PATH, rebuild_command: PROOF_INTENT_METADATA_BUILD_COMMAND,
       ...details });
 }
 
-export function readPackagedProofIntentMetadata() {
+function unreadableMetadata(error) {
+  return new ProofIntentMetadataError(
+    error?.code === "ENOENT" ? "proof_intent_metadata_missing" : "proof_intent_metadata_unreadable",
+    `${PROOF_INTENT_METADATA_PATH} could not be read; rebuild it with ` +
+      PROOF_INTENT_METADATA_BUILD_COMMAND,
+    { path: PROOF_INTENT_METADATA_PATH, rebuild_command: PROOF_INTENT_METADATA_BUILD_COMMAND,
+      cause: error?.code ?? error?.message ?? String(error) });
+}
+
+function readMetadataBytes() {
+  try {
+    return readFileSync(new URL(PROOF_INTENT_METADATA_PATH, packageRoot));
+  } catch (error) { throw unreadableMetadata(error); }
+}
+
+export function readProofIntentMetadataFileIdentity() {
+  return createHash("sha256").update(readMetadataBytes()).digest("hex");
+}
+
+function captureMetadata(selectionMeaning) {
+  const bytes = readMetadataBytes();
   let document;
   try {
-    document = JSON.parse(readFileSync(new URL(PROOF_INTENT_METADATA_PATH, packageRoot), "utf8"));
-  } catch (error) {
-    throw new ProofIntentMetadataError(
-      error?.code === "ENOENT" ? "proof_intent_metadata_missing" : "proof_intent_metadata_unreadable",
-      `${PROOF_INTENT_METADATA_PATH} could not be read; rebuild it with ` +
-        PROOF_INTENT_METADATA_BUILD_COMMAND,
-      { path: PROOF_INTENT_METADATA_PATH, rebuild_command: PROOF_INTENT_METADATA_BUILD_COMMAND,
-        cause: error?.code ?? error?.message ?? String(error) });
-  }
+    document = JSON.parse(bytes.toString("utf8"));
+  } catch (error) { throw unreadableMetadata(error); }
   if (document?.schema_version !== PROOF_INTENT_METADATA_SCHEMA_VERSION ||
       !Array.isArray(document.inputs) || document.selection === null ||
       typeof document.selection !== "object" || document.discovery === null ||
@@ -405,7 +425,9 @@ export function readPackagedProofIntentMetadata() {
       schema_version: document?.schema_version ?? null });
   }
   const recorded = new Map(document.inputs.map(({ path, sha256 }) => [path, sha256]));
-  const current = currentMetadataInputs();
+
+  const capturedBytes = selectionMeaning ? new Map() : undefined;
+  const current = currentMetadataInputs(capturedBytes);
   const changed = [
     ...current.filter(({ path, sha256 }) => recorded.get(path) !== sha256).map(({ path }) => path),
     ...[...recorded.keys()].filter((path) => !current.some((entry) => entry.path === path))
@@ -415,14 +437,62 @@ export function readPackagedProofIntentMetadata() {
       changed_inputs: changed.slice(0, LISTED_LIMIT),
       changed_inputs_omitted: Math.max(0, changed.length - LISTED_LIMIT) });
   }
-  return deepFreeze(document);
+  return { document: deepFreeze(document),
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    ...(selectionMeaning ? { loadedPacks: capturedSelectionMeaning(document, capturedBytes) } : {}) };
 }
 
-export function assertPackagedProofIntentMetadata(section, packaged, derived) {
-  const { population: packagedPopulation, ...packagedFacts } = packaged;
-  const { population: derivedPopulation, ...derivedFacts } = derived;
-  if (JSON.stringify(canonicalValue(packagedFacts)) !== JSON.stringify(canonicalValue(derivedFacts)) ||
-      JSON.stringify(packagedPopulation) !== JSON.stringify(derivedPopulation)) {
-    throw staleMetadata({ reason: "derivation_differs", section });
+export function capturePackagedProofIntentMetadata() {
+  return captureMetadata(false);
+}
+
+export function capturePackagedProofIntentSelection() {
+  return captureMetadata(true);
+}
+
+function capturedSelectionMeaning(document, capturedBytes) {
+  const catalog = JSON.parse(capturedBytes.get(PACK_CATALOG_PATH).toString("utf8"));
+  const identityKey = ({ profile_id, profile_version }) => JSON.stringify([profile_id, profile_version]);
+  const admitted = new Set(catalog.packs.map(identityKey));
+  const provenance = new Map();
+  const duplicates = [];
+  const mismatched = [];
+  for (const { provenance: row } of document.discovery.population) {
+    const key = identityKey(row);
+    if (provenance.has(key)) duplicates.push(row);
+    else provenance.set(key, row);
+    if (!admitted.has(key)) mismatched.push(row);
   }
+  const missing = catalog.packs.filter(row => !provenance.has(identityKey(row)));
+  for (const [reason, identities, cause] of [
+    ["duplicate", duplicates, "Multiple provenance rows identify the same profile id and version."],
+    ["mismatched", mismatched, "The provenance identity is outside the captured admitted catalogue."],
+    ["missing", missing, "The captured admitted catalogue identity has no provenance row."]
+  ]) {
+    if (identities.length === 0) continue;
+    const { profile_id, profile_version } = identities.sort((left, right) =>
+      compareCodeUnits(left.profile_id, right.profile_id) ||
+      compareCodeUnits(left.profile_version, right.profile_version))[0];
+    throw staleMetadata({
+      reason: `selection_provenance_${reason}`,
+      profile_id, profile_version, failure_limb: "mechanical_failure", cause,
+      recovery: {
+        package_maintainer: `Rebuild with ${PROOF_INTENT_METADATA_BUILD_COMMAND} in the writing repository.`,
+        installed_consumer: "Install or reinstall a corrected package."
+      }
+    });
+  }
+  return deepFreeze(catalog.packs.map(entry => {
+    const row = provenance.get(identityKey(entry));
+    return {
+      profile: JSON.parse(capturedBytes.get(`${entry.path}/profile.json`).toString("utf8")),
+      admission: JSON.parse(capturedBytes.get(`${entry.path}/admission.json`).toString("utf8")),
+      profile_digest: row.profile_digest,
+      admission_digest: row.admission_digest
+    };
+  }));
+}
+
+export function readPackagedProofIntentMetadata() {
+  return capturePackagedProofIntentMetadata().document;
 }

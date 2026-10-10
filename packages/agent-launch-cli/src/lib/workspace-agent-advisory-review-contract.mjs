@@ -20,6 +20,8 @@ export const ADVISORY_REVIEW_INPUT_SCHEMA_VERSION =
 const trustedDescriptors = new WeakSet();
 const trustedInputs = new WeakSet();
 
+const inputRunBindings = new WeakMap();
+
 function digest(value) {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
@@ -109,6 +111,40 @@ export function createAdvisoryReviewInput({ descriptor, checkoutRoot, toolProfil
   return input;
 }
 
+function inputBindingError(code, message) {
+  return Object.assign(new TypeError(message), { code });
+}
+
+export function bindAdvisoryReviewInputToRun(input, runId) {
+  if (!trustedInputs.has(input)) {
+    throw inputBindingError("advisory_review_input_not_launcher_owned",
+      "advisory review input is not launcher-owned");
+  }
+  if (typeof runId !== "string" || runId.length === 0) {
+    throw inputBindingError("advisory_review_run_identity_missing",
+      "advisory review input requires the runner-minted run identity");
+  }
+  const existing = inputRunBindings.get(input);
+  if (existing !== undefined) {
+    if (existing.run_id !== runId) {
+      throw inputBindingError("advisory_review_input_bound_to_another_run",
+        "advisory review input is already bound to a different run");
+    }
+    return existing;
+  }
+  const bound = Object.freeze({ ...input, run_id: runId });
+  trustedInputs.add(bound);
+  inputRunBindings.set(input, bound);
+  inputRunBindings.set(bound, bound);
+  return bound;
+}
+
+export function resolveAdvisoryReviewInputRun(input) {
+  return trustedInputs.has(input) && inputRunBindings.get(input) === input
+    ? input.run_id
+    : null;
+}
+
 export function resolveAdvisoryReviewGitMetadataProjection(input) {
   if (!trustedInputs.has(input)) {
     fail(BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.FINDINGS_GIT_METADATA_INVALID,
@@ -132,14 +168,8 @@ export function consumeAdvisoryReviewInput(input, expected = {}) {
 
 function advisoryReviewFirstReadCalls(subject) {
   const sliceMatch = String(subject).match(/^(WK-\d{4})#SLICE-\d{3}$/u);
-  const rootCall = (unit) => JSON.stringify(buildSelectedRecordMemberCall({
-    tool: "workspace_read_page",
-    identity: { unit },
-    member: { path: [] }
-  }).arguments);
-  return sliceMatch
-    ? [rootCall(subject), rootCall(sliceMatch[1])]
-    : [rootCall(subject)];
+  const rootCall = subject => JSON.stringify({ subject });
+  return sliceMatch ? [rootCall(subject), rootCall(sliceMatch[1])] : [rootCall(subject)];
 }
 
 export function renderFamilyNeutralAdvisoryReviewInput(input) {
@@ -156,7 +186,7 @@ export function renderFamilyNeutralAdvisoryReviewInput(input) {
     `Review descriptor: ${input.descriptor_digest}`,
     [
       "Your assignment is not included in this startup text. Before reviewing, first call " +
-        `workspace_read_page with arguments ${unitCall}` +
+        `workspace_read_wiki with arguments ${unitCall}` +
         (parentCall === null
           ? ""
           : ` and then, because a slice root does not carry its parent contract, ${parentCall}`) +

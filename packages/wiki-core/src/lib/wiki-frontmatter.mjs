@@ -188,6 +188,10 @@ function parseObjectValue(lines, startIndex, indent) {
 }
 
 function parseScalar(value) {
+
+  if (value.startsWith('"')) {
+    return JSON.parse(value);
+  }
   if (
     value.startsWith("[") &&
     value.endsWith("]") &&
@@ -214,10 +218,7 @@ function parseScalar(value) {
   if (value === "null") {
     return null;
   }
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
+  if (value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1);
   }
   return value;

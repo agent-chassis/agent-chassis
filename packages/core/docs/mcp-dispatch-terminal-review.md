@@ -39,6 +39,24 @@ repository selected.
   controlled generation are authenticated on every publication, and the result
   carries no review-selection fact. A terminal review, when one is dispatched,
   consumes this same exact candidate.
+- **A controlled contract is not a publication prerequisite.** A WK that has no
+  controlled contract has no generation, and publication does not refuse it. The
+  generation owner observes at exact `W` that no generation is current and that
+  `tree(W)` holds no carrier or manifest of the WK, and that observation takes
+  the generation's place in the candidate identity; the candidate's metadata
+  block then carries no generation or carrier line. Nothing is authored for such
+  a WK: no contract, generation, manifest, proof result or authentication receipt
+  is created, and its proof posture is neither read as a permission nor changed.
+  A recorded proof opt-out and no opt-out at all publish through the same path.
+  Missing proof credit and an unfinished or absent review do not refuse
+  publication either, and the live record need not be in `review`: it is
+  published with the parent status it actually holds, and no review transition is
+  required or written. A record already `done` publishes too: the chain keeps
+  its two commits and the completion truthfully changes nothing. What refuses is mechanical failure: an unreadable or
+  malformed record or carrier, a generation the checkout selects that `W` does
+  not hold, a generation `W` holds that the checkout no longer selects, a
+  candidate whose recorded generation state differs from the current one, a moved
+  ref, or a Git or forge fault. Each keeps its owner's own code and message.
 - **A selected candidate is resolved from durable state on every call.** Forge
   publication resolves `C` from the fixed current-selection ref through the
   terminal-candidate coordinator: it authenticates the exact-`W` generation,
@@ -50,7 +68,7 @@ repository selected.
   `terminal_candidate_recovery_current_ref_absent` verdict is genuine absence. A
   failed read, an invalid candidate or an authentication failure is never absence:
   it keeps its authenticated cause, stops that attempt before any forge effect,
-  and the registered `workspace_wk_forge_handoff` route reports it with
+  and the registered `workspace_publish_work` route reports it with
   `stage: "candidate_resolution"`. Recovery consults no current landing state.
 - **The fence holds before any external effect.** Repository, WK, fork, tip,
   candidate identity, tree, parent and controlled generation are rechecked under
@@ -69,13 +87,17 @@ repository selected.
   completes the WK on the base branch.
 - **Closeout preserves the published bytes.** Before initial publication, both
   workflows keep `C` beneath exactly two WK-only commits carrying the actual
-  applicable closure evidence and then the parent review-to-done transition, so
+  applicable closure evidence under the parent status the live record actually
+  holds, and then the parent's transition to `done`, so
   the initially published pull request already carries parent status `done`;
   that status is branch-local until a confirmed merge. A workflow without
   terminal review has no terminal-review record fabricated for it. Merge takes
   the exact authenticated pull-request head only on confirmed mergeability and
-  adds no commits, and an unmerged, unknown, moved or foreign state leaves the
-  canonical parent in review. The confirmed merged base record is canonical, and a reconciliation
+  adds no commits. It requires no lifecycle status of the local record; it
+  requires that record to be exactly the published closeout record or, once the
+  merge is confirmed, the published completion record, whatever status they
+  hold, and an unmerged, unknown, moved or foreign state leaves the
+  canonical parent exactly as it was. The confirmed merged base record is canonical, and a reconciliation
   failure is a typed partial success.
 
 ## Handoff destinations and landing observation
@@ -133,6 +155,27 @@ any effect, never from caller input.
   carried as ordinary data is published as data and grants nothing. No refusal offers a call, and handoff,
   merge and landing authority are unchanged. An unresolvable `repo` is the
   repository-resolution owner's `workspace_repo_resolution_invalid` refusal.
+- **A candidate-resolution failure is published as the failure that was
+  thrown.** The terminal-candidate coordinator forwards a construction or
+  recovery exception unchanged: the value its owner threw is the value the
+  publisher receives, with its own type, message, code, details and cause chain.
+  Nothing is wrapped around it, no generic message or code stands in for it, and
+  it is never classified as unknown. The refusal's `evidence.cause_chain` begins
+  with that failure, each level carrying its name, message, code and structured
+  details, and the complete capture (every property and trace) is retained for
+  the operator and named by `retained_evidence`. A generation that the exact
+  `W` holds but the checkout no longer selects therefore reaches the caller as the
+  generation owner's `agent_launch.controlled_contract_generation.w_authentication_failed.v1`
+  refusal with `details.condition: "exact_w_generation_unselected"`, the carrier
+  and manifest counts it observed, and that owner's message. `stage`, the recovery verdict in `reason`, and
+  `subject.assigned_unit` (the WK the call was made for) are the call's context
+  beside the failure; they are never its identity. `recovery_detail` is present
+  only when the coordinator recorded a typed candidate fact for that exact value,
+  and is absent otherwise. A thrown value that carried no code is given none, and
+  an absent fact stays absent. The recovery prerequisite names the failure in its
+  owner's words. Reporting a failure authorizes nothing: it publishes nothing,
+  authors no generation, changes no opt-out, selects no other WK and starts no
+  recovery, and the retained original is read back without publishing again.
 - **Every executor category has one public identity.** The seven executor
   categories map to registered cause-neutral identities (`request_invalid`,
   `remote_invalid`, `eligibility_refused`, `policy_boundary_refused`,
@@ -143,21 +186,37 @@ any effect, never from caller input.
   `launcher_transition.backend_refusal_identity_unknown.v1` and its original
   captured. The policy-boundary identity is not an authenticated CCE deny, and
   neither a category nor a policy object copied into the detail grants authority.
-- **An oversized refusal names its error log.** The executor refusal's complete
-  answer is measured as the whole response frame against the active inline
-  limit of the server's response environment. When it fits it is published
-  unchanged. When it does not, the answer keeps the failure identity, the refusal
-  carrier and every producer fact that fits whole (`effects`,
-  `uncertain_effect`, short native reasons), lists the facts left out in
-  `facts_not_inline`, and publishes `error_log` with the exact absolute `path`,
-  `byte_count` and `sha256` of the complete original already retained at that
-  failure (or retained once there when nothing had been). The caller reads that
-  file directly; nothing is clipped, redacted, paged or spilled, and reading it
-  replays nothing. If the original cannot be retained or located, `error_log` is
-  `null` and `error_log_failure` reports the actual storage failure beside the
-  known effects. The file is in the orchestrator's launcher-owned response state
-  directory, which the headless Claude orchestrator may read through one native
-  `Read` rule.
+- **A caller reads the complete diagnosis through the task.**
+  `workspace_publish_work({subject})` answers within the configured inline
+  admission bound with the producer's result, the blocker and the refusal
+  carrier. The complete answer is saved once through the selected-response
+  owner; when it fits the bound it is also the first answer. When it does not,
+  the first answer keeps the failure identity, the affected WK and every
+  diagnosis member that fits whole, smallest first (`effects`,
+  `uncertain_effect`, `create_outcome`, native reasons), and leaves each larger
+  member out whole: `delivery.omitted_diagnosis` names it, with its originating
+  failure's name and code (and message when that fits) for a member that
+  carries a cause chain, and `delivery.complete_diagnosis_delivered` is `false`.
+  No member is kept or dropped for its name, and nothing is clipped, redacted,
+  paged or spilled. `next_calls` carries the one `workspace_read_wiki` read of
+  the saved source (`delivery.read_by` names the same call); following it
+  returns the saved original whole, with the complete cause chain, after
+  authenticating the session and the source, and publishes, mutates and observes
+  nothing again. No caller opens a file, follows a path or checks a digest. Raw
+  process output and traces are in neither answer; the complete capture stays
+  with the operator-evidence owner named by `retained_evidence`. When the answer
+  cannot be saved, `delivery.retained` is `false` and `delivery.failure` reports
+  the actual storage failure (its operation, subject, code and cause, without
+  its raw trace) beside the producer's result, identity and known and uncertain
+  effects; no saved answer or read is offered and the publication is not
+  repeated. Such an answer is bounded the same way and names the members it does
+  not carry in `diagnosis_fields_not_delivered`. Those members are then not
+  obtainable: the selected-response owner and the operator-evidence owner both
+  store in the response state that failed, and no owner retains or serves the
+  complete original under that obstruction. The route-level `error_log`,
+  `error_log_failure` and `facts_not_inline` members belong to the lower-level
+  forge handoff route projection, which the shipped server does not register;
+  they are not part of the public task's answer.
 - **A caught failure keeps its original.** Every executor catch that answers
   with a reason also carries the thrown value as its diagnostic capture
   (`evidence`, or `create_evidence` for a thrown pull-request create), with its
@@ -179,7 +238,8 @@ any effect, never from caller input.
   failure (`controlled_contract_generation_authority_refused`) and an invalid
   authority context (`stage: "authority_context"`) keep theirs the same way. A
   mutation route retains the complete original once; a read observation retains
-  nothing. No correction owner is inferred for these failures.
+  no failure original and says so (`retained_evidence.reason:
+  "observed_by_read"`). No correction owner is inferred for these failures.
 - **A hosted forge command keeps its native outcome.** The `gh` runner returns
   the command's argv, exit status, signal and complete output, unsliced. A
   command that could not start carries the native spawn error and no output; one
@@ -223,11 +283,10 @@ any effect, never from caller input.
   `human_reconciliation_required` result carries `diagnostic` with the probe's
   `state`, native `reason` and command original, and an existing-publication
   read refusing `authenticated_forge_required_for_existing_publication` carries
-  the same under `probe`. The route projects an accepted result's `diagnostic`
-  exactly as a refusal's detail: its cause chain inline, its complete original
-  retained once and, when the whole answer exceeds the inline limit, an
-  `error_log` inside the diagnostic while the result's kind, identity and effects
-  stay whole.
+  the same under `probe`. `workspace_publish_work` projects an accepted result's
+  `diagnostic` exactly as a refusal's detail: bounded in the first answer, its
+  complete original retained once and the saved answer read back whole, while
+  the result's kind, identity and effects stay whole in both.
 - **Local and Git material.** Local and Git handoff record the authenticated
   closeout head `D` in the product-owned ref
   `refs/agent-launch/wk-handoffs/<initiative>/<WK>/<C>/local` or
@@ -272,9 +331,12 @@ any effect, never from caller input.
   carrier-set manifest and held it exactly as that manifest describes, and `D`
   holds that commit's exact blob and mode. A path under the generation-archive
   directory without such a persisted selection is not included.
-  The one admitted difference is the handoff's own review-to-done transition:
-  after handoff the live WK record is ordinarily the closeout record `K` in
-  `review`, and `D` changes only its status to `done`. When the closeout-chain
+  The one admitted difference is the handoff's own completion transition:
+  after handoff the live WK record is ordinarily the closeout record `K`, with
+  whatever parent status it actually held, and `D` changes only that status to
+  `done`. No status is required of `K`. The result's `record_transition` reports
+  the statuses the two records actually hold, and is `null` where `K` is already
+  `done` and `D` holds the same record, so nothing is installed. When the closeout-chain
   owner authenticates this handoff's `C -> K -> D` chain and the working record,
   and any staged entry for it, hold `K`'s exact blob and mode, the command
   installs `D`'s exact record bytes and mode after every other selected path is
@@ -295,7 +357,7 @@ any effect, never from caller input.
   permitted change to an unlanded publication (for example a notes edit made
   after handoff), it reports `applicable: true` with the published head, and the
   refusal's `next_calls` holds the one recommended
-  `workspace_wk_forge_handoff({assigned_unit})` call that refreshes it, after
+  `workspace_publish_work({subject})` call that refreshes it, after
   which landing can be requested again. Its success predicate is
   `forge_handoff.live_record_published` `is_true`; the refusal's
   `observed_facts` carries that fact as `false`. A local or Git handoff result
@@ -325,9 +387,27 @@ any effect, never from caller input.
   the destination's base carrying `D`, the result reports `remote_landing:
   "pending"` and carries no landed publication. A repeat after landing changes
   nothing.
-- **One read-only landing observer.** `workspace_wk_landing_status` and
+- **One read-only landing observer.** `workspace_check_landing` and
   dependency provisioning consume the same observer. It re-authenticates the
-  existing handoff through the handoff authority owner's read-only observer and
+  existing handoff through the handoff authority owner's read-only observer.
+  Internally, `createWkLandingObserver` accepts `(wkId, selection?)`; omission
+  resolves current once under the same WK exclusion. The closed publication
+  selector names an immutable candidate version, exact head, destination and
+  hosted proposal number. It locates evidence without granting authority or
+  configuring a provider. Explicit reads authenticate the recorded generation
+  and exact closeout chain through the existing owners. A displaced head is
+  credited only after the landing owner proves its actual base ancestry (or
+  exact merged proposal and bound ancestry); otherwise the requested selection
+  remains an unauthenticated echo in an unavailable observation. Pending truth
+  still requires the current candidate's materialization and generation checks.
+  A fresh `workspace_check_landing` observation may save its answer through the
+  selected-response owner for a later authenticated read; that is its only
+  stored effect, and it publishes, merges and changes no canonical state.
+  Reading an already saved answer returns it whole and observes nothing again.
+  Repeated and cold reads reauthenticate durable facts, preserving object-cache
+  acquisition even if later authentication fails. The handoff owner's
+  `projectAuthenticatedWkPublicationSelection` derives the reusable selector
+  only from an authenticated publication result. The observer
   reports `awaiting_human_landing`, `landed`, `contradictory` or `unavailable`,
   each with its original cause. Local and Git landing is read from the actual
   base history — the main repository's base branch, or the destination's, whose
@@ -343,7 +423,57 @@ any effect, never from caller input.
   branch that disappeared or moved without landing is contradictory. The observer
   never publishes, creates or merges a proposal, reconstructs or materializes a
   candidate, executes proofs, or reconciles the canonical record; explicit
-  closure remains its own operation.
+  closure remains its own operation. Its one possible effect is that object
+  acquisition, and every observation reports what it actually did in that
+  invocation as `effects.object_cache_fetch`: `not_attempted` when no fetch
+  started (a local or hosted observation, a destination base tip already in the
+  object store, a destination base that is absent or could not be read, or a
+  refusal before the base is read); `completed` when this invocation's fetch
+  finished successfully, which a later missing tip, ancestry failure or
+  destination-branch failure does not erase; `uncertain` when a fetch started
+  and its command failed, so acquired objects may remain. The value is the fetch
+  owner's own account of its attempt, never derived from the landing state or
+  from which objects exist afterwards, and it describes one invocation: a later
+  observation of the same landing reports `not_attempted` once the objects are
+  local.
+  The observer mints a reusable authenticated selector for default reads too,
+  while the branded handoff is still available; unavailable explicit selections
+  remain unauthenticated echoes. The existing runtime adapter forwards
+  `{assigned_unit, selection?}` unchanged to this observer.
+
+  `dispatch-tools/landing-status-route.mjs` also exports the registered
+  `CHECK_LANDING_INPUT_SCHEMA`, `createCheckLandingTask`, `registerCheckLandingTool`
+  and pure `buildCheckLandingRequest`. The closed request is
+  `{subject: "WK-####", selection?: PublicationSelection}`. Its selector schema
+  comes from the handoff owner's `createWkPublicationSelectionSchema(z)` and
+  validator. The trusted host supplies `workspace: {repo, dir}`, the existing
+  `wkLandingStatusAdapter`, session `env` and response-owner `responseEnv`.
+  Internal calls enforce the incumbent orchestrator/operator entitlement before
+  observation. Results identify the actual subject and session authority,
+  current versus explicit request, selected identity, landing state, authority,
+  base, carrier, acquisition effects and complete distilled cause, without a
+  duplicate handoff binding. Missing corrections name their owning capability;
+  a request builder remains explicitly non-callable until canonical eligibility
+  and a serving request schema both exist.
+
+  The task's internal `respond(request)` returns `{source, originalRequest,
+  result}`. It retains the semantic carrier once through the unchanged selected
+  response owner, bound to route, repository, WK, session authority and actual
+  request/observation identities. `handler` and guarded `call` return that owner's
+  selected-full result directly. Transport retention is reported separately as
+  `delivery.transport_retention`; it is distinct from observer acquisition and
+  creates no observer journal. Retention failure preserves the observed effects
+  and original transport cause without re-observing. The internal
+  `readOriginal({subject, source})` seam and `CHECK_LANDING_ORIGINAL_INPUT_SCHEMA`
+  reauthenticate the session binding and return the retained semantic facts
+  unchanged after process replacement, alongside the original source locator and
+  supported `next_calls` for this read, without changing the saved carrier,
+  invoking the observer or creating new retention. Optional trusted
+  `ownerCall(locator)` and `ownerRequestSchema` bind the existing retention to its
+  adopted semantic reader. This composition adds no public read fields or tool.
+  Production registration, role grants, discovery, incumbent retirement and
+  caller/continuation adoption remain a joint cutover; the incumbent landing
+  route remains the registered owner until then.
 
 ## Terminal candidates select material, not review execution
 
@@ -372,7 +502,7 @@ recomputes the candidate identity from `B`, `W`, and that generation, and verifi
 the candidate object and private checkout. Candidate preparation and cold recovery
 perform authentication only: they do not execute product validation or proof
 attempts. Any required verification is a separately authorized
-`workspace_verify_proof` operation, and missing evidence remains missing rather
+`verify_proof` operation, and missing evidence remains missing rather
 than triggering execution. Recovery then binds the review context against the
 live canonical record. The selected `C` must
 still be the published selection. The review
@@ -387,7 +517,7 @@ with the recovery owner's verdict. Both refuse before reviewer execution as
 `agent_launch.advisory_review.material_invalid.v1` with reason
 `terminal_candidate_unavailable`, and never fall back to canonical design
 material. The request cannot supply a candidate object: the registered
-`workspace_agent_dispatch` declares `terminal_candidate` and
+`start_agent` declares `terminal_candidate` and
 `reviewer_launch_identity` only so it can refuse them as
 `caller_supplied_identity` before admission, material selection, recovery, or
 execution. Canonical WK and
@@ -409,12 +539,192 @@ exact-`W` observation and delegates construction to
 asynchronous injected Git runners cross that same awaited boundary.
 
 Hot preparation, cold reconstruction, candidate advance, and forge handoff consume
-that envelope unchanged. Terminal paths reject a null manifest identity, incomplete
+that envelope unchanged. Where the WK has no controlled contract, preparation,
+reconstruction, recovery and forge handoff consume the same owner's
+`controlled-contract-generation-absence.v1` observation instead: the canonical
+repository, the WK and the exact direct `W`, and nothing else. It is not an
+envelope. It has no digest, count, manifest identity or descriptor, every
+consumer that requires an authenticated generation refuses it, and only the
+owner's own observation is accepted: an omitted, copied or look-alike value
+refuses as an unauthenticated generation does. Terminal paths reject a null manifest identity, incomplete
 or contradictory observations, a proper subset, and any resolver-, caller-, fixture-,
 metadata-, or coordinator-supplied identity. Candidate CAS remains inside the shared
 same-WK authority exclusion, and forge retains that exclusion through branch and
 pull-request mutation, so generation-only, `W`-only, or simultaneous movement cannot
 authorize a stale effect.
+
+The current generation is authenticated by one owner in the attachment
+primitive, `authenticateCurrentControlledContractGenerationAtW`, with the closed
+request `{repoRoot, wkId, expectedWkTipSha?, expectedGeneration?}`. It always
+resolves and binds the current complete generation, authenticates it at its exact
+`W`, and returns that binding with the owner-minted envelope; no caller `W` or
+envelope is ever authoritative. It has three forms. With no expectation it
+observes what is current. With `expectedWkTipSha` it refuses a different live `W`
+before authenticating anything, reporting the expected and actual tips. With
+`expectedGeneration` as well, which requires the expected `W`, the supplied
+envelope must itself be owner-minted for this repository, WK, and `W` and equal to
+the envelope authenticated here. An expectation is present whenever its key is: a
+supplied `null`, `undefined`, malformed, copied, or foreign value refuses and is
+never read as omission. A missing current generation and a mismatched expected
+`W` refuse with the exact-`W` authentication code and a `condition` of
+`current_generation_absent` or `expected_w_mismatch`.
+`authenticateCurrentControlledContractGenerationStateAtW` is the same owner with
+the same request and the same checks for a consumer that needs the current state
+rather than a generation. Where no generation is current it does not refuse: it
+observes `tree(W)`, refuses with `condition: "exact_w_generation_unselected"`
+when `W` holds a carrier or manifest of the WK, refuses when a generation
+appears or `W` moves while it reads, and otherwise returns the absence
+observation with a null binding. An `expectedGeneration` must then be that same
+absence, and an absence expected of a WK that now has a generation refuses.
+Terminal candidate preparation, recovery and read-only observation, forge
+handoff and forge merge use this state form; forge handoff and forge merge use
+it with both expectations, so a WK with no controlled contract is published and
+merged through the same authentication as any other. Preparation, recovery and
+handoff forward its refusals unchanged, and a merge refusal
+(`controlled_generation_identity_unverified`) carries the owner's failure whole
+as its `evidence`. For a local or Git handoff of such a WK the checkout's owned
+coordination population is the WK record alone. Candidate status uses the observation form and
+candidate advance the expected-`W` form, through this same owner rather than a
+resolve, bind, and authenticate sequence of their own; status keeps
+`candidate_identity_invalid_or_moved` for an absent generation, and advance keeps
+its generation-absent and input-moved refusals. Advance calls the owner twice.
+Its first call expects only the snapshot `W` and keeps the envelope returned. Its
+final call, after derivation and immediately before publication, uses the form
+with both expectations: the same `W` and that exact envelope. The owner alone
+decides authenticity and equality, and the runtime compares no envelopes itself;
+an absent generation and a moved `W` keep their own refusals there too, and any
+other final refusal is
+`agent_launch.terminal_candidate.advance_final_recheck_failed.v1` carrying the
+owner's code as its cause. Nothing is published after a final refusal, and `W` is
+not reselected, a changed generation is not adopted, and publication is not
+retried. Advance reads the record blob in `W` with the repository object format
+that the stale evaluation's read-only version authentication established, carried
+only in the evaluator's private snapshot; a snapshot without it refuses at the
+record read, and no format is inferred from an object id. The terminal-candidate
+coordinator uses it the same way, inside the authority exclusion it already
+holds: hot preparation with the integrated `W` as the expected `W`, and cold
+recovery in the observation form. Nothing is derived, materialized, or published
+after it refuses, and each refusal keeps that operation's own cause, selected by
+the owner's code and `condition`: a generation `W` holds that nothing current
+selects and a mismatched expected `W`, the persistent WK ref having moved before
+preparation, are forwarded as thrown, and only a current generation that is not
+the one persisted in `W` is `controlled_generation_stale`. An absent generation
+is not a refusal there. This owner checks the current
+generation's descriptor mechanics; the full historical validation described below
+belongs to the exact-commit read and is not applied here.
+
+The same manifest-aware generation selector can also read one exact immutable
+commit instead of the live repository. The launcher's stored-tree observer pins
+the commit and its tree, then supplies only that tree's contract-store entries and
+ordinary (`100644`) blob bytes; `wiki-core` applies its whole-record manifest
+fence, visible/embedded manifest agreement, selected-member census, duplicate
+detection, proof-authoring sources, and association validation to that
+observation, and returns the existing `controlled-contract-resolved-generation.v1`
+selection facts. Every manifest, selected member, and association source comes
+from the pinned tree: a missing, non-ordinary, contradictory, or unreadable member
+refuses with the selector's own failure and the affected member, and nothing is
+completed from the working directory. A source with no published manifest for the
+record refuses; the legacy store-root population is read only from the live
+repository. This is an internal source-selection input, not an MCP argument, and
+it performs Git reads only.
+
+The launcher attachment primitive exposes that read as one internal operation,
+`authenticateControlledContractGenerationAtCommit`, with the closed input
+`{repoRoot, wkId, commit}`. `commit` is one exact full nonzero commit identity; a
+branch, tag, revision expression, abbreviated or tree identity, and any
+caller-supplied binding, generation, observation, ref, or authority field refuse.
+The operation resolves only the repository and Git-directory identity, selects and
+observes that commit's generation, and returns the envelope the same
+authentication owner constructs for it, naming that commit as `W`. It is not an
+MCP route or a role grant, and the selector's and the authentication owner's
+refusals pass through with their own code and details.
+
+`authenticateControlledContractGenerationStateAtCommit` is the same operation,
+with the same closed input, for a reader that needs what the commit held rather
+than a generation. It observes that commit's contract store through the same
+pinned source observation the selector reads. Where the store holds no carrier
+and no carrier-set manifest of the WK, it returns the absence observation bound
+to that commit; where it holds any, it authenticates the stored population
+exactly as above. Absence is therefore established only from the exact commit:
+a carrier without its published manifest, an incomplete manifest, a malformed
+active path and a failed read all refuse with their owner's failure and are
+never read as absence.
+
+Authenticating a commit grants no current authority. The operation reads no live
+WK record, carrier, manifest, or WK ref, creates no lifecycle binding, and says
+only what that commit held, so it keeps returning an earlier generation after the
+live `W`, generation, or files move or disappear. The exact-`W` authenticator for
+candidate, advance, and forge effects still requires the live WK ref and the
+current canonical generation, and refuses a binding whose `W` has moved.
+
+One immutable candidate version is authenticated the same way, by the
+terminal-candidate coordinator's internal `authenticateHistoricalTerminalCandidate`
+with the closed input `{mainRepo, wkId, versionIdentity}`. `versionIdentity` is the
+64-hex candidate-version identity, not a Git commit and not a currentness claim,
+and it alone selects: only that version's immutable ref is derived and observed,
+and an absent, symbolic, non-commit, or foreign selection refuses without falling
+back to the current selection. Everything else is read from the selected version's
+own objects. The WK record is the blob in the candidate's tree, identified by the
+contract digest the candidate records; the base branch is the WK's captured base
+naming the candidate's recorded `B`; the controlled-generation state is the one
+its recorded `W` held, authenticated from that commit in the state form: the
+generation it selected, or the absence of one where the WK had no controlled
+contract, with or without a recorded proof opt-out. A candidate that records a
+different state than its recorded `W` holds does not reproduce and refuses. The recovered-candidate
+verifier then applies its usual checks (repository identity, sole parent `B`,
+`B` an ancestor of `W`, `tree(C) = tree(W)`, and the deterministic commit bytes),
+recomputes the version identity, requires it and the candidate to equal the
+selection, and re-observes the selected ref before returning, so a ref deleted or
+retargeted during the read refuses. The live WK ref, canonical record, and current
+generation are not read, and the record's review designation and validation
+declarations play no part. The operation performs Git reads only and returns the
+verified candidate binding with its version identity and version ref.
+
+The same read can instead be selected by the candidate the current-candidate ref
+names, through the coordinator's internal
+`authenticateObservedTerminalCandidateVersion` with the closed input
+`{mainRepo, wkId, candidate}`. `candidate` is the exact full commit the caller
+already observed as the current selection: an expectation, not an authority, a
+version, a ref, or a permission. The fixed current-candidate ref must name exactly
+that commit; an absent, symbolic, non-commit, or different selection refuses, and a
+replacement candidate is never substituted. No version identity is supplied or
+searched for: it is derived from the verified tuple, and the immutable version ref
+it names must already exist and name this same candidate, so an unpublished or
+conflicting version refuses and no ref is created or repaired. Both refs are
+re-observed before returning. The read does not require the candidate's recorded
+`W` to still be the live WK tip and never uses the current generation for it, so
+it returns the same candidate, `W`, generation, and version identity after the
+live `W` or generation has moved; whether that `W` is still current is the
+current-state evaluator's comparison, not this operation's. The result has the
+same meaning and shape as the version-selected read.
+
+That binding is historical evidence, not authority. The candidate primitive
+records which bindings it derived from its own exact-ref observation and
+refuses them at candidate construction, candidate-object derivation, current
+binding verification, and version publication, including while that version is
+still the selected one. A copy of such a binding carries no such record: it is not
+accepted as historical evidence, and as an ordinary binding it must pass the
+current checks, including the live WK ref. Candidate bytes, the metadata block,
+version identities, and immutable refs are unchanged.
+
+The candidate primitive also projects the compact diagnostic identity of one
+authenticated immutable version, through its internal
+`projectTerminalWkCandidateVersion`. It takes one value: either an authentic
+version decision whose immutable version ref names its candidate (a `selected`,
+`recovery`, or `superseded` decision; `unpublished` and `conflict` refuse), or the
+exact completed result of a version-selected or current-selected read. A copy, a
+serialized result, a binding before or after its verification, a generation
+envelope, and the projection itself all refuse as a binding mismatch. The
+projection is exactly `version_identity`, `candidate`, `base`, `wk`, `tree`, and
+`controlled_generation`, where `controlled_generation` holds only `wk_id`,
+`generation_digest`, `count`, and `manifest_identity`, or is `null` for a
+candidate whose WK has no controlled generation; it carries no refs, paths,
+carrier descriptors, review facts, or currentness. It is a synchronous projection
+of an observation the caller already authenticated: it reads nothing and renews
+nothing, so later ref movement does not change what an earlier observation
+projects, and a caller that needs fresh authority authenticates again. The
+projection is data only and is accepted nowhere as a binding, a version decision,
+or a generation envelope.
 
 ### Plural immutable candidate versions and current selection
 
@@ -480,13 +790,30 @@ does not reacquire the non-reentrant lock. The context expires before the forge
 callback returns; missing, copied, stale, or mismatched contexts refuse. Ordinary
 recovery entrypoints receive no context and continue to acquire the durable lock.
 
+That same context-bound recovery accepts an optional expected candidate-version
+identity. It is an equality fence, not authority: the coordinator compares it with
+the version the primitive owner derives from the candidate being recovered, under
+the live context and before any selected effect. For a present candidate the
+comparison follows authentication of the existing candidate and precedes
+version-ref convergence and worktree materialization. For an absent current
+selection it follows the deterministic derivation and precedes publication, so
+only inert unreachable objects can exist when it refuses. A different version
+refuses as `terminal_candidate_recovery_expected_version_mismatch`, leaving every
+ref and worktree as it was; the matching version recovers the identical `C`.
+Authority, base, WK-tip and generation refusals keep their own causes. A caller
+that supplies no expectation gets unchanged recovery. The forge handoff publisher
+forwards an expectation it is given, unchanged, through its publication-state
+resolver to this fence inside its own exclusion. Neither derives or compares the
+version; a refusal is the coordinator's own failure, rethrown before any closeout
+or forge effect.
+
 Each candidate `C` freezes `tree(W)`, so the work-record blob inside that version is
 the WK-branch snapshot. Trusted integration may later move canonical status and
 coordination fields without changing the version's `C/B/W`. The lifecycle-difference
 decision records those facts without treating either the frozen snapshot or live
 status as candidate or review authority.
 
-The original `workspace_agent_dispatch` review result is the complete review
+The original `start_agent` review result is the complete review
 observation. It returns the captured advisory text directly, a bounded schema
 observation, and `formal_attestation`. Ordinary reviews report
 `requested:false`. When the launcher-selected canonical result contract is
@@ -579,9 +906,8 @@ the published `K` carries under the same entry rules; a review added after `C`
 that holds no entries may still be removed.
 
 Terminal-review shaping after `C` may opt the parent into a completion policy.
-`workspace_work_record_ready_slice` with `review_purpose: "terminal_whole_wk"`
-and `completion_policy` writes that policy on the parent beside the review
-slice it adds. The projection admits only the introduction: a parent
+Explicit review shaping through `save_record` writes the requested completion
+policy on the parent beside the review slice it adds. The projection admits only the introduction: a parent
 `completion_policy` absent from `C` may appear with a canonical value, and it
 stays admitted when the review slice is later deleted. A policy `C` already
 holds must stay exactly; removing or replacing it, or introducing a
@@ -600,17 +926,18 @@ the parent's `acceptance.validation` is the only such field, handoff
 preparation adds `acceptance_validation_drift` beside the projection, taken
 from `C` and the record it observed: the `unit`, the `candidate` commit, the
 `field`, the `candidate_value` `C` declares, the `observed_value`, and the
-editor's CAS value of exactly that observed record (`observed_source_digest`,
-for `expected_source_digest`). The registered response keeps the refusal and
-its identity, publishes nothing, and offers one guidance read: the ordinary
-editor's record-level `acceptance.validation` field contract
-(`workspace_tools_describe` with `input_contract {kind:"field",scope:"record",field:"acceptance.validation"}`).
+identity of exactly that observed record (`observed_source_digest`). That
+identity is not a save revision and names no write argument. The registered
+response keeps the refusal and its identity, publishes nothing, and offers one
+guidance read: `workspace_read_wiki({subject})`, which returns the current
+authored WK, its authoring selections and the `revision` a save requires.
 The guidance recovery is conditional and owned by the coordinator. If the
 change was meant to record results or limitations, preserve that text in a new
-`workspace_work_record_entry_upsert` entry, restore `acceptance.validation` to
-`candidate_value` through `workspace_work_record_edit`, and retry the handoff;
-each write passes the current freshness, so a correction based on a refusal an
-intervening edit made stale is refused and the intervening edit survives. If the
+entry through `save_record` at the revision that read returned, restore
+`acceptance.validation` to `candidate_value` through `save_record` at the
+revision the entry save returned, and retry publication; a save against a
+revision an intervening save made stale is refused with
+`save_record_revision_stale` and the intervening save survives. If the
 change altered a requirement, this candidate cannot be published: an entry
 records evidence only, satisfies no unmet requirement and does not cure the
 drift. The handoff never classifies the prose, relocates or reverts content, or
@@ -622,14 +949,14 @@ the refusal states the missing capability instead.
 ## Repeat handoff refreshes the same publication
 
 After a successful handoff, an ordinary WK edit can leave the published
-closeout record stale. Repeating the same `workspace_wk_forge_handoff` call, with
+closeout record stale. Repeating the same `workspace_publish_work` call, with
 the same request, updates that one publication; there is no separate command,
 editor hook or background publication, and normal editing is unchanged.
 
 - **Observe before refreshing.** The repeat resolves the same candidate,
   generation, destination and base identity and authenticates the published
-  head as `C -> K -> D`. Landing and proposal state are observed before any live
-  record is required to be in `review`. A landed publication (exact-head
+  head as `C -> K -> D`. Landing and proposal state are observed before the live
+  record is read. A landed publication (exact-head
   ancestry of the local or Git landing base, or a single exact merged proposal)
   is only observed: when the canonical record is that publication's `D` or its
   `K` awaiting reconciliation the retry returns the landed head with no effect;
@@ -702,12 +1029,12 @@ and cannot veto publication. Formal attestations retain their narrow admission
 consumer semantics. Historical `review_provenance` fields remain parseable archival
 bytes only.
 
-After a terminal findings action finishes, `workspace_agent_run_status` may
+After a terminal findings action finishes, `get_run_result` may
 carry the advisory `closeout_continuation` stage `forge_handoff_ready`. It is
 projected from the backend terminal-candidate publication owner alone: the WK's
 retained designated terminal review unit must equal the observed subject, and the
 owner must re-verify the candidate objects, private checkout, and a `selected`
-version decision. The projection names `workspace_wk_forge_handoff
+version decision. The projection names `workspace_publish_work
 {assigned_unit}` as `current_safe_call` with `decision_required: true` and
 `decision_reason: "terminal_review_disposition_outstanding"`, because the
 coordinator dispositions the actual review response. Findings, run outcome, and
@@ -826,23 +1153,15 @@ and validation. work record tracks that decomposition. The lifecycle decision an
 integrated-delivery proof create no substitute generation authority, target owner,
 constructor, validator, registration route, candidate reset, or ref rewrite.
 
-Terminal-candidate status and advance continuations preserve repository
-selection without creating repository authority. When the public request
-explicitly supplies `repo`, `resolveWorkspaceRepo` accepts it and the route
-passes only that resolved alias to the runtime; the runtime appends it to every
-returned `next_call`, including `version_lifecycle.next_call` and
-`review_consumer.next_call`, and neither derives nor overrides it. A reviewer
-continuation appears only in the advisory `review_consumer` projection and is
-exactly `workspace_agent_dispatch {role: "reviewer", subject: <terminal review
-subject>}`, the same subject-addressed request the post-worker lifecycle
-advertises; a stale or absent candidate advertises no reviewer dispatch. When `repo` is
-omitted, continuations omit it as well, so default-repository behavior is not
-pinned. Candidate/ref/CAS/authorization identity remains launcher-owned and is
-unchanged by this transport projection.
+Candidate inspection and advance bind the single host-configured repository;
+public requests reject `repo`. A reviewer continuation uses `start_agent` with
+its canonical review subject and role, when the actual serving role and schema
+admit it. A stale or absent candidate offers no reviewer dispatch. Candidate,
+ref, CAS and authorization identities remain launcher-owned.
 
 ### Review-independent candidate status and advance
 
-`workspace_terminal_review_candidate_status` decides candidate state only from
+`workspace_inspect_candidate` decides candidate state only from
 durable candidate facts: the canonical WK identity, the authenticated exact-W
 controlled generation, the durable candidate/fork/WK refs, the candidate's own
 metadata and record blob, and its durable version refs. Review designation,
@@ -856,6 +1175,205 @@ Status is read-only. A healthy candidate at current `W` is authenticated through
 the same read-only existing-candidate owner cold recovery uses
 (`authenticateExistingTerminalCandidate`).
 
+That candidate state is decided once, by one internal observation in the
+candidate runtime, `observeTerminalCandidateFacts`, which the status evaluator
+calls exactly once and then builds its response from. The observation takes only
+the server-bound repository and WK; it reads no review designation, pages nothing,
+advertises no call, takes no backend, and performs no construction, derivation,
+or publication. It returns the state and its cause, the live `W` the
+current-generation owner authenticated (never a candidate's own recorded `W`),
+and, for a healthy or stale candidate only, the compact identity from
+`projectTerminalWkCandidateVersion`: of the selected version decision when
+healthy, and of the completed observed-version result when stale. Absent and
+invalid candidates have no compact identity. The owner-produced observations it
+made stay internal to the runtime and appear in no response. The status layer
+alone adds the registered status projection, the version lifecycle, the advance
+continuation with its private stale snapshot, and, after the candidate state is
+decided, the advisory review projection and its paging. This is a single
+observation: it does not retry and does not exclude later movement. When an
+owner's exception is what made the state invalid, the observation keeps that
+original error internally beside its other facts; a state no exception caused
+keeps none, and status never serializes it.
+
+A bounded current observation composes that one observation for candidate
+inspection, in the internal `observeCurrentTerminalCandidate`; it is not
+registered, and status and advance do not use it. It classifies once through
+`observeTerminalCandidateFacts`, then, for a healthy, stale, or absent result,
+reads the facts that result rested on again through their owners: the
+current-candidate ref must still name the observed candidate (or still be
+absent), a candidate's immutable version ref and fork ref must still name the
+candidate and its base, and the current generation is authenticated again and
+must have the same `W` and be equal, as a complete authenticated envelope, to the
+one observed. A candidate's own recorded `W` and generation are not compared with
+the live ones, so a stale candidate remains a valid observation. A successfully
+observed difference is the candidate primitive's `input_moved` refusal naming the
+field, the ref, and the expected and actual values. A read that fails is not
+movement: a symbolic or non-commit ref, a Git failure, an absent generation, and a
+generation that is not the one persisted in `W` keep their producer's failure and
+stop.
+
+Only that typed movement, whether met in the final recheck or caught inside the
+observation itself, is corrected, and only once: every fact of the first attempt
+is discarded and the same observation and recheck run again from nothing. There
+is no third attempt, no wait, and no repair. An invalid state without typed
+movement is returned as classified, with no recheck and no retry. The internal
+result is `{observation, failure, automatic_correction}`. `observation` is the
+verified observation or the actual invalid classification, and is null whenever
+an attempt could not be verified, so an earlier healthy or stale answer never
+accompanies a failure. `failure` is the actual error of the returned attempt.
+`automatic_correction` is null without a retry and otherwise
+`{kind: "reobserve_current_once", original_condition: {failure},
+verified_outcome: {observation, failure}}`, keeping the first attempt's actual
+movement beside the fresh attempt's actual outcome whether that fresh attempt
+succeeds, is invalid, fails, or moves again. The final recheck is not a lock or an
+atomic snapshot: the facts may move immediately afterwards, and every later
+mutation authenticates for itself.
+
+The internal `createCandidateInspectionTask` composes the closed inspection
+request with that bounded observation and the historical authenticator; it is
+registered by the production task composer. Its one schema accepts exactly
+`{subject, version?}`: `subject` matches `^WK-[0-9]{4}$`, `version` is 64
+lowercase hexadecimal characters, unknown keys refuse, and a `version` key that
+is present but undefined refuses rather than reading as omitted. There is no
+repository field; the repository and Git runner are host configuration captured
+when the task is created. A malformed request refuses with the candidate
+primitive's `invalid_argument` naming the rejected fields before anything is
+observed. Without `version` the task delegates once to
+`observeCurrentTerminalCandidate` and reports that observation's state, compact
+identity and `{kind: "evaluated_current", observed_w}`, with the bounded
+owner's actual failure and automatic correction; when no observation was
+verified, state, candidate and currentness are null. A healthy current
+observation is followed by the review comparison described below, whose facts
+ride beside the candidate facts without changing them. With `version` it delegates
+once to `authenticateHistoricalTerminalCandidate`, even when that version is the
+selected one, and reports `historical_version` with the same compact identity
+and `{kind: "historical_only"}`. A historical read consults no current
+observation, live `W`, live generation, or live record, and a failed one keeps
+its owner's error with no fallback to the current candidate or another version.
+
+The same task prepares, without delivering, the body a registration would answer
+with. An observation that was made is
+`{schema_version: "workspace-inspect-candidate.v1", outcome: "observed", subject,
+selection, state, code, candidate, currentness, review_consumer, effects,
+automatic_correction, diagnostic, recovery, next_calls}` with `effects` exactly
+`{observation_only: true}`. `code` is the registered status code of a current
+state, and `agent_launch.terminal_candidate.inspect.historical_version.v1` for a
+historical version.
+`review_consumer` is null unless review was evaluated, and otherwise
+`{authority, compatibility, subject, cause, divergence, recovery, next_calls}`
+with a divergence carried whole: both record digests, the total, and every
+difference. A stale, absent, or invalid state keeps a `diagnostic` naming the
+operation, the condition, the affected identities, the known effects, the
+uncertainty, and the producer's cause chain, and a `recovery` that names the
+missing capability rather than a call. A stale candidate publishes an advance
+call only when the real `advanceRequest({subject, version})` owner's tool has a
+canonical callable identity and a matching registered request contract. The task
+and registrar consume that builder by default, with the exact observed immutable
+version and `{fact: "ok", operator: "is_true"}` predicate. Invalid supplied
+specifications refuse rather than changing the owner request. The production corpus adopts `workspace_advance_candidate` with that same
+closed owner request. Registration, central role grants and the actual serving
+schema decide whether inspection may offer its exact selected-version call.
+Canonical record identity disagreement names the failed record id/initiative
+invariant and `canonical_record_identity_recovery`: generation authentication
+has not run. Genuine generation failures keep `controlled_generation_recovery`.
+When both permitted attempts encounter typed movement of the current selection,
+recovery names `caller_retry` and a later same-subject current observation after
+movement settles. Both failures retain their actual expected/observed identities;
+no third attempt runs and no ref is restored. Missing or changed immutable
+historical material keeps its exact version/material repair condition.
+A corrected observation reports the original movement and the fresh attempt's
+outcome as conditions, never as error objects. An observation that could not be
+completed, including a failed historical read and a second failed attempt, is the
+public mechanical refusal with the failure's own registered code where it has
+one, the deciding facts, the same diagnostic under `carried`, and a
+`no_supported_route` recovery stating what must hold before the same request is
+repeated. The body's inline size is measured against the delivery bound and
+reported beside it; a body over the bound is reported as needing complete
+transport and is not shortened. A slice subject is rejected by the schema before
+the handler runs; the correction names its parent WK, and the parent call is
+published only once the inspection tool is a canonical route with a registered
+request contract.
+
+`workspace_inspect_candidate` is registered by `registerCandidateInspectionTool`
+through the production task composer. Its closed schema and guarded owner perform
+current/historical observation without mutation. The host supplies original
+retention with the actual `workspace_read_wiki` owner call and serving schema.
+Complete originals use the authenticated selected-full projection; reads perform
+no current re-observation, recovery, capture or candidate advancement.
+
+The delivery composition returns `{deliver, readOriginal}`. `deliver(prepared)`
+retains exactly `prepared.body` once through `retainSelectedResponseSource`,
+with producer route, repository, root WK, selection, actual compact candidate
+identity and both divergence record digests. A supplied host owner call and
+request schema pass unchanged to that retention: the existing owner validates
+the pair and records the exact locator-bound call as protected selected access.
+Incomplete or malformed configuration retains that owner's refusal. The host
+receives the registrar's retained locator through `ownerCall`; it need not run a
+second delivery to obtain original-read data. Omitted configuration keeps the
+retention owner's default access behavior. Authority is independently resolved
+through `resolveObligationCoverageQueryContext({env, workspace})`, binding the
+existing server/session identity. It returns `{source, originalRequest, result}`:
+`source` is the incumbent `{ref_id}` locator;
+`candidateInspectionOriginalRequest(subject, source)` supplies the closed internal
+read data; `result` is the exact `readSelectedResponseFull` result, including its
+private delivery class. The registrar returns that result directly through the
+response guard. Copying or spreading it forfeits complete delivery. Every genuine
+divergence member and both record digests reach a private SDK or stdio client in
+one structured result even above the ordinary inline bound.
+
+`readOriginal({subject, source})` derives expected route, repository, unit and
+session authority anew before the full reader authenticates retained bytes. It
+accepts no expected authority from the locator or retained binding. Unresolved
+session authority, mismatched binding, missing material and corrupt bytes keep
+the existing owners' refusals before disclosure. A cold original read performs
+no inspection, candidate reconstruction, current-record substitution or second
+retention; the retained historical/current result remains itself after live W,
+record and candidate movement. Retention is a transport effect separate from
+the carrier's observation-only candidate/lifecycle facts.
+
+Public semantic readback is an adoption boundary. `task-read-wiki.mjs` currently
+routes retained producers other than itself to the closeout-receipt reader; that
+branch cannot read an inspection original. The semantic read owner must select
+this inspector-owned `readOriginal` seam and bind the original request to its
+supported selector. The adopted host then supplies the concrete semantic
+`ownerCall` and its authoritative `ownerRequestSchema` through the registrar
+before exposing a read continuation. Private SDK and stdio fixtures bind their
+own original-read tool with this pair, receive the locator from the registrar's
+actual retention, and read that exact response after live movement and process
+replacement. This composition advertises no
+unsupported semantic read and alters no existing reader. Private source and
+isolated installed-package journeys exercise local complete delivery, exact
+historical authentication after movement/restart, original readback and refusal
+boundaries. Public role denial, discovery, incumbent-route retirement and combined
+recovery remain checks of the adopted server composition.
+
+A selected candidate whose recorded `W` is no longer the live WK tip is
+`candidate_stale_w` only after its immutable version authenticates through
+`authenticateObservedTerminalCandidateVersion` for exactly that candidate. The
+stale result then reports that version in its `candidate` projection:
+`version_identity`, `immutable_version_ref`, `current_selection_ref`, and the
+`current_selection_observation` naming the same candidate, beside the candidate's
+own base and embedded `W` and the live `current_w`. Its `version_lifecycle` and
+`review_consumer` stay `null`: the authentication says what the selected
+candidate is, not that it is currently publishable. When that authentication
+refuses, the state is `candidate_identity_invalid_or_moved` with the refusing
+owner's own code as `cause`, no version fields, and no advance continuation; a
+missing, conflicting, or symbolic immutable version ref, a candidate that is not
+the deterministic candidate of its own tuple, an embedded generation that does
+not authenticate, and a selection or version ref that moves during the read all
+refuse this way. Status does not retry, repair a ref, or substitute a newer
+candidate.
+
+Stale classification therefore requires full historical generation
+authentication of the candidate's embedded `W`, which validates the generation's
+contract and associations. The exact-`W` authenticator used for the current
+generation checks descriptor mechanics only, so a generation can authenticate as
+current and still fail historical authentication. A candidate built over such a
+generation is healthy while its `W` is current and, once `W` moves, is
+`candidate_identity_invalid_or_moved` with cause
+`controlled_contract_generation_invalid` rather than stale, and status offers it
+no advance.
+
 The independent review consumer is reported only as the advisory
 `review_consumer` projection of a healthy candidate: `null` when no terminal
 review unit is designated, otherwise its subject, a `lifecycle` of `admissible`,
@@ -863,21 +1381,153 @@ review unit is designated, otherwise its subject, a `lifecycle` of `admissible`,
 `authored_contract_divergent`, and the paged `divergence` that `continuation`
 addresses. That projection is computed after, and never feeds, candidate state.
 
-`workspace_terminal_review_candidate_advance` keeps its explicit, owner-
-authenticated snapshot under the per-WK exclusion, expected-old CAS on the exact
-observed candidate, generation rechecks, and immutable prior versions. A WK
-without any review unit observes a stale `W` and advances through the same
-owners.
+The comparison behind that projection has one owner in the candidate runtime,
+`observeTerminalReviewConsumer`, which returns complete facts: a `compatibility`
+of `not_designated`, `compatible`, `incompatible`, or
+`authored_contract_divergent`, the live review `subject` when one is designated,
+the owner's `cause`, the actual refusal when one decided the answer, and, for a
+divergence, every difference the lifecycle comparison produced, in its order,
+with the digest of the candidate's own record and of the live record it
+compared. It pages and clips nothing. The status projection maps those facts to
+its `lifecycle` and pages the complete difference list 128 at a time. The
+internal candidate inspection reads the same facts unpaged, and only for a
+healthy current candidate: a stale, absent, invalid, or unverified observation
+and every historical selection carry no review facts. A comparison that itself
+throws is kept as a review fact with a null `compatibility` and the thrown
+error, and leaves the candidate's state and identity as observed.
+
+`workspace_advance_candidate({subject,version})` is the deployed boundary. Its
+selected-version owner requires the exact lowercase 64-hex immutable version
+returned by inspection. Missing, null or malformed versions refuse before
+mutation. The private current-WK advance kernel remains an internal owner; it
+is not another public request form and supplies no default caller version.
+
+The pipeline consumes only the evaluator's private stale snapshot under the
+same-WK exclusion. A status-shaped value carries no snapshot; no dependency can
+adopt or mint one. For the selected-version boundary,
+`authenticateHistoricalTerminalCandidate` authenticates the requested immutable
+version inside that exclusion, and its candidate must equal the snapshot's
+candidate. An authentic different version refuses with
+`agent_launch.terminal_candidate.advance_input_moved.v1`, carrying the exact
+expected and observed `{version_identity, candidate}` pairs. History supplies
+only equality and diagnostic identity. Expected-old `C`, fixed `B`, target `W`,
+object format and generation come from the current evaluator and their owners.
+The target is captured once: movement refuses without reselection, repair or
+retry. A selection that is not stale retains the exclusion owner's before- or
+inside-exclusion refusal.
+
+The existing generation, record, freeze, derive, final-recheck and atomic
+publication owners run once. The candidate's tree equals the captured `W` tree
+and its sole parent is fixed `B`. Publication keeps one transaction for the new
+immutable version and current selection, fenced by fork and WK refs. Historical
+versions survive. The selected result reports the exact requested selection,
+authenticated source and advanced tuples from
+`projectTerminalWkCandidateVersion` (`version_identity`, `candidate`, `base`,
+`wk`, `tree`, `controlled_generation`), target `{wk, base}`, and native
+`version_state` and `selection_state`. Controlled generation is diagnostic
+identity, never a caller authority envelope.
+
+`task-advance-candidate.mjs` exports the strict request owner,
+`runAdvanceCandidateTask({mainRepo, request, backend, requestSchemaAuthority,
+responseEnv, runGit, dependencies})`, and an uncalled adoption registrar
+`registerCandidateAdvanceTool({registerTool, workspaceRepos,
+resolveWorkspaceRepo, jsonContent, errorContent, dispatchBackend, responseEnv,
+requestSchemaAuthority})`. Its intended name is `workspace_advance_candidate`;
+its closed request is exactly `{subject, version}`, with a root `WK-####`
+subject and required lowercase 64-hex version. Repo aliases, slice subjects,
+refs, object IDs as selectors, paths, generation, policy, argv and other fields
+refuse. The handler and request builder validate only own data fields, without
+reading inherited values or invoking request getters. The repository is bound
+by server composition through the existing resolver, never by the request. The registrar uses the real strict-validation
+error and response owners. `MCP_WRITE_SEMANTICS.NONE` declares that no
+field-replacement statement applies; the description explicitly names the Git
+objects and ref mutation.
+
+`advanceRequest({subject, version})` validates through the same owner and
+returns `{tool, arguments, successPredicate}` with the exact supplied values.
+Its predicate tests the actual result's `ok` fact: only `advanced` or
+`converged` is successful. A request specification does not register a callable
+route. The inspector consumes this specification by default; its
+continuation builder still requires the canonical descriptor and actual serving
+request-schema authority.
+
+The task composes existing mechanical-refusal and continuation owners. Each
+response carries one `next_calls` list. Current and exact new historical
+inspection calls require the actual serving schema and canonical tool identity;
+when either is unavailable, no call is invented. Observation obtains facts for
+a later explicit decision and grants no replacement-selection mutation authority.
+Refusal recovery and its call list are chosen together. Backend, canonical-root
+and generation corrections keep their cause-specific actor, prerequisite and
+correction, with no inspection repair call. Only a recovery requiring a fresh
+selection observation may offer inspection as informational guidance with the
+blocker unchanged, retaining the actual correction and explicit-version retry
+condition; inspection repairs nothing. Invalid
+requests use that same decision for both the mechanical refusal and the result
+envelope, so offered calls never contradict `no_supported_route`.
+The result states that no advance gate is configured: tier, policy availability,
+integration policy and forge policy supply no approval. Integration, tests,
+proofs, review dispatch, forge publication, merge and completion are all false.
+
+A failure retains the stage reached, established source and target, and the
+completed derivation identity when available. A pretransaction refusal establishes
+unchanged refs; completed derivation alone is no object-existence or ref-effect
+witness. An attempted write retains its producer's re-observed `unchanged` or
+`uncertain` effects. A version appearing without the matching current selection
+is indeterminate, never success. Exactly reauthenticated convergence is an
+observation and carries `write_attribution: "not_established"`; an available
+unacknowledged transaction answer is retained as its original diagnostic,
+including `ok:true` answers with nonzero status, error, signal or nonempty stderr,
+without retry or rollback. The publication owner alone decides acknowledgment
+and convergence. Acknowledged advancement carries `write_attribution: "this_request"`.
+
+Runtime failure membership is an owner-minted identity with unchanged own data.
+Primitive failure membership requires the actual producing owner at the runtime
+boundary and its captured failure projection, including genuine native Git
+diagnosis. Native diagnosis registration alone is no alternate authentication
+route. Producer identity is scoped to the concrete call that throws, and
+its lookup requires the original prototype and unchanged own code, detail and
+message. The task reuses that owner's captured projection. A prototype, code
+or copied projection alone establishes neither membership nor effects. An
+injected owner callback or a value thrown unchanged by an injected Git runner
+cannot mint primitive membership. Copies, mutations,
+getters, proxies and subclasses keep their captured diagnosis without an
+invented owner classification. Refusals keep native causes, stages and ref
+disagreements, distilled through the existing diagnostic owner. The complete
+original is retained once by the existing operator-evidence owner; no raw
+process output or stack is returned. If the response cannot fit inline, it
+names the retained original file and whole facts omitted from the inline answer;
+it introduces no result store or ranged retrieval protocol.
+
+The production composer registers `workspace_advance_candidate` with actual
+schema authority and orchestrator/operator grants. Worker/reviewer/redteam
+sessions cannot call it. The returned inspector call uses its same serving
+contract; there is no old advance alias. Private SDK tests establish owner
+behavior, while actual production source/installed journeys establish exposure.
+
+The per-WK exclusion locks the repository advance mutates. Advance passes its own
+repository root to the backend's exclusion owner, which, after the advisory
+evaluation reports a stale `W` and before it takes the durable lock, requires
+that root and the backend's configured root each to be a nonempty string and
+exactly equal. A missing, non-string, empty, or different root refuses with
+`repository_root_unavailable`; neither root is defaulted from the other and a
+mismatch is not normalized. Nothing is evaluated or continued inside the
+exclusion after that refusal, so nothing is derived or published. On equality the
+owner locks that configured root, and the authoritative re-evaluation and the
+whole advance continuation run inside that one lock.
 
 When the backend's advance exclusion refuses, the route returns
 `agent_launch.terminal_candidate.exclusion_refused.v1` with the backend's closed
 `reason`. The possible reasons are `invalid_arguments`, `candidate_not_stale_w`,
 `repository_root_unavailable`, and `candidate_not_stale_w_inside_exclusion`.
-For the two not-stale reasons, `recovery` is `observe_candidate_status` and
-`next_call` is the read-only `workspace_terminal_review_candidate_status` for the
-same WK, including `repo` when the request supplied one. For the other two
-reasons, `recovery` is `unavailable` and `next_call` is `null`. The reason and
-continuation come from the backend owner's private identity lookup
+For the two not-stale reasons, the public response is terminal: the selected
+candidate is not stale, so nothing needs advancing and the refusal changed
+nothing. Its recovery state is `no_supported_route`, and `next_calls` is empty;
+no inspection or retry is required merely to reread that fact. The specific
+exclusion reason and unchanged effects remain explicit. This terminal outcome
+does not waive cause-specific correction or fresh-selection observation for
+recoverable conditions. The other two reasons retain their cause-specific
+correction and responsible actor, with no inspection repair call. The
+authenticated reason comes from the backend owner's private identity lookup
 (`projectTerminalCandidateExclusionRefusal`), not from the thrown value's `code`
 or `reason`. A copied, inherited, or proxied refusal therefore publishes only
 the four-field generic refusal. Advance is not a recovery route for absent,
@@ -889,7 +1539,7 @@ generation authentication, and candidate construction are unchanged.
 An operator-authorized direct-to-main lifecycle does not use terminal-candidate
 status, terminal-candidate advance, forge handoff, external review, or shell
 review. The operator first commits the exact scoped implementation candidate.
-The coordinator then calls the same registered `workspace_agent_dispatch`
+The coordinator then calls the same registered `start_agent`
 reviewer route with the canonical WK or review-slice `subject` and the landed
 commit's complete `diff_base_sha` and `reviewed_sha`. The reviewer is read-only
 and never creates Git objects.
@@ -917,11 +1567,21 @@ to reviewers, and review output never becomes validation evidence.
 Authentication precedes execution. Selection refuses before any run, monitor,
 materialization, or executor call when publication, cold recovery,
 controlled-generation authentication at `W`, the lifecycle-difference decision, or
-selection agreement fails. Recovery failures publish only the recovery verdict
-through the closed candidate failure projection: a typed candidate code such as
-`candidate_invalid`, `input_moved`, or `controlled_generation_stale` when the
-current controlled generation is not persisted in `W`, or the fixed unknown-cause
-projection for any unrecognized or untrusted exception. The reviewed material is
+selection agreement fails. A recovery failure is published as the failure that
+was thrown: its own name, message, code, structured details and cause chain are
+the refusal's `evidence.cause_chain`, first level first, and the complete
+capture is retained for the operator. The recovery verdict in `reason` states
+where recovery stopped and is context beside that failure. A typed candidate
+fact (`recovery_code` and `recovery_detail`: a code such as `candidate_invalid`,
+`input_moved`, or `controlled_generation_stale` when the current controlled
+generation is not persisted in `W`, whose cause is the generation owner's
+refusal) is published only when the coordinator recorded one for that exact
+value under the production runner. Any other value, including an unrecognized
+exception and every failure of an injected runner, publishes neither member;
+nothing is classified as unknown and no message stands in for the failure's own.
+The same holds after integration: a failed candidate preparation carries the
+thrown value as its lifecycle evidence and a `candidate_failure` only for a typed
+candidate error. The reviewed material is
 the immutable selected `C`. Canonical movement after selection affects the next
 dispatch, not the running action. There is no terminal-review spawn barrier,
 retained per-attempt execution contract, or pre-spawn coordination refusal.
@@ -1171,7 +1831,7 @@ The work-record schema, ready-slice projection, bounded selected-unit read,
 dispatch/admission projection, findings-only classifier, and role-contract
 renderer all consume that owner. The same projected operation, target, and
 verification population also feeds terminal-candidate execution and
-`workspace_verify_proof`; no public route executes a declared node_test target
+`verify_proof`; no public route executes a declared node_test target
 directly. Consumers retain their own confinement and role
 authority, but none parses command text, searches secondary sections, or
 reconstructs target bindings.
@@ -1209,7 +1869,7 @@ review stays advisory under `decision`.
 ## Independent findings actions
 
 Public SHA spellings are ordinary locator syntax, not operator authentication.
-The registered `workspace_agent_dispatch` boundary accepts a complete
+The registered `start_agent` boundary accepts a complete
 `{ diff_base_sha, reviewed_sha }` pair for reviewer and redteam calls and routes it
 through the same normalizer used by canonical slice and terminal whole-WK
 subjects. No special selection authority, carrier, attestation, receipt,
@@ -1349,7 +2009,7 @@ members of this envelope schema. This is a response-contract fact, not a
 confidentiality or minimum-disclosure guarantee. Existing envelopes are otherwise
 unchanged.
 
-The additive field is published by the `workspace_agent_run_status` catch seam
+The additive field is published by the `get_run_result` catch seam
 through one re-gate against the frozen 15-member vocabulary, so a widened producer
 cannot widen what is published. The managed post-worker lifecycle does not run
 slice-review preparation and therefore never carries this field on
@@ -1409,3 +2069,71 @@ handle may be unknown after restart. Logs, results, and provenance are optional
 action-local audit evidence, no receipt is published, and capture failure cannot
 block a later dispatch. Implementation candidate construction, integration, CAS, and
 forge behavior remain independently owned and unchanged.
+
+## Registered publication task composition
+
+`task-publish-work.mjs` exports `createPublishWorkTask({workspaceRepos,
+wkForgeHandoffAdapter, resolveWorkspaceRepo?, env?, responseEnv?,
+requestSchemaAuthority?})` and `registerPublishWorkTool({registerTool,
+...composition})`. Importing the module registers nothing. The registrar binds
+the task's closed `PUBLISH_WORK_INPUT_SCHEMA` and guarded call to the supplied
+host registrar. The production server, descriptors and orchestrator/operator grants expose
+`workspace_publish_work` through this composition.
+
+The mutation request is exactly `{subject: "WK-####"}`. Unknown properties and
+slice subjects refuse before publication. The session profile's central grant
+for `workspace_publish_work` controls entitlement during preparation. The incumbent repository resolver is
+called without a caller alias. The trusted host must supply the runtime's
+`wkForgeHandoffAdapter` bound to that same session repository. One valid entitled
+request delegates once with `{assigned_unit: subject}`, without a preliminary
+candidate read or an expected version populated by the task.
+
+The existing publisher, production publication-state resolver and coordinator
+own current candidate resolution and cold recovery under the same live WK
+exclusion. They authenticate the candidate and controlled generation and apply
+the closeout, expected-old publication and live-record fences. Local, plain Git
+and hosted outcomes, exact candidate and publication identities, destinations,
+proposals, unchanged repeats, permitted notes refresh and partial effects remain
+producer facts. A later explicit request resolves the current state again. The
+task performs no integration, candidate advancement, proof, review, merge or
+canonical completion; a published branch-local done record remains branch-local.
+
+`createPublishWorkTask` returns `{name, config, inputSchema, handler, call,
+readOriginal, repeatRequest}`. The `workspace-publish-work.v1` envelope has the
+subject and the incumbent producer outcome under `producer`, preserving nested
+owner names and codes. Shared dispatch cause projection removes raw process
+output while preserving semantic diagnosis and actual effects, including
+accepted results with diagnostics. `retainSelectedResponseSource` retains that
+semantic carrier once, bound to server-derived `{route:
+"workspace_publish_work", repository, unit: subject, authority_identity}`. The
+identity is the existing query-context owner's canonical session identity, not
+request data or a generation permission.
+
+The shared authenticated projection adds `delivery.original_request` to the
+served answer without changing the retained evidence. It delivers the complete
+structured result through the final guard, including answers above the inline
+bound. The task never clones a minted selected-full result. Retention failure
+reports its actual cause beside the original outcome and known effects; it
+replays no publication and claims no rollback. If that answer also exceeds the
+inline bound, a publication-specific disclosure preserves producer identity,
+cause and actual effects and explicitly names the diagnostic fields that could
+not be delivered. It attempts no second spill or publication. An unavailable
+retained source cannot promise complete diagnostic delivery.
+
+`readOriginal({subject, source: {ref_id}})` is an internal guarded read
+composition for the joint coordinator's read route. It derives the same expected
+binding and uses the shared authenticated selected-response projection to deliver the
+retained semantic carrier with its current read navigation. It invokes no publisher, candidate observation/recovery,
+current-record scan or second retention. Original reads remain bound to the
+session role, repository, producer route and subject even after current state
+moves. `publicationOriginalRequest(subject, source)` supplies the concrete read
+request data; the production host binds original reads to `workspace_read_wiki({reference})`.
+
+`buildPublishWorkRequest(subject, {requestSchemaAuthority?})`, also available as
+`task.repeatRequest(subject)`, is pure and emits subject-only arguments for both
+repeat and refresh. With canonical public tool membership, an actual registered contract and the
+serving registrar exposing the tool, it uses the existing canonical continuation
+constructor. Without serving registration it returns an explicit
+`intended_tool_request` with `callable: false`. The production landing consumer is `workspace_check_landing`; returned calls
+use the actual serving schema authority. Private source and installed compositions
+remain owner evidence, separate from the actual public combined-server journey.

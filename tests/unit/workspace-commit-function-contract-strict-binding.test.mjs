@@ -161,6 +161,33 @@ test("WK-1678: a substituted write-scope source or non-canonical write scope is 
   }
 });
 
+test("a binding that targets the WK or a non-slice unit is refused before any Git operation", async (t) => {
+
+  const selectedUnit = exactSliceBinding().selected_unit;
+  for (const [label, overrides] of [
+    ["WK output branch", { output_branch: "wk/IN-0011/WK-1429" }],
+    ["refs/heads-qualified WK output branch", { output_branch: "refs/heads/wk/IN-0011/WK-1429" }],
+    ["sibling WK output branch", { output_branch: "wk/IN-0011/WK-9999" }],
+    ["sibling slice output branch", { output_branch: "slice/IN-0011/WK-1429/SLICE-005" }],
+    ["main output branch", { output_branch: "main" }],
+    ["WK selected-unit kind", { selected_unit: { ...selectedUnit, kind: "wk" } }],
+    ["work-record selected-unit kind", { selected_unit: { ...selectedUnit, kind: "work_record" } }],
+    ["missing selected-unit kind", {
+      selected_unit: Object.fromEntries(Object.entries(selectedUnit).filter(([key]) => key !== "kind"))
+    }],
+    ["whole-WK selected unit", {
+      selected_unit: { kind: "wk", address: "WK-1429", record_id: "WK-1429", slice_id: null, repo: selectedUnit.repo }
+    }],
+    ["sibling slice selected unit", {
+      selected_unit: { ...selectedUnit, address: "WK-1429#SLICE-005", slice_id: "SLICE-005" }
+    }]
+  ]) {
+    await t.test(label, async (t) => {
+      await assertCommitFailsClosedBeforeGit(t, exactSliceBinding(overrides), label);
+    });
+  }
+});
+
 test("WK-1678: a replayed or stale identity tuple is refused before any Git operation", async (t) => {
 
   const canonicalTuple = {

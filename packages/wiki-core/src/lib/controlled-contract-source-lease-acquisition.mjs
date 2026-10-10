@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
   assertCanonicalWorkRecordReadLease,
+  readCanonicalWorkRecordBirthLease,
   withCanonicalWorkRecordReadLease
 } from "../operations/work-records-store-io.mjs";
 import {
@@ -25,6 +26,16 @@ import {
 } from "./controlled-contract-source-lease-primitives.mjs";
 import { withContinuationControlledContractSourceLease } from
   "./controlled-contract-source-lease-continuation.mjs";
+
+export async function withBirthControlledContractSourceLease({ repoRoot, wkId, focus = null, recordLease, mutation, ...unsupported }, callback) {
+  if (focus !== null || Object.keys(unsupported).length) sourceLeaseFailure('input_invalid',
+    'Birth source acquisition accepts only its root authoring mutation');
+  await readCanonicalWorkRecordBirthLease(recordLease, { dir: repoRoot, id: wkId });
+  const { processStartIdentity } = await import('./controlled-contract-carrier-set-publication.mjs');
+  const { resolveCanonicalControlledContractCarrierSet } = await import('./controlled-contract-carrier-set-tools.mjs');
+  return withCanonicalControlledContractSourceLeaseImpl({ repoRoot, wkId, focus: null, mutation }, callback,
+    { processStartIdentity, resolveCanonicalControlledContractCarrierSet, recordBirthLease: recordLease });
+}
 
 export async function withCanonicalControlledContractSourceLeaseImpl({
   repoRoot, wkId, focus = null, maximumDurationMs = 60_000,
@@ -56,7 +67,26 @@ export async function withCanonicalControlledContractSourceLeaseImpl({
   const publicationOwner = Object.freeze({
     operationToken: randomUUID(), processStart
   });
-  return withCanonicalWorkRecordReadLease({
+  const birthLease = dependencies.recordBirthLease;
+  if (birthLease !== undefined && (focus !== null || mutation === null || continuation !== null ||
+      draftObligation !== null || canonicalSet !== null)) sourceLeaseFailure('input_invalid',
+    'Birth authority is confined to root authoring mutation');
+  const readBirthLease = async (lease, input) => {
+    const captured = await readCanonicalWorkRecordBirthLease(lease, { ...input, dir: repoRoot });
+    if ((await resolveControlledContractRepository(captured.target_dir)).repository !== store.repository) {
+      sourceLeaseFailure("identity_mismatch", "Birth caller root no longer names the canonical repository");
+    }
+    return captured;
+  };
+  const withRecordLease = birthLease === undefined ? withCanonicalWorkRecordReadLease : async (input, run) => {
+    const captured = await readBirthLease(birthLease, input);
+    return run({ lease: birthLease, record: captured.record, source_digest: null });
+  };
+  const assertRecordLease = birthLease === undefined ? assertCanonicalWorkRecordReadLease : async (lease, input) => {
+    await readBirthLease(lease, input);
+    return { source_digest: null };
+  };
+  return withRecordLease({
     dir: store.repository, id: wkId, maximumDurationMs
   }, async ({ lease: recordLease, record, source_digest: recordDigest }) => {
     if (draftObligation !== null) {
@@ -103,6 +133,9 @@ export async function withCanonicalControlledContractSourceLeaseImpl({
       const before = canonicalSet ?? await resolveCanonicalControlledContractCarrierSet({
         repoRoot: store.repository, wkId, focus
       });
+      if (birthLease !== undefined && (before.members.length > 0 || before.manifest_content_digest !== null)) {
+        sourceLeaseFailure('source_exists', 'Birth cannot adopt an existing canonical semantic population');
+      }
       const targetFilename = resolveManifestControlledContractCarrierFilename({
         canonicalSet: before,
         wkId,
@@ -145,9 +178,9 @@ export async function withCanonicalControlledContractSourceLeaseImpl({
           manifest_content_digest: underLock.manifest_content_digest,
           canonical_member_digests: canonicalMemberDigests,
           source_digests: {
-            "work-record": assertCanonicalWorkRecordReadLease(recordLease, {
+            "work-record": (await assertRecordLease(recordLease, {
               dir: store.repository, id: wkId
-            }).source_digest,
+            })).source_digest,
             "canonical-generation-manifest": underLock.manifest_content_digest,
             ...canonicalMemberDigests
           }
@@ -158,6 +191,8 @@ export async function withCanonicalControlledContractSourceLeaseImpl({
           expiresAt: Date.now() + maximumDurationMs,
           focus: focus ?? null,
           recordLease,
+          ...(birthLease === undefined ? {} : { assertBirthRecordLease: () =>
+            readBirthLease(recordLease, { dir: store.repository, id: wkId }) }),
           repository: record.repo,
           publicationOwner,
           snapshot,

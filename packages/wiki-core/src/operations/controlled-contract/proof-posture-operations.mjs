@@ -1,6 +1,5 @@
 import {
-  buildControlledAcceptanceProofPosture,
-  inspectWorkRecordProofPosture
+  prepareControlledAcceptanceProofPostureAmendment
 } from "../../lib/work-record-proof-posture.mjs";
 import {
   ControlledContractToolError
@@ -19,44 +18,6 @@ function onlyReplaceableProofPostureDiagnostics(loaded) {
     loaded.diagnostics.every((diagnostic) =>
       diagnostic?.severity === "error" && diagnostic?.code === "invalid_record" &&
       diagnostic?.path === "proof_posture");
-}
-
-export function prepareControlledAcceptanceProofPostureAmendment({
-  record, wkId, disposition, rationale = null, allowCorrection = false,
-  allowInvalidReplacement = false,
-  now = today
-} = {}) {
-  let proofPosture;
-  try {
-    proofPosture = buildControlledAcceptanceProofPosture({
-      wkId, disposition, rationale
-    });
-  } catch (error) {
-    refusal(error.code ?? "controlled_acceptance_proof_posture_invalid", error.message);
-  }
-  if (record?.id !== wkId) refusal(
-    "controlled_acceptance_proof_posture_record_invalid",
-    "the exact canonical work record is unavailable or invalid"
-  );
-  const current = inspectWorkRecordProofPosture(record, { expectedRecordId: wkId });
-  if (!current.valid && !allowInvalidReplacement) refusal(
-    "controlled_acceptance_proof_posture_record_invalid",
-    current.reason ?? "the canonical proof posture is invalid"
-  );
-  if (current.present && current.valid && !allowCorrection) refusal(
-    "controlled_acceptance_proof_posture_already_recorded",
-    "a controlled-acceptance disposition is already recorded"
-  );
-  if (current.present && JSON.stringify(current.proof_posture) ===
-      JSON.stringify(proofPosture)) return Object.freeze({
-    record: Object.freeze(structuredClone(record)), proofPosture,
-    changed: false
-  });
-  const amended = structuredClone(record);
-  amended.proof_posture = proofPosture;
-  amended.updated = now();
-  return Object.freeze({ record: Object.freeze(amended), proofPosture,
-    changed: true });
 }
 
 export async function persistControlledAcceptanceProofPostureOperation({

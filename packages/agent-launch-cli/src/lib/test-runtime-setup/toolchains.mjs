@@ -81,7 +81,7 @@ function selectRequirement(recipe, { requestedVersion, projectDirs }) {
   };
 }
 
-function resolveConfiguredExecutable(name, executable) {
+export function resolveConfiguredExecutable(name, executable) {
   const observation = observeExecutable({ executable });
   if (observation.status === "found") return observation.resolved_path;
   if (observation.status === "absent") {
@@ -142,10 +142,11 @@ function installationFailure(recipe, observation) {
   }
 }
 
-async function identifyInstallation(recipe, { real, source }) {
+async function identifyInstallation(recipe, { real, source, locationOnly = false }) {
   const observation = await observeToolchainInstallation({
     description: TOOLCHAIN_DESCRIPTIONS[recipe.name], executable: real,
     requiredRoles: Object.keys(recipe.executables), source, probe: setupProbe,
+    ...(locationOnly ? { locationOnly: true } : {}),
     probeContext: { cwd: process.cwd(), timeoutMs: SETUP_PROBE_TIMEOUT_MS, env: {
       root: { PATH: "/usr/bin:/bin" },
       describe: { PATH: "/usr/bin:/bin", PYTHONDONTWRITEBYTECODE: "1" },
@@ -162,12 +163,14 @@ export async function resolveToolchain({
   configuredExecutable = null,
   projectDirs = [],
   env = process.env,
-  measure = true
+  measure = true,
+  enforceRequirement = true
 }) {
   const recipe = TOOLCHAIN_RECIPES[name];
   if (!recipe) fail("test_runtime_toolchain_unknown", `unknown toolchain ${name}`);
-  const selected = selectRequirement(recipe, { requestedVersion, projectDirs });
-  for (const prerequisite of recipe.native_prerequisites ?? []) {
+  const selected = enforceRequirement ? selectRequirement(recipe, { requestedVersion, projectDirs })
+    : { requirement: null, requirement_source: null, pins: [] };
+  for (const prerequisite of enforceRequirement ? recipe.native_prerequisites ?? [] : []) {
     if (detectNativePrerequisite(prerequisite) === null) {
       fail("test_runtime_native_prerequisite_missing",
         `${name} requires the native ${prerequisite} tool under a system root`,
@@ -191,7 +194,8 @@ export async function resolveToolchain({
     real = located.real;
     source = "host";
   }
-  const installation = await identifyInstallation(recipe, { real, source });
+
+  const installation = await identifyInstallation(recipe, { real, source, locationOnly: !enforceRequirement });
   if (selected.requirement !== null && !versionSatisfies(selected.requirement, installation.version)) {
     fail("test_runtime_version_mismatch",
       `${source} ${name} at ${real} reports ${installation.version}, not the required ${selected.requirement}`,

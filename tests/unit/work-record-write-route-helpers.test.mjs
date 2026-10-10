@@ -12,6 +12,8 @@ import {
   createCompactContractEditResponse,
   createCompactValidateDispatchResponse
 } from "../../packages/wiki-mcp/src/lib/work-record-write-route-helpers.mjs";
+import { applyWorkerScopePreflightOverlay } from
+  "../../packages/wiki-core/src/lib/work-record-dispatch-readiness-shape.mjs";
 
 async function withWorkspace(run) {
   const dir = await mkdtemp(path.join(tmpdir(), "wk1056-write-route-"));
@@ -195,8 +197,10 @@ for (const [label, compactor] of [
 }
 
 const BASE_GUIDANCE = "Root WK-0892 selects no base_branch; author it on the root, then dispatch.";
+const BASE_SELECTION_MISSING = "scope_existence_base_selection_missing";
+const DISPATCH_GUIDANCE = "Dispatch implementation worker via workspace_agent_dispatch";
 
-function readinessWithPreflight(reason, overrides = {}) {
+function structuralReadiness(overrides = {}) {
   return {
     schema_version: "dispatch-readiness.v1",
     record_id: "WK-0892",
@@ -205,44 +209,93 @@ function readinessWithPreflight(reason, overrides = {}) {
     dispatchable: true,
     decision_code: "dispatchable",
     reasons: [],
-    worker_scope_preflight: {
-      schema_version: "worker-scope-preflight.v1", status: "not_evaluated", base: null,
-      refusal: null, reason, evaluated: [], pending_at_launch: []
-    },
     ...overrides
   };
 }
 
+function notEvaluatedReport(reason) {
+  return {
+    schema_version: "worker-scope-preflight.v1", status: "not_evaluated", base: null,
+    refusal: null, reason, evaluated: [], pending_at_launch: ["worktree_provisioning"]
+  };
+}
+
+const PASSED_REPORT = Object.freeze({
+  schema_version: "worker-scope-preflight.v1", status: "passed",
+  base: { ref: "main", sha: "a".repeat(40), source: "configured_base" },
+  refusal: null, evaluated: ["read_scope", "write_scope"], pending_at_launch: ["worktree_provisioning"]
+});
+
+function present(readiness, report, tier) {
+  const overlaid = applyWorkerScopePreflightOverlay(readiness, report);
+  return { overlaid, response: createCompactValidateDispatchResponse("repo", overlaid, tier) };
+}
+
 for (const tier of ["paid_cce", "free_local"]) {
-  test(`WK-2669: ${tier} validate-dispatch surfaces missing base selection guidance`, () => {
-    const readiness = readinessWithPreflight(
-      { code: "scope_existence_base_selection_missing", message: BASE_GUIDANCE });
-    const response = createCompactValidateDispatchResponse("repo", readiness, tier);
+  test(`WK-2669: ${tier} missing base selection is a false result with the launcher's guidance`, () => {
+    const report = notEvaluatedReport({ code: BASE_SELECTION_MISSING, message: BASE_GUIDANCE });
+    const before = structuredClone(report);
+    const { overlaid, response } = present(structuralReadiness({ reasons: ["prior"] }), report, tier);
+    assert.deepEqual(overlaid.structural_readiness, { dispatchable: true, decision_code: "dispatchable" });
+    assert.deepEqual(report, before, "the launcher's report is retained unchanged");
+    assert.equal(response.dispatchable, false);
+    assert.equal(response.decision_code, BASE_SELECTION_MISSING);
+    assert.deepEqual(response.reasons, [BASE_GUIDANCE, "prior"]);
     assert.equal(response.next_action, BASE_GUIDANCE);
-    assert.equal(response.dispatchable, true);
-    assert.equal(response.decision_code, "dispatchable");
-    assert.deepEqual(response.worker_scope_preflight, readiness.worker_scope_preflight);
+    assert.doesNotMatch(response.next_action, /^Dispatch /u);
+    assert.deepEqual(response.worker_scope_preflight, before);
+    assert.equal(response.worker_scope_preflight.status, "not_evaluated");
+    assert.deepEqual(response.worker_scope_preflight.evaluated, []);
+    assert.equal(response.worker_scope_preflight.base, null);
   });
 
-  test(`WK-2669: ${tier} keeps dispatch guidance for unrelated or unexplained not_evaluated reasons`, () => {
-    for (const reason of [
-      { code: "initiative_unresolvable", message: null },
-      { code: "scope_existence_base_unresolved", message: "git failed" },
-      { code: "scope_existence_base_selection_missing", message: null }
-    ]) {
-      const response = createCompactValidateDispatchResponse("repo", readinessWithPreflight(reason), tier);
-      assert.equal(response.next_action, "Dispatch implementation worker via workspace_agent_dispatch",
-        JSON.stringify(reason));
+  test(`WK-2669: ${tier} the exact reason decides even without prose`, () => {
+    const { overlaid, response } = present(structuralReadiness(),
+      notEvaluatedReport({ code: BASE_SELECTION_MISSING, message: null }), tier);
+    assert.equal(overlaid.dispatchable, false);
+    assert.equal(overlaid.decision_code, BASE_SELECTION_MISSING);
+    assert.deepEqual(overlaid.reasons, [], "no second diagnosis is invented");
+    assert.equal(response.dispatchable, false);
+    assert.notEqual(response.next_action, DISPATCH_GUIDANCE);
+    assert.equal(response.next_action, tier === "free_local"
+      ? "Resolve structural dispatch-readiness issues reported in reasons"
+      : `Resolve blocking issue: ${BASE_SELECTION_MISSING}`);
+  });
+
+  test(`WK-2669: ${tier} unrelated not_evaluated, passed and absent preflight stay dispatchable`, () => {
+    const reports = [
+      notEvaluatedReport({ code: "initiative_unresolvable", message: null }),
+      notEvaluatedReport({ code: "scope_existence_base_unresolved",
+        message: `${BASE_SELECTION_MISSING} lookalike prose: ${BASE_GUIDANCE}` }),
+      PASSED_REPORT,
+      null
+    ];
+    for (const report of reports) {
+      const { overlaid, response } = present(structuralReadiness(), report, tier);
+      assert.equal(Object.hasOwn(overlaid, "structural_readiness"), false, JSON.stringify(report));
+      assert.equal(response.dispatchable, true, JSON.stringify(report));
+      assert.equal(response.decision_code, "dispatchable");
+      assert.equal(response.next_action, DISPATCH_GUIDANCE, JSON.stringify(report));
     }
   });
 
   test(`WK-2669: ${tier} higher-priority refusal guidance outranks missing base selection`, () => {
-    const response = createCompactValidateDispatchResponse("repo", readinessWithPreflight(
-      { code: "scope_existence_base_selection_missing", message: BASE_GUIDANCE },
-      { dispatchable: false, decision_code: "record_validation_failure" }), tier);
+    const { overlaid, response } = present(structuralReadiness(
+      { dispatchable: false, decision_code: "record_validation_failure", reasons: ["bad"] }),
+    notEvaluatedReport({ code: BASE_SELECTION_MISSING, message: BASE_GUIDANCE }), tier);
+    assert.equal(Object.hasOwn(overlaid, "structural_readiness"), false);
+    assert.deepEqual(overlaid.reasons, ["bad"]);
     assert.equal(response.dispatchable, false);
     assert.equal(response.decision_code, "record_validation_failure");
     assert.equal(response.next_action,
       "Fix work-record validation errors reported in reasons and re-validate");
+  });
+
+  test(`WK-2669: ${tier} an existing structural result is preserved`, () => {
+    const structural = { dispatchable: true, decision_code: "dispatchable_with_accepted_escalation" };
+    const { overlaid } = present(structuralReadiness({ structural_readiness: structural }),
+      notEvaluatedReport({ code: BASE_SELECTION_MISSING, message: BASE_GUIDANCE }), tier);
+    assert.equal(overlaid.structural_readiness, structural);
+    assert.equal(overlaid.decision_code, BASE_SELECTION_MISSING);
   });
 }

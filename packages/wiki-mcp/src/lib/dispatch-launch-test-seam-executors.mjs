@@ -456,6 +456,15 @@ function observeManagedGuide() {
     }
   };
 }
+// The one recovery consumer: continue only with the refusal's single returned
+// recommended verification call, exactly as returned.
+function followReturnedCorrection(refusal) {
+  const calls = refusal && Array.isArray(refusal.next_calls) ? refusal.next_calls : [];
+  const offered = calls.filter(call => call && call.tool === "verify_proof" && call.recommended === true);
+  if (offered.length !== 1) return { continued: false, reason: "no_single_returned_correction",
+    returned_calls: calls.length };
+  return { continued: true, call: { tool: offered[0].tool, arguments: offered[0].arguments } };
+}
 (async () => {
   mcp = await connectFixedProbeMcp({ clientName: "connected-delivery-witness", requestTimeoutMs: 30000 });
   const callTool = (name, args) => mcp.callTool(name, args);
@@ -466,22 +475,50 @@ function observeManagedGuide() {
   const invocations = [];
   let instruction = null;
   let parentControl = null;
+  let recovery = null;
   if (scenario === "selected") {
     instruction = decodeConnectedDirectives(delivered);
     instruction.guide = observeManagedGuide();
-    parentControl = summary(await callTool("workspace_verify_proof", instruction.requests.parent_control));
+    parentControl = summary(await callTool("verify_proof", instruction.requests.parent_control));
     writeFileSync("dependency.mjs", "export function value() { return 42; }\n", "utf8");
-    invocations.push(summary(await callTool("workspace_verify_proof", instruction.requests.verify)));
+    invocations.push(summary(await callTool("verify_proof", instruction.requests.verify)));
     writeFileSync("dependency.mjs", "export function value() { return 43; }\n", "utf8");
-    invocations.push(summary(await callTool("workspace_verify_proof", instruction.requests.verify)));
+    invocations.push(summary(await callTool("verify_proof", instruction.requests.verify)));
     writeFileSync("dependency.mjs", "export function value() { return 42; }\n", "utf8");
-    invocations.push(summary(await callTool("workspace_verify_proof", instruction.requests.verify)));
+    invocations.push(summary(await callTool("verify_proof", instruction.requests.verify)));
+  } else if (scenario === "recovery") {
+    instruction = decodeConnectedDirectives(delivered);
+    writeFileSync("dependency.mjs", "export function value() { return 43; }\n", "utf8");
+    parentControl = summary(await callTool("verify_proof", instruction.requests.parent_control));
+    const refusal = parentControl.structured;
+    recovery = {
+      withheld_control: { injected: "returned_next_calls_removed_before_consumption",
+        outcome: followReturnedCorrection(Object.assign({}, refusal, { next_calls: [] })) },
+      followed: followReturnedCorrection(refusal)
+    };
+    if (!recovery.followed.continued) throw new Error("the refusal returned no correction to follow");
+    const { call } = recovery.followed;
+    recovery.forged_control = summary(await callTool(call.tool, Object.assign({}, call.arguments,
+      { subject: instruction.requests.parent_control.subject + "#SLICE-999" })));
+    invocations.push(summary(await callTool(call.tool, call.arguments)));
+    const failedRead = (invocations[0].structured && invocations[0].structured.next_calls || [])
+      .filter(entry => entry && entry.recommended === true);
+    recovery.failed_read = failedRead.length === 1 ? { call: failedRead[0],
+      result: summary(await callTool(failedRead[0].tool, failedRead[0].arguments)) } : null;
+    writeFileSync("dependency.mjs", "export function value() { return 42; }\n", "utf8");
+    invocations.push(summary(await callTool(call.tool, call.arguments)));
+    recovery.retained_reads = [];
+    for (const returned of [refusal, invocations[1].structured]) {
+      const read = returned && returned.recorded_invocation && returned.recorded_invocation.detail_call;
+      recovery.retained_reads.push(read ? { call: read, result: summary(await callTool(read.tool, read.arguments)) }
+        : null);
+    }
   } else if (scenario === "unselected") {
     writeFileSync("dependency.mjs", "export function value() { return 42; }\n", "utf8");
-    invocations.push(summary(await callTool("workspace_verify_proof", { subject: selectedUnit })));
+    invocations.push(summary(await callTool("verify_proof", { subject: selectedUnit })));
   } else if (scenario === "timeout") {
     writeFileSync("dependency.mjs", "export function value() { return 42; }\n", "utf8");
-    invocations.push(summary(await callTool("workspace_verify_proof",
+    invocations.push(summary(await callTool("verify_proof",
       { subject: selectedUnit, timeout: { seconds: 12 } })));
   } else if (scenario === "observation_delivery") {
     writeFileSync("src/canary.txt", "WK-2671 observation delivery\n", "utf8");
@@ -495,10 +532,10 @@ function observeManagedGuide() {
   } else {
     throw new Error("unknown fixed connected witness scenario");
   }
-  const commit = summary(await callTool("commit", {}));
+  const delivery = summary(await callTool("workspace_deliver_work", {}));
   if ((scenario === "observation_delivery" || scenario === "observation_delivery_pair") &&
-      (commit.is_error || !commit.structured || commit.structured.committed !== true)) {
-    throw new Error("observation delivery commit was not reported: " + JSON.stringify(commit));
+      (delivery.is_error || !delivery.structured || delivery.structured.outcome !== "delivered")) {
+    throw new Error("observation delivery was not reported: " + JSON.stringify(delivery));
   }
   finish({
     schema_version: "connected-delivery-witness-receipt.v1",
@@ -507,8 +544,9 @@ function observeManagedGuide() {
     selected_unit: selectedUnit,
     assignment_sha256: "sha256:" + createHash("sha256").update(prompt).digest("hex"),
     ...(instruction === null ? {} : { instruction_observation: instruction, parent_control: parentControl }),
+    ...(recovery === null ? {} : { recovery }),
     invocations,
-    commit
+    delivery
   });
 })().catch(error => finish({ schema_version: "connected-delivery-witness-receipt.v1", ok: false,
   scenario, stage: "worker", error: error && error.stack || String(error) }, 1));
@@ -881,12 +919,12 @@ const FIXED_PROGRAM_PLANS = Object.freeze({
     schema: "connected-runtime-preparation-receipt.v1" })
 });
 
-const CONNECTED_DELIVERY_WITNESS_SCENARIOS = new Set(["selected", "unselected", "timeout", "matrix",
+const CONNECTED_DELIVERY_WITNESS_SCENARIOS = new Set(["selected", "recovery", "unselected", "timeout", "matrix",
   "multilingual", "observation_delivery", "observation_delivery_pair"]);
 
 export function buildConnectedDeliveryWitnessCodexExecutorTestSeams({ scenario }) {
   if (!CONNECTED_DELIVERY_WITNESS_SCENARIOS.has(scenario) && !Object.hasOwn(FIXED_PROGRAM_PLANS, scenario)) {
-    throw new TypeError("connected delivery witness scenario must be selected, unselected, " +
+    throw new TypeError("connected delivery witness scenario must be selected, recovery, unselected, " +
       "timeout, matrix, multilingual, observation_delivery or observation_delivery_pair");
   }
   const seams = Object.freeze({
@@ -942,19 +980,19 @@ function createCodexExecutorTestSeamChild(finalPath, { releaseSignalPath = null 
 export function createAcceptThenSucceedTestExecutor() {
 
   return (input) => {
-    let probeCallCount = 0;
+    let terminal = null;
+    const completion = Promise.resolve().then(() => {
+      terminal = Object.freeze({
+        status: "succeeded",
+        exit: Object.freeze({ code: 0, signal: null, error: null })
+      });
+    });
     return {
       accepted: true,
       status: "launching",
+      completion,
       probe() {
-        probeCallCount += 1;
-        if (probeCallCount === 1) {
-          return { status: "running" };
-        }
-        return {
-          status: "succeeded",
-          exit: { code: 0, signal: null, error: null }
-        };
+        return terminal ?? { status: "running" };
       },
 
       __test_observed: {
@@ -967,9 +1005,11 @@ export function createAcceptThenSucceedTestExecutor() {
 }
 
 export function createAcceptStayRunningTestExecutor() {
+
   return () => ({
     accepted: true,
     status: "launching",
+    completion: new Promise(() => {}),
     probe() {
       return { status: "running" };
     }

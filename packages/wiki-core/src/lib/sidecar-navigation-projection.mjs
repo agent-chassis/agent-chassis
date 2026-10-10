@@ -1,10 +1,10 @@
+import { RETAINED_ANSWER_NEXT_ACTION } from "./sidecar-query-projection.mjs";
+
 const COMPACT_LIMIT = 20;
-const RETAINED_ORIGINAL_NEXT_ACTION =
-  "The complete original answer is retained; follow next_calls, or name one of its collections " +
-  "with a row id, path, symbol or relationship in detail, to read that part without evaluating " +
-  "the question again.";
-const RESULT_FIELDS = Object.freeze({ definition: "definitions", find_references: "references",
-  symbol_callers: "callers", symbol_callees: "callees" });
+
+export const SIDECAR_NAVIGATION_RESULT_FIELDS = Object.freeze({ definition: "definitions",
+  find_references: "references", symbol_callers: "callers", symbol_callees: "callees" });
+const RESULT_FIELDS = SIDECAR_NAVIGATION_RESULT_FIELDS;
 
 const list = (value) => (Array.isArray(value) ? value : []);
 
@@ -49,6 +49,21 @@ function compactHit({ hit_id: hitId, occurrence, call_edge: callEdge, source }) 
     symbol_roles: occurrence.payload?.symbol_roles ?? null, source: structuredClone(source) };
 }
 
+const entryCount = (value) => (Array.isArray(value) ? value : Object.keys(value)).length;
+
+function publicationFacts(record, nested = true) {
+  if (record === null || record === undefined) return null;
+  const facts = {};
+  const omitted = {};
+  for (const [name, member] of Object.entries(record)) {
+    if (member === null || typeof member !== "object") facts[name] = member;
+    else if (entryCount(member) === 0) facts[name] = Array.isArray(member) ? [] : {};
+    else if (nested && !Array.isArray(member)) facts[name] = publicationFacts(member, false);
+    else omitted[name] = { entries: entryCount(member) };
+  }
+  return Object.keys(omitted).length > 0 ? { ...facts, omitted } : facts;
+}
+
 export function projectNativeNavigation(result, base, { limit = COMPACT_LIMIT } = {}) {
   const field = RESULT_FIELDS[result?.query_kind] ?? "references";
   const rows = list(result?.[field]);
@@ -76,8 +91,8 @@ export function projectNativeNavigation(result, base, { limit = COMPACT_LIMIT } 
     resolution: { ...base.resolution, kind: resolution.kind ?? null,
       ...(resolution.position_granularity ? { position_granularity: resolution.position_granularity } : {}),
       candidate_count: candidates.length },
-    graph_snapshot: structuredClone(result?.graph_snapshot ?? null),
-    scip_state: structuredClone(result?.scip_state ?? null),
+    graph_snapshot: publicationFacts(result?.graph_snapshot),
+    scip_state: publicationFacts(result?.scip_state),
     ...(result?.call_attribution ? { call_attribution: structuredClone(result.call_attribution) } : {}),
     result_count: counted(rows.length, shownRows.length),
     counts: {
@@ -105,7 +120,7 @@ export function projectNativeNavigation(result, base, { limit = COMPACT_LIMIT } 
     limitations: list(result?.symbol_facts).filter((fact) => list(fact.limitations).length > 0)
       .map((fact) => ({ provider_id: fact.provider_id, symbol_id: fact.symbol_id,
         limitations: [...fact.limitations] })),
-    next_action: [base.next_action, scipAvailable ? RETAINED_ORIGINAL_NEXT_ACTION : null]
+    next_action: [base.next_action, scipAvailable ? RETAINED_ANSWER_NEXT_ACTION : null]
       .filter(Boolean).join(" ")
   };
 }

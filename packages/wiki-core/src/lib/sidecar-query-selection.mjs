@@ -30,13 +30,34 @@ const TEST_DIRECTORIES = ["tests/unit", "tests/integration"];
 const NO_GRAPH_OVERLAY = Object.freeze({ dirtyPathStates: new Map(), unavailable: [] });
 const byText = (left, right) => left.localeCompare(right);
 
-export async function prepareCommittedQuery({ dir, cacheDir }) {
-  const prepared = await resolveCommittedSidecarSnapshot({ dir, cacheDir, dirtyState: true });
+export async function prepareCommittedQuery({ dir, cacheDir }, context = null) {
+  const prepared = typeof context?.prepare === "function"
+    ? await context.prepare({ dir, cacheDir })
+    : await resolveCommittedSidecarSnapshot({ dir, cacheDir, dirtyState: true });
   if (!prepared.available) throw unavailableCommittedSnapshot(prepared.outcome, prepared.status);
   return prepared;
 }
 
-export function committedEnvelopeFields(status) {
+const SNAPSHOT_QUERY_MAX_PASSES = 3;
+
+export async function runSnapshotQuery(context, evaluate) {
+  for (let pass = 1; ; pass += 1) {
+    try {
+      return await evaluate();
+    } catch (error) {
+      if (error?.code !== "repository_snapshot_changed" || context?.repeatOnPublication !== true ||
+          pass >= SNAPSHOT_QUERY_MAX_PASSES) throw error;
+    }
+  }
+}
+
+export function indexedCommitLabels(snapshot) {
+  const commit = typeof snapshot?.repository_commit === "string" ? snapshot.repository_commit : null;
+  return { indexed_commit: commit, indexed_commit_short: commit === null ? null : commit.slice(0, 12) };
+}
+
+export function committedEnvelopeFields(prepared) {
+  const { status } = prepared;
   return {
     index_head: status.index_head,
     index_tree: status.index_tree,
@@ -49,6 +70,14 @@ export function committedEnvelopeFields(status) {
     artifact_schema_version: status.artifact_schema_version,
     expected_artifact_schema_version: status.expected_artifact_schema_version,
     graph_snapshot: structuredClone(status.graph_snapshot ?? null),
+    ...indexedCommitLabels(status.graph_snapshot),
+    current_head: status.index_head ?? null,
+    preparation: {
+      action: prepared.action ?? null,
+      publication_outcome: prepared.publication_outcome ?? null,
+      changed: prepared.changed ?? null,
+      refresh: structuredClone(prepared.refresh ?? null)
+    },
     status_reason: status.status_reason,
     scip_state: structuredClone(status.scip_state ?? null)
   };

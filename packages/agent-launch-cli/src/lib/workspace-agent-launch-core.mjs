@@ -65,6 +65,7 @@ export {
   normalizeExitEnvelope,
   isOrchestratorPlanRole
 } from "./workspace-agent-launch-adapter-contract.mjs";
+import { PROXY_ENVIRONMENT_NAMES } from "@agent-chassis/agent-launch-core/src/lib/proxy-environment.mjs";
 
 export const WORKSPACE_AGENT_LAUNCH_CORE_SCHEMA_VERSION =
   "workspace-agent-launch-core.v1";
@@ -188,7 +189,8 @@ export const SHARED_FAMILY_BWRAP_ENV_ALLOWLIST = Object.freeze([
   "XDG_STATE_HOME",
   "XDG_CACHE_HOME",
   "XDG_DATA_HOME",
-  "XDG_CONFIG_HOME"
+  "XDG_CONFIG_HOME",
+  ...PROXY_ENVIRONMENT_NAMES
 ]);
 
 export function assembleRoleIsolationInputs({
@@ -433,6 +435,7 @@ export function superviseChildLaunch({
   killTimeoutMs = null,
   killSignal = LAUNCHER_DEFAULT_TERMINATION_SIGNAL,
   streamDrainTimeoutMs = DEFAULT_STREAM_DRAIN_TIMEOUT_MS,
+  stdoutTap = null,
   logger = console
 } = {}) {
   if (!child || typeof child !== "object") {
@@ -448,6 +451,24 @@ export function superviseChildLaunch({
 
   const stdoutCapture = createBoundedCapture(maxCaptureBytes);
   const stderrCapture = createBoundedCapture(maxCaptureBytes);
+
+  const projectedStdoutCapture = stdoutTap === null ? null : createBoundedCapture(maxCaptureBytes);
+  let stdoutTapSettlement = null;
+  const withStdoutTap = (action) => {
+    try {
+      return action();
+    } catch (_) {
+      return undefined;
+    }
+  };
+  if (stdoutTap !== null) {
+
+    withStdoutTap(() => stdoutTap.started?.());
+    stdoutTap.bind((text) => projectedStdoutCapture.push(Buffer.from(text, "utf8")));
+  }
+  const parserStdoutText = () => (stdoutTap !== null && (withStdoutTap(() => stdoutTap.events()) ?? 0) > 0
+    ? projectedStdoutCapture.text()
+    : stdoutCapture.text());
 
   const runtime = {
     status: "launching",
@@ -609,7 +630,10 @@ export function superviseChildLaunch({
   }
 
   if (child.stdout && typeof child.stdout.on === "function") {
-    child.stdout.on("data", (chunk) => stdoutCapture.push(chunk));
+    child.stdout.on("data", (chunk) => {
+      stdoutCapture.push(chunk);
+      if (stdoutTap !== null) withStdoutTap(() => stdoutTap.push(chunk));
+    });
   }
   if (child.stderr && typeof child.stderr.on === "function") {
     child.stderr.on("data", (chunk) => stderrCapture.push(chunk));
@@ -666,6 +690,17 @@ export function superviseChildLaunch({
     if (typeof killTimer.unref === "function") killTimer.unref();
   }
 
+  let confirmRunning = null;
+  const running = new Promise((resolve) => {
+    confirmRunning = resolve;
+  });
+  setImmediate(() => {
+    observeAlreadyExitedChild();
+    if (runtime.exited || runtime.pid === null) return;
+    if (runtime.status === "launching") runtime.status = "running";
+    confirmRunning();
+  });
+
   function boundedStderrDetail() {
     return buildBoundedStderrDetail({
       status: runtime.status,
@@ -694,6 +729,18 @@ export function superviseChildLaunch({
   }
 
   async function computeFinalResult() {
+    await flushGate;
+    if (stdoutTap === null) return computeFinalResultFromCaptures();
+
+    withStdoutTap(() => stdoutTap.end({ drained: !streamDrainForced && !runtime.timedOut }));
+    const finalResult = await computeFinalResultFromCaptures();
+    stdoutTapSettlement = await Promise.resolve(withStdoutTap(() => stdoutTap.settle({
+      exit: { code: runtime.exit?.code ?? null, signal: runtime.exit?.signal ?? null }
+    }))).catch(() => null) ?? null;
+    return finalResult;
+  }
+
+  async function computeFinalResultFromCaptures() {
 
     await flushGate;
 
@@ -712,7 +759,7 @@ export function superviseChildLaunch({
         role,
         subject,
         pid: runtime.pid,
-        stdout: stdoutCapture.text(),
+        stdout: parserStdoutText(),
         stderr: stderrCapture.text(),
         ...passthrough
       });
@@ -770,6 +817,12 @@ export function superviseChildLaunch({
     status: "launching",
     pid: runtime.pid,
     hasObservedChildTermination: () => observedChildTermination,
+
+    nativeUsageSettlement: () => stdoutTapSettlement,
+
+    completion: flushGate,
+
+    running,
     probe: async () => {
       observeAlreadyExitedChild();
       if (runtime.exited) {

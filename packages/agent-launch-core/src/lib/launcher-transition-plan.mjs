@@ -33,12 +33,12 @@ export const LAUNCHER_TRANSITION_FAILURES = Object.freeze({
   PROSPECTIVE_LIFECYCLE_UNAVAILABLE: Object.freeze({
     code: "launcher_transition.prospective_lifecycle_unavailable.v1",
     authority_limb: "mechanical_failure",
-    next_action: "retry_workspace_agent_dispatch_after_lifecycle_preflight_succeeds"
+    next_action: "retry_start_agent_after_lifecycle_preflight_succeeds"
   }),
   LIFECYCLE_ALLOCATION_FAILED: Object.freeze({
     code: "launcher_transition.lifecycle_allocation_failed.v1",
     authority_limb: "mechanical_failure",
-    next_action: "retry_workspace_agent_dispatch_after_launcher_allocation_recovery"
+    next_action: "retry_start_agent_after_launcher_allocation_recovery"
   }),
   DEPENDENCY_IDENTITY_UNRESOLVED: Object.freeze({
     code: "launcher_transition.dependency_identity_unresolved.v1",

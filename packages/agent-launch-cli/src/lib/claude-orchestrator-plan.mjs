@@ -7,6 +7,15 @@ import {
   writeJsonAtomic
 } from "@agent-chassis/agent-launch-core/src/lib/filesystem.mjs";
 import {
+  buildClaudeUsageHookSettings,
+  prepareClaudeSessionUsageLaunch
+} from "@agent-chassis/agent-launch-core/src/lib/native-usage-claude-session.mjs";
+import {
+  beginNativeUsageTask,
+  prepareNativeUsageLaunch,
+  writeNativeUsagePointer
+} from "@agent-chassis/agent-launch-core/src/lib/native-usage-records.mjs";
+import {
   assertFile,
   isDirectory,
   writeLine,
@@ -62,6 +71,7 @@ import {
   CLAUDE_COMMAND_LINE_CONTRACT_SCHEMA_VERSION,
   composeClaudeArgv
 } from "./workspace-agent-claude-launch-support.mjs";
+import { resolveLaunchRoleGuidePath } from "./launch-isolation-plan.mjs";
 import {
   buildInteractiveOrchestratorBwrapPlan,
   resolveFamilyRuntimeExecutable,
@@ -460,6 +470,8 @@ function claudeOrchestratorIsolationProfile({
     familyRuntimePolicyProfile: runtimeFacts.familyRuntimePolicyProfile,
     dispatchWorktreeRoot: plan.dispatchWorktreeRoot ?? null,
     stdioMcpConduit: plan.stdioMcpConduit ?? null,
+
+    launchRole: plan.role ?? null,
     resolveExecutable
   };
 }
@@ -550,16 +562,29 @@ function assertOrchestratorConduitProjected(plan, bwrapPlan) {
 function spawnClaudeOrchestratorChild({ plan, io = {} }) {
 
   if (plan.headless === true) {
-    const headlessLaunchPlan = buildClaudeOrchestratorHeadlessLaunchPlan({ plan });
+
+    const usage = plan.nativeUsage?.tap ? plan.nativeUsage : null;
+    const headlessLaunchPlan = buildClaudeOrchestratorHeadlessLaunchPlan({
+      plan: usage === null ? plan : { ...plan, args: usage.args }
+    });
     assertOrchestratorConduitProjected(plan, headlessLaunchPlan);
     const opened = openHeadlessStdio(plan.headlessLogTarget);
     try {
-      return spawnIsolated(headlessLaunchPlan, { stdio: opened.stdio });
+      return spawnIsolated(headlessLaunchPlan, {
+        stdio: usage === null ? opened.stdio : [opened.stdio[0], "pipe", opened.stdio[2]]
+      });
     } finally {
       opened.close();
     }
   }
-  const launchPlan = buildClaudeOrchestratorLaunchPlan({ plan });
+
+  const confined = Array.isArray(plan.confinedArgs);
+  let launchPlan = buildClaudeOrchestratorLaunchPlan({
+    plan: confined ? { ...plan, args: plan.confinedArgs } : plan
+  });
+  if (confined && launchPlan.isolationMode === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
+    launchPlan = buildClaudeOrchestratorLaunchPlan({ plan });
+  }
   assertOrchestratorConduitProjected(plan, launchPlan);
   if (launchPlan.isolationMode === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
     writeStderr(io.stderr, `${launchPlan.warning}\n`);
@@ -624,6 +649,8 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
   const { createConduit: createStdioMcpConduit } =
     assertManagedStdioMcpCompositionAuthority(managedStdioMcpCompositionAuthority);
 
+  const nativeUsageTask = typeof launchPlan.repo === "string"
+    ? beginNativeUsageTask({ workspaceDir: launchPlan.repo }) : null;
   const conduitAuthority = mintTrustedStdioMcpConduitAuthority({
     family: "claude",
     role: "orchestrator",
@@ -659,11 +686,27 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
 
     let headlessSettings = launchPlan.headlessSettings;
     let headlessSettingsPath = launchPlan.headlessSettingsPath;
+
+    let confinedOptionArgs = null;
+
+    const claudeConfigDir = typeof launchPlan.env?.CLAUDE_CONFIG_DIR === "string" && launchPlan.env.CLAUDE_CONFIG_DIR !== ""
+      ? launchPlan.env.CLAUDE_CONFIG_DIR
+      : typeof launchPlan.env?.HOME === "string" && launchPlan.env.HOME !== "" ? path.join(launchPlan.env.HOME, ".claude") : null;
+    const interactiveUsage = launchPlan.headless !== true && typeof launchPlan.runtimeDir === "string" && claudeConfigDir !== null
+      ? prepareClaudeSessionUsageLaunch({
+          workspaceDir: launchPlan.repo,
+          identity: { repo: launchPlan.repo, subject: launchPlan.subject, role: launchPlan.role,
+            route: "orchestrator", mode: "interactive" },
+          bindingDir: launchPlan.runtimeDir,
+          claudeConfigDir,
+          begun: nativeUsageTask?.task ? nativeUsageTask : null
+        })
+      : null;
+    const settingsRuntimeDir = path.join(
+      launchPlan.runtimeDir,
+      CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR
+    );
     if (launchPlan.headless === true) {
-      const settingsRuntimeDir = path.join(
-        launchPlan.runtimeDir,
-        CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR
-      );
       const managedWorktreeRoot = prepareLauncherOwnedDispatchWorktreeRoot({
         repo: launchPlan.repo,
         dispatchWorktreeRoot: launchPlan.dispatchWorktreeRoot ?? null
@@ -686,7 +729,8 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
           ...launchPlan.env,
           AGENT_LAUNCH_RUNTIME_STATE_DIR: settingsRuntimeDir
         },
-        buildSettings
+        buildSettings,
+        launchRole: launchPlan.role
       });
       if (!isClaudeNativePermissionSettingsArtifact(minted)) {
         return await failOrchestratorLaunch(
@@ -694,10 +738,37 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
           minted?.detail ?? null
         );
       }
+      if (minted.confinedSettingsError) {
+        return await failOrchestratorLaunch(
+          minted.confinedSettingsError.code, minted.confinedSettingsError.detail ?? null);
+      }
+
+      headlessSettingsPath = minted.confinedSettingsPath ?? minted.settingsPath;
       orchestratorOptionArgs =
-        withClaudeOrchestratorHeadlessSettingsPath(orchestratorOptionArgs, minted.settingsPath);
+        withClaudeOrchestratorHeadlessSettingsPath(orchestratorOptionArgs, headlessSettingsPath);
       headlessSettings = minted.settings ?? buildSettings();
-      headlessSettingsPath = minted.settingsPath;
+    } else if (resolveLaunchRoleGuidePath(launchPlan.role) !== null || interactiveUsage?.usageHook) {
+
+      const minted = await mintNativePermissionSettings({
+        usageHookSettings: interactiveUsage?.usageHook ? buildClaudeUsageHookSettings(interactiveUsage.usageHook) : null,
+        workspaceDir: launchPlan.repo,
+        writeScope: [],
+        env: {
+          ...launchPlan.env,
+          AGENT_LAUNCH_RUNTIME_STATE_DIR: settingsRuntimeDir
+        },
+        buildSettings: () => ({}),
+        launchRole: launchPlan.role
+      });
+      if (!isClaudeNativePermissionSettingsArtifact(minted) ||
+          typeof minted.confinedSettingsPath !== "string") {
+        return await failOrchestratorLaunch(
+          minted?.confinedSettingsError?.code ?? minted?.code
+            ?? CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
+          minted?.confinedSettingsError?.detail ?? minted?.detail ?? null
+        );
+      }
+      confinedOptionArgs = [...orchestratorOptionArgs, "--settings", minted.confinedSettingsPath];
     }
 
     launchPlan = {
@@ -708,6 +779,9 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
         optionArgs: orchestratorOptionArgs,
         prompt: launchPlan.prompt ?? null
       }),
+      confinedArgs: confinedOptionArgs === null
+        ? null
+        : composeClaudeArgv({ optionArgs: confinedOptionArgs, prompt: launchPlan.prompt ?? null }),
       headlessSettings,
       headlessSettingsPath
     };
@@ -717,13 +791,44 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
 
     await writeJsonAtomic(launchPlan.mcpConfigPath, launchPlan.mcpConfig);
 
-    const outcome = await superviseInteractiveOrchestratorLaunch({
-      runtimeDir: launchPlan.runtimeDir,
-      descriptor: orchestratorSessionDescriptor(launchPlan, CLAUDE_ORCHESTRATOR_RUNTIME_STATE_SCHEMA_VERSION),
-      stdioMcpConduit: conduit,
-      stderr: io.stderr ?? process.stderr,
-      spawnChild: () => spawnClaudeOrchestratorChild({ plan: launchPlan, io })
-    });
+    const nativeUsage = launchPlan.headless === true
+      ? prepareNativeUsageLaunch({
+          family: "claude",
+          args: launchPlan.args,
+          workspaceDir: launchPlan.repo,
+          identity: { repo: launchPlan.repo, subject: launchPlan.subject, role: launchPlan.role,
+            route: "orchestrator", mode: "headless" },
+          resumed: launchPlan.args.includes("--resume") || launchPlan.args.includes("--continue"),
+          begun: nativeUsageTask?.task ? nativeUsageTask : null
+        })
+      : null;
+    let outcome;
+    try {
+      outcome = await superviseInteractiveOrchestratorLaunch({
+        runtimeDir: launchPlan.runtimeDir,
+        descriptor: orchestratorSessionDescriptor(launchPlan, CLAUDE_ORCHESTRATOR_RUNTIME_STATE_SCHEMA_VERSION),
+        stdioMcpConduit: conduit,
+        stderr: io.stderr ?? process.stderr,
+        nativeUsage: nativeUsage?.tap
+          ? { tap: nativeUsage.tap, logPath: launchPlan.headlessLogTarget.logPath }
+          : null,
+        spawnChild: () => {
+          const child = spawnClaudeOrchestratorChild({ plan: { ...launchPlan, nativeUsage }, io });
+
+          interactiveUsage?.tap?.started();
+          return child;
+        }
+      });
+    } finally {
+
+      if (interactiveUsage?.tap) {
+        if (typeof interactiveUsage.records_dir === "string") {
+          await writeNativeUsagePointer(launchPlan.runtimeDir, interactiveUsage.records_dir).catch(() => {});
+        }
+        await interactiveUsage.tap.settle({ exit: { code: outcome?.exitCode ?? null, signal: outcome?.signal ?? null } })
+          .catch(() => {});
+      }
+    }
 
     if (outcome.status !== "succeeded") {
       process.exitCode = 1;

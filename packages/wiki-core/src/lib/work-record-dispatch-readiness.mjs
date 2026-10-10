@@ -206,13 +206,15 @@ export function buildReadinessFromRecord({
 
   const requiresGraphImpact = Boolean(subject?.dispatch_intent?.requires_graph_impact);
 
-  const currentGraphSnapshot = isObject(graphState?.graph_snapshot)
-    ? graphState.graph_snapshot
-    : null;
+  const currentGraphSnapshot =
+    graphState?.graph_available === true &&
+    graphState.staleness === "fresh" &&
+    isObject(graphState.graph_snapshot)
+      ? graphState.graph_snapshot
+      : null;
   const structuredGraphImpactMatches = graphImpact
     ? graphImpactMatchesSubject(graphImpact, subject, unit) &&
-      (currentGraphSnapshot === null ||
-        graphSnapshotsMatch(graphImpact.graph_snapshot, currentGraphSnapshot))
+      graphSnapshotsMatch(graphImpact.graph_snapshot, currentGraphSnapshot)
     : false;
 
   const effectiveGraphState = normalizeDispatchGraphState(

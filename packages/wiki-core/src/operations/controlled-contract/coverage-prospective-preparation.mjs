@@ -4,7 +4,7 @@ import {
   ControlledContractToolError,
   controlledContractContentDigest
 } from "../../lib/controlled-contract-tools.mjs";
-import { validateObligationCoverageDraft } from "@agent-chassis/controlled-contract";
+import { validateObligationCoverageDraft } from "@agent-chassis/controlled-contract/obligation-coverage";
 import {
   obligationCoverageSourceLocatorDigest,
   resolveAcceptanceCoverageFacts,

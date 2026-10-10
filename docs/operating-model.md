@@ -399,8 +399,9 @@ caller-supplied, and the checkout location selects none of them.
 The authenticated handoff's destination selects the landing. A hosted handoff
 merges its exact pull request as described below. A local or Git handoff has no
 proposal: the command, run by the human Git actor, stages the WK's matching
-coordination files, applies the authenticated review-to-done change to a live
-closeout record, and fast-forwards a base-branch checkout with an ordinary
+coordination files, applies the authenticated completion change to a live
+closeout record (from the parent status that record actually holds to `done`;
+no status is required of it), and fast-forwards a base-branch checkout with an ordinary
 `git merge --ff-only`, as described in
 [Handoff destinations and landing observation](mcp-dispatch-terminal-review.md#handoff-destinations-and-landing-observation).
 It never pushes. A local handoff succeeds only when the landing observer reports
@@ -412,7 +413,8 @@ Before initial publication, forge handoff appends the two WK-only commits
 terminal candidate `C` and publishes `D` as the proposed change head on the forge
 handoff branch, so the initially published pull request already carries the
 owning WK at parent status `done`. That `done` is branch-local: the canonical
-parent on the base branch stays in `review` until a confirmed merge. The chain is
+parent on the base branch stays exactly as it was until a confirmed merge, and
+no lifecycle status is required of it for publication or merge. The chain is
 prepared only while the handoff branch is absent; a repeated handoff recovers the
 published chain and appends nothing, or, when the canonical record carries
 permitted coordination changes, replaces that same publication with a rebuilt
@@ -432,8 +434,10 @@ theirs strategy, or create a post-merge main commit. After confirmed merge it
 reconciles the local WK record. If merge succeeds but local reconciliation does
 not, the result is typed partial success and a retry is safe: retry authenticates
 the exact merged head before attempting only the remaining local reconciliation.
-Before merging, the local review record must equal the published closeout record;
-a disagreement returns the typed reconciliation failure without merging.
+Before merging, the local record must equal the published closeout record,
+whatever parent status the two hold; once the merge is confirmed it may instead
+equal the published completion record. A disagreement returns the typed
+reconciliation failure without merging.
 
 This authentication does not transfer ownership. work record owns candidate and
 forge authority, work record owns landed-publication identity, work record owns recovery,

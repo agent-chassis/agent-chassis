@@ -32,11 +32,11 @@ function carrier() {
     view: "complete",
     content_digest: `sha256:${"a".repeat(64)}`,
     source_identity: { revision: "b".repeat(40) },
-    population: { obligations: 0, requirements: 1, references: 3 },
+    population: { obligations: 0, requirements: 1, references: 16 },
     acceptance_criteria: Array.from({ length: 8 }, (_, index) => ({
-      identity: `criterion-${index}-${"c".repeat(40)}`, text: `Criterion ${index} ${"t".repeat(200)}` })),
+      identity: `criterion-${index}-${"c".repeat(80)}`, text: `Criterion ${index} ${"t".repeat(400)}` })),
     requirements: Array.from({ length: 4 }, (_, index) => ({
-      requirement_id: `req-${index}`, statement: "x".repeat(1400) })),
+      requirement_id: `req-${index}`, statement: "x".repeat(6000) })),
     references: [
       { reference_id: "ref-1b9914c84fe33d1cc6fc57f08d9e01c1e49d73ff", type_term: "cc:test",
         identity: { kind: "repository_path", repository: "example/go-shellcheck",
@@ -44,7 +44,11 @@ function carrier() {
       { reference_id: "ref-3f3e9f16f33f67c6b7afc2089e8b611df1b2976c", type_term: "cc:operation",
         identity: { kind: "profile_term", term: "shell command quoting analyzer" } },
       { reference_id: "ref-7ae05d2959bf3cb01ee9f0cebddf111da3bb73d7", type_term: "cc:configuration",
-        identity: { kind: "profile_term", term: "command word with an unquoted expansion" } }
+        identity: { kind: "profile_term", term: "command word with an unquoted expansion" } },
+
+      ...Array.from({ length: 13 }, (_, index) => ({
+        reference_id: `ref-${String(index).padStart(2, "0")}${"e".repeat(38)}`, type_term: "cc:configuration",
+        identity: { kind: "profile_term", term: `quoted expansion variant ${index} ${"q".repeat(400)}` } }))
     ],
     obligations: [],
     cases: [],
@@ -59,6 +63,8 @@ test("a retained coverage query with cursor-continued collections is retrieved w
     const env = { WIKI_MCP_RESPONSE_STATE_DIR: stateDir, WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: "32768" };
     const selection = createObligationCoverageQuerySelection({ unitSchema: z.string(), env });
     const expected = carrier();
+
+    assert.ok(Buffer.byteLength(JSON.stringify(expected), "utf8") > selection.bound);
     const summary = await selection.publish({ workspaceRepo: REPO, carrier: expected, view: "compact",
       queryIdentity: QUERY_IDENTITY, observationIdentity: OBSERVATION_IDENTITY, authorityIdentity: AUTHORITY });
     assert.equal(summary.selected_detail.complete, false, "the result is retained, not inlined");
@@ -87,4 +93,13 @@ test("a retained coverage query with cursor-continued collections is retrieved w
       `a cursor-continued field-inventory page with its descend template fit: ${JSON.stringify(frames)}`);
     assert.ok(frames.some(({ appended }) => appended),
       `a page the adapter extended with the next-collection call still fit: ${JSON.stringify(frames)}`);
+
+    const small = { ...carrier(), acceptance_criteria: [], references: [], population:
+      { obligations: 0, requirements: 1, references: 0 },
+      requirements: [{ requirement_id: "req-0", statement: "x".repeat(400) }] };
+    assert.ok(Buffer.byteLength(JSON.stringify(small), "utf8") < selection.bound);
+    const whole = await selection.publish({ workspaceRepo: REPO, carrier: small, view: "compact",
+      queryIdentity: QUERY_IDENTITY, observationIdentity: `sha256:${"8".repeat(64)}`, authorityIdentity: AUTHORITY });
+    assert.equal(whole.selected_detail.complete, true, "a result that fits is not retained");
+    assert.deepEqual(whole.requirements, small.requirements);
   });

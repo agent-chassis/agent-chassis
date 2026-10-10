@@ -180,3 +180,39 @@ test("malformed installation output never becomes observed", async () => {
     assert.equal(result.result.stdout, "node twenty");
   });
 });
+
+test("location-only observation reports the layout without judging components or the version", async () => {
+  await withTestFixture(async ({ rootPath }) => {
+    const at = (...parts) => path.join(rootPath, ...parts);
+    tool(at("go/bin/go"));
+
+    const strict = await observe(rootPath, "go", at("go/bin/go"), [ok("go version unknown\n")]);
+    assert.deepEqual([strict.result.status, strict.result.code],
+      ["failed", "runtime_input_installation_components_missing"], "setup's observation is unchanged");
+    const located = await observe(rootPath, "go", at("go/bin/go"), [ok("go version unknown\n")],
+      { locationOnly: true });
+    assert.deepEqual(located.result, { status: "observed", root: at("go"),
+      executables: { go: at("go/bin/go"), gofmt: at("go/bin/gofmt") }, population: [at("go")],
+      population_exclude: [], version: null, source: "host" },
+    "every role at its expected path, the absent one included; the unrecognized version is unknown");
+
+    const unprobed = await observe(rootPath, "go", at("go/bin/go"), [outcome({ code: 3, stderr: "broken" })],
+      { locationOnly: true });
+    assert.deepEqual([unprobed.result.status, unprobed.result.version], ["observed", null]);
+
+    const py = pythonFacts(at("py"));
+    tool(py.executable);
+    tool(at("py/bin/python3"));
+    const odd = await observe(rootPath, "python", at("py/bin/python3"),
+      [ok(JSON.stringify({ ...py, version: "custom" }))], { locationOnly: true });
+    assert.deepEqual([odd.result.status, odd.result.version, odd.result.root], ["observed", null, py.prefix]);
+
+    tool(at("host/rustc"));
+    const rootless = await observe(rootPath, "rust", at("host/rustc"), [outcome({ code: 1 })],
+      { locationOnly: true });
+    assert.deepEqual([rootless.result.status, rootless.result.code, rootless.result.phase],
+      ["failed", "runtime_input_installation_probe_failed", "root"]);
+    const invalid = await observe(rootPath, "go", at("go/bin/go"), [], { locationOnly: "yes" });
+    assert.equal(invalid.result.code, "runtime_input_installation_invalid");
+  });
+});

@@ -57,6 +57,9 @@ const loadDefaultClassifyControlledAcceptanceState = async () => (
 import { assertControlledAcceptanceStateProjection } from
   "@agent-chassis/wiki-core/src/lib/work-record-proof-posture.mjs";
 import {
+  CANONICAL_WK_CONTENT_SOURCE_KIND,
+  CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES,
+  ControlledContractGenerationPersistenceError,
   admitVerifiedReceipt,
   defaultControlledContractGenerationRunGit,
   persistControlledContractGeneration as defaultPersistControlledContractGeneration,
@@ -1235,7 +1238,65 @@ function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, 
   }
 }
 
-async function establishManagedWkLifecycleLocked({
+function canonicalWkContentMovementOf(error) {
+  return error instanceof ControlledContractGenerationPersistenceError &&
+    error.code === CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED &&
+    error.details?.source_kind === CANONICAL_WK_CONTENT_SOURCE_KIND
+    ? error.details : null;
+}
+
+async function establishManagedWkLifecycleLocked(input) {
+  try {
+    return await establishManagedWkLifecycleAttempt(input);
+  } catch (first) {
+    const moved = canonicalWkContentMovementOf(first);
+    const { repo, initiative, subject, launchRef, runId, retryId, roots, deps,
+      runGit, bindings, receipts } = input;
+    if (moved === null || bindings.wk === null) throw first;
+    const allocatedTip = bindings.wk.wk_tip_sha;
+    const observeWkTip = () => {
+      try {
+        return authenticateManagedWkTipAtDispatch({
+          mainRepo: repo, initiative, subject, worktreeRoot: roots.worktreeRoot,
+          deps: { runGit }
+        }).base_sha;
+      } catch {
+        return null;
+      }
+    };
+    const liveTip = observeWkTip();
+    if (liveTip !== (moved.receipt_final_tip ?? allocatedTip)) throw first;
+    const carried = liveTip === allocatedTip ? bindings.wk : rebindWkTip({
+      repo, launchRef, runId, retryId, binding: bindings.wk, committedTip: liveTip,
+      deps, stage: "canonical WK content refresh"
+    });
+    try {
+      return await establishManagedWkLifecycleAttempt({
+        ...input,
+        allocateOrAdoptWk: () => ({ binding: carried, receipt: receipts.wk })
+      });
+    } catch (second) {
+
+      if (canonicalWkContentMovementOf(second) !== null) {
+        const retainedTip = observeWkTip();
+        second.details.single_refresh = {
+          exhausted: true,
+          attempts: 2,
+          first: structuredClone(moved),
+          retained: {
+            wk_allocation: receipts.wk?.reused === false ? "created" : "reused",
+            wk_tip_at_allocation: allocatedTip,
+            wk_tip: retainedTip,
+            wk_tip_advanced: retainedTip !== allocatedTip
+          }
+        };
+      }
+      throw second;
+    }
+  }
+}
+
+async function establishManagedWkLifecycleAttempt({
   repo, initiative, wkId, subject, launchRef, runId, retryId, roots, deps,
   runGit, allocateOrAdoptWk, bindings, receipts, createdRoots
 }) {

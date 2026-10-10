@@ -2,12 +2,11 @@
 
 import { createRequire } from "node:module";
 
-import { TestRunner } from "vitest";
-
 const channelModule = createRequire(import.meta.url)("./native-channel.cjs");
-const { createChannel, failureDiagnostic, installReachSink, loadConfig, repositoryPath, sameTitles } =
-  channelModule;
+const { createChannel, failureDiagnostic, importProjectModule, installReachSink, loadConfig, repositoryPath,
+  sameTitles } = channelModule;
 const config = loadConfig();
+const { TestRunner } = await importProjectModule(config, "vitest");
 const channel = createChannel(config, "vitest.worker");
 installReachSink(channel);
 

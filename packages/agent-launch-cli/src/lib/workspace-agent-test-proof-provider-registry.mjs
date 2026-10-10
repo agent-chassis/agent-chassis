@@ -22,7 +22,7 @@ import {
 } from "./test-execution/proof-providers/execution.mjs";
 import { installedProofProviderImplementation } from "./test-execution/proof-providers/index.mjs";
 import { resolveProofEnvironment } from "./test-execution/runtime-inputs.mjs";
-import { TEST_RUNTIME_READINESS_CODES, loadReadiness } from "./test-runtime-setup/readiness.mjs";
+import { TEST_RUNTIME_READINESS_CODES, loadExecutionConfiguration } from "./test-runtime-setup/readiness.mjs";
 
 export {
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES,
@@ -234,13 +234,15 @@ export function validateTestProofEnvironmentSelection({ repositoryRoot, checkout
     choices.push(valid);
     if (!routed.ok) {
       incompatible.push({ ...base, reason: routed.failure?.detail?.reason ?? "environment_unavailable",
-        code: routed.failure?.code ?? TEST_RUNTIME_READINESS_CODES.NOT_READY,
+        code: routed.failure?.code ?? TEST_RUNTIME_READINESS_CODES.ENVIRONMENT_UNKNOWN,
         runner: family.runtime_runner.runner_id });
     }
   }
-  const loaded = loadReadiness(repositoryRoot);
-  const prepared = loaded.ok ? (loaded.record.environments ?? []).map(({ id }) => id) : [];
-  const serving = prepared.filter((id) => choices.every((valid) => valid.includes(id)));
+
+  const loaded = loadExecutionConfiguration(repositoryRoot);
+  const prepared = loaded.ok ? (loaded.configuration.environments ?? []).map(({ id }) => id) : [];
+  const serving = [...new Set(choices.flat())].sort()
+    .filter((id) => choices.every((valid) => valid.includes(id)));
   return Object.freeze({ ok: incompatible.length === 0, requested: environment,
     incompatible: Object.freeze(incompatible), valid_choices: Object.freeze(serving),
     prepared_environments: Object.freeze(prepared) });

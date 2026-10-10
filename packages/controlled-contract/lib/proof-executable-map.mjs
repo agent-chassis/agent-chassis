@@ -1,6 +1,6 @@
 
 
-import { CASE_COMPONENT_FIELD, CASE_VERIFICATION_ASSOCIATION_FIELD,
+import { CASE_COMPONENT_FIELD, CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD, CASE_VERIFICATION_OWNERSHIP_RECOVERY,
   linkedNativeTestProofs } from './native-test-proof-authoring.mjs';
 import { resolveStableTestProofProviderBindings } from './test-proof-contract-v1.mjs';
 
@@ -13,10 +13,11 @@ import { loadPinnedProofSelection } from './proof-authoring-selection.mjs';
 import {
   assertProofAuthoringDraft,
   assessProofAuthoringRowSemantics,
+  assessProofObligationAccounting,
   AUTHORED_BINDING_OWNER_CODES,
-  OBLIGATION_COVERAGE_UPSERT_TOOL as UPSERT_TOOL,
   PROOF_PREREQUISITE_CODES,
   proofDiagnostic as diagnostic,
+  registeredRecoveryInstruction,
   registeredRecoveryTemplate,
   proofOwnerDiagnostic as ownerDiagnostic,
   proofProblem as problem,
@@ -93,6 +94,12 @@ function selectedProofPrerequisites({ pack, contract, row, context }) {
         owner_details: error?.details ?? null };
     }
   } else if (testExecutionRequired && bindings.length > 1) bindingStatus = 'ambiguous';
+
+  if (bindingStatus === 'complete' && context.case_associations?.[row.obligation_id] !== undefined) {
+    bindingStatus = 'invalid';
+    bindingProblem = { owner: '@agent-chassis/controlled-contract',
+      owner_code: AUTHORED_BINDING_OWNER_CODES[0], owner_details: null };
+  }
   const verificationId = bindings.length === 1 ? bindings[0].verification_claim_id : null;
   const targetProjection = context.test_target_declarations;
 
@@ -146,7 +153,25 @@ function declaredTargetCondition(target) {
   return target.verification_id === null ? 'verification_unresolved' : 'undeclared';
 }
 
-function selectedProofPrerequisiteDiagnostics(prerequisites, path, context = {}) {
+function caseAssociationFacts(association) {
+  const { eligible, candidates, blocked } = association;
+
+  const condition = candidates.length === 0
+    ? blocked.length > 0 ? blocked[0].condition : 'no_eligible_verification'
+    : eligible.length === 1 ? 'sole_eligible_verification' : 'ambiguous_linked_verification';
+  const { choices: [reuse, distinct], correction } = CASE_VERIFICATION_OWNERSHIP_RECOVERY;
+  return { condition, case_id: association.case_id, selected: false,
+    eligible_verification_ids: [...eligible],
+    candidate_verification_ids: [...candidates], blocked: structuredClone(blocked),
+    required_choice: condition === CASE_VERIFICATION_OWNERSHIP_RECOVERY.condition
+      ? { ...reuse, links_field: 'obligations[].claims', choose_one_of: [...new Set(blocked.filter(entry =>
+        entry.condition === condition).flatMap(entry => entry.saved_case_ids))].sort(),
+      otherwise: { ...distinct }, correction }
+      : { field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
+        links_field: 'obligations[].claims', choose_one_of: [...candidates] } };
+}
+
+function selectedProofPrerequisiteDiagnostics(prerequisites, path, context = {}, association = null) {
   if (prerequisites.requirements.native_test_binding !== 'required') return [];
   const result = [];
   const caseId = prerequisites.authored_case.case_id;
@@ -158,14 +183,21 @@ function selectedProofPrerequisiteDiagnostics(prerequisites, path, context = {})
       prerequisite: 'authored_case', status: prerequisites.authored_case.status })));
 
   const binding = prerequisites.native_test_binding;
-  if (binding.status !== 'complete') result.push(raiseErrorCode(PROOF_PREREQUISITE_CODES,
-    { family: 'native_test_binding', condition: nativeBindingCondition(binding) }, {
-      path: `${path}/case_id`,
-      facts: { verification_id: binding.verification_id,
-        binding_count: binding.binding_count, case_id: caseId,
-        prerequisite: 'native_test_binding', status: binding.status,
-        owner_code: binding.problem?.owner_code ?? null,
-        owner_details: binding.problem?.owner_details ?? null } }));
+  if (binding.status !== 'complete') {
+
+    const unselected = association !== null && nativeBindingCondition(binding) === 'case_incomplete';
+    const raised = raiseErrorCode(PROOF_PREREQUISITE_CODES,
+      { family: 'native_test_binding', condition: nativeBindingCondition(binding) }, {
+        path: `${path}/case_id`,
+        facts: { verification_id: unselected ? null : binding.verification_id,
+          binding_count: binding.binding_count, case_id: caseId,
+          prerequisite: 'native_test_binding', status: binding.status,
+          owner_code: binding.problem?.owner_code ?? null,
+          owner_details: binding.problem?.owner_details ?? null } });
+    result.push(!unselected ? raised
+      : { ...raised, problem: { ...raised.problem, cause: { ...raised.problem.cause,
+        case_association: caseAssociationFacts(association) } } });
+  }
   const target = prerequisites.declared_test_target;
   if (target.status !== 'complete') {
     const owner = declaredTargetOwnerProblem(target.status, context);
@@ -216,7 +248,7 @@ function authoredPrerequisiteCorrection({ prerequisite, status, authored_case_fi
   if (prerequisite === 'authored_case') return `author the '${authored_case_field}' field of the case this obligation uses`;
   return status === 'ambiguous'
     ? 'link this obligation to exactly one authored case so it resolves one native test binding'
-    : 'link this obligation to one authored case (its case_id and case definition)';
+    : 'link this obligation to one authored case (an existing case by its id, or a new case definition)';
 }
 
 function escapeJsonPointerToken(value) {
@@ -248,14 +280,40 @@ function typedBindingFailures(diagnostic) {
 
 const RUNTIME_MODULE_PATH = '/system_under_test_boundary/runtime_module_path';
 
+const READ_TOOL = 'workspace_read_wiki';
+const SAVE_TOOL = 'save_record';
+const DERIVED_VALUES_NOT_AUTHORED = 'The native test binding and every parameter read from it are derived from the authored case; supply neither directly.';
 export const OCCURRENCE_CORRECTION_CLAUSES = deepFreeze({
   component: { field: CASE_COMPONENT_FIELD, guidance: 'case_authoring.component' },
-  association: { field: CASE_VERIFICATION_ASSOCIATION_FIELD,
+  association: { field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
     guidance: 'case_authoring.verification_association' },
-  case_content: { field: 'obligations[].case', guidance: 'case_authoring' }
+  case_content: { field: 'obligations[].case', guidance: 'case_authoring' },
+  prerequisite_component: { field: CASE_COMPONENT_FIELD, guidance: 'case_authoring.component',
+    constraint: DERIVED_VALUES_NOT_AUTHORED },
+  prerequisite_target: { field: 'obligations[].case.target', guidance: 'case_authoring.target_variants',
+    constraint: DERIVED_VALUES_NOT_AUTHORED },
+  prerequisite_case: { field: 'obligations[].case', guidance: 'case_authoring',
+    operation: 'link_one_case', constraint: DERIVED_VALUES_NOT_AUTHORED }
 });
+const PREREQUISITE_CASE_FIELD_CLAUSES = Object.freeze({ component: 'prerequisite_component',
+  target: 'prerequisite_target' });
+
+function prerequisiteRecoveryFacts(diagnostic) {
+  if (diagnostic?.code === 'obligation_coverage_authored_case_missing') {
+    return deepFreeze({ corrections: ['prerequisite_case'] });
+  }
+  const cause = diagnostic?.problem?.cause ?? {};
+  const fact = cause.kind === 'derived_parameter_prerequisite_missing' ? cause.authored_prerequisite : undefined;
+  if (fact === undefined) return null;
+  if (fact.prerequisite !== 'authored_case') return deepFreeze({ corrections: ['prerequisite_case'] });
+  const clause = PREREQUISITE_CASE_FIELD_CLAUSES[fact.authored_case_field];
+  return deepFreeze({ corrections: clause === undefined ? [] : [clause],
+    ...(typeof fact.case_id === 'string' ? { case_id: fact.case_id } : {}) });
+}
 
 export function occurrenceRecoveryFacts(diagnostic) {
+  const prerequisite = prerequisiteRecoveryFacts(diagnostic);
+  if (prerequisite !== null) return prerequisite;
   if (diagnostic?.code !== 'obligation_coverage_native_binding_case_incomplete') return null;
   const failures = typedBindingFailures(diagnostic);
   const failedFields = [...new Map(failures.map(entry => [`${entry.path}\u0000${entry.keyword}`,
@@ -270,24 +328,44 @@ export function occurrenceRecoveryFacts(diagnostic) {
     ...(moduleSource ? ['component'] : []),
     ...(association ? ['association'] : []),
     ...(moduleSource || association ? [] : ['case_content'])];
+  const unselected = diagnostic.problem?.cause?.case_association;
   return deepFreeze({ failed_fields: failedFields, association_correction: association,
-    module_source_correction: moduleSource, corrections });
+    module_source_correction: moduleSource, corrections,
+    ...(unselected === undefined ? {} : { association: structuredClone(unselected) }) });
+}
+
+const BLOCKED_ASSOCIATION_ACTIONS = Object.freeze({
+  verification_owned_by_another_case: () => 'another saved case owns the verification: choose that case from its saved_case_ids with case.id',
+  case_selector_cross_unit: () => 'another unit owns the execution target: author the selection through a unit in its owner_units',
+  shared_case_verification_conflict: links => `uses of this shared case link verifications that exclude it: reconcile ${links} of the obligations in its uses`
+});
+const blockedAssociationAction = (condition, links) => BLOCKED_ASSOCIATION_ACTIONS[condition]?.(links) ??
+  `the work record's declared test target does not admit it (${condition}): correct that target declaration`;
+
+function caseAssociationInstruction(association) {
+  const { field, links_field: links } = association.required_choice;
+  const count = association.candidate_verification_ids.length;
+  if (association.condition === 'ambiguous_linked_verification') return ` This saved case names no verification and ${association.eligible_verification_ids.length} are eligible, ${count} of them selectable: name one of candidate_verification_ids in ${field}.`;
+  if (count === 1) return ` This saved case names no verification and exactly one is eligible: resubmit this obligation to adopt it, or name it in ${field}.`;
+  if (association.blocked.length > 0) return ` This saved case names no verification and every eligible one is blocked; blocked lists each with its constraint. Where ${[...new Set(association.blocked.map(entry => entry.condition))].map(condition => blockedAssociationAction(condition, links)).join('; where ')}. Otherwise list another eligible test_execution verification in ${links}.`;
+  return ` This saved case names no verification and ${links} lists no eligible test_execution verification: list it there, and a sole eligible one is adopted without ${field}.`;
 }
 
 export function occurrenceRecoverySummary(diagnostic, recovery, { failedFields = 'owner_diagnostics' } = {}) {
   const facts = occurrenceRecoveryFacts(diagnostic);
-  if (facts === null) return recovery.summary;
+  if (facts === null || facts.failed_fields === undefined) return recovery.summary;
   const published = failedFields === 'public';
   if (facts.failed_fields.length === 0) {
-    return `Use the upsert's ${OCCURRENCE_CORRECTION_CLAUSES.case_content.guidance} guidance${published ? '' : ' and inspect the structured owner diagnostic details'}. No typed failed field path was published, so this refusal does not identify a verification-association repair. Never supply or edit the derived binding itself.`;
+    return `Supply the omitted case meaning in ${OCCURRENCE_CORRECTION_CLAUSES.case_content.field}${published ? '' : ' and inspect the structured owner diagnostic details'}. No typed failed field path was published, so this refusal does not identify a verification-association repair. Never supply or edit the derived binding itself.`;
   }
   const count = new Set(facts.failed_fields.map(({ path }) => path)).size;
   const pathSummary = `Typed derived-binding validation reported ${count} failed field ${count === 1 ? 'path' : 'paths'}; ${published ? 'each subject\'s failed_fields lists them' : 'the complete paths remain in the structured owner diagnostics'}.`;
-  const correction = facts.association_correction
-    ? ` Use the upsert's ${OCCURRENCE_CORRECTION_CLAUSES.association.guidance} guidance when the failed proposition identities must be derived from an eligible test_execution verification.`
-    : ` The typed failures do not identify the verification association as invalid; preserve valid requirement/verification links and use the upsert's ${OCCURRENCE_CORRECTION_CLAUSES.case_content.guidance} guidance to supply the omitted case meaning.`;
+  const correction = facts.association !== undefined ? caseAssociationInstruction(facts.association)
+    : facts.association_correction
+    ? ` Correct the case's verification association when the failed proposition identities must be derived from an eligible test_execution verification.`
+    : ` The typed failures do not identify the verification association as invalid; preserve valid requirement/verification links and supply the omitted case meaning in ${OCCURRENCE_CORRECTION_CLAUSES.case_content.field}.`;
   const componentCorrection = facts.module_source_correction
-    ? ` The derived binding has no runtime module path, which is derived only from the resolved ${OCCURRENCE_CORRECTION_CLAUSES.component.field} when its identity is a repository_path (by value, or through the saved reference a reference_id selects); a profile_term or other descriptive identity names no module source, even when it mentions a file. Author that component with the actual repository and path under the upsert's ${OCCURRENCE_CORRECTION_CLAUSES.component.guidance} guidance.`
+    ? ` The derived binding has no runtime module path, which is derived only from the resolved ${OCCURRENCE_CORRECTION_CLAUSES.component.field} when its identity is a repository_path (by value, or through the saved reference a reference_id selects); a profile_term or other descriptive identity names no module source, even when it mentions a file. Author that component with the actual repository and path.`
     : '';
   return `${pathSummary}${correction}${componentCorrection} Never supply or edit the derived binding itself.`;
 }
@@ -298,25 +376,25 @@ export function occurrencePublicRecovery(diagnostic) {
   const registered = Object.hasOwn(diagnostic.problem?.cause ?? {}, 'actor_recovery')
     ? registeredRecoveryTemplate(PROOF_PREREQUISITE_CODES, diagnostic.code) : null;
   const instructions = registered === null ? recovery.operator_action ?? null
-    : `${occurrenceRecoverySummary(diagnostic, registered, { failedFields: 'public' })} Supported next call: ${registered.route}.`;
+    : `${occurrenceRecoverySummary(diagnostic, registered, { failedFields: 'public' })} ${registeredRecoveryInstruction(registered)}`;
   return deepFreeze({ explanation: recovery.explanation ?? null, instructions });
 }
 
-function registeredRecoveryProjection(diagnostic, operation) {
+function registeredRecoveryProjection(diagnostic) {
   const cause = diagnostic.problem?.cause ?? {};
   if (!Object.hasOwn(cause, 'actor_recovery')) return null;
   const recovery = registeredRecoveryTemplate(PROOF_PREREQUISITE_CODES, diagnostic.code);
 
   if (recovery === null) return {
     status: 'unavailable', supported_next_call: null, operator_action: null,
-    explanation: `No authoring route clears ${diagnostic.code}: ${operation === null ? diagnostic.reason : `${operation.kind} '${operation.id}' is ${operation.state}`}${cause.owner_code === null ? '' : ` (${cause.owner_code})`}, which is recovered by the ${cause.actor_recovery} actor.`
+    explanation: `${diagnostic.reason}${cause.owner_code === null ? '' : ` Its owner reported ${cause.owner_code}.`} This diagnosis establishes no supported recovery.`
   };
   return {
     status: 'operator_action',
     supported_next_call: { tool: recovery.route ?? null, kind: recovery.kind,
       arguments: Object.fromEntries(Object.entries(recovery.argument_bindings ?? {})
         .map(([argument, fact]) => [argument, cause[fact] ?? null])) },
-    operator_action: `${occurrenceRecoverySummary(diagnostic, recovery)} Supported next call: ${recovery.route}.`,
+    operator_action: `${occurrenceRecoverySummary(diagnostic, recovery)} ${registeredRecoveryInstruction(recovery)}`,
     explanation: `${recovery.prerequisite === undefined ? '' : `This refusal states that ${recovery.prerequisite}. `}Success condition: ${recovery.success_condition}`
   };
 }
@@ -326,17 +404,17 @@ function recoveryForDiagnostic({ diagnostic, effect, stage, operation, owner }) 
     status: 'not_required', supported_next_call: null, operator_action: null,
     explanation: 'This retained owner limitation is not required by the selected route and does not need recovery for that route to proceed.'
   };
-  const registered = registeredRecoveryProjection(diagnostic, operation);
+  const registered = registeredRecoveryProjection(diagnostic);
   if (registered !== null) return registered;
   const prerequisite = diagnostic.problem?.cause?.authored_prerequisite;
   if (stage === 'authored_inputs' && prerequisite !== undefined) return {
     status: 'operator_action', supported_next_call: null,
-    operator_action: `Query the current saved selection, then through ${UPSERT_TOOL} with its returned content digest ${authoredPrerequisiteCorrection(prerequisite)}. The native test binding and this parameter are derived from that case; never edit the binding or supply the parameter directly.`,
+    operator_action: `Read the current unit through ${READ_TOOL}, then through ${SAVE_TOOL} with its returned revision ${authoredPrerequisiteCorrection(prerequisite)}. The native test binding and this parameter are derived from that case; never edit the binding or supply the parameter directly.`,
     explanation: `This parameter is unavailable only because its authored prerequisite ${prerequisite.prerequisite} is ${prerequisite.status}; validation cannot invent the authored case content.`
   };
   if (stage === 'authored_inputs') return {
     status: 'operator_action', supported_next_call: null,
-    operator_action: 'Query the current saved selection, then amend the affected obligations through workspace_controlled_contract_obligation_coverage_upsert with its returned content digest.',
+    operator_action: `Read the current unit through ${READ_TOOL}, then amend the affected obligations through ${SAVE_TOOL} with its returned revision.`,
     explanation: `The required correction depends on operator-authored meaning identified by ${diagnostic.code}; validation cannot invent the replacement value.`
   };
   const operationLabel = operation === null ? diagnostic.code
@@ -480,19 +558,23 @@ export async function resolveProofExecutableMap(source, context = {}, owners = {
     const semanticDiagnostics = assessProofAuthoringRowSemantics(row, path, context);
     const diagnostics = [...semanticDiagnostics];
     let pack = null;
-    try { pack = await loadDefinition(row.selection); await dependencies(pack); }
+    const selectionCodes = [];
+
+    if (row.proof_opt_out !== true) try { pack = await loadDefinition(row.selection); await dependencies(pack); }
     catch (error) {
 
       if (!error?.code || !/^(obligation_coverage_|proof_pack_|pack_parameter_)/u.test(error.code)) throw error;
       diagnostics.push(ownerDiagnostic(error, `${path}/selection`));
+      selectionCodes.push(error.code);
     }
     let prerequisites = null;
     if (pack && !parameterOnly) {
       prerequisites = selectedProofPrerequisites({ pack,
         contract: contracts.get(identity(pack)), row, context });
-      diagnostics.push(...selectedProofPrerequisiteDiagnostics(prerequisites, path, context));
+      diagnostics.push(...selectedProofPrerequisiteDiagnostics(prerequisites, path, context,
+        context.case_associations?.[row.obligation_id] ?? null));
     }
-    rows.push({ row, path, pack, diagnostics, prerequisites, semanticDiagnostics });
+    rows.push({ row, path, pack, diagnostics, prerequisites, semanticDiagnostics, selectionCodes });
   }
   let dependencyFailure = null;
   try { validateParameterDependencies([...contracts.values()]); }
@@ -662,13 +744,14 @@ export async function resolveProofExecutableMap(source, context = {}, owners = {
     if (row.case_id) for (const slot of derivedSlots) {
       const fieldAbsent = slot.value_kind === 'typed_referent' ? boundary === undefined
         : !Object.hasOwn(values, slot.name);
-      if (fieldAbsent) absent(slot, { prerequisite: 'authored_case', status: 'incomplete' });
+      if (fieldAbsent) absent(slot, { prerequisite: 'authored_case', status: 'incomplete',
+        case_id: row.case_id });
     }
     return withPrerequisites(values);
   }
   const rowFacts = [], entries = [];
   for (const entry of rows) {
-    const { row, pack, diagnostics, path, prerequisites, semanticDiagnostics } = entry;
+    const { row, pack, diagnostics, path, prerequisites, semanticDiagnostics, selectionCodes } = entry;
     let node = null;
     if (pack) {
       node = await expand(pack, row.selection.parameters, canonicalInputs(row, pack));
@@ -685,7 +768,10 @@ export async function resolveProofExecutableMap(source, context = {}, owners = {
       resolved_identity: node?.identity ?? null,
       selected_proof_assessment: completed?.assessment ?? null,
       diagnostics: completed?.diagnostics ?? diagnostics });
-    entries.push({ row, semantic_diagnostics: semanticDiagnostics, resolved: pack !== null });
+
+    entries.push({ row, semantic_diagnostics: semanticDiagnostics, resolved: pack !== null,
+      accounting: assessProofObligationAccounting(row,
+        { resolved: pack !== null, diagnostic_codes: selectionCodes }) });
   }
   const definitionIdentities = [...definitions.values()].sort((a, b) => identity(a).localeCompare(identity(b))).map(pin);
 

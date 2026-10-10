@@ -36,10 +36,15 @@ function addressedEvaluationInputPack(input) {
 const loadControlledContractPackage = createEvictOnRejectionMemo(() =>
   import(CONTROLLED_CONTRACT_MODULE_SPECIFIER));
 
+const loadControlledContractProofPlanCompiler = createEvictOnRejectionMemo(() =>
+  import(`${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/proof-plan-compiler`));
+
 const SHARED_CONTRACT_SPECIFIERS = Object.freeze([
   `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/proof-contract`,
   `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/test-proof`,
-  `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/native-test-cases`
+  `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/native-test-cases`,
+  `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/obligation-coverage`,
+  `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/acceptance-coverage-identity`
 ]);
 
 const loadControlledContractSharedContract = createEvictOnRejectionMemo(async () => {
@@ -47,6 +52,21 @@ const loadControlledContractSharedContract = createEvictOnRejectionMemo(async ()
     (specifier) => import(specifier)));
   return Object.freeze(Object.assign({}, ...modules.map((module) => ({ ...module }))));
 });
+
+const PROOF_AUTHORING_SPECIFIERS = Object.freeze([
+  `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/proof-selection`,
+  `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/native-contract`,
+  `${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/proof-authoring-diagnostic-groups`
+]);
+
+const loadControlledContractProofAuthoring = createEvictOnRejectionMemo(async () => {
+  const [shared, ...modules] = await Promise.all([loadControlledContractSharedContract(),
+    ...PROOF_AUTHORING_SPECIFIERS.map((specifier) => import(specifier))]);
+  return Object.freeze(Object.assign({}, shared, ...modules.map((module) => ({ ...module }))));
+});
+
+const loadControlledContractProofIntents = createEvictOnRejectionMemo(() =>
+  import(`${CONTROLLED_CONTRACT_MODULE_SPECIFIER}/proof-intents`));
 
 const loadProofPlanRequestSchema = createEvictOnRejectionMemo(() =>
   readFile(new URL(import.meta.resolve(PROOF_PLAN_REQUEST_SCHEMA_SPECIFIER)), "utf8")
@@ -100,6 +120,9 @@ export {
   addressedEvaluationInputPack,
   assertPackageValidContract,
   loadControlledContractPackage,
+  loadControlledContractProofPlanCompiler,
+  loadControlledContractProofAuthoring,
+  loadControlledContractProofIntents,
   loadControlledContractSharedContract,
   loadEvaluationInputSchema,
   loadEvaluationInputSchemaValue,

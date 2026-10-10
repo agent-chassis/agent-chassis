@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -22,7 +23,10 @@ import {
 } from "./frozen-review-contract-snapshot.mjs";
 import { assertManagedWorkerAssignment } from "./worker-assignment-authority.mjs";
 import { createManagedAssignmentReadSnapshot } from "./managed-assignment-read-artifact.mjs";
-import { consumeAdvisoryReviewInput } from "./workspace-agent-advisory-review-contract.mjs";
+import {
+  consumeAdvisoryReviewInput,
+  resolveAdvisoryReviewInputRun
+} from "./workspace-agent-advisory-review-contract.mjs";
 
 export const STDIO_MCP_CONDUIT_AUTHORITY_SCHEMA_VERSION =
   "launcher-stdio-mcp-conduit-authority.v1";
@@ -195,6 +199,88 @@ function normalizeTrustedSourceBindings(bindings) {
   return Object.freeze(normalized);
 }
 
+export const STDIO_MCP_CONDUIT_AUTHORITY_SOURCE_BINDING_KIND = "stdio_mcp_conduit_authority";
+export const ADVISORY_REVIEW_SOURCE_BINDING_KIND = "advisory_review_source";
+const ADVISORY_REVIEW_SOURCE_FACT_FIELDS = Object.freeze([
+  "role", "assigned_unit", "run_id", "repository_root", "materialization_root"
+]);
+
+function canonicalAdvisoryReviewSourceRoot(label, value) {
+  if (typeof value !== "string" || !path.isAbsolute(value)) {
+    refuse(`advisory review source ${label} must be an absolute path`);
+  }
+  const resolved = path.resolve(value);
+  try {
+    return realpathSync(resolved);
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return resolved;
+    throw error;
+  }
+}
+
+export function normalizeAdvisoryReviewSourceFacts(facts) {
+  if (!exactKeys(facts, ADVISORY_REVIEW_SOURCE_FACT_FIELDS)) {
+    refuse("advisory review source facts are not the closed fact set");
+  }
+  if (facts.role !== "reviewer" && facts.role !== "redteam") {
+    refuse("advisory review source facts require a findings role");
+  }
+  for (const field of ["assigned_unit", "run_id"]) {
+    if (typeof facts[field] !== "string" || facts[field].length === 0) {
+      refuse(`advisory review source facts require ${field}`);
+    }
+  }
+  return Object.freeze({
+    role: facts.role,
+    assigned_unit: facts.assigned_unit,
+    run_id: facts.run_id,
+    repository_root: canonicalAdvisoryReviewSourceRoot("repository root", facts.repository_root),
+    materialization_root:
+      canonicalAdvisoryReviewSourceRoot("materialization root", facts.materialization_root)
+  });
+}
+
+export function digestAdvisoryReviewSourceFacts(facts) {
+  return digestPlainObject(normalizeAdvisoryReviewSourceFacts(facts));
+}
+
+function requiredTrustedSourceBindings(authority) {
+  const source = TRUSTED_ADVISORY_REVIEW_SOURCES.get(authority) ?? null;
+  return Object.freeze([
+    Object.freeze({
+      kind: STDIO_MCP_CONDUIT_AUTHORITY_SOURCE_BINDING_KIND,
+      id: authority.schemaVersion,
+      digest: digestPlainObject(authorityDigestProjection(authority))
+    }),
+    ...(source === null ? [] : [Object.freeze({
+      kind: ADVISORY_REVIEW_SOURCE_BINDING_KIND,
+      id: source.runId,
+      digest: digestAdvisoryReviewSourceFacts({
+        role: authority.role,
+        assigned_unit: authority.assignedUnit,
+        run_id: source.runId,
+        repository_root: source.repositoryRoot,
+        materialization_root: source.materializationRoot
+      })
+    })])
+  ]);
+}
+
+function assertRequiredTrustedSourceBindings(sources, required) {
+  for (const kind of [STDIO_MCP_CONDUIT_AUTHORITY_SOURCE_BINDING_KIND,
+    ADVISORY_REVIEW_SOURCE_BINDING_KIND]) {
+    const expected = required.filter((entry) => entry.kind === kind);
+    const actual = sources.filter((entry) => entry.kind === kind);
+    if (actual.length !== expected.length || actual.some((entry, index) =>
+      entry.id !== expected[index].id || entry.digest !== expected[index].digest)) {
+      refuse("session contract required source binding is missing, substituted or duplicated", {
+        refusal_code: LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED,
+        kind
+      });
+    }
+  }
+}
+
 function authorityDigestProjection(authority) {
   return {
     schema_version: authority.schemaVersion,
@@ -247,11 +333,9 @@ export function mintLauncherAgentSessionContract({
   }
   const normalizedCapabilities = canonicalStringArray("session contract capabilities", capabilities);
   const authorityDigest = digestPlainObject(authorityDigestProjection(authority));
-  const sources = normalizeTrustedSourceBindings(trustedSourceBindings ?? [{
-    kind: "stdio_mcp_conduit_authority",
-    id: authority.schemaVersion,
-    digest: authorityDigest
-  }]);
+  const requiredSources = requiredTrustedSourceBindings(authority);
+  const sources = normalizeTrustedSourceBindings(trustedSourceBindings ?? requiredSources);
+  assertRequiredTrustedSourceBindings(sources, requiredSources);
   const carrier = {
     schema_version: LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION,
     role,
@@ -478,6 +562,7 @@ const ORCHESTRATOR_PROFILE = Object.freeze({
 const TRUSTED_AUTHORITIES = new WeakSet();
 const TRUSTED_FROZEN_REVIEW_SNAPSHOTS = new WeakMap();
 const TRUSTED_WORKER_ASSIGNMENT_SNAPSHOTS = new WeakMap();
+const TRUSTED_ADVISORY_REVIEW_SOURCES = new WeakMap();
 const TRUSTED_SESSION_CONTRACTS = new WeakMap();
 const TRUSTED_SESSION_CONTRACT_FACTS = new WeakMap();
 
@@ -706,7 +791,17 @@ function requireAdvisoryReviewSource(advisoryReviewInput, { assignedUnit, condui
       reason: "advisory_review_checkout_invalid"
     });
   }
-  return path.resolve(checkoutRoot);
+  const runId = resolveAdvisoryReviewInputRun(advisoryReviewInput);
+  if (runId === null) {
+    refuse("advisory review input is not bound to its advisory run", {
+      reason: "advisory_review_input_unbound"
+    });
+  }
+  return Object.freeze({
+    runId,
+    repositoryRoot: workspace,
+    materializationRoot: path.resolve(checkoutRoot)
+  });
 }
 
 function requireWorkerAssignmentBinding(workerAssignment, { assignedUnit, conduitRole, sourceDigest }) {
@@ -888,9 +983,10 @@ export function mintTrustedStdioMcpConduitAuthority({
   const workerAssignmentSnapshot = requireWorkerAssignmentBinding(workerAssignment, {
     assignedUnit, conduitRole, sourceDigest
   });
-  const reviewMaterializationDir = requireAdvisoryReviewSource(advisoryReviewInput, {
+  const advisoryReviewSource = requireAdvisoryReviewSource(advisoryReviewInput, {
     assignedUnit, conduitRole, workspace
   });
+  const reviewMaterializationDir = advisoryReviewSource?.materializationRoot ?? null;
   const authority = Object.freeze({
     schemaVersion: STDIO_MCP_CONDUIT_AUTHORITY_SCHEMA_VERSION,
     family,
@@ -912,6 +1008,9 @@ export function mintTrustedStdioMcpConduitAuthority({
     workerAssignmentDigest: workerAssignmentSnapshot?.digest ?? null
   });
   TRUSTED_AUTHORITIES.add(authority);
+  if (advisoryReviewSource !== null) {
+    TRUSTED_ADVISORY_REVIEW_SOURCES.set(authority, advisoryReviewSource);
+  }
   if (frozenReviewContract !== null) {
     TRUSTED_FROZEN_REVIEW_SNAPSHOTS.set(authority, frozenReviewContractBinding.snapshot);
   }
@@ -997,7 +1096,7 @@ function defaultSessionContractFacts(authority) {
     capabilities,
     capabilityRegistryDigest: digestPlainObject({ capabilities }),
     completionTransport: expectedTransport(authority.role, reviewPurpose),
-    trustedSourceBindings: null,
+    trustedSourceBindings: requiredTrustedSourceBindings(authority),
     operatorActionBinding: null
   });
 }

@@ -789,12 +789,14 @@ test("closed registry resolves exact versioned provider capabilities", () => {
 
 test("current public runtime and declarations expose only explicit stable identities", async () => {
 
+  const retiredCutover = ["CURRENT_DEFINITION_REAUTHORING_SCHEMA", "RETIRED_CURRENT_DEFINITION_FIELDS",
+    "qualifyStableCurrentDefinitionReauthoring", "reauthorStableCurrentDefinitionBindings"];
   for (const name of ["resolveTestProofProviderBindings",
     "TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V1", "validateTestProofRuntimeEvidence",
     "projectStableTestProofCurrentPopulation",
     "classifyStableTestProofRuntimeReadiness",
     "STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS",
-    "STABLE_TEST_PROOF_RUNTIME_READINESS_SCHEMA_VERSION"]) {
+    "STABLE_TEST_PROOF_RUNTIME_READINESS_SCHEMA_VERSION", ...retiredCutover]) {
     assert.equal(name in controlledContractCurrent, false, name);
   }
   for (const name of ["resolveStableTestProofProviderBindings",
@@ -807,7 +809,8 @@ test("current public runtime and declarations expose only explicit stable identi
   ), "utf8");
   for (const name of ["resolveTestProofProviderBindings",
     "TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V1", "validateTestProofRuntimeEvidence",
-    "classifyStableTestProofRuntimeReadiness", "projectStableTestProofCurrentPopulation"]) {
+    "classifyStableTestProofRuntimeReadiness", "projectStableTestProofCurrentPopulation",
+    ...retiredCutover, "StableCurrentDefinitionQualification"]) {
     assert.doesNotMatch(declaration, new RegExp(`\\b${name}\\b`, "u"), name);
   }
   for (const name of ["resolveStableTestProofProviderBindings",
@@ -827,7 +830,7 @@ test("current public runtime and declarations expose only explicit stable identi
   ), "utf8");
 
   assert.doesNotMatch(stableOwner,
-    /controlled-acceptance-contract\.experimental\.v0\.[23]|runtime_test_selection/u);
+    /controlled-acceptance-contract\.experimental\.v0\.[23]|runtime_test_selection|runtime_test_identity|coverage_disposition/u);
 });
 
 test("public runtime refuses caller-injected executor callbacks", async () => {

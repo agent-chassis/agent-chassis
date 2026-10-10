@@ -26,7 +26,16 @@ import {
   formatOrchestratorResumePlainSpawnProvenance
 } from "./codex-role-sandbox-fail-open.mjs";
 
-export function spawnIsolatedAndWait(bwrapPlan, options) {
+export function notifyChildHeld(onChild, child) {
+  if (typeof onChild !== "function") return;
+  try {
+    onChild(child);
+  } catch {
+
+  }
+}
+
+export function spawnIsolatedAndWait(bwrapPlan, options, { onChild = null } = {}) {
   return new Promise((resolve, reject) => {
     let child;
     try {
@@ -35,6 +44,7 @@ export function spawnIsolatedAndWait(bwrapPlan, options) {
       reject(err);
       return;
     }
+    notifyChildHeld(onChild, child);
     child.on("error", reject);
     child.on("close", resolve);
   });
@@ -57,7 +67,7 @@ export function codexOrchestratorSessionDescriptor(plan) {
   };
 }
 
-export function spawnDirectAndWait(command, args, options) {
+export function spawnDirectAndWait(command, args, options, { onChild = null } = {}) {
   return new Promise((resolve, reject) => {
     let child;
     try {
@@ -66,6 +76,7 @@ export function spawnDirectAndWait(command, args, options) {
       reject(err);
       return;
     }
+    notifyChildHeld(onChild, child);
     child.on("error", reject);
     child.on("close", resolve);
   });
@@ -84,7 +95,8 @@ export async function runInteractiveOrchestratorChild({
   spawnOrchestrator = spawnOrchestratorAndWait,
   spawnLaunch = spawnIsolated,
   spawnDirect = spawnDirectAndWait,
-  openStdio = openHeadlessStdio
+  openStdio = openHeadlessStdio,
+  onChild = null
 } = {}) {
   const isHeadless =
     plan?.headless === true || plan?.mode === "orchestrator-headless";
@@ -108,7 +120,11 @@ export async function runInteractiveOrchestratorChild({
       runtimeDir: plan.runtimeDir,
       descriptor: codexOrchestratorSessionDescriptor(plan),
       bwrapPlan,
-      spawnLaunch,
+      spawnLaunch: (...launch) => {
+        const child = spawnLaunch(...launch);
+        notifyChildHeld(onChild, child);
+        return child;
+      },
       spawnOptions: { env: plan.env },
       ...(headlessStdio ? { stdio: headlessStdio.stdio } : {})
     });
@@ -118,7 +134,7 @@ export async function runInteractiveOrchestratorChild({
     }
     plan.operatorIsolation =
       buildCodexOrchestratorResumeLateBwrapSpawnFailureSummary(plan, err);
-    await dispatchOrchestratorResumeLateBwrapFallback(plan, io, err, { spawnDirect });
+    await dispatchOrchestratorResumeLateBwrapFallback(plan, io, err, { spawnDirect, onChild });
     return;
   } finally {
     headlessStdio?.close();
@@ -135,7 +151,7 @@ export async function dispatchOrchestratorResumeLateBwrapFallback(
   plan,
   io,
   error,
-  { spawnDirect = spawnDirectAndWait } = {}
+  { spawnDirect = spawnDirectAndWait, onChild = null } = {}
 ) {
   if (
     plan.operatorIsolation?.mode === ORCHESTRATOR_ISOLATION_MODES.DIRECT
@@ -150,7 +166,7 @@ export async function dispatchOrchestratorResumeLateBwrapFallback(
       cwd: plan.repo,
       env: plan.env,
       stdio: "inherit"
-    });
+    }, { onChild });
     process.exitCode = status ?? 0;
     return;
   }

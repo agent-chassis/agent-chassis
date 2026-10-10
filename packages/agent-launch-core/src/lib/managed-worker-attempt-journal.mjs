@@ -30,9 +30,12 @@ export const ATTEMPT_EVENT_KINDS = Object.freeze({
   INTEGRATION_COMPLETED: "integration_completed",
 
   RUN_RESULT_RECORDED: "run_result_recorded",
+  RUN_ORIGINAL_RECORDED: "run_original_recorded",
   LIFECYCLE_FAILURE_RECORDED: "lifecycle_failure_recorded",
 
   PROOF_VERIFICATION_RECORDED: "proof_verification_recorded",
+
+  DELIVERY_RECEIPT_RECORDED: "delivery_receipt_recorded",
 
   ATTEMPT_TERMINAL: "attempt_terminal",
 
@@ -43,8 +46,10 @@ const EVENT_KIND_VALUES = new Set(Object.values(ATTEMPT_EVENT_KINDS));
 
 export const ATTEMPT_INFORMATIONAL_EVENT_KINDS = Object.freeze(new Set([
   ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED,
+  ATTEMPT_EVENT_KINDS.RUN_ORIGINAL_RECORDED,
   ATTEMPT_EVENT_KINDS.LIFECYCLE_FAILURE_RECORDED,
-  ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED
+  ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED,
+  ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED
 ]));
 
 const INVOCATION_OBSERVATION_PAYLOADS = Object.freeze({
@@ -53,6 +58,9 @@ const INVOCATION_OBSERVATION_PAYLOADS = Object.freeze({
   }),
   [ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED]: Object.freeze({
     keys: Object.freeze(["dispatch_tuple", "invocation_id", "verification"]), field: "verification"
+  }),
+  [ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED]: Object.freeze({
+    keys: Object.freeze(["dispatch_tuple", "invocation_id", "receipt"]), field: "receipt"
   })
 });
 
@@ -61,7 +69,44 @@ function isValidInvocationObservationPayload(kind, payload) {
   return hasExactKeys(payload, shape.keys) &&
     isValidAttemptTuple(payload.dispatch_tuple) &&
     isNonEmptyString(payload.invocation_id) &&
-    isPlainObject(payload[shape.field]);
+    isPlainObject(payload[shape.field]) && (kind !== ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED ||
+      isValidDeliveryReceipt(payload.receipt, payload.dispatch_tuple, payload.invocation_id));
+}
+
+function runOriginalRefusal(payload, recorded, original, binding) {
+  if (!hasExactKeys(payload, ["dispatch_tuple", "result_digest", "original_result"]) ||
+      !isValidAttemptTuple(payload.dispatch_tuple) || !isNonEmptyString(payload.result_digest) ||
+      !hasExactKeys(payload.original_result, ["ref_id", "sha256"]) ||
+      typeof payload.original_result.ref_id !== "string" || !/^[A-Za-z0-9._-]{1,200}$/u.test(payload.original_result.ref_id) ||
+      typeof payload.original_result.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(payload.original_result.sha256)) {
+    return refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, "run original payload or locator is invalid");
+  }
+  if (recorded == null) return refusal(ATTEMPT_JOURNAL_REFUSALS.ILLEGAL_TRANSITION,
+    "run original must follow its recorded result");
+  if (!sameAttempt(payload.dispatch_tuple, recorded.dispatch_tuple) ||
+      !isValidAttemptTuple(binding) || !sameAttempt(payload.dispatch_tuple, binding) || payload.result_digest !== recorded.result_digest ||
+      (original != null && canonicalJson(original) !== canonicalJson(payload))) {
+    return refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, "run original conflicts with its recorded result, dispatch binding or original");
+  }
+  return null;
+}
+
+function isValidDeliveryReceipt(receipt, tuple, invocationId) {
+  return hasExactKeys(receipt, ["repository", "unit", "producer", "producer_tuple", "source", "delivery", "result", "storage"]) &&
+    isNonEmptyString(receipt.repository) && receipt.unit === tuple.assigned_unit &&
+    receipt.producer === "workspace_deliver_work" &&
+    hasExactKeys(receipt.producer_tuple, ["launch_ref", "run_id", "retry_id"]) &&
+    receipt.producer_tuple.launch_ref === tuple.launch_ref &&
+    isNonEmptyString(receipt.producer_tuple.run_id) && receipt.producer_tuple.retry_id === tuple.retry_id &&
+    hasExactKeys(receipt.source, ["digest", "version"]) && isNonEmptyString(receipt.source.digest) &&
+    (receipt.source.version === null || isNonEmptyString(receipt.source.version)) &&
+    hasExactKeys(receipt.delivery, ["commit", "base"]) &&
+    isNonEmptyString(receipt.delivery.commit) && isNonEmptyString(receipt.delivery.base) &&
+    hasExactKeys(receipt.result, ["ref_id", "sha256"]) && receipt.result.ref_id === invocationId &&
+    typeof receipt.result.sha256 === "string" && /^[a-f0-9]{64}$/u.test(receipt.result.sha256) &&
+    hasExactKeys(receipt.storage, ["state_dir"]) && typeof receipt.storage.state_dir === "string" &&
+    path.isAbsolute(receipt.storage.state_dir);
 }
 
 export const INTEGRATION_EVENT_KINDS = Object.freeze(new Set([
@@ -325,6 +370,7 @@ export function validateAttemptJournal({ repository, subject, events }) {
   let priorDigest = null;
 
   const frozen = new Map();
+  const publications = new Map();
 
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
@@ -454,6 +500,26 @@ export function validateAttemptJournal({ repository, subject, events }) {
       }
     }
 
+    const publication = publications.get(key) ?? { binding: null, result: null, original: null };
+    if (event.kind === ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED) {
+      if (publication.original !== null) {
+        const invalid = runOriginalRefusal(publication.original, publication.result, publication.original, event.payload.dispatch_tuple);
+        if (invalid !== null) return { valid: false, refusal: invalid };
+      }
+      publication.binding = event.payload.dispatch_tuple;
+    }
+    if (event.kind === ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED) {
+      if (publication.result !== null && canonicalJson(publication.result) !== canonicalJson(event.payload)) {
+        return { valid: false, refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, "recorded run result is immutable") };
+      }
+      publication.result = event.payload;
+    }
+    if (event.kind === ATTEMPT_EVENT_KINDS.RUN_ORIGINAL_RECORDED) {
+      const invalid = runOriginalRefusal(event.payload, publication.result, publication.original, publication.binding);
+      if (invalid !== null) return { valid: false, refusal: invalid };
+      publication.original = event.payload;
+    }
+    publications.set(key, publication);
     priorDigest = event.digest;
   }
   return { valid: true, events: Object.freeze(events.slice()), terminal_digest: priorDigest };
@@ -800,8 +866,15 @@ export function admitAttemptCommand({
       return { admitted: false, refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, `${kind} payload is invalid`) };
     }
     const identityMatches = (event) => event.kind === kind && sameAttempt(event.attempt, attempt) &&
-      (kind === ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED || event.payload.invocation_id === payload.invocation_id);
+      (kind === ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED || kind === ATTEMPT_EVENT_KINDS.RUN_ORIGINAL_RECORDED ||
+        event.payload.invocation_id === payload.invocation_id);
     const existing = state.events.find(identityMatches) ?? null;
+    if (kind === ATTEMPT_EVENT_KINDS.RUN_ORIGINAL_RECORDED) {
+      const invalid = runOriginalRefusal(payload,
+        state.events.find(event => event.kind === ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED)?.payload,
+        existing?.payload, binding);
+      if (invalid !== null) return { admitted: false, refusal: invalid };
+    }
     if (existing !== null) {
       if (canonicalJson(existing.payload) === canonicalJson(payload)) {
         return { admitted: true, appended: false, event: existing, events: validated.events, refusal: null };

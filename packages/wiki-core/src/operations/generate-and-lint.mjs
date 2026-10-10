@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { createWorkRecordCorpusSnapshot } from "../lib/work-record-corpus-snapshot.mjs";
 import { loadCanonicalState, resolveContractContext } from "../lib/wiki.mjs";
@@ -90,6 +91,19 @@ export function buildLintFindingsResponse(
   return result;
 }
 
+function describeCheckedCorpus(loads, identifyRecords) {
+  const members = loads.map((load) => [load.source_path_relative ?? null, load.source_digest ?? null])
+    .sort(([left], [right]) => String(left).localeCompare(String(right)));
+  const captured = new Map(loads.map((load) => [load.record_id, load.source_digest ?? null]));
+  return {
+    schema_version: "work-record-checked-corpus.v1",
+    work_record_count: members.length,
+    digest: `sha256:${createHash("sha256").update(JSON.stringify(members), "utf8").digest("hex")}`,
+    records: Object.fromEntries((Array.isArray(identifyRecords) ? identifyRecords : [])
+      .map((id) => [id, captured.get(id) ?? null]))
+  };
+}
+
 const DEFAULT_DEPENDENCIES = Object.freeze({
   createWorkRecordCorpusSnapshot,
   resolveContractContext,
@@ -109,7 +123,8 @@ async function generateAndLintImpl({
   max_findings = null,
   maxFindings = null,
   clock = null,
-  instrumentation = null
+  instrumentation = null,
+  identifyRecords = null
 } = {}, dependencies = DEFAULT_DEPENDENCIES) {
   const targetDir = path.resolve(String(dir));
   const context = await dependencies.resolveContractContext(targetDir, {
@@ -155,9 +170,12 @@ async function generateAndLintImpl({
     const includeFullOutput =
       verbose === true || includeAllFindings === true || include_all_findings === true;
 
-    const compactResult = buildLintFindingsResponse(lint, {
-      maxFindings: maxFindings ?? max_findings
-    });
+    const compactResult = {
+      ...buildLintFindingsResponse(lint, {
+        maxFindings: maxFindings ?? max_findings
+      }),
+      checked_corpus: describeCheckedCorpus(snapshot.loads ?? [], identifyRecords)
+    };
 
     if (includeFullOutput) {
       return {

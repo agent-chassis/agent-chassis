@@ -1,5 +1,5 @@
 import { composeCoverageAuthoringSkeleton }
-  from "@agent-chassis/controlled-contract";
+  from "@agent-chassis/controlled-contract/coverage-authoring-skeleton";
 import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA,
   CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_ROW_AUTHORING_SCHEMA } from
   "./controlled-contract-tools.mjs";

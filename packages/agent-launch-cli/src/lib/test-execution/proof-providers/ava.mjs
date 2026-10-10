@@ -2,7 +2,7 @@
 
 import { pathToFileURL } from "node:url";
 
-import integration, { AVA_ATTEMPT_CONFIG } from "../runner-integrations/ava.mjs";
+import { AVA_ATTEMPT_CONFIG } from "../runner-integrations/ava.mjs";
 import { CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET, JSON_TITLE_PATH,
   instrumentJavaScriptAttempt, javascriptLayout, observerAsset } from "./javascript-support.mjs";
 import { nativeProviderImplementation } from "./native-lifecycle.mjs";
@@ -18,7 +18,5 @@ export default nativeProviderImplementation({
   assets: [OBSERVER, AVA_ATTEMPT_CONFIG, ...CHANNEL_ASSETS, JAVASCRIPT_INSTRUMENTATION_ASSET],
   layout: javascriptLayout,
   instrument: instrumentJavaScriptAttempt,
-  invocation: (attempt, layout) => integration.invocation({ runtime: attempt.runtime,
-    projectDir: attempt.workProject, file: layout.testFileInProject,
-    nodeArguments: [`--import=${pathToFileURL(OBSERVER).href}`] })
+  proof: () => ({ nodeArguments: [`--import=${pathToFileURL(OBSERVER).href}`] })
 });

@@ -1,5 +1,7 @@
 
 
+export const MANAGED_ASSIGNMENT_READ_FIELDS = Object.freeze(["guidance"]);
+
 import {
   MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX,
   MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES,
@@ -29,6 +31,8 @@ import {
   resolveLauncherAgentSessionContract
 } from "./launcher-run-credential.mjs";
 import { buildNextCall } from "./mcp-response.mjs";
+import { digestLauncherAgentSessionContract } from
+  "../../../agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
 
 export const MANAGED_ASSIGNMENT_READ_TOOL = "workspace_read_page";
 export const MANAGED_ASSIGNMENT_READ_REFUSAL_SCHEMA_VERSION = "managed-assignment-read-refusal.v1";
@@ -211,7 +215,16 @@ function loadBoundAssignment({ env, resolveSessionContract }) {
         assignedUnit
       });
   }
-  return { assignedUnit, digest: artifact.digest, presentation };
+  return { assignedUnit, digest: artifact.digest, presentation,
+    authority_identity: { session_contract_digest: digestLauncherAgentSessionContract(session),
+      assignment_digest: artifact.digest } };
+}
+
+export function readManagedAssignmentPresentation({
+  env = process.env,
+  resolveSessionContract = resolveLauncherAgentSessionContract
+} = {}) {
+  return loadBoundAssignment({ env, resolveSessionContract });
 }
 
 export function readManagedAssignment(args, {

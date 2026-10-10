@@ -209,14 +209,21 @@ export function publishRemoteRef({ repo, remote, ref, commit, expected, runGit }
   }
 }
 
+export const LANDING_OBJECT_CACHE_FETCH = Object.freeze({
+  NOT_ATTEMPTED: "not_attempted",
+  COMPLETED: "completed",
+  UNCERTAIN: "uncertain"
+});
+
 export function observeLandingBaseTip({ repo, transport, remote = null, baseBranch, runGit }) {
   const ref = `refs/heads/${baseBranch}`;
+  let fetched = LANDING_OBJECT_CACHE_FETCH.NOT_ATTEMPTED;
   if (transport === HANDOFF_TRANSPORTS.LOCAL) {
     const local = readLocalRef({ repo, ref, runGit });
-    return { ...local, ref };
+    return { ...local, ref, object_cache_fetch: fetched };
   }
   const observed = observeRemoteRef({ repo, remote, ref, runGit });
-  if (observed.kind !== "present") return { ...observed, ref };
+  if (observed.kind !== "present") return { ...observed, ref, object_cache_fetch: fetched };
   if (!hasCommit({ repo, commit: observed.sha, runGit })) {
     try {
       git(runGit, repo, [
@@ -224,17 +231,24 @@ export function observeLandingBaseTip({ repo, transport, remote = null, baseBran
         "--quiet", remote, ref
       ], transportEnv());
     } catch (error) {
-      return { kind: "unobservable", ref, evidence: captureDiagnosticEvidence(error) };
+      return {
+        kind: "unobservable",
+        ref,
+        evidence: captureDiagnosticEvidence(error),
+        object_cache_fetch: LANDING_OBJECT_CACHE_FETCH.UNCERTAIN
+      };
     }
+    fetched = LANDING_OBJECT_CACHE_FETCH.COMPLETED;
     if (!hasCommit({ repo, commit: observed.sha, runGit })) {
       return {
         kind: "unobservable",
         ref,
-        evidence: captureDiagnosticEvidence({ reason: "destination_base_moved_during_observation", ref })
+        evidence: captureDiagnosticEvidence({ reason: "destination_base_moved_during_observation", ref }),
+        object_cache_fetch: fetched
       };
     }
   }
-  return { kind: "present", ref, sha: observed.sha };
+  return { kind: "present", ref, sha: observed.sha, object_cache_fetch: fetched };
 }
 
 function hasCommit({ repo, commit, runGit }) {

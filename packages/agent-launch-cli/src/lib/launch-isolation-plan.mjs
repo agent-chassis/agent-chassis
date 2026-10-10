@@ -36,6 +36,7 @@ import {
 import {
   pinHarnessInterpreter,
   planNamespaceOnlyMountpoints,
+  planTestExecutionCheckoutWrites,
   prepareWorkerTestRuntimeMounts,
   projectWorkerTestRuntimeEnv
 } from "./launch-isolation-test-runtime-projection.mjs";
@@ -50,17 +51,25 @@ const LAUNCH_ROLE_GUIDES = Object.freeze({
   worker: "managed-worker",
   reviewer: "reviewer",
   review: "reviewer",
-  redteam: "reviewer"
+  redteam: "reviewer",
+  orch: "orchestrator",
+  "orch-resume": "orchestrator"
 });
 
 export function resolveLaunchRoleGuideDirectory(launchRole) {
   return Object.hasOwn(LAUNCH_ROLE_GUIDES, launchRole) ? resolveAgentRoleGuideDirectory() : null;
 }
 
+export function resolveLaunchRoleGuidePath(launchRole) {
+  return Object.hasOwn(LAUNCH_ROLE_GUIDES, launchRole)
+    ? resolveAgentRoleGuidePath(LAUNCH_ROLE_GUIDES[launchRole])
+    : null;
+}
+
 function resolveLaunchRoleGuideGrant(launchRole) {
   const guideDir = resolveLaunchRoleGuideDirectory(launchRole);
   if (guideDir === null) return { requiredFiles: [], binds: [] };
-  const guidePath = resolveAgentRoleGuidePath(LAUNCH_ROLE_GUIDES[launchRole]);
+  const guidePath = resolveLaunchRoleGuidePath(launchRole);
   return {
     requiredFiles: [guidePath],
     binds: [
@@ -110,6 +119,8 @@ function composeBubblewrapLaunchPlan({
   executionScratchSource = null,
 
   namespaceOnlyMountpoints = false,
+
+  testExecutionCheckoutWrites = false,
   maskTmpfsDirs = [],
   provisionedWorktreeGitBinding = null,
   shareNet = true,
@@ -180,6 +191,18 @@ function composeBubblewrapLaunchPlan({
     maskTmpfsDirs,
     newSession
   });
+  if (testExecutionCheckoutWrites !== false) {
+    if (testExecutionCheckoutWrites !== true || executionTmpSource === null || sparseWorkerNamespace !== null ||
+        writableRoots.length > 0 || writableFiles.length > 0) {
+      fail(
+        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PLAN_INVALID,
+        "test-execution checkout writes apply only to a test execution with its own execution root, on a "
+          + "dense checkout with no writable roots or files"
+      );
+    }
+  }
+  const checkoutWrites = testExecutionCheckoutWrites === true
+    ? planTestExecutionCheckoutWrites({ repoReal }) : null;
 
   const harness = pinHarnessInterpreter({ resolvedCommand, args,
     pathEnv: resolverPathFromEnv(env), prepared: workerTestRuntime });
@@ -187,16 +210,6 @@ function composeBubblewrapLaunchPlan({
   const childArgs = harness.args;
   const projectedEnv = workerTestRuntime === null ? env
     : projectWorkerTestRuntimeEnv(env, workerTestRuntime);
-
-  const gitStatusWrapper = prepareGitStatusWrapperProjection({
-    requested: installGitStatusWrapper === true,
-    repoReal,
-    privateReadOnlyMaskDirs: privateReadOnlyMaskDirsResolved,
-    sparseWorkerNamespace,
-    env,
-    envPolicy,
-    systemRoots
-  });
 
   const findingsRoleGitMetadata = gitMetadataProjection === null
     ? null
@@ -232,8 +245,8 @@ function composeBubblewrapLaunchPlan({
     familyRuntimeReadOnlyRoots,
     familySystemReadOnlyRoots,
     familyRuntimeWritableRoots,
-    env: gitStatusWrapper === null ? projectedEnv : gitStatusWrapper.env,
-    envPolicy: gitStatusWrapper === null ? envPolicy : gitStatusWrapper.envPolicy,
+    env: projectedEnv,
+    envPolicy,
     cwd,
     repoReal,
     sparseWorkerNamespace,
@@ -273,6 +286,32 @@ function composeBubblewrapLaunchPlan({
     [...readOnly, ...roleGuideReadOnlyBinds]
   );
 
+  const gitStatusWrapper = prepareGitStatusWrapperProjection({
+    requested: installGitStatusWrapper === true,
+    repoReal,
+    privateReadOnlyMaskDirs: privateReadOnlyMaskDirsResolved,
+    sparseWorkerNamespace,
+    env,
+    systemRoots,
+    precedingBinds: [
+      ...readOnly,
+      ...homeReads,
+      ...homeWritableFiles,
+      ...familySystemReadOnly,
+      ...familyRuntime,
+      ...familyRuntimeWritable,
+      ...runtime.map((dir) => ({ src: dir, dst: dir })),
+      ...(provisionedGitIsolation?.readOnlyBinds ?? []),
+      ...(testRuntime?.dependencyBinds ?? []),
+      ...roleGuideReadOnlyBinds
+    ],
+    maskDestinations: [
+      ...inRepoSecretFileMasks.map(({ dst }) => dst),
+      ...maskTmpfsDirsResolved
+    ],
+    reservedDestinations: [repoReal, ...tmpfsDirsResolved, ...writable]
+  });
+
   const pinnedBwrapPath = isNonEmptyString(bwrapPath)
     ? assertAbsoluteSafePath(bwrapPath, "bwrapPath")
     : null;
@@ -294,7 +333,7 @@ function composeBubblewrapLaunchPlan({
     { directories: preparedDirectories, repo: repoReal });
 
   const namespaceMountpoints = namespaceOnlyMountpoints === true && sparseWorkerNamespace === null
-    ? planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds: readOnly }) : null;
+    ? planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds: readOnly, checkoutWrites }) : null;
   const hostMountpointBinds = namespaceMountpoints === null ? readOnly
     : readOnly.filter(({ dst }) => !namespaceMountpoints.mountpoints.includes(dst));
   const readOnlyProjectionMountpoints = prepareReadOnlyProjectionMountpoints(hostMountpointBinds, {
@@ -322,13 +361,14 @@ function composeBubblewrapLaunchPlan({
     executionTmpSource,
     executionScratchSource,
     repoNamespaceArgs: namespaceMountpoints?.args ?? null,
+    testExecutionCheckoutWrites: checkoutWrites,
     tmpfsDirsResolved,
     sparseWorkerNamespace,
     repoReal,
     maskTmpfsDirsResolved,
     privateReadOnlyMaskDirsResolved,
     inRepoSecretFileMasks,
-    gitStatusWrapperReadOnlyBinds: gitStatusWrapper?.readOnlyBinds ?? [],
+    gitStatusWrapper,
     readOnly,
     homeReads,
     homeWritableFiles,
@@ -380,15 +420,7 @@ function composeBubblewrapLaunchPlan({
     maskTmpfsDirs: Object.freeze([...maskTmpfsDirsResolved]),
     privateReadOnlyMaskDirs: privateReadOnlyMaskDirsResolved,
 
-    gitStatusWrapper: gitStatusWrapper === null
-      ? null
-      : Object.freeze({
-          mountDir: gitStatusWrapper.mountDir,
-          asset: gitStatusWrapper.asset,
-          realGit: gitStatusWrapper.realGit,
-          repo: gitStatusWrapper.repo,
-          pathspec: gitStatusWrapper.pathspec
-        }),
+    gitStatusWrapper,
     filesystemConfidentiality: Object.freeze({
       guaranteed: true,
       enforcement_backend: "bwrap",
@@ -403,6 +435,7 @@ function composeBubblewrapLaunchPlan({
       : {}),
     ...(namespaceMountpoints === null ? {}
       : { namespaceOnlyMountpoints: namespaceMountpoints.mountpoints }),
+    ...(checkoutWrites === null ? {} : { testExecutionCheckoutWrites: checkoutWrites }),
     decisionsReadOnlyRoots: Object.freeze(decisionsReadOnly.map((b) => Object.freeze({ ...b }))),
     homePolicyReads: Object.freeze(homeReads.map((b) => Object.freeze({ ...b }))),
     homePolicyWritableFiles: Object.freeze(

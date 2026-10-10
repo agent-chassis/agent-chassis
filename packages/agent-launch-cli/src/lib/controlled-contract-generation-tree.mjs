@@ -6,6 +6,10 @@ import {
   classifyControlledContractGenerationRepositoryPath,
   validateControlledContractAttachmentGenerationDescriptors
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
+import {
+  CONTROLLED_CONTRACT_GENERATION_SOURCE_OBSERVATION_SCHEMA_VERSION,
+  resolveControlledContractGenerationFromSourceObservation
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-tool-shared.mjs";
 import { parseControlledContractCarrierSetManifest } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-manifest.mjs";
 
@@ -14,6 +18,16 @@ const RAW_DIFF_HEADER_PATTERN =
 
 function sha256(bytes) {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+export const CANONICAL_WK_CONTENT_SOURCE_KIND = "canonical_wk_record_content";
+export function canonicalWkContentMovement(recordId, stage, facts = {}) {
+  return {
+    path: `wiki/work-records/${recordId}.json`,
+    source_kind: CANONICAL_WK_CONTENT_SOURCE_KIND,
+    stage,
+    ...facts
+  };
 }
 
 export function createControlledContractGenerationTreeOperations({
@@ -246,14 +260,15 @@ export function createControlledContractGenerationTreeOperations({
     return true;
   }
 
-  function resolveBoundRecordArtifact(binding) {
+  function resolveBoundRecordArtifact(binding, stage = "bound_record_observation", facts = {}) {
     const repositoryPath = `wiki/work-records/${binding.record_id}.json`;
     const bytes = readBoundArtifact(binding, repositoryPath,
       "canonical WK source became unavailable after generation binding",
       "canonical WK source changed after generation binding");
     if (sha256(bytes) !== binding.record_source_digest) {
       fail(codes.SOURCE_CHANGED,
-        "canonical WK source changed after generation binding");
+        "canonical WK source changed after generation binding",
+        canonicalWkContentMovement(binding.record_id, stage, facts));
     }
     return { path: repositoryPath, content_digest: binding.record_source_digest, bytes };
   }
@@ -523,9 +538,131 @@ export function createControlledContractGenerationTreeOperations({
     return deepFreeze({ recordObservation, carrierObservations, manifestObservations });
   }
 
+  async function generationSourceObservationFromTree({ runGit, binding, treeish }) {
+    const context = { repo: binding.repository, gitDir: binding.git_dir };
+    const pinned = async (revision, subject) => {
+      const resolved = await runGitOrFailAsync(runGit, context, [
+        "--no-replace-objects", ...gitInertConfig, "rev-parse", "--verify", "--quiet",
+        "--end-of-options", revision
+      ], `stored controlled-contract source ${subject} could not be resolved`);
+      const oid = stdoutBytes(resolved).toString("utf8").trim();
+      if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid) || /^0+$/u.test(oid)) {
+        fail(codes.STORED_GENERATION_INVALID,
+          `stored controlled-contract source ${subject} identity is malformed`);
+      }
+      return oid;
+    };
+    const commit = await pinned(`${treeish}^{commit}`, "commit");
+    if (commit !== treeish) {
+      fail(codes.STORED_GENERATION_INVALID,
+        "stored controlled-contract source is not one exact commit identity", {
+          requested: treeish,
+          commit
+        });
+    }
+    const tree = await pinned(`${commit}^{tree}`, "tree");
+    const source = { kind: "git_tree", commit, tree };
+    const listing = await runGitOrFailAsync(runGit, context, [
+      "--no-replace-objects", ...gitInertConfig,
+      "ls-tree", "-r", "-z", "--full-tree", tree, "--", "wiki/contracts"
+    ], "stored controlled-contract source could not be enumerated");
+    const storePrefix = "wiki/contracts/";
+    const entriesByPath = new Map();
+    const storeEntriesByName = new Map();
+    for (const entry of parseLsTree(stdoutBytes(listing))) {
+      if (!entry.path.startsWith(storePrefix)) {
+        fail(codes.STORED_GENERATION_INVALID,
+          "stored controlled-contract store is not one direct tree", {
+            path: entry.path,
+            source
+          });
+      }
+      entriesByPath.set(entry.path, entry);
+      const ordinary = entry.type === "blob" && entry.mode === "100644";
+      const [name, ...nested] = entry.path.slice(storePrefix.length).split("/");
+      const direct = nested.length === 0;
+      if (!storeEntriesByName.has(name)) storeEntriesByName.set(name, Object.freeze({
+        name,
+        isFile: () => direct && ordinary,
+        isDirectory: () => !direct,
+        isSymbolicLink: () => direct && entry.mode === "120000"
+      }));
+    }
+    const storeEntries = Object.freeze([...storeEntriesByName.values()]
+      .sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+    return Object.freeze({
+      schema_version: CONTROLLED_CONTRACT_GENERATION_SOURCE_OBSERVATION_SCHEMA_VERSION,
+      source: Object.freeze(source),
+      repository: binding.repository,
+      storeEntries: async () => storeEntries,
+      readFile: async (repositoryPath) => {
+        const entry = entriesByPath.get(repositoryPath);
+        if (entry === undefined) {
+          const nestedPrefix = `${repositoryPath}/`;
+          for (const candidate of entriesByPath.keys()) {
+            if (candidate.startsWith(nestedPrefix)) return { ordinary: false, bytes: null };
+          }
+          return null;
+        }
+        if (entry.type !== "blob" || entry.mode !== "100644") {
+          return { ordinary: false, bytes: null };
+        }
+        const blob = await runGitOrFailAsync(runGit, context,
+          ["--no-replace-objects", "cat-file", "blob", entry.oid],
+          "stored controlled-contract source blob could not be read");
+        return { ordinary: true, bytes: stdoutBytes(blob) };
+      }
+    });
+  }
+
+  async function storedPopulationPathsFromTree({ runGit, binding, treeish }) {
+    const observation = await generationSourceObservationFromTree({ runGit, binding, treeish });
+    const carrierPaths = [];
+    const manifestPaths = [];
+    for (const entry of await observation.storeEntries()) {
+      const repositoryPath = `wiki/contracts/${entry.name}`;
+      const classification = classifyControlledContractGenerationRepositoryPath({
+        wkId: binding.record_id, repositoryPath
+      });
+      if (classification.classification === "malformed_active_candidate") {
+        fail(codes.STORED_GENERATION_INVALID,
+          "stored tree contains a malformed active controlled-contract path");
+      }
+      if (classification.classification === "active_member") carrierPaths.push(repositoryPath);
+      else if (classification.reason === "server_owned_carrier_set_manifest") manifestPaths.push(repositoryPath);
+    }
+    return deepFreeze({ source: { ...observation.source }, carrierPaths, manifestPaths });
+  }
+
+  async function selectedGenerationFromTree({ runGit, binding, treeish }) {
+    const observation = await generationSourceObservationFromTree({ runGit, binding, treeish });
+    const resolvedGeneration = await resolveControlledContractGenerationFromSourceObservation({
+      wkId: binding.record_id,
+      observation
+    });
+    const observations = await authenticationObservationsFromTree({
+      runGit,
+      binding: {
+        repository: binding.repository,
+        git_dir: binding.git_dir,
+        record_id: binding.record_id,
+        resolved_generation: resolvedGeneration
+      },
+      treeish: observation.source.commit
+    });
+    return deepFreeze({
+      source: { ...observation.source },
+      resolvedGeneration,
+      recordObservation: observations.recordObservation,
+      carrierObservations: observations.carrierObservations,
+      manifestObservations: observations.manifestObservations
+    });
+  }
+
   return Object.freeze({
     authenticationObservationsFromTree,
     generationFromTree,
+    generationSourceObservationFromTree,
     manifestPathsFromTree,
     manifestPopulationMatches,
     parseStructuralDiff,
@@ -534,6 +671,8 @@ export function createControlledContractGenerationTreeOperations({
     resolveBoundRecordArtifact,
     resolveBoundRuntimePackageArtifacts,
     runtimePackageMatchesTree,
-    selectedRuntimePackagesInHistory
+    selectedGenerationFromTree,
+    selectedRuntimePackagesInHistory,
+    storedPopulationPathsFromTree
   });
 }

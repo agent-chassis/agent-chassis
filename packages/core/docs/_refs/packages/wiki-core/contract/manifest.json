@@ -57,6 +57,7 @@
   },
   "types": {
     "issue": {
+      "publicKind": "work_item",
       "aliases": [
         "issue",
         "wk",
@@ -161,6 +162,7 @@
       }
     },
     "initiative": {
+      "publicKind": "initiative",
       "aliases": [
         "initiative",
         "in"
@@ -230,6 +232,7 @@
       }
     },
     "decision": {
+      "publicKind": "decision",
       "aliases": [
         "decision",
         "dec"
@@ -274,6 +277,7 @@
       }
     },
     "source": {
+      "publicKind": "source",
       "aliases": [
         "source",
         "src"
@@ -309,6 +313,7 @@
       ]
     },
     "area": {
+      "publicKind": "area",
       "aliases": [
         "area"
       ],

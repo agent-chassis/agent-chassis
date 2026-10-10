@@ -867,6 +867,8 @@ function evaluateVerificationProfileWithRuntime(
     allowExplicitEmptyReferenceBindings = false,
     globalRequiredBindingsAffectSatisfaction = false,
     graphSelectionSink = null,
+
+    contractSemanticDiagnosticsNonblocking = false,
     validateRuntimeResult
   } = {}
 ) {
@@ -1010,7 +1012,8 @@ function evaluateVerificationProfileWithRuntime(
     errors: structuredClone(validateEvaluationInput.errors)
   }], { profile_valid: true });
   const contractEvaluation = validateContract(contract);
-  if (!contractEvaluation.schema_valid || contractEvaluation.diagnostics.length > 0) {
+  if (!contractEvaluation.schema_valid || (contractEvaluation.diagnostics.length > 0 &&
+      contractSemanticDiagnosticsNonblocking !== true)) {
     return invalid([{
       code: "controlled_contract_invalid",
       schema_errors: contractEvaluation.schema_errors,
@@ -2240,7 +2243,7 @@ function evaluateVerificationProfileWithRuntime(
     },
     profile_valid: true,
     input_valid: true,
-    contract_valid: true,
+    contract_valid: contractEvaluation.diagnostics.length === 0,
     satisfaction,
     satisfaction_trace: satisfactionTrace,
     pattern_results: [...resultsByPattern.values()].sort((left, right) =>

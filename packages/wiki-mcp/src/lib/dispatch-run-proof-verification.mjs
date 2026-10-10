@@ -47,7 +47,7 @@ export function selectedVerifyProofSourceChoice(refusal, source) {
 }
 
 export function projectPublicVerifyProofRefusal(refusal, { readCall = null, selectedSource = null,
-  fits = null, retentionFailed = false } = {}) {
+  fits = null, retentionFailed = false, executionCall = null, complete = false } = {}) {
   if (refusal === null || typeof refusal !== "object" || !Array.isArray(refusal.diagnostics)) return refusal;
   const publicRefusal = {
     ...refusal,
@@ -73,7 +73,9 @@ export function projectPublicVerifyProofRefusal(refusal, { readCall = null, sele
       choices: shown.map((choice) => Object.freeze({ ...choice.arguments.source })) }),
     next_calls: selected === null
       ? shown.map((choice) => readCall(choice.arguments.source))
-      : [buildNextCall({ ...selectedVerifyProofSourceChoice(refusal, selected), recommended: false })]
+      : [buildNextCall({ ...(executionCall === null
+        ? { tool: "verify_proof", arguments: selectedVerifyProofSourceChoice(refusal, selected).arguments }
+        : executionCall(selectedVerifyProofSourceChoice(refusal, selected).arguments)), recommended: false })]
   });
   if (selectedSource !== null) {
     const candidate = selection([selectedVerifyProofSourceChoice(refusal, selectedSource)], selectedSource);
@@ -86,7 +88,7 @@ export function projectPublicVerifyProofRefusal(refusal, { readCall = null, sele
   if (typeof readCall !== "function" || typeof fits !== "function") {
     throw new TypeError("source ambiguity public projection requires a bounded read context");
   }
-  for (let count = Math.min(3, choices.length); count >= 1; count -= 1) {
+  for (let count = complete ? choices.length : Math.min(3, choices.length); count >= 1; count -= 1) {
     const candidate = selection(choices.slice(0, count));
     if (fits(candidate)) return candidate;
   }
@@ -116,14 +118,14 @@ function projectLastRecordedInvocation({ subject, attemptId, item, selectedInvoc
   });
 }
 
-export async function observeRunProofVerification({ dispatchBackend, callerSessionId, status }) {
+export async function observeRunProofVerification({ dispatchBackend, callerSessionId, status, observedPage, readCall = detailCall }) {
   const base = { schema_version: RUN_PROOF_VERIFICATION_OBSERVATION_SCHEMA_VERSION, grants_authority: false };
-  if (typeof dispatchBackend?.readManagedRunObservation !== "function") {
+  if (observedPage === undefined && typeof dispatchBackend?.readManagedRunObservation !== "function") {
     return Object.freeze({ ...base, state: "unavailable", code: "run_detail_backend_unavailable" });
   }
   let page;
   try {
-    page = await dispatchBackend.readManagedRunObservation({
+    page = observedPage ?? await dispatchBackend.readManagedRunObservation({
       caller_session_id: callerSessionId,
       subject: status.subject,
       attemptId: status.run_id,
@@ -165,12 +167,12 @@ export async function observeRunProofVerification({ dispatchBackend, callerSessi
       item: page.summary.last_recorded_invocation
     }),
     snapshot: page.snapshot,
-    detail_call: detailCall(status.subject, attemptId,
+    detail_call: readCall(status.subject, attemptId,
       { kind: RUN_PROOF_VERIFICATION_DETAIL_KIND })
   });
 }
 
-function projectListedItem({ subject, attemptId, item }) {
+export function projectListedItem({ subject, attemptId, item, readCall = detailCall }) {
   const { verification } = item;
   return Object.freeze({
     invocation_id: item.invocation_id,
@@ -187,7 +189,7 @@ function projectListedItem({ subject, attemptId, item }) {
     tested_source: verification.tested_source,
     coverage_scope: verification.coverage_scope,
     grants_authority: false,
-    detail_call: detailCall(subject, attemptId,
+    detail_call: readCall(subject, attemptId,
       { kind: RUN_PROOF_VERIFICATION_DETAIL_KIND, invocation_id: item.invocation_id })
   });
 }

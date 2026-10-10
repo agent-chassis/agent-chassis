@@ -80,7 +80,7 @@ function isCommitShaShapedSubject(value) {
   return typeof value === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu.test(value);
 }
 
-function authorityRefusalResult({ args, fields, reason, jsonContent }) {
+function authorityRefusalResult({ args, fields, reason, jsonContent, requestSchemaAuthority }) {
   return jsonContent(buildBlockedDispatchResult({
     blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
     reason,
@@ -88,7 +88,8 @@ function authorityRefusalResult({ args, fields, reason, jsonContent }) {
     refusal: callerSuppliedAuthorityRefusal({
       role: args?.role,
       subject: args?.subject,
-      refusedFields: fields
+      refusedFields: fields,
+      requestSchemaAuthority
     })
   }));
 }
@@ -108,7 +109,7 @@ export function admitAgentDispatchRequest({
   ]) {
     const fields = refusedAuthorityFields(args, authorityFields);
     if (fields.length > 0) {
-      return { response: authorityRefusalResult({ args, fields, reason, jsonContent }) };
+      return { response: authorityRefusalResult({ args, fields, reason, jsonContent, requestSchemaAuthority }) };
     }
   }
 
@@ -119,7 +120,8 @@ export function admitAgentDispatchRequest({
         args,
         fields: shaLocatorFields,
         reason: "caller_supplied_committed_slice_authority",
-        jsonContent
+        jsonContent,
+        requestSchemaAuthority
       })
     };
   }
@@ -131,7 +133,8 @@ export function admitAgentDispatchRequest({
         args,
         fields: transitionFields,
         reason: "caller_supplied_launcher_transition_authority",
-        jsonContent
+        jsonContent,
+        requestSchemaAuthority
       })
     };
   }
@@ -146,7 +149,8 @@ export function admitAgentDispatchRequest({
         refusal: callerSuppliedAuthorityRefusal({
           role: args?.role,
           subject: args?.subject,
-          refusedFields: Object.keys(identityRefusal ?? {})
+          refusedFields: Object.keys(identityRefusal ?? {}),
+          requestSchemaAuthority
         })
       }))
     };

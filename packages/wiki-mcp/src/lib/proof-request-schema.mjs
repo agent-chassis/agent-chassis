@@ -52,10 +52,14 @@ function convertRequestSchema(z, schema, defs, context) {
   }
   else if (schema.type === 'object') {
     if (!schema.properties && schema.additionalProperties === true) result = z.record(z.unknown());
-    else result = z.object(Object.fromEntries(Object.entries(schema.properties).map(([key, value]) => {
-      const field = convert(value);
-      return [key, schema.required?.includes(key) ? field : optional(field)];
-    }))).strict();
+    else {
+      const declared = z.object(Object.fromEntries(Object.entries(schema.properties).map(([key, value]) => {
+        const field = convert(value);
+        return [key, schema.required?.includes(key) ? field : optional(field)];
+      })));
+
+      result = schema.additionalProperties === true ? declared.passthrough() : declared.strict();
+    }
   }
   else throw new Error('Unsupported authored request-schema declaration');
   context.active.delete(schema);

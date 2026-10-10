@@ -523,8 +523,8 @@ async function prepareLexicalSearchIndexInMemory(
   return rebuilt;
 }
 
-async function prepareWorkRecordEntryOverlay(targetDir, index, capturedCorpus, { repository, history }) {
-  const memoryKey = JSON.stringify([path.resolve(targetDir), index.contextDigest, repository, history]);
+async function prepareWorkRecordEntryOverlay(targetDir, index, capturedCorpus, { repository, history, capturedContent }) {
+  const memoryKey = JSON.stringify([path.resolve(targetDir), index.contextDigest, repository, history, capturedContent]);
   const prepared = inMemoryEntryOverlays.get(memoryKey);
   if (prepared?.sourceSignature === index.sourceSignature) {
     return prepared;
@@ -580,34 +580,32 @@ async function prepareWorkRecordEntryOverlay(targetDir, index, capturedCorpus, {
 
 export async function loadLexicalSearchIndexForRead(
   targetDir,
-  { profile = null, extensionNamespaces = null, repository = null, history = false } = {}
+  { profile = null, extensionNamespaces = null, repository = null, history = false, capturedContent = false } = {}
 ) {
   const indexPath = getSearchIndexPath(targetDir);
   const existing = await readSearchIndex(targetDir);
 
   const capturedCorpus = await captureSearchSourceCorpus(targetDir, { profile, extensionNamespaces });
   const sourceSignature = digestCorpusIdentity(capturedCorpus);
-  const loaded = existing?.version === SEARCH_INDEX_VERSION && existing.sourceSignature === sourceSignature
-    ? {
-        index: existing,
-        indexPath,
-        rebuilt: false,
-        indexState: SEARCH_INDEX_STATE_EXISTING,
-        indexStateReason: null
-      }
-    : {
-        index: await prepareLexicalSearchIndexInMemory(targetDir, {
+  const persistedIsCurrent = existing?.version === SEARCH_INDEX_VERSION &&
+    existing.sourceSignature === sourceSignature;
+  const loaded = {
+    index: persistedIsCurrent && capturedContent !== true
+      ? existing
+      : await prepareLexicalSearchIndexInMemory(targetDir, {
           profile, extensionNamespaces, capturedCorpus, sourceSignature
         }),
-        indexPath,
-        rebuilt: false,
-        indexState: SEARCH_INDEX_STATE_REBUILT_IN_MEMORY,
-        indexStateReason: !existing
-          ? "index_missing"
-          : existing.version !== SEARCH_INDEX_VERSION
-            ? "index_version_mismatch"
-            : "source_signature_mismatch"
-      };
+    indexPath,
+    rebuilt: false,
+    indexState: persistedIsCurrent ? SEARCH_INDEX_STATE_EXISTING : SEARCH_INDEX_STATE_REBUILT_IN_MEMORY,
+    indexStateReason: persistedIsCurrent
+      ? null
+      : !existing
+        ? "index_missing"
+        : existing.version !== SEARCH_INDEX_VERSION
+          ? "index_version_mismatch"
+          : "source_signature_mismatch"
+  };
 
   return {
     ...loaded,
@@ -615,7 +613,8 @@ export async function loadLexicalSearchIndexForRead(
       ? null
       : await prepareWorkRecordEntryOverlay(targetDir, loaded.index, capturedCorpus, {
           repository,
-          history: history === true
+          history: history === true,
+          capturedContent: capturedContent === true
         })
   };
 }

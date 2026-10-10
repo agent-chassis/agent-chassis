@@ -2,10 +2,11 @@
 
 import { z } from "zod";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
-import { describeRetentionFailure } from "./mcp-response.mjs";
+import { describeRetentionFailure, selectedFullContent } from "./mcp-response.mjs";
 import {
   readSelectedResponseSource,
   retainSelectedResponseSource,
+  selectedResponseLocatorSchema,
   selectedResponseQueryInvalidError,
   selectedResponseRequestSchema
 } from "./selected-response-snapshot.mjs";
@@ -204,7 +205,7 @@ function attachCloseoutLintResponse(response, closeoutLint, { verbose = false } 
   return response;
 }
 
-function closeoutChecksUnavailable(error) {
+function closeoutChecksUnavailable(error, { taskMaintenance = false } = {}) {
   return {
     ran: false,
     applicable: true,
@@ -216,8 +217,9 @@ function closeoutChecksUnavailable(error) {
     cause_message: typeof error?.message === "string" ? error.message : null,
 
     write_effects_retained: true,
-    next_action: "resolve the reported check-execution cause, then call " +
-      "workspace_generate_and_lint once to verify the repository state"
+    next_action: taskMaintenance
+      ? "resolve the reported check-execution cause, then follow the save_record maintenance_retry call; it repeats no canonical mutation"
+      : "resolve the reported check-execution cause, then call workspace_generate_and_lint once to verify the repository state"
   };
 }
 
@@ -249,23 +251,30 @@ function closeoutChecksResult(produced) {
   };
 }
 
+export async function runRepositoryChecks({ workspaceDir, generateAndLint, identifyRecords = null }) {
+  const recovery = { taskMaintenance: identifyRecords !== null };
+  if (typeof generateAndLint !== "function") {
+    return closeoutChecksUnavailable({ code: "closeout_check_executor_unavailable" }, recovery);
+  }
+  try {
+    const produced = await generateAndLint({ dir: workspaceDir, includeAllFindings: true,
+      ...(identifyRecords === null ? {} : { identifyRecords }) });
+
+    return { ...closeoutChecksResult(produced),
+      ...(identifyRecords === null ? {} : { checked_corpus: produced?.checked_corpus ?? null }) };
+  } catch (error) {
+    return closeoutChecksUnavailable(error, recovery);
+  }
+}
+
 export async function runCloseoutChecks({ result, transitionApplicable, workspaceDir, generateAndLint }) {
   const deferred = buildDeferredCloseoutLint({ result, transitionApplicable });
 
   if (deferred.applicable !== true) return deferred;
-  if (typeof generateAndLint !== "function") {
-    return closeoutChecksUnavailable({ code: "closeout_check_executor_unavailable" });
-  }
-  try {
-    return closeoutChecksResult(
-      await generateAndLint({ dir: workspaceDir, includeAllFindings: true })
-    );
-  } catch (error) {
-    return closeoutChecksUnavailable(error);
-  }
+  return runRepositoryChecks({ workspaceDir, generateAndLint });
 }
 
-export const CLOSEOUT_RECEIPT_READ_ROUTE = "workspace_work_record_summary";
+export const CLOSEOUT_RECEIPT_READ_ROUTE = "workspace_read_wiki";
 export const CLOSEOUT_RECEIPT_SCHEMA_VERSION = "work-record-closeout-receipt.v1";
 const CLOSEOUT_RECEIPT_PRODUCERS = Object.freeze([
   "workspace_work_record_set_status", "workspace_work_record_set_closure"
@@ -283,21 +292,18 @@ const RECEIPT_UNAVAILABLE_NEXT_ACTION =
 
 export function closeoutReceiptSelectorSchema(schema = z) {
   return schema.object({
-    ref_id: schema.string().regex(/^[A-Za-z0-9._-]{1,200}$/u),
-    sha256: schema.string().regex(/^[a-f0-9]{64}$/u),
+    ...selectedResponseLocatorSchema(schema).shape,
     finding_id: schema.string().regex(FINDING_ID_PATTERN).optional()
   }).strict();
 }
 
 const RECEIPT_REQUEST_SCHEMA = selectedResponseRequestSchema(z.object({
-  repo: z.string().optional(),
-  unit: z.string(),
-  receipt: closeoutReceiptSelectorSchema(z)
+  reference: closeoutReceiptSelectorSchema(z)
 }).strict());
 
-function receiptCall({ repository, unit, source, findingId = null }) {
+function receiptCall({ source, findingId = null }) {
   return buildNextCall({ tool: CLOSEOUT_RECEIPT_READ_ROUTE, recommended: true,
-    arguments: { repo: repository, unit, receipt: { ref_id: source.ref_id, sha256: source.sha256,
+    arguments: { reference: { ref_id: source.ref_id,
       ...(findingId === null ? {} : { finding_id: findingId }) } } });
 }
 
@@ -314,7 +320,7 @@ function retainCloseoutReceipt({ complete, operation, repository, unit, jsonCont
         publication_state: complete.publication_state ?? null } },
     carrier: complete,
     ownerCall: (locator) => ({ tool: CLOSEOUT_RECEIPT_READ_ROUTE,
-      arguments: { repo: repository, unit, receipt: { ref_id: locator.ref_id, sha256: locator.sha256 } } }),
+      arguments: { reference: { ref_id: locator.ref_id } } }),
     ownerRequestSchema: RECEIPT_REQUEST_SCHEMA
   }, { responseOwner: jsonContent });
 }
@@ -338,14 +344,19 @@ function receiptLintFacts(closeoutLint) {
   return facts;
 }
 
-export function readCloseoutReceipt({ receipt, repository, unit, env = process.env }) {
-  const source = { ref_id: receipt.ref_id, sha256: receipt.sha256 };
+function authenticatedReceipt({ receipt, repository, unit, env }) {
+  const source = { ref_id: receipt.ref_id };
   const envelope = readSelectedResponseSource(source, { env, route: CLOSEOUT_RECEIPT_READ_ROUTE,
     expected: { repository, unit } });
   if (!CLOSEOUT_RECEIPT_PRODUCERS.includes(envelope.binding.route)) {
     throw selectedResponseQueryInvalidError(CLOSEOUT_RECEIPT_READ_ROUTE, "source_binding_mismatch",
       { binding_field: "route" });
   }
+  return envelope;
+}
+
+function projectReceipt({ receipt, repository, unit, envelope, completeFindings = false }) {
+  const source = { ref_id: receipt.ref_id };
   const complete = envelope.carrier;
   const findings = receiptFindings(complete);
   const header = {
@@ -359,8 +370,9 @@ export function readCloseoutReceipt({ receipt, repository, unit, env = process.e
     closeout_lint: receiptLintFacts(complete.closeout_lint)
   };
   if (receipt.finding_id === undefined) {
-    const identities = findings.slice(0, RECEIPT_FINDING_IDENTITY_LIMIT).map((finding, index) => ({
+    const identities = findings.slice(0, completeFindings ? findings.length : RECEIPT_FINDING_IDENTITY_LIMIT).map((finding, index) => ({
       finding_id: `finding-${index}`,
+      ...(completeFindings ? structuredClone(finding) : {}),
       code: finding?.code ?? null,
       path: finding?.path ?? null
     }));
@@ -370,7 +382,7 @@ export function readCloseoutReceipt({ receipt, repository, unit, env = process.e
       findings: identities,
       findings_omitted: findings.length - identities.length,
       next_calls: identities.slice(0, RECEIPT_SELECTION_CALL_LIMIT).map(({ finding_id: findingId }) =>
-        receiptCall({ repository, unit, source, findingId }))
+        receiptCall({ source, findingId }))
     };
   }
   const index = Number(FINDING_ID_PATTERN.exec(receipt.finding_id)[1]);
@@ -384,6 +396,19 @@ export function readCloseoutReceipt({ receipt, repository, unit, env = process.e
     finding: { finding_id: receipt.finding_id, ...structuredClone(findings[index]) },
     next_calls: []
   };
+}
+
+export function readCloseoutReceipt({ receipt, repository, unit, env = process.env }) {
+  const envelope = authenticatedReceipt({ receipt, repository, unit, env });
+  return projectReceipt({ receipt, repository, unit, envelope });
+}
+
+export function readCompleteCloseoutReceipt({ receipt, repository, unit, env = process.env, project }) {
+  if (typeof project !== "function") throw new TypeError("complete receipt read requires its route projector");
+  const retained = authenticatedReceipt({ receipt, repository, unit, env });
+  const selected = projectReceipt({ receipt, repository, unit, envelope: retained, completeFindings: true });
+  return selectedFullContent({ source: { ref_id: receipt.ref_id }, retained,
+    projection: project(selected) });
 }
 
 const UNKNOWN_PUBLICATION_STATE = "unknown";
@@ -458,7 +483,7 @@ export function composeCloseoutResponse({
     source,
     finding_count: receiptFindings(complete).length
   };
-  bounded.next_calls = [receiptCall({ repository, unit, source })];
+  bounded.next_calls = [receiptCall({ source })];
 
   if (bounded.next_action !== UNKNOWN_PUBLICATION_NEXT_ACTION) {
     bounded.next_action = RECEIPT_DETAIL_NEXT_ACTION;

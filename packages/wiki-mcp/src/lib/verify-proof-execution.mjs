@@ -42,12 +42,33 @@ const DEFINITION_BLOCKER_ACTIONS = Object.freeze({
 
 function expectedRecoveryContext(reasonCode, { resolution, proof, blocker }) {
   if (reasonCode !== QUALIFYING_VERIFICATION_AMBIGUOUS) return { wkId: resolution.wk_id };
+  return ownObligationRecoveryContext({ resolution, proof, blocker });
+}
+
+function ownObligationRecoveryContext({ resolution, proof, blocker }) {
   const binding = resolution.execution_source_binding;
   const obligationId = blocker?.obligation_id;
   if (binding?.wk_id !== resolution.wk_id || typeof obligationId !== "string" ||
       !proof.relationships.some(({ obligation_id: id }) => id === obligationId)) return null;
   return { source: { wkId: binding.wk_id, selectedUnit: binding.selected_unit ?? null,
     focus: binding.focus ?? null }, obligationId };
+}
+
+const MISSING_SELECTION_ACTION = "select_a_proof_for_the_named_obligation_then_retry";
+const MISSING_SELECTION_KEYS = Object.freeze(["code", "explanation", "field", "obligation_id"]);
+const MISSING_SELECTION_EXPLANATION_BYTES = 1024;
+
+function missingProofSelection(blocker, proof) {
+  const fact = blocker?.details?.missing_selection;
+  if (fact === null || typeof fact !== "object" || Array.isArray(fact) ||
+      Object.keys(fact).sort().join() !== MISSING_SELECTION_KEYS.join() ||
+      MISSING_SELECTION_KEYS.some((key) => typeof fact[key] !== "string" || fact[key].length === 0) ||
+      !STABLE_CODE_RE.test(fact.code) || fact.obligation_id !== blocker.obligation_id ||
+      !proof.relationships.some(({ obligation_id: id }) => id === fact.obligation_id)) return null;
+  const bytes = Buffer.byteLength(fact.explanation, "utf8");
+  return { code: fact.code, obligation_id: fact.obligation_id, field: fact.field,
+    ...(bytes <= MISSING_SELECTION_EXPLANATION_BYTES ? { explanation: fact.explanation }
+      : { explanation_omitted: { utf8_bytes: bytes } }) };
 }
 
 function aggregateStatus(statuses) {
@@ -93,11 +114,23 @@ function aggregateResult({ resolution, runtime, proofResults, reasonCode = null,
     diagnostics: structuredClone(diagnostics),
     counts,
     proof_results: structuredClone(proofResults),
+
+    ...(resolution.proof_opt_outs === undefined ? {} : { proof_opt_outs: {
+      obligation_ids: [...resolution.proof_opt_outs], accounting: "opted_out",
+      proofs_executed: 0, credit_granted: 0 } }),
     downstream_authority: Object.freeze({ review: false, admission: false,
       closure: false, merge: false, lifecycle: false })
   };
   const result = Object.freeze({ ...body, result_digest: canonicalProofVerificationDigest(body) });
   return executionTimings === null ? result : bindTestProofExecutionTimings(result, executionTimings);
+}
+
+export function withVerifyProofExecutionBranch(result, { selector, branch, ref, commit }) {
+  const { result_digest: _digest, recovery, ...body } = result;
+  const bound = { ...body, subject_binding: { ...(body.subject_binding ?? {}),
+    resolved_branch: { selector, branch, ref, commit } } };
+  return Object.freeze({ ...bound, result_digest: canonicalProofVerificationDigest(bound),
+    ...(recovery === undefined ? {} : { recovery }) });
 }
 
 export function withVerifyProofInvocationTiming(result, timing) {
@@ -124,7 +157,7 @@ export function projectDefinitionRepairQuestion({ reasonCode, verificationId }) 
     required_meaning: requiredAnswer,
     correction_route: null,
     next_step:
-      "Read the saved obligation that owns this verification identity, then amend its semantic proof inputs through workspace_controlled_contract_obligation_coverage_upsert.",
+      "Read the saved obligation that owns this verification identity through workspace_read_wiki, then amend its semantic proof inputs through save_record using the returned call.",
     execution_evidence: "owned_by_workspace_verify_proof"
   });
 }
@@ -137,11 +170,13 @@ export function buildUnavailableProofResult({ resolution, runtime, proof, blocke
     const ready = readinessStatus === null ? blocker === null : readinessStatus === "ready";
     const unavailableReason = reasonCode ?? blocker?.reason_code ?? "verify_proof.proof_unavailable.v1";
     const definitionBlocked = Object.hasOwn(DEFINITION_BLOCKER_ACTIONS, unavailableReason);
+    const missingSelection = definitionBlocked ? null : missingProofSelection(blocker, proof);
     const expectedRecovery = definitionBlocked
-      ? expectedRecoveryContext(unavailableReason, { resolution, proof, blocker }) : null;
+      ? expectedRecoveryContext(unavailableReason, { resolution, proof, blocker })
+      : missingSelection === null ? null : ownObligationRecoveryContext({ resolution, proof, blocker });
     const recoveryCall = expectedRecovery === null ? null
       : projectProofAuthoringRecoveryCall(blocker?.details?.recovery_call, expectedRecovery);
-    if (definitionBlocked && recoveryCall === null) throw new VerifyProofOperationError(
+    if ((definitionBlocked || missingSelection !== null) && recoveryCall === null) throw new VerifyProofOperationError(
       "verify_proof.runtime_recovery_projection_invalid.v1",
       "definition recovery must name the ordinary query and server-resolved unit"
     );
@@ -153,8 +188,17 @@ export function buildUnavailableProofResult({ resolution, runtime, proof, blocke
       ? blocker === null ? undefined : Object.freeze(definitionBlocked ? {
         action: DEFINITION_BLOCKER_ACTIONS[unavailableReason],
         ...(recoveryCall === null ? {} : { recovery_call: recoveryCall }),
+        authoring_source: { unit: recoveryCall.arguments.subject,
+          focus: expectedRecovery.source?.focus ?? blocker.details.recovery_call.arguments.focus ?? null },
         retry_operation: VERIFY_PROOF_TOOL_NAME,
         ...(repair === undefined ? {} : { repair })
+      } : missingSelection !== null ? {
+        action: MISSING_SELECTION_ACTION,
+        condition: unavailableReason,
+        missing_selection: missingSelection,
+        recovery_call: recoveryCall,
+        authoring_source: { unit: recoveryCall.arguments.subject, focus: expectedRecovery.source.focus },
+        retry_operation: VERIFY_PROOF_TOOL_NAME
       } : {
         action: "repair_the_named_proof_prerequisite",
         condition: unavailableReason,
@@ -381,6 +425,18 @@ export async function executeVerifyProofForContext({
   if (typeof runtime?.assertCurrentIdentity !== "function") throw new VerifyProofOperationError(
     "verify_proof.currentness_check_unavailable.v1", "Execution requires an invocation-bound currentness check");
   const timeout = parseExecutionTimeout(args?.timeout, verifyProofTimeoutRefusal);
+
+  const budget = mintTestProofExecutionBudget({ timeoutMs: timeout.milliseconds, signal });
+  try {
+    return await executeBudgetedVerifyProof({ args, resolutionContext, runtime, deps, resolveOperation,
+      timeout, budget });
+  } finally {
+    budget.dispose();
+  }
+}
+
+async function executeBudgetedVerifyProof({ args, resolutionContext, runtime, deps, resolveOperation, timeout,
+  budget }) {
   await runtime.assertCurrentIdentity();
   const resolution = resolveOperation({ args, context: resolutionContext });
   const eligible = resolution.eligible ?? (resolution.status === "executable" ? resolution.proofs : []);
@@ -436,14 +492,8 @@ export async function executeVerifyProofForContext({
     );
   }
   assertCompleteRuntimeSelection(completeSelection, verificationIds, resolution);
-
-  const budget = mintTestProofExecutionBudget({ timeoutMs: timeout.milliseconds, signal });
-  try {
-    return await executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
-      completeSelection, budget, timeout, requestedEnvironment });
-  } finally {
-    budget.dispose();
-  }
+  return executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
+    completeSelection, budget, timeout, requestedEnvironment });
 }
 
 async function executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
@@ -582,13 +632,16 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
           provider_id: selected.provider_id, provider_version: selected.provider_version }) };
     };
     const local = localUnavailable.get(proof.execution_key);
-    if (local !== undefined) return { ...buildUnavailableProofResult({ resolution, runtime, proof,
-      blockers: local.projected.diagnostics ?? [], reasonCode: local.projected.reason_code,
-      readinessStatus: "ready", recovery: local.projected.recovery,
-      executionStatus: local.executionStatus }), selected_test: selectedIdentity(),
+    if (local !== undefined) {
+      const selected = selectedIdentity();
+      return { ...buildUnavailableProofResult({ resolution, runtime, proof,
+        blockers: local.projected.diagnostics ?? [], reasonCode: local.projected.reason_code,
+        readinessStatus: "ready", recovery: local.projected.recovery,
+        executionStatus: local.executionStatus }), selected_test: selected,
 
-    ...(local.selectedObservation === undefined ? {} : {
-      selected_observation: structuredClone(local.selectedObservation) }) };
+      ...(local.selectedObservation?.test_id !== selected.test_id ? {} : {
+        selected_observation: structuredClone(local.selectedObservation) }) };
+    }
     const receipts = evidenceByExecution.get(proof.execution_key);
     const selectedTest = selectedIdentity();
     const observation = attemptObservationByExecution.get(proof.execution_key) ?? null;

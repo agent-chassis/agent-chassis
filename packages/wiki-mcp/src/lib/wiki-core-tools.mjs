@@ -1,6 +1,4 @@
-
-
-import path from "node:path";
+import { shouldExposeTool } from "./tool-profile.mjs";
 
 import {
   allocateId,
@@ -60,8 +58,10 @@ import { isWorkRecordNavigationResult, toolVisibleToSession } from "./work-recor
 import { canonicalProjectionReadRecoveryCall } from "./work-record-canonical-read-recovery.mjs";
 import { guardManagedAssignmentRead, readManagedAssignment } from "./managed-assignment-read.mjs";
 import {
+  FindingsSourceRefusal,
   WIKI_MCP_AGENT_SESSION_CONTRACT_ENV_VAR,
-  resolveLauncherAgentSessionContract
+  WIKI_MCP_REVIEW_MATERIALIZATION_DIR_ENV_VAR,
+  resolveAuthenticatedFindingsSource
 } from "./launcher-run-credential.mjs";
 
 import {
@@ -99,19 +99,21 @@ function reviewSourceUnavailable(message) {
   return error;
 }
 
-function assertNoManagedFindingsSession(role) {
-  if (role !== "reviewer" && role !== "redteam") return;
-  if (String(process.env[WIKI_MCP_AGENT_SESSION_CONTRACT_ENV_VAR] ?? "") === "") return;
-  let contract;
-  try {
-    contract = resolveLauncherAgentSessionContract(process.env);
-  } catch (error) {
-    throw reviewSourceUnavailable(
-      `launcher findings session is unauthenticated (${error?.code ?? "unknown"})`);
+function resolveManagedFindingsReadRoot(role) {
+  const launcherBound = (name) => String(process.env[name] ?? "").trim() !== "";
+  const materializationBound = launcherBound(WIKI_MCP_REVIEW_MATERIALIZATION_DIR_ENV_VAR);
+  if (role !== "reviewer" && role !== "redteam") {
+    if (materializationBound) {
+      throw new Error("launcher-frozen review materialization binding is invalid");
+    }
+    return null;
   }
-  if (contract.role === "reviewer" || contract.role === "redteam") {
-    throw reviewSourceUnavailable(
-      "launcher findings session has no bound review source");
+  if (!materializationBound && !launcherBound(WIKI_MCP_AGENT_SESSION_CONTRACT_ENV_VAR)) return null;
+  try {
+    return resolveAuthenticatedFindingsSource(process.env).sourceRoot;
+  } catch (error) {
+    if (!(error instanceof FindingsSourceRefusal)) throw error;
+    throw reviewSourceUnavailable(`${error.message} [${error.code}]`);
   }
 }
 
@@ -131,16 +133,9 @@ export function createWorkspaceReadRepoResolver({ workspaceRepos, resolveWorkspa
 
 function createBoundReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo }) {
   return function resolveBoundReadRepo(args) {
-    const frozenReviewRoot = String(
-      process.env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR ?? ""
-    ).trim();
     const role = String(process.env.WIKI_MCP_TOOL_PROFILE ?? "").trim();
-    if (frozenReviewRoot === "") assertNoManagedFindingsSession(role);
-    if (frozenReviewRoot !== "") {
-      if ((role !== "reviewer" && role !== "redteam") ||
-          !path.isAbsolute(frozenReviewRoot)) {
-        throw new Error("launcher-frozen review materialization binding is invalid");
-      }
+    const frozenReviewRoot = resolveManagedFindingsReadRoot(role);
+    if (frozenReviewRoot !== null) {
       const frozenRepository = typeof workspaceRepos?.currentAlias === "string"
         ? workspaceRepos.currentAlias.trim()
         : "";
@@ -160,7 +155,7 @@ function createBoundReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo }) {
       if (canonical.repo !== frozenRepository) {
         throw new Error("launcher-frozen review repository binding is invalid");
       }
-      return { repo: frozenRepository, dir: path.resolve(frozenReviewRoot), frozen: true };
+      return { repo: frozenRepository, dir: frozenReviewRoot, frozen: true };
     }
     if (args.repo || workspaceRepos?.currentAlias) {
       return resolveWorkspaceRepo(workspaceRepos, args.repo);
@@ -194,6 +189,14 @@ export function registerWikiCoreTools({
 
   searchSelection = null
 }) {
+  if (section === "operator") {
+    const originalRegister = registerTool;
+    registerTool = (name, config, handler) => shouldExposeTool("operator", name) &&
+      !shouldExposeTool("orchestrator", name) && !shouldExposeTool("worker", name) &&
+      !shouldExposeTool("reviewer", name) && !shouldExposeTool("redteam", name)
+      ? originalRegister(name, config, handler) : undefined;
+  }
+
   const nonEmptyString = z.string().refine((value) => value.trim().length > 0, {
     message: "Expected a non-empty string"
   });

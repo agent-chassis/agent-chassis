@@ -1,7 +1,7 @@
 
 
 import { buildStableTestProofBindingTemplate, VERIFICATION_BUNDLE_VOCABULARY } from
-  "@agent-chassis/controlled-contract";
+  "@agent-chassis/controlled-contract/test-proof";
 
 import {
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA,
@@ -60,7 +60,14 @@ function declaredStatement(statement, referent, structuralReferent, vocabulary) 
   }
   const contextFree = vocabulary.applicability_modes
     .filter(({ maximum_context: maximum }) => maximum === 0).map(({ mode }) => mode);
-  const appliesFor = (admitted) => anyOf([...modesByContext.values()]
+
+  const appliesByModes = new Map();
+  const appliesFor = (admitted) => {
+    const key = JSON.stringify([...admitted].sort());
+    if (!appliesByModes.has(key)) appliesByModes.set(key, appliesNode(admitted));
+    return appliesByModes.get(key);
+  };
+  const appliesNode = (admitted) => anyOf([...modesByContext.values()]
     .map((modes) => modes.filter(({ mode }) => admitted.includes(mode)))
     .filter((modes) => modes.length > 0)
     .map((modes) => {

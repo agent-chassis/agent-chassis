@@ -209,3 +209,27 @@ test("edits never change line structure or overlap", () => {
     refusedWith("overlapping_edits"));
   assert.equal(applyEdits("abc", [{ index: 1, insert: "X" }, { index: 3, insert: "Y" }]), "aXbcY");
 });
+
+test('inline scalar strategy examples execute the existing language adapters and exact rejection reason', async () => {
+  const { SCALAR_RETURN_USAGE_EXAMPLES } = await import('../../packages/controlled-contract/lib/test-proof-providers/shared.mjs');
+  const { PYTHON_FALSIFIER_TARGET_CONSTRAINTS } = await import('../../packages/controlled-contract/lib/test-proof-providers/pytest.mjs');
+  const adapters = { javascript: instrumentJavaScriptModule, typescript: instrumentJavaScriptModule,
+    python: instrumentPythonModule, go: instrumentGoModule, rust: instrumentRustModule };
+  assert.deepEqual(SCALAR_RETURN_USAGE_EXAMPLES.map(x => x.language), Object.keys(adapters));
+  assert.equal(PYTHON_FALSIFIER_TARGET_CONSTRAINTS.python_scalar_return_substitution.examples[0],
+    SCALAR_RETURN_USAGE_EXAMPLES.find(x => x.language === 'python'), 'Python prose is authored once');
+  for (const pair of SCALAR_RETURN_USAGE_EXAMPLES) {
+    const accepted = pair.supported;
+    const { module_path: modulePath, function_name, replacement } = accepted.falsification;
+    assert.equal(pair.strategy, 'result_inversion');
+    const result = await adapters[pair.language]({ source: accepted.code, modulePath,
+      mutation: { function_name, replacement } });
+    assert.equal(result.mutation.original, 42, pair.language);
+    assert.equal(result.mutation.replacement, 41, pair.language);
+    const rejected = pair.rejected;
+    await assert.rejects(adapters[pair.language]({ source: rejected.code,
+      modulePath: rejected.falsification.module_path, mutation: {
+        function_name: rejected.falsification.function_name, replacement: rejected.falsification.replacement } }),
+    refusedWith(rejected.reason), pair.language);
+  }
+});

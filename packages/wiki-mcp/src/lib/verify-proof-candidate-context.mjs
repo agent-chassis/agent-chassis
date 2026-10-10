@@ -2,10 +2,7 @@
 
 import { projectSavedProofCase as projectProofAuthoringCase } from '../../../wiki-core/src/operations/controlled-contract/saved-proof-source.mjs';
 import * as casePackage from '@agent-chassis/controlled-contract';
-import { projectWorkRecordTestProofValidation } from "../../../wiki-core/src/lib/work-record-test-proof-bindings.mjs";
-import { resolveImmutableExactCommitCandidate, materializeImmutableCandidate, assertMaterializedImmutableCandidateCurrent } from "../../../agent-launch-cli/src/lib/backend-immutable-candidate.mjs";
 import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
 import path from "node:path";
 import { canonicalDigest, deepFreeze } from "@agent-chassis/controlled-contract";
 import { loadAdmittedProofPack } from "@agent-chassis/controlled-contract";
@@ -18,11 +15,10 @@ import { readControlledContractGeneration } from "../../../wiki-core/src/lib/con
 import { bindLauncherSavedProofSource, assertManagedReviewerTestProofRuntimeCurrent,
   mintManagedWorkerTestProofRuntimeAuthority, mintManagedReviewerTestProofRuntimeAuthority }
   from "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs";
-import { resolveWorktreeBinding } from "../../../agent-launch-cli/src/lib/worktree-substrate.mjs";
-import { verifyExactSliceCommitBinding } from "../../../agent-launch-cli/src/lib/exact-slice-commit-binding.mjs";
 import { mintManagedWorkerTestRunAuthority } from "../../../agent-launch-cli/src/lib/managed-worker-test-run-authority.mjs";
-import { defaultTerminalCandidateRunGit } from "../../../agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
-import { resolveFrozenReviewContractArtifact, resolveLauncherRunState } from "./launcher-run-credential.mjs";
+import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
+import { authenticateManagedReviewSource, authenticateManagedWorkerSliceBinding, readCheckoutGitIdentity }
+  from "./managed-test-source-context.mjs";
 
 const VERIFIED_WORKER_SLICE_BINDINGS = new WeakMap();
 
@@ -76,25 +72,11 @@ async function canonicalSubjectWkMatches({ root, subject, source }) {
   return { wkIds: candidates, choices: [] };
 }
 
-async function resolveCanonicalSubjectWkId({ repoRoot, subject, source, gitSha, worktreeRoot }) {
+async function resolveCanonicalSubjectWkId({ repoRoot, subject, source }) {
   const population = verifyProofPopulationSubject(subject);
   const selection = parseVerifyProofSource({ subject, ...(source === undefined ? {} : { source }) });
   if (population !== null) return population.wkId;
-  let matches;
-  if (gitSha === undefined) matches = await canonicalSubjectWkMatches({ root: repoRoot, subject, source: selection });
-  else {
-    const candidate = resolveImmutableExactCommitCandidate({ mainRepo: repoRoot, gitSha });
-    const materialized = materializeImmutableCandidate({ candidate, worktreeRoot });
-    let primary = null;
-    try {
-      assertMaterializedImmutableCandidateCurrent({ materialized });
-      matches = await canonicalSubjectWkMatches({ root: materialized.checkout.worktree_path,
-        subject, source: selection });
-      assertMaterializedImmutableCandidateCurrent({ materialized });
-    } catch (error) { primary = error; }
-    materialized.cleanup({ primaryErrorCode: primary?.code ?? null });
-    if (primary !== null) throw primary;
-  }
+  const matches = await canonicalSubjectWkMatches({ root: repoRoot, subject, source: selection });
   if (matches.wkIds.length === 0) throw new VerifyProofOperationError(
     "verify_proof.subject_unknown.v1",
     "subject does not exist in canonical work-record and contract relationships"
@@ -109,35 +91,11 @@ async function resolveCanonicalSubjectWkId({ repoRoot, subject, source, gitSha, 
 }
 
 async function gitIdentity(root) {
-  const [commitResult, treeResult] = await Promise.all([
-    defaultTerminalCandidateRunGit({ repo: root,
-      args: ["--no-replace-objects", "rev-parse", "--verify", "HEAD^{commit}"] }),
-    defaultTerminalCandidateRunGit({ repo: root,
-      args: ["--no-replace-objects", "rev-parse", "--verify", "HEAD^{tree}"] })
-  ]);
-  const commit = commitResult?.ok === true ? String(commitResult.stdout ?? "").trim() : null;
-  const tree = treeResult?.ok === true ? String(treeResult.stdout ?? "").trim() : null;
-  if (!/^[a-f0-9]{40,64}$/u.test(commit ?? "") ||
-      !/^[a-f0-9]{40,64}$/u.test(tree ?? "")) throw Object.assign(new Error(
+  const identity = await readCheckoutGitIdentity(root);
+  if (identity === null) throw Object.assign(new Error(
     "launcher review materialization has no exact Git candidate identity"
   ), { code: "verify_proof.reviewer_candidate_unresolved.v1" });
-  return { commit, tree };
-}
-
-function authenticateManagedWorkerSliceBinding({ mainRepo, state, wkId }) {
-  const credential = state.credential;
-  if (!credential || state.assignedUnit?.startsWith(`${wkId}#`) !== true) throw Object.assign(
-    new Error("managed worker proof authority is unavailable"),
-    { code: "verify_proof.worker_authority_unavailable.v1" });
-  return verifyExactSliceCommitBinding({
-    binding: resolveWorktreeBinding({ mainRepo, launchRef: credential.launchRef,
-      runId: credential.runId, retryId: credential.retryId }),
-    mainRepo,
-    assignedUnit: state.assignedUnit,
-    launchRef: credential.launchRef,
-    runId: credential.runId,
-    retryId: credential.retryId
-  });
+  return identity;
 }
 
 async function resolveRuntimeAuthority({ env, mainRepo, state, wkId }) {
@@ -154,16 +112,20 @@ async function resolveRuntimeAuthority({ env, mainRepo, state, wkId }) {
       "verify_proof is available only in eligible launcher-managed worker and reviewer sessions"
     ), { code: "verify_proof.role_ineligible.v1" });
   }
-  const artifact = resolveFrozenReviewContractArtifact({ state });
-  if (artifact.status === "refused" || artifact.technical_role !== "reviewer" ||
-      artifact.canonical_parent_wk_contract?.id !== wkId) throw Object.assign(new Error(
-    "managed reviewer frozen contract is unavailable or cross-bound"
-  ), { code: "verify_proof.reviewer_frozen_contract_refused.v1" });
-  const root = realpathSync(env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR ?? "");
+  const unauthenticated = (message, cause = undefined) => Object.assign(new Error(message,
+    cause === undefined ? undefined : { cause }), { code: "verify_proof.reviewer_source_unauthenticated.v1" });
+  let materialization;
+  try {
+    materialization = authenticateManagedReviewSource({ env, state });
+  } catch (error) {
+    throw unauthenticated(`managed reviewer review source is unauthenticated (${error?.code ?? "unknown"})`, error);
+  }
+  if (materialization === null) throw unauthenticated(
+    "managed reviewer review source is bound to another assignment");
+  const { source, root } = materialization;
   const identity = await gitIdentity(root);
-  const runDigest = createHash("sha256").update(
-    `${state.credential.launchRef}\0${state.credential.runId}\0${state.credential.retryId}`
-  ).digest("hex");
+
+  const runDigest = createHash("sha256").update(`${source.runId}\0${source.binding.digest}`).digest("hex");
   const authority = await mintManagedReviewerTestProofRuntimeAuthority({
     mainRepo,
     worktreePath: root,
@@ -173,14 +135,9 @@ async function resolveRuntimeAuthority({ env, mainRepo, state, wkId }) {
     reviewedSha: identity.commit,
     reviewedTree: identity.tree
   });
+
   return { authority, role: "reviewer", selectedUnitAddress: state.assignedUnit,
-    candidateIdentity: identity.commit,
-    reviewedTargetBinding: Object.freeze({
-      schema_version: "launcher-frozen-reviewed-test-target-binding.v1",
-      reviewer_unit: state.assignedUnit,
-      reviewed_unit: artifact.review_unit_contract.admission_review_target_unit ?? null,
-      artifact_digest: artifact.artifact_digest
-    }) };
+    candidateIdentity: identity.commit };
 }
 
 async function resolveProductionContext({ args, repoRoot, env, state = null, wkId }) {
@@ -191,7 +148,7 @@ async function resolveProductionContext({ args, repoRoot, env, state = null, wkI
 
 async function resolveProductionContextFromRuntime({ args, runtime }) {
   const repoRoot = runtime.authority.worktree_path, wkId = runtime.authority.wk_id;
-  const authorizedUnit = runtime.role === "reviewer" ? runtime.reviewedTargetBinding?.reviewed_unit : runtime.selectedUnitAddress;
+  const authorizedUnit = runtime.selectedUnitAddress;
   const sourceInput = args.source === undefined ? {} : { source: args.source };
   const selected = await resolveVerifyProofSourceBinding({ repoRoot, wkId, subject: args.subject,
     ...sourceInput, authenticatedRole: runtime.role, authorizedUnit });
@@ -204,7 +161,7 @@ async function resolveProductionContextFromRuntime({ args, runtime }) {
     source_snapshot_digest: sourceGuard.snapshot.source_snapshot_digest };
   const assertSourcesCurrent = () => sourceGuard.assertCurrent();
   await runtime.assertCurrentIdentity?.();
-  const resolution = await selected.resolve();
+  const { map: resolution, testTargetDeclarations } = await selected.resolve();
   const generation = await readControlledContractGeneration({ repoRoot, wkId });
   const pack = await loadAdmittedProofPack("proof.verification.test-validity");
   assertSourcesCurrent();
@@ -235,7 +192,8 @@ async function resolveProductionContextFromRuntime({ args, runtime }) {
     }
     const current = await fresh.resolve();
     const currentPack = await loadAdmittedProofPack("proof.verification.test-validity");
-    if (canonicalDigest(current) !== canonicalDigest(resolution) ||
+    if (canonicalDigest(current.map) !== canonicalDigest(resolution) ||
+        canonicalDigest(current.testTargetDeclarations) !== canonicalDigest(testTargetDeclarations) ||
         currentPack.profile_digest !== pack.profile_digest || currentPack.admission_digest !== pack.admission_digest ||
         currentPack.parameter_contract_digest !== pack.parameter_contract_digest ||
         currentPack.test_validity_evaluator.implementation_digest !== pack.test_validity_evaluator.implementation_digest) {
@@ -261,11 +219,11 @@ async function resolveProductionContextFromRuntime({ args, runtime }) {
     controlledContract: selected.contract.content, contractWkId: wkId,
     canonicalContractDigest: selected.canonicalContract.content_digest, contractDigest: selected.contract.content_digest, contractGeneration: generation.generation_digest,
     authoringResolution: resolution, executionSourceBinding: binding, executionPack: pack,
-    testTargetDeclarations: projectWorkRecordTestProofValidation({ selectedUnit: selected.source.unit }),
+
+    testTargetDeclarations,
     workRecord: selected.source.record, selectedUnit: runtime.role === "reviewer"
       ? selectedUnit(selected.source.record, runtime.selectedUnitAddress) : selected.source.unit,
     subjectKind: selected.kind, authenticatedRole: runtime.role,
-    reviewedTargetBinding: runtime.reviewedTargetBinding ?? null,
     sourceSnapshotDigest: sourceGuard.snapshot.source_snapshot_digest,
     nativeGraphs: new Map(selected.selected.map(row => [row.obligation_id,
       resolveBehaviorAndVerificationPopulation(row, selected.contract.content, nativeIndex)]))

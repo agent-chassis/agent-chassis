@@ -19,11 +19,14 @@ import {
   planTombstoneCleanup,
   runCrashDurablePlanSync
 } from "@agent-chassis/wiki-core/src/lib/crash-durable-state.mjs";
-import { digestNamedFiles, fingerprintPopulation } from
+import { digestNamedFiles, fingerprintPopulation, measurePopulationContent } from
   "@agent-chassis/wiki-core/src/lib/runtime-inputs/population-identity.mjs";
 
 import { captureProcessIdentity, confirmedDead, defaultLivenessDeps } from "../worktree-lease.mjs";
 
+import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/test-proof";
+
+import { discoverRepositoryEnvironments } from "./discovery.mjs";
 import { DEPENDENCY_ECOSYSTEMS } from "./ecosystems.mjs";
 
 export const TEST_RUNTIME_READINESS_SCHEMA_VERSION = "agent-launch-test-runtime-readiness.v3";
@@ -38,17 +41,11 @@ export const TEST_RUNTIME_READINESS_CODES = Object.freeze({
   RECORD_INVALID: "test_runtime_readiness_invalid",
   PREPARING: "test_runtime_preparation_in_progress",
   PREPARATION_FAILED: "test_runtime_preparation_failed",
-  PREPARATION_CHANGED: "test_runtime_preparation_changed",
   PUBLICATION_FAILED: "test_runtime_readiness_publication_failed",
   RUNNER_NOT_PREPARED: "test_runtime_runner_not_prepared",
-  INPUTS_STALE: "test_runtime_inputs_stale",
-  TOOLCHAIN_STALE: "test_runtime_toolchain_stale",
-  DEPENDENCIES_STALE: "test_runtime_dependencies_stale",
-  LOCK_MISSING: "test_runtime_dependency_lock_missing",
   ENVIRONMENT_NOT_PREPARED: "test_runtime_environment_not_prepared",
   ENVIRONMENT_UNKNOWN: "test_runtime_environment_unknown",
-  ENVIRONMENT_INCOMPATIBLE: "test_runtime_environment_incompatible",
-  INVENTORY_STALE: "test_runtime_inventory_stale"
+  ENVIRONMENT_INCOMPATIBLE: "test_runtime_environment_incompatible"
 });
 
 function canonical(value) {
@@ -142,6 +139,22 @@ export function loadReadiness(repositoryRoot) {
   return Object.freeze({ ok: true, record });
 }
 
+function recordConfiguration(record) {
+  return { preparation_id: record.preparation.id, platform: record.platform ?? null,
+    environments: record.environments, selection: record.selection ?? [],
+    toolchains: record.toolchains, preparations: record.preparations };
+}
+
+export function loadRuntimeConfiguration(repositoryRoot) {
+  const loaded = loadReadiness(repositoryRoot);
+  const record = loaded.record ?? null;
+  if (record === null) return loaded;
+  const configuration = record.status === "ready" ? recordConfiguration(record) : record.configured ?? null;
+  if (configuration === null) return loaded;
+  return Object.freeze({ ok: true, configuration, record_status: record.status,
+    readiness_digest: record.readiness_digest });
+}
+
 function publishRecord(repositoryRoot, body, { faultInjector = null } = {}) {
   const record = { ...body, schema_version: TEST_RUNTIME_READINESS_SCHEMA_VERSION };
   const published = { ...record, readiness_digest: digestJson(record) };
@@ -208,6 +221,11 @@ function precedingFailure(repositoryRoot) {
   return record.last_failure ?? null;
 }
 
+function precedingConfiguration(repositoryRoot) {
+  const loaded = loadRuntimeConfiguration(repositoryRoot);
+  return loaded.ok ? structuredClone(loaded.configuration) : null;
+}
+
 export function beginPreparation(repositoryRoot, { environments, selection = [], faultInjector = null,
   livenessDeps = defaultLivenessDeps, now = () => new Date().toISOString() } = {}) {
   const root = canonicalRoot(repositoryRoot);
@@ -233,14 +251,16 @@ export function beginPreparation(repositoryRoot, { environments, selection = [],
   }
   const preparation = Object.freeze({ id: `prep-${randomUUID()}`, started_at: now(),
     owner: identity, environment_ids: environments.map(({ id }) => id) });
+  const configured = precedingConfiguration(root);
   const published = publishRecord(root, { status: "preparing", repository_root: root, preparation,
-    environments, selection, last_failure: precedingFailure(root) }, { faultInjector });
+    environments, selection, last_failure: precedingFailure(root),
+    ...(configured === null ? {} : { configured }) }, { faultInjector });
   if (!published.ok) {
     releasePreparationLock(lockPath, token, effects);
     return published;
   }
   return Object.freeze({ ok: true, attempt: Object.freeze({ root, lockPath, token, preparation, environments,
-    selection, last_failure: published.record.last_failure }) });
+    selection, last_failure: published.record.last_failure, configured }) });
 }
 
 export function settlePreparation(attempt, { status, body = {}, result = null, faultInjector = null,
@@ -251,7 +271,8 @@ export function settlePreparation(attempt, { status, body = {}, result = null, f
       environments: attempt.environments, selection: attempt.selection, last_failure: attempt.last_failure };
     return status === "ready"
       ? publishRecord(attempt.root, { ...body, ...base, status: "ready" }, { faultInjector })
-      : publishRecord(attempt.root, { ...base, status: "failed", result }, { faultInjector });
+      : publishRecord(attempt.root, { ...base, status: "failed", result,
+        ...((attempt.configured ?? null) === null ? {} : { configured: attempt.configured }) }, { faultInjector });
   } finally {
     releasePreparationLock(attempt.lockPath, attempt.token, effects);
   }
@@ -260,7 +281,11 @@ export function settlePreparation(attempt, { status, body = {}, result = null, f
 export function measureProjectInputs(ecosystemName, projectDir, { members = [] } = {}) {
   const ecosystem = DEPENDENCY_ECOSYSTEMS[ecosystemName];
   const manifests = ecosystem.manifests(projectDir, { members });
-  if (manifests.status === "lock_missing") return manifests;
+
+  if (manifests.status === "lock_missing") {
+    return manifests.files === undefined ? manifests
+      : { ...manifests, inputs_digest: digestNamedFiles(manifests.files) };
+  }
   return { status: manifests.status, files: manifests.files,
     inputs_digest: digestNamedFiles(manifests.files) };
 }
@@ -274,86 +299,143 @@ export function recordedEnvironment(record, { ecosystem, project }) {
     entry.project === project) ?? null;
 }
 
-function currentFingerprint(population, exclude) {
+const observedContent = new Map();
+
+function observePopulation(population, exclude, recorded) {
+  let fingerprint;
   try {
-    return fingerprintPopulation(population, { exclude });
+    fingerprint = fingerprintPopulation(population, { exclude });
   } catch (error) {
-    return `unavailable:${error?.code ?? "error"}`;
+    return { observed: "unobservable", content_digest: null, errno: error?.code ?? null };
   }
+  if (fingerprint === recorded.fingerprint) return { observed: null, content_digest: recorded.content_digest ?? null };
+  const key = JSON.stringify([population, exclude]);
+  let measured = observedContent.get(key);
+  if (measured?.fingerprint !== fingerprint) {
+    try {
+      measured = { fingerprint, content_digest: measurePopulationContent(population, { exclude }).content_digest };
+    } catch (error) {
+      return { observed: "unobservable", content_digest: null, errno: error?.code ?? null };
+    }
+    observedContent.set(key, measured);
+  }
+  return { observed: measured.content_digest === recorded.content_digest ? null : "changed_since_setup",
+    content_digest: measured.content_digest };
 }
 
-export function resolveReadyEnvironmentInputs({ repositoryRoot, checkoutRoot, ecosystem, project,
-  candidateRecord = null }) {
+function toolchainProvenance(toolchain) {
+  const current = observePopulation(toolchain.population, toolchain.population_exclude, toolchain);
 
-  const loaded = candidateRecord === null ? loadReadiness(repositoryRoot)
-    : { ok: true, record: candidateRecord };
+  if (toolchain.fingerprint === undefined) {
+    return { version: toolchain.version, source: toolchain.source, content_digest: current.content_digest,
+      observed: current.observed === "unobservable" ? current.observed : "located_for_this_run",
+      ...(current.errno === undefined ? {} : { errno: current.errno }) };
+  }
+  if (current.observed === null) {
+    return { version: toolchain.version, source: toolchain.source, content_digest: current.content_digest };
+  }
+  return { version: null, source: toolchain.source, content_digest: current.content_digest,
+    observed: current.observed, ...(current.errno === undefined ? {} : { errno: current.errno }),
+    setup_version: toolchain.version, setup_content_digest: toolchain.content_digest ?? null };
+}
+
+function dependencyProvenance(preparation, { ecosystem, projectDir, members }) {
+  let inputs;
+  try {
+    inputs = measureProjectInputs(ecosystem, projectDir, { members });
+  } catch (error) {
+    inputs = { status: "unreadable", code: error?.code ?? null };
+  }
+  const inputsDigest = inputs.inputs_digest ?? null;
+  const base = { ecosystem: preparation.ecosystem, status: preparation.status, source: preparation.source ?? null,
+    inputs_digest: inputsDigest };
+
+  const located = preparation.status === "absent" ||
+    (preparation.status === "present" && preparation.fingerprint === undefined);
+  const inputsChanged = located ? (inputsDigest === null ? { inputs_observed: inputs.status } : {})
+    : inputsDigest === preparation.inputs_digest ? {}
+      : { inputs_observed: inputsDigest === null ? inputs.status : "changed_since_setup",
+        setup_inputs_digest: preparation.inputs_digest ?? null };
+  if (preparation.status !== "present") {
+    return { ...base, content_digest: preparation.content_digest ?? null, ...inputsChanged,
+      ...(located ? { observed: "located_for_this_run" } : {}) };
+  }
+  const current = observePopulation(preparation.population, preparation.population_exclude, preparation);
+  if (located) {
+    return { ...base, content_digest: current.content_digest, ...inputsChanged,
+      observed: current.observed === "unobservable" ? current.observed : "located_for_this_run",
+      ...(current.errno === undefined ? {} : { errno: current.errno }) };
+  }
+  return { ...base, content_digest: current.content_digest, ...inputsChanged,
+    ...(current.observed === null ? {} : { observed: current.observed,
+      ...(current.errno === undefined ? {} : { errno: current.errno }),
+      setup_content_digest: preparation.content_digest ?? null }) };
+}
+
+const NO_CONFIGURATION = Object.freeze({ environments: Object.freeze([]), selection: Object.freeze([]),
+  toolchains: Object.freeze({}), preparations: Object.freeze([]) });
+
+export function loadExecutionConfiguration(repositoryRoot) {
+  const loaded = loadRuntimeConfiguration(repositoryRoot);
+  if (loaded.ok) return loaded;
+  if (loaded.code === TEST_RUNTIME_READINESS_CODES.RECORD_INVALID) {
+    return Object.freeze({ ok: true, configuration: NO_CONFIGURATION, record_status: "invalid",
+      readiness_digest: null });
+  }
+  return Object.freeze({ ok: true, configuration: NO_CONFIGURATION,
+    record_status: loaded.record?.status ?? "absent", readiness_digest: loaded.record?.readiness_digest ?? null });
+}
+
+export function resolveCurrentEnvironmentInputs({ repositoryRoot, checkoutRoot, ecosystem, project,
+  candidateRecord = null, toolchainNames = [], located = null }) {
+
+  const loaded = candidateRecord === null ? loadExecutionConfiguration(repositoryRoot)
+    : { ok: true, configuration: candidateRecord, record_status: candidateRecord.status ?? "ready",
+      readiness_digest: candidateRecord.readiness_digest };
   if (!loaded.ok) return loaded;
-  const { record } = loaded;
+  const { configuration } = loaded;
   const id = testRuntimeEnvironmentId({ ecosystem, project });
-  const environment = recordedEnvironment(record, { ecosystem, project });
-  if (environment === null) {
-    return readinessFailure(TEST_RUNTIME_READINESS_CODES.ENVIRONMENT_NOT_PREPARED,
-      `environment ${id} was not detected by local setup`,
-      { environment: id, prepared_environments: (record.environments ?? []).map(({ id: known }) => known) });
+  if (!Object.hasOwn(DEPENDENCY_ECOSYSTEMS, ecosystem)) {
+    return readinessFailure(TEST_RUNTIME_READINESS_CODES.ENVIRONMENT_UNKNOWN,
+      `${ecosystem} is not a dependency ecosystem`, { environment: id });
   }
-  const toolchains = {};
-  for (const name of environment.toolchains) {
-    const toolchain = record.toolchains[name];
-    if (!toolchain) {
-      return readinessFailure(TEST_RUNTIME_READINESS_CODES.RUNNER_NOT_PREPARED,
-        `toolchain ${name} is not recorded as ready`, { toolchain: name });
-    }
-    if (currentFingerprint(toolchain.population, toolchain.population_exclude) !== toolchain.fingerprint) {
-      return readinessFailure(TEST_RUNTIME_READINESS_CODES.TOOLCHAIN_STALE,
-        `detected ${name} ${toolchain.version} changed or moved after setup`,
-        { toolchain: name, version: toolchain.version });
-    }
-    toolchains[name] = toolchain;
-  }
-  const preparation = record.preparations.find((entry) =>
-    entry.ecosystem === ecosystem && entry.project === project);
-  if (!preparation) {
-    return readinessFailure(TEST_RUNTIME_READINESS_CODES.RUNNER_NOT_PREPARED,
-      `${ecosystem} dependencies for ${project} were not detected`, { project });
+  const recorded = recordedEnvironment(configuration, { ecosystem, project });
+  const names = [...new Set([...DEPENDENCY_ECOSYSTEMS[ecosystem].toolchains, ...(recorded?.toolchains ?? []),
+    ...toolchainNames])].sort();
+
+  const environment = recorded ?? Object.freeze({ id, ecosystem, project,
+    members: Object.freeze([...(discoverRepositoryEnvironments(checkoutRoot, TEST_RUNTIME_RUNNER_CATALOG.runners,
+      { targets: [project === "." ? "." : `${project}/member`] }).find((entry) => entry.id === id)?.members ?? [])]),
+    runners: Object.freeze([]), toolchains: Object.freeze(names) });
+  const configuredToolchains = Object.fromEntries(names.filter((name) => configuration.toolchains?.[name])
+    .map((name) => [name, configuration.toolchains[name]]));
+  const configuredPreparation = (configuration.preparations ?? []).find((entry) =>
+    entry.ecosystem === ecosystem && entry.project === project) ?? null;
+  const toolchains = Object.fromEntries(names.map((name) =>
+    [name, configuredToolchains[name] ?? located?.toolchains?.[name] ?? null]));
+  const preparation = configuredPreparation ?? located?.preparation ?? null;
+  const unlocated = names.filter((name) => toolchains[name] === null);
+  if (unlocated.length > 0 || preparation === null) {
+    return Object.freeze({ ...readinessFailure(TEST_RUNTIME_READINESS_CODES.ENVIRONMENT_NOT_PREPARED,
+      `no location is configured for ${[...unlocated.map((name) => `the ${name} toolchain`),
+        ...(preparation === null ? [`the ${ecosystem} dependency environment`] : [])].join(" and ")} of ${id}`,
+      { environment: id, toolchains: unlocated, dependency_environment: preparation === null }),
+    locate: Object.freeze({ ecosystem, project, members: environment.members, toolchainNames: names,
+      known: Object.freeze({ toolchains: configuredToolchains, preparation: configuredPreparation }) }) });
   }
   const projectDir = project === "." ? checkoutRoot : path.join(checkoutRoot, project);
-  const inputs = measureProjectInputs(ecosystem, projectDir, { members: environment.members });
-  if (inputs.status === "lock_missing") {
-    return readinessFailure(TEST_RUNTIME_READINESS_CODES.LOCK_MISSING,
-      `project ${project} has no ${inputs.required}`, { project, required: inputs.required });
-  }
-  if (preparation.inputs_digest !== inputs.inputs_digest) {
-    return readinessFailure(TEST_RUNTIME_READINESS_CODES.INPUTS_STALE,
-      `dependency inputs of ${project} changed after setup`,
-      { project, recorded: preparation.inputs_digest, current: inputs.inputs_digest });
-  }
-  if (preparation.status === "present" &&
-      currentFingerprint(preparation.population, preparation.population_exclude) !== preparation.fingerprint) {
-    return readinessFailure(TEST_RUNTIME_READINESS_CODES.DEPENDENCIES_STALE,
-      `detected dependencies of ${project} changed after setup`, { project, dependency_root: preparation.dir });
-  }
-  return Object.freeze({ ok: true, readiness_digest: record.readiness_digest, environment,
-    toolchains, preparation, projectDir });
+  return Object.freeze({ ok: true, readiness_digest: loaded.readiness_digest, record_status: loaded.record_status,
+    environment, toolchains, preparation, projectDir,
+    provenance: Object.freeze({
+      toolchains: Object.fromEntries(Object.entries(toolchains).map(([name, toolchain]) =>
+        [name, toolchainProvenance(toolchain)])),
+      dependencies: Object.freeze(dependencyProvenance(preparation,
+        { ecosystem, projectDir, members: environment.members })) }) });
 }
 
-export function runnerNotProvedStatement(descriptor, project) {
-  return `Declare ${descriptor.name}'s package in the ${descriptor.dependency_ecosystem} project at ` +
-    `${project} and install it there (runners its toolchain provides need nothing), then rerun local ` +
-    "test-runtime setup, which detects every environment the repository declares.";
-}
-
-export function resolveReadyRunnerInputs({ repositoryRoot, checkoutRoot, descriptor, project,
-  candidateRecord = null }) {
-  const loaded = candidateRecord === null ? loadReadiness(repositoryRoot)
-    : { ok: true, record: candidateRecord };
-  if (!loaded.ok) return loaded;
-  const environment = recordedEnvironment(loaded.record,
-    { ecosystem: descriptor.dependency_ecosystem, project });
-  if (environment === null || !environment.runners.includes(descriptor.runner_id)) {
-    return readinessFailure(TEST_RUNTIME_READINESS_CODES.RUNNER_NOT_PREPARED,
-      `${descriptor.runner_id} was not selected by local setup for project ${project}`,
-      { provider_id: descriptor.runner_id, project }, runnerNotProvedStatement(descriptor, project));
-  }
-  return resolveReadyEnvironmentInputs({ repositoryRoot, checkoutRoot,
-    ecosystem: descriptor.dependency_ecosystem, project, candidateRecord: loaded.record });
+export function resolveCurrentRunnerInputs({ repositoryRoot, checkoutRoot, descriptor, project,
+  candidateRecord = null, located = null }) {
+  return resolveCurrentEnvironmentInputs({ repositoryRoot, checkoutRoot,
+    ecosystem: descriptor.dependency_ecosystem, project, candidateRecord, located,
+    toolchainNames: descriptor.toolchains ?? [] });
 }

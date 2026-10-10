@@ -4,187 +4,705 @@
     {
       "profile_id": "proof.atomicity.failure-boundary",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.atomicity.failure-boundary/4.0.0"
+      "path": "profiles/proof.atomicity.failure-boundary/4.0.0",
+      "short_description": "A compound operation settles all-or-nothing after one injected between-effect failure.",
+      "usage": {
+        "requires": [
+          "The complete effect list, an injected failure between two ordered effects, and the settlement observation."
+        ],
+        "fits": {
+          "example": "A ledger debit/credit attempt fails between effects and settles with neither committed.",
+          "why": "The allowed settled population contains only fully committed and fully uncommitted states."
+        },
+        "does_not_fit": {
+          "example": "The debit remains committed but the credit is absent at settlement.",
+          "why": "False proposition: this is a partial commit outside the closed allowed settled population."
+        }
+      }
     },
     {
       "profile_id": "proof.authentication.direct-source-provenance",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.authentication.direct-source-provenance/4.0.0"
+      "path": "profiles/proof.authentication.direct-source-provenance/4.0.0",
+      "short_description": "Directly captured evidence authenticates one target from its singular source of record.",
+      "usage": {
+        "requires": [
+          "Directly captured occurrence bytes, exact target/source/attempt identities, complete singleton populations and four independent complement checks."
+        ],
+        "fits": {
+          "example": "A response occurrence authenticates its selected target from that target’s sole source of record in the same attempt.",
+          "why": "Authentication, origin, source-of-record and observation all concern that exact occurrence."
+        },
+        "does_not_fit": {
+          "example": "The same bytes are assigned to a different target.",
+          "why": "False proposition: byte equality does not bind the occurrence to the selected target."
+        }
+      }
     },
     {
       "profile_id": "proof.authorization.failed-attempt-nonconsumption",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.authorization.failed-attempt-nonconsumption/4.0.0"
+      "path": "profiles/proof.authorization.failed-attempt-nonconsumption/4.0.0",
+      "short_description": "A refused failed attempt does not consume the authority; a later valid attempt succeeds.",
+      "usage": {
+        "requires": [
+          "Before/after complete authority state, a refused failed attempt, and a distinct later valid use of the same authority."
+        ],
+        "fits": {
+          "example": "A capability-channel request is refused; authority state is unchanged and a later valid request succeeds.",
+          "why": "Nonconsumption includes later usability, not just refusal."
+        },
+        "does_not_fit": {
+          "example": "The refused request consumes the authority.",
+          "why": "False proposition: the post-refusal authority state differs from its pre-attempt state."
+        }
+      }
     },
     {
       "profile_id": "proof.authorization.refusal-before-effects",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.authorization.refusal-before-effects/4.0.0"
+      "path": "profiles/proof.authorization.refusal-before-effects/4.0.0",
+      "short_description": "An unauthorized attempt is refused before it mutates any listed protected effect.",
+      "usage": {
+        "requires": [
+          "Exact unauthorized subject, operation, attempt and refusal; a complete protected-effect list and pre-refusal interval evidence."
+        ],
+        "fits": {
+          "example": "An unauthorized channel-configuration request is refused without writing or mutating the listed configuration.",
+          "why": "The prohibition binds this attempt and every listed effect before its refusal."
+        },
+        "does_not_fit": {
+          "example": "The request writes protected configuration and then rolls it back before refusal.",
+          "why": "False proposition: rollback does not erase the prohibited pre-refusal write."
+        }
+      }
     },
     {
       "profile_id": "proof.authorization.revocation-propagation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.authorization.revocation-propagation/4.0.0"
+      "path": "profiles/proof.authorization.revocation-propagation/4.0.0",
+      "short_description": "Every declared consumer applies a revocation before later attempts, which are refused.",
+      "usage": {
+        "requires": [
+          "The authority/revocation, finite propagation interval, complete consumer, later-attempt, refused-attempt and protected-effect populations."
+        ],
+        "fits": {
+          "example": "Every declared API gateway applies revoked credentials before the declared later requests; those requests are refused without effects.",
+          "why": "The same revoked state is applied by every declared consumer before every declared later attempt."
+        },
+        "does_not_fit": {
+          "example": "A declared consumer still uses the old authority state.",
+          "why": "False proposition: a stale consumer violates complete propagation; this proof supplies no eventual-delivery liveness."
+        }
+      }
     },
     {
       "profile_id": "proof.cancellation.isolation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.cancellation.isolation/4.0.0"
+      "path": "profiles/proof.cancellation.isolation/4.0.0",
+      "short_description": "Cancelling one generation leaves another generation's resource and authority intact.",
+      "usage": {
+        "requires": [
+          "Two grounded generations and attempts, cancellation result, surviving resource/authority observations and later expected success."
+        ],
+        "fits": {
+          "example": "Cancelling one search session leaves the other session’s resource and authority intact, and its attempt later succeeds.",
+          "why": "The selected survivor is preserved after the other generation’s cancellation."
+        },
+        "does_not_fit": {
+          "example": "Cancellation corrupts the surviving session’s resource state.",
+          "why": "False proposition: the survivor’s protected state is not preserved."
+        }
+      }
     },
     {
       "profile_id": "proof.compatibility.behavioral-preservation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.compatibility.behavioral-preservation/4.0.0"
+      "path": "profiles/proof.compatibility.behavioral-preservation/4.0.0",
+      "short_description": "Baseline and candidate reports have equal typed observables, counts and one selected value pair.",
+      "usage": {
+        "requires": [
+          "Two distinct captured full reports with equal SHA-256, complete typed observable populations/counts, one selected value pair and complement checks."
+        ],
+        "fits": {
+          "example": "Distinct baseline and candidate CLI/JSON reports have identical captured bytes, descriptors, counts and the selected canonical value.",
+          "why": "The comparison is exact for these reports and one selected value pair."
+        },
+        "does_not_fit": {
+          "example": "Equal report counts are offered without matching observable populations.",
+          "why": "Insufficient evidence: counts alone do not establish descriptor or selected-value equality; uncaptured behavior remains outside the guarantee."
+        }
+      }
     },
     {
       "profile_id": "proof.completeness.lossless-projection",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.completeness.lossless-projection/4.0.0"
+      "path": "profiles/proof.completeness.lossless-projection/4.0.0",
+      "short_description": "Compact members plus disclosed omissions account for the complete source population.",
+      "usage": {
+        "requires": [
+          "Complete source/compact/full/omission/disclosure populations, exact totals, a closed reason and the documented complete mode."
+        ],
+        "fits": {
+          "example": "A compact record omits heavy members; its disclosed omissions plus compact members equal the complete source.",
+          "why": "Every omission is accounted for and recoverable in the named complete mode."
+        },
+        "does_not_fit": {
+          "example": "The complete mode itself drops a source member.",
+          "why": "False proposition: the complete-result population must equal the source population."
+        }
+      }
     },
     {
       "profile_id": "proof.concurrency.single-winner-effect",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.concurrency.single-winner-effect/4.0.0"
+      "path": "profiles/proof.concurrency.single-winner-effect/4.0.0",
+      "short_description": "Exactly two overlapping attempts yield one winner with the sole effect and one loser.",
+      "usage": {
+        "requires": [
+          "Exactly two attempts with both starts before both terminal events, the sole effect, and durable post-terminal observations."
+        ],
+        "fits": {
+          "example": "Two overlapping unique database inserts produce one accepted winner, one rejected loser and the same final durable state.",
+          "why": "The bounded two-attempt history has exactly one effect."
+        },
+        "does_not_fit": {
+          "example": "The loser starts only after the winner terminates.",
+          "why": "Insufficient evidence for overlapping attempts: a serialized history does not establish this concurrency condition."
+        }
+      }
     },
     {
       "profile_id": "proof.design.implementation-readiness",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.design.implementation-readiness/4.0.0"
+      "path": "profiles/proof.design.implementation-readiness/4.0.0",
+      "short_description": "An authored design unit binds loci, requirements, validation and zero placeholders.",
+      "usage": {
+        "requires": [
+          "Grounded distinct implementation/test loci, complete nonempty requirements and validation, exact warning fields and zero placeholders."
+        ],
+        "fits": {
+          "example": "An API-warning design names both loci, validates every declared requirement and binds code, severity, message template and payload schema.",
+          "why": "The authored design populations and warning shape satisfy the declared closure."
+        },
+        "does_not_fit": {
+          "example": "The design retains one placeholder.",
+          "why": "False proposition: the complete placeholder population must have count zero; satisfaction alone does not establish product sufficiency."
+        }
+      }
     },
     {
       "profile_id": "proof.dormancy.nonactivation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.dormancy.nonactivation/4.0.0"
+      "path": "profiles/proof.dormancy.nonactivation/4.0.0",
+      "short_description": "A component is inactive by default, with zero observed activations and no path in the captured production graph.",
+      "usage": {
+        "requires": [
+          "Constructible/registrable component, exact complete captured production graph, default configuration, activation observations and bound no-path result."
+        ],
+        "fits": {
+          "example": "A plugin is independently registrable but default-off, with zero captured activations and no captured production-entrypoint path.",
+          "why": "Dormancy is bounded to the captured sources and declared complete graph."
+        },
+        "does_not_fit": {
+          "example": "Use that snapshot to claim absence of dynamic loading routes not captured in the graph.",
+          "why": "Outside the guarantee: omitted reflective or environment routes are not established absent, and this extra claim need not cause refusal."
+        }
+      }
     },
     {
       "profile_id": "proof.failure.cleanup-noninterference",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.failure.cleanup-noninterference/4.0.0"
+      "path": "profiles/proof.failure.cleanup-noninterference/4.0.0",
+      "short_description": "Cleanup after one failure leaves protected resources and a distinct authority unchanged.",
+      "usage": {
+        "requires": [
+          "Failure/cleanup/settlement, complete residue and protected before/after state populations, distinct authority and later valid-use result."
+        ],
+        "fits": {
+          "example": "Cloud-provisioning cleanup empties residue while protecting other resources and authority; later authorized work succeeds.",
+          "why": "Cleanup preservation includes complete protected-state equality and later use of the distinct authority."
+        },
+        "does_not_fit": {
+          "example": "Cleanup changes one protected resource.",
+          "why": "False proposition: the after-state population no longer equals the complete before-state population."
+        }
+      }
     },
     {
       "profile_id": "proof.failure.retry-convergence",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.failure.retry-convergence/4.0.0"
+      "path": "profiles/proof.failure.retry-convergence/4.0.0",
+      "short_description": "One failed attempt settles with zero residue before one retry succeeds with one effect.",
+      "usage": {
+        "requires": [
+          "Exactly one failure and one later retry of the same operation/input, zero settled residue, sole final effect and expected durable state."
+        ],
+        "fits": {
+          "example": "A multipart upload fails, cleans up and settles before one retry succeeds with one final effect.",
+          "why": "This bounded history converges after settlement without duplicate declared effects."
+        },
+        "does_not_fit": {
+          "example": "The retry starts before failure settlement.",
+          "why": "False proposition: the required settlement-before-retry ordering does not hold."
+        }
+      }
     },
     {
       "profile_id": "proof.failure.settlement-and-cleanup",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.failure.settlement-and-cleanup/4.0.0"
+      "path": "profiles/proof.failure.settlement-and-cleanup/4.0.0",
+      "short_description": "An injected failure is cleaned up and settled with zero residue and its cause retained.",
+      "usage": {
+        "requires": [
+          "Grounded attempt and injected original cause, cleanup and later settlement, complete residue/cause observations and settled failure record."
+        ],
+        "fits": {
+          "example": "A failed file upload cleans all declared residue and settles while retaining the same cause and cause state.",
+          "why": "Cleanup and failure precede settlement; zero residue and cause preservation are both required."
+        },
+        "does_not_fit": {
+          "example": "Settlement occurs before cleanup.",
+          "why": "False proposition: settlement must follow both failure and cleanup."
+        }
+      }
     },
     {
       "profile_id": "proof.failure.supplementary-isolation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.failure.supplementary-isolation/4.0.0"
+      "path": "profiles/proof.failure.supplementary-isolation/4.0.0",
+      "short_description": "A settled core result survives a later supplementary failure unchanged and disclosed.",
+      "usage": {
+        "requires": [
+          "Exact attempt capture, valid settled core value/members, later supplementary failure, final result and one captured closed reason."
+        ],
+        "fits": {
+          "example": "A captured core result survives a later supplementary failure; the final result omits that component and discloses its one reason.",
+          "why": "The omitted-disclosed branch preserves the exact captured core and has one reason disclosure."
+        },
+        "does_not_fit": {
+          "example": "The final result drops one captured core member.",
+          "why": "False proposition: supplementary failure does not permit losing core membership."
+        }
+      }
     },
     {
       "profile_id": "proof.idempotency.effect-nonduplication",
       "profile_version": "5.0.0",
-      "path": "profiles/proof.idempotency.effect-nonduplication/5.0.0"
+      "path": "profiles/proof.idempotency.effect-nonduplication/5.0.0",
+      "short_description": "Two sequential same-input invocations leave one durable effect resource in equal observed state.",
+      "usage": {
+        "requires": [
+          "Two completed sequential same-input invocations and complete elected-resource states after first, before second and after second."
+        ],
+        "fits": {
+          "example": "Replaying a payment capture leaves the elected durable effect state unchanged across all three observations.",
+          "why": "The elected resource’s complete controlled state is equal, not merely its response or count."
+        },
+        "does_not_fit": {
+          "example": "The resource changes immediately before the replay, which restores its earlier state.",
+          "why": "False proposition: equality at the two endpoints does not satisfy the pre-second observation."
+        }
+      }
     },
     {
       "profile_id": "proof.input.caller-authority-confinement",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.input.caller-authority-confinement/4.0.0"
+      "path": "profiles/proof.input.caller-authority-confinement/4.0.0",
+      "short_description": "A closed caller-input policy refuses a captured authority-bearing request before any effect.",
+      "usage": {
+        "requires": [
+          "Closed canonical caller policy, accepted opaque and forbidden authority-bearing requests, exact parser attempts and authenticated complete pre-refusal source census."
+        ],
+        "fits": {
+          "example": "A nested path-like opaque control is accepted without selecting coordinates; a forbidden authority member is refused before authority-bearing effects.",
+          "why": "The package projection derives associations and reconciles the exact observation cut for those requests."
+        },
+        "does_not_fit": {
+          "example": "Only a refusal status is supplied, without the complete source observation census.",
+          "why": "Insufficient evidence: refusal alone cannot establish no resolver, loader or other prohibited occurrence before refusal."
+        }
+      }
     },
     {
       "profile_id": "proof.integration.prefix-safety",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.integration.prefix-safety/4.0.0"
+      "path": "profiles/proof.integration.prefix-safety/4.0.0",
+      "short_description": "Every derived integration prefix, path and required branch is declared preserved.",
+      "usage": {
+        "requires": [
+          "Exact captured complete DAG, complete integration-unit partition, declared paths/required branches, package-derived prefix census and per-case preservation evidence."
+        ],
+        "fits": {
+          "example": "A schema rollout preserves every derived integrable prefix crossed with each declared path and required branch.",
+          "why": "The exact census and aggregate bind every case; generic construction metadata does not supply a preparation route."
+        },
+        "does_not_fit": {
+          "example": "One target-present prefix case is missing.",
+          "why": "Insufficient evidence: success on other cases cannot establish preservation of the complete derived population."
+        }
+      }
     },
     {
       "profile_id": "proof.lifecycle.bounded-state-stability",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.lifecycle.bounded-state-stability/4.0.0"
+      "path": "profiles/proof.lifecycle.bounded-state-stability/4.0.0",
+      "short_description": "Every observation strictly inside a bounded interval records the baseline state.",
+      "usage": {
+        "requires": [
+          "Baseline at start, distinct later end, complete nonempty strictly interior same-subject observations and exact singleton baseline population."
+        ],
+        "fits": {
+          "example": "A capability readiness window records the same baseline at every declared interior observation.",
+          "why": "The observed-state population equals the singleton baseline without asserting terminality."
+        },
+        "does_not_fit": {
+          "example": "Use those samples to claim no transient state changes between observations.",
+          "why": "Outside the guarantee: sampling leaves between-observation behavior unproved; the added claim need not cause evaluator refusal."
+        }
+      }
     },
     {
       "profile_id": "proof.lifecycle.bounded-terminal-stability",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.lifecycle.bounded-terminal-stability/4.0.0"
+      "path": "profiles/proof.lifecycle.bounded-terminal-stability/4.0.0",
+      "short_description": "A terminal state holds at every observation before a bounded horizon, with no reactivation.",
+      "usage": {
+        "requires": [
+          "Terminal entity/event/state, finite horizon, complete nonempty in-horizon observations and complete zero reactivation population."
+        ],
+        "fits": {
+          "example": "A completed workflow remains in its terminal state at every declared observation before the horizon, with no declared reactivation.",
+          "why": "Terminal-state equality and zero in-horizon reactivations are both bound."
+        },
+        "does_not_fit": {
+          "example": "A declared reactivation occurs before the horizon.",
+          "why": "False proposition: the complete in-horizon reactivation population must be empty."
+        }
+      }
     },
     {
       "profile_id": "proof.observation.sound-negative",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.observation.sound-negative/4.0.0"
+      "path": "profiles/proof.observation.sound-negative/4.0.0",
+      "short_description": "A captured target is absent from a complete declared source population.",
+      "usage": {
+        "requires": [
+          "Exact capture with authenticated directly grounded observations, complete sources/raw observations, stable endpoint pairs and zero invalidating conditions."
+        ],
+        "fits": {
+          "example": "Every captured source is covered, every valid observation misses the target, and the exact projection derives absence.",
+          "why": "Absence requires the complete authenticated coverage and empty invalidating-condition population."
+        },
+        "does_not_fit": {
+          "example": "One declared source is not covered.",
+          "why": "Insufficient evidence: a partial search cannot establish the sole absent conclusion for the complete declared source population."
+        }
+      }
     },
     {
       "profile_id": "proof.operation.forbidden-noninvocation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.operation.forbidden-noninvocation/4.0.0"
+      "path": "profiles/proof.operation.forbidden-noninvocation/4.0.0",
+      "short_description": "A declared operation uses no member of a complete forbidden-operation population.",
+      "usage": {
+        "requires": [
+          "Exact subject/context and complete nonempty forbidden-operation population, verification reads and same-scope positive-use falsifier."
+        ],
+        "fits": {
+          "example": "A slice-review operation does not use any member of its declared forbidden-operation population in the selected context.",
+          "why": "The controlled prohibition covers every declared member for this subject/context."
+        },
+        "does_not_fit": {
+          "example": "A forbidden member is invoked after an allowed call inside that context.",
+          "why": "False proposition: the allowed call does not excuse a later forbidden invocation in the same scope."
+        }
+      }
     },
     {
       "profile_id": "proof.ordering.lexicographic-conformance",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.ordering.lexicographic-conformance/4.0.0"
+      "path": "profiles/proof.ordering.lexicographic-conformance/4.0.0",
+      "short_description": "A captured result follows a multi-key lexicographic order with a stable tie-breaker.",
+      "usage": {
+        "requires": [
+          "Captured input/result/policy/key-comparator evidence, complete populations/counts, at least two typed keys, stable identity tie-breaker and permutation observations."
+        ],
+        "fits": {
+          "example": "A numeric/Unicode two-key result follows first-unequal-key precedence, then the stable identity tie-breaker, and remains invariant under declared permutations.",
+          "why": "The package report binds full-result ordering and typed conformance facts to exact sources."
+        },
+        "does_not_fit": {
+          "example": "The comparator breaks ties before comparing the second unequal key.",
+          "why": "False proposition: identity tie-breaking applies only after all policy keys compare equal."
+        }
+      }
     },
     {
       "profile_id": "proof.ordering.visibility-after-durable-settlement",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.ordering.visibility-after-durable-settlement/4.0.0"
+      "path": "profiles/proof.ordering.visibility-after-durable-settlement/4.0.0",
+      "short_description": "Declared success or visibility never precedes durable settlement of every effect.",
+      "usage": {
+        "requires": [
+          "Complete effect/settlement populations, visibility order, empty failure visibility and exact post-visibility expected-state observation."
+        ],
+        "fits": {
+          "example": "A database commit acknowledges success only after all declared effects settle durably and the selected observation matches expected state.",
+          "why": "Visibility is ordered after complete durable settlement."
+        },
+        "does_not_fit": {
+          "example": "The acknowledgement precedes settlement.",
+          "why": "False proposition: a later correct observation does not repair early visibility."
+        }
+      }
     },
     {
       "profile_id": "proof.ownership.exact-isolation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.ownership.exact-isolation/4.0.0"
+      "path": "profiles/proof.ownership.exact-isolation/4.0.0",
+      "short_description": "A foreign attempt on an owned resource is refused unmutated; the owner later succeeds.",
+      "usage": {
+        "requires": [
+          "Grounded resource/owner/foreign subject/authority, refused foreign attempt and interval, complete authority states and later legitimate-use success."
+        ],
+        "fits": {
+          "example": "A tenant document refuses a foreign owner before effects, preserves the legitimate authority and accepts later owner use.",
+          "why": "The exact resource, authority and same later operation are all bound."
+        },
+        "does_not_fit": {
+          "example": "The foreign subject’s request is accepted.",
+          "why": "False proposition: owned-resource isolation requires that exact foreign attempt to be refused."
+        }
+      }
     },
     {
       "profile_id": "proof.ownership.fenced-handoff",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.ownership.fenced-handoff/4.0.0"
+      "path": "profiles/proof.ownership.fenced-handoff/4.0.0",
+      "short_description": "After a fence, predecessor attempts are refused and only the successor acts.",
+      "usage": {
+        "requires": [
+          "Resource/fence, distinct predecessor/successor authorities and epochs, complete before/after attempt/effect populations and ordered observations."
+        ],
+        "fits": {
+          "example": "A database primary lease transfers across one fence; old-authority attempts after it are refused without protected effects or dual-active observations.",
+          "why": "Predecessor and successor activity is separated by the declared fence and epochs."
+        },
+        "does_not_fit": {
+          "example": "A declared observation records both authorities active after the fence.",
+          "why": "False proposition: the complete dual-active population must be empty."
+        }
+      }
     },
     {
       "profile_id": "proof.pagination.complete-traversal",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.pagination.complete-traversal/4.0.0"
+      "path": "profiles/proof.pagination.complete-traversal/4.0.0",
+      "short_description": "A captured pagination trace returns every occurrence exactly once, in order.",
+      "usage": {
+        "requires": [
+          "Package-authenticated authoritative ordered occurrences and exact finite trace with initial state, linear opaque cursor chain, snapshot/version and resource accounting."
+        ],
+        "fits": {
+          "example": "A multi-page trace returns each authoritative occurrence once in order and ends in one terminal page.",
+          "why": "Completeness and resource accounting concern the exact authenticated trace."
+        },
+        "does_not_fit": {
+          "example": "One authenticated occurrence is omitted.",
+          "why": "False proposition: a plausible final count cannot replace equality with the complete ordered occurrence population."
+        }
+      }
     },
     {
       "profile_id": "proof.pagination.snapshot-consistency",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.pagination.snapshot-consistency/4.0.0"
+      "path": "profiles/proof.pagination.snapshot-consistency/4.0.0",
+      "short_description": "Every page of a traversal reads one immutable snapshot despite a live-source mutation.",
+      "usage": {
+        "requires": [
+          "Complete page-attempt/page populations, exact captured snapshot state, relevant interleaved live mutation and stable/interleaved ordered sequences."
+        ],
+        "fits": {
+          "example": "Pages retain one immutable captured snapshot while a relevant live-source mutation changes the live version; both sequences agree.",
+          "why": "Stable identity must also preserve captured state during the declared interleaving."
+        },
+        "does_not_fit": {
+          "example": "The snapshot label stays constant while its captured population changes.",
+          "why": "False proposition: a stable label alone does not establish immutable snapshot content."
+        }
+      }
     },
     {
       "profile_id": "proof.pagination.versioned-cursor-refusal",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.pagination.versioned-cursor-refusal/4.0.0"
+      "path": "profiles/proof.pagination.versioned-cursor-refusal/4.0.0",
+      "short_description": "After a relevant mutation, a stale versioned cursor is refused without effects.",
+      "usage": {
+        "requires": [
+          "Complete traversal population and exact source versions/captures, stale next-page attempt/cut, protected effects and unrelated-source non-stale control."
+        ],
+        "fits": {
+          "example": "A relevant source change makes the old cursor stale; its next-page attempt refuses without page return, advance or protected effects, while the unrelated-source control succeeds.",
+          "why": "Both stale refusal and the non-stale control are bound to exact versions and attempts."
+        },
+        "does_not_fit": {
+          "example": "The stale cursor advances before its refusal.",
+          "why": "False proposition: no advance is permitted before refusal or anywhere in that stale-attempt scope."
+        }
+      }
     },
     {
       "profile_id": "proof.policy.declared-boundary-record-consistency",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.policy.declared-boundary-record-consistency/4.0.0"
+      "path": "profiles/proof.policy.declared-boundary-record-consistency/4.0.0",
+      "short_description": "A caller-asserted boundary observation record is consistent with a closed declared policy.",
+      "usage": {
+        "requires": [
+          "Closed policy, caller-asserted exact boundary record, captured subjects, exact units/measurement classes and complete disposition table."
+        ],
+        "fits": {
+          "example": "Every nonzero limit has N-1/N/N+1 observations; a zero maximum has N/N+1, all with the table’s dispositions.",
+          "why": "The package measures captured subjects and binds the complete boundary census; execution provenance remains caller-asserted."
+        },
+        "does_not_fit": {
+          "example": "UTF-8 byte lengths are used for a character-count policy.",
+          "why": "False proposition: the declared measurement unit/class determines the boundary; this does not prove production enforcement."
+        }
+      }
     },
     {
       "profile_id": "proof.policy.declared-limit-propagation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.policy.declared-limit-propagation/4.0.0"
+      "path": "profiles/proof.policy.declared-limit-propagation/4.0.0",
+      "short_description": "One captured guidance artifact states one value and unit for every declared policy key.",
+      "usage": {
+        "requires": [
+          "One exact closed policy and raw UTF-8 guidance artifact with each required key, plain decimal value and exact unit token."
+        ],
+        "fits": {
+          "example": "Reordering policy declarations still associates every guidance key with its one exact value and unit.",
+          "why": "The transformer checks complete exact associations for this captured guidance artifact."
+        },
+        "does_not_fit": {
+          "example": "A required key is absent from guidance.",
+          "why": "Insufficient evidence: another number or an unmentioned live surface cannot supply the missing key/value/unit association."
+        }
+      }
     },
     {
       "profile_id": "proof.readiness.before-success",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.readiness.before-success/4.0.0"
+      "path": "profiles/proof.readiness.before-success/4.0.0",
+      "short_description": "A readiness probe reaches the expected ready state before completion is reported.",
+      "usage": {
+        "requires": [
+          "Grounded initialized capability, distinct later readiness operation/result, complete expected/observed ready states and completion report order."
+        ],
+        "fits": {
+          "example": "A message broker is initialized, its distinct readiness probe succeeds with expected state, then completion is reported.",
+          "why": "Initialization is followed by an actual bound readiness result before completion."
+        },
+        "does_not_fit": {
+          "example": "Only a success status is offered without the readiness probe and state comparison.",
+          "why": "Insufficient evidence: initialization or completion status alone does not establish the declared capability’s readiness."
+        }
+      }
     },
     {
       "profile_id": "proof.result-shape.conformance",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.result-shape.conformance/4.0.0"
+      "path": "profiles/proof.result-shape.conformance/4.0.0",
+      "short_description": "An observed result has every required member, only allowed members and an allowed shape.",
+      "usage": {
+        "requires": [
+          "Grounded result/schema, complete typed observed/required/optional/allowed/forbidden member and shape populations and exact emitted count."
+        ],
+        "fits": {
+          "example": "An invoice object has every required typed descriptor, no forbidden or extra descriptor, an allowed shape and the exact count.",
+          "why": "This checks the declared descriptor populations and shape, not business meaning of values."
+        },
+        "does_not_fit": {
+          "example": "One required invoice member is missing.",
+          "why": "False proposition: required typed membership is not optional, even if the remaining result is parseable."
+        }
+      }
     },
     {
       "profile_id": "proof.result-shape.cross-representation-parity",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.result-shape.cross-representation-parity/4.0.0"
+      "path": "profiles/proof.result-shape.cross-representation-parity/4.0.0",
+      "short_description": "Two surfaces of one logical source have equal typed members, counts and one paired value.",
+      "usage": {
+        "requires": [
+          "Two distinct surfaces of one source, complete typed descriptor populations/counts, one selected canonical value pair and independent complement checks."
+        ],
+        "fits": {
+          "example": "CLI and JSON surfaces expose equal descriptors/counts and the same selected canonical value.",
+          "why": "Both full surfaces are inspected; equality is exact for the one selected value pair."
+        },
+        "does_not_fit": {
+          "example": "Equal counts are offered as the whole parity check.",
+          "why": "Insufficient evidence: counts alone establish neither descriptor equality nor the selected canonical value equality."
+        }
+      }
     },
     {
       "profile_id": "proof.single-use.replay-refusal",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.single-use.replay-refusal/4.0.0"
+      "path": "profiles/proof.single-use.replay-refusal/4.0.0",
+      "short_description": "A single-use authority succeeds once and a later replay is refused without effect.",
+      "usage": {
+        "requires": [
+          "Same authority/input/operation, two ordered attempts, sole effect occurrence and complete durable-resource observations before/after use and replay."
+        ],
+        "fits": {
+          "example": "A password-reset authority succeeds once, becomes unauthorized for that input, then refuses replay without a new declared effect or resource-state change.",
+          "why": "First success consumes authority and replay preserves the elected durable state."
+        },
+        "does_not_fit": {
+          "example": "The authority remains authorized after first success.",
+          "why": "False proposition: mere repeat-response equality does not establish single-use consumption."
+        }
+      }
     },
     {
       "profile_id": "proof.state.bounded-interval-nonmutation",
       "profile_version": "4.0.0",
-      "path": "profiles/proof.state.bounded-interval-nonmutation/4.0.0"
+      "path": "profiles/proof.state.bounded-interval-nonmutation/4.0.0",
+      "short_description": "A declared actor mutates no listed protected resource during one bounded interval.",
+      "usage": {
+        "requires": [
+          "Exact actor, distinct ordered interval boundaries and complete nonempty protected resources with same-scope write/mutation complement checks."
+        ],
+        "fits": {
+          "example": "A snapshot actor neither writes nor mutates any listed protected database resource during the interval.",
+          "why": "The prohibition covers actions inside the interval, including transient mutations."
+        },
+        "does_not_fit": {
+          "example": "The actor mutates a protected resource then restores it before the end.",
+          "why": "False proposition: endpoint equality does not establish nonmutation during the interval."
+        }
+      }
     },
     {
       "profile_id": "proof.verification.test-validity",
       "profile_version": "11.0.0",
-      "path": "profiles/proof.verification.test-validity/11.0.0"
+      "path": "profiles/proof.verification.test-validity/11.0.0",
+      "short_description": "Authenticated evidence shows one selected test ran, passed and caught each applicable falsifier.",
+      "usage": {
+        "requires": [
+          "Saved case-derived component/suite and exact launcher-authenticated candidate, selected-test inventory, falsifier/traversal evidence, pins and evaluator."
+        ],
+        "fits": {
+          "example": "The selected test passes, every supported mutation is detected, required traversal is proven, and no shortcut is observed.",
+          "why": "Credit concerns this exact bound runtime proof instance; unavailable mutations disclose limitations without earning detection credit."
+        },
+        "does_not_fit": {
+          "example": "An isolated observed supported mutation leaves the selected test passing.",
+          "why": "False proposition: a surviving supported mutation is counterevidence; absent or malformed runtime evidence has a different outcome."
+        }
+      }
     }
   ]
 }

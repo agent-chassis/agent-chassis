@@ -1,5 +1,6 @@
 
 
+import { lstatSync, realpathSync } from "node:fs";
 import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 
@@ -24,6 +25,29 @@ export async function partialRealpath(candidate) {
       if (error?.code !== "ENOENT") throw error;
       try {
         await lstat(existing);
+      } catch (inspectionError) {
+        if (inspectionError?.code !== "ENOENT") throw inspectionError;
+        const parent = path.dirname(existing);
+        if (parent === existing) throw error;
+        suffix.push(path.basename(existing));
+        existing = parent;
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+export function partialRealpathSync(candidate) {
+  let existing = path.resolve(candidate);
+  const suffix = [];
+  while (true) {
+    try {
+      return path.resolve(realpathSync(existing), ...suffix.reverse());
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+      try {
+        lstatSync(existing);
       } catch (inspectionError) {
         if (inspectionError?.code !== "ENOENT") throw inspectionError;
         const parent = path.dirname(existing);

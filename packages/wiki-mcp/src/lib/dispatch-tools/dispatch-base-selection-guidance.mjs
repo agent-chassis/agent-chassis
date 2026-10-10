@@ -7,18 +7,10 @@ import { readWorkRecordById } from
   "@agent-chassis/wiki-core/src/operations/work-records-store-io.mjs";
 import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
 import {
-  BASE_SELECTION_EDITOR,
-  BASE_SELECTION_FIELD_GUIDANCE,
   BASE_SELECTION_MISSING_LAUNCH_REASON
 } from "@agent-chassis/agent-launch-cli/src/lib/backend-provisioning-refusal-projection.mjs";
 import { AGENT_DISPATCH_TOOL_NAME } from "../dispatch-tool-constants.mjs";
-import { projectWorkRecordFreshness } from
-  "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import { buildDispatchMechanicalRefusal } from "../dispatch-tool-helpers.mjs";
-import {
-  buildDispatchGuidanceRefusal,
-  isActivelyRegistered
-} from "../dispatch-guidance-contract.mjs";
 import { carriedBackendRefusalFor, publicBackendBlockerCode } from
   "./agent-dispatch-refusal-projection.mjs";
 
@@ -40,9 +32,7 @@ export function isBaseSelectionMissingRefusal(classification) {
 }
 
 function sameProposal(recovery) {
-  return recovery?.state === "guidance" &&
-    recovery.route === BASE_SELECTION_FIELD_GUIDANCE.route &&
-    JSON.stringify(recovery.args) === JSON.stringify(BASE_SELECTION_FIELD_GUIDANCE.args) &&
+  return recovery?.state === "no_supported_route" && recovery.route === null &&
     typeof recovery.prerequisite === "string" && recovery.responsible_actor === "operator";
 }
 
@@ -119,7 +109,8 @@ export async function decideBaseSelectionRecovery({
   workspace,
   requestSchemaAuthority,
   reassessmentAvailable,
-  readRecord = readWorkRecordById
+  readRecord = readWorkRecordById,
+  buildMissingBaseGuidance = null
 }) {
   if (classification?.refusal_reason !== BASE_SELECTION_MISSING_LAUNCH_REASON) return null;
   const wkId = typeof subject === "string" ? subject.split("#", 1)[0] : null;
@@ -190,60 +181,17 @@ export async function decideBaseSelectionRecovery({
         root_unit: wkId,
         root_source_digest: loaded.source_digest,
         prior_public_run_id: null,
-        prior_public_monitor_handle: null
+        prior_public_monitor_handle: null,
+        ...(buildMissingBaseGuidance === null ? {} : { original_failure: launch.refusal })
       })
     };
   }
-  const editorAvailable = isActivelyRegistered(requestSchemaAuthority, BASE_SELECTION_EDITOR);
-  const entries = [
-    ["dispatch.backend_accepted", false],
-    ["dispatch.backend_cause", BASE_SELECTION_MISSING_LAUNCH_REASON],
-    ["work_record.root", wkId],
-    ["work_record.base_branch", null]
-  ];
-  const proposal = classification.recovery;
-  const built = buildDispatchGuidanceRefusal({
-    code: publicBackendBlockerCode(classification),
-    decidingFacts: entries.map(([field, value]) => ({ field, value })),
-    observedFacts: Object.fromEntries(entries),
-    guidance: {
-      tool: proposal.route,
-      arguments: proposal.args,
-      information: proposal.information
-    },
-    recovery: {
-      responsible_actor: "operator",
-      prerequisite: proposal.prerequisite,
-      selected_from: ["work_record.base_branch"],
-      operator_action: editorAvailable
-        ? proposal.operator_action
-        : `${proposal.operator_action}; this session does not register ${BASE_SELECTION_EDITOR}, so an operator session authorized for it performs the edit`,
-      ...(proposal.retry_condition ? { retry_condition: proposal.retry_condition } : {}),
-      ...(proposal.explanation ? { explanation: proposal.explanation } : {})
-    },
-    route: AGENT_DISPATCH_TOOL_NAME,
-    carried: {
-      launcher_backend_refusal: carriedBackendRefusalFor(classification),
-      base_selection: Object.freeze({
-        repository: workspace.repo,
-        root_unit: wkId,
-
-        root_source_digest: projectWorkRecordFreshness(loaded.source_digest),
-        cas_argument: "expected_source_digest",
-        editor: BASE_SELECTION_EDITOR,
-        edit_actor: editorAvailable ? "caller" : "authorized_operator_session",
-        branch_choice: "operator",
-        resubmit: "original_workspace_agent_dispatch_request"
-      })
-    },
-    requestSchemaAuthority
-  });
-  if (built.refusal) return { kind: "refusal", refusal: built.refusal };
-  return {
+  if (buildMissingBaseGuidance !== null) return {
     kind: "refusal",
-    refusal: noRoute({ classification, facts: [["work_record.root", wkId],
-      ["work_record.base_branch", null]], reason: "field_guidance_unavailable",
-    missing: built.unavailable.missing, owner: built.unavailable.owner,
-    extra: { root_source_digest: projectWorkRecordFreshness(loaded.source_digest) } })
+    refusal: await buildMissingBaseGuidance({ wkId, workspace, classification })
   };
+  return { kind: "refusal", refusal: noRoute({ classification,
+    facts: [["work_record.root", wkId], ["work_record.base_branch", null]],
+    reason: "current_base_correction_composition_unavailable",
+    missing: ["buildMissingBaseGuidance"], owner: STORE_OWNER }) };
 }

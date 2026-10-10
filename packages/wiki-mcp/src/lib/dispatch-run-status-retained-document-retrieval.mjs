@@ -7,6 +7,7 @@ import { criterionIdentityDigest } from "@agent-chassis/controlled-contract";
 import { buildDispatchContinuation } from "./dispatch-tool-helpers.mjs";
 import {
   SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION,
+  selectedResponseLocatorSchema,
   selectedResponseQueryInvalidError
 } from "./selected-response-snapshot.mjs";
 
@@ -35,8 +36,6 @@ const WORK_RECORD_SELECTIONS = new Set(["unit", "section", "criterion", "entry"]
 const GENERATION_SELECTIONS = new Set(["carrier", "focus", "section", "obligation"]);
 
 const SUMMARY_SCALAR_MAX_UTF8_BYTES = 512;
-const SOURCE_REF_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/u;
-const SOURCE_SHA256_PATTERN = /^[a-f0-9]{64}$/u;
 
 export function authoredDocumentDigest(text) {
   return `sha256:${createHash("sha256").update(text, "utf8").digest("hex")}`;
@@ -55,13 +54,14 @@ export function serializeRetainedObject(value) {
   }
 }
 
-export function authoredDocumentDetailSchema(z) {
+export function retainedSourceDetailSchema(z) {
+  return selectedResponseLocatorSchema(z);
+}
+
+export function authoredDocumentDetailSchema(z, source = retainedSourceDetailSchema(z)) {
   return z.object({
     kind: z.literal(RUN_STATUS_AUTHORED_DOCUMENT_DETAIL_KIND),
-    source: z.object({
-      ref_id: z.string().regex(SOURCE_REF_ID_PATTERN),
-      sha256: z.string().regex(SOURCE_SHA256_PATTERN)
-    }).strict(),
+    source,
     document: z.enum(Object.keys(RUN_STATUS_AUTHORED_DOCUMENTS)),
     unit: z.string().min(1).max(256).optional(),
     section: z.string().min(1).max(128).optional(),
@@ -83,7 +83,7 @@ export function authoredDocumentCall({ repository, subject, attemptId, source, d
         subject,
         ...(typeof attemptId === "string" ? { attempt_id: attemptId } : {}),
         detail: { kind: RUN_STATUS_AUTHORED_DOCUMENT_DETAIL_KIND,
-          source: { ref_id: source.ref_id, sha256: source.sha256 }, document, ...selection }
+          source: { ref_id: source.ref_id }, document, ...selection }
       },
       successPredicate: { fact: "monitor.authored_document_detail_read", operator: "is_true" },
       recommended
@@ -125,7 +125,7 @@ export function buildRetainedDocumentRetrieval(retention, { members }) {
   return {
     state: "retained",
     source_schema_version: SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION,
-    source: { ref_id: retention.locator.ref_id, sha256: retention.locator.sha256 },
+    source: { ref_id: retention.locator.ref_id },
 
     binding: {
       route: RUN_STATUS_RETAINED_DOCUMENT_ROUTE,
@@ -506,7 +506,7 @@ export function presentAuthoredDocument({ envelope, detail, fits, call }) {
     evidence_class: "historical_attempt_snapshot",
     current_record_read_is_equivalent: false,
     grants_authority: false,
-    source: { ref_id: detail.source.ref_id, sha256: detail.source.sha256 },
+    source: { ref_id: detail.source.ref_id },
     retained_source: {
       route: envelope.binding.route,
       repository: envelope.binding.repository,

@@ -1,4 +1,5 @@
 import { controlledContractContentDigest, resolveCanonicalControlledContractCarrierSet } from '../../lib/controlled-contract-tools.mjs';
+import { computeWorkRecordSourceDigest } from '../../lib/work-record-schema.mjs';
 
 export async function bindProofAuthoringRevision(resolved) {
   const canonicalSet = resolved.canonicalSet ?? await resolveCanonicalControlledContractCarrierSet({
@@ -6,7 +7,7 @@ export async function bindProofAuthoringRevision(resolved) {
   const contract = canonicalSet.members.find(member => member.carrier_kind === 'contract') ?? null;
   const record = resolved.record;
   const state = { unit: resolved.wkId, selected_unit: resolved.selectedUnit, focus: resolved.focus,
-    work_record: resolved.recordSourceDigest ?? controlledContractContentDigest(record),
+    work_record: computeWorkRecordSourceDigest(record),
     obligation_sources: (resolved.sources ?? []).map(entry => [entry.selectedUnit, entry.source?.content_digest ?? null]),
     obligation_source: resolved.source?.content_digest ?? null,
     native_manifest: canonicalSet.manifest_content_digest,

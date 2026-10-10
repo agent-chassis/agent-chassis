@@ -65,11 +65,38 @@
         },
         {
           "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+          "anchor": "const loadControlledContractProofPlanCompiler = createEvictOnRejectionMemo(() =>",
+          "occurrence": 1,
+          "symbol": "loadControlledContractProofPlanCompiler",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "the proof-plan compiler resolves through the package runtime and the same eviction-on-rejection settlement owner",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::each named package-runtime loader resolves and stays memoized"
+        },
+        {
+          "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
           "anchor": "const loadControlledContractSharedContract = createEvictOnRejectionMemo(async () => {",
           "occurrence": 1,
           "symbol": "loadControlledContractSharedContract",
           "disposition": "evict_on_rejection_owned",
           "rationale": "the shared proof-contract surface composed from the package's narrow contract subpaths, through the same resolver and settlement owner as the package loader",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::each named package-runtime loader resolves and stays memoized"
+        },
+        {
+          "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+          "anchor": "const loadControlledContractProofAuthoring = createEvictOnRejectionMemo(async () => {",
+          "occurrence": 1,
+          "symbol": "loadControlledContractProofAuthoring",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "the proof-authoring surface composed from the shared contract and the package's authoring subpath, through the same resolver and settlement owner as the package loader",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::each named package-runtime loader resolves and stays memoized"
+        },
+        {
+          "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+          "anchor": "const loadControlledContractProofIntents = createEvictOnRejectionMemo(() =>",
+          "occurrence": 1,
+          "symbol": "loadControlledContractProofIntents",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "the proof-intent catalog surface through the package's narrow subpath, using the existing memo settlement owner",
           "witness": "tests/unit/async-memo-retryability.test.mjs::each named package-runtime loader resolves and stays memoized"
         },
         {
@@ -453,19 +480,19 @@
     "populations": 5,
     "corpus_modules": 8,
     "retained_sites_by_population": {
-      "poisoned_memoized_promises": 12,
+      "poisoned_memoized_promises": 15,
       "finally_block_masking": 11,
       "detached_promises": 6,
       "stream_error_listeners": 6,
       "process_guards": 2
     },
-    "retained_sites_total": 37,
+    "retained_sites_total": 40,
     "retained_sites_by_disposition": {
       "accepted_static_module_map_memo": 3,
       "cleanup_failure_suppressed_bounded": 2,
       "crash_durable_publication_owned_wk2357": 6,
       "disables_diagnostic_sink": 2,
-      "evict_on_rejection_owned": 9,
+      "evict_on_rejection_owned": 12,
       "fail_stop_owned": 2,
       "inner_catch_non_masking": 1,
       "launcher_supervision_owned": 6,

@@ -1,7 +1,7 @@
 # Local test-runtime setup
 
 Native saved-proof attempts run against local test runtimes that already exist
-on the host. `workspace_verify_proof` runs those attempts (see
+on the host. `verify_proof` runs those attempts (see
 [Test-proof runtime identity](test-proof-runtime-identity.md#native-provider-families)).
 The operator installs the toolchains and each project's dependencies with the
 ecosystem's own tools. AgentChassis only detects what exists, validates it
@@ -36,19 +36,26 @@ public ID `<ecosystem>@<repository-relative root>`:
 | Ecosystem | Installation root | Example ID |
 | --- | --- | --- |
 | npm | a `package.json` directory with its own lock or workspace declaration; its workspace members share its lock and installation | `npm@.` |
-| python | a directory with `requirements.txt`, `test-requirements.txt` and/or `requirements-dev.txt` (or a `pyproject.toml` declaring a runner) | `python@services/api` |
+| python | a directory with `requirements.txt`, `test-requirements.txt` and/or `requirements-dev.txt`, or, without any of them, a `pyproject.toml` with runner evidence | `python@services/api` |
 | go_modules | a `go.mod` directory | `go_modules@billing` |
 | cargo | a `Cargo.toml` directory; `[workspace] members` share its lock | `cargo@.` |
 | deno | a `deno.json`/`deno.jsonc` directory | `deno@edge` |
 
-Setup detects every environment the repository declares, in every language at
-once. The runners proved in an environment are exactly:
+Setup detects every environment the repository declares that has a runner, in
+every language at once. The runners proved in an environment are exactly:
 
 * the runner its toolchain provides — node:test with Node, `go test`, `cargo
   test`, `deno test` — and
 * each framework the environment itself declares: a `jest`, `vitest`, `mocha`,
   `ava` or `lib0` dependency in the root or a workspace member of an npm
   environment, or a `pytest` or `stestr` requirement of a Python environment.
+  Runner evidence in a `pyproject.toml` is any mention of the runner: a
+  dependency, a dependency group or the runner's own configuration table.
+  Evidence only selects the runner. What a Python project without requirement
+  files must have installed is its `pyproject.toml`'s `[project]`
+  `dependencies`; an optional-dependency or dependency group (a documentation
+  extra, for example) is never required, because nothing in the file says which
+  groups are selected. The runner itself is proved by sandbox verification.
 
 Several runners coexist in one environment. A framework the repository does not
 declare is never listed or offered, and a test script is never interpreted: a
@@ -73,7 +80,12 @@ directories deep, skipping dependency, build and runtime-state trees
   own runs in the npm installation that encloses it
   (`covered_by_enclosing_environment`);
 * a `pyproject.toml` with neither requirement files nor runner evidence has
-  nothing to detect (`no_dependency_inputs`).
+  nothing to detect (`no_dependency_inputs`);
+* an environment with no runner — Python requirement files that declare neither
+  `pytest` nor `stestr`, such as documentation tooling — is not a test
+  environment (`no_test_runner_declared`). Its dependencies are neither
+  detected nor required, and it is never reported ready. An explicit runner
+  selection there detects it as named.
 
 An npm workspace member below that depth is still a member when the root's
 `package-lock.json` records its directory as an installed local package, the
@@ -179,9 +191,10 @@ Paths are checked as spelling only: setup does not look for the files, resolve
 links or run anything. Associations are separate from `runners`: they neither
 select nor suppress a runner, and a document holding only associations leaves
 the inventory automatic. Whenever setup saves this file, it keeps the saved
-associations exactly as they were. Stored associations currently have no effect
-on what setup detects or on how tests run; they are host-local configuration,
-not verified source and not readiness.
+associations exactly as they were. Stored associations have no effect on what
+setup detects; they choose the harness of an
+[ordinary test run](#ordinary-test-runs) and nothing else. They are host-local
+configuration, not verified source and not readiness.
 
 Setup never saves its inventory: every run inventories the repository again, so
 a project added later is detected by the next run instead of being hidden by an
@@ -375,7 +388,7 @@ policy.
 | Ecosystem | Required inputs | Installation used, in precedence order | Validation | Attempt binding |
 | --- | --- | --- | --- | --- |
 | npm | `package.json` and each workspace member's `package.json`, plus `package-lock.json` when any dependency or member is declared | the installation root's own `node_modules` (a link to an installation elsewhere is that installation) | every `dependencies`/`devDependencies` name of the root and members is present; workspace-member links only | read-only, with each workspace member linked to its own source |
-| python | `requirements.txt`, `test-requirements.txt` and/or `requirements-dev.txt` | 1. the explicitly selected `virtual_environment`; 2. the nearest `.venv` or `venv` holding `pyvenv.cfg`, from the project directory up to the repository root; 3. the detected interpreter's own site packages | the environment's interpreter is the detected Python; every named requirement (following `-r` includes) is an installed distribution | read-only environment |
+| python | `requirements.txt`, `test-requirements.txt` and/or `requirements-dev.txt`; without any of them, the `pyproject.toml` | 1. the explicitly selected `virtual_environment`; 2. the nearest `.venv` or `venv` holding `pyvenv.cfg`, from the project directory up to the repository root; 3. the detected interpreter's own site packages | the environment's interpreter is the detected Python; every named requirement (following `-r` includes, or each of the `pyproject.toml`'s `[project]` `dependencies`) is an installed distribution | read-only environment |
 | go modules | `go.mod` (and `go.sum`) | the module cache `go env GOMODCACHE` names under the operator's own Go configuration | the module graph lists with module lookup disabled (`GOPROXY=off`) | read-only `GOMODCACHE`, `GOPROXY=off` |
 | cargo | `Cargo.toml` and each workspace member's `Cargo.toml`, `Cargo.lock` | 1. a configured directory (vendored) replacement of crates.io; 2. otherwise the registry and git stores of `CARGO_HOME` (`$CARGO_HOME`, else `~/.cargo`) | every locked crate is present (vendored with its checksum file, or downloaded and extracted), and the sandbox probe `cargo metadata --frozen` resolves the whole lock from that source | read-only vendored directory, or read-only registry/git stores; offline |
 | deno | `deno.json`/`deno.jsonc`, `deno.lock` | the cache `deno info --json` reports (`DENO_DIR`, otherwise the runtime's own default) | the cache's remote/npm stores exist, and the sandbox probe `deno check --cached-only --frozen` type-checks every locked dependency from that cache | read-only `DENO_DIR` for setup probes and worker commands; for `deno test` proofs, the persistent writable `DENO_DIR` with links to the cache's `remote`/`npm` stores, bound read-only at their own paths; `--frozen --cached-only` |
@@ -451,7 +464,8 @@ and each runner proved there must pass its probe (installed runner package,
 offline module or crate resolution). Only when every requested component is ready and
 every check passed does setup publish `.agent-launch/test-runtimes/readiness.json`
 as ready (see [Test-proof runtime identity](test-proof-runtime-identity.md#local-test-runtime-readiness)).
-These setup-owned probes retain ordinary validation's private temporary mount.
+These setup-owned probes retain ordinary validation's private temporary mount
+and its read-only checkout.
 An npm environment's runner probes run in a private copy of its project inside
 that mount. The installed `node_modules` is bound read-only at its own path and
 linked into the copy, and each workspace member resolves to its copied source.
@@ -480,14 +494,14 @@ The project must be inside a Git working tree: otherwise, or when Git fails,
 the affected check fails with `test_runtime_source_selection_failed`, the exact
 Git condition and its recovery, and nothing is copied. A selected project file
 the probe cannot read fails that check with the copy error as the diagnostic.
-The host system `/tmp` selection is specific to later `workspace_verify_proof`
+The host system `/tmp` selection is specific to later `verify_proof`
 subprocesses and requires no consuming-repository option.
 
 Inventorying environments, resolving an executable and saving
 `agent-chassis-runtime.json` are none of them readiness: only this published
-record means the environments' tests can actually run, and setup says so
-explicitly in its final line. The record lists every environment by its public
-ID with its members, proved runners and toolchains; `workspace_verify_proof`
+record means setup detected, validated and probed the environments, and setup
+says so explicitly in its final line. The record lists every environment by its public
+ID with its members, proved runners and toolchains; `verify_proof`
 routes each saved test to one of them and accepts that ID as its optional
 `environment` (see
 [Test-proof runtime identity](test-proof-runtime-identity.md#prepared-environment-routing)).
@@ -501,12 +515,24 @@ environment resolved), setup takes the repository's preparation lock
 outcome (`ready`, `failed`, `blocked` or `planned`), each verification check,
 the failure code and the diagnostics setup captured, including captured
 process output as setup captured it. A failed run therefore replaces an
-earlier ready record instead of leaving it usable, and the failure is never
+earlier ready record as the current state, and the failure is never
 lost: the next ready publication keeps the immediately preceding failure as
-`last_failure`. An attempt whose process dies stays `preparing`, which is never
-usable. Only `ready` grants runtime inputs; `preparing` and `failed` refuse with
-`test_runtime_preparation_in_progress` and `test_runtime_preparation_failed`,
-and neither is ever read as a repository with no test runtimes.
+`last_failure`. An attempt whose process dies stays `preparing`. `loadReadiness`
+reports `preparing` and `failed` as `test_runtime_preparation_in_progress` and
+`test_runtime_preparation_failed`, and neither is ever read as a repository
+with no test runtimes.
+
+The record's state is setup's own result. It is not a condition on running
+tests. For execution the record is configuration: it names where the
+operator's toolchains and dependency environments are. A `preparing` or
+`failed` record keeps, as `configured`, the configuration of the ready record
+it superseded (its environments, selection, toolchains and dependency
+environments), and test runs, proof attempts and worker commands launch with
+that configuration exactly as they launch with a ready record's. A repository
+with no record, and a record that carries no configuration because no
+detection ever succeeded, are not refused either: a test run or proof attempt
+there locates its inputs for that run.
+See [Runtime inputs at execution](#runtime-inputs-at-execution).
 
 A second setup started while one holds the lock is refused with
 `test_runtime_preparation_in_progress` and changes nothing. A lock whose owner
@@ -522,16 +548,548 @@ what the failed result names with the ecosystem's own tools (or point the
 configuration at a usable existing installation), then let detection run again
 (`agent-chassis setup --test-runtimes`). It re-resolves the inventory, detects
 and validates again and probes again; no marker is deleted and no record is
-hand-written. A later change to a lockfile, a detected dependency installation
-or a toolchain makes attempts refuse with a stale-input environment failure
-until detection runs again.
+hand-written.
+
+### Runtime inputs at execution
+
+One resolution owner serves ordinary test runs, proof attempts and worker
+commands: `resolveCurrentEnvironmentInputs` in `test-runtime-setup/readiness.mjs`,
+composed by `test-execution/runtime-inputs.mjs`, and reached by test runs and
+proof attempts through `resolveCurrentRunnerRuntime` in
+`test-execution/current-runtime.mjs`. It hands an execution its toolchain
+executables and dependency locations as they are when the run starts. Nothing
+setup measured, proved or inventoried earlier decides whether the harness is
+invoked: not a metadata fingerprint (file identity, timestamps, a reboot or a
+reinstall), not a content digest or version, not the digest of the dependency
+input files, not the presence of a lockfile, not whether setup proved the
+runner in the environment or inventoried the project, and not the state or
+existence of a setup record. No setup or sandbox probe runs first, nothing is
+installed, and the record is never written by a run. The harness and its
+toolchain decide their own compatibility: a changed interpreter, a changed
+lockfile or a dependency the installation lacks produces the harness's own
+result or error.
+
+**Routing.** The runner names the dependency ecosystem. The target's
+environment is the installation root of that ecosystem that owns it: the
+longest of the published environments that contain it and the environments
+the checkout itself declares now. The checkout's environments come from the
+one repository inventory setup uses (`test-runtime-setup/discovery.mjs` in the
+launcher package): the same bounded manifest walk, ignore and fixture rules,
+workspace membership and installation roots. A project, or a root nested
+inside a published environment, that was declared after setup is therefore its
+own environment, `<ecosystem>@<root>`, with its workspace members (including
+an npm member its root lock records below the walk), and can also be named. A
+manifest that declares dependencies and has no lockfile is an installation
+root like any other: a lock is setup's diagnostic, not a condition on running.
+A target no root owns has no runtime to select
+(`test_runtime_runner_not_prepared`).
+
+The inventory's manifest walk stays bounded (three directories below the
+root). The explicitly selected target is the one exception, and it is not a
+deeper walk: the manifests in the target's own ancestor directories are looked
+up directly, one directory per path segment, under the same skipped-tree and
+ignore rules. A selected file that lies deeper than the walk is therefore
+routed to the project that declares it, and a workspace member on the
+target's path is a member of its declaring root even when no lock records it;
+neither is silently attributed to an enclosing environment. What remains
+outside the inventory is a project or member below the walk that no selected
+target lies in and no root lock records: it is not listed as a valid choice,
+not projected for a worker whose scope reaches only it, and not linked as a
+workspace member of a run that selected some other file.
+
+**Inputs.** What the published configuration names is used as configured.
+What it does not name (every input of a repository with no configuration, the
+dependency environment of a root declared after setup, the toolchain of a
+runner setup never recorded) is located for that run through the detection
+owners setup itself uses, in location-only form (`locateEnvironmentInputs`):
+
+- A toolchain is the executable the operator saved for it in
+  `agent-chassis-runtime.json`, otherwise the recipe's command on `PATH`. The
+  saved file is read by the one configuration owner setup uses
+  (`test-runtime-setup/config.mjs` in the launcher package), so a file that
+  owner refuses (invalid JSON, an unknown field, a location that is not an
+  absolute path) fails the run with `test_runtime_configuration_invalid`; its
+  locations are never dropped in favour of `PATH`. The installation's layout
+  is located, and it is asked for its version; no repository pin or version
+  request is read or applied. Locating does not judge the installation: a
+  version probe that fails or prints unrecognized text leaves the version
+  unknown (`version: null`), and a recipe executable the run does not launch
+  need not exist (`go test` does not need `gofmt`). The executable a run does
+  launch is still required. A saved location that does not resolve is that
+  failure and is never replaced by `PATH`.
+- A dependency environment is the one the ecosystem's own rule finds: the
+  root's `node_modules` (with or without a lockfile, and with each workspace
+  member linked to its own source), the virtual environment saved for the environment
+  (else the nearest `.venv` or `venv`, else the interpreter's own packages),
+  the module cache `go env GOMODCACHE` names, Cargo's effective source, Deno's
+  cache. A missing lockfile is never taken as evidence that nothing is
+  installed: without `Cargo.lock` the configured vendored directory, or the
+  `registry` (and `git`) stores of `CARGO_HOME`, are located whole, and without
+  `deno.lock` the cache `deno info` reports is. Whether the tool accepts the
+  project without its lock is the tool's own result. (The Deno runner
+  integration itself reads `deno.lock` to build its command and refuses with
+  `test_runtime_dependency_lock_missing` when it is absent.) Whether an installation
+  holds everything the project declares is not checked. One
+  that is not there is recorded with status `absent`, nothing is bound for it,
+  and the harness reports what it then cannot load.
+
+Locating runs on every such resolution and is not cached or published.
+
+Each run records the provenance observed for that run instead of repeating
+setup's measurements. The run's identity names the record the configuration
+came from (`readiness_digest`, null without a record, plus
+`configuration_record_status` when that record is `preparing`, `failed` or
+`absent`) and, per input:
+
+- An input located for the run reports `observed: "located_for_this_run"` with
+  the version the toolchain reported and the content digest measured for that
+  run; it has no `setup_*` facts.
+- A toolchain whose population still has setup's metadata, or whose bytes
+  measured now equal setup's content digest, reports setup's `version`,
+  `source` and `content_digest`. A toolchain whose bytes differ reports
+  `version: null`, the `content_digest` measured now and
+  `observed: "changed_since_setup"`, with setup's facts kept apart as
+  `setup_version` and `setup_content_digest`. A population that cannot be read
+  reports `observed: "unobservable"` with the `errno`.
+- The dependency environment reports the `inputs_digest` of the checkout's
+  dependency input files as they are now and the installation's
+  `content_digest` by the same rule. Inputs that differ from setup's add
+  `inputs_observed: "changed_since_setup"` (or `lock_missing` or `unreadable`,
+  with a null digest) and `setup_inputs_digest`; a changed installation adds
+  `observed` and `setup_content_digest`.
+
+Content is measured only when the metadata no longer matches, once per process
+for each unchanged population.
+
+What still refuses before anything runs is mechanical. A record is
+authenticated before anything in it is used: one that does not reproduce its
+digest or belongs to another repository is never consumed. It supplies no
+path, environment or digest; the run locates its inputs as it would with no
+record and reports `configuration_record_status: "invalid"`. The record is not
+required, so its being invalid is not a refusal. The operator's saved
+configuration is an input the run does consume, so a malformed one is
+(`test_runtime_configuration_invalid`). The target must be owned by an installation root, and a named
+environment must exist, be of the runner's ecosystem and contain the target
+(`test_runtime_runner_not_prepared`, `test_runtime_environment_unknown`,
+`test_runtime_environment_incompatible`). An input that is not configured must
+be locatable: a toolchain that is neither saved nor on `PATH`, or whose
+installation cannot be identified, fails with the detection owner's own code
+(for example `test_runtime_toolchain_not_found`). A caller that resolves
+synchronously and cannot locate (`resolveRunnerRuntimeInputs` without located
+inputs) receives `test_runtime_environment_not_prepared` with the exact
+`locate` request. The executable a run is about to launch must
+exist and be an executable regular file
+(`test_runtime_toolchain_executable_unavailable`,
+`test_runtime_toolchain_executable_invalid`); the configured location is never
+replaced by another executable. Request validation, target and source
+authentication, routing, confinement and result authentication are unchanged.
+
+## Ordinary test runs
+
+The launcher has one internal entry that runs one repository test file with its
+prepared runner, outside any proof: `runOrdinaryTestFile` in
+`packages/agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs`. It
+grants no proof credit, and agents reach it only through the
+[`workspace_run_test`](#the-workspace_run_test-route) route. Its trusted
+launcher caller supplies the repository that owns the runtime configuration, the exact checkout,
+one literal repository-relative file, a runner name and, optionally, a published
+environment ID, one native selector, a timeout and an execution budget. Nothing
+else is an input: commands, arguments, environment variables and host paths
+are refused (`ordinary_test_request_invalid`). An absolute, glob, `.`/`..`,
+missing, directory or symlink-escaping target is refused before anything runs
+(`ordinary_test_target_invalid`, `ordinary_test_target_missing`,
+`ordinary_test_target_not_file`, `ordinary_test_target_escapes_checkout`), as is
+a selector that is empty, multi-line or begins with `-`
+(`ordinary_test_selector_invalid`).
+
+The file is routed exactly as a proof target is: the runner's ecosystem and the
+containing installation root choose the environment (see
+[Test-proof runtime identity](test-proof-runtime-identity.md#prepared-environment-routing)),
+and its toolchains and dependencies are used as they are now, configured or
+located for the run (see
+[Runtime inputs at execution](#runtime-inputs-at-execution)). A target no
+installation root owns, a wrong named environment, a record that is not
+authentic, an input that cannot be located, or an executable that is gone or
+not executable is refused with its owner's own code; nothing is installed and
+a configured location is never replaced. The command then runs through the same confined
+execution as proof stages, in the checkout with its own private
+`/tmp` and scratch, and the result carries that execution's process, timeout,
+cancellation, output-completeness and cleanup facts with the runtime, target,
+harness and exact native command. The result status is `executed` when that
+command ran and `not_run` when it never started (a plan or spawn failure, or
+an interruption before start), with the shared execution facts either way.
+
+**Checkout writes.** A test execution, an ordinary run or a proof stage, may
+create, change and remove files in its own checkout, fixture directories named
+`.git` included. Those writes are made in the checkout on the host and the run
+neither removes nor hides them: a test that leaves a change behind has moved
+the source, which source currentness reports. The checkout's own Git
+administration stays read-only: its root `.git`, whether a directory or a
+linked worktree's pointer file. A root `.git` that is a symbolic link or
+another file type cannot be kept read-only, so that run is `not_run` with
+`agent_launch.isolation.test_runtime_projection_refused.v1`. Installed
+dependencies, every other runtime input, the secret masks and an existing
+`wiki/decisions` stay read-only, and the network stays denied. When a
+dependency mountpoint is missing from the checkout, the mountpoint, the
+checkout root and each directory between them exist only in the run's
+namespace and are read-only there: the test writes anywhere beneath their
+existing entries and can change an existing file in them, but cannot create,
+rename or remove an entry directly in one of those directories. Setup's own
+probes never write the checkout.
+
+The requested file locates the runner's normal execution unit; it is not a
+promise that only tests defined in that file run. Where the runner's unit is
+larger than the file (a Go package, a Vitest file filter), neighboring tests
+run too, and the result's `selection` reports the resolved unit or filter and
+the native listing the runner gave.
+
+The runner and the repository's configured harness own test semantics. Which
+tests run, what passes, skips or counts as zero tests, and what is printed are
+theirs; the launcher collects no tests, adds no observer and reads no counts or
+attribution from the output, so the result's success is the native process
+success and nothing more. A native selector is passed in the runner's own
+syntax:
+
+| Runner | File selection | Selector |
+| --- | --- | --- |
+| `node-test` | `node --test <file>`, or the configured wrapper (below) | `--test-name-pattern` |
+| `jest` | `jest --runTestsByPath <file>` | `--testNamePattern` |
+| `vitest` | `vitest run <file>`; its prefix and substring filter may select neighboring files, which `vitest list --filesOnly` reports first | `--testNamePattern` |
+| `mocha` | `mocha <file>` with the project's configuration and reporter | `--grep` |
+| `ava` | `ava <file>` with the project's configuration (cache disabled, the installation is read-only) | `--match` |
+| `deno` | `deno test <file>`, offline, frozen, without permissions | `--filter` |
+| `lib0-testing` | the file itself, or the separate harness its association names | lib0 `--filter` |
+| `pytest` | `pytest <file>` | `<file>::<selector>` node ID |
+| `stestr` | `stestr run` with the file's dotted module path as an anchored test-ID prefix | Python regular expression after that prefix, checked by the prepared interpreter's `re` |
+| `go-test` | `go test` of the file's whole package, all of its test files, once `go list` reports the file as one of them | `-run` over the package |
+| `cargo-test` | `cargo test` of the target whose crate root the file is, from `cargo metadata` | libtest name filter |
+
+A runner's own listing, metadata or validation command (`vitest list`,
+`go list`, `cargo metadata`, the wrapper's `list`, the stestr selector check)
+runs first through the same confined execution and budget, and every such
+command is reported in the result's `resolution` with its own facts. When one
+does not succeed (a native failure, timeout, cancellation or lost output), or
+its output cannot be read, the result is `selection_unresolved`
+(`ordinary_test_selection_unresolved`) with that cause. A command that did not
+succeed states `detail.phase:"selection"` and `detail.diagnostic`, the
+diagnostic text that command itself carried: its `source` (`blocker_message`
+or `spawn_error` whole when it never started, otherwise `stderr`, else
+`stdout`), the literal `text`, its byte `offset` in that source,
+`total_bytes` and the `basis` of the cut. Captured output gives at most 256
+bytes: from the first line carrying a common error word (`first_error_line`),
+else a short stream `whole`, else its `tail`. The excerpt is cut, never
+interpreted, and a command that carried no text states `source:"none"`. A target the runner
+has no unit for is refused with `ordinary_test_selection_unsupported` and the
+specific reason, never replaced by an unrelated target: a non-test Go file or
+one `go list` does not report, a Rust file that is no Cargo target's crate
+root, or a stestr file whose path is not a Python module path. A refusal means
+the requested test command never started; selection commands that ran before
+it stay in `resolution`. stestr compiles its filter with Python's `re`, so the
+prepared interpreter's own `re` checks the selector before it is placed inside
+the launcher's module-prefix group: it must compile on its own and inside that
+group, so it can never close the group and widen the filter. A selector Python
+rejects is refused with `ordinary_test_selector_invalid` and Python's error;
+an interrupted or failed check stays `selection_unresolved`. The stestr
+selector is therefore relative to the file: `unit/test_clamp.py` supplies the
+prefix `unit.test_clamp.`, and native ID
+`unit.test_clamp.ClampTests.test_preserves` is selected by
+`ClampTests\.test_preserves`. The selector is used as given, never stripped
+or rewritten: the full native ID, or a saved-proof target such as
+`unit/test_clamp.py::ClampTests.test_preserves` (a different representation),
+is composed after the prefix like any other text and matches nothing. The
+`selector` field of `workspace_run_test` states the same rule, and a stestr
+run with a selector that executes and does not pass shows the composed
+filter in its first answer as `selection.test_id_filter`, the runner
+integration's own value (clipped with `omitted_bytes` when it does not fit;
+the `outcome` view's `native` retains it whole). That is what ran, not a
+diagnosis: a selector that matches nothing stays an executed native failure
+with stestr's own output, and no test is chosen or retried for the caller.
+Configuration-driven additions
+(for example a Mocha `spec` or a pytest `addopts` path) are the harness's own
+behavior and run as configured.
+
+Saved [test-entrypoint associations](#test-entrypoint-associations) choose the
+harness. A `lib0-testing` association whose `target` is the file runs its
+`entrypoint` instead of the file; without one the file runs as a self-running
+lib0 module. A `node-test` association with the `node-test-wrapper` adapter
+runs every node:test file of its project through that wrapper's own command
+line, from the project directory with project-relative paths: its `list` mode
+classifies the file, and `<wrapper> <mode> [--test-name-pattern=<selector>]
+<file>` runs it, so the wrapper keeps its own environment clamp, watchdog and
+timeouts. A file the wrapper does not list is refused, and a failing wrapper
+listing (for example its own refusal of an uncategorized corpus) is reported
+as `selection_unresolved`. An association entrypoint that is missing or outside
+the checkout is refused (`ordinary_test_entrypoint_invalid`), and an invalid
+saved field keeps `test_runtime_test_entrypoints_invalid`.
+
+### The workspace_run_test route
+
+`workspace_run_test` is the MCP route to one ordinary run, granted to
+authenticated orchestrator, worker and reviewer sessions only. Proof questions
+stay with `verify_proof`; this route never grants proof credit.
+
+**Repository.** The server resolves one unique repository from trusted host
+configuration. `repo` is neither advertised nor accepted: supplying it, even
+with the matching alias, refuses before source/runtime work. Execution, retries
+and retained reads bind the same repository. A foreign seed or original never
+redirects execution or reading; source authentication remains required. Missing
+or ambiguous host configuration keeps its native resolver refusal.
+
+**Request.** One strict schema is published and enforced, and a request is
+exactly one of four modes. An execution names `file` (one literal
+repository-relative file) and `runner`, and optionally `environment` (a
+setup-published environment ID), `selector` (one native selector), `timeout`
+(`short`, `medium` (the default), `long` or `{ seconds }`, the shared
+execution-timeout language), `compare_parent` (default `false`) and, for an
+orchestrator, `source`. `read` is `{result, view}`: one semantic view of a
+retained result. `continue` is a continuation copied from an earlier answer,
+which is the selected-response selection under this route's name. `retry` is
+`{request, changes?, clear?}`: a new execution of the retained request a
+refusal named, where `changes` sets execution fields to non-null values and
+`clear` is a non-empty list of distinct names from `environment`, `selector`,
+`timeout`, `compare_parent` and `source`; a field is cleared or changed, never
+both, and `file` and `runner` cannot be cleared. The schema is closed: commands,
+arguments, environment variables, roots, roles and binding facts are not
+fields, and an unknown field, a null value or a mix of modes is refused before
+any source or runtime work (`run_test.request_invalid.v1`). File, runner and
+selector rules are the runner's own codes listed above; a refused target never
+starts anything.
+
+**Source.** A worker runs its launcher-bound slice checkout, live uncommitted
+edits included, authenticated through its verified identity-store slice binding
+and the exact WK/slice binding pair of its run. A reviewer runs its frozen review
+materialization. Neither may name a source: the refusal
+(`run_test.source_not_permitted.v1`) returns one `retry` of the retained
+request with `clear:["source"]`. The source is never dropped automatically;
+that call runs only when the caller invokes it.
+An orchestrator must name its source; an execution without one is refused
+before anything is resolved or run (`run_test.source_required.v1`) with
+`missing_fields` and `source_kinds`, and one `retry` whose `changes.source`
+selects `current_main`; the same `retry` with a `changes.source` of kind
+`exact_sha` selects that commit, or of kind `branch` that branch's commit. It
+names `{kind:"current_main"}` (the configured worktree, dirty state included),
+`{kind:"exact_sha", value}` or `{kind:"branch", value}`. A branch `value` is a
+WK ID, a full slice ID (`work record`) or a canonical WK or slice branch
+name; the resolver `verify_proof` also uses resolves it once to the commit that
+branch names, and the answer and the retained `source` view report the branch
+beside that commit. A value that names no existing canonical branch refuses
+with `run_test.source_not_executable.v1` and `selector_invalid`,
+`initiative_unavailable`, `branch_missing` or `branch_commit_unavailable`, and
+the configured checkout never runs in its place. The selected commit must be
+held by an existing, owned, registered, canonical, full and clean checkout of
+that exact commit and tree in this repository. Several such checkouts of one
+commit are one source, not an ambiguity: delivery leaves the worker's slice
+checkout clean and integration leaves the WK checkout clean, so both may hold
+the same commit. After deduplication by physical identity the checkout with the
+smallest canonical path in bytewise UTF-8 order is selected, whatever order Git
+enumerates its registrations in. A branch selection keeps its authenticated
+unit and uses only the checkout the launcher identity store records for that
+unit; it never borrows another unit's clean copy of the same commit, and when
+its own checkout is dirty or absent it refuses. The selection is among proved
+equals and claims nothing more: equal commits do not have equal ignored or
+prepared runtime inputs, so the selected checkout's own execution-visible bytes
+and prepared runtime are measured as for any source, and a source, runtime or
+execution failure on it is the answer and is never retried on another checkout,
+another commit or the configured checkout. The eligible owners
+are the configured worktree, a worktree the launcher identity store records,
+and the terminal-candidate owner's existing private checkout of a terminal
+squash candidate. That last owner is consulted only for a commit carrying
+terminal candidate metadata, which locates its WK and grants nothing: the
+existing read-only terminal observation must authenticate the commit as that
+WK's selected candidate and verify its checkout under the launcher-derived
+worktree root. A commit object, a Git registration, a candidate-shaped path or
+a candidate-shaped commit message alone is not enough, and nothing is checked
+out, created, published or recovered by the lookup: the refusal
+`run_test.source_not_executable.v1` names `not_materialized`, `unowned`,
+`dirty`, `moved`, `repository_mismatch`, `commit_unavailable` or
+`terminal_owner_refused`. `terminal_owner_refused`
+means the commit is a terminal candidate that its owner did not authenticate
+(not the selected candidate, or its checkout missing, moved or dirty) and no
+other eligible owner holds it; the refusal carries that owner's own cause
+(`cause_code`, `cause_message`, `owner_cause_code`) and the lookup's
+`lookup_reason`. A source that cannot be authenticated is never replaced by
+another one: a worker's or reviewer's missing binding
+(`run_test.worker_source_unauthenticated.v1`,
+`run_test.reviewer_source_unauthenticated.v1`), an unavailable configured
+checkout and an exact commit without an owned checkout each state
+`unavailable_capability` and `owner` and return no call, because no caller
+correction exists. One refusal also returns a read-only call. When an
+orchestrator's exact commit, or the commit its slice branch names, is refused
+as `dirty` and the same lookup found that commit's one considered checkout to
+be a worktree the launcher identity store records for exactly one slice (for a
+branch selection, the selected slice), the refusal keeps its cause, commit,
+`unavailable_capability` and `owner`, names that slice as `owning_slice` and
+returns `get_run_result({subject})` for its full slice ID. That call only
+inspects the slice's delivery: the caller matches the delivery's commit to the
+refused one before separately approving any integration that result offers.
+The refusal itself selects no delivery, offers no integration, retries nothing
+and runs no other source. A delivered slice commit is in this state when its
+slice worktree is no longer a clean checkout of it, because the delivery's own
+checkout finalization is still pending or the slice has been edited since
+([slice integration](mcp-dispatch-slice-integration.md)). Every other refused
+commit returns no call: one held by several unusable checkouts, by an unowned, moved or
+otherwise unusable one, by the configured or WK worktree, by a worktree
+recorded for more than one unit or for a slice other than the selected one, and
+one no checkout holds. A publication head is such a commit until an owner
+materializes it; the integrated commit or the terminal candidate is never run
+in its place, even when their trees agree.
+
+**Execution scope.** The file locates the runner's normal unit, so neighboring
+tests the harness selects run too; the answer promises no file-only execution,
+reports no test counts and parses nothing. One monotonic execution budget is
+minted from the timeout after input validation and before any source or runtime
+work; the MCP request's cancellation is its only cancellation. Source
+currentness is checked after each run: the checkout's execution-visible bytes
+and its exact HEAD commit and tree, and nothing else. The runtime is observed
+again separately, through the owner the run resolved it with (located inputs
+are located again), and the observation is reported with the run's native
+result as `runtime_after_run`: `unchanged`; `changed`, with the fields that
+differ and the runtime observed then; `not_applicable` for a result that
+reached no runtime; or `unknown` with the exact cause when it could not be
+observed. An observation that was not made is never reported as unchanged,
+and a runtime that changed never alters the run's outcome, its source
+currentness or whether a comparison runs. The compact answer carries
+`runtime_after_run` as bounded facts (`status` always; the changed field
+names, the owner's `code` and the stated `cause` while they fit, each at most
+64 bytes), an attempted baseline carries its own status, and the retained
+`outcome` and `comparison` views carry the same four facts unclipped
+(`runtime_after_run`, `baseline_runtime_after_run`); the complete observation
+stays in the retained native result. Nothing is run again to produce it. The bytes are a filesystem walk of every entry, ignored inputs and
+executable bits included; a directory's name alone excludes nothing. Only what
+the execution cannot see or another owner re-proves is left out: the
+`.agent-launch` directory and the `.env` file the confinement masks, the Git
+object store (content-addressed; the rest of Git's metadata is measured), a
+dependency mountpoint the prepared runtime binds another tree over, and a
+toolchain or dependency population inside the checkout, which the run's own
+runtime identity observes, except the names that population's own
+fingerprint excludes. Everything else is measured, so a checkout holding large
+unmasked trees (for example runtime records or caches the run does not prepare)
+is hashed in full on each check. This is two observations compared, not an
+atomic snapshot. Git is only read: status runs without optional locks and the
+terminal checkout's index is compared with its tree rather than written out, so
+no observation rewrites the index. The answer's `source` states the candidate's
+exact `commit` and `snapshot_digest`, the digest of those execution-visible
+bytes at the initial observation, so two dirty states of one HEAD are distinct
+sources; it identifies the checkout bytes with the exclusions above, not the
+prepared runtime. A moved source is the later observation and is reported
+(`source.current:false` with `source.moved`).
+
+**Comparison.** With `compare_parent:true`, the same request runs at most once
+more, on the same budget, only when the candidate's final test command ran and
+exited normally with a nonzero code (an assertion failure and a harness
+configuration failure alike). A succeeding, refused, unresolved, not-run,
+signal-terminated, timed-out or cancelled candidate, lost captured output, an
+unconfirmed cleanup, a moved source and an expired budget each make the
+comparison `not_eligible` with that reason. The baseline is the candidate's own
+HEAD when it carries uncommitted edits and otherwise its one immediate parent; a
+worker's uncommitted edits at its slice's recorded start compare with its WK
+worktree at that start, never with the WK's older fork. Only an already-owned
+clean materialization serves, selected by the same exact-commit lookup with the
+candidate's own checkout excluded (for a worker, its own pair's WK worktree): a
+dirty, moved, missing or merge-parent baseline makes the comparison
+`unavailable` with its reason, and no older ancestor is searched. The baseline
+runs with its own checkout's saved entrypoint associations and runtime, and its
+outcome is reported beside the candidate's, never in its place; nothing infers
+a cause.
+
+**Response limit.** Every response, refusals, selections and continuations
+included, is at most 1,024 UTF-8 bytes as the response owner measures it. The
+mandatory frame is the status, `proof_credit:false`, the candidate commit and
+initial snapshot digest, the run's exit, interruption, cleanup and capture
+facts, source currentness, the comparison state and one next call. The message,
+the failed phase's `cause`, the baseline facts and the native stdout and stderr
+of both sides share what remains and are shown when they fit: each stream shows
+its captured tail at a character boundary with `omitted_bytes`,
+`output_complete:false` marks any clipping and `native_output_only:true` marks
+that the output was neither parsed nor examined. What does not fit stays
+selectable in the retained result.
+
+**Failure cause.** The phase that failed keeps the cause it captured, as
+`cause` with its `phase` and `source`. An unresolved selection
+(`phase:"selection"`) shows its command's `detail.diagnostic`; the same
+diagnostic is in the retained `failure` view's `detail`, and the answer names
+that view, never a test stream that was not attempted. A final command that
+never started (`not_run`) shows its `blocker_message` (else its `spawn_error`
+text), which is also the retained `failure` view's `message`, and the answer
+names that view. A final command that ran and failed shows a literal excerpt
+only when the shown tail of its own stream does not reach it: at most 256
+bytes of the candidate's stderr, else stdout, from the first line carrying a
+common error word, with the retained `view` (`candidate_stderr` or
+`candidate_stdout`) and byte `offset` it starts at, so the same bytes read
+back from that view. The baseline's output is never a cause. `text` is the
+captured text, `omitted_bytes` states what of it was clipped, and
+`source:"none"` states that the phase captured no diagnostic. The cause is
+fitted before the stream tails, and the stream text, the baseline facts and
+then the optional facts (`source.dirty`, the runtime observation's detail and
+the `correction`, which the retained `failure` view keeps) give way until its
+first line shows whole. It changes no outcome, comparison or retention.
+Clipping is presentation only and does not prevent a comparison;
+`run.output_lost` is the executor's own capture loss, which does. A test's
+success grants no proof, lifecycle or integration credit.
+
+**Retained reads.** The complete settled result is retained once through the
+selected-response owner, bound to the server-resolved caller identity, and
+protected from the generic content-reference reader, which refuses it with this
+route's own call. It has eight views. `outcome` (the execution flags, the
+request and the complete native result with its selected population), `source`
+(the initial identity and currentness), `comparison` (both identities, both
+outcomes and the eligibility) and `failure` (the complete original cause, its
+recovery, the execution effects and the retained correction of a refused
+request) are structured; `candidate_stdout`,
+`candidate_stderr`, `baseline_stdout` and `baseline_stderr` are the streams. An
+answer's `next_calls` names the first clipped stream, otherwise the `failure`
+view of a refusal, otherwise `outcome`. A `read` returns a view whole when it
+fits. Otherwise a structured view is read field by field in its fixed order
+and a long value in byte ranges of whole characters with `next_offset`. A
+stream too long to return whole answers its `read` with its first byte range,
+the native text from offset 0 that fits, never with a selection alone; every
+answer returns the exact `continue` call for what follows, and the last read of
+a view names the next view, in the order above and wrapping, so every view is
+reachable from returned calls alone. The one exception is a `failure` view
+that carries a correction: that request was refused before anything ran, so
+its last read names `outcome` instead of streams that were never attempted,
+which still read by name. Text is the native text as captured. A
+stream that was never attempted reads as `state:"not_attempted"` and one
+captured empty as `state:"empty"`. Nothing is read automatically. A read
+authenticates the original and selects from it: it resolves no source, prepares
+no runtime, runs nothing and changes no lifecycle state, works after a server
+restart for the same caller, and refuses another caller, a missing or corrupt
+source and a correction seed with the selected-response owner's own cause. See
+[Selected-response details](mcp-selected-response-details.md).
+
+**Corrections and failures.** Every refusal the route authors states
+`authority_limb:"mechanical_failure"`. A caller-correctable refusal of a valid
+request from an authenticated role retains that request's execution fields as
+a correction seed and returns the exact `retry`: the source refusals above, and
+a runner's own refusal of the target, which adds `correction.retry_request` and
+the fields that may change beside the read of its `failure` view. An unknown
+runner (`ordinary_test_runner_unknown`) is such a refusal with a closed choice:
+its `correction` also states `set:"retry.changes.runner"`, the `rejected`
+runner and `choices`, the runner catalog's names. The caller picks one and
+sends the `retry` of `retry_request` with that `changes.runner`; no retry is
+returned for a runner nobody chose, nothing is matched or selected for the
+caller, and nothing runs until that retry. The same correction is kept in the
+retained `failure` view, so a later read, after a restart included, still
+states it. A retry
+applies its `clear` and `changes` to the authenticated seed, passes the same
+schema and the same source checks again, and is a new run with its own result.
+A failure after authentication states its cause within the limit; when any of
+it is clipped, the complete cause is retained and its `failure` read is
+returned. When a seed cannot be retained, the refusal says `executed:false`,
+`correction_seed:"unavailable"`, the failed operation and cause code, the
+unavailable capability and its owner, and `repair_call:"none"`; it returns no
+seed and no call, and the caller resubmits its original request with the stated
+correction once retention is restored. When a settled result cannot be
+retained, the answer keeps the actual run facts and source, adds `retention`
+with the same facts, and returns no read call; a later execution is a new run,
+never a recovery of that output.
 
 ## Coding workers
 
-A managed implementation worker uses the same published readiness for its
+A managed implementation worker uses the same published configuration for its
 ordinary commands. Every detected environment whose installation root contains
-one of the worker's resolved scope members is re-proved when the worker
-launches. For each project,
+one of the worker's resolved scope members is resolved, as it is then, when the
+worker launches. For each project,
 the exact dependency input files its ecosystem measures must be visible in the
 worker's read or write scope; otherwise that project reports
 `test_runtime_project_inputs_outside_scope`, naming the missing files, for the
@@ -546,12 +1104,19 @@ reported as `test_runtime_workspace_member_outside_scope`, naming the
 directories for the coordinator to add, and the scope is never widened. Build,
 cache and temporary writes go to private scratch.
 
-Detection must have run first: a worker never installs anything, and a missing
-or stale runtime is reported with the `agent-chassis setup --test-runtimes`
-recovery. A detection that is still running or failed for an environment the
-worker's scope reaches refuses the launch before any worker starts, with
-`agent_launch.worker_test_runtime.preparation_unusable.v1`, the preparation's
-identity and its complete original result; a worker whose scope reaches none of
-that preparation's environments, and a repository that was never prepared,
-launch as before. See
+A worker never installs anything. Its projection covers every project its
+scope reaches: the published environments and the ones the checkout itself
+declares, each resolved through the owner test runs and proofs use (see
+[Runtime inputs at execution](#runtime-inputs-at-execution)). A detection that
+is still running or failed composes from the configuration it kept, exactly
+as a ready one does; a configured runtime that changed since detection is
+projected as it is; and with no record, a first detection that failed or a
+record that is not authentic, each project's toolchain and dependency
+environment are located at launch. A project whose inputs cannot be located
+reports that exact condition on its own commands. Only a scope that reaches
+no project of a repository that publishes nothing gets no projection. An
+executable an installation lacks is reported by that command alone. Immediately
+before spawn the launch checks only what it binds (its projected sources and
+mountpoints); the readiness record is not consulted, so a record that changed
+or was removed after composition does not refuse the launch. See
 [Prepared test runtimes in the coding worker](agent-launch-confinement-mcp-conduit.md#prepared-test-runtimes-in-the-coding-worker).

@@ -1,18 +1,14 @@
 
 
 import { isPlainObject } from "../../lib/controlled-contract-tool-shared.mjs";
-import { coverageAcceptanceFieldContracts, coverageObligationFieldContracts } from
+import { coverageObligationFieldContracts } from
   "../../lib/controlled-contract-coverage-authoring-skeleton.mjs";
 import {
   CONTRACT_REQUIREMENT_OFFER_BYTES,
   contractRequirementAuthoring,
   coverageAuthoringOffer,
-  currentDefinitionReauthoringOffer,
   runtimeTestReplacementAuthoring
 } from "./design-workbench-row-offers.mjs";
-import {
-  projectControlledContractAcceptanceRowAuthoring
-} from "./acceptance-coverage-row-authoring.mjs";
 import { withControlledContractAnswerLimits } from
   "./design-workbench-response-input.mjs";
 
@@ -112,80 +108,6 @@ function obligationPopulationDescriptor(dimension, row) {
   };
 }
 
-function acceptancePopulationDescriptor(dimension, row) {
-  const owner = dimension.owner_result;
-  if (dimension.dimension_id !== "acceptance_coverage" ||
-      row.semantic_identity?.population !== "absent" ||
-      row.evidence?.carrier_absent !== true ||
-      !Array.isArray(row.evidence.criteria) || row.evidence.criteria.length === 0 ||
-      row.evidence.criteria.some(({ criterion_identity: identity }) =>
-        typeof identity !== "string") ||
-      owner?.carrier != null ||
-      typeof owner?.source?.source_kind !== "string" ||
-      typeof owner?.source?.content_digest !== "string" ||
-      typeof owner?.selected_unit_digest !== "string") return null;
-  return {
-    semantic_owner: "acceptance_coverage",
-    response_kinds: ["acceptance_coverage_population"],
-    row_authoring: coverageAuthoringOffer(
-      coverageAcceptanceFieldContracts(), "acceptance_coverage", true),
-    owner_context: {
-      selected_unit: owner.selectedUnit ?? null,
-      carrier_identity: {
-        carrier_kind: "controlled-acceptance",
-        wk_id: owner.wkId,
-        focus: owner.focus ?? null,
-        selected_unit: owner.selectedUnit ?? null,
-        content_digest: null
-      },
-      source_identity: {
-        source_kind: owner.source.source_kind,
-        content_digest: owner.source.content_digest
-      },
-      expected_unit_digest: owner.selected_unit_digest,
-      criteria: structuredClone(row.evidence.criteria)
-    }
-  };
-}
-
-function acceptanceDescriptor(dimension, row) {
-  const criterionIdentity = row.semantic_identity?.criterion_identity;
-  const owner = dimension.owner_result;
-  if (dimension.dimension_id !== "acceptance_coverage" ||
-      typeof criterionIdentity !== "string" || owner?.carrier === null ||
-      typeof owner?.carrier?.content_digest !== "string" ||
-      !Array.isArray(owner?.changed_bindings) || owner.changed_bindings.length > 0 ||
-      typeof owner?.source?.source_kind !== "string" ||
-      typeof owner?.source?.content_digest !== "string" ||
-      typeof owner?.authoring_identity !== "string" ||
-      typeof owner?.unit_digest !== "string") return null;
-  return {
-    semantic_owner: "acceptance_coverage",
-    response_kinds: ["acceptance_coverage"],
-
-    row_authoring: projectControlledContractAcceptanceRowAuthoring({
-      ownerResult: owner, criterionIdentity }),
-    owner_context: {
-      selected_unit: owner.selectedUnit ?? null,
-      criterion_identity: criterionIdentity,
-      carrier_identity: {
-        carrier_kind: "controlled-acceptance",
-        wk_id: owner.wkId,
-        focus: owner.focus ?? null,
-        selected_unit: owner.selectedUnit ?? null,
-        content_digest: owner.carrier.content_digest
-      },
-      source_identity: {
-        source_kind: owner.source.source_kind,
-        content_digest: owner.source.content_digest
-      },
-      expected_unit_digest: owner.unit_digest,
-      expected_authoring_identity: owner.authoring_identity,
-      expected_content_digest: owner.carrier.content_digest
-    }
-  };
-}
-
 function assessmentGap(candidate) {
   return candidate !== null && typeof candidate === "object" &&
     typeof candidate.diagnostic_id === "string" &&
@@ -237,20 +159,6 @@ function assessmentExecutionRecovery(manifest, dimension) {
 }
 
 function assessmentDescriptor(dimension, row, manifest) {
-  const reauthoring = dimension.owner_result?.current_definition_reauthoring ?? null;
-  const reauthoringDigest = dimension.owner_result?.source?.controlled_contract_digest;
-  if (dimension.dimension_id === "contract_assessment" &&
-      reauthoring?.schema_version ===
-        "controlled-contract-current-definition-reauthoring.v1" &&
-      typeof reauthoringDigest === "string") return {
-    semantic_owner: "test_proof",
-    response_kinds: ["current_definition_reauthoring"],
-    row_authoring: currentDefinitionReauthoringOffer(reauthoring),
-    owner_context: {
-      expected_content_digest: reauthoringDigest,
-      qualification: structuredClone(reauthoring)
-    }
-  };
   const digest = dimension.owner_result?.source?.controlled_contract_digest;
 
   const facts = (manifest?.dimensions ?? []).find(({ dimension_id: id }) =>
@@ -492,8 +400,6 @@ export function semanticDescriptor(manifest, dimension, row) {
   return authoringDescriptor(manifest, dimension, row) ??
     obligationPopulationDescriptor(dimension, row) ??
     obligationDescriptor(dimension, row) ??
-    acceptancePopulationDescriptor(dimension, row) ??
-    acceptanceDescriptor(dimension, row) ??
     assessmentDescriptor(dimension, row, manifest) ??
     runtimeDescriptor(dimension, row, manifest);
 }

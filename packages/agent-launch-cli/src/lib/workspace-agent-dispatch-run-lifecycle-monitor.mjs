@@ -10,15 +10,12 @@ import {
   findRunRecord,
   selectVisibleRunRecord
 } from "./workspace-agent-dispatch-run-lifecycle-state.mjs";
-import {
-  attachAdvisoryReviewTarget,
-  settleAndProjectRunStatus
-} from "./workspace-agent-dispatch-run-lifecycle-settlement.mjs";
+import { attachAdvisoryReviewTarget } from "./workspace-agent-dispatch-run-lifecycle-settlement.mjs";
 import {
   decodeManagedFindingsSourceReference,
-  resolveManagedFindingsSourceFromRecord,
-  settleAndProjectAdvisoryProcess
+  resolveManagedFindingsSourceFromRecord
 } from "./workspace-agent-advisory-result-settlement.mjs";
+import { settleAndProjectRunRecord } from "./workspace-agent-dispatch-run-settlement.mjs";
 
 export function createMonitor(deps = {}) {
   const {
@@ -28,10 +25,9 @@ export function createMonitor(deps = {}) {
     monotonicNow,
     captureSliceReviewTerminalResult = null,
     settleFormalReviewAttestation = null,
-    publishManagedRunResult = null
+    publishManagedRunResult = null,
+    projectRunRecord = null
   } = deps;
-
-  const statusSettlementByRecord = new WeakMap();
 
   async function getRunStatus(input = {}) {
     const {
@@ -75,26 +71,14 @@ export function createMonitor(deps = {}) {
       );
     }
 
-    if (!statusSettlementByRecord.has(record)) {
-      let settlement;
-      settlement = (record.advisory_process === true
-        ? settleAndProjectAdvisoryProcess(record, {
-            clock,
-            settleFormalReviewAttestation
-          })
-        : settleAndProjectRunStatus(record, {
-            clock,
-            captureSliceReviewTerminalResult,
-            settleFormalReviewAttestation,
-            publishManagedRunResult
-          })).finally(() => {
-        if (statusSettlementByRecord.get(record) === settlement) {
-          statusSettlementByRecord.delete(record);
-        }
-      });
-      statusSettlementByRecord.set(record, settlement);
-    }
-    return statusSettlementByRecord.get(record);
+    if (projectRunRecord !== null) return projectRunRecord(record);
+
+    return settleAndProjectRunRecord(record, {
+      clock,
+      captureSliceReviewTerminalResult,
+      settleFormalReviewAttestation,
+      publishManagedRunResult
+    });
   }
 
   async function waitForRunStatus(input = {}) {
@@ -122,7 +106,7 @@ export function createMonitor(deps = {}) {
         return status;
       }
 
-      if (status.terminal) {
+      if (status.terminal && status.producer_pending !== true) {
         return attachAdvisoryReviewTarget(status, {
           schema_version: WORKSPACE_AGENT_DISPATCH_RUN_WAIT_SCHEMA_VERSION,
           accepted: true,
@@ -149,6 +133,14 @@ export function createMonitor(deps = {}) {
                   ? { final_result_publication_failure: status.final_result_publication_failure }
                   : {})
               }),
+          ...(status.result_publication === undefined ? {} : { result_publication: status.result_publication }),
+          ...(status.producer_pending === undefined ? {} : { producer_pending: status.producer_pending }),
+          ...(status.original_result === undefined ? {} : { original_result: status.original_result }),
+          ...(status.original_publication === undefined ? {} : { original_publication: status.original_publication }),
+          ...(status.completion_failure === undefined ? {} : { completion_failure: status.completion_failure }),
+          ...(status.completion_settlement_failure === undefined ? {} : {
+            completion_settlement_failure: status.completion_settlement_failure
+          }),
           ...(status.session_contract_required === true
             ? {
                 session_contract_required: true,
@@ -162,6 +154,9 @@ export function createMonitor(deps = {}) {
 
       const remaining = deadline - monotonicNow();
       if (remaining <= 0) {
+        if (projectRunRecord !== null) return attachAdvisoryReviewTarget(status, {
+          ...status, schema_version: WORKSPACE_AGENT_DISPATCH_RUN_WAIT_SCHEMA_VERSION, timed_out: true
+        });
         return {
           schema_version: WORKSPACE_AGENT_DISPATCH_RUN_WAIT_SCHEMA_VERSION,
           accepted: true,

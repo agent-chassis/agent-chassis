@@ -127,9 +127,9 @@ export function analyzeWorkRecordFindingsUnit(unit, {
   ) {
     diagnostics.push(createDiagnostic(
       "findings_ready_review_purpose_required",
-      `${fieldPath(path, "review_purpose")} must be explicitly authored as ` +
-        `${JSON.stringify(WORK_RECORD_REVIEWER_DEFAULT_REVIEW_PURPOSE)} for redteam findings work; ` +
-        "retry the same authoring call with that value",
+      `${fieldPath(path, "review_purpose")} is absent on redteam findings work and this request ` +
+        "selects no shaping; retry the same authoring call with shaping_mode: \"redteam\", which " +
+        `derives ${JSON.stringify(WORK_RECORD_REVIEWER_DEFAULT_REVIEW_PURPOSE)}`,
       { path: fieldPath(path, "review_purpose") }
     ));
   }

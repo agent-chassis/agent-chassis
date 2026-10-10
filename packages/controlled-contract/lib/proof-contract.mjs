@@ -76,6 +76,22 @@ export function assessProofAuthoringRowSemantics(row, path, context = {}) {
   return diagnostics;
 }
 
+export const PROOF_UNSELECTED_CODE = 'obligation_coverage_proof_unselected';
+
+export function assessProofObligationAccounting(row, selection = null) {
+  if (row.proof_opt_out === true) {
+    return { status: 'accounted', decision: 'opted_out', diagnostic_codes: [] };
+  }
+  if (typeof row.selection?.proof_name !== 'string') {
+    return { status: 'unaccounted', decision: 'undecided', diagnostic_codes: [PROOF_UNSELECTED_CODE] };
+  }
+  if (selection === null) return { status: 'unestablished', decision: 'selected', diagnostic_codes: [] };
+  return selection.resolved === true
+    ? { status: 'accounted', decision: 'selected', diagnostic_codes: [] }
+    : { status: 'unaccounted', decision: 'selected',
+      diagnostic_codes: [...selection.diagnostic_codes ?? []] };
+}
+
 export function proofAuthoringPopulationDiagnostics(selectedCount) {
   return selectedCount > 0 ? [] : [proofDiagnostic('obligation_coverage_population_empty', '/obligations',
     'No obligation has been authored', {}, proofProblem('author_input', 'missing_authored_population',
@@ -92,6 +108,8 @@ export function assessProofAuthoringSemantics(source, context = {}) {
     const path = `/obligations/${rowIndices.get(row.obligation_id)}`;
     const diagnostics = assessProofAuthoringRowSemantics(row, path, context);
     return { obligation_id: row.obligation_id, path, row, diagnostics,
+
+      accounting: assessProofObligationAccounting(row),
       status: diagnostics.length === 0 ? 'complete' : 'incomplete' };
   });
   return Object.freeze({
@@ -102,6 +120,7 @@ export function assessProofAuthoringSemantics(source, context = {}) {
     diagnostics: proofAuthoringPopulationDiagnostics(rows.length),
     rows: Object.freeze(rows.map(entry => Object.freeze({
       obligation_id: entry.obligation_id, path: entry.path, status: entry.status,
+      accounting: Object.freeze(entry.accounting),
       diagnostics: Object.freeze(entry.diagnostics)
     })))
   });
@@ -287,6 +306,18 @@ const prerequisiteEntry = ({ family, condition, code, summary, recovery = null,
   detail_facts: PREREQUISITE_DETAIL_FACTS, summary, recovery
 });
 
+const AUTHORED_MEMBER_BY_ROUTE = Object.freeze({
+  [OBLIGATION_COVERAGE_UPSERT_TOOL]: 'changes.obligations',
+  [WORK_RECORD_EDIT_TOOL]: 'changes.validation'
+});
+export function registeredRecoveryInstruction(recovery) {
+  const member = AUTHORED_MEMBER_BY_ROUTE[recovery?.route];
+  if (member === undefined) {
+    throw new TypeError(`registered recovery route has no current authoring member: ${recovery?.route}`);
+  }
+  return `Read the current unit through workspace_read_wiki, then save the authored correction in ${member} through save_record with its returned revision.`;
+}
+
 const authorRoute = (route, { summary, prerequisite, success_condition: success,
   argument_bindings: bindings }) => ({ kind: 'structured_route', route, summary,
   prerequisite, success_condition: success,
@@ -301,7 +332,7 @@ export const PROOF_PREREQUISITE_CODES = createDiagnosticCodeRegistry({
       summary: "The selected test-validity route derives one native test binding from this obligation's authored case; no case is linked, so no binding is derived.",
 
       recovery: authorRoute(OBLIGATION_COVERAGE_UPSERT_TOOL, {
-        summary: "Link this obligation to one authored case through its case_id and case definition. The native test binding is derived from that case; never supply or edit the binding itself.",
+        summary: "Link this obligation to one authored case: an existing case by its id, or a new case definition. The native test binding is derived from that case; never supply or edit the binding itself.",
         prerequisite: 'the obligation names no authored case for the derivation to read',
         success_condition: 'The obligation names one saved authored case, so exactly one native test binding is derived from it.'
       })
@@ -325,7 +356,7 @@ export const PROOF_PREREQUISITE_CODES = createDiagnosticCodeRegistry({
       summary: "The one native test binding derived from this obligation's authored case does not state the complete meaning the route requires, which is that case's own unfinished content.",
 
       recovery: authorRoute(OBLIGATION_COVERAGE_UPSERT_TOOL, {
-        summary: "Re-author this obligation's case through the upsert's case_authoring guidance and inspect any structured owner diagnostics validation published; never supply or edit the derived binding itself.",
+        summary: "Re-author this obligation's case in obligations[].case and inspect any structured owner diagnostics validation published; never supply or edit the derived binding itself.",
         prerequisite: 'the authored case omits content the derived binding must state',
         success_condition: 'The authored case states the complete meaning the derived binding requires, so the derivation validates.'
       })
@@ -335,7 +366,7 @@ export const PROOF_PREREQUISITE_CODES = createDiagnosticCodeRegistry({
       family: 'native_test_binding', condition: 'provider_unresolved',
       code: 'obligation_coverage_native_binding_provider_unresolved',
       summary: "The execution provider of the one native test binding derived from this obligation's authored case could not be resolved against the provider registry.",
-      actorRecovery: 'operator', problemCategory: 'system_capability'
+      actorRecovery: 'none', problemCategory: 'system_capability'
     }),
 
     prerequisiteEntry({

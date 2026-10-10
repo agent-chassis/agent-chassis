@@ -6,7 +6,8 @@ import {
   assertControlledAcceptanceStateProjection,
   buildControlledAcceptanceProofPosture,
   controlledAcceptanceOptOutProvenance,
-  inspectWorkRecordProofPosture
+  inspectWorkRecordProofPosture,
+  prepareControlledAcceptanceProofPostureAmendment
 } from "../../packages/wiki-core/src/lib/work-record-proof-posture.mjs";
 import { validateWorkRecord } from
   "../../packages/wiki-core/src/lib/work-record-schema.mjs";
@@ -14,10 +15,8 @@ import { classifyControlledAcceptanceStateOperation } from
   "../../packages/wiki-core/src/operations/controlled-contract/controlled-acceptance-state-operations.mjs";
 import { applyControlledContractDesignSemanticResponse } from
   "../../packages/wiki-core/src/operations/controlled-contract/authoring-operations.mjs";
-import {
-  persistControlledAcceptanceProofPostureOperation,
-  prepareControlledAcceptanceProofPostureAmendment
-} from "../../packages/wiki-core/src/operations/controlled-contract/proof-posture-operations.mjs";
+import { persistControlledAcceptanceProofPostureOperation } from
+  "../../packages/wiki-core/src/operations/controlled-contract/proof-posture-operations.mjs";
 import { today } from "../../packages/wiki-core/src/lib/wiki-shared.mjs";
 import { isWorkRecordUpdatedDate } from "../../packages/agent-launch-cli/src/lib/wk-forge-handoff-recovery.mjs";
 

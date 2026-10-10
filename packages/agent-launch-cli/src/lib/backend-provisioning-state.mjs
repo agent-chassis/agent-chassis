@@ -16,6 +16,7 @@ import {
   resolveIndependentUnitBase,
   sliceBranchRef
 } from "./worktree-substrate.mjs";
+import { selectInitialWkBaseBranch } from "./worktree-substrate-exact-unit-identity.mjs";
 import { parseLiteralCommitObject } from "./literal-commit-object.mjs";
 import {
   EXACT_IMPLEMENTATION_SLICE_RE,
@@ -333,18 +334,25 @@ export function resolveProspectiveScopeExistenceBase({
   const capturedWk = yield observeExactWkTip(runGit, mainRepo, wkRef);
   if (capturedWk.state === "unreadable") return unreadableWkTipFailure(wkRef, capturedWk, "capture");
   const wkTip = capturedWk.sha;
-  if (wkTip === null && (typeof baseBranch !== "string" || baseBranch.length === 0)) {
+
+  const selected = wkTip === null
+    ? yield selectInitialWkBaseBranch({ mainRepo, baseBranch, deps: { runGit } })
+    : null;
+  if (wkTip === null && selected === null) {
     return exactSliceResolutionFailure("scope_existence_base_selection_missing", {
       wk_ref: wkRef,
       required_field: "base_branch"
     });
   }
-  const stable = yield resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
+  const stable = yield resolveStableScopeExistenceBase({
+    runGit, mainRepo, wkRef, wkTip, baseBranch: selected?.branch ?? baseBranch
+  });
   if (!stable.ok) return stable;
   return Object.freeze({
     ok: true,
     scope_existence_base: stable.scope_existence_base,
-    source: wkTip === null ? "configured_base" : "wk_tip"
+    source: wkTip === null ? "configured_base" : "wk_tip",
+    ...(selected === null ? {} : { base_selection: selected.selection })
   });
   });
 }

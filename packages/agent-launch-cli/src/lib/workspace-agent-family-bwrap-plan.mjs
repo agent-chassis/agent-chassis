@@ -212,6 +212,8 @@ export function buildValidationConfinementPlan({
   executionScratchSource = null,
 
   namespaceOnlyMountpoints = false,
+
+  testExecutionCheckoutWrites = false,
   agentLaunchDirName = DEFAULT_AGENT_LAUNCH_DIR_NAME,
   envFileName = DEFAULT_REPO_ENV_FILE_NAME,
   envFileExists = existsSync,
@@ -274,6 +276,7 @@ export function buildValidationConfinementPlan({
     executionTmpSource,
     executionScratchSource,
     namespaceOnlyMountpoints,
+    ...(testExecutionCheckoutWrites === false ? {} : { testExecutionCheckoutWrites }),
 
     shareNet: false,
 

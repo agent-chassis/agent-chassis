@@ -7,6 +7,7 @@ import {
 import { createPlanLaunch } from "./workspace-agent-dispatch-run-lifecycle-selection.mjs";
 import { createMonitor } from "./workspace-agent-dispatch-run-lifecycle-monitor.mjs";
 import { createAdvisoryProcessRunner } from "./workspace-agent-advisory-process.mjs";
+import { subscribeRunCompletion, projectCapturedRunRecord } from "./workspace-agent-dispatch-run-settlement.mjs";
 import {
   snapshotRuns as snapshotRunState,
   replaceReviewerLaunchIdentityForTest as replaceReviewerLaunchIdentityState
@@ -14,7 +15,15 @@ import {
 
 export { MANAGED_RUN_IDENTITY_ENFORCEMENT_UNAVAILABLE };
 
+export function createPreparedDispatchRunLifecycle(ctx = {}) {
+  return assembleRunLifecycle(ctx, projectCapturedRunRecord);
+}
+
 export function createDispatchRunLifecycle(ctx = {}) {
+  return assembleRunLifecycle(ctx, null);
+}
+
+function assembleRunLifecycle(ctx, projectRunRecord) {
   const {
     executors,
     executorRegistryEntries,
@@ -48,6 +57,17 @@ export function createDispatchRunLifecycle(ctx = {}) {
     publishManagedRunResult = null
   } = ctx;
 
+  const assessManagedRunResult = projectRunRecord === null ? null : ctx.assessManagedRunResult ?? null;
+  if (projectRunRecord !== null && typeof publishManagedRunResult === "function" &&
+      typeof assessManagedRunResult !== "function") {
+    throw new TypeError("prepared publication requires authenticated assessment and publisher dependencies");
+  }
+  const onLaunchCompletion = (record, completion) => subscribeRunCompletion(record, completion, {
+    clock, captureSliceReviewTerminalResult, settleFormalReviewAttestation, publishManagedRunResult,
+    assessManagedRunResult, projectRunRecord, captureRunOriginal: ctx.captureRunOriginal ?? null,
+    publishManagedRunOriginal: ctx.publishManagedRunOriginal ?? null,
+    publishManagedReviewOriginal: ctx.publishManagedReviewOriginal ?? null
+  });
   const { startLaunch, startReviewerReplacement } = createLaunchFlow({
     executors,
     executorRegistryEntries,
@@ -70,7 +90,10 @@ export function createDispatchRunLifecycle(ctx = {}) {
     bindManagedRunOuterIdentity,
     releaseManagedRunSubjectReservationForLaunch,
     resolveCanonicalAdmissionReviewRecord,
-    publishManagedRunResult
+    publishManagedRunResult,
+    assessManagedRunResult,
+    projectRunRecord,
+    onLaunchCompletion
   });
 
   const { getRunStatus, waitForRunStatus, resolveRetainedFindingsSource } = createMonitor({
@@ -80,7 +103,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
     monotonicNow,
     captureSliceReviewTerminalResult,
     settleFormalReviewAttestation,
-    publishManagedRunResult
+    publishManagedRunResult,
+    projectRunRecord
   });
 
   const startAdvisoryProcess = createAdvisoryProcessRunner({
@@ -91,7 +115,9 @@ export function createDispatchRunLifecycle(ctx = {}) {
     clock,
     runIdFactory,
     monitorHandleFactory,
-    settleFormalReviewAttestation
+    settleFormalReviewAttestation,
+    captureTerminalOriginal: projectRunRecord !== null && typeof ctx.captureRunOriginal === "function",
+    onLaunchCompletion
   });
 
   const planLaunch = createPlanLaunch({ executors });

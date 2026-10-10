@@ -1,6 +1,6 @@
 
 
-import { NATIVE_INSTRUMENTATION_REFUSAL_CODE, SCALAR_RETURN_REFUSAL_REASONS, canonicalJson,
+import { NATIVE_INSTRUMENTATION_REFUSAL_CODE, SCALAR_RETURN_REFUSAL_REASONS, SCALAR_RETURN_USAGE_EXAMPLES, canonicalJson,
   deepFreeze, falsifierTargetConstraint, isPositiveCount, literalRestGrammar } from "./shared.mjs";
 
 function pythonSelectedCallTraversalWitness(payload, testId) {
@@ -41,7 +41,8 @@ export const PYTHON_FALSIFIER_TARGET_CONSTRAINTS = deepFreeze({
       "escaped, triple-quoted or multi-statement returns are refused",
     replacement: "one JSON scalar different from the returned literal",
     refusalCodes: [NATIVE_INSTRUMENTATION_REFUSAL_CODE],
-    refusalReasons: SCALAR_RETURN_REFUSAL_REASONS
+    refusalReasons: SCALAR_RETURN_REFUSAL_REASONS,
+    examples: SCALAR_RETURN_USAGE_EXAMPLES.filter(example => example.language === "python")
   })
 });
 

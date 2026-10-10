@@ -57,6 +57,11 @@ order and repo map.
 - [agent-launch-run-provenance.md](agent-launch-run-provenance.md) — the
   `agent-run-provenance.v1` envelope and run inspection.
 
+## Test tooling
+
+- [semgrep.md](semgrep.md) — the shared Semgrep runner and the explicit test
+  lint: rules, inline exceptions, coverage accounting and retained reports.
+
 ## Records and coordination reference
 
 - [work-record-ontology.md](work-record-ontology.md) — work-record schema and

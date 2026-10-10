@@ -72,26 +72,11 @@ export function providerEvidence(resolved, capability) {
   });
 }
 
-export function mintProviderExecution(provider, nodeArguments, observationExpectation, native = null,
-  nodeRuntime = null, nodeAssetBinds = []) {
-  const execution = Object.freeze({ provider,
-    node_arguments: Object.freeze([...nodeArguments]),
-    node_asset_binds: Object.freeze(nodeAssetBinds.map((bind) =>
-      Object.freeze({ src: bind.src, dst: bind.dst }))),
-    node_runtime: nodeRuntime === null ? null : Object.freeze({ executable: nodeRuntime.executable,
-      binds: Object.freeze(nodeRuntime.binds.map((bind) => Object.freeze({ src: bind.src, dst: bind.dst }))),
-      mountpoints: Object.freeze([...nodeRuntime.mountpoints]) }),
-    observation_expectation: Object.freeze(structuredClone(observationExpectation)),
-    native: native === null ? null : Object.freeze({
-      runtime: Object.freeze({ env: Object.freeze({ ...native.runtime.env }),
-        binds: Object.freeze(native.runtime.binds.map((bind) => Object.freeze({ ...bind }))),
-        mountpoints: Object.freeze([...(native.runtime.mountpoints ?? [])]) }),
-      invocation: Object.freeze(native.invocation),
-      target_extensions: Object.freeze([...native.target_extensions]),
-      timeout_ms: native.timeout_ms,
-      observe: native.observe,
-      native_report: native.native_report ?? null
-    }) });
+export function mintProviderExecution(provider, { runner, environment = null, targetExtensions = null,
+  consumerDependencies = false, stage }) {
+  const execution = Object.freeze({ provider, runner, environment,
+    target_extensions: targetExtensions === null ? null : Object.freeze([...targetExtensions]),
+    consumer_dependencies: consumerDependencies === true, stage });
   PROVIDER_EXECUTIONS.add(execution);
   return execution;
 }

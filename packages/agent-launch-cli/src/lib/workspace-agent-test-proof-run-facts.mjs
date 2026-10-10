@@ -52,6 +52,11 @@ function observationDetail(code, detail) {
       module_path: identity.module_path, export_name: identity.export_name };
   }
   if (code === NATIVE_INSTRUMENTATION_UNSUPPORTED_CODE) return instrumentationContext(detail);
+
+  if (isObject(detail) && typeof detail.selected_node_id !== "string" &&
+      Object.keys(detail).every((key) => key === "reason" || key === "test")) {
+    return instrumentationContext(detail);
+  }
   return rejectedRecordContext(detail);
 }
 

@@ -204,8 +204,8 @@ test("selected forge refusal preserves CCE meaning and explicit operator authori
 });
 
 test("an acceptance.validation drift proposal is offered only exactly, and its unavailability is stated", async () => {
-  const { ACCEPTANCE_VALIDATION_DRIFT_GUIDANCE } = await import(
-    "../../packages/agent-launch-cli/src/lib/wk-forge-handoff.mjs");
+  const { acceptanceValidationDriftProposal } = await import(
+    "../../packages/agent-launch-cli/src/lib/wk-forge-closeout-chain.mjs");
   const drift = { unit: "WK-1784", candidate: "c".repeat(40), field: "acceptance.validation",
     candidate_value: ["v"], observed_value: ["v", "limitation"], observed_source_digest: "0123456789abcdef",
     cas_argument: "expected_source_digest" };
@@ -213,17 +213,17 @@ test("an acceptance.validation drift proposal is offered only exactly, and its u
     code: "agent_launch.wk_forge_handoff.eligibility_refused.v1", category: "eligibility",
     detail: { stage: "closeout", reason: "local_WK_not_authenticated_against_candidate", ...detail } } });
   const exact = { projection: { reason: "unrelated_record_drift", fields: ["acceptance.validation"] },
-    acceptance_validation_drift: drift, recovery: ACCEPTANCE_VALIDATION_DRIFT_GUIDANCE };
+    acceptance_validation_drift: drift, recovery: acceptanceValidationDriftProposal(drift.unit) };
 
   const unavailable = await harness(refusalWith(exact)).tool.handler({ assigned_unit: "WK-1784" });
   assert.equal(unavailable.refusal.no_supported_route, true);
   assert.equal(unavailable.refusal.recovery.responsible_actor, "coordinator");
-  assert.match(unavailable.refusal.recovery.explanation, /cannot be offered by this server: missing active_registered_tool_set, request_schema:workspace_tools_describe/u);
+  assert.match(unavailable.refusal.recovery.explanation, /cannot be offered by this server: missing active_registered_tool_set, request_schema:workspace_read_wiki/u);
   assert.deepEqual(unavailable.blocker.detail.acceptance_validation_drift, drift);
   assert.equal(Object.hasOwn(unavailable.blocker.detail, "recovery"), false);
 
   for (const [label, detail] of [
-    ["tampered proposal", { ...exact, recovery: { ...ACCEPTANCE_VALIDATION_DRIFT_GUIDANCE, route: "workspace_work_record_edit" } }],
+    ["tampered proposal", { ...exact, recovery: { ...exact.recovery, route: "workspace_work_record_edit" } }],
     ["another unit", { ...exact, acceptance_validation_drift: { ...drift, unit: "WK-0001" } }],
     ["validation beside other drift", { ...exact,
       projection: { reason: "unrelated_record_drift", fields: ["acceptance.criteria", "acceptance.validation"] } }],

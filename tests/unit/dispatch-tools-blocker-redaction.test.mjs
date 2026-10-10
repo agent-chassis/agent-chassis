@@ -287,6 +287,87 @@ test("a recorded failure's projection is pure; only the recording seam retains i
   }
 });
 
+test("shared acyclic readiness objects keep concrete facts in every branch", () => {
+  const unit = Object.freeze({ address: "WK-2592#SLICE-003", record_id: "WK-2592", slice_id: "SLICE-003" });
+  const facts = Object.freeze({ selection: Object.freeze({ role: "worker", dispatchable: true }) });
+  const input = Object.freeze({
+    blocker: Object.freeze({ detail: Object.freeze({ admission: Object.freeze({
+      readiness: Object.freeze({ unit, facts })
+    }) }) }),
+    readiness: Object.freeze({ unit, facts })
+  });
+  const original = structuredClone(input);
+  assert.deepEqual(distillDispatchFailureDetail(input), { detail: original, withheld: [] });
+  assert.equal(input.blocker.detail.admission.readiness.unit, unit);
+  assert.equal(input.readiness.unit, unit);
+  assert.equal(input.readiness.facts, facts);
+  assert.deepEqual(input, original);
+});
+
+test("shared arrays and repeated elements remain concrete at every acyclic position", () => {
+  const element = Object.freeze({ code: "scope_refused", facts: Object.freeze({ errno: "EEXIST" }) });
+  const shared = Object.freeze([element, element]);
+  const input = Object.freeze({ first: shared, second: shared,
+    positions: Object.freeze([element, element]), sibling: Object.freeze({ element }) });
+  const original = structuredClone(input);
+  assert.deepEqual(distillDispatchFailureDetail(input), { detail: original, withheld: [] });
+  assert.equal(input.first, shared);
+  assert.equal(input.second, shared);
+  assert.equal(shared[0], element);
+  assert.equal(shared[1], element);
+  assert.deepEqual(input, original);
+});
+
+test("only active ancestor back-edges are bounded and repeated cyclic containers keep their facts", () => {
+  const facts = Object.freeze({ code: "scope_refused",
+    nested: Object.freeze({ subject: "WK-2592#SLICE-003", errno: "EEXIST" }) });
+  const object = { ...facts };
+  object.self = object;
+  Object.freeze(object);
+  const element = Object.freeze({ subject: "WK-2592#SLICE-003", status: 128 });
+  const array = [element];
+  array.push(array);
+  Object.freeze(array);
+  const input = Object.freeze({ first: object, second: object, arrays: Object.freeze([array, array]) });
+  const original = structuredClone(input);
+  const expected = { detail: {
+    first: { ...facts, self: { $ref: "detail.first.self" } },
+    second: { ...facts, self: { $ref: "detail.second.self" } },
+    arrays: [[element, { $ref: "detail.arrays.0.1" }], [element, { $ref: "detail.arrays.1.1" }]]
+  }, withheld: [] };
+  const projected = distillDispatchFailureDetail(input);
+  assert.deepEqual(projected, expected);
+  assert.deepEqual(JSON.parse(JSON.stringify(projected)), expected, "true cycles produce serializable facts");
+  assert.deepEqual(distillDispatchFailureDetail(input), projected, "repeated projections are deterministic");
+  assert.equal(object.self, object);
+  assert.equal(array[1], array);
+  assert.equal(input.first, input.second);
+  assert.equal(input.arrays[0], input.arrays[1]);
+  assert.deepEqual(input, original);
+});
+
+test("each shared raw-capture occurrence withholds output and preserves semantic facts without mutation", () => {
+  const RAW = "RAW-SHARED-CAPTURE 🚀";
+  const semantic = Object.freeze({ operation: "prepare", facts: Object.freeze({ errno: "EEXIST" }) });
+  const shared = Object.freeze({ status: 128, semantic, stdout: RAW, stderr: RAW,
+    output: Object.freeze([RAW]), captured_run: Object.freeze({ output: RAW }),
+    stack: RAW, stdout_tail: RAW, stderr_tail: RAW });
+  const input = Object.freeze({ first: shared, second: shared });
+  const original = structuredClone(input);
+  const pure = distillDispatchFailureDetail(input);
+  assert.deepEqual(pure.detail, { first: { status: 128, semantic }, second: { status: 128, semantic } });
+  const captures = ["stdout", "stderr", "output", "captured_run", "stack", "stdout_tail", "stderr_tail"];
+  assert.deepEqual(pure.withheld, ["first", "second"].flatMap(branch =>
+    captures.map(field => `detail.${branch}.${field}`)));
+  assert.doesNotMatch(JSON.stringify(pure), /RAW-SHARED-CAPTURE/u);
+  assert.deepEqual(distillDispatchFailureDetail(input), pure);
+  assert.equal(input.first, shared);
+  assert.equal(input.second, shared);
+  assert.equal(shared.semantic, semantic);
+  assert.equal(shared.stdout, RAW);
+  assert.deepEqual(input, original);
+});
+
 test("a typed test-failure call trace is published exactly while server stacks stay withheld", async () => {
   const scope = createTestResourceScope();
   try {

@@ -9,15 +9,18 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/test-proof";
+
+import { discoverRepositoryEnvironments } from "../test-runtime-setup/discovery.mjs";
 import { DEPENDENCY_ECOSYSTEMS } from "../test-runtime-setup/ecosystems.mjs";
 import {
-  TEST_RUNTIME_READINESS_CODES,
-  loadReadiness,
+  loadExecutionConfiguration,
   readinessRecovery
 } from "../test-runtime-setup/readiness.mjs";
 import { TOOLCHAIN_RECIPES } from "../test-runtime-setup/recipes.mjs";
 import { resolvePackageAssetExecutable } from "../launch-isolation-package-asset.mjs";
-import { resolveEnvironmentRuntimeInputs, selectContainingProject } from "./runtime-inputs.mjs";
+import { resolveCurrentEnvironmentRuntime } from "./current-runtime.mjs";
+import { selectContainingProject } from "./runtime-inputs.mjs";
 
 export const WORKER_TEST_RUNTIME_SCHEMA_VERSION = "agent-launch-worker-test-runtime.v1";
 
@@ -60,10 +63,6 @@ export class WorkerTestRuntimePreparationError extends Error {
       authority_limb: "mechanical"
     });
   }
-}
-
-export function requiredPreparationEnvironments(record, workerScopeAuthority) {
-  return selectedProjects(record, workerScopeAuthority).projects.map(({ environment }) => environment);
 }
 
 const composed = new WeakSet();
@@ -118,7 +117,7 @@ function unavailable(code, message, { subject, condition, action, detail = {}, e
 
 function readinessUnavailable(failure, subject) {
   return unavailable(failure.code, failure.message, {
-    subject, condition: "the setup-published runtime for this project is not current",
+    subject, condition: "this project's runtime inputs are neither configured nor locatable",
     detail: failure.detail ?? {},
     action: { actor: "operator", operator_action: failure.recovery?.operator_action ?? null,
       statement: failure.recovery?.statement ?? null }
@@ -137,15 +136,16 @@ function broadSource(source, protectedRoots) {
   return null;
 }
 
-function incompleteToolchain(name, toolchain) {
-  const recipe = TOOLCHAIN_RECIPES[name];
-  const missing = [];
-  for (const [role, relative] of Object.entries(recipe.executables)) {
-    const recorded = toolchain.executables?.[role] ?? null;
-    const expected = recorded ?? (toolchain.root ? path.join(toolchain.root, relative) : relative);
-    if (recorded === null || !existsSync(recorded)) missing.push({ executable: role, path: expected });
-  }
-  return missing;
+function missingExecutable(name, toolchain, role, executable, subject) {
+  const expected = executable ?? (toolchain.root
+    ? path.join(toolchain.root, TOOLCHAIN_RECIPES[name].executables[role]) : TOOLCHAIN_RECIPES[name].executables[role]);
+  if (typeof executable === "string" && existsSync(executable)) return null;
+  return unavailable(WORKER_TEST_RUNTIME_CODES.TOOLCHAIN_INCOMPLETE,
+    `the ${name} installation has no ${role} executable at ${expected}`, {
+      subject: { ...subject, toolchain: name }, condition: "the requested executable is not installed",
+      detail: { toolchain: name, missing: [{ executable: role, path: expected }] },
+      action: { actor: "operator", operator_action: readinessRecovery().operator_action,
+        statement: "Install the named executable, or reselect the toolchain installation." } });
 }
 
 function localPackageLinks(nodeModules, repositories, declaredMembers = new Map()) {
@@ -169,11 +169,20 @@ function localPackageLinks(nodeModules, repositories, declaredMembers = new Map(
   return links;
 }
 
-function selectedProjects(record, authority) {
+function reachableEnvironments(configuration, checkout) {
+  const published = configuration.environments ?? [];
+  const declared = discoverRepositoryEnvironments(checkout, TEST_RUNTIME_RUNNER_CATALOG.runners)
+    .filter((entry) => Object.hasOwn(DEPENDENCY_ECOSYSTEMS, entry.ecosystem) &&
+      !published.some((known) => known.ecosystem === entry.ecosystem && known.project === entry.project))
+    .map(({ id, ecosystem, project, members }) => ({ id, ecosystem, project, members, runners: [] }));
+  return [...published, ...declared];
+}
+
+function selectedProjects(reachable, authority) {
   const scope = visibility(authority);
   const selected = new Map();
-  for (const ecosystem of new Set((record.environments ?? []).map((entry) => entry.ecosystem))) {
-    const environments = record.environments.filter((entry) => entry.ecosystem === ecosystem);
+  for (const ecosystem of new Set(reachable.map((entry) => entry.ecosystem))) {
+    const environments = reachable.filter((entry) => entry.ecosystem === ecosystem);
     for (const member of scope.members) {
       const project = selectContainingProject(environments.map((entry) => entry.project), member);
       if (project === null) continue;
@@ -189,7 +198,7 @@ function selectedProjects(record, authority) {
     `${a.ecosystem}/${a.project}`.localeCompare(`${b.ecosystem}/${b.project}`)) };
 }
 
-function composeProject(entry, index, context) {
+async function composeProject(entry, index, context) {
   const { mainReal, checkoutReal, scope, protectedRoots } = context;
   const ecosystem = DEPENDENCY_ECOSYSTEMS[entry.ecosystem];
   const projectDir = entry.project === "." ? checkoutReal : path.join(checkoutReal, entry.project);
@@ -208,21 +217,10 @@ function composeProject(entry, index, context) {
         action: { actor: "coordinator", coordinator_action: "add the named dependency input files to the unit's read scope",
           inputs: { files: missing } } }) };
   }
-  const runtime = resolveEnvironmentRuntimeInputs({ repositoryRoot: mainReal, checkoutRoot: checkoutReal,
+  const runtime = await resolveCurrentEnvironmentRuntime({ repositoryRoot: mainReal, checkoutRoot: checkoutReal,
     ecosystem: entry.ecosystem, project: entry.project,
     scratchRoot: `${WORKER_TEST_RUNTIME_SCRATCH_ROOT}/${index}` });
   if (!runtime.ok) return { ...entry, projectDir, failure: readinessUnavailable(runtime, subject) };
-  for (const [name, toolchain] of Object.entries(runtime.toolchains)) {
-    const missingExecutables = incompleteToolchain(name, toolchain);
-    if (missingExecutables.length > 0) {
-      return { ...entry, projectDir, failure: unavailable(WORKER_TEST_RUNTIME_CODES.TOOLCHAIN_INCOMPLETE,
-        `recorded ${name} ${toolchain.version} is missing required executables`, {
-          subject: { ...subject, toolchain: name }, condition: "the selected installation is incomplete",
-          detail: { toolchain: name, missing: missingExecutables },
-          action: { actor: "operator", operator_action: recovery.operator_action,
-            statement: "Repair or reselect the toolchain installation, then rerun explicit setup." } }) };
-    }
-  }
   for (const bind of [...runtime.toolchainBinds, ...runtime.dependencyBinds.filter(({ dst }) =>
     !within(checkoutReal, dst))]) {
     const broad = broadSource(bind.src, protectedRoots);
@@ -323,20 +321,16 @@ function publishTable(mainReal, files, commands) {
   return { published, digest, identity: { dev: String(stat.dev), ino: String(stat.ino) } };
 }
 
-export function composeWorkerTestRuntime({ mainRepo, checkout, workerScopeAuthority,
+export async function composeWorkerTestRuntime({ mainRepo, checkout, workerScopeAuthority,
   homeDir = os.homedir() }) {
   if (typeof mainRepo !== "string" || typeof checkout !== "string" || workerScopeAuthority == null) {
     return null;
   }
+  const loaded = loadExecutionConfiguration(mainRepo);
+  const selection = selectedProjects(reachableEnvironments(loaded.configuration, realpathSync(checkout)),
+    workerScopeAuthority);
 
-  const loaded = loadReadiness(mainRepo);
-  if (!loaded.ok && loaded.code === TEST_RUNTIME_READINESS_CODES.NOT_READY) return null;
-  if (!loaded.ok && (loaded.code === TEST_RUNTIME_READINESS_CODES.PREPARING ||
-      loaded.code === TEST_RUNTIME_READINESS_CODES.PREPARATION_FAILED)) {
-    const environments = requiredPreparationEnvironments(loaded.record, workerScopeAuthority);
-    if (environments.length === 0) return null;
-    throw new WorkerTestRuntimePreparationError(loaded, { environments, repository: realpathSync(mainRepo) });
-  }
+  if ((loaded.configuration.environments ?? []).length === 0 && selection.projects.length === 0) return null;
 
   resolvePackageAssetExecutable(WORKER_TEST_RUNTIME_ENTRY_ASSET_DIR, "entry", (detail) => {
     throw Object.assign(new Error(`launcher test-runtime command entry is unavailable: ${detail.asset}`),
@@ -355,31 +349,27 @@ export function composeWorkerTestRuntime({ mainRepo, checkout, workerScopeAuthor
     return `${WORKER_TEST_RUNTIME_TABLE_MOUNT_DIR}/${relative}`;
   };
   let projects = [];
-  let recordFailure = null;
-  if (!loaded.ok) {
-
-    recordFailure = readinessUnavailable(loaded, { repository: mainReal, checkout: checkoutReal });
-    const detail = detailFile(recordFailure);
-    for (const [toolchain, recipe] of Object.entries(TOOLCHAIN_RECIPES)) {
-      for (const role of Object.keys(recipe.executables)) {
-        rows.push([commandName(toolchain, role), "unavailable", "-", "-", detail, "-", "-"]);
-      }
+  const recordFailure = null;
+  {
+    for (const [index, entry] of selection.projects.entries()) {
+      projects.push(await composeProject(entry, index, { mainReal, checkoutReal, scope: selection.scope,
+        protectedRoots }));
     }
-  } else {
-    const selection = selectedProjects(loaded.record, workerScopeAuthority);
-    projects = selection.projects.map((entry, index) =>
-      composeProject(entry, index, { mainReal, checkoutReal, scope: selection.scope, protectedRoots }));
 
     const toolchains = new Map();
     for (const project of projects) {
       if (project.failure) continue;
       for (const [name, toolchain] of Object.entries(project.runtime.toolchains)) toolchains.set(name, toolchain);
     }
+    const runtimeSubject = { repository: mainReal, checkout: checkoutReal };
     for (const [name, toolchain] of toolchains) {
       for (const role of Object.keys(TOOLCHAIN_RECIPES[name].executables)) {
-        if (projectCommandOwners(name, role).length === 0) {
-          rows.push([commandName(name, role), "toolchain", "-", toolchain.executables[role], "-", "-", "-"]);
-        }
+        if (projectCommandOwners(name, role).length !== 0) continue;
+
+        const missing = missingExecutable(name, toolchain, role, toolchain.executables?.[role], runtimeSubject);
+        rows.push(missing === null
+          ? [commandName(name, role), "toolchain", "-", toolchain.executables[role], "-", "-", "-"]
+          : [commandName(name, role), "unavailable", "-", "-", detailFile(missing), "-", "-"]);
       }
     }
 
@@ -405,8 +395,14 @@ export function composeWorkerTestRuntime({ mainRepo, checkout, workerScopeAuthor
           continue;
         }
         const { runtime } = project;
-        const executable = fact.executableValue ? runtime.values[fact.executableValue]
-          : runtime.toolchains[toolchainName].executables[role];
+        const executable = (fact.executableValue ? runtime.values[fact.executableValue] : undefined) ??
+          runtime.toolchains[toolchainName].executables[role];
+        const missing = missingExecutable(toolchainName, runtime.toolchains[toolchainName], role, executable,
+          { ...runtimeSubject, project: project.project, environment: project.environment });
+        if (missing !== null) {
+          rows.push([name, "unavailable", project.projectDir, "-", detailFile(missing), "-", "-"]);
+          continue;
+        }
         const env = { ...runtime.bindingEnv,
           ...(ecosystem.toolchainEnv ? ecosystem.toolchainEnv(runtime.toolchains) : {}) };
         const envFile = `env/${project.index}`;
@@ -457,7 +453,8 @@ export function composeWorkerTestRuntime({ mainRepo, checkout, workerScopeAuthor
       unit_address: workerScopeAuthority.unit_address ?? null,
       selected_unit: workerScopeAuthority.selected_unit?.address ?? null,
       source_digest: workerScopeAuthority.source_digest ?? null,
-      readiness_digest: loaded.ok ? loaded.record.readiness_digest : null,
+      readiness_digest: loaded.readiness_digest ?? null,
+      ...(loaded.record_status !== "ready" ? { configuration_record_status: loaded.record_status } : {}),
       record_failure: recordFailure,
       table_digest: publication.digest,
       projects: projects.map((project) => Object.freeze({

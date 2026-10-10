@@ -26,17 +26,26 @@ export default Object.freeze({
     avaConfigLoader(runtime);
     return { command: runtime.executables.node, args: [cli, "--version"], cwd: projectDir };
   },
-  invocation: ({ runtime, projectDir, file, nodeArguments }) => {
-    const cli = npmPackageBin(runtime, "ava");
-    const tmpdir = `${runtime.scratchRoot}/ava-tmp`;
-    return {
-      command: runtime.executables.node,
-      args: [`--import=${pathToFileURL(AVA_ATTEMPT_CONFIG).href}`, cli, `--config=${AVA_ATTEMPT_CONFIG}`,
-        "--no-color", "--no-worker-threads", "--serial", "--timeout=10m",
-        `--node-arguments=${nodeArguments.join(" ")}`, file],
-      cwd: projectDir,
-      directories: [tmpdir],
-      env: { NO_COLOR: "1", [AVA_LOAD_CONFIG_ENV]: avaConfigLoader(runtime), [AVA_TMPDIR_ENV]: tmpdir }
-    };
-  }
+
+  ordinaryInvocation: ({ runtime, projectDir, file, selector, proof = null }) => ({
+    harness: Object.freeze({ kind: "ava" }),
+    invocation: { ...attemptInvocation({ runtime, projectDir,
+      options: proof !== null ? ["--no-worker-threads", "--serial", "--timeout=10m",
+        `--node-arguments=${proof.nodeArguments.join(" ")}`]
+        : selector === null ? [] : [`--match=${selector}`], file }),
+    readOnlyBinds: [{ src: AVA_ATTEMPT_CONFIG, dst: AVA_ATTEMPT_CONFIG }] }
+  })
 });
+
+function attemptInvocation({ runtime, projectDir, options, file }) {
+  const cli = npmPackageBin(runtime, "ava");
+  const tmpdir = `${runtime.scratchRoot}/ava-tmp`;
+  return {
+    command: runtime.executables.node,
+    args: [`--import=${pathToFileURL(AVA_ATTEMPT_CONFIG).href}`, cli, `--config=${AVA_ATTEMPT_CONFIG}`,
+      "--no-color", ...options, file],
+    cwd: projectDir,
+    directories: [tmpdir],
+    env: { NO_COLOR: "1", [AVA_LOAD_CONFIG_ENV]: avaConfigLoader(runtime), [AVA_TMPDIR_ENV]: tmpdir }
+  };
+}

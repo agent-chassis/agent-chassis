@@ -74,8 +74,6 @@ test("commit tool is closed-input and accepts no worker-supplied authority field
   const state = installState({ binding });
   const tool = await registerCommitTool(t);
 
-  assert.deepEqual(Object.keys(tool.config.inputSchema?.shape ?? {}), [], "commit input schema must be empty");
-
   const result = await tool.handler({ branch: "main", write_scope: ["packages/**"], subject: "WK-0001" });
   assert.equal(result.isError, true);
   assert.match(result.content[0].text, /worker-asserted binding component is refused/);
@@ -533,7 +531,10 @@ test("commit diagnostic failures preserve closed input and zero write effects", 
     [{ branch: "main", write_scope: ["packages/**"], subject: "WK-0001" }, /worker-asserted binding component is refused/],
     [{ message: "forged" }, /commit message is SERVER-GENERATED/],
     [{ unexpected: true }, /accepts NO argument \(closed input schema\)/],
-    ["forged", /accepts NO argument/]
+    ["forged", /accepts only the empty object \{\}/],
+    [null, /accepts only the empty object \{\}/],
+    [undefined, /accepts only the empty object \{\}/],
+    [[], /accepts only the empty object \{\}/]
   ]) {
     const { envelope: refused } = await readHandlerResponse(fixture, await fixture.commit.handler(args));
     assert.equal(refused.accepted, false);
@@ -545,4 +546,82 @@ test("commit diagnostic failures preserve closed input and zero write effects", 
   assertCompleteResolverDiagnostic(unbound, fixture.mainRepo);
   assert.deepEqual(await snapshotRepository(fixture.mainRepo), before);
   assert.deepEqual(fixture.transitions, []);
+});
+
+test("delivery derives omission normalization from its advertised strict empty-object schema", async (t) => {
+  const fixture = await openDiagnosticFixture(t);
+  const before = await snapshotRepository(fixture.mainRepo);
+  const { config } = fixture.commit;
+
+  assert.equal(config.inputSchema.removeDefault(), config.advertisedInputSchema);
+  assert.deepEqual(config.inputSchema.safeParse({}), { success: true, data: {} });
+  assert.deepEqual(config.inputSchema.safeParse(undefined), { success: true, data: {} });
+  assert.equal(config.advertisedInputSchema.safeParse(undefined).success, false);
+  for (const malformed of [null, [], "deliver", 7, true]) {
+    assert.equal(config.inputSchema.safeParse(malformed).success, false, JSON.stringify(malformed));
+    assert.equal(config.advertisedInputSchema.safeParse(malformed).success, false, JSON.stringify(malformed));
+  }
+
+  const supplied = { subject: "WK-0001#SLICE-001", message: "worker text", surprise: true };
+  const refused = config.inputSchema.safeParse(supplied);
+  assert.equal(refused.success, false);
+  assert.deepEqual(refused.error.issues.map((issue) => [issue.code, issue.keys]), [
+    ["unrecognized_keys", Object.keys(supplied)]
+  ]);
+  assert.deepEqual(config.advertisedInputSchema.safeParse(supplied).error.issues, refused.error.issues);
+
+  const projected = config.inputValidationErrorProjector({
+    args: supplied, validationError: refused.error, tool: WORKER_COMMIT_TOOL_NAME
+  });
+  assert.deepEqual(Object.keys(projected), ["terminal_result"]);
+  assert.equal(projected.terminal_result.isError, true);
+  const envelope = projected.terminal_result.structuredContent;
+  assert.equal(envelope.diagnostic.code, "tool_input_validation_failed");
+  assert.equal(envelope.diagnostic.tool, WORKER_COMMIT_TOOL_NAME);
+  assert.deepEqual(
+    envelope.diagnostic.validator_diagnostics,
+    JSON.parse(JSON.stringify(refused.error.issues))
+  );
+  assert.deepEqual(envelope.next_calls, [
+    { tool: WORKER_COMMIT_TOOL_NAME, arguments: {}, recommended: true }
+  ]);
+  assert.deepEqual(fixture.transitions, []);
+  assert.deepEqual(await snapshotRepository(fixture.mainRepo), before);
+});
+
+test("a direct unnormalized delivery argument is refused before binding, materialization, publication or transition", async (t) => {
+  const cases = [
+    ["null", null, /accepts only the empty object \{\}/],
+    ["omitted", undefined, /accepts only the empty object \{\}/],
+    ["array", [], /accepts only the empty object \{\}/],
+    ["string", "deliver", /accepts only the empty object \{\}/],
+    ["number", 7, /accepts only the empty object \{\}/],
+    ["unknown field", { surprise: true }, /closed input schema/],
+    ["message field", { message: "worker text" }, /commit message is SERVER-GENERATED/],
+    ["binding field", { run_id: "forged" }, /worker-asserted binding component is refused/]
+  ];
+  for (const [name, args, reason] of cases) {
+    await t.test(name, async (t) => {
+      const binding = exactSliceBinding();
+      installIdentityStoreEnv(t, binding);
+      const state = installState({ binding });
+      const tool = await registerCommitTool(t);
+
+      const result = await tool.handler(args);
+      assert.equal(result.isError, true);
+      assert.match(result.content[0].text, reason);
+      assert.deepEqual(state.calls, []);
+    });
+  }
+
+  await t.test("empty object is delivered", async (t) => {
+    const binding = exactSliceBinding();
+    installIdentityStoreEnv(t, binding);
+    const state = installState({ binding });
+    const result = await (await registerCommitTool(t)).handler({});
+    assert.equal(result.structuredContent.submitted_for_review, true);
+    assert.deepEqual(state.calls.map((call) => call.op), [
+      "resolve_binding", "materialize", "verify_measure", "commit_slice_ref", "transition"
+    ]);
+  });
 });

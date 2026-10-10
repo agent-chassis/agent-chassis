@@ -17,7 +17,7 @@ import {
 } from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-advisory-result-settlement.mjs";
 
-function structuredText() {
+function structuredText(overrides = {}) {
   return JSON.stringify({
     schema_version: "agent-role-result.v1",
     reported_role: "reviewer",
@@ -29,7 +29,8 @@ function structuredText() {
       total: 0, blocking: 0, critical: 0, high: 0, medium: 0,
       low: 0, info: 0
     },
-    reviewed_controls: [{ control_id: "wk-2405-cutover", result: "pass" }]
+    reviewed_controls: [{ control_id: "wk-2405-cutover", result: "pass" }],
+    ...overrides
   });
 }
 
@@ -44,6 +45,7 @@ function capturedFinalResult(text) {
 async function settle({
   text = null,
   status = "succeeded",
+  runs = new Map(),
   formalResultContract = null,
   settle
 }) {
@@ -54,6 +56,7 @@ async function settle({
       exit: { code: status === "succeeded" ? 0 : 1, signal: null },
       final_result: text === null ? null : capturedFinalResult(text)
     },
+    runs,
     formalResultContract,
     settle
   });
@@ -203,6 +206,7 @@ test("managed findings source refs preserve exact text and distinguish source fa
   const settled = await settle({ text });
   const reference = advisory(settled).advisory_output.source_reference.ref;
   const record = { ...settled, workspace_alias: "agent-chassis" };
+  const before = structuredClone(record);
   const available = resolveManagedFindingsSourceFromRecord(record, reference, {
     callerSessionId: "session-advisory-settlement",
     repository: "agent-chassis"
@@ -211,6 +215,8 @@ test("managed findings source refs preserve exact text and distinguish source fa
   assert.equal(available.text, text);
   assert.equal(available.provenance.run_id, "run-advisory-settlement");
   assert.equal(available.provenance.attestation, false);
+  assert.equal(available.provenance.authority, "advisory_only");
+  assert.equal(Object.hasOwn(available.provenance, "findings"), false);
   assert.equal(resolveManagedFindingsSourceFromRecord(record, reference, {
     callerSessionId: "another-session", repository: "agent-chassis"
   }).state, "denied");
@@ -223,6 +229,77 @@ test("managed findings source refs preserve exact text and distinguish source fa
   assert.equal(resolveManagedFindingsSourceFromRecord(record, `${reference}x`, {
     callerSessionId: "session-advisory-settlement", repository: "agent-chassis"
   }).state, "corrupt");
+  for (const key of ["monitor_handle", "subject"]) {
+    assert.equal(resolveManagedFindingsSourceFromRecord({ ...record, [key]: "changed" }, reference, {
+      callerSessionId: "session-advisory-settlement", repository: "agent-chassis"
+    }).state, "changed");
+  }
+  const changed = structuredClone(record);
+  changed.final_result.advisory_review.advisory_output.text += "changed";
+  assert.equal(resolveManagedFindingsSourceFromRecord(changed, reference, {
+    callerSessionId: "session-advisory-settlement", repository: "agent-chassis"
+  }).state, "changed");
+  assert.deepEqual(record, before, "source resolution never mutates retained evidence");
+});
+
+test("authenticated source findings come only from the exact schema and role/subject checks", async () => {
+  const member = { id: "F1", title: "Review e\u0301 \u{1f680}", severity: "low", blocking: false,
+    affected_paths: [{ path: "src/example.mjs", line: 1 }], control_id: null };
+  const empty = JSON.parse(structuredText());
+  const withFindings = { reported_outcome: "passed_no_blocking_or_medium_findings", findings: [member],
+    summary: "Captured review observations.",
+    finding_counts: { ...empty.finding_counts, total: 1, low: 1 } };
+  const options = { callerSessionId: "session-advisory-settlement", repository: "agent-chassis" };
+  for (const [payload, expected] of [[withFindings, [member]], [{}, []]]) {
+    for (const status of ["succeeded", "failed"]) {
+      const text = structuredText(payload);
+      const runs = new Map();
+      await settle({ text, status, runs });
+      const record = runs.get("run-advisory-settlement");
+      assert.equal(advisory(record).schema_observation.adherent, true,
+        JSON.stringify(advisory(record).schema_observation.diagnostics));
+      const output = advisory(record).advisory_output;
+      const before = structuredClone(record);
+      const source = resolveManagedFindingsSourceFromRecord(record, output.source_reference.ref, options);
+      assert.equal(source.ok, true);
+      assert.equal(source.text, text);
+      assert.deepEqual(source.provenance.findings, expected);
+      for (const node of [source.provenance.findings, ...source.provenance.findings.flatMap(finding =>
+        [finding, finding.affected_paths, ...finding.affected_paths])]) assert.ok(Object.isFrozen(node));
+      for (const key of ["run_id", "monitor_handle", "subject"]) {
+        assert.equal(source.provenance[key], record[key]);
+      }
+      assert.equal(source.provenance.value_digest, output.source_reference.value_digest);
+      assert.equal(source.provenance.utf8_bytes, Buffer.byteLength(text, "utf8"));
+      assert.equal(source.provenance.authority, "advisory_only");
+      assert.equal(source.provenance.attestation, false);
+      assert.equal(advisory(record).formal_attestation.requested, false);
+      assert.deepEqual(record, before);
+    }
+  }
+  for (const text of [
+    structuredText({ ...withFindings, reported_role: "redteam" }),
+    structuredText({ ...withFindings, reported_subject: "WK-9999" }),
+    '{"schema_version":"agent-role-result.v1","findings":[]}',
+    structuredText({ ...withFindings, finding_counts: empty.finding_counts }),
+    structuredText({ ...withFindings, findings: [member, member],
+      finding_counts: { ...empty.finding_counts, total: 2, low: 2 } })
+  ]) {
+    const runs = new Map();
+    await settle({ text, runs });
+    const record = structuredClone(runs.get("run-advisory-settlement"));
+    record.final_result.advisory_review.schema_observation.adherent = true;
+    const before = structuredClone(record);
+    const output = advisory(record).advisory_output;
+    const source = resolveManagedFindingsSourceFromRecord(record, output.source_reference.ref, options);
+    assert.equal(source.ok, true);
+    assert.equal(source.text, text);
+    assert.equal(output.usable, true);
+    assert.equal(Object.hasOwn(source.provenance, "findings"), false);
+    assert.equal(source.provenance.authority, "advisory_only");
+    assert.equal(source.provenance.attestation, false);
+    assert.deepEqual(record, before, "persisted schema flags neither authenticate IDs nor change reads");
+  }
 });
 
 const POLL_CLOCK = () => Date.parse("2026-09-01T00:00:05.000Z");
@@ -248,16 +325,25 @@ function healthyConduit() {
 function scriptedChild(observations) {
   const queue = [...observations];
   let probes = 0;
+  let complete;
+  const completion = new Promise((resolve) => { complete = resolve; });
+  const exit = () => {
+    queue.splice(0, queue.length - 1);
+    complete();
+  };
+  if (queue.length === 1) exit();
   return {
     handle: {
       accepted: true,
       status: "launching",
+      completion,
       probe: async () => {
         probes += 1;
-        return queue.length > 1 ? queue.shift() : queue[0];
+        return queue[0];
       }
     },
-    probes: () => probes
+    probes: () => probes,
+    exit
   };
 }
 
@@ -323,6 +409,14 @@ test("a conduit failure discovered while polling survives zero-output settlement
   assert.equal(running.terminal, false);
   assert.equal(running.exit, null, "no diagnostic exists before the failure");
 
+  let completed = false;
+  child.handle.completion.then(() => { completed = true; });
+  await Promise.resolve();
+  assert.equal(completed, false, "a live child's completion is still pending");
+  child.exit();
+  assert.equal(await child.handle.completion, undefined);
+  assert.equal(child.probes(), 1, "exit and awaiting completion do not probe");
+
   conduit.readinessFailure = readinessTimeout();
   const terminal = await poll(record);
   assert.equal(terminal.terminal, true);
@@ -355,8 +449,9 @@ test("a failing conduit keeps captured advisory text byte-identical beside the c
     final_result: capturedFinalResult(text)
   });
   const conduit = healthyConduit();
-  const { record } = await launchWithConduit(conduit, [RUNNING, failedWithText]);
+  const { record, child } = await launchWithConduit(conduit, [RUNNING, failedWithText]);
   await poll(record);
+  child.exit();
   conduit.readinessFailure = typedConduitError(STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_EXIT,
     { code: 1, signal: null });
 
@@ -435,7 +530,9 @@ test("runs without a typed conduit failure carry no fabricated diagnostic", asyn
   });
   const runs = new Map();
   const unbranded = await launchAdvisory({
-    executorResult: { accepted: true, status: "launching", probe: async () => lookAlike },
+
+    executorResult: { accepted: true, status: "launching", completion: Promise.resolve(),
+      probe: async () => lookAlike },
     runs
   });
   const killed = await poll(runs.get(unbranded.run_id));

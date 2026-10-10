@@ -144,6 +144,7 @@ export function createResumableLifecycleHarness({
       unit_address: "IN-0021/WK-1537",
       output_branch: wkRef,
       worktree_path: wkWorktree,
+      base_ref: "main",
       base_sha: base
     },
     validation_worktree_path: wkWorktree

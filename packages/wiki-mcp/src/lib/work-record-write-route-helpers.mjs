@@ -311,8 +311,8 @@ export function createCompactValidateDispatchResponse(
   }
 
   const baseSelection = readiness?.worker_scope_preflight?.reason;
-  if (readiness?.dispatchable === true &&
-      baseSelection?.code === "scope_existence_base_selection_missing" &&
+  if (readiness?.decision_code === "scope_existence_base_selection_missing" &&
+      baseSelection?.code === readiness.decision_code &&
       typeof baseSelection.message === "string" && baseSelection.message !== "") {
     response.next_action = baseSelection.message;
   }

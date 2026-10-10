@@ -53,16 +53,8 @@ export const DEFAULT_BWRAP_ENV_BEHAVIOR_AFFECTING_DENY_NAMES = Object.freeze([
   LAUNCHER_UNSANDBOXED_OPT_IN_ENV_KEY,
   "NODE_OPTIONS",
   "NODE_PATH",
-  "HTTP_PROXY",
-  "HTTPS_PROXY",
-  "ALL_PROXY",
-  "NO_PROXY",
   "node_options",
-  "node_path",
-  "http_proxy",
-  "https_proxy",
-  "all_proxy",
-  "no_proxy"
+  "node_path"
 ]);
 
 function isSecretEnvKey(key) {

@@ -5,7 +5,7 @@ import {
   CONTROLLED_CONTRACT_INTEGRATION_ASSESSMENT_COLLECTIONS,
   CONTROLLED_CONTRACT_PROOF_ASSESSMENT_COLLECTIONS,
   assessmentCollectionDescriptor
-} from "@agent-chassis/controlled-contract";
+} from "@agent-chassis/controlled-contract/assessment-collection-descriptors";
 import { ControlledContractToolError } from "../../lib/controlled-contract-tools.mjs";
 import {
   CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS,

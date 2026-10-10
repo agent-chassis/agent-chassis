@@ -1,4 +1,4 @@
-
+import { consumeAdvisoryExecutionSubstrate } from "./workspace-agent-advisory-execution-substrate.mjs";
 
 import path from "node:path";
 import os from "node:os";
@@ -54,6 +54,7 @@ import {
 } from "./workspace-agent-family-adapter-core.mjs";
 import { buildFamilyExecutorBwrapPlan } from "./workspace-agent-family-bwrap-plan.mjs";
 import { resolveLaunchRoleGuideDirectory } from "./launch-isolation-plan.mjs";
+import { resolveRoleGuideCompactionHook } from "./role-guide-compaction-hook.mjs";
 import { assertGitMetadataProjectionComposed } from "./launch-isolation-findings-git-metadata.mjs";
 import { resolveAdvisoryReviewGitMetadataProjection } from
   "./workspace-agent-advisory-review-contract.mjs";
@@ -175,6 +176,42 @@ export function buildClaudeNativePermissionSettings({
       disableBypassPermissionsMode: "disable"
     }
   };
+}
+
+export function buildClaudeRoleGuideCompactionHookSettings(launchRole, {
+  resolveHook = resolveRoleGuideCompactionHook
+} = {}) {
+  const hook = resolveHook(launchRole);
+  if (hook === null) return null;
+  return {
+    hooks: {
+      [hook.event]: [{
+        matcher: hook.matcher,
+        hooks: [{ type: "command", command: hook.command, timeout: hook.timeoutSec }]
+      }]
+    }
+  };
+}
+
+export function composeClaudeSettingsWithRoleGuideHook(settings, fragment) {
+  const merged = { ...settings, hooks: { ...(settings?.hooks ?? {}) } };
+  for (const [event, groups] of Object.entries(fragment.hooks)) {
+    merged.hooks[event] = [...(merged.hooks[event] ?? []), ...groups];
+  }
+  return merged;
+}
+
+export function withClaudeConfinedSettingsPath(args, { settingsPath, confinedSettingsPath } = {}) {
+  if (typeof settingsPath !== "string" || typeof confinedSettingsPath !== "string" ||
+      settingsPath === confinedSettingsPath) {
+    return args;
+  }
+  const terminator = args.indexOf(CLAUDE_ARGV_OPTION_TERMINATOR);
+  const end = terminator === -1 ? args.length : terminator;
+  return args.map((arg, index) =>
+    (index > 0 && index < end && args[index - 1] === "--settings" && arg === settingsPath
+      ? confinedSettingsPath
+      : arg));
 }
 
 export function buildClaudeMcpPermissionEntries(toolNames) {
@@ -865,16 +902,21 @@ export function createDefaultClaudeBwrapIsolatedSpawn({
       opts?.advisoryReviewInput === undefined
       ? null
       : resolveAdvisoryReviewGitMetadataProjection(opts.advisoryReviewInput);
+    const substrateRoots = gitMetadataProjection === null ? []
+      : consumeAdvisoryExecutionSubstrate(opts.advisoryReviewInput).read_only_binds;
+
+    if (opts?.claudeSettings?.confinedSettingsError) throw opts.claudeSettings.confinedSettingsError;
     const plan = buildBwrapPlan({
       command,
-      args: Array.isArray(args) ? args : [],
+
+      args: withClaudeConfinedSettingsPath(Array.isArray(args) ? args : [], opts?.claudeSettings ?? {}),
       workspaceDir,
       env: opts?.env ?? null,
 
       writeScope: Array.isArray(opts?.writeScope) ? opts.writeScope : [],
 
       runtimeRoots: Array.isArray(opts?.runtimeRoots) ? opts.runtimeRoots : [],
-      readOnlyRoots: Array.isArray(opts?.readOnlyRoots) ? opts.readOnlyRoots : [],
+      readOnlyRoots: [...(Array.isArray(opts?.readOnlyRoots) ? opts.readOnlyRoots : []), ...substrateRoots],
       gitMetadataProjection,
       provisionedWorktreeGitIdentity:
         opts?.provisionedWorktreeGitIdentity ?? opts?.provisionedWorktreeGitBinding ?? null,

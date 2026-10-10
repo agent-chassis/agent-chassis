@@ -140,42 +140,6 @@ export function replaceStableTestProofBindings(input: {
   changed_verification_ids: readonly string[];
   semantic_judgment: "not_performed_coordinator_owned";
 }>;
-export const CURRENT_DEFINITION_REAUTHORING_SCHEMA:
-  "controlled-contract-current-definition-reauthoring.v1";
-export const RETIRED_CURRENT_DEFINITION_FIELDS:
-  readonly ["coverage_disposition", "runtime_test_identity"];
-export interface StableCurrentDefinitionQualification {
-  readonly schema_version: "controlled-contract-current-definition-reauthoring.v1";
-  readonly source_shape: "stable_v1_retired_definition_fields";
-  readonly affected_definition_count: number;
-  readonly definitions: readonly Readonly<{
-    definition_pointer: string;
-    test_proof_id: string;
-    verification_claim_id: string;
-    unexpected_fields: readonly string[];
-    missing_fields: readonly string[];
-  }>[];
-  readonly selector: Readonly<Record<string, unknown>>;
-  readonly required_confirmation: "exact_unexpected_fields";
-}
-export function qualifyStableCurrentDefinitionReauthoring(input: {
-  contract: Record<string, unknown>;
-  diagnosticDetails: readonly Readonly<Record<string, unknown>>[];
-}): StableCurrentDefinitionQualification | null;
-export function reauthorStableCurrentDefinitionBindings(input: {
-  contract: Record<string, unknown>;
-  qualification: StableCurrentDefinitionQualification;
-  replacements: readonly Readonly<{
-    op: "replace";
-    verification_id: string;
-    binding: Readonly<Record<string, unknown>>;
-  }>[];
-}): Readonly<{
-  contract: Record<string, unknown>;
-  contract_digest: `sha256:${string}`;
-  changed_verification_ids: readonly string[];
-  semantic_judgment: "not_performed_authoring_only";
-}>;
 export function resolveTestProofProviderCompatibility(
   input: Record<string, unknown>
 ): Readonly<Record<string, unknown>>;

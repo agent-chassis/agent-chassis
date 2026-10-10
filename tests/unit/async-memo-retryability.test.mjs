@@ -17,6 +17,9 @@ import {
 import {
   EVALUATION_INPUT_VALIDATOR_GROUP,
   loadControlledContractPackage,
+  loadControlledContractProofPlanCompiler,
+  loadControlledContractProofAuthoring,
+  loadControlledContractProofIntents,
   loadControlledContractSharedContract,
   loadEvaluationInputSchema,
   loadEvaluationInputSchemaValue,
@@ -210,25 +213,46 @@ test("a failed population status re-runs; the population declares each group onc
 });
 
 test("each named package-runtime loader resolves and stays memoized", async () => {
-  const [packageApi, sharedContract, requestSchema, inputSchema, validator] = await Promise.all([
+  const [packageApi, sharedContract, proofAuthoring, proofIntents, requestSchema, inputSchema, validator, compilers] = await Promise.all([
     loadControlledContractPackage(),
     loadControlledContractSharedContract(),
+    loadControlledContractProofAuthoring(),
+    loadControlledContractProofIntents(),
     loadProofPlanRequestSchema(),
     loadEvaluationInputSchemaValue(),
-    loadEvaluationInputSchema()
+    loadEvaluationInputSchema(),
+    Promise.all([loadControlledContractProofPlanCompiler(),
+      loadControlledContractProofPlanCompiler(), loadControlledContractProofPlanCompiler()])
   ]);
 
   assert.equal(typeof packageApi.buildProofPlan, "function");
+  assert.equal(typeof compilers[0].buildProofPlan, "function");
+  assert.ok(compilers.every(compiler => compiler === compilers[0]),
+    "concurrent narrow compiler calls share the prepared module");
   for (const name of ["validateNativeTestProofAuthoringContract", "buildStableTestProofBindingTemplate",
     "deriveAuthoredTestCases"]) {
     assert.equal(typeof sharedContract[name], "function", `shared contract exposes ${name}`);
   }
+
+  for (const name of ["upsertProofAuthoringSelection", "removeProofAuthoringSelection",
+    "pinProofSelection", "loadPinnedProofSelection", "assertProofAuthoringDraft"]) {
+    assert.equal(typeof proofAuthoring[name], "function", `proof authoring exposes ${name}`);
+  }
+  for (const name of ["validateObligationCoverageDraft", "deriveCriterionIdentities",
+    "authoredCaseVerificationId", "validateNativeTestProofAuthoringContract"]) {
+    assert.equal(typeof sharedContract[name], "function", `shared contract exposes ${name}`);
+    assert.equal(proofAuthoring[name], sharedContract[name], `${name} has one owner`);
+  }
+  assert.equal(typeof proofIntents.describeProofPackAuthoring, "function");
   assert.equal(typeof requestSchema, "object");
   assert.equal(typeof inputSchema, "object");
   assert.equal(typeof validator, "function");
 
   assert.equal(await loadControlledContractPackage(), packageApi);
+  assert.equal(await loadControlledContractProofPlanCompiler(), compilers[0]);
   assert.equal(await loadControlledContractSharedContract(), sharedContract);
+  assert.equal(await loadControlledContractProofAuthoring(), proofAuthoring);
+  assert.equal(await loadControlledContractProofIntents(), proofIntents);
   assert.equal(await loadProofPlanRequestSchema(), requestSchema);
   assert.equal(await loadEvaluationInputSchemaValue(), inputSchema);
   assert.equal(await loadEvaluationInputSchema(), validator);
@@ -277,6 +301,9 @@ test("no in-scope loader retains a rejection through a bare ??= memo", async () 
   const runtimeSource = sources["packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs"];
   for (const loader of [
     "loadControlledContractPackage",
+    "loadControlledContractProofPlanCompiler",
+    "loadControlledContractProofAuthoring",
+    "loadControlledContractProofIntents",
     "loadControlledContractSharedContract",
     "loadProofPlanRequestSchema",
     "loadEvaluationInputSchemaValue",

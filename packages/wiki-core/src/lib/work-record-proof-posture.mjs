@@ -1,9 +1,11 @@
 import {
   classifyControlledContractTerminalGaps
 } from "../operations/controlled-contract/terminal-gap-classification.mjs";
+import { ControlledContractToolError } from "./controlled-contract-tool-shared.mjs";
 import {
   controlledAcceptanceSelectedUnit, coverageUnitAddress
 } from "./controlled-contract-unit-address.mjs";
+import { today } from "./wiki-shared.mjs";
 
 export const WORK_RECORD_PROOF_POSTURE_SCHEMA_VERSION =
   "work-record-proof-posture.v1";
@@ -163,6 +165,70 @@ export function buildControlledAcceptanceProofPosture({ wkId, disposition, ratio
   });
 }
 
+function refusal(code, message) {
+  throw new ControlledContractToolError(code, message, { changed: false });
+}
+
+const PREPARED_PROOF_POSTURE_CONTRIBUTIONS = new WeakMap();
+
+function postureMember(record) {
+  const present = Object.hasOwn(record, "proof_posture");
+  return { present, value: present ? structuredClone(record.proof_posture) : null };
+}
+
+export function prepareControlledAcceptanceProofPostureAmendment({
+  record, wkId, disposition, rationale = null, allowCorrection = false,
+  allowInvalidReplacement = false,
+  now = today, sourceDigest = null
+} = {}) {
+  let proofPosture;
+  try {
+    proofPosture = buildControlledAcceptanceProofPosture({
+      wkId, disposition, rationale
+    });
+  } catch (error) {
+    refusal(error.code ?? "controlled_acceptance_proof_posture_invalid", error.message);
+  }
+  if (record?.id !== wkId) refusal(
+    "controlled_acceptance_proof_posture_record_invalid",
+    "the exact canonical work record is unavailable or invalid"
+  );
+  const current = inspectWorkRecordProofPosture(record, { expectedRecordId: wkId });
+  if (!current.valid && !allowInvalidReplacement) refusal(
+    "controlled_acceptance_proof_posture_record_invalid",
+    current.reason ?? "the canonical proof posture is invalid"
+  );
+  if (current.present && current.valid && !allowCorrection) refusal(
+    "controlled_acceptance_proof_posture_already_recorded",
+    "a controlled-acceptance disposition is already recorded"
+  );
+  const issued = (prepared) => {
+    if (typeof sourceDigest === "string" && sourceDigest.length > 0) {
+      PREPARED_PROOF_POSTURE_CONTRIBUTIONS.set(prepared, { recordId: wkId, sourceDigest,
+        prior: postureMember(record), prepared: postureMember(prepared.record) });
+    }
+    return prepared;
+  };
+  if (current.present && JSON.stringify(current.proof_posture) ===
+      JSON.stringify(proofPosture)) return issued(Object.freeze({
+    record: Object.freeze(structuredClone(record)), proofPosture,
+    changed: false
+  }));
+  const amended = structuredClone(record);
+  amended.proof_posture = proofPosture;
+  amended.updated = now();
+  return issued(Object.freeze({ record: Object.freeze(amended), proofPosture,
+    changed: true }));
+}
+
+export function readPreparedProofPostureContribution(preparation, { recordId, sourceDigest }) {
+  const issued = preparation !== null && typeof preparation === "object"
+    ? PREPARED_PROOF_POSTURE_CONTRIBUTIONS.get(preparation) : undefined;
+  if (issued === undefined || issued.recordId !== recordId ||
+      issued.sourceDigest !== sourceDigest) return null;
+  return { prior: structuredClone(issued.prior), prepared: structuredClone(issued.prepared) };
+}
+
 export function validateWorkRecordProofPostureInto(diagnostics, record, addDiagnostic) {
   const inspected = inspectWorkRecordProofPosture(record);
   if (!inspected.present || inspected.valid) return;
@@ -225,9 +291,11 @@ const ACCEPTANCE_CRITERIA_UNCOVERED_CODE = "controlled_acceptance_criteria_uncov
 const READINESS_OWNER = "ordinaryAuthoringReadiness";
 const OBLIGATION_DEFINITIONS_INCOMPLETE = "obligation_definitions_incomplete";
 
-function correctionSentence({ read_tool: read, write_tool: write, arguments: args }) {
-  return `${read}(${JSON.stringify(args)}), then ${write} on the same unit with that ` +
-    "response's fresh content_digest as expected_content_digest.";
+function correctionSentence({ arguments: args }) {
+  return `workspace_read_wiki(${JSON.stringify({ subject: args.unit })}), then save_record ` +
+    "on that unit using the context's fresh revision and caller-authored changes.obligations " +
+    "with criteria associations. Authored verification meaning is required; this is an " +
+    "authoring template, not a complete executable save call.";
 }
 
 function causeNarrative(causes) {

@@ -1,18 +1,16 @@
+import { rollbackGraphSidecarWrite } from "./work-records-graph-impact-sidecar-io.mjs";
+import { publishWorkRecordAdmissionDerivedEvidenceSidecar } from "../lib/work-record-admission-derived-evidence-persist.mjs";
 
-
+import { readPreparedGraphEvidenceContribution } from "./work-records-graph-impact.mjs";
 import path from "node:path";
-import { createHash, randomBytes } from "node:crypto";
-import { mkdtemp, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
-import {
-  CRASH_DURABLE_EFFECTS,
-  createAsyncEffects,
-  planReplacement,
-  runCrashDurablePlanAsync
-} from "../lib/crash-durable-state.mjs";
+import { createHash } from "node:crypto";
+import { lstat, mkdtemp, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { isObject } from "./work-records-shared.mjs";
 import {
   canonicalizeWorkRecordJson,
+  canonicalizeWorkRecordReadScope,
   computeWorkRecordSourceDigest,
+  parseWorkRecordJson,
   validateWorkRecord
 } from "../lib/work-record-schema.mjs";
 import {
@@ -22,12 +20,13 @@ import {
   loadWorkRecordByPath
 } from "../lib/work-record-store.mjs";
 import { ensureDirectory } from "../lib/wiki-shared.mjs";
+import { buildCreatedIssueWorkRecord } from "../lib/work-record-birth.mjs";
+import { readPreparedProofPostureContribution } from "../lib/work-record-proof-posture.mjs";
 import {
   ADMISSION_ARTIFACT_DIRECTORY,
   admissionArtifactReferenceUnavailableDiagnostic,
   classifyAdmissionArtifactBasename,
-  collectRetainedAdmissionArtifactPaths,
-  findUnavailableNewAdmissionArtifactReferences
+  collectRetainedAdmissionArtifactPaths
 } from "../lib/work-record-admission-artifact-references.mjs";
 import {
   WORK_RECORD_PERSISTENCE_PHASES,
@@ -45,6 +44,13 @@ import {
   settleWorkRecordPersistenceWithOptionalLock
 } from
   "./work-record-persistence-transaction.mjs";
+import {
+  guardOrdinaryWorkRecordPublication,
+  publishCanonicalWorkRecord,
+  restoreCanonicalWorkRecordBytes,
+  serializeCanonicalWorkRecord,
+  settleOrdinaryWorkRecordPublication
+} from "./work-record-publication.mjs";
 import { withWorkRecordWriteLock } from "./work-record-write-lock.mjs";
 import { preservesWorkRecordEntryHistory } from "../lib/work-record-entry-schema.mjs";
 import { validateWorkRecordEntryIntegrity } from "../lib/work-record-entry-content.mjs";
@@ -57,34 +63,95 @@ export {
 } from "./work-record-write-lock.mjs";
 
 const WORK_RECORD_READ_LEASES = new WeakMap();
+const WORK_RECORD_BIRTH_LEASES = new WeakMap();
+
+const WORK_RECORD_BIRTH_WRITES = new WeakMap();
+
+const BIRTH_REPLACEMENT_REFUSALS = new WeakSet();
 
 const WORK_RECORD_READ_LEASE_MAX_DURATION_MS = 60_000;
 
-async function publishCanonicalWorkRecord({
-  canonicalRecordPath,
-  record,
-  canonicalReplace = rename,
-  faultInjector = null,
-  canonicalBytes
-}) {
-  const bytes = canonicalBytes ?? `${JSON.stringify(record, null, 2)}\n`;
-  const privatePath = path.join(
-    path.dirname(canonicalRecordPath),
-    `.${path.basename(canonicalRecordPath)}.publish-${process.pid}-${randomBytes(8).toString("hex")}`
-  );
+function birthFailure(code, message, details = {}, cause) {
+  return Object.assign(new Error(message, cause === undefined ? undefined : { cause }), { code, details });
+}
 
-  const effects = {
-    ...createAsyncEffects({ mode: 0o666, faultInjector }),
-    [CRASH_DURABLE_EFFECTS.PUBLISH_RENAME]: async (step) => {
-      if (typeof faultInjector === "function" && step.fault !== null) faultInjector(step.fault);
-      await canonicalReplace(step.privatePath, step.targetPath);
+function freezeRecord(value) {
+  if (value !== null && typeof value === "object") {
+    for (const member of Object.values(value)) freezeRecord(member);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+async function assertBirthTargetAbsent(state) {
+  try {
+    await lstat(getWorkRecordPath(state.targetDir, state.id));
+  } catch (cause) {
+    if (cause.code === "ENOENT") return;
+    throw birthFailure("canonical_work_record_birth_target_unavailable",
+      "Canonical birth target cannot be inspected", { record_id: state.id, cause_code: cause.code }, cause);
+  }
+  throw birthFailure("canonical_work_record_birth_target_exists",
+    "Canonical birth target already has a path entry", { record_id: state.id });
+}
+
+export function assertCanonicalWorkRecordBirthLease(lease, { dir, id, now = Date.now() } = {}) {
+  const state = WORK_RECORD_BIRTH_LEASES.get(lease);
+  if (!state?.active || !state.lockHeld) throw birthFailure("canonical_work_record_birth_lease_invalid",
+    "Canonical work-record birth lease is missing, forged or released");
+  if (typeof dir !== "string" || state.targetDir !== path.resolve(dir) || state.id !== id) {
+    throw birthFailure("canonical_work_record_birth_lease_identity_mismatch", "Birth lease identity is mismatched");
+  }
+  if (!Number.isFinite(now) || now > state.expiresAt) throw birthFailure("canonical_work_record_birth_lease_expired",
+    "Canonical work-record birth lease expired");
+  return Object.freeze({ target_dir: state.targetDir, record_id: state.id,
+    baseline_source_digest: state.baselineDigest, expires_at: new Date(state.expiresAt).toISOString() });
+}
+
+export async function readCanonicalWorkRecordBirthLease(lease, { dir, id } = {}) {
+  const bound = assertCanonicalWorkRecordBirthLease(lease, { dir, id });
+  const state = WORK_RECORD_BIRTH_LEASES.get(lease);
+  await assertBirthTargetAbsent(state);
+  return Object.freeze({ ...bound, record: freezeRecord(structuredClone(state.baseline)) });
+}
+
+export async function withCanonicalWorkRecordBirthLease({ dir, id, title, date, repo,
+  maximumDurationMs = WORK_RECORD_READ_LEASE_MAX_DURATION_MS } = {}, callback) {
+  if (typeof callback !== "function" || typeof id !== "string" || !/^WK-[0-9]{4}$/u.test(id) ||
+      [dir, title, date, repo].some(value => typeof value !== "string" || value.trim() === "") ||
+      !Number.isInteger(maximumDurationMs) || maximumDurationMs <= 0 ||
+      maximumDurationMs > WORK_RECORD_READ_LEASE_MAX_DURATION_MS) {
+    throw birthFailure("canonical_work_record_birth_lease_input_invalid", "Birth lease input is invalid");
+  }
+  const targetDir = path.resolve(dir);
+  return withWorkRecordWriteLock(targetDir, async () => {
+    const baseline = freezeRecord(canonicalizeWorkRecordReadScope(buildCreatedIssueWorkRecord({ id, title, date, repo })));
+    const validated = await validateWorkRecordCandidate({ targetDir, record: baseline });
+    if (validated.refusal) throw birthFailure("canonical_work_record_birth_lease_input_invalid",
+      "Pristine birth record is invalid", { diagnostics: validated.refusal.diagnostics });
+    const state = { targetDir, id, baseline, baselineDigest: validated.sourceDigest,
+      active: true, lockHeld: true, expiresAt: Date.now() + maximumDurationMs };
+    await assertBirthTargetAbsent(state);
+    const lease = Object.freeze(Object.create(null));
+    WORK_RECORD_BIRTH_LEASES.set(lease, state);
+    try {
+      return await callback(Object.freeze({ lease, record: structuredClone(baseline),
+        baseline_source_digest: state.baselineDigest, canonical_record_path: getWorkRecordPath(targetDir, id) }));
+    } finally {
+      state.active = false;
+      state.lockHeld = false;
     }
-  };
-  const result = await runCrashDurablePlanAsync(
-    planReplacement({ targetPath: canonicalRecordPath, privatePath, bytes }),
-    effects
-  );
-  return result;
+  });
+}
+
+async function loadBirthPublicationBaseline(state) {
+  if (!state.lockHeld) throw birthFailure("canonical_work_record_birth_lease_invalid", "Birth lock was released");
+  const now = Date.now();
+  if (!Number.isFinite(now) || now > state.expiresAt) {
+    throw birthFailure("canonical_work_record_birth_lease_expired", "Birth lease expired");
+  }
+  await assertBirthTargetAbsent(state);
+  return { record: state.baseline, source_digest: null };
 }
 
 export function assertCanonicalWorkRecordReadLease(lease, {
@@ -138,8 +205,10 @@ export async function withCanonicalWorkRecordReadLease({
       throw error;
     }
     const token = Object.freeze(Object.create(null));
+
     const state = {
       active: true,
+      lockHeld: true,
       expiresAt: Date.now() + maximumDurationMs,
       id,
       sourceDigest: loaded.source_digest,
@@ -155,6 +224,7 @@ export async function withCanonicalWorkRecordReadLease({
       }));
     } finally {
       state.active = false;
+      state.lockHeld = false;
     }
   }, { reentrant: true });
 }
@@ -231,6 +301,16 @@ function entryHistoryMutationDiagnostic(recordId) {
     "published work-record entry versions must be retained byte-for-byte",
     { recordId }
   );
+}
+
+function retainedHistoryMutationDiagnostic(persistedRecord, proposedRecord, recordId) {
+  if (!preservesReviewProvenance(persistedRecord, proposedRecord)) {
+    return reviewProvenanceHistoryMutationDiagnostic(recordId);
+  }
+  if (!preservesWorkRecordEntryHistory(persistedRecord, proposedRecord)) {
+    return entryHistoryMutationDiagnostic(recordId);
+  }
+  return null;
 }
 
 function createStoreDiagnostic(code, message, {
@@ -386,17 +466,61 @@ async function maintainRecordOwnedAdmissionArtifacts({
   };
 }
 
+async function restoreBirthAdmissionArtifact(targetDir, publication) {
+  const absolutePath = path.resolve(targetDir, publication.relativePath);
+  try { await lstat(absolutePath); } catch (error) { if (error.code === "ENOENT") return; throw error; }
+  const restored = await rollbackGraphSidecarWrite({ absolutePath, existedBefore: false,
+    priorText: null, expectedText: publication.bytes });
+  if (!restored.rolledBack) throw birthFailure("work_record_birth_admission_compensation_failed",
+    "Birth admission artifact could not be restored without changing foreign bytes", { diagnostic: restored.diagnostic });
+}
+
 export async function writeValidatedWorkRecordWithAdmissionSidecars(options = {}) {
+  const birth = WORK_RECORD_BIRTH_WRITES.get(options.record);
+  if (birth) {
+    const targetDir = path.resolve(String(options.dir));
+    if (birth.targetDir !== targetDir || birth.id !== options.record.id) throw birthFailure(
+      "canonical_work_record_birth_lease_identity_mismatch", "Birth publication identity is mismatched");
+    const effects = options.persistenceEffects ?? {};
+    const loadRecord = effects.loadRecordByPath ?? loadWorkRecordByPath;
+    const replace = options.canonicalReplace ?? rename;
+    const publish = effects.publishAdmissionSidecar ?? publishWorkRecordAdmissionDerivedEvidenceSidecar;
+    options = { ...options, expectedSourceDigest: birth.baselineDigest,
+      canonicalReplace: async (from, to) => {
+        try { await loadBirthPublicationBaseline(birth); }
+        catch (error) { BIRTH_REPLACEMENT_REFUSALS.add(error); throw error; }
+        return replace(from, to);
+      },
+      persistenceEffects: { ...effects,
+        loadRecordByPath: async request => request.path === getWorkRecordPath(targetDir, birth.id)
+          ? { ...await loadBirthPublicationBaseline(birth), source_digest: birth.baselineDigest }
+          : loadRecord(request),
+        publishAdmissionSidecar: async request => {
+          await loadBirthPublicationBaseline(birth);
+          const file = path.resolve(targetDir, request.publication.relativePath);
+          try { await lstat(file); }
+          catch (error) { if (error.code !== "ENOENT") throw error;
+            const result = await publish(request);
+            if (result.ok !== true || result.created === true) return result;
+            throw birthFailure("work_record_birth_evidence_collision", "Birth evidence destination appeared before publication");
+          }
+          throw birthFailure("work_record_birth_evidence_collision", "Birth evidence destination already exists");
+        },
+        removeAdmissionArtifact: async file => {
+          const owned = options.admissionSidecars.find(value => path.resolve(targetDir, value.relativePath) === file);
+          if (!owned) throw birthFailure("work_record_birth_evidence_identity_mismatch", "Rollback named an unowned artifact");
+          await restoreBirthAdmissionArtifact(targetDir, owned);
+        }
+      } };
+  }
   return runValidatedWorkRecordAdmissionTransaction(options, {
+    canonicalReplaceNotAttempted: error => BIRTH_REPLACEMENT_REFUSALS.has(error),
     maintainRecordOwnedAdmissionArtifacts,
     computeWorkRecordPersistenceSnapshotDigest,
     createStoreDiagnostic,
-    preservesReviewProvenance,
-    preservesWorkRecordEntryHistory,
-    entryHistoryMutationDiagnostic,
+    retainedHistoryMutationDiagnostic,
     validateWorkRecordEntryIntegrity,
     publishCanonicalWorkRecord,
-    reviewProvenanceHistoryMutationDiagnostic,
     withWorkRecordWriteLock,
     writeJsonFileToTemp
   });
@@ -456,21 +580,9 @@ export async function inspectWorkRecordAdmissionSidecarArtifacts({
   });
 }
 
-export async function writeValidatedWorkRecord({
-  dir = ".",
-  record: inputRecord,
-  expectedSourceDigest = null,
-  recordStore = null,
-  canonicalReplace = rename,
-  persistenceEffects = {},
-
-  lockAlreadyHeld = false
-} = {}) {
-  const targetDir = path.resolve(String(dir));
-  const record = inputRecord;
-
+async function validateWorkRecordCandidate({ targetDir, record }) {
   if (!isObject(record)) {
-    return {
+    return { refusal: {
       valid: false,
       written: false,
       diagnostics: [
@@ -485,19 +597,19 @@ export async function writeValidatedWorkRecord({
       record: null,
       source_digest: null,
       canonical_record_path: null
-    };
+    } };
   }
 
   const recordId = typeof record.id === "string" ? record.id : null;
   const canonicalRecordPath = recordId ? getWorkRecordPath(targetDir, recordId) : null;
   const obsoleteInput = obsoleteDocsInputDiagnostic(record);
   if (obsoleteInput) {
-    return inputContractRefusal({
+    return { refusal: inputContractRefusal({
       record,
       sourceDigest: null,
       canonicalRecordPath,
       diagnostic: obsoleteInput
-    });
+    }) };
   }
   const sourceDigest = computeWorkRecordSourceDigest(record);
   const diagnostics = validateWorkRecord(record, {
@@ -516,7 +628,7 @@ export async function writeValidatedWorkRecord({
   }
 
   if (!canonicalRecordPath || diagnostics.some((entry) => entry.severity === "error")) {
-    return {
+    return { refusal: {
       valid: false,
       written: false,
       diagnostics,
@@ -524,12 +636,45 @@ export async function writeValidatedWorkRecord({
       record,
       source_digest: sourceDigest,
       canonical_record_path: canonicalRecordPath
-    };
+    } };
   }
+  return { recordId, canonicalRecordPath, sourceDigest, diagnostics };
+}
+
+export async function writeValidatedWorkRecord({
+  dir = ".",
+  record: inputRecord,
+  expectedSourceDigest = null,
+  recordStore = null,
+  canonicalReplace = rename,
+  persistenceEffects = {},
+
+  lockAlreadyHeld = false
+} = {}) {
+  const targetDir = path.resolve(String(dir));
+  const record = inputRecord;
+  const birth = WORK_RECORD_BIRTH_WRITES.get(record);
+  if (birth && (birth.targetDir !== targetDir || birth.id !== record.id)) {
+    throw birthFailure("canonical_work_record_birth_lease_identity_mismatch", "Birth publication identity is mismatched");
+  }
+  const birthLoadRecord = birth ? () => loadBirthPublicationBaseline(birth) : null;
+  let birthFenceRefusedBeforeReplace = false;
+  const publishReplace = birth ? async (from, to) => {
+    try {
+      await loadBirthPublicationBaseline(birth);
+    } catch (error) {
+      birthFenceRefusedBeforeReplace = true;
+      throw error;
+    }
+    return canonicalReplace(from, to);
+  } : canonicalReplace;
+  const validated = await validateWorkRecordCandidate({ targetDir, record });
+  if (validated.refusal) return validated.refusal;
+  const { recordId, canonicalRecordPath, sourceDigest, diagnostics } = validated;
 
   let currentLoadedBeforeWrite;
   try {
-    const loadRecord = persistenceEffects.loadRecordByPath ?? loadWorkRecordByPath;
+    const loadRecord = birthLoadRecord ?? persistenceEffects.loadRecordByPath ?? loadWorkRecordByPath;
     currentLoadedBeforeWrite = await loadRecord({
       dir: targetDir,
       path: canonicalRecordPath,
@@ -579,7 +724,7 @@ export async function writeValidatedWorkRecord({
       ? expectedSourceDigest
       : baselineSourceDigest;
   const stageJsonFile = persistenceEffects.stageJsonFile ?? writeJsonFileToTemp;
-  const loadRecord = persistenceEffects.loadRecordByPath ?? loadWorkRecordByPath;
+  const loadRecord = birthLoadRecord ?? persistenceEffects.loadRecordByPath ?? loadWorkRecordByPath;
   const removeTemporaryDirectory = persistenceEffects.removeTemporaryDirectory ?? rm;
   const canonicalFaultInjector = persistenceEffects.canonicalFaultInjector ?? null;
   const lockFaultInjector = persistenceEffects.lockFaultInjector ?? null;
@@ -607,38 +752,18 @@ export async function writeValidatedWorkRecord({
     }
 
     if (result === null) {
-      const settleUnderLock = async () => {
-        const currentLoaded = await loadRecord({
-          dir: targetDir,
-          path: canonicalRecordPath,
-          recordStore
-        });
-        const currentSourceDigest = currentLoaded.source_digest || null;
-        if (currentSourceDigest !== guardSourceDigest) {
-          return { status: "stale", current_source_digest: currentSourceDigest };
-        }
-        if (!preservesReviewProvenance(currentLoaded.record, record)) {
-          return { status: "review_provenance_history_mutation" };
-        }
-        if (!preservesWorkRecordEntryHistory(currentLoaded.record, record)) {
-          return { status: "entry_history_mutation" };
-        }
-        const unavailableReferences = await findUnavailableNewAdmissionArtifactReferences({
-          targetDir,
-          previousRecord: currentLoaded.record,
-          proposedRecord: record
-        });
-        if (unavailableReferences.length > 0) {
-          return { status: "admission_artifact_reference_unavailable", unavailableReferences };
-        }
-        const publication = await publishCanonicalWorkRecord({
-          canonicalRecordPath,
-          record,
-          canonicalReplace,
-          faultInjector: canonicalFaultInjector
-        });
-        return { status: "publication", publication, current_source_digest: currentSourceDigest };
-      };
+      const settleUnderLock = () => settleOrdinaryWorkRecordPublication({
+        targetDir,
+        canonicalRecordPath,
+        record,
+        recordId,
+        recordStore,
+        guardSourceDigest,
+        canonicalReplace: publishReplace,
+        canonicalFaultInjector,
+        loadRecord,
+        retainedHistoryMutationDiagnostic
+      });
       const lockOutcome = await settleWorkRecordPersistenceWithOptionalLock({
         targetDir,
         settleUnderLock,
@@ -697,22 +822,11 @@ export async function writeValidatedWorkRecord({
           ? { expected_source_digest: expectedSourceDigest }
           : {})
         };
-      } else if (lockOutcome.value.status === "review_provenance_history_mutation") {
+      } else if (lockOutcome.value.status === "retained_history_mutation") {
         result = {
           valid: false,
           ...persistenceOutcomeFields(WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED),
-          diagnostics: [reviewProvenanceHistoryMutationDiagnostic(recordId)],
-          diagnostic_count: 1,
-        record,
-        source_digest: sourceDigest,
-        canonical_record_path: canonicalRecordPath,
-        record_id: recordId
-        };
-      } else if (lockOutcome.value.status === "entry_history_mutation") {
-        result = {
-          valid: false,
-          ...persistenceOutcomeFields(WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED),
-          diagnostics: [entryHistoryMutationDiagnostic(recordId)],
+          diagnostics: [lockOutcome.value.diagnostic],
           diagnostic_count: 1,
           record,
           source_digest: sourceDigest,
@@ -736,7 +850,9 @@ export async function writeValidatedWorkRecord({
       } else {
         const publication = lockOutcome.value.publication;
         if (publication.failed_fault !== null) {
-          const publicationState = publicationStateFromCrashDurableResult(publication);
+          const publicationState = birthFenceRefusedBeforeReplace
+            ? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED
+            : publicationStateFromCrashDurableResult(publication);
           result = appendPersistenceFailure({
             valid: true,
             diagnostics,
@@ -813,6 +929,8 @@ export async function prepareWorkRecordTestTargetSettlement({
     const error = new Error(message); error.code = code; error.details = details; throw error;
   };
   if (loaded.source_digest !== bound.source_digest) failure('work_record_target_source_stale', 'Target source moved under its lease');
+
+  record = structuredClone(record);
   const previous = structuredClone(loaded.record), candidate = structuredClone(record);
   const select = value => selectedUnit === null ? value : value.slices.find(slice => slice.id === selectedUnit);
   if (!select(previous) || !select(candidate)) failure('work_record_target_unit_missing', 'Selected target owner does not exist');
@@ -830,6 +948,9 @@ export async function prepareWorkRecordTestTargetSettlement({
       ? 'Target participant changes fields outside selected validation and parent proof posture'
       : 'Target participant changes fields outside selected validation');
   }
+
+  const retainedHistoryMutation = retainedHistoryMutationDiagnostic(loaded.record, record, id);
+  if (retainedHistoryMutation) failure(retainedHistoryMutation.code, retainedHistoryMutation.message);
   const diagnostics = validateWorkRecord(record, { sourcePath: loaded.canonical_path, sourceDigest: computeWorkRecordSourceDigest(record) });
   if (diagnostics.some(d => d.severity === 'error')) failure('work_record_target_invalid', 'Prospective target record is invalid', { diagnostics });
   const file = getWorkRecordPath(path.resolve(dir), id);
@@ -849,12 +970,169 @@ export async function prepareWorkRecordTestTargetSettlement({
     },
     compensate: async () => {
       if (!attempted) return;
-      const current = await loadWorkRecordById({ dir, id });
-      if (current.source_digest === loaded.source_digest) return;
-      if (current.source_digest !== computeWorkRecordSourceDigest(record)) failure('work_record_target_compensation_stale', 'Target compensation cannot replace unrelated changes');
-      const result = await publishCanonicalWorkRecord({ canonicalRecordPath: file, record: previous, canonicalBytes: priorBytes });
-      if (result.failed_fault !== null || !(await readFile(file)).equals(priorBytes)) {
-        failure('work_record_target_compensation_failed', 'Exact prior target bytes were not restored');
+      await restorePreparedWorkRecordBytes({ lease, file, priorBytes, record });
+    }
+  };
+}
+
+async function restorePreparedWorkRecordBytes({ lease, file, priorBytes, record }) {
+  const state = WORK_RECORD_READ_LEASES.get(lease) ?? WORK_RECORD_BIRTH_LEASES.get(lease);
+  if (state?.lockHeld !== true) {
+    const error = new Error("canonical work-record read lease no longer holds its lock");
+    error.code = WORK_RECORD_BIRTH_LEASES.has(lease)
+      ? "canonical_work_record_birth_lease_invalid" : "canonical_work_record_read_lease_invalid";
+    throw error;
+  }
+  return restoreCanonicalWorkRecordBytes({ canonicalRecordPath: file, priorBytes,
+    publishedBytes: Buffer.from(serializeCanonicalWorkRecord(record), "utf8") });
+}
+
+const WORK_RECORD_SETTLEMENT_MANAGED_FIELDS = Object.freeze(
+  ["id", "repo", "proof_posture", "derived_evidence", "projections"]);
+
+export async function prepareValidatedWorkRecordSettlement({
+  dir, id, record, lease, canonicalReplace = rename, persistenceEffects = {},
+  proofPosturePreparation = null, graphEvidenceContribution = null
+}) {
+  const failure = (code, message, details = {}) => {
+    const error = new Error(message); error.code = code; error.details = details; throw error;
+  };
+  const birth = WORK_RECORD_BIRTH_LEASES.get(lease);
+  const assertLease = birth ? assertCanonicalWorkRecordBirthLease : assertCanonicalWorkRecordReadLease;
+  const bound = assertLease(lease, { dir, id });
+  const sourceDigest = birth ? bound.baseline_source_digest : bound.source_digest;
+  const targetDir = path.resolve(String(dir));
+  const file = getWorkRecordPath(targetDir, id);
+  const candidate = freezeRecord(structuredClone(record));
+  const validated = await validateWorkRecordCandidate({ targetDir, record: candidate });
+  if (validated.refusal) {
+    const diagnostics = validated.refusal.diagnostics;
+    const first = diagnostics.find((entry) => entry.severity === "error") ?? diagnostics[0];
+    failure(first.code, first.message, { changed: false, diagnostics });
+  }
+  if (birth) await assertBirthTargetAbsent(birth);
+  const priorBytes = birth ? null : await readFile(file);
+  const parsed = birth ? { ok: true, value: birth.baseline }
+    : parseWorkRecordJson(priorBytes.toString("utf8"), { sourcePath: file });
+  if (!parsed.ok || computeWorkRecordSourceDigest(parsed.value) !== sourceDigest) {
+    failure("work_record_settlement_source_stale", "Work-record source moved under its lease",
+      { changed: false });
+  }
+
+  const contribution = readPreparedProofPostureContribution(proofPosturePreparation,
+    { recordId: id, sourceDigest });
+  const holdsPosture = (captured, value) =>
+    captured.present === Object.hasOwn(value, "proof_posture") &&
+    sameCanonicalValue(captured.value, value.proof_posture ?? null);
+  const ownerPosture = contribution !== null && contribution.prepared.present &&
+    holdsPosture(contribution.prior, parsed.value) && holdsPosture(contribution.prepared, candidate);
+  const graph = readPreparedGraphEvidenceContribution(graphEvidenceContribution,
+    { recordId: id, sourceDigest, dir: targetDir, recordLease: birth ? lease : null });
+  const ownerGraph = graph !== null && sameCanonicalValue(graph.prior, parsed.value.derived_evidence ?? null) &&
+    sameCanonicalValue(graph.prepared, candidate.derived_evidence ?? null) &&
+    graph.candidateDigest === computeWorkRecordSourceDigest(candidate);
+  const members = WORK_RECORD_SETTLEMENT_MANAGED_FIELDS.filter((member) =>
+    !(ownerPosture && member === "proof_posture") &&
+    !(ownerGraph && member === "derived_evidence") &&
+    (Object.hasOwn(parsed.value, member) !== Object.hasOwn(candidate, member) ||
+      !sameCanonicalValue(parsed.value[member] ?? null, candidate[member] ?? null)));
+  if (members.length > 0) {
+    failure("work_record_settlement_managed_field_mutation",
+      `A prepared settlement cannot change store-managed members: ${members.join(", ")}`,
+      { changed: false, members });
+  }
+  const guardRecord = structuredClone(candidate);
+  if (ownerGraph) {
+    const pending = [guardRecord];
+    while (pending.length > 0) {
+      const value = pending.pop();
+      if (value === null || typeof value !== "object") continue;
+      for (const key of Object.keys(value)) {
+        if (value[key] === graph.admissionSidecarPublication.relativePath) value[key] = null;
+        else if (typeof value[key] === "object") pending.push(value[key]);
+      }
+    }
+  }
+  const guard = await guardOrdinaryWorkRecordPublication({ targetDir, canonicalRecordPath: file,
+    record: guardRecord, recordId: id, recordStore: null, guardSourceDigest: birth ? null : sourceDigest,
+    loadRecord: birth ? () => loadBirthPublicationBaseline(birth) : loadWorkRecordByPath,
+    retainedHistoryMutationDiagnostic });
+  if (guard.status === "stale") {
+    failure("work_record_settlement_source_stale", "Work-record source moved under its lease",
+      { changed: false });
+  }
+  if (guard.status !== "clear") {
+    const diagnostic = guard.diagnostic ??
+      admissionArtifactReferenceUnavailableDiagnostic(id, guard.unavailableReferences);
+    failure(diagnostic.code, diagnostic.message, { changed: false, diagnostics: [diagnostic] });
+  }
+
+  if (computeWorkRecordPersistenceSnapshotDigest(parsed.value) !==
+      computeWorkRecordPersistenceSnapshotDigest(guard.currentLoaded.record)) {
+    failure("work_record_settlement_capture_inconsistent",
+      "Captured work-record bytes and the loaded record are different generations", { changed: false });
+  }
+  const noOp = !birth && sameCanonicalValue(parsed.value, candidate);
+  let used = false;
+  let published = false;
+  let admissionPublications = [];
+  return {
+    commit: async () => {
+      if (used) failure("work_record_settlement_handle_consumed", "A prepared settlement commits once");
+      if (birth) {
+        used = true;
+        try { assertLease(lease, { dir, id }); } finally { birth.active = false; }
+      } else assertLease(lease, { dir, id });
+      used = true;
+      if (birth) await loadBirthPublicationBaseline(birth);
+      else if (!(await readFile(file)).equals(priorBytes)) {
+        failure("work_record_settlement_source_stale", "Work-record bytes changed before publication",
+          { changed: false });
+      }
+      if (!birth) WORK_RECORD_READ_LEASES.get(lease).active = false;
+      if (noOp) {
+        return { ok: true, no_op: true, written: false, source_digest: bound.source_digest };
+      }
+      let result;
+      try {
+        if (birth) WORK_RECORD_BIRTH_WRITES.set(candidate, birth);
+        const write = ownerGraph ? writeValidatedWorkRecordWithAdmissionSidecars : writeValidatedWorkRecord;
+        result = await write({ dir: targetDir, record: candidate,
+          ...(ownerGraph ? { admissionSidecars: [graph.admissionSidecarPublication],
+            expectedPersistenceSnapshotDigest: computeWorkRecordPersistenceSnapshotDigest(parsed.value) } : {}),
+          expectedSourceDigest: birth ? null : sourceDigest, canonicalReplace, persistenceEffects,
+          lockAlreadyHeld: true });
+      } catch (error) {
+        published = true;
+        throw error;
+      } finally {
+        if (birth) WORK_RECORD_BIRTH_WRITES.delete(candidate);
+      }
+      admissionPublications = result.admission_sidecar_publications ?? [];
+
+      const publicationState = Object.hasOwn(result, "publication_state")
+        ? result.publication_state : WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED;
+      published = publicationState !== WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED;
+      if (result.ok !== true) {
+        const diagnostics = result.diagnostics ?? [];
+        const errors = diagnostics.filter((entry) => entry.severity === "error");
+
+        if (publicationState === WORK_RECORD_PUBLICATION_STATES.PUBLISHED && result.written === true &&
+            errors.length > 0 && errors.every((entry) => entry.code === "work_record_write_failed" &&
+              entry.phase === WORK_RECORD_PERSISTENCE_PHASES.CLEANUP &&
+              entry.publication_state === WORK_RECORD_PUBLICATION_STATES.PUBLISHED)) return result;
+        const first = errors[0] ?? diagnostics[0];
+        failure(first?.code ?? "work_record_write_failed",
+          first?.message ?? "Work-record settlement did not publish", {
+            publication_state: publicationState, diagnostics, persistence: result });
+      }
+      return result;
+    },
+    compensate: async () => {
+      if (!published) return;
+      await restorePreparedWorkRecordBytes({ lease, file, priorBytes, record: candidate });
+      if (birth && ownerGraph && admissionPublications.some(value => value.created === true)) {
+        await restoreBirthAdmissionArtifact(targetDir, graph.admissionSidecarPublication);
       }
     }
   };

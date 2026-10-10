@@ -3,252 +3,9 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "code-index-navigation-tools.json",
-  "summary": "SCIP definition, reference, caller, and callee queries across MCP and CLI.",
-  "tool_count": 8,
+  "summary": "SCIP definition, reference, caller, and callee CLI commands; agents ask the same questions through query_code_index.",
+  "tool_count": 4,
   "tools": [
-    {
-      "tool_name": "workspace_code_index_find_references",
-      "display_name": "Workspace code index find references",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_code_index_find_references",
-      "task_ids": [
-        "query-graph-impact"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 102,
-      "side_effects": [
-        "workspace_write"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "paid_cce"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-tiers.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/code-index-navigation-tools.json",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
-        "packages/wiki-core/src/lib/sidecar-navigation-resolution.mjs",
-        "packages/wiki-core/src/lib/sidecar-navigation-source-query.mjs",
-        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "SCIP references on committed source. Follow root next_calls for retained rows, candidates or source lines; reads never re-evaluate.",
-      "use_when": [
-        "Find every indexed reference to one known symbol or source position."
-      ],
-      "do_not_use_when": [
-        "The task asks for a definition, caller, callee, or path impact; use that owning code-index route."
-      ],
-      "authoritative_for": [
-        "SCIP-derived symbol-reference lookup"
-      ],
-      "recommended_first_call": {
-        "operation": "query one known symbol or source position",
-        "arguments": {
-          "symbol": "$known_symbol"
-        },
-        "omit_null_arguments": true
-      }
-    },
-    {
-      "tool_name": "workspace_code_index_definition",
-      "display_name": "Workspace code index definition",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_code_index_definition",
-      "task_ids": [
-        "query-graph-impact"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 102,
-      "side_effects": [
-        "workspace_write"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "paid_cce"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-tiers.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/code-index-navigation-tools.json",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
-        "packages/wiki-core/src/lib/sidecar-navigation-resolution.mjs",
-        "packages/wiki-core/src/lib/sidecar-navigation-source-query.mjs",
-        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "SCIP definitions on committed source. Follow root next_calls for retained rows, candidates or source lines; reads never re-evaluate.",
-      "use_when": [
-        "Resolve the indexed definition of one known symbol or source position."
-      ],
-      "do_not_use_when": [
-        "The task asks for references, callers, callees, or path impact; use that owning code-index route."
-      ],
-      "authoritative_for": [
-        "SCIP-derived symbol-definition lookup"
-      ],
-      "recommended_first_call": {
-        "operation": "resolve one known symbol or source position",
-        "arguments": {
-          "path": "$repo_relative_path",
-          "line": "$line"
-        },
-        "omit_null_arguments": true
-      }
-    },
-    {
-      "tool_name": "workspace_code_index_callers",
-      "display_name": "Workspace code index callers",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_code_index_callers",
-      "task_ids": [
-        "query-graph-impact"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 102,
-      "side_effects": [
-        "workspace_write"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "paid_cce"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-tiers.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/code-index-navigation-tools.json",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
-        "packages/wiki-core/src/lib/sidecar-call-query.mjs",
-        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "SCIP callers with committed call-site source. Follow root next_calls for retained rows, candidates or source lines; reads never re-evaluate.",
-      "use_when": [
-        "Find indexed symbols that call one known symbol or source position."
-      ],
-      "do_not_use_when": [
-        "The task asks what this symbol calls, its definition, references, or path impact; use that owning route."
-      ],
-      "authoritative_for": [
-        "SCIP-derived caller lookup"
-      ],
-      "recommended_first_call": {
-        "operation": "query callers of one known symbol",
-        "arguments": {
-          "symbol": "$known_symbol"
-        },
-        "omit_null_arguments": true
-      }
-    },
-    {
-      "tool_name": "workspace_code_index_callees",
-      "display_name": "Workspace code index callees",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_code_index_callees",
-      "task_ids": [
-        "query-graph-impact"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 102,
-      "side_effects": [
-        "workspace_write"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "paid_cce"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-tiers.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/code-index-navigation-tools.json",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
-        "packages/wiki-core/src/lib/sidecar-call-query.mjs",
-        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "SCIP callees with committed call-site source. Follow root next_calls for retained rows, candidates or source lines; reads never re-evaluate.",
-      "use_when": [
-        "Find indexed symbols called by one known symbol or source position."
-      ],
-      "do_not_use_when": [
-        "The task asks what calls this symbol, its definition, references, or path impact; use that owning route."
-      ],
-      "authoritative_for": [
-        "SCIP-derived callee lookup"
-      ],
-      "recommended_first_call": {
-        "operation": "query callees of one known symbol",
-        "arguments": {
-          "symbol": "$known_symbol"
-        },
-        "omit_null_arguments": true
-      }
-    },
     {
       "tool_name": "wiki-code-index-find-references",
       "display_name": "Code index find references",
@@ -281,7 +38,7 @@
         "packages/wiki-cli/src/commands/sidecar.mjs",
         "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
       ],
-      "notes": "Compact CLI fallback for SCIP-derived symbol reference lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `workspace_code_index_find_references` route for structured agent use."
+      "notes": "Compact CLI fallback for SCIP-derived symbol reference lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `query_code_index` route for structured agent use."
     },
     {
       "tool_name": "wiki-code-index-definition",
@@ -315,7 +72,7 @@
         "packages/wiki-cli/src/commands/sidecar.mjs",
         "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
       ],
-      "notes": "CLI lookup of SCIP-derived definitions. Ensures the committed-HEAD index and may write its ignored cache. Agents should prefer workspace_code_index_definition."
+      "notes": "CLI lookup of SCIP-derived definitions. Ensures the committed-HEAD index and may write its ignored cache. Agents should prefer query_code_index."
     },
     {
       "tool_name": "wiki-code-index-callers",
@@ -349,7 +106,7 @@
         "packages/wiki-cli/src/commands/sidecar.mjs",
         "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
       ],
-      "notes": "Compact CLI fallback for SCIP-derived callers lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `workspace_code_index_callers` route for structured agent use."
+      "notes": "Compact CLI fallback for SCIP-derived callers lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `query_code_index` route for structured agent use."
     },
     {
       "tool_name": "wiki-code-index-callees",
@@ -383,7 +140,7 @@
         "packages/wiki-cli/src/commands/sidecar.mjs",
         "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
       ],
-      "notes": "Compact CLI fallback for SCIP-derived callees lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `workspace_code_index_callees` route for structured agent use."
+      "notes": "Compact CLI fallback for SCIP-derived callees lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `query_code_index` route for structured agent use."
     }
   ]
 }

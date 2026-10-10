@@ -21,6 +21,26 @@ cutover, and refusal specification is
 [Launcher agent session contract (normative)](agent-launch-confinement-mcp-conduit.md#launcher-agent-session-contract-normative).
 This page intentionally does not restate that schema.
 
+## Registered task authority
+
+The production server composes one host-bound repository and one prepared backend.
+It advertises and enforces the session's current task schemas and central grants.
+Caller `repo` selectors, old shared aliases, help/router entrypoints and generic
+spill readers are refused; no indirect route grants a retired task. Workers use
+`workspace_read_wiki` for their frozen assignment, `workspace_run_test` and
+`verify_proof` for authorized execution, `get_run_result` for assigned/returned
+results and empty `workspace_deliver_work` for delivery. Reviewer execution is
+separate from redteam's read/assessment-only authority. Prompt instructions do
+not grant any of these capabilities.
+
+Orchestrator starts and result reads share the same prepared backend instance.
+Terminal producer capture is independent of observation. Start, completion,
+waits, original reads and saved dispositions perform no integration. Only an
+explicit `integrate_work` request for the exact authenticated delivery invokes
+the existing integration authority and configured policy. Inspection and landing
+observation are pure; advance and publication are separate explicit operations.
+Publication neither merges nor completes canonical work.
+
 ## Scope doctrine
 
 This document applies the canonical
@@ -180,7 +200,7 @@ failure. The launch-time assigned-source
 readability gate asks the same coverage question for a missing read leaf through
 the shared resolved write coverage, and so do the closed-input commit gate and
 committed-slice admission; that one owner subtracts excluded families on every
-query. Public `workspace_validate_dispatch` runs this same resolution read-only
+query. The readonly action preview of `start_agent` runs this same resolution
 at the prospective base (the WK tip, or the configured base for a first slice)
 and reports what it evaluated and what remains for launch, including
 `structural_parent_preparation`. Launch still resolves membership again at the
@@ -242,7 +262,7 @@ The wiki-MCP server registers no worker declared-test route
 (`workspace_worker_run_declared_test`) and no coordinator node_test route
 (`workspace_run_validation`). Neither name has a discovery descriptor or a role
 grant, and a call to either is refused as an unknown tool before any handler
-runs. The launcher-bound `workspace_verify_proof` registration is the worker's
+runs. The launcher-bound `verify_proof` registration is the worker's
 retained verification route; its registration is not evidence that a particular
 unit has an executable proof. Launcher-internal candidate validation is not a
 public route, and no validation result carries admission, review, or closure
@@ -287,7 +307,7 @@ derived from **role policy**, never composed from the subject unit:
   enforced private-family overlay.
 
 The private family stays out of every filesystem namespace; controlled-contract
-MEANING reaches sessions through `workspace_controlled_contract_obligation_coverage_query`,
+MEANING reaches sessions through `workspace_read_wiki`,
 whose source follows the same role split from launcher startup state, never a
 request field. A managed worker reads its assigned unit's contract: the
 identity-store exact-slice binding selects its worktree, and the query returns
@@ -295,8 +315,11 @@ only that unit's obligations with their requirement, reference and parent-owned
 case closure plus all global notes and residue. Reviewer and redteam read only the
 frozen review materialization, authenticated by the frozen review artifact, with
 repository-read entitlement and no live-main fallback. Orchestrator and operator
-read the canonical repository. The worker grant is that query alone: no raw
-private-file access and no generic content-reference reader. Retained query detail
+read the canonical repository. That query is the worker's authority-scoped route
+to contract meaning, with no raw private-file access. The worker's
+content-reference reader is a separate transport grant whose boundary is owned by
+[MCP Repository Model](mcp-repository-model.md#oversized-mcp-response-references);
+it grants no page, record, entry, search or path read. Retained query detail
 re-resolves and compares the caller's authority identity on every read (see
 [Acceptance Coverage MCP](acceptance-coverage-mcp.md)).
 
@@ -418,7 +441,7 @@ schema and archival literals keep their names where the narrow formal-attestatio
 consumer or canonical-record compatibility requires them, including
 `worker-admission-*`, `reviewer_attestation`, and `accepted_authority`. Formal
 attestation may be derived and durably published only by the original
-`workspace_agent_dispatch` settlement when its canonical selected contract
+`start_agent` settlement when its canonical selected contract
 requests it. No review append route is exposed, and ordinary advisory review text
 provides no admission authority.
 
@@ -785,7 +808,7 @@ and `decision`. It records what Portfolio consumes and transports; it does not
 mint CCE response schema, threshold policy, recovery semantics, or dispatch
 authority.
 
-The registered `workspace_agent_dispatch` route applies the same discipline, and
+The registered `start_agent` route applies the same discipline, and
 publishes which decision limb it resolved as `authority_limb` on the refusal.
 
 Locator syntax is not authority. A complete `reviewed_sha` and `diff_base_sha`
@@ -915,6 +938,13 @@ the producer's value with its identity intact and is judged at the producer's
 construction site instead. A rebound or shadowed name, a value from another
 catch, or a call's result stays raw, because the lint cannot prove what it
 carries.
+
+Suppression witnesses execute through `tests/run-tests.mjs`, in the category
+selected by the test-classification owner. The registry’s exact `node --test`
+selector remains the proof identity: owner, selector and tracked path are
+authenticated before execution, and each bound reference executes once per lint
+run. Runner refusals and assertion failures both gate the lint; it never invokes
+a test file directly or substitutes a different proof at the same path.
 
 Owner-proof digests record the bytes that were *validated* as the proof. A
 digest is repinned only after its registered selector has been run and shown to
@@ -1151,7 +1181,7 @@ never presented as the guarantee.
 
 **An allowed code-runner is contained by where it spawns.**
 Managed implementation workers receive closed-input commit delivery and the
-launcher-bound `workspace_verify_proof`; they receive no declared-test or
+launcher-bound `verify_proof`; they receive no declared-test or
 node_test public route and no general wiki-MCP surface. Test availability
 and success are not worker admission or commit prerequisites. Findings-only
 review owns declared validation against the exact committed target, in a read-only

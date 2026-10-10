@@ -1,4 +1,5 @@
-
+import { lstat } from "node:fs/promises";
+import { assertCanonicalWorkRecordBirthLease } from "./work-records-store-io.mjs";
 
 import path from "node:path";
 import {
@@ -23,7 +24,8 @@ import {
   createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary,
   prepareWorkRecordAdmissionDerivedEvidenceSidecar
 } from "../lib/work-record-admission-derived-evidence-persist.mjs";
-import { buildGraphEvidenceSidecarEntry } from "../lib/work-record-graph-evidence-sidecar.mjs";
+import { readPersistedWorkerAdmissionEvidenceSidecarEntry } from "../lib/work-record-admission-evidence-sidecar.mjs";
+import { buildGraphEvidenceSidecarEntry, verifyGraphSidecarEntryForInlineRef } from "../lib/work-record-graph-evidence-sidecar.mjs";
 import {
   canonicalizeWorkRecordReadScope,
   computeWorkRecordSourceDigest,
@@ -51,7 +53,7 @@ import {
 
 export { recheckGraphSidecarUnchanged, rollbackGraphSidecarWrite };
 
-export async function persistWorkRecordGraphImpactByUnit({
+async function prepareGraphImpactByUnit({
   dir = ".",
   unitAddress,
   graphImpact = null,
@@ -60,7 +62,7 @@ export async function persistWorkRecordGraphImpactByUnit({
   graph_impact_summary_ref = null,
   expectedSourceDigest = null,
   recordStore = null
-} = {}) {
+} = {}, prospectiveRecord = null) {
   const targetDir = path.resolve(String(dir));
   const requestedUnit = parseDispatchUnitAddress(unitAddress);
 
@@ -92,11 +94,12 @@ export async function persistWorkRecordGraphImpactByUnit({
     });
   }
 
-  const loaded = await loadWorkRecordById({
+  const loaded = prospectiveRecord === null ? await loadWorkRecordById({
     dir: targetDir,
     id: requestedUnit.recordId,
     recordStore
-  });
+  }) : { record: prospectiveRecord, source_path: getWorkRecordPath(targetDir, prospectiveRecord.id),
+    source_digest: computeWorkRecordSourceDigest(prospectiveRecord), diagnostics: [] };
 
   if (!loaded.record) {
     return {
@@ -412,6 +415,21 @@ export async function persistWorkRecordGraphImpactByUnit({
     };
   }
 
+  return { valid: true, loaded, updatedRecord, sourceDigest, currentSourceDigest,
+    currentPersistenceSnapshotDigest, sidecarWrite, persistedEntry, compactPersistedEntry, fullGraphImpactForResponse,
+    admissionSidecarPublication, admissionSidecarRelativePath, admissionSidecarDigest, sidecarEntry,
+    requestedUnit };
+}
+
+export async function persistWorkRecordGraphImpactByUnit(input = {}) {
+  const prepared = await prepareGraphImpactByUnit(input);
+  if (prepared.valid !== true || prepared.updatedRecord === undefined) return prepared;
+  const targetDir = path.resolve(String(input.dir ?? "."));
+  const recordStore = input.recordStore ?? null;
+  const { loaded, updatedRecord, sourceDigest, currentSourceDigest, currentPersistenceSnapshotDigest,
+    sidecarWrite, persistedEntry, compactPersistedEntry, fullGraphImpactForResponse, admissionSidecarPublication,
+    admissionSidecarRelativePath, admissionSidecarDigest, sidecarEntry, requestedUnit } = prepared;
+
   const recheck = await recheckGraphSidecarUnchanged({
     absolutePath: sidecarWrite.absolutePath,
     existedBefore: sidecarWrite.existedBefore,
@@ -479,4 +497,95 @@ export async function persistWorkRecordGraphImpactByUnit({
     selected_unit: requestedUnit.unit,
     canonical_record_path: writeResult.canonical_record_path || getWorkRecordPath(targetDir, updatedRecord.id)
   };
+}
+
+const GRAPH_EVIDENCE_CONTRIBUTIONS = new WeakMap();
+export async function prepareRetainedGraphEvidence({ dir, unitAddress, priorRecord, record, graphImpact, source = null, capturedSource = null }) {
+  const { assertBirthProofAuthoringSource, birthProofAuthoringAuthority } = await import("./controlled-contract/saved-proof-source.mjs");
+  const birth = capturedSource === null ? null : birthProofAuthoringAuthority(capturedSource);
+  if (birth) {
+    await assertBirthProofAuthoringSource(capturedSource);
+    if (path.resolve(dir) !== capturedSource.repoRoot || record.id !== capturedSource.wkId ||
+        computeWorkRecordSourceDigest(priorRecord) !== capturedSource.recordSourceDigest) {
+      throw Object.assign(new Error("Graph birth contribution has a foreign baseline"),
+        { code: "work_record_graph_contribution_invalid", details: { changed: false } });
+    }
+  }
+  const prepared = await prepareGraphImpactByUnit({ dir, unitAddress, graphImpact,
+    graphImpactSummaryRef: source === null ? null : { binding_token: source.ref_id,
+      raw_evidence_digest: source.sha256 } }, record);
+  if (prepared.valid !== true || prepared.updatedRecord === undefined) return { ok: false,
+    diagnostics: prepared.diagnostics };
+  if (birth) {
+    for (const file of [prepared.sidecarWrite.absolutePath,
+      path.resolve(dir, prepared.admissionSidecarPublication.relativePath)]) {
+      try { await lstat(file); }
+      catch (error) { if (error.code === "ENOENT") continue; throw error; }
+      return { ok: false, diagnostics: [{ code: "work_record_birth_evidence_collision",
+        severity: "error", path: "changes.retained_graph_evidence", message: "Birth evidence destination already exists" }] };
+    }
+  }
+  const priorEntry = (record.derived_evidence ?? []).find(entry =>
+    entry.graph_impact_summary_ref?.unit?.address === unitAddress);
+  const ref = priorEntry?.graph_impact_summary_ref;
+  if (source !== null && ref?.binding_token === source.ref_id && ref.raw_evidence_digest === source.sha256 &&
+      ref.source_record_digest === prepared.compactPersistedEntry.graph_impact_summary_ref.source_record_digest &&
+      prepared.sidecarWrite.priorText !== null) {
+    const verified = verifyGraphSidecarEntryForInlineRef(JSON.parse(prepared.sidecarWrite.priorText), ref);
+    if (!verified.ok) return { ok: false, diagnostics: verified.diagnostics };
+
+    await readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, entry: priorEntry });
+    return { ok: true, record, contribution: undefined, no_op: true };
+  }
+  const handle = Object.freeze({});
+  GRAPH_EVIDENCE_CONTRIBUTIONS.set(handle, { recordId: record.id,
+    targetDir: path.resolve(dir), birthLease: birth?.recordLease ?? null,
+    sourceDigest: computeWorkRecordSourceDigest(priorRecord),
+    prior: structuredClone(priorRecord.derived_evidence ?? null),
+    prepared: structuredClone(prepared.updatedRecord.derived_evidence),
+    candidateDigest: computeWorkRecordSourceDigest(prepared.updatedRecord),
+    sidecarWrite: prepared.sidecarWrite, admissionSidecarPublication: prepared.admissionSidecarPublication });
+  return { ok: true, record: prepared.updatedRecord, contribution: handle };
+}
+
+export function readPreparedGraphEvidenceContribution(handle, { recordId, sourceDigest, dir, recordLease = null }) {
+  const contribution = GRAPH_EVIDENCE_CONTRIBUTIONS.get(handle);
+  if (contribution === undefined || contribution.recordId !== recordId ||
+      contribution.sourceDigest !== sourceDigest || contribution.targetDir !== path.resolve(dir) ||
+      contribution.birthLease !== recordLease) return null;
+  if (recordLease !== null) assertCanonicalWorkRecordBirthLease(recordLease, { dir, id: recordId });
+  const { birthLease: _lease, ...facts } = contribution;
+  return structuredClone(facts);
+}
+
+export async function prepareGraphEvidenceSidecarSettlement({ contribution, recordId, sourceDigest, dir, recordLease = null,
+  effects = {} }) {
+  const owned = readPreparedGraphEvidenceContribution(contribution, { recordId, sourceDigest, dir, recordLease });
+  if (owned === null) throw Object.assign(new Error("Graph evidence contribution is not owner-issued for this source"),
+    { code: "work_record_graph_contribution_invalid", details: { changed: false } });
+  const sidecar = owned.sidecarWrite;
+  const assertCurrent = async () => {
+    if (recordLease !== null) assertCanonicalWorkRecordBirthLease(recordLease, { dir, id: recordId });
+    const check = await recheckGraphSidecarUnchanged(sidecar);
+    if (!check.ok) throw Object.assign(new Error(check.diagnostic.message),
+      { code: check.diagnostic.code, details: { changed: false } });
+  };
+  await assertCurrent();
+  let attempted = false;
+  let used = false;
+  return { commit: async () => {
+    if (used) throw Object.assign(new Error("Graph evidence participant commits once"),
+      { code: "work_record_graph_contribution_consumed" });
+    used = true;
+    await assertCurrent();
+    attempted = true;
+    await (effects.writeGraphSidecar ?? writeTextFileAtomically)(sidecar.absolutePath, sidecar.text);
+    return { written: true, path: sidecar.relativePath };
+  }, compensate: async () => {
+    if (!attempted || (await recheckGraphSidecarUnchanged(sidecar)).ok) return;
+    const restored = await (effects.rollbackGraphSidecar ?? rollbackGraphSidecarWrite)({ ...sidecar,
+      expectedText: sidecar.text });
+    if (!restored.rolledBack) throw Object.assign(new Error(restored.diagnostic.message),
+      { code: restored.diagnostic.code });
+  } };
 }

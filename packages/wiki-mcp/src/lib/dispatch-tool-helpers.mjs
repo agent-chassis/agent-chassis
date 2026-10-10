@@ -310,13 +310,10 @@ export function buildDispatchMechanicalRefusal({
 
 export function registryRecoveryContinuation(code, observedFacts) {
   const recovery = getRuntimeBlockerEntry(code)?.recovery;
-  if (!recovery || typeof recovery !== "object" || typeof recovery.route !== "string") return null;
-  const bindings = recovery.argument_bindings ?? {};
-  const callArguments = { ...(recovery.arguments ?? {}) };
-  for (const [argument, fact] of Object.entries(bindings)) {
-    if (!observedFacts || !Object.hasOwn(observedFacts, fact)) return null;
-    callArguments[argument] = observedFacts[fact];
-  }
+  if (!recovery || typeof recovery !== "object" || typeof recovery.route !== "string" ||
+      REGISTRY_RECOVERY_INSPECTION_KINDS.includes(recovery.kind)) return null;
+  const callArguments = registryRecoveryArguments(recovery, observedFacts);
+  if (callArguments === null) return null;
   const successFact = `${recovery.route}.prerequisite_satisfied`;
   if (!observedFacts || observedFacts[successFact] !== false) return null;
   const call = buildDispatchContinuation({
@@ -329,6 +326,31 @@ export function registryRecoveryContinuation(code, observedFacts) {
     call,
     prerequisite: recovery.prerequisite ?? recovery.kind ?? "the registered recovery prerequisite is not satisfied",
     successCondition: recovery.success_condition
+  };
+}
+
+export const REGISTRY_RECOVERY_INSPECTION_KINDS = Object.freeze(["capability_inspection", "run_observation"]);
+
+function registryRecoveryArguments(recovery, observedFacts) {
+  const callArguments = { ...(recovery.arguments ?? {}) };
+  for (const [argument, fact] of Object.entries(recovery.argument_bindings ?? {})) {
+    if (!observedFacts || !Object.hasOwn(observedFacts, fact)) return null;
+    callArguments[argument] = observedFacts[fact];
+  }
+  return callArguments;
+}
+
+export function registryRecoveryInspection(code, observedFacts) {
+  const recovery = getRuntimeBlockerEntry(code)?.recovery;
+  if (!recovery || typeof recovery !== "object" || typeof recovery.route !== "string" ||
+      !REGISTRY_RECOVERY_INSPECTION_KINDS.includes(recovery.kind)) return null;
+  const callArguments = registryRecoveryArguments(recovery, observedFacts);
+  if (callArguments === null) return null;
+  return {
+    tool: recovery.route,
+    arguments: callArguments,
+    information: recovery.success_condition,
+    prerequisite: recovery.prerequisite ?? "the registered recovery prerequisite is not satisfied"
   };
 }
 
@@ -1003,23 +1025,28 @@ function distillValue(value, pathParts, withheld, seen = new Set(), nested = fal
     return { cause_chain: distillCapturedCauses(value, { nested }) };
   }
   if (seen.has(value)) return { $ref: pathParts.join(".") };
+
   seen.add(value);
-  if (Array.isArray(value)) {
-    return value.map((entry, index) => distillValue(entry, [...pathParts, index], withheld, seen, nested));
-  }
-  const out = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (VERBATIM_CARRIER_FIELDS.has(key)) {
-      out[key] = structuredClone(entry);
-      continue;
+  try {
+    if (Array.isArray(value)) {
+      return value.map((entry, index) => distillValue(entry, [...pathParts, index], withheld, seen, nested));
     }
-    if (RAW_OUTPUT_FIELDS.has(key)) {
-      withheld.push([...pathParts, key].join("."));
-      continue;
+    const out = {};
+    for (const [key, entry] of Object.entries(value)) {
+      if (VERBATIM_CARRIER_FIELDS.has(key)) {
+        out[key] = structuredClone(entry);
+        continue;
+      }
+      if (RAW_OUTPUT_FIELDS.has(key)) {
+        withheld.push([...pathParts, key].join("."));
+        continue;
+      }
+      out[key] = distillValue(entry, [...pathParts, key], withheld, seen, nested);
     }
-    out[key] = distillValue(entry, [...pathParts, key], withheld, seen, nested);
+    return out;
+  } finally {
+    seen.delete(value);
   }
-  return out;
 }
 
 export const DISPATCH_FAILURE_ORIGINALS = Object.freeze({
@@ -1035,15 +1062,16 @@ export const DISPATCH_FAILURE_ORIGINALS = Object.freeze({
     meaning: "a read writes nothing; repeating it observes the same failure again" })
 });
 
-function retainedEvidenceFacts(value, withheld, env, original = null) {
+function retainedEvidenceFacts(value, withheld, env, original = null, { operatorLocator = true } = {}) {
   if (withheld.length === 0) return {};
   if (original !== null) {
     return { retained_evidence: { ...original, audience: "operator", fields: withheld } };
   }
   try {
     const retained = retainOperatorOnlyEvidence(value, { env });
-    return { retained_evidence: { retained: true, audience: "operator", ref_id: retained.ref_id,
-      sha256: retained.sha256, byte_count: retained.byte_count, fields: withheld } };
+    return { retained_evidence: { retained: true, audience: "operator",
+      ...(operatorLocator ? { ref_id: retained.ref_id, sha256: retained.sha256,
+        byte_count: retained.byte_count } : {}), fields: withheld } };
   } catch (error) {
 
     return { retained_evidence: {
@@ -1072,14 +1100,15 @@ export function retainWithheldOriginal(original, fields, { env = process.env } =
   return retainedEvidenceFacts(original, fields, env);
 }
 
-export function projectDispatchFailureDetail(detail, { env = process.env, nested = false } = {}) {
+export function projectDispatchFailureDetail(detail, { env = process.env, nested = false,
+  operatorLocator = true } = {}) {
   const { detail: distilled, withheld } = distillDispatchFailureDetail(detail, { nested });
   if (distilled === null || typeof distilled !== "object") return distilled;
-  return { ...distilled, ...retainedEvidenceFacts(detail, withheld, env) };
+  return { ...distilled, ...retainedEvidenceFacts(detail, withheld, env, null, { operatorLocator }) };
 }
 
 export function buildDispatchToolExceptionDetail(toolName, error, { env = process.env,
-  original = null } = {}) {
+  original = null, operatorLocator = true } = {}) {
 
   const mismatchField = projectSafePostcheckMismatchField(error);
 
@@ -1091,7 +1120,7 @@ export function buildDispatchToolExceptionDetail(toolName, error, { env = proces
     ? { value: structuredDiagnosticValue(error), redactions: [] }
     : projectDiagnostic(error);
   const project = (value) => (original === null
-    ? projectDispatchFailureDetail(value, { env })
+    ? projectDispatchFailureDetail(value, { env, operatorLocator })
     : projectRecordedFailureDetail(value, { original }));
   return {
     schema_version: DISPATCH_FAILURE_DETAIL_SCHEMA_VERSION,
@@ -1108,7 +1137,7 @@ export function buildDispatchToolExceptionDetail(toolName, error, { env = proces
     ...(declared !== null && typeof declared === "object" && typeof declared.code === "string"
       ? { declared_envelope: project(declared) } : {}),
 
-    ...retainedEvidenceFacts(evidence, ["thrown"], env, original)
+    ...retainedEvidenceFacts(evidence, ["thrown"], env, original, { operatorLocator })
   };
 }
 

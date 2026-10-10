@@ -1,7 +1,9 @@
 import {
   projectCommittedSliceIntegrationRefusal,
+  resolveCommittedSliceIntegrationOriginal,
   resolveCommittedSliceIntegrationRetryFacts
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
+import { captureDiagnosticEvidence } from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { COMMITTED_SLICE_SCOPE_CORRECTION_CONDITION } from
   "@agent-chassis/agent-launch-cli/src/lib/committed-slice-review-admission.mjs";
 import { getRuntimeBlockerEntry } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
@@ -13,9 +15,13 @@ import {
   buildDispatchMechanicalRefusal,
   buildDispatchToolExceptionDetail,
   dispatchRepoResolutionRefusal,
+  distillCapturedCauses,
   ownedNoRouteRecovery,
-  projectDispatchFailureDetail
+  projectRecordedFailureDetail
 } from "../dispatch-tool-helpers.mjs";
+import { measureMcpInlineResultBytes } from "../mcp-response.mjs";
+import { selectedResponseDeliveryBound } from "../selected-response-snapshot.mjs";
+import { createIntegrationOriginals, projectCompletedRecoveryResult } from "../task-integrate-work-result.mjs";
 
 const description = "Integrate an exact committed slice idempotently under CAS; zero delta leaves the WK ref unchanged. Orchestrator continuation. Reviews/dispositions are advisory. Only configured CCE policy gates admission; invalid configured-gate evidence refuses.";
 
@@ -163,6 +169,24 @@ function backendRefusalRecovery(route, blockerCode, retryFacts, reason) {
   });
 }
 
+const EXACT_SLICE_SUBJECT_RE = /^WK-\d{4}#SLICE-\d{3}$/u;
+const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+
+const unavailableOriginal = (reason, facts = {}) =>
+  ({ available: false, locator: null, file: null, unavailable: { reason, ...facts } });
+const publishedOriginal = (frame, member) => frame?.original?.available === true
+  ? { available: true, locator: frame.original.locator, file: frame.original.file, carrier_member: member }
+  : isRecord(frame?.original)
+
+    ? unavailableOriginal("retention_failed", { retention_failure: projectRecordedFailureDetail(
+      frame.original.retention_failure ?? null,
+      { original: { retained: false, reason: "retention_failed" }, at: "retention_failure" }) })
+    : unavailableOriginal("retained_summary_unrecognized");
+
+const completeIn = (original, member) => original.available
+  ? { retained: true, owner: "integration_original", ...original.locator, carrier_member: member }
+  : { retained: false, reason: original.unavailable.reason };
+
 function projectIntegrationSuccess(subject, result) {
   const projected = {
     schema_version: "workspace-integrate-committed-slice.v2",
@@ -189,6 +213,48 @@ export function registerCommittedSliceIntegrationRoute(ctx) {
 
     responseEnv = process.env
   } = ctx;
+  const tool = committedSliceIntegrationToolName;
+
+  const originals = () => createIntegrationOriginals({ workspace: resolveWorkspaceRepo(workspaceRepos),
+    sessionEnv: responseEnv, responseEnv });
+  const observedCause = (error, reason) => buildDispatchToolExceptionDetail(tool, error,
+    { env: responseEnv, original: { retained: false, reason } });
+
+  function backendOriginal(answer, member) {
+    const captured = resolveCommittedSliceIntegrationOriginal(answer);
+    if (captured === null) return unavailableOriginal("backend_capture_not_registered");
+    if (captured.captured !== true) {
+      return unavailableOriginal("backend_capture_failed", { cause_chain: distillCapturedCauses(captured.evidence) });
+    }
+    const frame = captured.retained;
+    if (frame?.original?.available !== true) return publishedOriginal(frame, member);
+    try {
+      return publishedOriginal(originals().read({ result: frame.original.locator }), member);
+    } catch (error) {
+      return unavailableOriginal("retained_original_unreadable",
+        { cause: observedCause(error, "retained_original_unreadable") });
+    }
+  }
+
+  function handlerOriginal(args, member) {
+    try {
+      return publishedOriginal(originals().retain({
+        subject: typeof args?.subject === "string" && EXACT_SLICE_SUBJECT_RE.test(args.subject) ? args.subject : null,
+        original: { request: jsonFacts(args ?? {}), ...member, source: null }
+      }), Object.keys(member)[0]);
+    } catch (error) {
+      return unavailableOriginal("handler_capture_failed", { cause: observedCause(error, "handler_capture_failed") });
+    }
+  }
+
+  const respond = (answer, original, member = "result") => {
+    const framed = { ...answer, original };
+    if (!isRecord(framed.blocker?.detail) ||
+        measureMcpInlineResultBytes(framed) <= selectedResponseDeliveryBound(responseEnv)) return jsonContent(framed);
+    return jsonContent({ ...framed, blocker: { ...framed.blocker, detail: { omitted: true,
+      reason: "detail_exceeds_response_bound", complete_in: completeIn(original, member) } } });
+  };
+  const refuseHere = (args, answer) => respond(answer, handlerOriginal(args, { result: answer }));
   const authorityFields = [
     ...callerNodeEngineAuthorityFields,
     ...callerCommittedSliceAuthorityFields,
@@ -206,10 +272,11 @@ export function registerCommittedSliceIntegrationRoute(ctx) {
         "repo", "subject", "dispositions", ...authorityFields
       ]))
   }, async (args) => {
+    let backendThrew = false;
     try {
       const refusedFields = authorityFields.filter((field) =>
         Object.prototype.hasOwnProperty.call(args ?? {}, field));
-      if (refusedFields.length > 0) return jsonContent(buildIntegrationRefusalResult({
+      if (refusedFields.length > 0) return refuseHere(args, buildIntegrationRefusalResult({
         blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
         reason: "caller_supplied_integration_authority",
         detail: { refused_fields: refusedFields },
@@ -225,8 +292,8 @@ export function registerCommittedSliceIntegrationRoute(ctx) {
           })
         })
       }));
-      if (typeof args?.subject !== "string" || !/^WK-\d{4}#SLICE-\d{3}$/u.test(args.subject)) {
-        return jsonContent(buildIntegrationRefusalResult({
+      if (typeof args?.subject !== "string" || !EXACT_SLICE_SUBJECT_RE.test(args.subject)) {
+        return refuseHere(args, buildIntegrationRefusalResult({
           blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
           reason: "committed_slice_integration_subject_invalid",
           detail: { subject: typeof args?.subject === "string" ? args.subject : null },
@@ -243,7 +310,7 @@ export function registerCommittedSliceIntegrationRoute(ctx) {
       }
       resolveWorkspaceRepo(workspaceRepos, args?.repo);
       if (typeof dispatchBackend?.requestCommittedSliceIntegration !== "function") {
-        return jsonContent(buildIntegrationRefusalResult({
+        return refuseHere(args, buildIntegrationRefusalResult({
           blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
           reason: "committed_slice_integration_backend_unavailable",
           detail: { missing_backend: "requestCommittedSliceIntegration" },
@@ -262,11 +329,18 @@ export function registerCommittedSliceIntegrationRoute(ctx) {
           })
         }));
       }
-      const result = await dispatchBackend.requestCommittedSliceIntegration({
-        subject: args.subject, dispositions: args.dispositions
-      });
-      if (result?.integrated === true) return jsonContent(
-        projectIntegrationSuccess(args.subject, result)
+      let result;
+      try {
+        result = await dispatchBackend.requestCommittedSliceIntegration({
+          subject: args.subject, dispositions: args.dispositions
+        });
+      } catch (error) {
+        backendThrew = true;
+        throw error;
+      }
+      const original = backendOriginal(result, "result");
+      if (result?.integrated === true) return respond(
+        projectIntegrationSuccess(args.subject, result), original
       );
       const refusal = result?.refusal ?? null;
       const refusalCode = refusal?.code ?? result?.code;
@@ -276,19 +350,19 @@ export function registerCommittedSliceIntegrationRoute(ctx) {
       const blockerCode = projectTypedIntegrationBlocker(result, refusal, authenticated);
       const reason = refusal?.reason ?? result?.reason ?? "committed_slice_integration_refused";
 
+      const member = refusal === null ? "result" : "result.refusal";
+      const project = (detail) => projectRecordedFailureDetail(detail,
+        { original: completeIn(original, member), at: member });
       const { refusal: _refusal, integrated: _integrated, ...resultFacts } =
         result !== null && typeof result === "object" ? result : {};
       const { detail: _refusalDetail, evidence: _refusalEvidence, ...refusalIdentity } =
         refusal !== null && typeof refusal === "object" ? refusal : {};
-      return jsonContent(buildIntegrationRefusalResult({
+      return respond(buildIntegrationRefusalResult({
         blockerCode,
         reason,
         detail: refusal === null
-          ? (Object.keys(resultFacts).length === 0 ? null : projectDispatchFailureDetail(resultFacts, { env: responseEnv }))
-          : projectDispatchFailureDetail({
-              ...(typeof refusalCode === "string" ? { code: refusalCode } : {}),
-              ...refusal
-            }, { env: responseEnv }),
+          ? (Object.keys(resultFacts).length === 0 ? null : project(resultFacts))
+          : project({ ...(typeof refusalCode === "string" ? { code: refusalCode } : {}), ...refusal }),
         refusal: integrationRefusal(committedSliceIntegrationToolName, {
           code: blockerCode,
           facts: [
@@ -306,16 +380,26 @@ export function registerCommittedSliceIntegrationRoute(ctx) {
             ...(retryFacts === null ? {} : { producer_correction: jsonFacts(retryFacts) })
           }
         })
-      }));
+      }), original, member);
     } catch (error) {
+
       const repoRefusal = dispatchRepoResolutionRefusal(committedSliceIntegrationToolName, error);
-      if (repoRefusal !== null) return jsonContent(buildIntegrationRefusalResult(repoRefusal));
-      return jsonContent(buildIntegrationRefusalResult({
-        blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
-        reason: "dispatch_tool_exception",
-        detail: buildDispatchToolExceptionDetail(committedSliceIntegrationToolName, error,
-          { env: responseEnv })
-      }));
+      const original = backendThrew ? backendOriginal(error, "thrown")
+        : repoRefusal !== null ? unavailableOriginal("repository_unresolved")
+          : handlerOriginal(args, { thrown: captureDiagnosticEvidence(error) });
+      if (repoRefusal !== null) return respond(buildIntegrationRefusalResult(repoRefusal), original, "thrown");
+      return respond({
+        ...buildIntegrationRefusalResult({
+          blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
+          reason: "dispatch_tool_exception",
+          detail: buildDispatchToolExceptionDetail(committedSliceIntegrationToolName, error,
+            { env: responseEnv, original: completeIn(original, "thrown") })
+        }),
+
+        ...(backendThrew && Object.hasOwn(Object(error?.detail), "completed_recovery_result")
+          ? { completed_recovery_result: projectCompletedRecoveryResult(error.detail.completed_recovery_result) }
+          : {})
+      }, original, "thrown");
     }
   });
 }

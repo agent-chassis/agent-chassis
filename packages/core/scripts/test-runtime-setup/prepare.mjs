@@ -7,13 +7,14 @@ import {
   REPOSITORY_RUNTIME_CONFIG_FILE,
   readRepositoryRuntimeConfig,
   writeRepositoryRuntimeConfig
-} from "./config.mjs";
+} from "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/config.mjs";
 import {
   collectRepositoryManifests,
   discoverRuntimeEnvironments,
   environmentsForLanguage,
+  environmentsWithRunners,
   repositoryManifestReader
-} from "./discovery.mjs";
+} from "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/discovery.mjs";
 
 const SETUP_MODULE = "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/index.mjs";
 
@@ -149,9 +150,12 @@ export async function prepareRepositoryTestRuntimes({
     environments = explicitEnvironments(setup, named, inventory.environments);
     source = runtimeConfig === null ? "saved repository configuration" : "--runtime-config";
   } else {
-    environments = environmentsForLanguage(inventory.environments, language, catalog);
+    const testable = environmentsWithRunners(
+      environmentsForLanguage(inventory.environments, language, catalog));
+    environments = testable.environments;
     source = `repository evidence${language === null ? "" : ` for ${language}`}`;
-    excluded = [...collected.excluded, ...inventory.excluded];
+    excluded = [...collected.excluded, ...inventory.excluded, ...testable.excluded]
+      .sort((left, right) => left.path.localeCompare(right.path));
   }
 
   if (environments.length === 0) {

@@ -797,7 +797,7 @@ is what keeps ownership routing resolvable for the whole surface.
 ## Published Selectors As The Routing Rule
 
 Some registered operations answer more than one question and choose between
-existing owners from their own parameters. `workspace_code_index_impact` is the
+existing owners from their own parameters. `query_code_index` is the
 current example: a change subject asks impact, a symbol or source location asks
 the navigation owners, and a path alone asks file context.
 

@@ -129,11 +129,15 @@ export {
   MANAGED_ATTEMPT_CURSOR_SCHEMA_VERSION,
   MANAGED_ATTEMPT_DETAIL_KINDS,
   MANAGED_ATTEMPT_PROOF_VERIFICATION_SUMMARY_SCHEMA_VERSION,
+  MANAGED_REVIEW_ORIGINAL_BINDING_SCHEMA_VERSION,
+  admitReviewOriginalBinding,
   pageManagedAttemptDetail,
   projectManagedAttemptObservations,
   resultDigest,
+  reviewOriginalPartitionSubject,
   selectManagedAdmissionAttempt,
-  selectManagedAttempt
+  selectManagedAttempt,
+  selectReviewOriginalBinding
 } from "./lib/managed-run-observation.mjs";
 
 export {

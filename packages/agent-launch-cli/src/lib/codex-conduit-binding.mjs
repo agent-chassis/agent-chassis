@@ -32,6 +32,8 @@ export const CODEX_CONDUIT_BINDING_REFUSAL_REASON = "codex_conduit_binding_not_c
 export const CODEX_REQUIRED_MCP_CONDUIT_ABSENT_REASON =
   "codex_required_wiki_mcp_conduit_absent";
 
+export const CODEX_WIKI_TOOL_INPUT_SCHEMA_MAX_BYTES = 131072;
+
 export function buildCodexStdioMcpRegistrationOverrides(binding) {
   assertTrustedStdioMcpConduitBinding(binding);
   if (binding.family !== "codex") {
@@ -44,7 +46,7 @@ export function buildCodexStdioMcpRegistrationOverrides(binding) {
   const args = [...relay.args].map((value) => JSON.stringify(value)).join(",");
 
   return Object.freeze([
-    `mcp_servers={wiki={enabled=true,required=true,command=${command},args=[${args}],startup_timeout_sec=${STDIO_MCP_CLIENT_READINESS_TIMEOUT_SEC}}}`
+    `mcp_servers={wiki={enabled=true,required=true,command=${command},args=[${args}],startup_timeout_sec=${STDIO_MCP_CLIENT_READINESS_TIMEOUT_SEC},tool_input_schema_max_bytes=${CODEX_WIKI_TOOL_INPUT_SCHEMA_MAX_BYTES}}}`
   ]);
 }
 

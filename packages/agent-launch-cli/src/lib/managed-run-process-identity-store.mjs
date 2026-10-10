@@ -12,14 +12,18 @@ import {
   ATTEMPT_EVENT_KINDS,
   ATTEMPT_JOURNAL_REFUSALS,
   admitAttemptCommand,
+  admitReviewOriginalBinding,
   attemptJournalFilePath,
+  attemptJournalRootDir,
   attemptJournalRefusal,
   attemptPartitionLockPath,
   pageManagedAttemptDetail,
   parseAttemptJournal,
   projectManagedAttemptObservations,
   resultDigest,
+  reviewOriginalPartitionSubject,
   selectManagedAttempt,
+  selectReviewOriginalBinding,
   serializeAttemptJournal,
   validateAttemptJournal
 } from "@agent-chassis/agent-launch-core";
@@ -81,11 +85,11 @@ export function managedRunProcessIdentityFilePath(mainRepo, tuple) {
   return path.join(managedRunProcessIdentityStoreDir(mainRepo), `identity-${digest}.json`);
 }
 
-export function readAttemptJournalEvents({ mainRepo, repository, subject }) {
-  const filePath = attemptJournalFilePath(mainRepo, repository, subject);
+export function readAttemptJournalEvents({ mainRepo, repository, subject, includeVerifiedSource = false,
+  filePath = attemptJournalFilePath(mainRepo, repository, subject) }) {
   let body;
   try {
-    body = readFileSync(filePath, "utf8");
+    body = readFileSync(filePath);
   } catch (err) {
     if (err && err.code === "ENOENT") return Object.freeze({ events: Object.freeze([]), refusal: null, file_path: filePath });
     return Object.freeze({
@@ -94,7 +98,7 @@ export function readAttemptJournalEvents({ mainRepo, repository, subject }) {
       file_path: filePath
     });
   }
-  const parsed = parseAttemptJournal(body);
+  const parsed = parseAttemptJournal(body.toString("utf8"));
   if (parsed.ok !== true) {
     return Object.freeze({
       events: Object.freeze(parsed.durable_prefix ?? []),
@@ -102,11 +106,13 @@ export function readAttemptJournalEvents({ mainRepo, repository, subject }) {
       file_path: filePath
     });
   }
-  return Object.freeze({ events: Object.freeze(parsed.events), refusal: null, file_path: filePath });
+  return Object.freeze({ events: Object.freeze(parsed.events), refusal: null, file_path: filePath,
+    ...(includeVerifiedSource ? { verified_source: { serializedBytes: body,
+      source: { sha256: createHash("sha256").update(body).digest("hex") } } } : {}) });
 }
 
-export function publishAttemptJournalEvents({ mainRepo, repository, subject, events }) {
-  const filePath = attemptJournalFilePath(mainRepo, repository, subject);
+export function publishAttemptJournalEvents({ mainRepo, repository, subject, events,
+  filePath = attemptJournalFilePath(mainRepo, repository, subject) }) {
   mkdirSync(path.dirname(filePath), { recursive: true });
   const result = runCrashDurablePlanSync(
     planReplacement({
@@ -159,9 +165,9 @@ export function withAttemptPartitionLock({ mainRepo, repository, subject }, muta
   }
 }
 
-function readValidatedAttemptJournal(mainRepo, subject) {
+function readValidatedAttemptJournal(mainRepo, subject, includeVerifiedSource = false) {
   const repository = mainRepo;
-  const read = readAttemptJournalEvents({ mainRepo, repository, subject });
+  const read = readAttemptJournalEvents({ mainRepo, repository, subject, includeVerifiedSource });
   if (read.refusal !== null) {
     return { ok: false, refusal: read.refusal, repository, events: read.events };
   }
@@ -169,14 +175,29 @@ function readValidatedAttemptJournal(mainRepo, subject) {
   if (!validated.valid) {
     return { ok: false, refusal: validated.refusal, repository, events: read.events };
   }
-  return { ok: true, repository, events: validated.events };
+  return { ok: true, repository, events: validated.events, verified_source: read.verified_source };
 }
 
-export function readManagedRunObservation({ mainRepo, subject, attemptId = null, detail = null }) {
-  const read = readValidatedAttemptJournal(mainRepo, subject);
-  if (!read.ok) return read;
+export function readManagedRunObservation({ mainRepo, subject, attemptId = null, detail = null,
+  sliceBinding = null, includeVerifiedSource = false, includeProofSummary = false }) {
+  const read = readValidatedAttemptJournal(mainRepo, subject, includeVerifiedSource);
+  if (!read.ok) return sliceBinding === null ? read : { ok: false, refusal: read.refusal };
+
+  if (sliceBinding !== null) {
+    if (attemptId !== null || detail !== null) return { ok: false, code: "attempt_detail_request_invalid" };
+    const binding = selectProofVerificationAttempt({ repository: read.repository, subject,
+      events: read.events, sliceBinding });
+    if (!binding.ok) return binding;
+    if (!sameTuple(binding.retained, binding.derived)) return { ok: false, code: "attempt_binding_mismatch" };
+    const selected = selectManagedAttempt({ repository: read.repository, subject,
+      events: read.events, attemptId: binding.retained.run_id });
+    const assigned = selected.ok ? { ...selected.selected } : null;
+    if (assigned !== null) delete assigned.original_result;
+    return selected.ok ? { ok: true, selected: assigned }
+      : { ok: false, code: selected.code, ...(selected.refusal ? { refusal: selected.refusal } : {}) };
+  }
   if (detail !== null) {
-    return pageManagedAttemptDetail({
+    const page = pageManagedAttemptDetail({
       repository: read.repository,
       subject,
       events: read.events,
@@ -184,15 +205,16 @@ export function readManagedRunObservation({ mainRepo, subject, attemptId = null,
       kind: detail.kind,
       cursor: detail.cursor ?? null,
       limit: detail.limit ?? 20,
-      invocationId: detail.invocation_id ?? null
+      invocationId: detail.invocation_id ?? null,
+      complete: detail.complete === true
     });
+    return page.ok && includeVerifiedSource ? { ...page, verified_source: read.verified_source } : page;
   }
-  return selectManagedAttempt({
-    repository: read.repository,
-    subject,
-    events: read.events,
-    attemptId
-  });
+  const selected = selectManagedAttempt({ repository: read.repository, subject, events: read.events, attemptId });
+  if (!selected.ok || !includeProofSummary) return selected;
+  const proof_detail = pageManagedAttemptDetail({ repository: read.repository, subject, events: read.events,
+    attemptId: selected.selected.dispatch_tuple.run_id, kind: "proof_verification", limit: 1 });
+  return { ...selected, proof_detail };
 }
 
 function appendManagedRunObservation({ mainRepo, subject, runId, kind, payload }) {
@@ -214,7 +236,7 @@ function appendManagedRunObservation({ mainRepo, subject, runId, kind, payload }
       };
     }
     const resolvedPayload = typeof payload === "function"
-      ? payload(selection.selected.dispatch_tuple)
+      ? payload(selection.selected.dispatch_tuple, selection.selected)
       : payload;
     if (resolvedPayload === null) return { ok: false, code: "attempt_binding_mismatch" };
     const admitted = admitAttemptCommand({
@@ -235,6 +257,43 @@ function appendManagedRunObservation({ mainRepo, subject, runId, kind, payload }
   return locked.result;
 }
 
+export function recordManagedRunOriginal({ mainRepo, subject, dispatchTuple, result, originalResult }) {
+  return appendManagedRunObservation({ mainRepo, subject, runId: dispatchTuple.run_id,
+    kind: ATTEMPT_EVENT_KINDS.RUN_ORIGINAL_RECORDED,
+    payload: (current, selected) => sameTuple(current, dispatchTuple) &&
+      (selected.result === null || selected.result_digest === resultDigest(result)) ? {
+      dispatch_tuple: dispatchTuple, result_digest: resultDigest(result), original_result: originalResult
+    } : null });
+}
+
+export function reviewOriginalBindingFilePath(mainRepo, subject) {
+  return path.join(path.dirname(attemptJournalFilePath(mainRepo, mainRepo, reviewOriginalPartitionSubject(subject))),
+    "review-originals.jsonl");
+}
+const reviewOriginalPartition = (mainRepo, subject) => ({ mainRepo, repository: mainRepo,
+  subject: reviewOriginalPartitionSubject(subject), filePath: reviewOriginalBindingFilePath(mainRepo, subject) });
+
+export function recordManagedReviewOriginal({ mainRepo, subject, runId, role, originalResult }) {
+  const partition = reviewOriginalPartition(mainRepo, subject);
+  const locked = withAttemptPartitionLock(partition, () => {
+    const read = readAttemptJournalEvents(partition);
+    if (read.refusal !== null) return { ok: false, refusal: read.refusal };
+    const admitted = admitReviewOriginalBinding({ repository: mainRepo, subject, events: read.events,
+      binding: { run_id: runId, role, original_result: originalResult } });
+    if (!admitted.admitted) return { ok: false, refusal: admitted.refusal };
+    if (admitted.appended) publishAttemptJournalEvents({ ...partition, events: admitted.events });
+    return { ok: true, appended: admitted.appended };
+  });
+  if (!locked.acquired) return { ok: false, code: "attempt_partition_contended" };
+  return locked.result;
+}
+
+export function readManagedReviewOriginal({ mainRepo, subject, attemptId = null }) {
+  const read = readAttemptJournalEvents(reviewOriginalPartition(mainRepo, subject));
+  if (read.refusal !== null) return { ok: false, refusal: read.refusal };
+  return selectReviewOriginalBinding({ repository: mainRepo, subject, events: read.events, attemptId });
+}
+
 export function recordManagedRunResult({ mainRepo, subject, dispatchTuple, result }) {
   return appendManagedRunObservation({
     mainRepo,
@@ -247,6 +306,28 @@ export function recordManagedRunResult({ mainRepo, subject, dispatchTuple, resul
       result
     }
   });
+}
+
+export function assessManagedRunResultPublication({ mainRepo, subject, dispatchTuple, result }) {
+  const read = readValidatedAttemptJournal(mainRepo, subject);
+  if (!read.ok) return read;
+  const selection = selectManagedAttempt({
+    repository: read.repository,
+    subject,
+    events: read.events,
+    attemptId: dispatchTuple.run_id
+  });
+  if (!selection.ok) return selection;
+  const admitted = admitAttemptCommand({
+    repository: read.repository,
+    subject,
+    events: read.events,
+    attempt: selection.selected.attempt,
+    kind: ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED,
+    payload: { dispatch_tuple: dispatchTuple, result_digest: resultDigest(result), result }
+  });
+  if (!admitted.admitted) return { ok: false, refusal: admitted.refusal };
+  return { ok: true, state: admitted.appended === false ? "already_recorded" : "append_admissible" };
 }
 
 export function recordManagedLifecycleFailure({
@@ -302,6 +383,11 @@ export function recordManagedProofVerification({
   invocationId,
   verification
 }) {
+  return recordManagedInvocationObservation({ mainRepo, subject, sliceBinding, invocationId,
+    kind: ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED, field: "verification", value: verification });
+}
+
+function recordManagedInvocationObservation({ mainRepo, subject, sliceBinding, invocationId, kind, field, value }) {
   const repository = mainRepo;
   const read = readAttemptJournalEvents({ mainRepo, repository, subject });
   if (read.refusal !== null) return { ok: false, refusal: read.refusal };
@@ -312,11 +398,49 @@ export function recordManagedProofVerification({
     mainRepo,
     subject,
     runId: retained.run_id,
-    kind: ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED,
+    kind,
     payload: (current) => (sameTuple(current, derived)
-      ? { dispatch_tuple: current, invocation_id: invocationId, verification }
+      ? { dispatch_tuple: current, invocation_id: invocationId, [field]: value }
       : null)
   });
+}
+
+export function recordManagedDeliveryReceipt({ mainRepo, subject, sliceBinding, receipt }) {
+  return recordManagedInvocationObservation({ mainRepo, subject, sliceBinding,
+    invocationId: receipt.result.ref_id, kind: ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED,
+    field: "receipt", value: receipt });
+}
+
+export function findManagedDeliveryReceipt({ mainRepo, refId, subject = null }) {
+  const root = attemptJournalRootDir(mainRepo);
+  let files;
+  if (subject !== null) files = [attemptJournalFilePath(mainRepo, mainRepo, subject)];
+  else {
+    try { files = readdirSync(root).map(partition => path.join(root, partition, "journal.jsonl")); }
+    catch (error) { if (error.code === "ENOENT") return null; throw error; }
+  }
+  const matches = [];
+  for (const file of files) {
+    let body;
+    try { body = readFileSync(file, "utf8"); }
+    catch (error) { if (error.code === "ENOENT") continue; throw error; }
+    if (!body.includes(JSON.stringify(refId))) continue;
+    const parsed = parseAttemptJournal(body);
+    if (!parsed.ok) throw Object.assign(new Error(parsed.refusal.reason), { code: parsed.refusal.code, refusal: parsed.refusal });
+    const selectedSubject = parsed.events[0]?.subject;
+    if (typeof selectedSubject !== "string" ||
+        file !== attemptJournalFilePath(mainRepo, mainRepo, selectedSubject) ||
+        (subject !== null && selectedSubject !== subject)) {
+      throw Object.assign(new Error("delivery receipt is in a foreign attempt partition"), { code: "attempt_binding_mismatch" });
+    }
+    const projected = projectManagedAttemptObservations({ repository: mainRepo, subject: selectedSubject, events: parsed.events });
+    if (!projected.ok) throw Object.assign(new Error(projected.refusal.reason), { code: projected.refusal.code, refusal: projected.refusal });
+    for (const attempt of projected.attempts) for (const { receipt } of attempt.delivery_receipts) {
+      if (receipt.result.ref_id === refId) matches.push({ receipt, dispatchTuple: attempt.dispatch_tuple });
+    }
+  }
+  if (matches.length > 1) throw Object.assign(new Error("delivery locator belongs to multiple attempts"), { code: "attempt_selection_ambiguous" });
+  return matches[0] ?? null;
 }
 
 export function readManagedProofVerification({ mainRepo, subject, sliceBinding, invocationId }) {

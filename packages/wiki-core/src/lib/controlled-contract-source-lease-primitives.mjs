@@ -179,7 +179,8 @@ export async function assertControlledContractSourceLeaseImpl(lease, {
       state.focus !== (focus ?? null) || state.repository !== repository) sourceLeaseFailure(
     "identity_mismatch", "source lease repository, WK, focus, or durable repository identity differs");
   try {
-    assertCanonicalWorkRecordReadLease(state.recordLease, {
+    if (state.assertBirthRecordLease) await state.assertBirthRecordLease();
+    else assertCanonicalWorkRecordReadLease(state.recordLease, {
       dir: state.store.repository, id: wkId
     });
   } catch (error) {

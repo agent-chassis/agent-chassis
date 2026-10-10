@@ -17,6 +17,9 @@ export const CONTROLLED_CONTRACT_AUTHENTICATED_GENERATION_SCHEMA_VERSION =
 export const CONTROLLED_CONTRACT_AUTHENTICATED_GENERATION_METADATA_SCHEMA_VERSION =
   "controlled-contract-authenticated-generation-metadata.v1";
 
+export const CONTROLLED_CONTRACT_GENERATION_ABSENCE_SCHEMA_VERSION =
+  "controlled-contract-generation-absence.v1";
+
 export const CONTROLLED_CONTRACT_GENERATION_AUTHENTICATION_CODES = Object.freeze({
   MALFORMED: "controlled_contract_generation_authentication.malformed.v1",
   MISSING: "controlled_contract_generation_authentication.missing.v1",
@@ -48,7 +51,14 @@ const METADATA_FIELDS = Object.freeze([
   "manifest_identity",
   "descriptors"
 ]);
+const ABSENCE_FIELDS = Object.freeze([
+  "schema_version",
+  "repository",
+  "wk_id",
+  "wk_tip_sha"
+]);
 const authenticatedEnvelopes = new WeakSet();
+const observedAbsences = new WeakSet();
 
 export class ControlledContractGenerationAuthenticationError extends Error {
   constructor(code, message, details = {}) {
@@ -561,4 +571,83 @@ export function authenticatedControlledContractGenerationsEqual(left, right) {
   assertAuthenticatedControlledContractGeneration(left);
   assertAuthenticatedControlledContractGeneration(right);
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function constructControlledContractGenerationAbsence(input = {}) {
+  assertExactKeys(input, [
+    "repository", "wkId", "wkTipSha", "resolvedGeneration",
+    "carrierPaths", "manifestPaths"
+  ], "controlled generation absence observation request");
+  validateIdentityFields(input);
+  if (!Array.isArray(input.carrierPaths) || !Array.isArray(input.manifestPaths)) {
+    fail(CONTROLLED_CONTRACT_GENERATION_AUTHENTICATION_CODES.MALFORMED,
+      "exact-W controlled-contract population observation is malformed");
+  }
+  if (input.resolvedGeneration !== null) {
+    fail(CONTROLLED_CONTRACT_GENERATION_AUTHENTICATION_CODES.CONTRADICTORY,
+      "a selected controlled-contract generation is not an absent one");
+  }
+  if (input.carrierPaths.length > 0 || input.manifestPaths.length > 0) {
+    fail(CONTROLLED_CONTRACT_GENERATION_AUTHENTICATION_CODES.CONTRADICTORY,
+      "exact W holds a controlled-contract population that no current generation selects", {
+        carrier_count: input.carrierPaths.length,
+        manifest_count: input.manifestPaths.length
+      });
+  }
+  const absence = Object.freeze({
+    schema_version: CONTROLLED_CONTRACT_GENERATION_ABSENCE_SCHEMA_VERSION,
+    repository: input.repository,
+    wk_id: input.wkId,
+    wk_tip_sha: input.wkTipSha
+  });
+  observedAbsences.add(absence);
+  return absence;
+}
+
+export function isControlledContractGenerationAbsence(value) {
+  return value !== null && typeof value === "object" && observedAbsences.has(value);
+}
+
+function assertControlledContractGenerationAbsence(value, { repository, wkId, wkTipSha }) {
+  assertExactKeys(value, ABSENCE_FIELDS, "controlled generation absence observation");
+  if ((repository !== null && value.repository !== repository) ||
+      (wkId !== null && value.wk_id !== wkId) ||
+      (wkTipSha !== null && value.wk_tip_sha !== wkTipSha)) {
+    fail(CONTROLLED_CONTRACT_GENERATION_AUTHENTICATION_CODES.CONTRADICTORY,
+      "controlled generation absence contradicts the required repository, WK, or exact W");
+  }
+  return value;
+}
+
+export function assertControlledContractGenerationState(value, {
+  repository = null,
+  wkId = null,
+  wkTipSha = null
+} = {}) {
+  return isControlledContractGenerationAbsence(value)
+    ? assertControlledContractGenerationAbsence(value, { repository, wkId, wkTipSha })
+    : assertAuthenticatedControlledContractGeneration(value, {
+        repository, wkId, wkTipSha, requireManifest: true
+      });
+}
+
+export function projectControlledContractGenerationState(value) {
+  return isControlledContractGenerationAbsence(assertControlledContractGenerationState(value))
+    ? null
+    : projectAuthenticatedControlledContractGeneration(value);
+}
+
+export function controlledContractGenerationStateMatchesMetadata(state, metadata) {
+  if (isControlledContractGenerationAbsence(assertControlledContractGenerationState(state))) {
+    return metadata === null;
+  }
+  return metadata !== null &&
+    authenticatedControlledContractGenerationMatchesMetadata(state, metadata);
+}
+
+export function controlledContractGenerationStatesEqual(left, right) {
+  assertControlledContractGenerationState(left);
+  assertControlledContractGenerationState(right);
+  return isControlledContractGenerationAbsence(left) === isControlledContractGenerationAbsence(right) &&
+    JSON.stringify(left) === JSON.stringify(right);
 }

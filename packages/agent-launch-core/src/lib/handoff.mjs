@@ -26,10 +26,9 @@ const ALLOWED_MODES = new Set(["redteam", "code_review", "implement"]);
 const GRAPH_IMPACT_CHECKPOINT_HEADING = "Graph Impact Checkpoint";
 const IMPLEMENTATION_SCOPE_HEADINGS = new Set(["Write Scope"]);
 
-const GRAPH_IMPACT_ROUTE_MARKERS = [
-  "code-index impact",
-  "workspace_code_index_impact"
-];
+const GRAPH_IMPACT_CLI_MARKER = "code-index impact";
+const GRAPH_IMPACT_QUERY_MARKER = "query_code_index";
+const GRAPH_IMPACT_PATHS_SUBJECT_MARKER = "paths";
 const GRAPH_IMPACT_DIFF_SUBJECT_MARKERS = [
   "--live-git",
   "--patch",
@@ -38,6 +37,10 @@ const GRAPH_IMPACT_DIFF_SUBJECT_MARKERS = [
   "patchText",
   "diffRecords"
 ];
+const GRAPH_IMPACT_QUERY_SUBJECT = new RegExp(
+  `\\b${GRAPH_IMPACT_QUERY_MARKER}\\b\`?\\s+with\\s+(?:its\\s+)?\`?` +
+  `(?:${GRAPH_IMPACT_PATHS_SUBJECT_MARKER}|diff subject|${GRAPH_IMPACT_DIFF_SUBJECT_MARKERS.join("|")})(?![\\w-])`
+);
 
 function parseScalar(rawValue) {
   const value = rawValue.trim();
@@ -155,8 +158,10 @@ export function assessGraphImpactCheckpoint(handoff) {
   const required = implementationScopedSignals.length > 0;
   const checkpointText = extractExactSection(handoff.body, GRAPH_IMPACT_CHECKPOINT_HEADING);
   const sectionPresent = checkpointText !== null;
+  const namesChangeSubject = sectionPresent && GRAPH_IMPACT_QUERY_SUBJECT.test(checkpointText);
   const routeMarkers = sectionPresent
-    ? GRAPH_IMPACT_ROUTE_MARKERS.filter((marker) => checkpointText.includes(marker))
+    ? [GRAPH_IMPACT_CLI_MARKER, ...(namesChangeSubject ? [GRAPH_IMPACT_QUERY_MARKER] : [])]
+      .filter((marker) => checkpointText.includes(marker))
     : [];
   const diffImpactMarkers = routeMarkers.length > 0
     ? GRAPH_IMPACT_DIFF_SUBJECT_MARKERS.filter((marker) => checkpointText.includes(marker))

@@ -1,37 +1,45 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
-import { buildPublicMechanicalRefusal } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
-import { fitNavigationSummary } from "@agent-chassis/wiki-core/src/lib/sidecar-navigation-projection.mjs";
+import { SIDECAR_NAVIGATION_RESULT_FIELDS, fitNavigationSummary } from
+  "@agent-chassis/wiki-core/src/lib/sidecar-navigation-projection.mjs";
+import { RETAINED_ANSWER_NEXT_ACTION } from "@agent-chassis/wiki-core/src/lib/sidecar-query-projection.mjs";
+import { SIDECAR_CODE_QUESTION_FIELDS, SIDECAR_CODE_QUESTION_RELATIONSHIPS } from
+  "@agent-chassis/wiki-core/src/lib/sidecar-query-input.mjs";
+import { SIDECAR_PUBLISHED_INDEX_UNAVAILABLE_CODE, pinnedQueryContext } from
+  "@agent-chassis/wiki-core/src/lib/sidecar-published-preparation.mjs";
 import { selectRetainedSourceLines } from
   "@agent-chassis/wiki-core/src/lib/sidecar-source-regions.mjs";
 import { projectSidecarSymbolQueryForMcp } from
   "@agent-chassis/wiki-core/src/lib/sidecar-symbol-query.mjs";
-import { measureMcpInlineResultBytes } from "./mcp-response.mjs";
+import { jsonContent, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
 import {
-  SELECTED_RESPONSE_QUERY_INVALID_CODE,
+  containsReservedAssessmentEnvelope,
+  createSelectedResponseSession,
   readSelectedResponseSource,
-  retainSelectedResponseSource,
-  selectedResponseDeliveryBound,
+  selectedResponseCorrectableError,
+  selectedResponseDetailSchema,
   selectedResponseQueryInvalidError
 } from "./selected-response-snapshot.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
+import { inputContractMechanicalRefusal } from "./tool-discovery-input-guidance-delivery.mjs";
 
 export const CODE_INDEX_SELECTED_SUMMARY_SCHEMA_VERSION = "code-index-selected-summary.v2";
 export const CODE_INDEX_SELECTED_DETAIL_SCHEMA_VERSION = "code-index-selected-detail.v1";
 export const CODE_INDEX_NAVIGATION_ANSWER_SCHEMA_VERSION = "code-index-question-navigation.v1";
+export const CODE_INDEX_UNAVAILABLE_SCHEMA_VERSION = "code-index-unavailable.v1";
 
-const QUERY_ARGUMENTS = Object.freeze(["cacheDir", "includeSuppressed", "paths",
-  "patchText", "diffRecords", "liveGit", "path", "symbol", "line", "character", "relationship"]);
+const COMPOSITION_MAX_PASSES = 3;
 
-const NAVIGATION_RELATIONSHIPS = Object.freeze(["definition", "references", "callers", "callees"]);
+const QUERY_ARGUMENTS = SIDECAR_CODE_QUESTION_FIELDS;
 
-const NAVIGATION_RESULT_FIELDS = Object.freeze({ definition: "definitions",
-  find_references: "references", symbol_callers: "callers", symbol_callees: "callees" });
+const NAVIGATION_RELATIONSHIPS = SIDECAR_CODE_QUESTION_RELATIONSHIPS;
+
+const NAVIGATION_RESULT_FIELDS = SIDECAR_NAVIGATION_RESULT_FIELDS;
 
 const RETAINED_QUERY_MATERIAL = new Set(["input_diff_sources"]);
 const DETAIL_FRAME_MEMBERS = new Set(["schema_version", "workspaceRepo", "query_kind", "observation",
-  "selected_detail", "next_calls"]);
+  "selected_detail", "page", "next_calls", "read_mode", "mixed_source"]);
 
 const ROW_IDENTITY_FIELDS = Object.freeze(["hit_id", "region_id", "edge_id", "id"]);
 const ROW_PATH_FIELDS = Object.freeze(["path", "document_path", "input_path", "newPath", "oldPath"]);
@@ -39,10 +47,86 @@ const ROW_SYMBOL_FIELDS = Object.freeze(["symbol", "symbol_key", "symbol_id", "c
   "callee_symbol"]);
 const SELECTION_FIELDS = Object.freeze(["selector", "path", "symbol", "relationship", "input_path", "lines"]);
 
-const COMPACT_MEMBER_MAX_UTF8_BYTES = 512;
+const SELECTOR_KEYS = Object.freeze(["id", "path", "symbol", "relationship", "input_path", "lines"]);
 
-const MAXIMUM_ROW_CALLS = 3;
+const ANSWER_FACTS = "@answer";
 const COLLECTION_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u;
+
+const PREPARATION_TOOL = "workspace_code_index_build";
+const PREPARATION_PURPOSE = "prepare_index";
+export const CODE_INDEX_INSPECTION_PURPOSE = "inspect_evidence";
+
+const STATUS_QUERY_KIND = "code_index_status";
+export const CODE_INDEX_STATUS_DIAGNOSIS = "diagnosis";
+
+export function createCodeIndexPreparationGuidance(contracts = null) {
+  return async () => {
+    const contract = contracts?.contractFor(PREPARATION_TOOL) ?? null;
+    if (contract === null || !await contract.acceptsArguments({})) {
+      return { state: "capability_unavailable", call: null,
+        slot: { state: "capability_unavailable", missing_capability: "prepare_code_index" },
+        sentence: "This session has no registered operation that prepares the code index " +
+          "(preparation.missing_capability)." };
+    }
+    return { state: "action_available",
+      call: { ...buildNextCall({ tool: PREPARATION_TOOL, arguments: {} }), purpose: PREPARATION_PURPOSE },
+      slot: { state: "action_available", operation: PREPARATION_TOOL },
+      sentence: `Call ${PREPARATION_TOOL} with {} (next_calls, purpose ${PREPARATION_PURPOSE}) to prepare ` +
+        "current HEAD and wait." };
+  };
+}
+
+function statusDiagnosis(summary) {
+  const { input_identity: _identity, ...scip } = summary.scip_state ?? {};
+  return { freshness: summary.freshness, status_reason: summary.status_reason,
+    index_action: summary.index_action, artifact_exists: summary.artifact_exists,
+    graph_available: summary.graph_available, dirty_state: summary.dirty_state,
+    scip_state: summary.scip_state === null ? null : scip };
+}
+
+async function withStatusRecovery(response, preparation) {
+  if (response.query_kind !== STATUS_QUERY_KIND ||
+      response.selected_detail?.collection !== CODE_INDEX_STATUS_DIAGNOSIS) return response;
+  const guidance = await preparation();
+  const { next_calls: continuations, ...frame } = response;
+  const diagnosis = frame[CODE_INDEX_STATUS_DIAGNOSIS];
+  return { ...frame, preparation: guidance.slot,
+    next_action: `Retained status diagnosis: index ${diagnosis?.status_reason ?? "unknown"}; SCIP: ${
+      diagnosis?.scip_state?.status_reason ?? "unknown"}. It describes indexed_commit against the current_head ` +
+      "that status read observed; observation compares indexed_commit with HEAD now, and neither is a new " +
+      `status probe. ${guidance.sentence} This read prepared, refreshed and repaired nothing; ` +
+      "graph_snapshot selects the complete provenance.",
+    next_calls: [...(guidance.call === null ? [] : [{ ...guidance.call, recommended: true }]), ...continuations] };
+}
+
+function unavailableNextAction(refresh, preparation) {
+  if (refresh?.state === "failed") {
+    return "No usable published code index exists and its background preparation failed " +
+      "(index_state.refresh.failure). Correct that cause, then repeat this call after " +
+      `index_state.refresh.retry.not_before. ${preparation.sentence}`;
+  }
+  if (refresh?.state === "queued" || refresh?.state === "running") {
+    return "No usable published code index exists yet; its preparation is " +
+      `${refresh.state} in the background. Repeat this call to read the answer once it publishes. ` +
+      preparation.sentence;
+  }
+  return "No usable published code index exists and no background preparation was started " +
+    `(index_state.refresh). ${preparation.sentence}`;
+}
+
+export function createCodeIndexUnavailableResponse({ workspaceRepo, route, args, error, preparation }) {
+  return {
+    schema_version: CODE_INDEX_UNAVAILABLE_SCHEMA_VERSION,
+    workspaceRepo,
+    available: false,
+    code: error.code,
+    index_state: structuredClone(error.index_state),
+    preparation: preparation.slot,
+    next_action: unavailableNextAction(error.index_state?.refresh, preparation),
+    next_calls: [buildNextCall({ tool: route, arguments: structuredClone(args), recommended: true }),
+      ...(preparation.call === null ? [] : [preparation.call])]
+  };
+}
 
 function responseContractError(message, code) {
   const error = new Error(message);
@@ -51,15 +135,15 @@ function responseContractError(message, code) {
 }
 
 const plainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const utf8Bytes = (value) => Buffer.byteLength(typeof value === "string" ? value : JSON.stringify(value), "utf8");
 
 export function codeIndexDetailSchema(z) {
+  const shared = selectedResponseDetailSchema(z).shape;
   return z.object({
-    source: z.object({
-      ref_id: z.string().regex(/^[A-Za-z0-9._-]{1,200}$/u),
-      sha256: z.string().regex(/^[a-f0-9]{64}$/u)
-    }).strict(),
-    collection: z.string().regex(COLLECTION_NAME_PATTERN),
+    source: shared.source,
+    collection: shared.collection,
+    snapshot_identity: shared.snapshot_identity,
+    cursor: shared.cursor,
+    ordinal: shared.ordinal,
     selector: z.object({ id: z.string().min(1).max(4096) }).strict().optional(),
     path: z.string().min(1).max(4096).optional(),
     symbol: z.string().min(1).max(4096).optional(),
@@ -70,6 +154,7 @@ export function codeIndexDetailSchema(z) {
   }).strict();
 }
 
+const NAVIGATION_PART_COLLECTIONS = Object.freeze(["source_hits", "context_regions", "complete_files"]);
 function selectableSubjects(carrier) {
   const subjects = new Map();
   for (const [name, value] of Object.entries(carrier)) {
@@ -81,10 +166,16 @@ function selectableSubjects(carrier) {
   if (Array.isArray(carrier.symbol_resolution?.candidates)) {
     subjects.set("candidates", { kind: "rows", rows: carrier.symbol_resolution.candidates });
   } else if (plainObject(carrier.parts)) {
-    const candidates = Object.entries(carrier.parts).flatMap(([relationship, part]) =>
-      (Array.isArray(part?.symbol_resolution?.candidates) ? part.symbol_resolution.candidates : [])
-        .map((candidate) => ({ ...candidate, relationship_kind: relationship })));
+    const parts = Object.entries(carrier.parts).filter(([, part]) => plainObject(part));
+    const across = (rowsOf) => parts.flatMap(([relationship, part]) => rowsOf(part).map((row) =>
+      (plainObject(row) ? { ...row, relationship_kind: relationship } : row)));
+    const candidates = across((part) => (Array.isArray(part.symbol_resolution?.candidates)
+      ? part.symbol_resolution.candidates : []));
     if (candidates.length > 0) subjects.set("candidates", { kind: "rows", rows: candidates });
+    for (const name of NAVIGATION_PART_COLLECTIONS) {
+      if (subjects.has(name) || !parts.some(([, part]) => Array.isArray(part[name]))) continue;
+      subjects.set(name, { kind: "rows", rows: across((part) => (Array.isArray(part[name]) ? part[name] : [])) });
+    }
   }
   return subjects;
 }
@@ -137,7 +228,8 @@ function withRelationship(row, relationship) {
 
 function selectRows(rows, selection) {
   const selected = [];
-  for (const row of rows) {
+  const positions = [];
+  for (const [position, row] of rows.entries()) {
     if (selection.selector !== undefined && rowIdentity(row) !== selection.selector.id) continue;
     if (selection.path !== undefined && !namesPath(row, selection.path)) continue;
     if (selection.symbol !== undefined && !namesSymbol(row, selection.symbol)) continue;
@@ -148,60 +240,12 @@ function selectRows(rows, selection) {
       if (relationships.length === 0) continue;
       chosen = { ...chosen, relationships };
     }
-    if (chosen !== null) selected.push(chosen);
-  }
-  return selected;
-}
-
-function kindCounts(values) {
-  const counts = {};
-  for (const value of values) {
-    if (plainObject(value) && typeof value.kind === "string") counts[value.kind] = (counts[value.kind] ?? 0) + 1;
-  }
-  return Object.keys(counts).length > 0 ? counts : null;
-}
-
-function compactRowView(row) {
-  if (!plainObject(row)) return row;
-  const view = {};
-  const omitted = {};
-  for (const [field, value] of Object.entries(row)) {
-    if (value === null || typeof value !== "object" && typeof value !== "string" ||
-        utf8Bytes(value) <= COMPACT_MEMBER_MAX_UTF8_BYTES) {
-      view[field] = value;
-    } else if (Array.isArray(value)) {
-      const kinds = kindCounts(value);
-      omitted[field] = { count: value.length, ...(kinds === null ? {} : { kinds }) };
-    } else {
-      omitted[field] = { utf8_bytes: utf8Bytes(value) };
+    if (chosen !== null) {
+      selected.push(chosen);
+      positions.push(position);
     }
   }
-  return Object.keys(omitted).length === 0 ? view : { ...view, omitted };
-}
-
-function rowSubject(row) {
-  const identity = rowIdentity(row);
-  if (identity !== null && typeof row !== "string") return { selector: { id: identity } };
-  const path = rowPath(row);
-  return path === null ? null : { path };
-}
-
-function candidateSubject(row) {
-  if (!plainObject(row)) return null;
-  const symbol = row.symbol_key ?? row.symbol ?? null;
-  const path = rowPath(row);
-  if (typeof symbol !== "string" && path === null) return null;
-  return { ...(typeof symbol === "string" ? { symbol } : {}),
-    ...(path === null ? {} : { path }),
-    ...(typeof row.relationship_kind === "string" ? { relationship: row.relationship_kind } : {}) };
-}
-
-function sourceLocation(row, carrier, collection) {
-  const region = collection === "context_regions" ? row
-    : (Array.isArray(carrier.context_regions) ? carrier.context_regions : [])
-      .find((entry) => namesPath(entry, rowPath(row)) && Number.isSafeInteger(entry.start_line));
-  if (!Number.isSafeInteger(region?.start_line) || region.start_line < 1) return null;
-  return { start_line: region.start_line, end_line: region.start_line };
+  return { selected, positions };
 }
 
 export async function describeRetainedObservation(binding, resolveCurrentObservationIdentity) {
@@ -229,288 +273,294 @@ function selectionOf(detail) {
   return selection;
 }
 
+export function selectCodeIndexRetainedCollection({ route, carrier, detail }) {
+  const subjects = selectableSubjects(carrier);
+  return selectFromSubject({ route, collections: [...subjects.keys()],
+    subject: subjects.get(detail.collection), detail });
+}
+
+function selectFromSubject({ route, collections, subject, detail }) {
+  if (subject === undefined) {
+    throw selectedResponseQueryInvalidError(route, "collection_unknown", {
+      collection: detail.collection,
+      collections,
+      ...(RETAINED_QUERY_MATERIAL.has(detail.collection) ? { retained_query_material: true } : {})
+    });
+  }
+  const selection = selectionOf(detail);
+  const filtered = Object.keys(selection).length > 0;
+  if (selection.input_path !== undefined && (detail.collection !== "affected_files" ||
+      selection.path === undefined && selection.selector === undefined)) {
+    throw selectedResponseQueryInvalidError(route, "selection_not_applicable",
+      { collection: detail.collection, selection: ["input_path"],
+        required: "one affected file selected by path or selector.id" });
+  }
+  if (selection.lines !== undefined && (!new Set(["context_regions", "complete_files"])
+    .has(detail.collection) || selection.path === undefined && selection.selector === undefined)) {
+    throw selectedResponseQueryInvalidError(route, "selection_not_applicable",
+      { collection: detail.collection, selection: ["lines"],
+        required: "one retained region by selector.id or complete file by path" });
+  }
+  if (subject.kind === "member" && filtered) {
+    throw selectedResponseQueryInvalidError(route, "selection_not_applicable",
+      { collection: detail.collection, selection: Object.keys(selection) });
+  }
+  const chosen = filtered ? selectRows(subject.rows, selection)
+    : { selected: subject.rows, positions: subject.rows.map((_row, position) => position) };
+  let matched = chosen.selected;
+  if (filtered && matched.length === 0) {
+    throw selectedResponseQueryInvalidError(route, "selection_matched_nothing",
+      { collection: detail.collection, selection });
+  }
+  let relationshipCounts = null;
+  if (selection.input_path !== undefined) {
+    if (matched.length !== 1) throw selectedResponseQueryInvalidError(route,
+      "selection_ambiguous", { collection: detail.collection, selection });
+    const original = subject.rows.find((row) => rowPath(row) === rowPath(matched[0]));
+    relationshipCounts = { total: original.relationships.length,
+      matched: matched[0].relationships.length, returned: matched[0].relationships.length,
+      truncated: false };
+  }
+  if (selection.lines !== undefined) {
+    if (matched.length !== 1) throw selectedResponseQueryInvalidError(route,
+      "selection_ambiguous", { collection: detail.collection, selection });
+    const [row] = matched;
+    try {
+      const source_text = selectRetainedSourceLines(row, selection.lines);
+      matched = [{ ...row, source_text, selected_lines: { ...selection.lines } }];
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      throw selectedResponseQueryInvalidError(route, "source_lines_out_of_range",
+        { collection: detail.collection, selection, retained_bounds:
+          { start_line: row.start_line, end_line: row.end_line } });
+    }
+  }
+  return { subject, selection, matched, relationshipCounts, positions: chosen.positions };
+}
+
+function sharedSelectorOf(detail) {
+  const selector = { ...(detail.selector === undefined ? {} : { id: detail.selector.id }) };
+  for (const key of SELECTOR_KEYS.slice(1)) {
+    if (detail[key] !== undefined) selector[key] = structuredClone(detail[key]);
+  }
+  return Object.keys(selector).length === 0 ? null : selector;
+}
+
+function codeSelectionOf(selector) {
+  const { id, ...filters } = selector ?? {};
+  return { ...(id === undefined ? {} : { selector: { id } }), ...filters };
+}
+
+function projectCodeCollections(carrier) {
+  const kinds = {};
+  const collections = {};
+  for (const [name, subject] of selectableSubjects(carrier)) {
+    kinds[name] = subject.kind;
+    collections[name] = subject.rows.map((row, position) => ({ id: String(position), value: row }));
+  }
+  return { [ANSWER_FACTS]: [{ id: ANSWER_FACTS, value: { kinds, query_kind: carrier.query_kind ?? null,
+    workspaceRepo: carrier.workspaceRepo ?? null, source: answerSourceFacts(carrier) } }], ...collections };
+}
+
+function answerSourceFacts(answer) {
+  if (!plainObject(answer.parts)) {
+    return { indexed_commit: answer.indexed_commit ?? null,
+      indexed_commit_short: answer.indexed_commit_short ?? null, current_head: answer.current_head ?? null };
+  }
+  const parts = Object.values(answer.parts).filter(plainObject);
+  const one = (field) => {
+    const values = [...new Set(parts.map((part) => part[field] ?? null))];
+    return values.length === 1 ? values[0] : null;
+  };
+
+  const agreed = new Set(parts.map((part) => part.indexed_commit ?? null)).size <= 1;
+  return { indexed_commit: one("indexed_commit"),
+    indexed_commit_short: agreed ? one("indexed_commit_short") : null,
+    current_head: one("current_head"), ...(agreed ? {} : { mixed_source: true }) };
+}
+
+function createCodeRowSelection(route) {
+  const bySnapshot = new WeakMap();
+  return ({ collections, collection, selector }) => {
+    let selections = bySnapshot.get(collections);
+    if (selections === undefined) bySnapshot.set(collections, selections = new Map());
+    const key = JSON.stringify([collection, selector]);
+    const held = selections.get(key);
+    if (held !== undefined) return held;
+    const facts = collections[ANSWER_FACTS][0].value;
+    const projected = Object.hasOwn(facts.kinds, collection) ? collections[collection] : undefined;
+    const { subject, selection, matched, relationshipCounts, positions } = selectFromSubject({ route,
+      collections: Object.keys(facts.kinds),
+      subject: projected === undefined ? undefined
+        : { kind: facts.kinds[collection], rows: projected.map((row) => row.value) },
+      detail: { collection, ...codeSelectionOf(selector) } });
+
+    const rows = matched.map((row, index) => {
+      const original = projected[positions[index]];
+      return original.value === row ? original : Object.freeze({ id: original.id, value: row });
+    });
+    const selected = { rows, metadata: { kind: subject.kind, query_kind: facts.query_kind,
+      workspaceRepo: facts.workspaceRepo, source: facts.source, selection, total: subject.rows.length,
+      relationship_counts: relationshipCounts,
+
+      rows } };
+    selections.set(key, selected);
+    return selected;
+  };
+}
+
+function presentCodeDetail(response) {
+  const { page } = response;
+  const retained = page.retained_source;
+  const facts = page.selected;
+  const rows = page.items.map((row) => {
+    if (Object.hasOwn(row, "value")) return row.value;
+    const original = facts.rows.find((entry) => entry.id === row.id);
+    if (original === undefined) throw new TypeError("selected code row is absent from its authenticated selection");
+    return original.value;
+  });
+  const nested = facts.relationship_counts;
+  return {
+    schema_version: CODE_INDEX_SELECTED_DETAIL_SCHEMA_VERSION,
+    workspaceRepo: facts.workspaceRepo ?? retained.repository,
+    query_kind: facts.query_kind,
+
+    read_mode: "retained",
+    ...facts.source,
+    observation: response.observation,
+    selected_detail: { source: { ref_id: retained.ref_id },
+      collection: page.collection, selection: facts.selection, presentation: "complete",
+      counts: nested === null ? { total: facts.total, matched: page.total, returned: page.returned,
+        truncated: page.returned < page.total }
+        : { total: nested.total, matched: nested.matched, returned: page.returned === 0 ? 0 : nested.matched,
+          truncated: page.returned === 0 } },
+    page: { collection: page.collection, total: page.total, offset: page.offset, returned: page.returned,
+      has_more: page.complete !== true },
+    [page.collection]: facts.kind === "member" ? rows[0] ?? null : rows,
+    next_calls: response.next_calls
+  };
+}
+
 export function createCodeIndexAnswerSelection({ route, requestSchema, detailSchema, buildDetailArguments,
   resolveCurrentObservationIdentity = null, env = process.env }) {
   if (typeof route !== "string" || typeof buildDetailArguments !== "function" ||
       requestSchema === null || typeof requestSchema !== "object" ||
-      typeof detailSchema?.safeParse !== "function") {
+      typeof detailSchema?.safeParse !== "function" ||
+      typeof detailSchema.shape?.cursor?.safeParse !== "function") {
     throw new TypeError("a code answer selection requires route, requestSchema, detailSchema and buildDetailArguments");
   }
-  const maximumBytes = selectedResponseDeliveryBound(env);
-  const fits = (frame) => measureMcpInlineResultBytes(frame) <= maximumBytes;
   const detailCall = (repository, selection, extra = {}) => buildNextCall({ tool: route,
     arguments: buildDetailArguments(Object.freeze({ repository, unit: null }), selection), recommended: true,
     ...extra });
-
   const observationOf = (binding) => describeRetainedObservation(binding, resolveCurrentObservationIdentity);
+  const session = createSelectedResponseSession({ route, requestSchema, env,
 
-  function selectFromRetained(repository, detail) {
-    const envelope = readSelectedResponseSource(detail.source, { env,
-      expected: { route, repository } });
-    const subjects = selectableSubjects(envelope.carrier);
-    const subject = subjects.get(detail.collection);
-    if (subject === undefined) {
-      throw selectedResponseQueryInvalidError(route, "collection_unknown", {
-        collection: detail.collection,
-        collections: [...subjects.keys()],
-        ...(RETAINED_QUERY_MATERIAL.has(detail.collection) ? { retained_query_material: true } : {})
-      });
-    }
-    const selection = selectionOf(detail);
-    const filtered = Object.keys(selection).length > 0;
-    if (selection.input_path !== undefined && (detail.collection !== "affected_files" ||
-        selection.path === undefined && selection.selector === undefined)) {
-      throw selectedResponseQueryInvalidError(route, "selection_not_applicable",
-        { collection: detail.collection, selection: ["input_path"],
-          required: "one affected file selected by path or selector.id" });
-    }
-    if (selection.lines !== undefined && (!new Set(["context_regions", "complete_files"])
-      .has(detail.collection) || selection.path === undefined && selection.selector === undefined)) {
-      throw selectedResponseQueryInvalidError(route, "selection_not_applicable",
-        { collection: detail.collection, selection: ["lines"],
-          required: "one retained region by selector.id or complete file by path" });
-    }
-    if (subject.kind === "member" && filtered) {
-      throw selectedResponseQueryInvalidError(route, "selection_not_applicable",
-        { collection: detail.collection, selection: Object.keys(selection) });
-    }
-    let matched = filtered ? selectRows(subject.rows, selection) : subject.rows;
-    if (filtered && matched.length === 0) {
-      throw selectedResponseQueryInvalidError(route, "selection_matched_nothing",
-        { collection: detail.collection, selection });
-    }
-    let relationshipCounts = null;
-    if (selection.input_path !== undefined) {
-      if (matched.length !== 1) throw selectedResponseQueryInvalidError(route,
-        "selection_ambiguous", { collection: detail.collection, selection });
-      const original = subject.rows.find((row) => rowPath(row) === rowPath(matched[0]));
-      relationshipCounts = { total: original.relationships.length,
-        matched: matched[0].relationships.length, returned: matched[0].relationships.length,
-        truncated: false };
-    }
-    if (selection.lines !== undefined) {
-      if (matched.length !== 1) throw selectedResponseQueryInvalidError(route,
-        "selection_ambiguous", { collection: detail.collection, selection });
-      const [row] = matched;
-      try {
-        const source_text = selectRetainedSourceLines(row, selection.lines);
-        matched = [{ ...row, source_text, selected_lines: { ...selection.lines } }];
-      } catch (error) {
-        if (!(error instanceof RangeError)) throw error;
-        throw selectedResponseQueryInvalidError(route, "source_lines_out_of_range",
-          { collection: detail.collection, selection, retained_bounds:
-            { start_line: row.start_line, end_line: row.end_line } });
-      }
-    }
-    return { envelope, subject, selection, matched, relationshipCounts };
-  }
+    describeObservation: (retained) => observationOf({ ...retained,
+      observation_identity: retained.observation_identity ?? null }),
 
-  function present({ repository, detail, selected, observation }) {
-    const { envelope, subject, selection, matched, relationshipCounts } = selected;
-    const carrier = envelope.carrier;
-    const base = { source: { ref_id: detail.source.ref_id, sha256: detail.source.sha256 },
-      collection: detail.collection };
-    const frame = (rows, presentation, calls) => ({
-      schema_version: CODE_INDEX_SELECTED_DETAIL_SCHEMA_VERSION,
-      workspaceRepo: carrier.workspaceRepo ?? repository,
-      query_kind: carrier.query_kind ?? null,
-      observation,
-      selected_detail: { source: base.source, collection: detail.collection, selection, presentation,
-        counts: relationshipCounts === null ? { total: subject.rows.length, matched: matched.length,
-          returned: rows.length, truncated: rows.length < matched.length }
-          : { total: relationshipCounts.total, matched: relationshipCounts.matched,
-            returned: Array.isArray(rows[0]?.relationships) ? rows[0].relationships.length : 0,
-            truncated: !Array.isArray(rows[0]?.relationships) ||
-              rows[0].relationships.length < relationshipCounts.matched } },
-      [detail.collection]: subject.kind === "member" ? rows[0] : rows,
-      next_calls: calls
-    });
-    const complete = frame(matched, "complete", []);
-    if (fits(complete)) {
-      if (detail.collection !== "candidates" || matched.length <= 1) return complete;
-      const calls = [];
-      for (const row of matched.slice(0, MAXIMUM_ROW_CALLS)) {
-        const subject = candidateSubject(row);
-        if (subject === null) continue;
-        const call = detailCall(repository, { ...base, ...selection, ...subject });
-        if (!fits(frame(matched, "complete", [...calls, call]))) break;
-        calls.push(call);
-      }
-      return frame(matched, "complete", calls);
-    }
-    if (selection.lines !== undefined) {
-      throw selectedResponseQueryInvalidError(route,
-        selection.lines.start_line === selection.lines.end_line
-          ? "selected_line_exceeds_delivery_bound" : "selected_lines_exceed_delivery_bound",
-        { collection: detail.collection, selection,
-          source_text_utf8_bytes: utf8Bytes(matched[0].source_text) });
-    }
+    completePageDelivery: { acceptsCursor: (cursor) => detailSchema.shape.cursor.safeParse(cursor).success },
 
-    const admitCalls = (rows, presentation, selections) => {
-      const calls = [];
-      for (const candidate of selections) {
-        const next = [...calls, detailCall(repository, candidate)];
-        if (!fits(frame(rows, presentation, next))) break;
-        calls.push(next.at(-1));
-      }
-      return frame(rows, presentation, calls);
-    };
+    buildDetailArguments: (binding, { selector, ...shared }) =>
+      buildDetailArguments(binding, { ...shared, ...codeSelectionOf(selector) }),
+    projectCollections: projectCodeCollections, selectorKeys: SELECTOR_KEYS,
 
-    if (matched.length === 1) {
-      const [row] = matched;
-      const view = compactRowView(row);
-      if (!fits(frame([view], "compact", []))) {
-        throw selectedResponseQueryInvalidError(route, "selected_row_identity_exceeds_delivery_bound",
-          { collection: detail.collection, selection });
-      }
-      const subjectSelection = subject.kind === "rows"
-        ? ((detail.collection === "candidates" ? candidateSubject(row) : rowSubject(row)) ?? {}) : {};
-      const narrower = [];
-      for (const [field, facts] of Object.entries(view.omitted ?? {})) {
-        for (const kind of Object.keys(facts.kinds ?? {})) {
-          if (kind !== selection.relationship) {
-            narrower.push({ ...base, ...selection, ...subjectSelection, relationship: kind });
-          }
-        }
-        if (field === "relationships" && detail.collection === "affected_files" &&
-            selection.relationship !== undefined) {
-          const paths = [...new Set(row.relationships.map((entry) => entry?.input_path)
-            .filter((path) => typeof path === "string"))];
-          for (const input_path of paths.slice(0, MAXIMUM_ROW_CALLS)) narrower.push({ ...base, ...selection,
-            ...subjectSelection, input_path });
-        }
-        if (field === "source_text") {
-          const lines = sourceLocation(row, carrier, detail.collection);
-          if (lines !== null) narrower.push({ ...base, ...selection,
-            ...subjectSelection, lines });
-        }
+    selectRows: createCodeRowSelection(route), projectRow: (_domain, _collection, row) =>
+      containsReservedAssessmentEnvelope(row) ? row : { id: row.id },
+    presentResponse: presentCodeDetail });
 
-        const path = rowPath(row);
-        if (field.endsWith("source_text") && path !== null && detail.collection !== "context_regions" &&
-            Array.isArray(carrier.context_regions) && carrier.context_regions.some((region) =>
-              namesPath(region, path))) {
-          narrower.push({ ...base, collection: "context_regions", path });
-        }
-      }
-      return admitCalls([view], "compact", narrower);
-    }
-
-    const drillDown = (count) => matched.slice(0, Math.min(count, MAXIMUM_ROW_CALLS))
-      .map((row) => detail.collection === "candidates" ? candidateSubject(row) : rowSubject(row))
-      .filter((candidate) => candidate !== null)
-      .map((candidate) => detailCall(repository, { ...base, ...selection, ...candidate }));
-    const views = [];
-    for (const row of matched) {
-      const next = [...views, compactRowView(row)];
-      if (!fits(frame(next, "compact", drillDown(next.length)))) break;
-      views.push(next.at(-1));
-    }
-    if (views.length === 0) {
-      throw selectedResponseQueryInvalidError(route, "selected_row_identity_exceeds_delivery_bound",
-        { collection: detail.collection, selection });
-    }
-    return frame(views, "compact", drillDown(views.length));
-  }
+  const authenticated = (repository, detail) => readSelectedResponseSource(detail.source, { env,
+    expected: { route, repository } });
 
   return Object.freeze({
     route,
-    maximumBytes,
+    maximumBytes: session.maximumBytes,
     requestSchema,
     detailSchema,
 
     retain({ binding, carrier, selection }) {
-      const source = retainSelectedResponseSource({ binding, carrier,
+      return session.retain({ binding, carrier,
         ownerCall: (locator) => ({ tool: route, arguments: buildDetailArguments(Object.freeze({
           repository: binding.repository, unit: null }), {
-          source: { ref_id: locator.ref_id, sha256: locator.sha256 }, ...selection }) }),
-        ownerRequestSchema: requestSchema }, { env });
-      return source;
+          source: { ref_id: locator.ref_id }, ...selection }) }),
+        ownerRequestSchema: requestSchema });
     },
 
     detailCall(binding, selection, extra = {}) {
       return detailCall(binding.repository, selection, extra);
     },
 
-    async detail({ repository, detail }) {
-      const selected = selectFromRetained(repository, detail);
-      return present({ repository, detail, selected,
-        observation: await observationOf(selected.envelope.binding) });
+    async detail({ repository, detail, extend = null }) {
+      const retained = authenticated(repository, detail);
+      const { selector: _id, path: _path, symbol: _symbol, relationship: _relationship,
+        input_path: _input, lines: _lines, ...shared } = detail;
+      const selector = sharedSelectorOf(detail);
+      const response = await session.detail({ expected: { route, repository },
+        detail: { ...shared, ...(selector === null ? {} : { selector }) } });
+      return selectedFullContent({ source: detail.source, retained,
+        projection: extend === null ? response : await extend(response) });
     },
 
     validate({ repository, detail }) {
-      selectFromRetained(repository, detail);
+      selectCodeIndexRetainedCollection({ route, carrier: authenticated(repository, detail).carrier, detail });
     },
 
     observation: observationOf
   });
 }
 
-function initialSelection(counts, carrier, candidates) {
-  const name = candidates.find((candidate) => counts[candidate] > 0) ??
-    Object.keys(counts).find((candidate) => counts[candidate] > 0) ??
-    candidates.find((candidate) => Object.hasOwn(counts, candidate)) ?? Object.keys(counts)[0];
-  if (name === undefined) return null;
-  const first = selectableSubjects(carrier).get(name)?.rows[0];
-  const subject = first === undefined ? null : name === "candidates"
-    ? candidateSubject(first) : rowSubject(first);
-  return { collection: name, ...(subject ?? {}) };
-}
-
 export function createSelectedCodeIndexResponse({ workspaceRepo, result, carrier = result,
-  projectSummary, session, queryIdentity, collections = [], offerEach = false,
-  observationIdentity = result?.index_head ?? null }) {
+  projectSummary, session, queryIdentity, collections = [],
+  semanticChoices = false, readMode = "query",
+  observationIdentity = result?.indexed_commit ?? result?.index_head ?? null }) {
   const full = { workspaceRepo, ...structuredClone(carrier) };
   const binding = { route: session.route, repository: workspaceRepo, unit: null,
     query_identity: queryIdentity, observation_identity: observationIdentity };
+  const subjects = selectableSubjects(full);
+  if (subjects.size === 0) throw new TypeError("a retained code answer has no selectable collection");
   const counts = codeIndexCollectionCounts(full);
-  const selection = initialSelection(counts, full, collections);
-  if (selection === null) throw new TypeError("a retained code answer has no selectable collection");
-  const source = session.retain({ binding, carrier: full, selection });
-  const selectedDetail = { schema_version: CODE_INDEX_SELECTED_SUMMARY_SCHEMA_VERSION, source,
-    collections: counts };
 
-  const offered = offerEach ? collections : ["candidates"];
-  const nextCalls = [session.detailCall(binding, { source, ...selection }),
-    ...(offered.filter((name) => name !== selection.collection && counts[name] > 0)
-      .map((collection) => session.detailCall(binding, { source, collection }, { recommended: false })))];
-  const frame = (summary) => ({ workspaceRepo, ...summary, selected_detail: selectedDetail,
-    next_calls: nextCalls });
-  return frame(projectSummary(result, {
-    fits: (candidate) => measureMcpInlineResultBytes(frame(candidate)) <= session.maximumBytes
-  }));
+  const names = [...new Set([...collections.filter((name) => subjects.has(name)), ...subjects.keys()])];
+  const populated = names.filter((name) => subjects.get(name).rows.length > 0);
+  const preferred = populated[0] ?? names[0];
+  const { source, snapshot_identity } = session.retain({ binding, carrier: full,
+    selection: { collection: preferred } });
+  const selectedDetail = { schema_version: CODE_INDEX_SELECTED_SUMMARY_SCHEMA_VERSION, source,
+    collections: counts,
+    ...(semanticChoices ? { snapshot_identity,
+      selection_arguments: "Use detail:{source:selected_detail.source,snapshot_identity:selected_detail.snapshot_identity,...choice}." } : {}) };
+  const callsFor = (offered) => offered.map((collection, index) =>
+    session.detailCall(binding, { source, snapshot_identity, collection }, { recommended: index === 0 }));
+  const frame = (summary, offered) => ({ workspaceRepo, ...summary, read_mode: readMode,
+    ...answerSourceFacts(full), selected_detail: { ...selectedDetail,
+      ...(semanticChoices ? { choices: offered.map((collection) => ({ collection })) } : {}) },
+    next_calls: callsFor(semanticChoices ? [preferred] : offered) });
+
+  const whole = (name) => (subjects.get(name).kind === "member" ? subjects.get(name).rows[0]
+    : subjects.get(name).rows);
+  const owed = (candidate) => populated.filter((name) => (semanticChoices && name === preferred) ||
+    !isDeepStrictEqual(candidate[name], whole(name)));
+  const fitted = (withCalls) => projectSummary(result, { fits: (candidate) =>
+    measureMcpInlineResultBytes(frame(candidate, withCalls ? owed(candidate) : [])) <= session.maximumBytes });
+  let summary;
+  try {
+    summary = fitted(true);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    summary = fitted(false);
+  }
+  return frame(summary, owed(summary));
 }
 
 function detailOnlyCorrection(session, { repository, queryArguments, detail }) {
-  const facts = [
-    { field: "selected_response.query_valid", value: false },
-    { field: "selected_response.invalid_reason", value: "detail_excludes_query_arguments" },
-    { field: "selected_response.invalid_details", value: { arguments: queryArguments } }
-  ];
-  const predicate = { fact: "selected_response.query_valid", operator: "is_true" };
-  const call = session.detailCall({ repository }, detail, { success_predicate: predicate,
-    prerequisite_predicate: predicate });
-  const error = new Error(`selected-response query is invalid: detail_excludes_query_arguments`);
-  error.code = SELECTED_RESPONSE_QUERY_INVALID_CODE;
-  error.envelope = buildPublicMechanicalRefusal({
-    code: SELECTED_RESPONSE_QUERY_INVALID_CODE,
-    deciding_facts: facts,
-    next_calls: [call],
-    recovery: {
-      state: "callable",
+  return selectedResponseCorrectableError(session.route, "detail_excludes_query_arguments",
+    { arguments: queryArguments }, {
+      arguments: session.detailCall({ repository }, detail).arguments,
+      requestSchema: session.requestSchema,
       prerequisite: "a detail read selects a retained answer and carries no query argument",
-      operation: session.route,
-      success_condition: "the same selection without query arguments returns the selected detail",
-      success_predicate: predicate,
-      selected_from: ["selected_response.query_valid"]
-    },
-    route: session.route,
-    observed_facts: Object.fromEntries(facts.map(({ field, value }) => [field, value])),
-    request_schemas: { [session.route]: session.requestSchema }
-  });
-  return error;
+      successCondition: "the same selection without query arguments returns the selected detail" });
 }
 
-async function readSelectedCodeIndexDetail({ args, session, workspace }) {
+async function readSelectedCodeIndexDetail({ args, session, workspace, preparation }) {
   const parsed = session.detailSchema.safeParse(args.detail);
   if (!parsed.success) {
     throw selectedResponseQueryInvalidError(session.route, "detail_invalid", {
@@ -520,44 +570,30 @@ async function readSelectedCodeIndexDetail({ args, session, workspace }) {
   const detail = parsed.data;
   const queryArguments = QUERY_ARGUMENTS.filter((field) => args[field] !== undefined);
   if (queryArguments.length > 0) {
-    session.validate({ repository: workspace.repo, detail });
+
+    await session.detail({ repository: workspace.repo, detail });
     throw detailOnlyCorrection(session, { repository: workspace.repo, queryArguments, detail });
   }
-  return session.detail({ repository: workspace.repo, detail });
+  return session.detail({ repository: workspace.repo, detail,
+    extend: (response) => withStatusRecovery(response, preparation) });
 }
 
-export function createCodeIndexQueryHandler({ query, argumentNames, invalidCode, projectSummary,
-  collections, session, requiredArguments = [], workspaceRepos, jsonContent, errorContent }) {
-  return async (args = {}) => {
-    try {
-      const unknown = Object.keys(args ?? {}).filter((key) => !argumentNames.has(key));
-      if (unknown.length > 0) {
-        throw responseContractError(`code-index query does not accept: ${unknown.join(", ")}`, invalidCode);
-      }
-      const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-      if (args.detail !== undefined) {
-        return jsonContent(await readSelectedCodeIndexDetail({ args, session, workspace }));
-      }
-      const missing = requiredArguments.filter((field) => args[field] === undefined);
-      if (missing.length > 0) {
-        throw responseContractError(`code-index query requires: ${missing.join(", ")}`, invalidCode);
-      }
-      const { repo: _repo, ...queryIdentity } = args;
-      const result = await query({ ...args, dir: workspace.dir });
-      return jsonContent(createSelectedCodeIndexResponse({ workspaceRepo: workspace.repo, result,
-        projectSummary, session, queryIdentity,
-        collections: typeof collections === "function" ? collections(result) : collections }));
-    } catch (error) {
-      return errorContent(error);
-    }
-  };
-}
-
-export async function composeCodeIndexNavigationAnswer({ navigation, input, relationship }) {
+export async function composeCodeIndexNavigationAnswer({ navigation, input, relationship, prepare = null }) {
   const requested = relationship === null ? NAVIGATION_RELATIONSHIPS : [relationship];
-  const parts = {};
-  for (const kind of requested) {
-    parts[kind] = await navigation[kind](input);
+  let parts;
+  for (let pass = 1; ; pass += 1) {
+    const context = typeof prepare === "function"
+      ? pinnedQueryContext(await prepare({ dir: input.dir, cacheDir: input.cacheDir })) : null;
+    parts = {};
+    try {
+      for (const kind of requested) {
+        parts[kind] = await navigation[kind](input, context);
+      }
+      break;
+    } catch (error) {
+      if (context === null || error?.code !== "repository_snapshot_changed" ||
+          pass >= COMPOSITION_MAX_PASSES) throw error;
+    }
   }
   return { schema_version: CODE_INDEX_NAVIGATION_ANSWER_SCHEMA_VERSION, query_kind: "code_question_navigation",
     relationship, requested_relationships: [...requested], target: { symbol: input.symbol ?? null,
@@ -595,6 +631,10 @@ function projectNavigationSummary(answer, { fits }) {
     const sharedScip = scipStates.length > 0 && scipStates.every((state) =>
       isDeepStrictEqual(state, scipStates[0]));
     if (sharedScip) for (const part of Object.values(parts)) delete part.scip_state;
+    const freshness = Object.values(parts).map((part) => part.freshness);
+    const sharedFreshness = freshness.length > 0 && freshness.every((state) =>
+      isDeepStrictEqual(state, freshness[0]));
+    if (sharedFreshness) for (const part of Object.values(parts)) delete part.freshness;
     const resolutions = Object.values(parts).map((part) => part.resolution);
     const sharedResolution = resolutions.length > 0 && resolutions.every((resolution) =>
       isDeepStrictEqual(resolution, resolutions[0]));
@@ -602,30 +642,37 @@ function projectNavigationSummary(answer, { fits }) {
       part.resolution = { state: part.resolution.state,
         candidate_count: part.resolution.candidate_count };
     }
-    const actions = Object.values(parts).map((part) => part.next_action);
-    const sharedAction = actions.length > 0 && actions.every((action) => action === actions[0]);
+
+    let retainedAction = false;
+    for (const part of Object.values(parts)) {
+      if (typeof part.next_action !== "string" || !part.next_action.endsWith(RETAINED_ANSWER_NEXT_ACTION)) continue;
+      retainedAction = true;
+      const own = part.next_action.slice(0, -RETAINED_ANSWER_NEXT_ACTION.length).trimEnd();
+      if (own === "") delete part.next_action;
+      else part.next_action = own;
+    }
+    const actions = Object.values(parts).map((part) => part.next_action ?? null);
+    const sharedAction = actions.length > 0 && actions[0] !== null &&
+      actions.every((action) => action === actions[0]);
     if (sharedAction) for (const part of Object.values(parts)) delete part.next_action;
+    const answerAction = [sharedAction ? actions[0] : null, retainedAction ? RETAINED_ANSWER_NEXT_ACTION : null]
+      .filter(Boolean).join(" ");
     return { schema_version: answer.schema_version, query_kind: answer.query_kind,
       relationship: answer.relationship,
       requested_relationships: [...answer.requested_relationships], target: { ...answer.target },
+      ...(sharedFreshness ? { freshness: freshness[0] } : {}),
       ...(shared ? { graph_snapshot: snapshots[0] } : {}),
       ...(sharedScip ? { scip_state: scipStates[0] } : {}),
       ...(sharedResolution ? { resolution: resolutions[0] } : {}),
-      ...(sharedAction ? { next_action: actions[0] } : {}), parts, counts };
+      ...(answerAction === "" ? {} : { next_action: answerAction }), parts, counts };
   };
   return fitNavigationSummary(project, fits);
-}
-
-export function navigationCollections(result) {
-  const field = NAVIGATION_RESULT_FIELDS[result?.query_kind];
-  return field === undefined ? [] : [field, "candidates"];
 }
 
 async function answerCodeQuestion({ selected, queries, workspace, args, projections, session }) {
 
   const selectedArguments = { ...selected.arguments, dir: workspace.dir };
-  const { repo: _repo, ...queryIdentity } = args;
-  const common = { workspaceRepo: workspace.repo, session, queryIdentity };
+  const common = { workspaceRepo: workspace.repo, session, queryIdentity: args };
   if (selected.query_kind === "impact") {
     const result = await queries.impact(selectedArguments);
     return createSelectedCodeIndexResponse({ ...common, result,
@@ -634,53 +681,101 @@ async function answerCodeQuestion({ selected, queries, workspace, args, projecti
   if (selected.query_kind === "context") {
     const result = await queries.context(selectedArguments);
     return createSelectedCodeIndexResponse({ ...common, result,
-      projectSummary: projections.contextSummary, collections: ["affected_files"] });
+      projectSummary: projections.contextSummary, collections: ["source"], semanticChoices: true });
   }
   const answer = await composeCodeIndexNavigationAnswer({ navigation: queries.navigation,
-    input: selectedArguments, relationship: selected.relationship });
+    input: selectedArguments, relationship: selected.relationship,
+    prepare: queries.prepareNavigation ?? null });
   const carrier = navigationCarrier(answer);
 
-  const heads = [...new Set(Object.values(answer.parts).map((part) => part?.index_head ?? null))];
-  return createSelectedCodeIndexResponse({ ...common, result: answer, carrier, offerEach: true,
+  const heads = [...new Set(Object.values(answer.parts).map((part) =>
+    part?.indexed_commit ?? part?.index_head ?? null))];
+  return createSelectedCodeIndexResponse({ ...common, result: answer, carrier,
     observationIdentity: heads.length === 1 ? heads[0] : null,
     projectSummary: projectNavigationSummary,
     collections: [...answer.requested_relationships.map((relationship) =>
       NAVIGATION_RESULT_FIELDS[answer.parts[relationship]?.query_kind]).filter(Boolean), "candidates"] });
 }
 
-export function createCodeIndexImpactHandler({ selectQuestion, queries, argumentNames, invalidCode,
-  alternatives = [], projections, session, workspaceRepos, jsonContent, errorContent }) {
+function codeQuestionInputError(error, route, alternatives) {
+  const details = { tool: route, alternatives: error.alternatives ?? alternatives };
+  for (const field of ["conflicting_selectors", "supported_relationships", "path_code"]) {
+    if (error[field] !== undefined) details[field] = error[field];
+  }
+  error.envelope = {
+    code: error.code, accepted: false, diagnostic: error.message,
+    refusal: inputContractMechanicalRefusal(error.code, error.message, details),
+    next_calls: [], recovery: { state: "choice_required", responsible_actor: "caller" }
+  };
+  return error;
+}
+
+export function createCodeIndexQuestionHandler({ selectQuestion, queries, argumentNames, invalidCode,
+  alternatives = [], projections, session, workspaceRepos, jsonContent, errorContent,
+  preparation = createCodeIndexPreparationGuidance() }) {
+  const supported = alternatives.length === 0 ? "" : `. Supported code questions: ${alternatives
+    .map((text, index) => `(${index + 1}) ${text}`).join(" ")}`;
   return async (args = {}) => {
+    let workspace = null;
     try {
       const unknown = Object.keys(args ?? {}).filter((key) => !argumentNames.has(key));
       if (unknown.length > 0) {
 
-        throw responseContractError(`code-index query does not accept: ${unknown.join(", ")}` +
-          (alternatives.length > 0 ? `. Supported code questions: ${alternatives
-            .map((text, index) => `(${index + 1}) ${text}`).join(" ")}` : ""), invalidCode);
+        throw codeQuestionInputError(responseContractError(
+          `code-index query does not accept: ${unknown.join(", ")}${supported}`, invalidCode),
+        session.route, alternatives);
       }
-      const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
+      if (args.status !== undefined) {
+        const others = Object.keys(args).filter((key) => key !== "status" && args[key] !== undefined);
+        if (args.status !== true || others.length > 0) {
+          throw codeQuestionInputError(responseContractError("status:true is an alternative of its own: it reports the " +
+            `published index and accepts no question or detail${args.status !== true ? "" : `; received ${
+              others.join(", ")}`}${supported}`, invalidCode), session.route, alternatives);
+        }
+        workspace = resolveWorkspaceRepo(workspaceRepos);
+        const status = await queries.status({ dir: workspace.dir });
+        const guidance = await preparation();
+        const summary = projections.status(workspace.repo, status, guidance);
+
+        const needsPreparation = summary.preparation?.state !== "not_needed";
+        const prepare = summary.preparation?.state === "action_available" ? guidance.call : null;
+        const diagnosisFirst = needsPreparation && (summary.available === true || prepare === null);
+        const response = createSelectedCodeIndexResponse({ workspaceRepo: workspace.repo,
+          result: { ...status, ...answerSourceFacts(summary), query_kind: STATUS_QUERY_KIND,
+            ...(needsPreparation ? { [CODE_INDEX_STATUS_DIAGNOSIS]: statusDiagnosis(summary) } : {}) },
+          projectSummary: () => summary, session, queryIdentity: args,
+          collections: [...(diagnosisFirst ? [CODE_INDEX_STATUS_DIAGNOSIS] : []),
+            "graph_snapshot", "derived_evidence", "scip_state"], semanticChoices: true, readMode: "status",
+          observationIdentity: summary.indexed_commit });
+
+        const prepareFirst = prepare !== null && !diagnosisFirst;
+        const inspections = response.next_calls.map(({ recommended, ...call }) => ({ ...call,
+          ...(recommended === true && diagnosisFirst ? { recommended } : {}),
+          purpose: CODE_INDEX_INSPECTION_PURPOSE }));
+        return jsonContent({ ...response,
+          ...(needsPreparation || alternatives.length === 0 ? {} : { supported_questions: [...alternatives] }),
+          next_calls: prepare === null ? inspections
+            : prepareFirst ? [{ ...prepare, recommended: true }, ...inspections] : [...inspections, prepare] });
+      }
+      workspace = resolveWorkspaceRepo(workspaceRepos);
       if (args.detail !== undefined) {
-        return jsonContent(await readSelectedCodeIndexDetail({ args, session, workspace }));
+        return await readSelectedCodeIndexDetail({ args, session, workspace, preparation });
       }
-      const { repo: _repo, ...question } = args;
-      const selected = selectQuestion(question);
+      let selected;
+      try {
+        selected = selectQuestion(args);
+      } catch (error) {
+        if (error?.code !== invalidCode && error?.code !== "sidecar_navigation_input_invalid") throw error;
+        throw codeQuestionInputError(error, session.route, alternatives);
+      }
       return jsonContent(await answerCodeQuestion({ selected, queries, workspace, args, projections,
         session }));
     } catch (error) {
+      if (error?.code === SIDECAR_PUBLISHED_INDEX_UNAVAILABLE_CODE && workspace !== null) {
+        return jsonContent(createCodeIndexUnavailableResponse({ workspaceRepo: workspace.repo,
+          route: session.route, args, error, preparation: await preparation() }));
+      }
       return errorContent(error);
     }
   };
-}
-
-const NAVIGATION_TOOL_ARGUMENTS = new Set([
-  "repo", "symbol", "path", "line", "character", "cacheDir", "detail"
-]);
-
-export function createCodeIndexNavigationHandler({ query, session, workspaceRepos, jsonContent,
-  errorContent }) {
-  return createCodeIndexQueryHandler({ query, argumentNames: NAVIGATION_TOOL_ARGUMENTS,
-    invalidCode: "sidecar_navigation_input_invalid", workspaceRepos, jsonContent, errorContent,
-    session, projectSummary: (result, { fits }) => projectSidecarSymbolQueryForMcp(result, { fits }),
-    collections: navigationCollections });
 }

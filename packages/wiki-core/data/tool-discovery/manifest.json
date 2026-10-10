@@ -6,8 +6,8 @@
   "fragments": [
     {
       "file": "mcp-tools.json",
-      "tool_count": 29,
-      "summary": "MCP discovery, router, the ordinary selected canonical reader, search, package-scoped tool-doc read, wiki hygiene, docs-policy, contract-manifest, compact authoring-ergonomics report/query, and worker-delivery (commit, submit-for-review) tools."
+      "tool_count": 27,
+      "summary": "MCP discovery, router, the ordinary selected canonical reader, search, package-scoped tool-doc read, wiki hygiene, docs-policy, contract-manifest, compact authoring-ergonomics report/query, ordinary test-file run, and worker-delivery (commit, submit-for-review) tools."
     },
     {
       "file": "frozen-review-contract-tools.json",
@@ -16,27 +16,27 @@
     },
     {
       "file": "controlled-contract-tools.json",
-      "tool_count": 6,
+      "tool_count": 0,
       "summary": "Six semantic proof operations for discovery, ordinary authoring/query/removal, explicit validation and verification."
     },
     {
       "file": "mcp-work-record-tools.json",
-      "tool_count": 7,
+      "tool_count": 0,
       "summary": "MCP work-record assignment and evidence tools."
     },
     {
       "file": "mcp-launcher-tools.json",
-      "tool_count": 4,
+      "tool_count": 1,
       "summary": "MCP launcher, runtime diagnostic, and dispatch-readiness tools."
     },
     {
       "file": "mcp-coordination-tools.json",
-      "tool_count": 2,
+      "tool_count": 0,
       "summary": "MCP initiative and integration status coordination tools."
     },
     {
       "file": "work-record-core-mcp-tools.json",
-      "tool_count": 8,
+      "tool_count": 0,
       "summary": "MCP work-record inbox allocation, entry save/read, validate, staleness-check, status, closure, and summary routes."
     },
     {
@@ -46,7 +46,7 @@
     },
     {
       "file": "work-record-edit-mcp-tools.json",
-      "tool_count": 6,
+      "tool_count": 0,
       "summary": "MCP work-record derived-evidence refresh and bounded registry-driven authored-field, slice, acceptance, and review-unit editing tools."
     },
     {
@@ -56,22 +56,22 @@
     },
     {
       "file": "code-index-tools.json",
-      "tool_count": 3,
-      "summary": "Code-index status and optional build/rebuild controls."
+      "tool_count": 2,
+      "summary": "Operator-only code-index build and rebuild controls."
     },
     {
       "file": "code-index-query-tools.json",
-      "tool_count": 4,
-      "summary": "One ordinary committed code question with documented selector precedence, plus the file-context query, across MCP and CLI."
+      "tool_count": 3,
+      "summary": "The one agent code read, query_code_index, and the CLI impact and file-context commands."
     },
     {
       "file": "code-index-navigation-tools.json",
-      "tool_count": 8,
-      "summary": "SCIP definition, reference, caller, and callee queries across MCP and CLI."
+      "tool_count": 4,
+      "summary": "SCIP definition, reference, caller, and callee CLI commands; agents ask the same questions through query_code_index."
     },
     {
       "file": "launcher-tools.json",
-      "tool_count": 9,
+      "tool_count": 0,
       "summary": "Dispatch, subject-addressed run status, committed-slice integration, coordination preflight, and runtime-blocker-taxonomy tools."
     },
     {
@@ -90,7 +90,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 112,
+  "expected_tool_count": 63,
   "agent_tool_conformance_debt": {
     "owner": "tool-discovery manifest/test family",
     "target_wk": "WK-2194",

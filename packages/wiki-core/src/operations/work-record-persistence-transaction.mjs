@@ -63,15 +63,13 @@ export async function runValidatedWorkRecordAdmissionTransaction({
   lockAlreadyHeld = false
 } = {}, dependencies) {
   const {
+    canonicalReplaceNotAttempted,
     maintainRecordOwnedAdmissionArtifacts,
     computeWorkRecordPersistenceSnapshotDigest,
     createStoreDiagnostic,
-    preservesReviewProvenance,
-    preservesWorkRecordEntryHistory,
-    entryHistoryMutationDiagnostic,
+    retainedHistoryMutationDiagnostic,
     validateWorkRecordEntryIntegrity,
     publishCanonicalWorkRecord,
-    reviewProvenanceHistoryMutationDiagnostic,
     withWorkRecordWriteLock,
     writeJsonFileToTemp
   } = dependencies;
@@ -227,7 +225,9 @@ export async function runValidatedWorkRecordAdmissionTransaction({
           };
         }
 
-        if (!preservesReviewProvenance(currentLoaded.record, record)) {
+        const retainedHistoryMutation = retainedHistoryMutationDiagnostic(
+          currentLoaded.record, record, recordId);
+        if (retainedHistoryMutation) {
           return workRecordPersistenceResult({
             valid: false,
             record,
@@ -235,18 +235,7 @@ export async function runValidatedWorkRecordAdmissionTransaction({
             canonicalRecordPath,
             publicationState: WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED,
             ok: false,
-            diagnostics: [reviewProvenanceHistoryMutationDiagnostic(recordId)]
-          });
-        }
-        if (!preservesWorkRecordEntryHistory(currentLoaded.record, record)) {
-          return workRecordPersistenceResult({
-            valid: false,
-            record,
-            sourceDigest,
-            canonicalRecordPath,
-            publicationState: WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED,
-            ok: false,
-            diagnostics: [entryHistoryMutationDiagnostic(recordId)]
+            diagnostics: [retainedHistoryMutation]
           });
         }
         const entryIntegrity = await validateWorkRecordEntryIntegrity({
@@ -378,7 +367,9 @@ export async function runValidatedWorkRecordAdmissionTransaction({
           });
         }
         if (publication.failed_fault !== null) {
-          const publicationState = publicationStateFromCrashDurableResult(publication);
+          const publicationState = canonicalReplaceNotAttempted?.(publication.error) === true
+            ? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED
+            : publicationStateFromCrashDurableResult(publication);
           let failed = appendWorkRecordPersistenceFailure({
             valid: true,
             diagnostics,

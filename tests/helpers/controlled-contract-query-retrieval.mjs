@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import { measureMcpInlineResultBytes } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import { selectedResponseDeliveryBound } from "../../packages/wiki-mcp/src/lib/selected-response-snapshot.mjs";
+import { deliveredAdmissionBytes } from "./mcp-journey-accounting.mjs";
 
 export const QUERY_TOOL = "workspace_controlled_contract_obligation_coverage_query";
 
@@ -17,17 +18,23 @@ const utf8 = (value_) => Buffer.byteLength(JSON.stringify(value_), "utf8");
 
 export function queryJourney(session) {
   const bound = selectedResponseDeliveryBound(session.responseEnv);
-  const ledger = { calls: 0, request_bytes: 0, result_bytes: 0, largest_frame: 0 };
+  const ledger = { calls: 0, request_bytes: 0, result_bytes: 0, largest_admission: 0, largest_result: 0 };
   const call = async (args) => {
     const request = { name: QUERY_TOOL, arguments: args };
     const result = await session.callTool(request);
+    const physical = utf8(result);
     ledger.calls += 1;
     ledger.request_bytes += utf8(request);
-    ledger.result_bytes += utf8(result);
+
+    ledger.result_bytes += physical;
+    ledger.largest_result = Math.max(ledger.largest_result, physical);
     if (result.isError !== true) {
-      const frame = measureMcpInlineResultBytes(result.structuredContent);
-      ledger.largest_frame = Math.max(ledger.largest_frame, frame);
-      assert.ok(frame <= bound, `query frame ${frame} exceeds the ${bound}-byte bound`);
+      const admission = deliveredAdmissionBytes(result);
+
+      assert.equal(measureMcpInlineResultBytes(result.structuredContent), admission,
+        "prospective and delivered admission bytes disagree");
+      ledger.largest_admission = Math.max(ledger.largest_admission, admission);
+      assert.ok(admission <= bound, `query admission ${admission} exceeds the ${bound}-byte bound`);
     }
     return result;
   };
@@ -89,7 +96,8 @@ export async function assembleQuery(journey, first) {
   let response = first;
   if (first.schema_version !== "selected-response-detail.v1") {
     for (const [key, member] of Object.entries(first)) {
-      if (!["selected_detail", "next_calls", "parameter_selection", "criterion_identities"].includes(key)) {
+      if (!["selected_detail", "next_calls", "parameter_selection", "criterion_identities",
+        "case_links"].includes(key)) {
         members[key] = member;
       }
     }
@@ -97,7 +105,7 @@ export async function assembleQuery(journey, first) {
       if (collection !== "members" && count >= 0) collections[collection] = [];
     }
 
-    const start = first.next_calls.find((call) => call.arguments.detail.field_path === undefined);
+    const start = first.next_calls.findLast((call) => call.arguments.detail.field_path === undefined);
     if (start === undefined) return { carrier: { ...members, ...collections }, first };
     response = value(await journey.call(start.arguments));
   }

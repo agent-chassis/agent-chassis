@@ -3,12 +3,12 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import integration from "../runner-integrations/go-test.mjs";
 import { GO_OBSERVER_FILE, GO_REACH_FILE, goObserverSource, goReachSource, instrumentGoModule,
   instrumentGoTestFile } from "../source-instrumentation/go.mjs";
 import { nativeRecordFailureDiagnostic } from "../../workspace-agent-test-proof-error-diagnostic.mjs";
 import { nativeProviderImplementation, refuseAttempt } from "./native-lifecycle.mjs";
 
+const GO_OVERLAY_FILE = "go-overlay.json";
 const GO_INSTRUMENTATION_ASSET = fileURLToPath(new URL("../source-instrumentation/go.mjs", import.meta.url));
 
 const MAX_ERROR_RECORDS = 16;
@@ -83,12 +83,25 @@ function layout(attempt) {
     refuseAttempt("test_proof_native_selection_unsupported",
       "the declared Go module must be a package source, not a test file", { path: attempt.module });
   }
-  const projectRoot = attempt.project === "." ? "" : attempt.project;
-  const packageDir = path.posix.relative(projectRoot, path.posix.dirname(attempt.testFile));
-  return { packagePath: packageDir === "" ? "." : `./${packageDir}` };
+  return {};
+}
+
+function buildOverlay(attempt, result) {
+  const replace = {};
+  const writes = result.writes.map(({ path: file, content }, index) => {
+    const replacement = path.join(attempt.privateRoot, `go-overlay-${index}.go`);
+    replace[file] = replacement;
+    return { path: replacement, content };
+  });
+  return { ...result, writes: [...writes,
+    { path: path.join(attempt.privateRoot, GO_OVERLAY_FILE), content: `${JSON.stringify({ Replace: replace })}\n` }] };
 }
 
 async function instrument(attempt) {
+  return buildOverlay(attempt, await instrumentSources(attempt));
+}
+
+async function instrumentSources(attempt) {
   const test = attempt.read(attempt.testFile);
   const wrapped = await instrumentGoTestFile({ source: test.source, selected: attempt.test[0] });
   const writes = [
@@ -119,7 +132,6 @@ export default nativeProviderImplementation({
   assets: [GO_INSTRUMENTATION_ASSET],
   layout,
   instrument,
-  invocation: (attempt, { packagePath }) => integration.invocation({ runtime: attempt.runtime,
-    projectDir: attempt.workProject, packagePath, testName: attempt.test[0] }),
+  proof: (attempt) => ({ testName: attempt.test[0], overlay: path.join(attempt.privateRoot, GO_OVERLAY_FILE) }),
   report: (attempt) => goTestReport(attempt.test[0])
 });

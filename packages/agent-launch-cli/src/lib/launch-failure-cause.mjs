@@ -89,17 +89,47 @@ function readScopeMember(value) {
   });
 }
 
+const text = (value) => (typeof value === "string" ? value : null);
+
+function compactMountpointExplanation(diagnostics) {
+  if (!isPlainObject(diagnostics) || text(diagnostics.path) === null) return null;
+  const directory = isPlainObject(diagnostics.directory) ? diagnostics.directory : null;
+  const listed = directory?.available === true && Number.isSafeInteger(directory.total) && directory.total >= 0;
+  const first = listed && Array.isArray(directory.entries) && isPlainObject(directory.entries[0])
+    ? directory.entries[0]
+    : null;
+  const sample = first !== null && text(first.name) !== null
+    ? Object.freeze({ name: first.name, kind: text(first.kind) })
+    : null;
+  const observationError = diagnostics.collection_failed === true ? text(diagnostics.collection_error)
+    : diagnostics.exists === false ? text(diagnostics.errno)
+      : text(directory?.errno);
+  return Object.freeze({
+    path: diagnostics.path,
+    condition: text(diagnostics.refusal_message),
+    exists: typeof diagnostics.exists === "boolean" ? diagnostics.exists : null,
+    kind: text(diagnostics.kind),
+    ...(diagnostics.kind === "symlink" ? { symlink_target: text(diagnostics.symlink_target) } : {}),
+    occupants: listed
+      ? Object.freeze({ total: directory.total, sample, omitted: directory.total - (sample === null ? 0 : 1) })
+      : null,
+    ...(observationError === null ? {} : { observation_error: observationError })
+  });
+}
+
 export function classifyLaunchPathFailure(err) {
   if (!(err instanceof BubblewrapIsolationError) || !MODELED_PATH_CODES.has(err.code)) {
     return null;
   }
   const detail = isPlainObject(err.detail) ? err.detail : {};
   const scopeMember = readScopeMember(detail.scope_member);
+  const mountpoint = compactMountpointExplanation(detail.mountpoint_diagnostics);
   return Object.freeze({
     isolation_code: err.code,
     errno: typeof detail.errno === "string" && ERRNO_RE.test(detail.errno) ? detail.errno : null,
     scope_member: scopeMember,
     path: scopeMember?.failed_component ?? null,
+    ...(mountpoint === null ? {} : { mountpoint }),
 
     ...(isPlainObject(detail.precreation_cleanup_failure)
       ? { precreation_cleanup_failure: detail.precreation_cleanup_failure }
@@ -156,6 +186,7 @@ export function buildLaunchPathFailureRefusal(makeRefusal, pathFailure, secondar
     errno: pathFailure.errno,
     path: pathFailure.path,
     scope_member: pathFailure.scope_member,
+    ...(pathFailure.mountpoint === undefined ? {} : { mountpoint: pathFailure.mountpoint }),
     authority_limb: "mechanical_failure",
     recovery: { state: "no_supported_route", route: null },
 

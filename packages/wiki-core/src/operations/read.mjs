@@ -24,6 +24,32 @@ import {
 } from "../lib/work-record-projection-helpers.mjs";
 import { projectSelectedWorkRecordUnit } from "../lib/work-record-selected-unit-projection.mjs";
 import { projectWorkRecordCompactOmissions } from "../lib/work-record-summary.mjs";
+import { decodeSearchToken } from "../lib/search-source-reader.mjs";
+import { readSearchSource, SEARCH_SOURCE_TEXT_MAX_SCALARS } from "./read-search-source.mjs";
+
+export async function readCompleteSearchSource({ dir, repository, reference, readPage = readSearchSource }) {
+  const selected = decodeSearchToken(reference, "source");
+  let token = reference;
+  let first = null;
+  const parts = [];
+  let expectedOffset = selected.offset;
+  while (token !== null) {
+    const page = await readPage({ dir, repository, path: selected.path, searchMatch: token,
+      length: SEARCH_SOURCE_TEXT_MAX_SCALARS });
+    if (page.offset !== expectedOffset || first !== null &&
+        (page.source_id !== first.source_id || page.total !== first.total) || !page.eof && page.length === 0) {
+      throw Object.assign(new Error("Selected search passage changed during complete delivery"),
+        { code: "search_source_changed" });
+    }
+    first ??= page;
+    parts.push(page.text);
+    expectedOffset += page.length;
+    token = page.eof ? null : page.next_match;
+  }
+  return { path: selected.path, source_id: first.source_id, location: first.location,
+    text: parts.join(""), offset: selected.offset, total: first.total,
+    length: expectedOffset - selected.offset, source_digest: selected.source_digest };
+}
 
 const WORK_RECORD_ID_PATTERN = /^(WK|IN|DEC|SRC)-\d+$/;
 const WORK_RECORD_RELATIVE_PREFIX = `${WORK_RECORD_DIRECTORY_NAME}/`;
@@ -35,6 +61,21 @@ const GRAPH_EVIDENCE_RELATIVE_PATH_PATTERN =
 const WORK_RECORD_NAMESPACE_CLAIM_PATTERN =
   /^(?:\.\/)?wiki\/+work-records(?:\/|$)/;
 const COMPACT_DIAGNOSTICS_LIMIT = 5;
+
+export const WIKI_DOCUMENT_READ_FIELDS = Object.freeze(["markdown", "body"]);
+export const WIKI_CANONICAL_RECORD_READ_FIELDS = Object.freeze(["record"]);
+
+export async function readSourceBoundAuthoringRevision({ dir, unit, readSource,
+  readRevision = null }) {
+  const revisionOwner = readRevision ?? (await import("./save-record.mjs")).readRecordAuthoringRevision;
+  const source = await readSource();
+  const revision = await revisionOwner({ repoRoot: dir, unit });
+  const confirmed = await readSource();
+  const confirmedRevision = await revisionOwner({ repoRoot: dir, unit });
+  return source.revision === confirmed.revision && revision === confirmedRevision
+    ? { ok: true, source, revision }
+    : { ok: false, source, current_source: confirmed, revision, current_revision: confirmedRevision };
+}
 const COMPACT_LINKS_LIMIT = 5;
 const EXTERNAL_URL_PATTERN = /^https?:\/\//i;
 const WORKING_SLICES_LIMIT = 30;

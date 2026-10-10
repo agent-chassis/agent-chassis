@@ -13,12 +13,14 @@ import {
   collectControlledContractPrivateScopeIntersections
 } from "./controlled-contract-private-path-policy.mjs";
 import {
+  WORK_RECORD_FINDINGS_ACCEPTED_REVIEW_PURPOSES,
   WORK_RECORD_FINDINGS_TECHNICAL_ROLE_BY_WORK_KIND,
   analyzeWorkRecordFindingsUnit
 } from "./work-record-findings-semantics.mjs";
 import {
   SHA256_PATTERN,
   WORK_RECORD_COMPLETION_POLICY_VALUES,
+  WORK_RECORD_REVIEW_PURPOSE_VALUES,
   WORK_RECORD_STATUS_VALUES,
   WORK_UNIT_FACET_PROVENANCE_VALUES,
   WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES,
@@ -68,6 +70,10 @@ export const WORK_RECORD_READY_SLICE_FIELDS = Object.freeze([
 ]);
 const READY_SLICE_FIELD_SET = new Set(WORK_RECORD_READY_SLICE_FIELDS);
 
+export const WORK_RECORD_READY_SLICE_DISPATCH_INTENT_CONTROL_FLAGS = Object.freeze([
+  "requires_graph_impact", "requires_escalation"
+]);
+
 const READY_SHAPES = Object.freeze({
   implementation: { work_kind: "implementation", role: "worker" },
   reviewer: {
@@ -80,16 +86,37 @@ const READY_SHAPES = Object.freeze({
   }
 });
 
+const READY_DISPATCH_TARGET_UNIT = "slice";
+
+export const WORK_RECORD_READY_SLICE_DISPATCH_INTENT_ASSERTION_VALUES = Object.freeze({
+  intended_agent_role: Object.freeze([...new Set(Object.values(READY_SHAPES).map(({ role }) => role))]),
+  target_unit: Object.freeze([READY_DISPATCH_TARGET_UNIT])
+});
+export const WORK_RECORD_READY_SLICE_DISPATCH_INTENT_ASSERTIONS = Object.freeze(
+  Object.keys(WORK_RECORD_READY_SLICE_DISPATCH_INTENT_ASSERTION_VALUES)
+);
+const READY_DISPATCH_INTENT_FIELDS = new Set([
+  ...WORK_RECORD_READY_SLICE_DISPATCH_INTENT_ASSERTIONS,
+  ...WORK_RECORD_READY_SLICE_DISPATCH_INTENT_CONTROL_FLAGS
+]);
+
+const [REDTEAM_SHAPING_REVIEW_PURPOSE] = WORK_RECORD_FINDINGS_ACCEPTED_REVIEW_PURPOSES.redteam;
+
 const READY_SLICE_FINDINGS_DIAGNOSTIC_CODES = Object.freeze({
   findings_ready_review_purpose_required: "ready_slice_missing_required_field",
   findings_review_purpose_incompatible: "ready_slice_review_purpose_incompatible",
   findings_review_purpose_invalid_value: "ready_slice_review_purpose_incompatible",
   findings_role_conflict: "ready_slice_shaping_conflict"
 });
-const READY_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 
-const READY_COMPLETION_POLICIES = new Set(WORK_RECORD_COMPLETION_POLICY_VALUES);
-const READY_PROVENANCE = new Set(WORK_UNIT_FACET_PROVENANCE_VALUES);
+export const WORK_RECORD_READY_SLICE_ACCEPTED_VALUES = Object.freeze({
+  shaping_mode: Object.freeze(Object.keys(READY_SHAPES)),
+  status: Object.freeze([...WORK_RECORD_STATUS_VALUES]),
+  priority: Object.freeze(["low", "medium", "high", "critical"]),
+  work_kind: Object.freeze([...new Set(Object.values(READY_SHAPES).map((shape) => shape.work_kind))]),
+  review_purpose: Object.freeze([...WORK_RECORD_REVIEW_PURPOSE_VALUES]),
+  completion_policy: Object.freeze([...WORK_RECORD_COMPLETION_POLICY_VALUES])
+});
 const READY_TARGET_PROVENANCE_FIELDS = new Set([
   "path", "name", "kind", "operation", "activity_kind", "artifact_kind", "granularity", "optional"
 ]);
@@ -119,6 +146,109 @@ export const READY_TARGET_COARSE_FACET_VALUES = Object.freeze({
   activity_kind: READY_TARGET_COARSE_ACTIVITY_KIND,
   artifact_kind: READY_TARGET_COARSE_ARTIFACT_KIND
 });
+
+const deepFreeze = (value) => {
+  if (value !== null && typeof value === "object") Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
+};
+const nullableEnum = (values) => ({ anyOf: [{ type: "string", enum: [...values] }, { type: "null" }] });
+const READY_TARGET_REQUIRED_FIELDS = Object.freeze(["path", "name", "kind", "operation"]);
+export const WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA = deepFreeze({
+  type: "object",
+  additionalProperties: false,
+  required: [...READY_TARGET_REQUIRED_FIELDS],
+  properties: {
+    path: { type: "string", minLength: 1 },
+    name: { type: "string", minLength: 1 },
+    kind: { type: "string", enum: [...WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES] },
+    operation: { type: "string", enum: [...WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES] },
+    activity_kind: nullableEnum([...WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES,
+      READY_TARGET_COARSE_FACET_VALUES.activity_kind]),
+    artifact_kind: nullableEnum([...WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES,
+      READY_TARGET_COARSE_FACET_VALUES.artifact_kind]),
+    granularity: nullableEnum(WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES),
+    optional: { type: "boolean" },
+    facet_provenance: {
+      type: "object",
+      additionalProperties: false,
+      properties: Object.fromEntries([...READY_TARGET_PROVENANCE_FIELDS].map((field) =>
+        [field, nullableEnum(WORK_UNIT_FACET_PROVENANCE_VALUES)]))
+    }
+  }
+});
+const READY_TARGET_FIELDS = new Set(Object.keys(WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA.properties));
+
+const READY_ACCEPTANCE_ENTRIES = { type: "array", items: { anyOf: [{ type: "string" },
+  { type: "object", additionalProperties: true }] } };
+export const WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA = deepFreeze({
+  type: "object",
+  additionalProperties: false,
+  required: ["criteria", "validation"],
+  properties: {
+    criteria: { ...READY_ACCEPTANCE_ENTRIES, description: "The slice's own readable outcomes. A string is literal " +
+      "text, never a $key reference; a parent criterion label copies no text and transfers no coverage. An object " +
+      `states text beside ${ACCEPTANCE_CRITERION_METADATA_KEYS.slice(0, -1).join(", ")} or ` +
+      `${ACCEPTANCE_CRITERION_METADATA_KEYS.at(-1)}.` },
+    validation: structuredClone(READY_ACCEPTANCE_ENTRIES)
+  }
+});
+const READY_ACCEPTANCE_FIELDS = WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA.required;
+
+const READY_CREATION_DEFAULT_SHAPING_MODE = "implementation";
+const READY_CREATION_FIELDS = ["title", "depends_on", "read_scope", "repo_paths", "acceptance"];
+
+const READY_IMPLEMENTATION_CREATION_FIELDS = ["write_scope", "expected_edit_targets"];
+
+export const WORK_RECORD_READY_SLICE_SHAPING_MODES = deepFreeze({
+  supported: Object.keys(READY_SHAPES),
+  creation_default: READY_CREATION_DEFAULT_SHAPING_MODE
+});
+export const WORK_RECORD_READY_SLICE_CREATION_REQUIREMENTS = deepFreeze({
+  every_shaping_mode: [...READY_CREATION_FIELDS],
+  ...Object.fromEntries(Object.keys(READY_SHAPES).map((mode) =>
+    [mode, [...READY_CREATION_FIELDS, ...(mode === "implementation" ? READY_IMPLEMENTATION_CREATION_FIELDS : [])]]))
+});
+
+export function missingWorkRecordReadySliceCreationFields(request) {
+  if (!isObject(request)) return [];
+  const mode = creationShapingMode(request);
+  const required = hasOwn(READY_SHAPES, mode) ? WORK_RECORD_READY_SLICE_CREATION_REQUIREMENTS[mode]
+    : WORK_RECORD_READY_SLICE_CREATION_REQUIREMENTS.every_shaping_mode;
+  return required.filter((field) => !hasOwn(request, field));
+}
+
+const creationShapingMode = (request) => !hasOwn(request, "shaping_mode") ? READY_CREATION_DEFAULT_SHAPING_MODE
+  : isString(request.shaping_mode) ? request.shaping_mode.trim() : null;
+
+function incompleteContractDiagnostics(slice, mode, { authoredOnly = false } = {}) {
+  const empty = (value) => Array.isArray(value) ? value.length === 0 : !authoredOnly;
+  const diagnostics = [];
+  const report = (incomplete, code, message, path) => {
+    if (incomplete) diagnostics.push(createDiagnostic(code, message, { path }));
+  };
+  for (const field of ["read_scope", "repo_paths"]) {
+    report(empty(slice[field]), "ready_slice_incomplete_contract", `${field} must be non-empty`, field);
+  }
+  if (!isObject(slice.acceptance)) {
+    report(!authoredOnly, "ready_slice_incomplete_contract", "acceptance criteria and validation must be non-empty", "acceptance");
+  } else {
+    for (const member of READY_ACCEPTANCE_FIELDS) {
+      report(slice.acceptance[member]?.length === 0, "ready_slice_incomplete_contract",
+        `acceptance.${member} must be non-empty`, `acceptance.${member}`);
+    }
+  }
+  if (mode === "implementation") {
+    report(empty(slice.write_scope), "ready_slice_implementation_write_scope_empty",
+      "implementation write_scope must be non-empty", "write_scope");
+    report(empty(slice.expected_edit_targets), "ready_slice_implementation_targets_empty",
+      "implementation expected_edit_targets must be non-empty", "expected_edit_targets");
+  }
+  return diagnostics;
+}
+
+export function emptyWorkRecordReadySliceCreationFields(request) {
+  return isObject(request) ? incompleteContractDiagnostics(request, creationShapingMode(request), { authoredOnly: true }) : [];
+}
 
 function normalizeCoarseTargetFacet({ field, value, target, shapingMode, path }) {
   if (!isString(value) || value.trim() !== READY_TARGET_COARSE_FACET_VALUES[field]) {
@@ -162,18 +292,25 @@ function normalizeCoarseTargetFacet({ field, value, target, shapingMode, path })
 class ReadySliceInputError extends Error {
 
   constructor(code, message, path) {
-    const diagnostic = isObject(code) ? code : createDiagnostic(code, message, { path });
-    super(diagnostic.message);
-    this.diagnostic = diagnostic;
+    const diagnostics = Array.isArray(code) ? code
+      : [isObject(code) ? code : createDiagnostic(code, message, { path })];
+    super(diagnostics[0].message);
+    this.diagnostic = diagnostics[0];
+    this.diagnostics = diagnostics;
   }
 }
 function readyInputError(code, message, path) {
   throw new ReadySliceInputError(code, message, path);
 }
+
 function controlled(value, values, path, { nullable = false } = {}) {
   if (nullable && value === null) return null;
-  if (!isString(value) || !values.has(value.trim())) {
-    readyInputError("ready_slice_invalid_field", `${path} has an unsupported value`, path);
+  if (!isString(value) || !values.includes(value.trim())) {
+    readyInputError({
+      ...createDiagnostic("ready_slice_invalid_field", `${path} has an unsupported value; accepted: ` +
+        `${values.join(", ")}. State one accepted value${nullable ? " or null" : ""}`, { path }),
+      constraint: { keyword: "enum", allowedValues: [...values] }
+    });
   }
   return value.trim();
 }
@@ -218,7 +355,7 @@ function strictProvenance(value, allowedFields, path) {
     }
     result[key] = value[key] === null
       ? null
-      : controlled(value[key], READY_PROVENANCE, `${path}.${key}`);
+      : controlled(value[key], WORK_UNIT_FACET_PROVENANCE_VALUES, `${path}.${key}`);
   }
   return result;
 }
@@ -232,7 +369,7 @@ function normalizeAcceptanceCriterion(entry, path) {
   if (hasOwn(entry, "verification_method")) {
     result.verification_method = controlled(
       entry.verification_method,
-      new Set(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES),
+      WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES,
       `${path}.verification_method`,
       { nullable: true }
     );
@@ -285,7 +422,7 @@ function normalizeAcceptance(value, { currentValidation = [] } = {}) {
     readyInputError("ready_slice_invalid_acceptance", "acceptance must contain complete criteria and validation arrays", "acceptance");
   }
   for (const key of Object.keys(value)) {
-    if (!["criteria", "validation"].includes(key)) {
+    if (!READY_ACCEPTANCE_FIELDS.includes(key)) {
       readyInputError("ready_slice_unknown_field", `acceptance.${key} is not allowed`, `acceptance.${key}`);
     }
   }
@@ -304,15 +441,14 @@ function normalizeTargets(value, { shapingMode = null } = {}) {
   return value.map((entry, index) => {
     const path = `expected_edit_targets[${index}]`;
     if (!isObject(entry)) readyInputError("ready_slice_invalid_targets", `${path} must be an object`, path);
-    const allowed = new Set(["path", "name", "kind", "operation", "activity_kind", "artifact_kind", "granularity", "optional", "facet_provenance"]);
     for (const key of Object.keys(entry)) {
-      if (!allowed.has(key)) readyInputError("ready_slice_unknown_field", `${path}.${key} is not allowed`, `${path}.${key}`);
+      if (!READY_TARGET_FIELDS.has(key)) readyInputError("ready_slice_unknown_field", `${path}.${key} is not allowed`, `${path}.${key}`);
     }
     const result = {
       path: repoPath(entry.path, `${path}.path`),
       name: nonemptyString(entry.name, `${path}.name`),
-      kind: controlled(entry.kind, new Set(WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES), `${path}.kind`),
-      operation: controlled(entry.operation, new Set(WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES), `${path}.operation`)
+      kind: controlled(entry.kind, WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES, `${path}.kind`),
+      operation: controlled(entry.operation, WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES, `${path}.operation`)
     };
     const optionalEnums = [
       ["activity_kind", WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES],
@@ -335,7 +471,9 @@ function normalizeTargets(value, { shapingMode = null } = {}) {
         derivedFacets.push(field);
         continue;
       }
-      result[field] = controlled(entry[field], new Set(values), `${path}.${field}`, { nullable: true });
+
+      result[field] = controlled(entry[field], hasOwn(READY_TARGET_COARSE_FACET_VALUES, field)
+        ? [...values, READY_TARGET_COARSE_FACET_VALUES[field]] : values, `${path}.${field}`, { nullable: true });
     }
     if (hasOwn(entry, "optional")) {
       if (typeof entry.optional !== "boolean") readyInputError("ready_slice_invalid_targets", `${path}.optional must be boolean`, `${path}.optional`);
@@ -355,26 +493,33 @@ function normalizeTargets(value, { shapingMode = null } = {}) {
 }
 function normalizeReadyDispatchIntent(value) {
   if (!isObject(value)) readyInputError("ready_slice_invalid_dispatch_intent", "dispatch_intent must be an object", "dispatch_intent");
-  const fields = ["intended_agent_role", "target_unit", "requires_graph_impact", "requires_escalation"];
-  if (Object.keys(value).length !== fields.length || fields.some((field) => !hasOwn(value, field))) {
-    readyInputError("ready_slice_invalid_dispatch_intent", "dispatch_intent must be a strict complete object", "dispatch_intent");
-  }
   for (const key of Object.keys(value)) {
-    if (!fields.includes(key)) readyInputError("ready_slice_unknown_field", `dispatch_intent.${key} is not allowed`, `dispatch_intent.${key}`);
+    if (!READY_DISPATCH_INTENT_FIELDS.has(key)) readyInputError("ready_slice_unknown_field", `dispatch_intent.${key} is not allowed`, `dispatch_intent.${key}`);
   }
-  if (typeof value.requires_graph_impact !== "boolean" || typeof value.requires_escalation !== "boolean") {
-    readyInputError("ready_slice_invalid_dispatch_intent", "dispatch_intent control flags must be boolean", "dispatch_intent");
+
+  const result = {};
+  for (const [member, accepted] of Object.entries(WORK_RECORD_READY_SLICE_DISPATCH_INTENT_ASSERTION_VALUES)) {
+    if (!hasOwn(value, member)) continue;
+    const path = `dispatch_intent.${member}`;
+
+    if (!isString(value[member]) || !accepted.includes(value[member].trim())) {
+      readyInputError({
+        ...createDiagnostic("ready_slice_invalid_field", `${path} has an unsupported value; accepted: ` +
+          `${accepted.join(", ")}. Omit it, because shaping derives it, or state the accepted value the derived ` +
+          "assignment has", { path }),
+        constraint: { keyword: "enum", allowedValues: [...accepted] }
+      });
+    }
+    result[member] = value[member].trim();
   }
-  return {
-    intended_agent_role: controlled(
-      value.intended_agent_role,
-      new Set(["worker", "reviewer", "redteam"]),
-      "dispatch_intent.intended_agent_role"
-    ),
-    target_unit: controlled(value.target_unit, new Set(["slice"]), "dispatch_intent.target_unit"),
-    requires_graph_impact: value.requires_graph_impact,
-    requires_escalation: value.requires_escalation
-  };
+  for (const flag of WORK_RECORD_READY_SLICE_DISPATCH_INTENT_CONTROL_FLAGS) {
+    if (!hasOwn(value, flag)) continue;
+    if (typeof value[flag] !== "boolean") {
+      readyInputError("ready_slice_invalid_dispatch_intent", `dispatch_intent.${flag} must be boolean`, `dispatch_intent.${flag}`);
+    }
+    result[flag] = value[flag];
+  }
+  return result;
 }
 export function validateWorkRecordReadySliceRequest(request, { resolvedProse = false } = {}) {
   try {
@@ -385,11 +530,11 @@ export function validateWorkRecordReadySliceRequest(request, { resolvedProse = f
     if (!isString(request.unit) || !RECORD_ID_PATTERN.test(request.unit)) readyInputError("invalid_unit_address", "unit must be a canonical parent WK-#### address", "unit");
     if (hasOwn(request, "slice_id") && (!isString(request.slice_id) || !ORDINAL_SLICE_ID_PATTERN.test(request.slice_id))) readyInputError("invalid_slice_id", "slice_id must be SLICE-###", "slice_id");
     if (hasOwn(request, "expected_source_digest") && (!isString(request.expected_source_digest) || !SHA256_PATTERN.test(request.expected_source_digest))) readyInputError("invalid_expected_source_digest", "expected_source_digest must be sha256:<64 lowercase hex>", "expected_source_digest");
-    if (hasOwn(request, "shaping_mode")) controlled(request.shaping_mode, new Set(Object.keys(READY_SHAPES)), "shaping_mode");
+    if (hasOwn(request, "shaping_mode")) controlled(request.shaping_mode, WORK_RECORD_READY_SLICE_ACCEPTED_VALUES.shaping_mode, "shaping_mode");
     if (hasOwn(request, "verbose") && typeof request.verbose !== "boolean") readyInputError("ready_slice_invalid_field", "verbose must be boolean", "verbose");
     if (hasOwn(request, "title")) nonemptyString(request.title, "title");
-    if (hasOwn(request, "status")) controlled(request.status, new Set(WORK_RECORD_STATUS_VALUES), "status");
-    if (hasOwn(request, "priority")) controlled(request.priority, READY_PRIORITIES, "priority");
+    if (hasOwn(request, "status")) controlled(request.status, WORK_RECORD_READY_SLICE_ACCEPTED_VALUES.status, "status");
+    if (hasOwn(request, "priority")) controlled(request.priority, WORK_RECORD_READY_SLICE_ACCEPTED_VALUES.priority, "priority");
     if (hasOwn(request, "owner")) nonemptyString(request.owner, "owner");
     if (hasOwn(request, "depends_on")) stringList(request.depends_on, "depends_on");
     if (hasOwn(request, "read_scope")) stringList(request.read_scope, "read_scope");
@@ -401,7 +546,7 @@ export function validateWorkRecordReadySliceRequest(request, { resolvedProse = f
       normalizeTargets(request.expected_edit_targets, {
         shapingMode: hasOwn(request, "shaping_mode") && isString(request.shaping_mode)
           ? request.shaping_mode.trim()
-          : (hasOwn(request, "slice_id") ? null : "implementation")
+          : (hasOwn(request, "slice_id") ? null : READY_CREATION_DEFAULT_SHAPING_MODE)
       });
     }
     if (hasOwn(request, "dispatch_intent")) normalizeReadyDispatchIntent(request.dispatch_intent);
@@ -423,24 +568,9 @@ export function validateWorkRecordReadySliceRequest(request, { resolvedProse = f
       request.expected_changed_line_budget !== null &&
       (!Number.isInteger(request.expected_changed_line_budget) || request.expected_changed_line_budget < 0)
     ) readyInputError("ready_slice_invalid_field", "expected_changed_line_budget must be a non-negative integer or null", "expected_changed_line_budget");
-    if (hasOwn(request, "work_kind")) controlled(request.work_kind, new Set(["implementation", "review", "redteam"]), "work_kind");
-    if (hasOwn(request, "review_purpose")) controlled(request.review_purpose, new Set(["standalone", "terminal_whole_wk"]), "review_purpose");
-
-    if (
-      hasOwn(request, "slice_id") &&
-      hasOwn(request, "shaping_mode") &&
-      isString(request.shaping_mode) &&
-      request.shaping_mode.trim() === "redteam" &&
-      !hasOwn(request, "review_purpose")
-    ) {
-      readyInputError(
-        "ready_slice_missing_required_field",
-        "review_purpose must be explicitly authored as \"standalone\" for redteam findings work; " +
-          "retry the same authoring call with that value",
-        "review_purpose"
-      );
+    for (const member of ["work_kind", "review_purpose", "completion_policy"]) {
+      if (hasOwn(request, member)) controlled(request[member], WORK_RECORD_READY_SLICE_ACCEPTED_VALUES[member], member);
     }
-    if (hasOwn(request, "completion_policy")) controlled(request.completion_policy, READY_COMPLETION_POLICIES, "completion_policy");
     return { ok: true, diagnostics: [] };
   } catch (error) {
     if (!(error instanceof ReadySliceInputError)) throw error;
@@ -453,7 +583,7 @@ function effectiveShapeForUpdate(slice) {
     if (
       slice?.work_kind === shape.work_kind &&
       slice?.dispatch_intent?.intended_agent_role === shape.role &&
-      slice?.dispatch_intent?.target_unit === "slice" &&
+      slice?.dispatch_intent?.target_unit === READY_DISPATCH_TARGET_UNIT &&
       typeof slice?.dispatch_intent?.requires_graph_impact === "boolean" &&
       typeof slice?.dispatch_intent?.requires_escalation === "boolean"
     ) return mode;
@@ -490,14 +620,14 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
     }
     const existing = create ? null : slices[sliceIndex];
     const requestedMode = hasOwn(request, "shaping_mode") ? request.shaping_mode.trim() : null;
-    const mode = requestedMode ?? (create ? "implementation" : effectiveShapeForUpdate(existing));
+    const mode = requestedMode ?? (create ? READY_CREATION_DEFAULT_SHAPING_MODE : effectiveShapeForUpdate(existing));
     if (!mode) readyInputError("ready_slice_unsupported_effective_shape", "existing slice requires explicit implementation, reviewer, or redteam shaping", "shaping_mode");
     const shape = READY_SHAPES[mode];
     const supplied = {};
     const suppliedProse = {};
     if (hasOwn(request, "title")) supplied.title = nonemptyString(request.title, "title");
-    if (hasOwn(request, "status")) supplied.status = controlled(request.status, new Set(WORK_RECORD_STATUS_VALUES), "status");
-    if (hasOwn(request, "priority")) supplied.priority = controlled(request.priority, READY_PRIORITIES, "priority");
+    if (hasOwn(request, "status")) supplied.status = controlled(request.status, WORK_RECORD_READY_SLICE_ACCEPTED_VALUES.status, "status");
+    if (hasOwn(request, "priority")) supplied.priority = controlled(request.priority, WORK_RECORD_READY_SLICE_ACCEPTED_VALUES.priority, "priority");
     if (hasOwn(request, "owner")) supplied.owner = nonemptyString(request.owner, "owner");
     if (hasOwn(request, "depends_on")) supplied.depends_on = stringList(request.depends_on, "depends_on");
     if (hasOwn(request, "read_scope")) supplied.read_scope = stringList(request.read_scope, "read_scope");
@@ -528,24 +658,33 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
       }
       supplied.material_refs = cloneJson(request.material_refs);
     }
-    if (hasOwn(request, "review_purpose")) supplied.review_purpose = controlled(request.review_purpose, new Set(["standalone", "terminal_whole_wk"]), "review_purpose");
+    if (hasOwn(request, "review_purpose")) supplied.review_purpose = controlled(request.review_purpose, WORK_RECORD_READY_SLICE_ACCEPTED_VALUES.review_purpose, "review_purpose");
     const completionPolicy = hasOwn(request, "completion_policy")
-      ? controlled(request.completion_policy, READY_COMPLETION_POLICIES, "completion_policy")
+      ? controlled(request.completion_policy, WORK_RECORD_READY_SLICE_ACCEPTED_VALUES.completion_policy, "completion_policy")
       : null;
     if (hasOwn(request, "work_kind") && request.work_kind.trim() !== shape.work_kind) readyInputError("ready_slice_shaping_conflict", "work_kind contradicts shaping_mode", "work_kind");
-    const incomingIntent = hasOwn(request, "dispatch_intent") ? normalizeReadyDispatchIntent(request.dispatch_intent) : null;
-    if (incomingIntent && (incomingIntent.intended_agent_role !== shape.role || incomingIntent.target_unit !== "slice")) readyInputError("ready_slice_shaping_conflict", "dispatch_intent contradicts shaping_mode", "dispatch_intent");
+    const incomingIntent = hasOwn(request, "dispatch_intent") ? normalizeReadyDispatchIntent(request.dispatch_intent) : {};
+    if (hasOwn(incomingIntent, "intended_agent_role") && incomingIntent.intended_agent_role !== shape.role) readyInputError("ready_slice_shaping_conflict", "dispatch_intent contradicts shaping_mode", "dispatch_intent");
+
+    const controlFlags = {};
+    for (const flag of WORK_RECORD_READY_SLICE_DISPATCH_INTENT_CONTROL_FLAGS) {
+      if (hasOwn(incomingIntent, flag)) controlFlags[flag] = incomingIntent[flag];
+      else if (create) controlFlags[flag] = false;
+      else if (typeof existing.dispatch_intent?.[flag] === "boolean") controlFlags[flag] = existing.dispatch_intent[flag];
+      else readyInputError("ready_slice_unsupported_effective_shape", `existing slice has no saved boolean dispatch_intent.${flag} to preserve; state it explicitly`, `dispatch_intent.${flag}`);
+    }
 
     if (create) {
-      for (const field of [
-        "title",
-        "depends_on",
-        "read_scope",
-        "repo_paths",
-        "write_scope",
-        "acceptance"
-      ]) {
-        if (!hasOwn(supplied, field)) readyInputError("ready_slice_missing_required_field", `${field} is required on create`, field);
+
+      const missing = missingWorkRecordReadySliceCreationFields(request);
+      const targetsOmitted = missing.includes("expected_edit_targets");
+      if (missing.length > 0) {
+        throw new ReadySliceInputError([
+          ...missing.filter((field) => field !== "expected_edit_targets").map((field) => createDiagnostic(
+            "ready_slice_missing_required_field", `${field} is required on create`, { path: field })),
+          ...incompleteContractDiagnostics({ ...supplied, ...(targetsOmitted ? { expected_edit_targets: [] } : {}) },
+            mode, { authoredOnly: true })
+        ]);
       }
     }
     const next = create ? {
@@ -559,12 +698,7 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
       read_scope: supplied.read_scope,
       repo_paths: supplied.repo_paths,
       write_scope: supplied.write_scope,
-      dispatch_intent: incomingIntent ?? {
-        intended_agent_role: shape.role,
-        target_unit: "slice",
-        requires_graph_impact: false,
-        requires_escalation: false
-      },
+      dispatch_intent: null,
       acceptance: supplied.acceptance,
       expected_edit_targets: supplied.expected_edit_targets ?? [],
       expected_changed_line_budget: supplied.expected_changed_line_budget ?? null
@@ -581,8 +715,8 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
         );
       }
 
-      if (supplied.review_purpose === "standalone") {
-        next.review_purpose = "standalone";
+      if (requestedMode === "redteam" || supplied.review_purpose === REDTEAM_SHAPING_REVIEW_PURPOSE) {
+        next.review_purpose = REDTEAM_SHAPING_REVIEW_PURPOSE;
       } else if (!hasOwn(existing ?? {}, "review_purpose")) {
         delete next.review_purpose;
       }
@@ -598,12 +732,11 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
         "completion_policy"
       );
     }
-    const preservedIntent = incomingIntent ?? cloneJson(existing?.dispatch_intent) ?? {};
     next.dispatch_intent = {
       intended_agent_role: shape.role,
-      target_unit: "slice",
-      requires_graph_impact: preservedIntent.requires_graph_impact ?? false,
-      requires_escalation: preservedIntent.requires_escalation ?? false
+      target_unit: READY_DISPATCH_TARGET_UNIT,
+      requires_graph_impact: controlFlags.requires_graph_impact,
+      requires_escalation: controlFlags.requires_escalation
     };
     if (["summary", "why_it_matters", "agent_notes"].some((field) =>
       hasOwn(suppliedProse, field))) {
@@ -627,11 +760,9 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
         next.expected_edit_targets.some((target) => target?.operation !== "inspect")
       ) readyInputError("ready_slice_findings_targets_not_read_only", "reviewer/redteam expected_edit_targets must be an inspection plan", "expected_edit_targets");
     }
-    if (!Array.isArray(next.read_scope) || next.read_scope.length === 0) readyInputError("ready_slice_incomplete_contract", "read_scope must be non-empty", "read_scope");
-    if (!Array.isArray(next.repo_paths) || next.repo_paths.length === 0) readyInputError("ready_slice_incomplete_contract", "repo_paths must be non-empty", "repo_paths");
-    if (!isObject(next.acceptance) || next.acceptance.criteria?.length === 0 || next.acceptance.validation?.length === 0) readyInputError("ready_slice_incomplete_contract", "acceptance criteria and validation must be non-empty", "acceptance");
-    if (mode === "implementation" && (!Array.isArray(next.write_scope) || next.write_scope.length === 0)) readyInputError("ready_slice_implementation_write_scope_empty", "implementation write_scope must be non-empty", "write_scope");
-    if (mode === "implementation" && (!Array.isArray(next.expected_edit_targets) || next.expected_edit_targets.length === 0)) readyInputError("ready_slice_implementation_targets_empty", "implementation expected_edit_targets must be non-empty", "expected_edit_targets");
+
+    const incomplete = incompleteContractDiagnostics(next, mode);
+    if (incomplete.length > 0) throw new ReadySliceInputError(incomplete);
 
     const findingsAnalysis = analyzeWorkRecordFindingsUnit(next, {
       requireExplicitRedteamPurpose: true
@@ -692,7 +823,7 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
     };
   } catch (error) {
     if (!(error instanceof ReadySliceInputError)) throw error;
-    return refusal(error.diagnostic);
+    return { ...refusal(error.diagnostic), diagnostics: error.diagnostics };
   }
 }
 

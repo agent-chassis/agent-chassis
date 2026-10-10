@@ -1,8 +1,6 @@
 import { createHash } from "node:crypto";
 
 export const REVIEWER_WRITE_SCOPE_NONEMPTY_REASON = "reviewer_write_scope_nonempty";
-export const REVIEWER_WRITE_SCOPE_REMEDIATION_ACTION =
-  "create_or_select_separate_findings_only_review_unit";
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -24,22 +22,6 @@ export function buildReviewerEmptyScopeAssertion(writeScope, passed) {
   };
 }
 
-export function buildReviewerWriteScopeRemediation({ subject = null, repoPaths = [] } = {}) {
-  return {
-    action: REVIEWER_WRITE_SCOPE_REMEDIATION_ACTION,
-    suggested_unit_id_examples: ["WK-#####review", "WK-#####implementation-review"],
-    work_kind: "review",
-    write_scope: [],
-    repo_paths: Array.isArray(repoPaths) ? repoPaths : [],
-    depends_on: typeof subject === "string" && subject.length > 0 ? [subject] : [],
-    acceptance: [
-      "Findings-only review.",
-      "Do not modify files.",
-      "Report findings against the inspected files."
-    ]
-  };
-}
-
 export function buildReviewerWriteScopeRefusalDetail({
   subject = null,
   role = "reviewer",
@@ -47,8 +29,7 @@ export function buildReviewerWriteScopeRefusalDetail({
   subjectTitle = null,
   recordId = null,
   sliceId = null,
-  observedWriteScopeSize = 0,
-  repoPaths = []
+  observedWriteScopeSize = 0
 } = {}) {
   return {
     subject,
@@ -59,7 +40,6 @@ export function buildReviewerWriteScopeRefusalDetail({
     slice_id: sliceId,
     observed_write_scope_size: observedWriteScopeSize,
     required_write_scope: [],
-    cause_classification: "coordination_wk_shape_issue",
-    remediation: buildReviewerWriteScopeRemediation({ subject, repoPaths })
+    cause_classification: "coordination_wk_shape_issue"
   };
 }

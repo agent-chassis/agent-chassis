@@ -19,10 +19,18 @@ import {
   assertAuthenticatedControlledContractGeneration,
   assertResolvedControlledContractGenerationsEqual,
   authenticatedControlledContractGenerationsEqual,
-  constructAuthenticatedControlledContractGeneration
+  constructAuthenticatedControlledContractGeneration,
+  constructControlledContractGenerationAbsence,
+  controlledContractGenerationStatesEqual,
+  isControlledContractGenerationAbsence
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-generation-authentication.mjs";
-import { createControlledContractGenerationTreeOperations } from
-  "./controlled-contract-generation-tree.mjs";
+import {
+  CANONICAL_WK_CONTENT_SOURCE_KIND,
+  canonicalWkContentMovement,
+  createControlledContractGenerationTreeOperations
+} from "./controlled-contract-generation-tree.mjs";
+
+export { CANONICAL_WK_CONTENT_SOURCE_KIND };
 
 const WK_ID_PATTERN = /^WK-[0-9]{4}$/;
 const INITIATIVE_PATTERN = /^IN-[0-9]{4}$/;
@@ -362,7 +370,25 @@ export async function resolveControlledContractGenerationBinding(input = {}) {
     descriptors: generation.descriptors,
     generationDigest: generation.generation_digest
   });
+  const source = await resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding, deps });
+  return deepFreeze({
+    schema_version: "controlled-contract-generation-binding.v1",
+    repository: source.repository,
+    record_id: wkId,
+    record_source_digest: source.record_source_digest,
+    initiative: source.initiative,
+    output_branch: source.output_branch,
+    ref: source.ref,
+    wk_tip_sha: source.wk_tip_sha,
+    generation_count: generation.count,
+    generation_digest: generation.generation_digest,
+    descriptors: cloneDescriptors(generation.descriptors),
+    resolved_generation: generation,
+    git_dir: source.git_dir
+  });
+}
 
+async function resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding, deps }) {
   let repository;
   try {
     repository = realpathSync(path.resolve(repoRoot));
@@ -437,22 +463,17 @@ export async function resolveControlledContractGenerationBinding(input = {}) {
   }
   if (!recordBytes.equals(observedRecordBytes)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED,
-      "canonical WK record changed during generation binding");
+      "canonical WK record changed during generation binding",
+      canonicalWkContentMovement(wkId, "generation_binding"));
   }
 
-  return deepFreeze({
-    schema_version: "controlled-contract-generation-binding.v1",
+  return Object.freeze({
     repository,
-    record_id: wkId,
     record_source_digest: sha256(recordBytes),
     initiative: record.initiative,
     output_branch: outputBranch,
     ref,
     wk_tip_sha: wkTipSha,
-    generation_count: generation.count,
-    generation_digest: generation.generation_digest,
-    descriptors: cloneDescriptors(generation.descriptors),
-    resolved_generation: generation,
     git_dir: gitDir
   });
 }
@@ -468,7 +489,9 @@ const {
   resolveBoundRecordArtifact,
   resolveBoundRuntimePackageArtifacts,
   runtimePackageMatchesTree,
-  selectedRuntimePackagesInHistory
+  selectedGenerationFromTree,
+  selectedRuntimePackagesInHistory,
+  storedPopulationPathsFromTree
 } = createControlledContractGenerationTreeOperations({
   fail,
   codes: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES,
@@ -479,6 +502,76 @@ const {
   isOwnedError: error => error instanceof ControlledContractGenerationPersistenceError,
   gitInertConfig: GIT_INERT_CONFIG
 });
+
+export async function authenticateControlledContractGenerationAtCommit(input = {}) {
+  return authenticateSelectedGenerationAtCommit(await resolveCommitAuthenticationRequest(input));
+}
+
+export async function authenticateControlledContractGenerationStateAtCommit(input = {}) {
+  const request = await resolveCommitAuthenticationRequest(input);
+  const { repository, wkId, commit, runGit, gitDir } = request;
+  const stored = await storedPopulationPathsFromTree({
+    runGit, binding: { repository, git_dir: gitDir, record_id: wkId }, treeish: commit
+  });
+  if (stored.carrierPaths.length > 0 || stored.manifestPaths.length > 0) {
+    return authenticateSelectedGenerationAtCommit(request);
+  }
+  return constructControlledContractGenerationAbsence({
+    repository,
+    wkId,
+    wkTipSha: stored.source.commit,
+    resolvedGeneration: null,
+    carrierPaths: stored.carrierPaths,
+    manifestPaths: stored.manifestPaths
+  });
+}
+
+async function resolveCommitAuthenticationRequest(input) {
+  assertExactKeys(input, ["repoRoot", "wkId", "commit", "deps"],
+    "controlled-contract generation commit authentication request");
+  const { repoRoot, wkId, commit, deps = {} } = input;
+  if (typeof wkId !== "string" || !WK_ID_PATTERN.test(wkId) ||
+      typeof repoRoot !== "string" || repoRoot.length === 0 ||
+      typeof commit !== "string" || !OID_PATTERN.test(commit) || /^0+$/.test(commit) ||
+      !isPlainObject(deps)) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INVALID_INPUT,
+      "generation commit authentication requires a repository, a canonical WK identity, " +
+      "and one exact full nonzero commit identity");
+  }
+  let repository;
+  try {
+    repository = realpathSync(path.resolve(repoRoot));
+  } catch (error) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.BINDING_INVALID,
+      "canonical repository is unavailable", { cause_code: error?.code ?? null });
+  }
+  const runGit = deps.runGit ?? defaultControlledContractGenerationRunGit;
+  const gitDir = await resolveGitDirectoryAsync(runGit, repository);
+  return { repository, wkId, commit, runGit, gitDir };
+}
+
+async function authenticateSelectedGenerationAtCommit({ repository, wkId, commit, runGit, gitDir }) {
+  const selected = await selectedGenerationFromTree({
+    runGit,
+    binding: { repository, git_dir: gitDir, record_id: wkId },
+    treeish: commit
+  });
+  const authenticated = await constructAuthenticatedControlledContractGeneration({
+    repository,
+    wkId,
+    wkTipSha: selected.source.commit,
+    recordObservation: selected.recordObservation,
+    resolvedGeneration: selected.resolvedGeneration,
+    carrierObservations: selected.carrierObservations,
+    manifestObservations: selected.manifestObservations
+  });
+  return assertAuthenticatedControlledContractGeneration(authenticated, {
+    repository,
+    wkId,
+    wkTipSha: selected.source.commit,
+    requireManifest: true
+  });
+}
 
 export async function authenticateControlledContractGenerationAtW(input = {}) {
   assertExactKeys(input, ["binding", "deps"],
@@ -609,12 +702,88 @@ export async function authenticateControlledContractGenerationAtW(input = {}) {
 }
 
 export async function authenticateCurrentControlledContractGenerationAtW(input = {}) {
+  return authenticateCurrentGenerationAtW(input, { admitAbsence: false });
+}
+
+export async function authenticateCurrentControlledContractGenerationStateAtW(input = {}) {
+  return authenticateCurrentGenerationAtW(input, { admitAbsence: true });
+}
+
+async function observeCurrentGenerationAbsenceAtW({
+  repoRoot, wkId, expectsWkTip, expectedWkTipSha, expectsGeneration, expectedGeneration, deps
+}) {
+  const source = await resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding: null, deps });
+  if (expectsWkTip && source.wk_tip_sha !== expectedWkTipSha) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+      "current exact-W identity differs from the authorized generation", {
+        condition: "expected_w_mismatch",
+        expected_tip: expectedWkTipSha,
+        actual_tip: source.wk_tip_sha
+      });
+  }
+  const runGit = deps.runGit ?? defaultControlledContractGenerationRunGit;
+
+  const { carrierPaths, manifestPaths } = await storedPopulationPathsFromTree({
+    runGit,
+    binding: { repository: source.repository, git_dir: source.git_dir, record_id: wkId },
+    treeish: source.wk_tip_sha
+  });
+
+  const finalCurrent = await resolveControlledContractAttachmentGeneration({
+    repoRoot: source.repository, wkId
+  });
+  if (finalCurrent !== null) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+      "current controlled-contract generation moved during exact-W authentication");
+  }
+  if (carrierPaths.length > 0 || manifestPaths.length > 0) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+      "exact WK tip holds a controlled-contract generation that no current generation selects", {
+        condition: "exact_w_generation_unselected",
+        carrier_count: carrierPaths.length,
+        manifest_count: manifestPaths.length
+      });
+  }
+
+  const absence = constructControlledContractGenerationAbsence({
+    repository: source.repository,
+    wkId,
+    wkTipSha: source.wk_tip_sha,
+    resolvedGeneration: finalCurrent,
+    carrierPaths,
+    manifestPaths
+  });
+  const finalTip = await resolveRefTipAsync(
+    runGit, source.repository, source.git_dir, source.ref, {
+    code: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED
+  });
+  if (finalTip !== source.wk_tip_sha) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+      "persistent WK ref moved after controlled-contract generation authentication", {
+        expected_tip: source.wk_tip_sha,
+        actual_tip: finalTip
+      });
+  }
+  if (expectsGeneration && (!isControlledContractGenerationAbsence(expectedGeneration) ||
+      !controlledContractGenerationStatesEqual(absence, expectedGeneration))) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+      "authorized generation differs from the exact current generation authenticated in W");
+  }
+  return deepFreeze({ binding: null, authenticated: absence });
+}
+
+async function authenticateCurrentGenerationAtW(input, { admitAbsence }) {
   assertExactKeys(input, ["repoRoot", "wkId", "expectedWkTipSha", "expectedGeneration", "deps"],
     "current controlled-generation authority request");
   const { repoRoot, wkId, expectedWkTipSha, expectedGeneration, deps = {} } = input;
+
+  const expectsWkTip = Object.hasOwn(input, "expectedWkTipSha");
+  const expectsGeneration = Object.hasOwn(input, "expectedGeneration");
   if (typeof repoRoot !== "string" || repoRoot.length === 0 ||
       typeof wkId !== "string" || !WK_ID_PATTERN.test(wkId) ||
-      typeof expectedWkTipSha !== "string" || !OID_PATTERN.test(expectedWkTipSha) ||
+      (expectsWkTip &&
+        (typeof expectedWkTipSha !== "string" || !OID_PATTERN.test(expectedWkTipSha))) ||
+      (expectsGeneration && !expectsWkTip) ||
       !isPlainObject(deps)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INVALID_INPUT,
       "current generation authority requires canonical repository, WK, and exact-W identity");
@@ -624,8 +793,15 @@ export async function authenticateCurrentControlledContractGenerationAtW(input =
     wkId
   });
   if (generation === null) {
+    if (admitAbsence) {
+      return observeCurrentGenerationAbsenceAtW({
+        repoRoot, wkId, expectsWkTip, expectedWkTipSha, expectsGeneration, expectedGeneration, deps
+      });
+    }
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
-      "current controlled-contract generation is absent");
+      "current controlled-contract generation is absent", {
+        condition: "current_generation_absent"
+      });
   }
   const binding = await resolveControlledContractGenerationBinding({
     repoRoot,
@@ -634,9 +810,10 @@ export async function authenticateCurrentControlledContractGenerationAtW(input =
     lifecycleBinding: null,
     deps
   });
-  if (binding.wk_tip_sha !== expectedWkTipSha) {
+  if (expectsWkTip && binding.wk_tip_sha !== expectedWkTipSha) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
       "current exact-W identity differs from the authorized generation", {
+        condition: "expected_w_mismatch",
         expected_tip: expectedWkTipSha,
         actual_tip: binding.wk_tip_sha
       });
@@ -651,15 +828,22 @@ export async function authenticateCurrentControlledContractGenerationAtW(input =
     wkTipSha: binding.wk_tip_sha,
     requireManifest: true
   });
-  const expected = assertAuthenticatedControlledContractGeneration(expectedGeneration, {
-    repository: binding.repository,
-    wkId,
-    wkTipSha: binding.wk_tip_sha,
-    requireManifest: true
-  });
-  if (!authenticatedControlledContractGenerationsEqual(authenticated, expected)) {
-    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
-      "authorized generation differs from the exact current generation authenticated in W");
+  if (expectsGeneration) {
+
+    if (isControlledContractGenerationAbsence(expectedGeneration)) {
+      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+        "authorized generation differs from the exact current generation authenticated in W");
+    }
+    const expected = assertAuthenticatedControlledContractGeneration(expectedGeneration, {
+      repository: binding.repository,
+      wkId,
+      wkTipSha: binding.wk_tip_sha,
+      requireManifest: true
+    });
+    if (!authenticatedControlledContractGenerationsEqual(authenticated, expected)) {
+      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+        "authorized generation differs from the exact current generation authenticated in W");
+    }
   }
   return deepFreeze({ binding, authenticated });
 }
@@ -885,7 +1069,11 @@ export function admitVerifiedReceipt({ runGit, binding, receiptValue }) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
       "persisted controlled-contract runtime package is absent or differs from the exact bound generation");
   }
-  const recordArtifact = resolveBoundRecordArtifact(binding);
+
+  const recordArtifact = resolveBoundRecordArtifact(binding, "receipt_admission", {
+    receipt_final_tip: receiptValue.final_tip,
+    receipt_disposition: receiptValue.disposition
+  });
   const recordResolved = runGit({
     gitDir: binding.git_dir,
     args: ["--no-replace-objects", "rev-parse", "--verify", "--quiet",
@@ -926,10 +1114,12 @@ function reauthenticateBindingSource(binding) {
         cause_code: error?.code ?? null
       });
   }
-  if (repository !== binding.repository || gitDir !== binding.git_dir ||
-      sha256(recordBytes) !== binding.record_source_digest) {
+
+  const identityMoved = repository !== binding.repository || gitDir !== binding.git_dir;
+  if (identityMoved || sha256(recordBytes) !== binding.record_source_digest) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED,
-      "bound repository or canonical WK source identity changed");
+      "bound repository or canonical WK source identity changed",
+      identityMoved ? {} : canonicalWkContentMovement(binding.record_id, "pre_persistence"));
   }
   let record;
   try {
@@ -1129,7 +1319,7 @@ export async function persistControlledContractGeneration(input = {}) {
   const manifestArtifacts = resolveBoundManifestArtifacts(binding);
   const runtimePackageArtifacts = resolveBoundRuntimePackageArtifacts(
     binding, manifestArtifacts);
-  const recordArtifact = resolveBoundRecordArtifact(binding);
+  const recordArtifact = resolveBoundRecordArtifact(binding, "pre_persistence");
 
   const runGit = deps.runGit ?? defaultControlledContractGenerationRunGit;
   const liveTip = resolveRefTip(runGit, binding.git_dir, binding.ref);

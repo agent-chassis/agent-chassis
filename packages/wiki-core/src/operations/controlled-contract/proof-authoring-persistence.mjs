@@ -6,7 +6,6 @@ import { ControlledContractToolError, controlledContractContentDigest,
   withCanonicalControlledContractSourceLease } from "../../lib/controlled-contract-tools.mjs";
 import { assertObligationCoverageSourcePathIntegrity, readCanonicalObligationSource,
   resolveObligationCoverageFacts, exactObject } from "./acceptance-coverage-facts.mjs";
-import { withOrderedCoverageLocks } from "./acceptance-coverage-rebase.mjs";
 
 const OBLIGATION_COVERAGE_OPERATION_CURSOR_VERSION =
   "wiki-core-obligation-coverage-operation-cursor.v1";
@@ -93,11 +92,8 @@ async function persistObligationCoverageCarrier({
       selectedUnit: input.selectedUnit ?? null,
       expectedContentDigest: expectedSnapshot.source?.content_digest ?? null
     } } : {})
-  }, async ({ assertDraftLease } = {}) => withOrderedCoverageLocks(
-    [`${file}.lock`],
-    "obligation_coverage_persistence_busy",
-    async () => {
-      try {
+  }, async ({ assertDraftLease } = {}) => {
+    try {
     const finalSnapshot = await resolveFacts(
       obligationCoverageResolutionInput(input), { requireSource: expectedSnapshot.source !== null }
     );
@@ -145,16 +141,15 @@ async function persistObligationCoverageCarrier({
       "persisted source does not identify the exact canonical content",
       { phase: "receipt", expected_content_digest: expectedDigest,
         actual_content_digest: persisted?.content_digest ?? null });
-        return Object.freeze({ content_digest: expectedDigest,
-          byte_length: bytes.byteLength, changed: true });
-      } finally {
-        if (temporary) await temporary.close();
-        try { await unlinkFile(temporaryFile); } catch (error) {
-          if (error?.code !== "ENOENT") throw error;
-        }
+    return Object.freeze({ content_digest: expectedDigest,
+      byte_length: bytes.byteLength, changed: true });
+    } finally {
+      if (temporary) await temporary.close();
+      try { await unlinkFile(temporaryFile); } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
       }
     }
-  )).catch(async error => {
+  }).catch(async error => {
     if (!renamed && renameAttempted) {
 
       try {

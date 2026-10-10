@@ -143,7 +143,7 @@ export async function buildAdmittedCodexWorkerPlan({
 
   headlessPlan.worker_test_runtime = headlessPlan.mode !== "refusal" &&
     frozenWorkerScopeAuthority != null && typeof worktree_provisioning?.main_repo === "string"
-    ? composeWorkerTestRuntime({ mainRepo: worktree_provisioning.main_repo, checkout: repo,
+    ? await composeWorkerTestRuntime({ mainRepo: worktree_provisioning.main_repo, checkout: repo,
       workerScopeAuthority: frozenWorkerScopeAuthority })
     : null;
   if (serverProvisionedWorktreeGitBinding !== null) {

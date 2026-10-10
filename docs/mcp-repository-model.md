@@ -1,237 +1,73 @@
 
 # MCP Agent-Facing Repository Model
 
-This page is the agent retrieval model for `agent-chassis` MCP: how workspace-scoped read/search/edit tools resolve the repository, how ranked search and oversized-response references behave, the MCP sandbox write-carveout profile, and the graph-impact checkpoint recipe. It is reference material split out of [docs/mcp-integration.md](mcp-integration.md); start there for setup and the workflow narrative.
+This page is the agent retrieval model for `agent-chassis` MCP: which repository a server works on, who owns the bytes a read returns, how large answers are delivered, how host processes are isolated, and how code-index questions are answered. The operations themselves are listed once, in [MCP Operation Reference](mcp-operation-reference.md); start with [MCP integration](mcp-integration.md) for setup and the workflow narrative.
 
 ## Agent-Facing Repository Model
 
 This MCP server provides shared tooling. It does not own the consuming repository's wiki content.
 
-For MCP-native clients, trusted routine reads and searches should use the workspace-scoped tools. These tools resolve the repository root from server configuration and do not accept arbitrary filesystem roots from the caller:
+A server binds one trusted repository. It resolves that repository once, at
+startup, from launcher- or server-owned configuration (see
+[environment reference](env-reference.md)), and a launch that configures none
+does not serve. Public agent requests carry no `repo` selector and no
+filesystem root: every task operates on the configured repository, and no
+prompt text, request payload, argv, claimed identity or agent-authored
+environment selects another one. A request field that names a repository is
+refused by the tool's closed schema rather than honoured or ignored.
 
-For routine WK status/task maintenance, agents should use the MCP edit routes
-below. The CLI `npm run wiki -- work-records set-status ...` and `set-task ...`
-commands remain operator or fallback forms when MCP is unavailable, but they
-are not the agent-safe edit path when MCP is available. Agents must not use
-arbitrary JSON patches or manual WK JSON edits for these routine status/task
-updates.
+The task tools, their request boundaries and the role that holds each one are
+the [operation reference](mcp-operation-reference.md#operations) and its
+[role authority](mcp-operation-reference.md#role-authority) section. This page
+does not repeat them. `tools/list` is the authority for what a session can
+call: a tool the session's role does not hold is absent, not refused.
 
-For schema-aware WK setup edits — creating or updating tracker-local slices,
-removing slices, setting controlled list fields such as `read_scope` (the
-read-first reference list), `repo_paths`, or `write_scope`,
-setting acceptance criteria and validation notes, or shaping a unit into a
-findings-only review contract — agents should use the current contract-edit MCP
-routes: `workspace_work_record_edit`, `workspace_work_record_upsert_slice`,
-`workspace_work_record_delete_slice`, and
-`workspace_work_record_shape_review_unit`. Executable `node_test` validation
-bindings are not ordinary edits; the controlled-contract proof operations author
-them. These routes resolve only configured
-workspace repository aliases and never accept a caller-supplied filesystem root.
-They validate the prospective result against work-record.v1 before writing and
-refuse invalid edits with structured diagnostics; output is compact by default
-and each route accepts an optional `expected_source_digest` for stale-source
-protection against concurrent edits: the 16-hex `source_digest` a read
-returned, converted at the MCP boundary to the loaded record's full digest,
-which the core write guard checks again under its lock. The CLI counterparts (`upsert-slice`,
-`delete-slice`, `set-list-field`, `shape-review-unit`) are
-operator-shell fallbacks only and are not agent dispatch transports when MCP is
-available. See the "Contract-edit compact default, verbose opt-in, stale-source
-protection, and validate-before-write" section in
-[docs/mcp-operation-reference.md](mcp-operation-reference.md) for full
-behavioral details.
+Ownership follows from that single binding:
 
-- `workspace_build_search_index`
-- `workspace_search_repo`
-- `workspace_read_page`
-- `workspace_get_record`
-- `workspace_create_record`
-- `workspace_tools_list`
-- `workspace_tools_describe`
-- `workspace_read_mcp_content_reference`
-- `workspace_code_index_status`
-- `workspace_code_index_build`
-- `workspace_code_index_rebuild`
-- `workspace_code_index_impact`
-- `workspace_code_index_find_references`
-- `workspace_code_index_definition`
-- `workspace_code_index_context_for_path`
-- `workspace_work_record_validate`
-- `workspace_work_record_refresh_admission_metrics`
-- `workspace_work_record_refresh_target_resolution_evidence`
-- `workspace_validate_dispatch`
-- `workspace_work_record_set_status`
-- `workspace_work_record_set_closure`
-- `workspace_work_record_edit`
-- `workspace_work_record_upsert_slice`
-- `workspace_work_record_delete_slice`
-- `workspace_work_record_shape_review_unit`
-- `workspace_record_graph_impact_evidence`
-- `workspace_generate_and_lint`
-- `workspace_lint_repo`
-- `workspace_autofix_docs_backlinks`
-- `workspace_docs_policy_validate`
-- `workspace_work_record_summary`
+- Durable `docs/` pages and canonical `wiki/` records belong to the configured
+  repository. Agents read them with `workspace_read_wiki` and change canonical
+  records only through `workspace_create_record` and `save_record`; see
+  [persistence](work-record-persistence.md). Raw JSON edits and shell patches
+  are not an agent edit path.
+- Work items, initiatives and decisions have JSON authority:
+  `wiki/work-records/WK-####.json`, `wiki/initiatives/IN-####.json` and
+  `wiki/decisions/DEC-####.json`. Their Markdown projections and the generated
+  catalogue views are derived, never canonical, and reading a projection confers
+  no record authority. Sources and areas use their Markdown documents.
+- A reader subject is a canonical ID or a Markdown document path. JSON storage
+  paths are not reader subjects.
+- Documentation that ships with the tooling belongs to the launching package,
+  not to the repository; see
+  [Package-Owned Documentation Versus Workspace Pages](#package-owned-documentation-versus-workspace-pages).
 
-Workspace tools accept an optional `repo` alias, not a filesystem path. The
-resolver precedence for generic repo-scoped tools is: caller-provided `repo`;
-then an explicit current attachment from launcher/server-owned configuration
-(`WIKI_MCP_WORKSPACE_ALIAS` naming a configured alias, including alias-only
-attachment with no `WIKI_MCP_WORKSPACE_DIR`, `WIKI_MCP_WORKSPACE_ALIAS` with
-`WIKI_MCP_WORKSPACE_DIR`, a repo-local declaration under a trusted root, or
-trusted-root basename fallback) when that attachment maps to a configured repo;
-then a structured not-in-repo / wrong-session refusal when no local repo context
-is available. Repo selection does not come from caller prompt text, request
-payload, argv, claimed identity, or agent-authored environment.
-`WIKI_MCP_DEFAULT_REPO` remains a default selector and legacy compatibility
-input, not current-repo authority for omitted `repo` on generic repo-scoped
-tools. Route-local default fallback behavior is a compatibility exception only
-where a specific route documents it; alias-only current attachment is resolver
-behavior and does not expand those exceptions.
-
-### Workspace lint response
-
-`workspace_lint_repo` and `workspace_generate_and_lint` use the same
-`buildLintFindingsResponse` projection. Successful responses return lint errors
-only as structured `findings`; there is no top-level `problems` property or
-replacement error-message alias. Every returned finding occurrence retains its
-producer fields and order, including repeated equal occurrences.
-
-`error_count`, `warning_count`, and `finding_count_total` always describe the
-complete producer arrays, independently of the response limit. `ok` and `valid`
-are true exactly when `error_count` is zero. The optional `warnings` array is an
-independent producer-ordered prefix and its length is not described by
-`findings_returned`. The `findings_returned`, `findings_truncated`, and
-`max_findings` fields describe only the structured findings prefix.
-
-When `max_findings` is omitted, the route returns at most 20 findings. Zero
-returns counts and summary metadata without `findings` or `warnings` arrays. A
-positive integer returns that many producer-ordered findings and warnings at
-most; there is no fixed upper content cap. Every truncated response directs the
-caller to rerun the same route with `max_findings` at least
-`finding_count_total` before attempting repair. That fresh live rerun retrieves
-all finding and warning occurrences when repository input remains stable; it is
-not a snapshot or cursor guarantee. Because producer order is unchanged, a
-warning-first truncated prefix can contain no error identity even when
-`error_count` is nonzero.
-
-Projection requires complete `findings`, `problems`, and `warnings` producer
-arrays and checks that `problems` exactly matches the ordered messages of every
-error finding, including multiplicity. An incomplete or inconsistent producer
-result fails before any successful response, including for `max_findings: 0`.
-The two workspace MCP handlers map that exception through the existing
-`mcp_response.handler_exception.v1` mechanical failure envelope.
-
-`workspace_lint_repo` is read-only. `workspace_generate_and_lint` refreshes
-only generated views before lint; it does not write canonical records and adds
-no rollback if lint or projection later fails. The underlying `lintRepo`
-producer, raw `lint_repo` representation, and `generateAndLint` nested `lint`
-result are unchanged. Direct `generateAndLint` compact results and the raw
-`generate_and_lint` route share the top-level projection, including removal of
-`problems` and the full-retrieval guidance. Closeout lint retains its existing
-catch behavior: it preserves the exception message while reporting that lint
-did not run and generated-view refresh failed.
-
-### `workspace_search_repo` Ranked Retrieval
-
-`workspace_search_repo` is a ranked search surface. Its default compact output is
-bounded by `limit` (default 8, maximum 50), while `total_count` remains the exact
-complete match count. `returned_count`, `has_more`, and an opaque
-`continuation` describe the current page. Continue only through the returned
-`next_calls`; a continuation cannot be mixed with a replacement query, limit,
-profile, namespace, history choice, or filter. Public offset arithmetic,
-unbounded/bulk output, `verbose`, and `result_count` are not supported.
-
-Each result carries concise original context plus backend-constructed
-`workspace_read_page` calls for the exact selected source near the match and
-from the source start. That strict branch is `{repo?, path, search_match,
-length?}` and cannot mix with ordinary full/raw/profile/namespace/slice read
-options. It returns exact Unicode-scalar text and range metadata; length defaults
-to 512 and cannot exceed 1024. Following its opaque continuation reconstructs
-the selected Markdown section or canonical JSON scalar without sibling fields.
-
-Search hashes every current source buffer to check freshness even on a warm
-query. Unchanged content reuses prepared projections/tokenization; touching a
-file alone does not invalidate it, while same-size/same-mtime content edits do.
-Missing, stale, or different-version caches prepare in memory without writes,
-and repeated queries against the same content and context reuse that one
-preparation. A well-formed different-version cache is recognized by its version
-envelope and its obsolete content is discarded unread; the explicit build
-replaces it. Present corrupt or unreadable current-version caches fail
-explicitly. WK, initiative, and decision sources come from canonical JSON; their
-Markdown projections never supply fallback hits. Initiative and decision
-passages contain the title and the prose sections declared by the record kind's
-section schema; metadata, scope, and authority fields remain filter facets
-only. Preparation derives the existing link-authority ranking contribution from
-the Markdown links and docs/related references of the same parsed corpus.
-A search with a registered repository identity also covers addressable
-work-record entries. The entry owner renders one source per root or slice entry
-version, crossing composed parts; default search selects current versions and
-`history:true` selects every retained version, and assignment `material_refs`
-never add sources. Entry records are loaded from the same captured corpus
-bytes. Their prepared projections are reused while the corpus signature,
-projection context, repository, and history choice are unchanged. Each selected
-entry version resolves independently: a version whose source closure cannot be
-resolved in the searched view, including a reference whose source record has
-since changed, is excluded and reported with the resolver's diagnostic plus its
-`unit`, `entry_id`, and `version_id`, while every resolvable root, slice,
-current, and retained version stays searchable. Ranked counts and continuations
-describe exactly that resolvable population. Entry hits return
-`workspace_work_record_entry_read` body calls that load only the version's
-source closure and keep recovering that exact version after corrections,
-current-version advancement, cache eviction, and restart. Searches without a
-repository identity, such as the CLI, cover canonical files only and report
-`work_record_entry_search_requires_repository`; an explicit `history:true`
-request without repository identity is refused with that code before any
-preparation or result.
-Markdown capture and ordinary page reads share
-`parseMarkdownPage(targetDir, filePath, markdown)`: the synchronous parser has
-no filesystem effects, while `readMarkdownPage` performs one UTF-8 read and
-delegates to it.
+Reads are compact first. `workspace_read_wiki` answers with bounded context and
+the exact selection calls that read a field, entry, population or text whole;
+follow those calls unchanged. A returned reference selects only the resource
+the first answer named, under the same source and role grants. It never grants
+arbitrary filesystem access, and the shared read core rejects path traversal
+such as `../outside.md` or `wiki/work-records/../../escape.json` before any
+read. Omitted detail in a compact answer is response shaping, not missing
+canonical data: reach it through the returned selection, never by shelling out,
+editing raw JSON or changing storage.
 
 ### Oversized MCP Response References
 
-`wiki-mcp` success responses are bounded at the response-envelope layer before
-they are written to stdio. When the pretty-printed JSON result would exceed the
-server's inline byte limit (`WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT`, default
-128 KiB), the server writes the complete JSON bytes to its runtime response
-state directory (`WIKI_MCP_RESPONSE_STATE_DIR`, or the XDG/home state fallback)
-and returns a `wiki-mcp-spilled-response.v1` envelope instead of inlining the
-large value. The envelope contains `total_bytes`, a SHA-256 digest, a bounded
-preview, and a `content_reference` with an opaque `ref_id`.
+Default answers are bounded summaries. A complete value that exceeds the
+ordinary bound is retained once by its producer and read through the selection
+call the answer returned, on the tool that owns it: `workspace_read_wiki` for
+wiki, record and package-document selections, `get_run_result` for execution
+originals, and `query_code_index` for code-index answers. Selected full reads
+are delivered through the shared authenticated response class as semantic
+structured values and plain Unicode text.
 
-Callers retrieve spilled content with `workspace_read_mcp_content_reference`,
-passing `ref_id`, `offset`, and `length`. Each read returns the requested byte
-range as `data_base64`, plus `total_bytes`, `next_offset`, `eof`, `max_length`,
-and the whole-reference SHA-256. A caller can reassemble the complete payload by
-base64-decoding successive ranges until `eof: true`, concatenating the bytes,
-checking the SHA-256, and then parsing the resulting UTF-8 JSON. Requests above
-`max_length` are refused rather than silently shortened. This is a delivery/frame
-bound only: the full response remains reachable and is not truncated.
-
-A selected task result is not a spilled response. A `workspace_verify_proof`
-result, a closeout receipt and a code-index answer are each retained once as a
-selected-response source whose metadata names its one owner read. The ranged
-reader, and the `workspace_read_page` `content_reference` delegate that uses it,
-refuse those bytes with `mcp_response.content_reference_ranged_read_unavailable.v1`
-(`failed_limb: "selected_access"`) and return that owner call as the exact next
-call: `workspace_verify_proof` with `result`, `workspace_work_record_summary`
-with `receipt`, or the code-index route with `detail`. Evidence a dispatch-family
-route retains for the operator is refused with no route. Internally, the
-selected-response reader and the managed verify-proof cache reader share one
-verified whole-artifact read (`readRetainedArtifactBytes` in `mcp-response.mjs`)
-that never passes through this public guard; each keeps its own root, schema and
-identity checks.
-
-A managed worker holds this reader too, so a spilled success or refusal
-envelope a worker's own response names is callable exactly as returned,
-followed through the reader's own `next_offset` to completion. The
-reader resolves an opaque, server-minted `ref_id` in the serving process's
-configured response state directory. That directory may be shared (the default
-XDG/home location is not per session), and the reader enforces no per-session
-ownership: a reference is readable by whoever presents its `ref_id` to a server
-using the same directory, and an unknown `ref_id` is refused. The grant gives a
-worker no page, entry, record, search or path read, and its assignment-only
-`workspace_read_page` still refuses spill and every other ordinary selector.
+There is no generic content reader. Callers never page byte ranges, decode
+base64, verify a digest or reassemble a payload, and no response asks them to.
+A missing or corrupt original, or a retention failure, is reported as that
+failure and never as a compact success. The delivery bound, retained sources
+and selected-full delivery are specified in
+[selected-response details](mcp-selected-response-details.md). The one native
+output exception belongs to
+[`workspace_run_test`](local-test-runtime-setup.md#the-workspace_run_test-route).
 
 ### Host wiki-MCP process isolation
 
@@ -246,119 +82,75 @@ See [MCP integration](mcp-integration.md#transport).
 Role selection and tool authority come only from the frozen launcher binding.
 Prompt text, request payloads, argv, ambient environment, repository settings,
 and user settings cannot select a server, connector, mount, endpoint, or lifecycle.
+The repository a server answers for is part of that same binding, so every call
+a response emits is answered from the source the first call was bound to.
 
-The read resolver also decides the repository argument a read's emitted calls
-repeat. When it resolved the launcher-frozen review repository or the session's
-current workspace repository, emitted member, batch, summary and entry calls omit
-`repo`, and the same resolver answers them from the same bound source; any other
-resolution keeps `repo`. Emitters take that decision from the resolver and never
-re-derive a binding.
+### Code index reads
 
-The workspace read tool still validates page containment through the shared read core. Path traversal such as `../outside.md` or `wiki/work-records/../../escape.json` is rejected before reading.
+`query_code_index` is the one agent code read. It answers for the server's own current repository; no argument selects a repository, root, cache or commit, and no emitted call carries one. With `path` alone it returns complete committed context for one repo-relative path: the file's exact committed source, graph relationships, inferred related code and tests, canonical records, and `affected_files` whose relationships name their basis. A valid path outside the indexed corpus keeps its guidance and reports source `indexed_corpus_excluded`; a path absent from the commit reports `missing_file_descriptor`; forbidden or malformed paths are refused before preparation. Source and line counts come only from the committed publication. That complete answer is retained once as the route's selected-response source; the response carries identity, source state and line count, trust facts, and bounded code-graph `graph_paths` with whole-population totals, as described in [Tool Discovery Surfaces](tool-discovery-surfaces.md).
 
-`workspace_read_page` reads Markdown pages and registered canonical JSON records.
-Work items, initiatives, and decisions use JSON authority: respectively
-`wiki/work-records/WK-####.json`, `wiki/initiatives/IN-####.json`, and
-`wiki/decisions/DEC-####.json`. Their Markdown projections are generated views,
-never canonical sources. Reading a projection does not confer record authority;
-use the JSON path or a canonical ID read when authority matters.
+An ordinary question — file context, change impact, or a symbol or
+source-location question — answers at once from the last usable published
+base/SCIP pair of the one shared code index and never waits for indexing. Every
+answer frame states `read_mode: "query"`, the full commit it was selected from
+(`indexed_commit`), that commit's display form (`indexed_commit_short`) and the
+separately observed `current_head`; whether they are the same (`staleness`) and
+the background refresh of the index (`preparation.refresh`) are reported beside
+them. Every row, source line and "not found" describes the indexed commit, never
+the current HEAD or a commit under review. A composed answer whose parts
+describe different commits states no common commit: `mixed_source: true` says
+so and each part keeps its own. The refresh runs in a separate process, may
+update the ignored derived cache, and never indexes dirty worktree bytes. With
+no usable published index the route returns `available: false` with the index
+and refresh state and the same call to repeat, never an empty answer.
 
-- Markdown reads (`docs/...`, `wiki/issues/...`, `wiki/initiatives/...`, `wiki/decisions/...`, `wiki/sources/...`, `wiki/areas/...`, generated views) return `format: "markdown"` with `markdown` content, `frontmatter`, `body`, and link metadata.
-- JSON work-record reads on `wiki/work-records/WK-####.json` return `format: "json-work-record"`. Registered initiative and decision JSON reads return `format: "json-kind-record"`, `source_classification: "canonical"`, and `canonical_record_path`. These reads are compact-first and have no whole-record mode: read any current member with `member: {path}`, which returns a bounded page of immediate members or one exact string range and pins the 16-hex `source_digest` in every emitted call, or read 1 to 16 explicit members of the same record or slice in one bounded response with `members: [{path}, ...]` and one top-level `expected_source_digest`. A container page reaches its listed children through `members` batch calls rather than per-row calls. `include_body` reads Markdown page bodies only; it is refused for canonical records and for record projections under `wiki/issues/`, `wiki/initiatives/`, and `wiki/decisions/`. `member` is refused on any Markdown path. When either refusal addresses the exact generated projection of a registered initiative or decision and that canonical record loads valid under the same identity and repository binding, the refusal carries one recommended `next_calls` entry: the `member` read of the canonical JSON path, keeping a refused `member` selection or selecting the record root for a refused `include_body`, pinned to the verified `source_digest` unless the caller pinned one. A missing, traversal, unregistered, or ordinary Markdown path receives the plain refusal. Support for registered canonical paths does not permit arbitrary JSON or filesystem reads.
-- The generated `wiki/catalog.md` links each registered initiative and decision to its canonical JSON path, resolved through the same manifest-derived kind-record authority as reads, when that canonical record loads valid; a projection whose canonical record is missing or invalid, and every other catalog entry, links its own page.
-- Graph-evidence sidecar reads on `wiki/work-records/evidence/WK-####.graph.json` return `format: "graph-evidence-sidecar"`. These per-WK sidecars hold the full graph-impact replay/debug payloads that the canonical work record keeps only as compact refs. They are replay/debug data and never dispatch-control input; canonical WK compact refs remain the pointer. The read projection and parameters are summarized in the bullets below, and the operation-level contract is listed in [docs/mcp-operation-reference.md](mcp-operation-reference.md).
-- Missing JSON work-record paths return a `Wiki record path not found` error rather than treating the absent file as Markdown.
-- Search-selected reads load and revalidate only the selected source. Their opaque binding survives restart while bytes and projection context remain unchanged, and refuses changed/deleted/reordered sources without disclosing stale text.
+`status: true`, alone, is the passive alternative: it reports availability,
+the published index (`read_mode: "status"`, the same `indexed_commit` labels),
+the separately observed `current_head`, freshness, dirty state, base-graph and
+SCIP usability, coverage qualifications and the owner's reason/action. Deep
+generator, provider, dependency and provenance populations stay in the retained
+status evidence. For a fresh index the recommended selection reads the complete
+`graph_snapshot`, or `derived_evidence` when no snapshot exists. A published
+index that is not fresh recommends `diagnosis` instead: the status reason,
+freshness, required action and base-graph and SCIP usability of that status
+read, beside its `indexed_commit`, `indexed_commit_short` and observed
+`current_head`, with no provider, dependency, toolchain or cache record. A
+diagnosis read also states `preparation` and, when it holds one, the preparation
+call of the session reading it, decided by that session's own registration after
+the retained source is authenticated; a diagnosis retained by a session that can
+prepare lends another session nothing. It is the earlier read's observation, not
+a new status probe, and `observation` states the present comparison. The
+complete `graph_snapshot` and `derived_evidence` are unchanged and stay
+explicitly selectable through `selected_detail.choices`. Status neither prepares
+a layer nor requests a refresh. `preparation.state` says what the serving session can do
+about an index that needs preparing: `not_needed`; `action_available`, when the
+session's own registration holds `workspace_code_index_build` and its request
+schema accepts `{}`, in which case that exact call leads `next_calls` with
+`purpose: "prepare_index"`; or `capability_unavailable` with
+`missing_capability: "prepare_code_index"`, in which case no preparation call or
+route name is emitted. The cause, `indexed_commit` and `current_head` are
+reported either way, and a usable stale index stays `available: true`. Evidence
+selections, the diagnosis included, carry `purpose: "inspect_evidence"`: they
+read the retained status evidence and prepare, refresh and repair nothing. The `available: false` answer
+to a question carries the same `preparation` beside the call to repeat.
+A `detail` read of a retained answer (`read_mode: "retained"`) is equally
+passive. A question, `status` and `detail` are mutually exclusive, and an
+undeclared or conflicting argument is refused before any owner runs.
+Missing or conflicting question selections return the input owner's specific
+`sidecar_query_input_invalid` cause (`sidecar_navigation_input_invalid` for a
+delegated navigation selection), with its complete diagnostic and supported
+question alternatives. The existing input-refusal owner carries that diagnosis
+in `refusal.diagnostic`. Recovery states `choice_required` for the caller, with
+no fabricated next call: the caller chooses the question and supplies its values.
+These refusals change no index, publication or retained answer. Unexpected
+selection or query execution failures keep the shared response owner's failure
+path and original diagnostic; they are not classified as caller choice.
+`workspace_code_index_build` and `workspace_code_index_rebuild` are the
+operator's routes: they prepare the current HEAD and wait.
 
-`workspace_read_page` graph-evidence sidecar parameters:
-
-- Default (no flag) returns the compact projection: `schema_version`, `record_id`, generated/updated metadata, the diagnostic whole-file `graph_sidecar_digest`, a `record_entry` availability summary (`available`, `graph_entry_digest`, `replay_detail_available`), `slice_count`, and a `slices` list of `{ slice_id, unit_address, graph_entry_digest, replay_detail_available }` entries only. No raw `graph_impact`/`graph_nodes`/`graph_edges` payloads are returned.
-- `selected_slice: <slice-id>` returns that one slice's full replay entry under `selected_slice` (with `selected_slice_found`), without sibling entries.
-- `selected_record: true` returns only the record-level entry under `record_entry` (with `record_entry_found`). It is mutually exclusive with `selected_slice`; supplying both is rejected.
-- There is no whole-sidecar or raw-text read: `include_record`, `include_raw`, and `verbose` are not `workspace_read_page` arguments.
-- The whole-file `graph_sidecar_digest` is diagnostic only (sibling-slice updates change it); routine replay/debug binding uses each entry's `graph_entry_digest`.
-
-`workspace_get_record` resolves canonical wiki records by durable ID:
-
-- `WK-*` records that have a canonical `wiki/work-records/WK-####.json` are returned as `format: "json-work-record"` from JSON authority, even when generated Markdown views are missing or stale.
-- `IN-*` and `DEC-*` resolve to their registered canonical JSON records and return `format: "json-kind-record"`. Their authority does not depend on a generated Markdown projection being present or current. `workspace_read_page` addressed by `id` reads the same records, including `member` pages.
-- `SRC-*` and area records use their Markdown sources and return `format: "markdown"`.
-- Unknown IDs return a `Wiki record not found` error.
-
-Compact tracker work-record reads and summaries intentionally distinguish
-WK-level orientation from selected-slice retrieval:
-
-- WK-level defaults for tracker records in `workspace_get_record`,
-  `workspace_read_page`, and `workspace_work_record_summary` suppress detailed
-  slice bodies for `done`, `cancelled`, and `parked` slices. Status counts and
-  slice-detail omission metadata remain the way to see which statuses and how
-  many slices were suppressed.
-- WK-level defaults omit record-level and slice-level `agent_notes` bodies.
-  Included slice rows may expose `agent_notes_bytes`, an integer byte count
-  that signals note presence/size without returning the note body.
-- When an agent needs one suppressed slice's detail or notes, use the targeted
-  selected-slice paths: `workspace_read_page(..., selected_slice: "<slice-id>")`
-  for `wiki/work-records/WK-####.json`,
-  `workspace_get_record(..., selected_slice: "<slice-id>")`, or
-  `workspace_work_record_summary(..., unit: "WK-0001#slice-id")`. These
-  selected-slice responses include that slice's details and complete direct
-  `agent_notes` value by default. They continue to omit `agent_notes_bytes`.
-  When authored `sections.agent_notes` is exactly the same string, or an array
-  of the same length with the same strings in the same order, the response
-  removes that identical nested copy. This includes sections-only authored
-  notes because selected-unit projection creates the complete direct copy.
-  Distinct direct and nested values are both preserved. Consequently,
-  `sections.agent_notes` may be absent from a selected-slice response even
-  though it is authored in the canonical file; the `sections` container itself
-  remains present, including as `sections: {}`.
-- There are no full or debug opt-ins on these routes: `verbose`,
-  `include_record`, `include_raw`, `include_full_summary`, `accept_full_read`,
-  and `compact_read_token` fail schema validation. Complete content is reached
-  through explicit selection: `member: {path}` for any current record or slice
-  member, `members: [...]` for up to 16 of them at once,
-  `workspace_work_record_entry_read` for entries and versions, and
-  `ordinary_field` for enrolled text. A reference to an unselected whole record
-  is never returned in place of a selected value.
-- Write routes that accept `verbose: true` return their complete diagnostics and
-  detail fields but never the whole record, including for a no-op edit. The
-  mutation result, the 16-hex `source_digest`, and error identity are the write response;
-  record content is read back through the selected routes above.
-
-Omitted `done`, `cancelled`, or `parked` slice details and omitted WK-level
-agent note bodies are default response shaping, not missing canonical data. Do
-not recover them by shelling out, editing raw JSON, changing spill limits, or
-changing storage; use a targeted selected-slice, member, entry, or ordinary-field
-read.
-
-`workspace_create_record` is the workspace-scoped structured create route agents
-should use for allocator-backed canonical wiki records when that MCP tool is
-exposed by the active descriptor-audience and registered-tier gates:
-
-- Inputs are `{ repo?, type, title, id? }`. Omitted `repo` follows the same workspace resolver precedence as the other repo-scoped tools: explicit caller `repo`, then launcher/server-minted local repo alias, then structured not-in-repo / wrong-session refusal. The tool never accepts a caller-supplied filesystem `dir`.
-- `type: "issue"` allocates the next `WK-####` and writes canonical `wiki/work-records/WK-####.json`, consuming any outstanding `allocate_id` reservation. Returned structured content includes `id`, `jsonRelativeFile`, and `jsonAbsoluteFile` for the JSON authority.
-- Initiative and decision creation writes canonical JSON in the registered kind directory and produces the corresponding Markdown projection. The projection path in a creation receipt is not the canonical record path. Use live discovery to select the currently exposed creation route and its input schema.
-- Source and slug-based area records use their shared allocator/template routes and Markdown storage.
-- Unknown `repo` aliases return the standard workspace `Unknown workspace repo alias` error and never silently fall back to another root.
-- The non-workspace `create_record` tool with a caller-supplied `dir` is reserved for admin/operator flows; agent-safe exposure is still determined by descriptor audience plus registered-tier gating, not by this prose distinction.
-
-For agents, the structured workspace tool to use is:
-
-- `workspace_get_record` when a durable record ID such as `WK-0001` is already known.
-- `workspace_read_page` when the canonical repo-relative path is already known, including registered WK, IN, and DEC JSON paths.
-- `workspace_create_record` when a new canonical record must be allocated through the shared allocator/template path.
-
-Codex agent-facing repo instructions should prefer the repo-local CLI for search/read/get-record retrieval. Codex may prompt for MCP calls when encrypted reasoning or prior tool-call state is attached to a request, even when the MCP tool is read-only and workspace-scoped. Non-workspace MCP tools remain reserved for admin, bootstrap, migration, and tooling-test flows where an operator intentionally selects the target checkout.
-
-`workspace_code_index_context_for_path` returns complete committed context for one repo-relative path: the file's exact committed source, graph relationships, inferred related code and tests, canonical records, and `affected_files` whose relationships name their basis. A valid path outside the indexed corpus keeps its guidance and reports source `indexed_corpus_excluded`; a path absent from the commit reports `missing_file_descriptor`; forbidden or malformed paths are refused before preparation. Source and line counts come only from the committed publication. That complete answer is retained once as the route's selected-response source; the response carries identity, source state and line count, trust facts, and bounded code-graph `graph_paths` with whole-population totals, as described in [Tool Discovery Surfaces](tool-discovery-surfaces.md).
-
-The context route and `workspace_code_index_impact` automatically prepare
-the same exact committed-HEAD base/SCIP pair used by graph impact and symbol
-navigation. This may update the ignored derived cache; it never indexes dirty
-worktree bytes. `workspace_code_index_status` is the read-only inspection route
-and never prepares either layer.
-
-- The default is `context_available: "compact"`: committed identity, trust facts, source metadata, and at most twenty entries of each population with exact `counts` totals. Committed source above 1200 lines is omitted with `source_text_omitted: true`; large files are never refused. This threshold is unrelated to worker-admission policy and produces no admission verdict.
-- Before any compact omission, the complete original answer is retained once as the route's selected-response source, and `selected_detail` carries its opaque `source` `{ref_id, sha256}` and collection counts; the top-level `next_calls` selects the answer's first affected file by path. A call with `detail` names one collection of that original, narrowed by `selector.id`, `path`, `symbol` or `relationship`; `input_path` narrows one affected file's relationships and `lines` selects absolute retained source lines. The `candidates` collection exposes ambiguity without choosing a candidate. These reads never evaluate the question again; the public ranged reader refuses the original bytes. A retention failure is returned as that failure, never as a compact success.
+- The default file context is `context_available: "compact"`. It leads with the requested path, committed source identity/state, line count and source metadata, followed by index freshness/refresh, trust facts and bounded code-graph relationships with exact totals. Source text stays retained with `source_text_omitted: true`. The recommended complete call selects that file's `source`, including every committed source byte.
+- Before any compact omission, the complete original answer is retained once. Status and file context carry `selected_detail.source` `{ref_id}`, `snapshot_identity`, collection counts and concise `choices` objects. They emit one recommended complete `next_calls` call. To select any choice, call `query_code_index` with `{detail:{source:selected_detail.source,snapshot_identity:selected_detail.snapshot_identity,...choice}}`. This shares source context without repeating an expanded envelope for every member; no collection name needs to be guessed. Impact and navigation retain their existing collection calls.
+- A `detail` names one retained collection or member. `selector.id`, `path`, `symbol` and `relationship` narrow rows; `input_path` narrows one affected file's relationships and `lines` selects absolute retained source lines. The `candidates` collection exposes ambiguity without choosing a candidate. The shared selected-response registry keeps ordering, row boundaries, totals, authenticated snapshots/cursors, seeking and source-based recovery. `page` states the matched total, offset and whether rows remain; `next_calls` holds at most its one continuation with the same source and filters. Complete selected rows use authenticated selected-full delivery, including a source or provenance row larger than the ordinary summary bound. Oversized rows require no field inventory or byte reconstruction. These reads retain no new original, evaluate no question, prepare no index and request no refresh. A retention failure remains that failure, never a compact success.
 - There is no verbose or `full_result` form; a new evaluation is a new question. CLI `--json` and `--verbose` print the complete answer, and plain CLI output lists every population.
 
 The internal pure owner for likely-test and same-directory path inference is
@@ -371,9 +163,9 @@ their own presentation limits; compact projections display at most twenty
 entries while their counts and the retained complete answer cover the complete
 population. These hints remain path inference, not graph dependencies.
 
-`workspace_code_index_impact` accepts exactly one subject — `paths`,
-`patchText`, `diffRecords`, or `liveGit: true` — plus `repo`, `cacheDir`,
-`includeSuppressed`, and `verbose`. Empty `paths`, `patchText`, and
+A change-impact question supplies exactly one subject — `paths`,
+`patchText`, `diffRecords`, or `liveGit: true` — plus optional
+`includeSuppressed`, and `path` or `symbol` to narrow it. Empty `paths`, `patchText`, and
 `diffRecords` are explicit no-change requests. Mixed subjects, unknown keys,
 malformed diff records, and diffs beyond 1,048,576 normalized bytes, 20,000
 lines, or 1,000 records are refused as invalid requests. Live Git only selects
@@ -404,6 +196,26 @@ uses a fixed selected read whose publication must equal that snapshot;
 current-worktree graph queries retain their separate transient dirty-overlay
 selection. Transport adapters must not add another ensure or verification loop.
 
+The adapter forwards the action `ensureSidecarIndex` itself reported. The
+context, impact and symbol-navigation query envelopes take their common
+preparation and source fields from one projection, `committedEnvelopeFields` in
+`packages/wiki-core/src/lib/sidecar-query-selection.mjs`:
+
+| Field | Meaning |
+| --- | --- |
+| `indexed_commit` | The full commit of the published snapshot the answer was read from (`graph_snapshot.repository_commit`). It is the authoritative identity. |
+| `indexed_commit_short` | The first 12 hexadecimal characters of `indexed_commit`, for display only. It is not a unique identity, a lookup key, or proof of currentness. |
+| `current_head` | The Git HEAD observed for the request. It is a separate observation and never stands in for the indexed commit. |
+| `preparation.action` | The owner's action for this request: `published_snapshot`, `reused`, `coalesced`, `build`, `rebuild`, `incremental`, or `advance_tag`. A request that joined another caller's update reports `coalesced`, not the update that caller performed. |
+| `preparation.publication_outcome`, `preparation.changed` | The owner's own facts when it supplies them, otherwise `null`. |
+
+When no publication identity is available, `indexed_commit` and
+`indexed_commit_short` are `null` and `status_reason` carries the cause; the
+current HEAD is never substituted. A preparation fact the owner did not report
+is `null`: no effect is inferred from the build result or from comparing status
+before and after. The symbol-navigation envelope keeps its own `scip_state`,
+provider descriptors, coverage and provenance.
+
 `ensureSidecarIndex` applies the one freshness classifier. A publication already
 tagged with the captured commit, with a compatible extraction basis, complete
 provider coverage and provider input records that still match the installed
@@ -416,7 +228,7 @@ the clean path. Moving HEAD observations restart within the shared bounded pass
 count. Dirty worktree bytes remain outside both layers and are collected only
 when a caller's response reports them.
 
-`workspace_code_index_status` and its core/CLI equivalents remain read-only. The
+The `status: true` read and its core/CLI equivalents remain read-only. The
 status result reports the base verdict separately from `scip_state`, including
 the provider input identity, freshness, availability, and its own
 `index_action`; it never runs a provider. Optional build and rebuild controls use
@@ -424,10 +236,11 @@ the same preparation owner; rebuild forces a clean candidate for the same commit
 
 Preparation may write ignored derived cache artifacts through the existing
 builder. It does not edit source files or canonical docs/work records, clean
-the worktree, or grant dispatch authority. Impact calls therefore are not
-strictly read-only operations. The standalone `workspace_code_index_status`
-operation remains read-only and reports the state it finds without preparing
-the index. Its diagnostic result is not a manual build prerequisite.
+the worktree, or grant dispatch authority. Ordinary `query_code_index`
+questions request that background refresh, so they are not strictly read-only
+operations and discovery advertises the write. The `status: true` and `detail`
+reads remain read-only and report the state they find without preparing the
+index. A status result is not a manual build prerequisite.
 
 The index represents committed files. Dirty files do not prevent preparation
 and must not be presented as indexed by that committed baseline. Results keep
@@ -459,8 +272,7 @@ tag stay in place and no partial provider coverage is published. A
 commit-independent project whose input record did not change keeps its earlier
 output and the commit that produced it; a commit-sensitive producer reruns at
 every new commit. Provider activation, input records and Go and Rust execution
-are specified in
-[MCP Operation Reference](mcp-operation-reference.md#code-index-provider-activation-and-input-identity).
+are recorded with each publication and reported by the status read.
 SCIP bytes are decoded with the released `@scip-code/scip` generated bindings.
 Alongside aggregate symbol and call edges, the published overlay retains native
 `symbol_occurrences` with provider, path, raw symbol, stable global or
@@ -482,34 +294,30 @@ failure behavior.
 
 Graph impact is an agent workflow checkpoint, not a primary manual user
 workflow. After canonical wiki/docs retrieval identifies the assigned `WK-*`,
-durable docs, and candidate implementation paths, implementation workers should:
+durable docs, and candidate implementation paths, a session that holds
+`query_code_index` should:
 
-1. call MCP `workspace_code_index_status` for the configured workspace repo
-   alias
-2. call MCP `workspace_code_index_impact` with the repository-relative `paths`
-   they may edit
-3. after a diff exists, call MCP `workspace_code_index_impact` with parsed
-   `diffRecords`, raw `patchText`, or `liveGit: true`
+1. call MCP `query_code_index` with the repository-relative `paths` it may
+   edit
+2. after a diff exists, call MCP `query_code_index` with parsed `diffRecords`,
+   raw `patchText`, or `liveGit: true`
 
-The route returns a compact answer bound to its retained complete original by
-`selected_detail.source`. To record that exact answer as graph-impact evidence,
-pass the source as `graph_impact_source` to
-`workspace_record_graph_impact_evidence`; the server reads and persists the
-complete original without re-evaluating it and reports whether that
-observation is still the committed HEAD. Calling the recorder with only the unit
-computes the unit's impact now, as a new operation.
+No status call is a prerequisite; `query_code_index` with `status: true` is
+available when the published commit itself is the question. The route returns a
+compact answer bound to its retained complete original by
+`selected_detail.source`; read that original through the returned `detail`
+selection.
 
 Use the CLI forms, such as `npm run wiki -- code-index impact --paths <path>` and
-`npm run wiki -- code-index impact --live-git`, only when MCP approval prompts,
-client tooling, or workspace alias configuration block the MCP tools. The CLI
-fallback must preserve the same trust envelope: graph evidence is derived code
-index evidence, while durable `docs/` pages and canonical `wiki/` records remain
-authoritative.
+`npm run wiki -- code-index impact --live-git`, only when the session does not
+hold the MCP tool. The CLI must preserve the same trust envelope: graph evidence
+is derived code index evidence, while durable `docs/` pages and canonical
+`wiki/` records remain authoritative.
 
-Worker final answers and handoff closure notes should report:
+Final answers and handoff notes that rely on graph impact should report:
 
 - input paths or diff endpoints queried
-- tool used, including whether MCP or CLI fallback was used
+- tool used, including whether MCP or the CLI was used
 - `dirty_state` and `staleness`
 - graph edge source from `graph_state.edge_source`
 - key missing-update hints
@@ -517,33 +325,33 @@ Worker final answers and handoff closure notes should report:
 
 ## Package-Owned Documentation Versus Workspace Pages
 
-Two read routes exist because two different things own the bytes, and confusing
-them is what made discovery advertise a documentation path a consuming
-repository did not contain.
+Two different owners hold the bytes a read can return, and confusing them is
+what made discovery advertise a documentation path a consuming repository did
+not contain. `workspace_read_wiki` reads both, and the request says which:
 
-- `workspace_read_page` reads pages the CONSUMING WORKSPACE owns, resolved
-  against the configured repo alias. It is workspace-scoped and never
-  reinterprets a package path.
-- `workspace_read_tool_doc` reads documentation the launching PACKAGE owns,
-  resolved against the documentation bundle that package supplies. It accepts
-  only a tool the session can currently see plus one of that tool's currently
-  advertised package-scoped logical paths, and it reads only manifest-contained
-  bundled files.
+- A `subject` or `search` reads what the CONFIGURED REPOSITORY owns: its
+  canonical records and its own pages. It never reinterprets a package path.
+- A `reference` of `{tool_name, path}` reads documentation the launching
+  PACKAGE owns, resolved against the documentation bundle that package
+  supplies. It accepts only a tool the session can currently see plus one of
+  that tool's currently advertised package-scoped logical paths, and it reads
+  only manifest-contained bundled files. The answer states the owning package
+  and version with the document's digest and size, and returns the selection
+  that reads its whole text.
 
-Which route applies is decided by descriptor provenance, not by probing which
+Which owner applies is decided by descriptor provenance, not by probing which
 filesystem happens to contain the relative path. Built-in AgentChassis
-descriptor references are package-scoped; a descriptor may declare individual
-references workspace-owned, and those keep `workspace_read_page`. When the same
-logical path exists in both places the declared owner wins deterministically, so
-a workspace file can never shadow a package-owned built-in reference and a
-package-owned reference never falls back to the consuming workspace. Every
-refusal on that boundary carries a stable typed code; the codes are tabulated in
+descriptor references are package-scoped. When the same logical path exists in
+both places the declared owner wins deterministically, so a repository file can
+never shadow a package-owned built-in reference and a package-owned reference
+never falls back to the configured repository. Every refusal on that boundary
+carries a stable typed code; the codes are tabulated in
 [Package-Document Read Diagnostics](tool-discovery-schema.md#package-document-read-diagnostics).
 
 The documentation bundle reaches the server as a closed carrier value handed
 over by the package that owns it — today `@agent-chassis/core`'s forwarding bin,
 derived from its own module location and its own `package.json`. There is no
 environment variable, caller-supplied root, ancestor-package search, hoisting
-assumption, or workspace fallback that can produce one. A standalone
-`@agent-chassis/wiki-mcp` launch therefore carries no documentation bundle and
-advertises no package-owned reference it cannot read.
+assumption, or repository fallback that can produce one. A standalone
+`@agent-chassis/wiki-mcp` launch therefore carries no documentation bundle, and
+its reader refuses a package reference with the carrier-unavailable code.

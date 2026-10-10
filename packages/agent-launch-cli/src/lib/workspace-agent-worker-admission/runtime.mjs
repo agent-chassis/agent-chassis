@@ -490,8 +490,9 @@ export async function evaluateWorkerAdmissionForBackend({
     if (!currentManagedSource.ok) return currentManagedSource.decision;
   }
   const now = new Date().toISOString();
+
   const readiness = await (await loadValidateWorkRecordDispatch())(
-    { dir: repo, unitAddress, now });
+    { dir: repo, unitAddress, suppress_live_graph_resolution: true, now });
   if (!readiness.dispatchable) {
     return {
       allowed: false,
@@ -583,6 +584,7 @@ export async function resolveRemoteWorkerAdmissionPackResultForUnit({
           resolvedReadiness = await validateDispatch({
             dir,
             unitAddress: unit?.address ?? null,
+            suppress_live_graph_resolution: true,
             now: new Date().toISOString()
           });
         } catch {

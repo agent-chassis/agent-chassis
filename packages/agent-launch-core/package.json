@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/agent-launch-core",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -28,6 +28,7 @@
     "./src/lib/agent-role-guides.mjs": "./src/lib/agent-role-guides.mjs",
     "./src/lib/agent-role-result-schema-path.mjs": "./src/lib/agent-role-result-schema-path.mjs",
     "./src/lib/agent-role-result.mjs": "./src/lib/agent-role-result.mjs",
+    "./src/lib/codex-session-hook-config.mjs": "./src/lib/codex-session-hook-config.mjs",
     "./src/lib/config.mjs": "./src/lib/config.mjs",
     "./src/lib/durable-runtime-state.mjs": "./src/lib/durable-runtime-state.mjs",
     "./src/lib/filesystem.mjs": "./src/lib/filesystem.mjs",
@@ -38,6 +39,11 @@
     "./src/lib/litellm-gateway.mjs": "./src/lib/litellm-gateway.mjs",
     "./src/lib/managed-provisioning-result-assertion.mjs": "./src/lib/managed-provisioning-result-assertion.mjs",
     "./src/lib/managed-provisioning-result-shape.mjs": "./src/lib/managed-provisioning-result-shape.mjs",
+    "./src/lib/native-usage-claude-session.mjs": "./src/lib/native-usage-claude-session.mjs",
+    "./src/lib/native-usage-codex-session.mjs": "./src/lib/native-usage-codex-session.mjs",
+    "./src/lib/native-usage-session-binding.mjs": "./src/lib/native-usage-session-binding.mjs",
+    "./src/lib/native-usage-records.mjs": "./src/lib/native-usage-records.mjs",
+    "./src/lib/proxy-environment.mjs": "./src/lib/proxy-environment.mjs",
     "./src/lib/registry.mjs": "./src/lib/registry.mjs",
     "./src/lib/role-guard.mjs": "./src/lib/role-guard.mjs",
     "./src/lib/work-record-gate.mjs": "./src/lib/work-record-gate.mjs",
@@ -47,7 +53,7 @@
     "node": ">=24.20.0"
   },
   "dependencies": {
-    "@agent-chassis/wiki-core": "^0.9.0",
+    "@agent-chassis/wiki-core": "^0.10.0",
     "xml2js": "0.6.2"
   }
 }

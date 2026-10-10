@@ -1,13 +1,180 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
-import { registerLandingStatusRoute } from
+import { registerLandingStatusRoute, CHECK_LANDING_INPUT_SCHEMA, createCheckLandingTask,
+  buildCheckLandingRequest, projectCheckLandingInputFailure } from
   "../../packages/wiki-mcp/src/lib/dispatch-tools/landing-status-route.mjs";
+import { validateWkPublicationSelection } from
+  "../../packages/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
+import { projectToolInputValidationFailure } from "../../packages/wiki-mcp/src/lib/register-tool.mjs";
 import { DISPATCH_FAILURE_ORIGINALS } from "../../packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs";
+import { selectedResponseRequestSchema } from "../../packages/wiki-mcp/src/lib/selected-response-snapshot.mjs";
+import { requestContractErrors } from "../../packages/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+
+test("check_landing rejects malformed or unauthorized input before observation", async () => {
+  const subject = "WK-2739";
+  const local = { kind: "publication", version: "a".repeat(64), head: "b".repeat(40),
+    destination: { transport: "local" } };
+  const git = { ...local, destination: { transport: "git", remote: "delivery" } };
+  const hosted = { ...local, head: "b".repeat(64),
+    destination: { transport: "hosted", remote: "origin" }, proposal: 42 };
+  assert.deepEqual(Object.keys(CHECK_LANDING_INPUT_SCHEMA.shape), ["subject", "selection"]);
+  const advertised = selectedResponseRequestSchema(CHECK_LANDING_INPUT_SCHEMA);
+  for (const request of [{ subject }, ...[local, git, hosted].map((selection) => ({ subject, selection }))]) {
+    assert.equal(CHECK_LANDING_INPUT_SCHEMA.safeParse(request).success, true);
+    assert.deepEqual(requestContractErrors("workspace_check_landing", request, advertised), []);
+    assert.deepEqual(buildCheckLandingRequest(request), { kind: "intended_tool_request",
+      tool: "workspace_check_landing", arguments: request, callable: false });
+  }
+  let calls = 0;
+  const adapter = async () => { calls++; assert.fail("malformed/forbidden call observed landing"); };
+  const task = createCheckLandingTask({ env: { WIKI_MCP_TOOL_PROFILE: "orchestrator" },
+    wkLandingStatusAdapter: adapter });
+  const harmful = [null, {}, { subject: "WK-1" }, { subject: 2739 },
+    ...["repo", "alias", "path", "branch", "base", "authority", "credentials", "assigned_unit", "unit",
+      "candidate", "merge", "publish", "integrate", "tool", "args"].map((field) => ({ subject, [field]: "x" })),
+    ...[null, { ...local, kind: "candidate" }, { ...local, version: "a" },
+      { ...local, head: "0".repeat(40) }, { ...local, head: "B".repeat(40) },
+      { ...local, head: "b".repeat(12) }, { ...local, token: "claimed authority" },
+      { ...local, proposal: 1 }, { ...git, proposal: 1 }, { ...hosted, proposal: undefined },
+      { ...hosted, proposal: 0 }, { ...hosted, proposal: 1.1 },
+      { ...hosted, proposal: Number.MAX_SAFE_INTEGER + 1 },
+      { ...local, destination: { transport: "local", remote: "origin" } },
+      { ...git, destination: { transport: "git", remote: "" } },
+      { ...hosted, destination: { transport: "hosted", remote: "origin", url: "https://foreign" } }
+    ].map((selection) => ({ subject, selection }))];
+  for (const request of harmful) {
+    assert.equal(CHECK_LANDING_INPUT_SCHEMA.safeParse(request).success, false, JSON.stringify(request));
+    assert.ok(requestContractErrors("workspace_check_landing", request, advertised).length > 0,
+      `advertised schema refuses ${JSON.stringify(request)}`);
+    await assert.rejects(() => task.handler(request), (error) => {
+      assert.equal(error.envelope.diagnostic.tool, "workspace_check_landing");
+      assert.ok(error.envelope.diagnostic.validator_diagnostics.length > 0);
+      return true;
+    });
+    if (request?.selection !== undefined) assert.equal(validateWkPublicationSelection(request.selection).ok, false);
+  }
+
+  const requestContract = { acceptsArguments: async (value) => CHECK_LANDING_INPUT_SCHEMA.safeParse(value).success };
+  const project = (args, registeredTools = new Set(["workspace_check_landing"])) =>
+    projectCheckLandingInputFailure({ args, validationError: CHECK_LANDING_INPUT_SCHEMA.safeParse(args).error,
+      requestContract, registeredTools });
+  const pinned = { subject, selection: { ...local, version: "current" } };
+  const sent = structuredClone(pinned);
+  const guided = await project(pinned);
+  assert.deepEqual(pinned, sent, "the rejected request is not rewritten");
+  assert.deepEqual([guided.code, guided.accepted, guided.subject], ["tool_input_validation_failed", false, subject]);
+  assert.deepEqual(guided.invalid_fields.map((field) => [field.path, field.code, field.validation]),
+    [[["selection", "version"], "invalid_string", "regex"]]);
+  assert.match(guided.invalid_fields[0].message, /exactly 64 lowercase hexadecimal characters identifying one publication version/u);
+  assert.match(guided.correction, /COMPLETE selection the publication owner returned/u);
+  assert.match(guided.correction, /worker or delivery commit or the literal "current"/u);
+  assert.deepEqual(guided.next_calls, [{ tool: "workspace_check_landing", arguments: { subject } }],
+    "the alternative is allowed, never the recommended repair");
+  assert.equal(guided.current_observation_alternative.call, guided.next_calls[0]);
+  assert.match(guided.current_observation_alternative.label, /^OPTIONAL ALTERNATIVE: observe CURRENT/u);
+  assert.match(guided.current_observation_alternative.not_a_correction, /not the requested pinned read and repairs no failed publication/u);
+  for (const unusable of [await project({ selection: pinned.selection }),
+    await project({ subject: "WK-1", selection: pinned.selection }), await project(pinned, new Set())]) {
+    assert.match(unusable.correction, /COMPLETE selection/u);
+    assert.equal(unusable.current_observation_alternative, null);
+    assert.deepEqual(unusable.next_calls, [], "no callable alternative without a valid, registered request");
+  }
+  for (const other of [{ subject, selection: { ...local, head: "b".repeat(12) } }, { subject, repo: "x" }]) {
+    assert.deepEqual(await project(other), await projectToolInputValidationFailure({ tool: "workspace_check_landing",
+      args: other, validationError: CHECK_LANDING_INPUT_SCHEMA.safeParse(other).error, requestContract }),
+    "every other refusal keeps the shared projection unchanged");
+  }
+  for (const role of ["worker", "reviewer", "redteam"]) {
+    const denied = await createCheckLandingTask({ env: { WIKI_MCP_TOOL_PROFILE: role },
+      wkLandingStatusAdapter: adapter }).call({ subject, selection: local });
+    assert.equal(denied.structuredContent.blocker.reason, "check_landing_role_forbidden");
+    assert.equal(denied.structuredContent.subject.unit, subject);
+    assert.equal(denied.structuredContent.refusal.recovery.responsible_actor, "launcher");
+  }
+  const absent = await task.call({ subject });
+  assert.equal(absent.structuredContent.blocker.reason, "check_landing_session_repository_missing");
+  assert.equal(absent.structuredContent.refusal.recovery.missing_component, "session_workspace");
+  assert.equal(calls, 0);
+});
+
+test("check_landing delivers complete semantic causes and authenticates retained originals without observation", async (t) => {
+
+  const scope = createTestResourceScope();
+  t.after(() => scope.dispose());
+  const stateDir = mkdtempSync(path.join(os.tmpdir(), "check-landing-delivery-"));
+  scope.add("landing response state", () => rmSync(stateDir, { recursive: true, force: true }));
+  const subject = "WK-2739";
+  const selection = { kind: "publication", version: "a".repeat(64), head: "b".repeat(40), destination: { transport: "local" } };
+  const semantic = { stage: "handoff", reason: "fixture_authentication_unavailable",
+    message: "semantic multibyte 🧭🙂".repeat(2000), token: "genuine selected publication token fact",
+    nested: Array.from({ length: 80 }, (_, id) => ({ id, facts: { message: `fact ${id}`, token: `token ${id}` } })) };
+  let calls = 0;
+  const env = { ...process.env, WIKI_MCP_TOOL_PROFILE: "orchestrator",
+    WIKI_MCP_RESPONSE_STATE_DIR: stateDir, WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: "8192" };
+  const workspace = { repo: "fixture", dir: stateDir };
+  const adapter = async () => {
+    calls++;
+    return { accepted: true, landing: { state: "unavailable", selection, selection_authenticated: false,
+      transport: null, landing_authority: null, observed_base: null, landed_publication: null,
+      effects: { object_cache_fetch: "uncertain" },
+      cause: { ...semantic, stdout: "RAW-STDOUT", stderr: "RAW-STDERR", stack: "RAW-STACK" } } };
+  };
+  const task = createCheckLandingTask({ workspace, env, wkLandingStatusAdapter: adapter });
+  const delivered = await task.respond({ subject, selection });
+  const result = delivered.result;
+  assert.equal(result.structuredContent.response_spilled, undefined);
+  assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
+  assert.ok(Buffer.byteLength(result.content[0].text) > 8192);
+  const { retained_evidence, ...cause } = result.structuredContent.cause;
+  assert.deepEqual(cause, semantic);
+  assert.equal(retained_evidence.retained, false, "diagnostic projection itself remains a read");
+  assert.deepEqual(result.structuredContent.effects, { object_cache_fetch: "uncertain" });
+  assert.deepEqual(result.structuredContent.delivery, { transport_retention: "retained" });
+  const bytes = () => Object.fromEntries(readdirSync(stateDir, { recursive: true }).map(String)
+    .filter((name) => statSync(path.join(stateDir, name)).isFile())
+    .map((name) => [name, readFileSync(path.join(stateDir, name))]));
+  const retained = bytes();
+  const cold = createCheckLandingTask({ workspace, env,
+    wkLandingStatusAdapter: () => assert.fail("original read observed the live publication") });
+  const original = await cold.readOriginal(delivered.originalRequest);
+  assert.deepEqual(original.structuredContent, result.structuredContent);
+  for (const request of [{ ...delivered.originalRequest, subject: "WK-9999" },
+    { ...delivered.originalRequest, source: { ...delivered.source, sha256: "0".repeat(64) } }]) {
+    const refused = await cold.readOriginal(request);
+    assert.equal(refused.isError, true);
+    assert.equal(JSON.stringify(refused).includes(semantic.message), false);
+  }
+  const differentAuthority = createCheckLandingTask({ workspace,
+    env: { ...env, WIKI_MCP_TOOL_PROFILE: "operator" } });
+  assert.equal((await differentAuthority.readOriginal(delivered.originalRequest)).isError, true);
+  for (const [name, options, reason, stage] of [
+    ["forbidden role", { workspace, env: { ...env, WIKI_MCP_TOOL_PROFILE: "worker" } },
+      "check_landing_role_forbidden", "entitlement"],
+    ["missing profile", { workspace, env: { ...env, WIKI_MCP_TOOL_PROFILE: undefined } },
+      "check_landing_session_profile_unavailable", "session"],
+    ["missing workspace", { workspace: null, env },
+      "check_landing_session_repository_missing", "session"]
+  ]) {
+    await t.test(`original read refuses ${name} before retrieving content`, async () => {
+      const refused = await createCheckLandingTask({ ...options, responseEnv: env,
+        wkLandingStatusAdapter: () => { calls++; assert.fail("original read invoked the observer"); }
+      }).readOriginal(delivered.originalRequest);
+      assert.equal(refused.structuredContent.blocker?.reason, reason, JSON.stringify(refused.structuredContent));
+      assert.equal(refused.structuredContent.blocker.detail.stage, stage);
+      assert.equal(refused.structuredContent.subject.unit, subject);
+      assert.equal(JSON.stringify(refused).includes(semantic.message), false);
+      assert.deepEqual(bytes(), retained);
+      assert.equal(calls, 1);
+    });
+  }
+  assert.deepEqual(bytes(), retained);
+  assert.equal(calls, 1);
+});
 
 function harness(adapter, responseEnv = undefined) {
   const calls = { adapter: [], workspace: [] };

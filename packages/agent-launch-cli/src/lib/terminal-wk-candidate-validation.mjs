@@ -24,7 +24,7 @@ import path from "node:path";
 import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
-} from "./terminal-review-materialization.mjs";
+} from "./terminal-candidate-checkout.mjs";
 import { inspectDependencyMountpoint } from "./dependency-mountpoint-occupant.mjs";
 import { defaultTerminalCandidateRunGit } from "./terminal-wk-candidate.mjs";
 import {

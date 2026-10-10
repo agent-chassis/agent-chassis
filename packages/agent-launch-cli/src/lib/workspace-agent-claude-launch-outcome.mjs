@@ -75,7 +75,8 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
     plainSpawn,
     captureFinalResult,
     resolvedClaudePath,
-    killTimeoutMs
+    killTimeoutMs,
+    nativeUsageTap = null
   } = ctx;
   if (conduit) {
 
@@ -172,6 +173,7 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
           ),
 
         resolveSpawn: resolveClaudePlainSpawnPrimitive(plainSpawn),
+        stdoutTap: nativeUsageTap,
         postRunVerification: buildClaudePostRunVerification(ctx),
         adaptSupervisedResult: (supervised) =>
           attachDispatchProvenanceToSupervisedResult(
@@ -200,7 +202,8 @@ export async function settleClaudeSupervisedLaunch(ctx) {
     conduit,
     killTimeoutMs,
     resolvedClaudePath,
-    workspaceDir
+    workspaceDir,
+    nativeUsageTap = null
   } = ctx;
   const supervised = await launchWorkspaceAgentFamilyLaunchLifecycle({
     command: commandLine.command,
@@ -238,6 +241,7 @@ export async function settleClaudeSupervisedLaunch(ctx) {
         "claude_spawn_no_child",
         null
       ),
+    stdoutTap: nativeUsageTap,
     postRunVerification: buildClaudePostRunVerification(ctx),
 
     adaptSupervisedResult: (supervised) =>

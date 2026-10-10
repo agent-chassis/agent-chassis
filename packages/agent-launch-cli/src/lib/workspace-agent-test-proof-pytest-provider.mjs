@@ -279,21 +279,23 @@ export async function resolveInstalledPytestRuntime({ executionBudget = null, co
   });
 }
 
-export function assertInstalledPytestRuntimeCurrent(runtime) {
+export function refreshInstalledPytestRuntime(runtime) {
   let current;
   try {
     current = measureRuntimeInputs({ interpreter: runtime.interpreter,
       interpreterVersion: runtime.interpreter_version, runtimePackages: runtime.runtime_packages });
   } catch (error) {
-    fail(PYTEST_PROVIDER_ERROR_CODES.RUNTIME_INPUTS_MOVED, "installed pytest runtime inputs moved",
+    fail(PYTEST_PROVIDER_ERROR_CODES.RUNTIME_INPUTS_MOVED, "installed pytest runtime inputs can no longer be read",
       { errno: error?.code ?? null });
   }
-  const changed = ["interpreter_digest", "provider_asset_digest", "runtime_package_digests",
-    "runtime_inputs_digest"].filter((field) =>
+  if (current.provider_asset_digest !== runtime.provider_asset_digest) {
+    fail(PYTEST_PROVIDER_ERROR_CODES.RUNTIME_INPUTS_MOVED,
+      "the pytest provider assets changed after runtime resolution", { changed: ["provider_asset_digest"] });
+  }
+  const changed = ["interpreter_digest", "runtime_package_digests"].filter((field) =>
     JSON.stringify(canonicalize(current[field])) !== JSON.stringify(canonicalize(runtime[field])));
-  if (changed.length > 0) fail(PYTEST_PROVIDER_ERROR_CODES.RUNTIME_INPUTS_MOVED,
-    "installed pytest runtime inputs changed after runtime resolution", { changed });
-  return runtime;
+  if (changed.length === 0) return { runtime, changed };
+  return { runtime: Object.freeze({ ...runtime, ...current }), changed };
 }
 
 function encodeConfiguration(configuration) {
@@ -405,6 +407,25 @@ function runtimeErrorDetail(runtimeError) {
       ? { failure_diagnostic: runtimeError.failure_diagnostic } : {}) };
 }
 
+const PYTHON_FAULT_SHAPE_LIMITATION_REASONS = Object.freeze(["async_function_unsupported",
+  "body_not_single_scalar_return", "decorated_function_unsupported", "return_not_scalar"]);
+
+function unsupportedFaultRefusal(payload, expectation) {
+  const fault = payload.fault;
+  const prevalidationRefusal = payload.runtime_error === null && payload.session?.exit_status === null &&
+    Array.isArray(payload.phases) && payload.phases.length === 0 &&
+    Array.isArray(payload.collection?.collected_node_ids) &&
+    payload.collection.collected_node_ids.length === 0 &&
+    fault.compilations === 0 && fault.mutated_code === null &&
+    fault.module_path === expectation.module_path && fault.function_name === expectation.function_name &&
+    JSON.stringify(fault.replacement) === JSON.stringify(expectation.replacement) &&
+    sourceDigestCurrent(expectation, fault.module_path, fault.source_digest);
+  if (prevalidationRefusal && PYTHON_FAULT_SHAPE_LIMITATION_REASONS.includes(fault.reason)) {
+    return refusal("test_proof_native_instrumentation_unsupported", { reason: fault.reason });
+  }
+  return refusal("test_proof_python_fault_unsupported", { reason: fault.reason ?? null });
+}
+
 export function authenticateLauncherPytestEnvelope({
   protocolText,
   expectation,
@@ -456,9 +477,7 @@ export function authenticateLauncherPytestEnvelope({
       { count: population.count, members: population.members.slice(0, 64) });
   }
   if (expectation.mode === "probe") return { valid: true, payload, payload_sha256: envelope.payload_sha256 };
-  if (payload.fault?.status === "unsupported") {
-    return refusal("test_proof_python_fault_unsupported", { reason: payload.fault.reason ?? null });
-  }
+  if (payload.fault?.status === "unsupported") return unsupportedFaultRefusal(payload, expectation);
   if (payload.runtime_error !== null) {
     return refusal("test_proof_structured_events_invalid", runtimeErrorDetail(payload.runtime_error));
   }

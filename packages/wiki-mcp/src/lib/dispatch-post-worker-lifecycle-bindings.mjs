@@ -126,6 +126,15 @@ const REQUIRED_CORRECTIONS = new Map([
   })]
 ]);
 
+export function compactRequiredCorrection(correction) {
+  if (correction?.prerequisite !== EXPLICIT_BASE_MERGE_TREE_CAPABILITY) return false;
+  correction.requirement =
+    "serving launcher Git must support git merge-tree --write-tree --merge-base";
+  correction.then =
+    "after capability changes, call workspace_agent_run_status for the same retained run";
+  return true;
+}
+
 export function producerConditionRequiredCorrection(condition) {
   return REQUIRED_CORRECTIONS.get(condition) ?? null;
 }

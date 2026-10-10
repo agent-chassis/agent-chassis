@@ -11,6 +11,33 @@ export const IMPACT_SELECTED_DETAIL_NEXT_ACTION =
 
 const list = (value) => (Array.isArray(value) ? value : []);
 
+function compactRefresh(refresh) {
+  if (!refresh) return null;
+  return {
+    state: refresh.state,
+    ...(refresh.reason ? { reason: refresh.reason } : {}),
+    ...(refresh.failure ? { failure: { code: refresh.failure.code, message: refresh.failure.message },
+      retry_not_before: refresh.retry?.not_before ?? null } : {})
+  };
+}
+
+export function compactIndexState(result) {
+  return {
+    indexed_commit: result?.indexed_commit ?? null,
+    current_head: result?.current_head ?? null,
+    freshness: result?.staleness ?? "unknown",
+    refresh: compactRefresh(result?.preparation?.refresh)
+  };
+}
+
+export function compactNavigationFreshness(result) {
+  return {
+    state: result?.staleness ?? "unknown",
+    current_head: result?.current_head ?? null,
+    refresh: compactRefresh(result?.preparation?.refresh)
+  };
+}
+
 function shown(values, project = (value) => value) {
   const all = list(values);
   const returned = all.slice(0, CODE_INDEX_COMPACT_LIMIT).map((value) => structuredClone(project(value)));
@@ -46,6 +73,7 @@ function committedFacts(result) {
     index_tree: result?.index_tree ?? null,
     dirty_state: result?.dirty_state ?? "unknown",
     staleness: result?.staleness ?? "unknown",
+    index_state: compactIndexState(result),
     graph_snapshot: structuredClone(result?.graph_snapshot ?? null),
     scip_state: structuredClone(result?.scip_state ?? null),
     graph_state: compactGraphState(result?.graph_state)
@@ -141,6 +169,7 @@ export function projectSidecarContextCompact(result, { fits }) {
     index_tree: result?.index_tree ?? null,
     dirty_state: result?.dirty_state ?? "unknown",
     staleness: result?.staleness ?? "unknown",
+    index_state: compactIndexState(result),
     graph_state: stateScalars(result?.graph_state),
     scip_state: stateScalars(result?.scip_state),
     freshness_basis: result?.freshness_basis ?? null,
@@ -210,6 +239,7 @@ export function projectSidecarImpactSelectedSummary(result, { fits }) {
     index_tree: compact.index_tree,
     dirty_state: compact.dirty_state,
     staleness: compact.staleness,
+    index_state: compact.index_state,
     omitted_members: members,
     ...fields,
     counts,
