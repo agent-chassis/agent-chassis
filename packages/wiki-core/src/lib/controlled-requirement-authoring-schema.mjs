@@ -1,0 +1,478 @@
+
+
+import { MODALITIES as MEMBERSHIP_MODALITIES } from '@agent-chassis/controlled-contract/closed-membership';
+import { NATIVE_CONTRACT_SCHEMA_V1, VOCABULARY_VERSION_V1 } from '@agent-chassis/controlled-contract/native-contract';
+import { CONTROLLED_VOCABULARY, canonicalValue, relationAvailableForAuthoring } from '@agent-chassis/controlled-contract/vocabulary';
+import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_DECLARED_INPUT_SCHEMA as NATIVE_INPUT_SCHEMA } from
+  '../operations/controlled-contract/contract-requirement-input-schema.mjs';
+import { CONTROLLED_CONTRACT_REQUIREMENT_LIMITS, deriveControlledContractAuthoringVocabulary } from
+  '../operations/controlled-contract/contract-requirement-vocabulary.mjs';
+
+export const TERM_IDENTITY_KIND = 'profile_term';
+
+export const MEMBERSHIP_SUBJECT_TYPES = Object.freeze(['cc:population']);
+export const UNCONDITIONAL = 'unconditional';
+
+const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+export const canonicalJson = value => JSON.stringify(canonicalValue(value));
+const ref = name => ({ $ref: `#/$defs/${name}` });
+const drift = message => { throw new TypeError(`authoring schema: ${message}`); };
+
+const vocabulary = deriveControlledContractAuthoringVocabulary(NATIVE_CONTRACT_SCHEMA_V1);
+const nativeRequirement = NATIVE_INPUT_SCHEMA.properties.contract_requirements.properties.requirements.items.anyOf[0];
+const nativeReferent = nativeRequirement.properties.subject;
+const nativeObservation = nativeRequirement.properties.verification.anyOf[0].properties.observes;
+const nativeBranches = nativeObservation.anyOf;
+const nativeDeclare = nativeReferent.oneOf.find(branch => branch.required.includes('declare'))?.properties.declare;
+if (!nativeDeclare || !Array.isArray(nativeBranches)) drift('the semantic requirement input schema has no referent declaration or statement branches');
+const operators = new Map(CONTROLLED_VOCABULARY.operators.map(row => [row.term, row]));
+const typeTerms = CONTROLLED_VOCABULARY.type_terms.filter(row => vocabulary.type_terms.includes(row.term));
+if (typeTerms.length !== vocabulary.type_terms.length) drift('a contract type term has no vocabulary definition');
+const modes = new Map(CONTROLLED_VOCABULARY.applicability_modes.map(row => [row.term, row]));
+if (!modes.has(UNCONDITIONAL) || MEMBERSHIP_SUBJECT_TYPES.some(type => !vocabulary.type_terms.includes(type))) drift(
+  'the vocabulary lacks the unconditional mode or the population type a closed membership needs');
+const restricted = types => types?.kind === 'restricted' ? Object.freeze([...types.terms]) : null;
+for (const row of modes.values()) if (row.context_reference_semantics.ordering !== 'insignificant' || row.context_reference_semantics.duplicates !== 'ignored'
+  || row.context_reference_semantics.combination !== 'all') drift(`applicability mode ${row.term} gives its context referents an order, a count or a combination other than all`);
+export const COLLECTION_KINDS = Object.freeze([...NATIVE_CONTRACT_SCHEMA_V1.$defs.collection.properties.collection_kind.enum]);
+const contextFree = [...vocabulary.applicability_modes.values()].filter(row => row.maximum_context === 0).map(row => row.mode);
+
+function project(node) {
+  if (node === nativeReferent) return ref('entity_id');
+  if (Array.isArray(node)) return node.map(project);
+  if (!isRecord(node)) return node;
+  return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, project(value)]));
+}
+
+const PENDING_VALUE_TYPES = Object.freeze(['number', 'boolean']);
+const isLiteralValue = node => isRecord(node) && Object.keys(node).length === 1 && PENDING_VALUE_TYPES.includes(node.type);
+function projectObjects(node) {
+  if (node === nativeReferent) return ref('entity_id');
+  if (isLiteralValue(node)) return { oneOf: [{ ...node }, ref('pending')] };
+  if (Array.isArray(node)) return node.map(projectObjects);
+  if (!isRecord(node)) return node;
+  return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, projectObjects(value)]));
+}
+const described = (terms, definition) => ({ oneOf: terms.map(term => ({ const: term, description: definition(term) })) });
+const typeList = types => types === null ? 'any type' : `[${types.join(' | ')}]`;
+
+export const SINGLE_VALUED = 'single_value_per_subject_scope';
+
+const MULTIPLICITY_MARK = Object.freeze({ [SINGLE_VALUED]: 'Single-valued.', relation_set: 'Not single-valued.',
+  conjunctive_constraint: 'Holds together with every other such statement about the subject.' });
+const MULTIPLICITY_WORDS = Object.freeze({
+  [SINGLE_VALUED]: 'Single-valued: mandatory statements of this same relation that give one subject different values within one applicability scope contradict.',
+  relation_set: 'Not single-valued: this relation allows one subject several values, so statements of it with different values stand together.',
+  conjunctive_constraint: MULTIPLICITY_MARK.conjunctive_constraint });
+
+const multiplicityGuide = equalities => 'Under a relation marked single-valued, two mandatory statements of that same relation, within one applicability '
+  + 'scope, that give one subject (or subjects stated equal by ' + equalities.join(' or ') + ') different values are a contradiction. A relation marked not single-valued '
+  + 'allows a subject several values by its meaning: such statements stand together, and that is not a conflict. Relations '
+  + 'that take the same kind of value are not substitutes for one another.';
+const RANGE_WORDS = 'A bound left out means no bound on that side, and the statement is complete; undecided, it is {"pending": true}.';
+const marked = operator => operator.mechanical_support.multiplicity === 'enforced' && (operator.signature.operand_kind !== 'reference' || operator.multiplicity === SINGLE_VALUED);
+
+function relationFacts() {
+  const facts = new Map();
+  nativeBranches.forEach((branch, index) => {
+    for (const term of branch.properties.relation.enum) {
+      const operator = operators.get(term);
+      const signature = vocabulary.operator_signatures.get(term);
+      if (!operator || !signature) drift(`relation ${term} has no vocabulary definition or signature`);
+      if (facts.has(term)) drift(`relation ${term} is in two statement branches`);
+      facts.set(term, Object.freeze({ term, branch: index, definition: operator.definition, operand_kind: signature.operand_kind,
+        multiplicity: operator.mechanical_support.multiplicity === 'enforced' ? operator.multiplicity : null, mark: marked(operator) ? MULTIPLICITY_MARK[operator.multiplicity] ?? null : null, note: marked(operator) ? MULTIPLICITY_WORDS[operator.multiplicity] ?? null : null,
+
+        guidance: signature.operand_kind === 'range' ? RANGE_WORDS : null,
+        subject_types: restricted(operator.signature.subject_types), operand_types: restricted(operator.signature.operand_types),
+        context_types: restricted(operator.applicability.context_reference_types),
+        numeric_domain: operator.signature.operand_numeric_domain?.kind === 'integer_range' ? Object.freeze({ ...operator.signature.operand_numeric_domain }) : null,
+
+        operand_ordering: operator.operand_semantics.ordering, operand_duplicates: operator.operand_semantics.duplicates,
+
+        symmetric: operator.algebraic_traits.symmetric && operator.mechanical_support.algebraic_traits.symmetric === 'enforced',
+        inverse: operator.inverse.kind === 'operator' && operator.mechanical_support.inverse === 'enforced' ? operator.inverse.term : null,
+        declared_only: Object.freeze([...Object.entries(operator.mechanical_support.algebraic_traits).filter(([, support]) => support === 'declared_only').map(([trait]) => trait),
+          ...(operator.mechanical_support.inverse === 'declared_only' ? ['inverse'] : [])]),
+
+        pointwise: operator.signature.operand_kind === 'reference' && operator.signature.operand_cardinality.maximum !== 1
+          && operator.operand_semantics.ordering === 'insignificant'
+          && ((operator.multiplicity === 'relation_set' && operator.mechanical_support.multiplicity === 'enforced')
+            || (operator.algebraic_traits.symmetric && operator.mechanical_support.algebraic_traits.symmetric === 'enforced')),
+        same_roles: canonicalJson(operator.signature.subject_types) === canonicalJson(operator.signature.operand_types ?? null),
+        population: operator.population_semantics.kind !== 'not_applicable',
+
+        context_cardinality: operator.applicability.context_reference_cardinality ? Object.freeze({ ...operator.applicability.context_reference_cardinality }) : null,
+        applicability_modes: signature.applicability_modes,
+        complete_without_applies: signature.applicability_modes.some(mode => contextFree.includes(mode)),
+        controlled_complement: operator.controlled_complement.kind }));
+    }
+  });
+  for (const term of vocabulary.operator_signatures.keys()) if (!facts.has(term)) drift(`relation ${term} has no statement branch`);
+  return facts;
+}
+
+export const NATIVE_AUTHORING = Object.freeze({ vocabulary, relations: relationFacts(), modes,
+
+  equality_relations: Object.freeze(CONTROLLED_VOCABULARY.cross_operator_constraints.constraints.filter(row => row.kind === 'reference_equivalence_substitution')
+    .flatMap(row => row.equivalence_operators)),
+  type_terms: Object.freeze(typeTerms.map(row => row.term)), limits: CONTROLLED_CONTRACT_REQUIREMENT_LIMITS,
+  vocabulary_version: VOCABULARY_VERSION_V1 });
+
+const KEYWORDS = new Set(['$schema', '$id', '$defs', '$ref', 'title', 'description', 'type', 'enum', 'const', 'pattern', 'minLength', 'maxLength',
+  'minimum', 'maximum', 'properties', 'required', 'additionalProperties', 'propertyNames', 'minProperties', 'maxProperties', 'items',
+  'minItems', 'maxItems', 'uniqueItems', 'oneOf', 'anyOf']);
+const SUBSCHEMAS = ['additionalProperties', 'propertyNames', 'items'];
+
+export function assertInterpretable(node, where = '#') {
+  for (const [keyword, value] of Object.entries(node)) {
+    if (!KEYWORDS.has(keyword)) throw new TypeError(`${where}: keyword ${keyword} is not one admit() interprets`);
+    if (keyword === '$defs' || keyword === 'properties') for (const [name, child] of Object.entries(value)) assertInterpretable(child, `${where}/${keyword}/${name}`);
+    else if (keyword === 'oneOf' || keyword === 'anyOf') value.forEach((child, index) => assertInterpretable(child, `${where}/${keyword}/${index}`));
+    else if (SUBSCHEMAS.includes(keyword) && isRecord(value)) assertInterpretable(value, `${where}/${keyword}`);
+  }
+}
+
+export function buildControlledRequirementDefinitions({ collectionMember, memberWords, relationDefinitions = true }) {
+  const { relations, limits } = NATIVE_AUTHORING;
+  const identities = nativeDeclare.properties.identity.oneOf;
+  const term = identities.find(branch => branch.properties.kind.const === TERM_IDENTITY_KIND)?.properties.term;
+  if (!term) drift(`the referent declaration has no ${TERM_IDENTITY_KIND} identity`);
+  const defs = {
+    entity_id: { description: 'Names one entity throughout a request. It is an identity only: it carries no definition.',
+      ...term },
+    type_term: described(NATIVE_AUTHORING.type_terms, name => typeTerms.find(row => row.term === name).definition),
+    identity: { description: 'How an entity is identified when not simply by the term its id spells.',
+      oneOf: identities.filter(branch => branch.properties.kind.const !== TERM_IDENTITY_KIND).map(project) },
+    entities: { description: 'NEW entities only, by id. A type alone declares the entity identified by the term its id spells; { type_term, identity } '
+        + 'declares one identified another way. One the host knows is not declared. A type may be omitted only where the relations using '
+        + 'the entity admit exactly one; else it is asked for.',
+      type: 'object', propertyNames: ref('entity_id'), additionalProperties: ref('entity') },
+    entity: { oneOf: [ref('type_term'), ref('entity_declaration')] },
+    entity_declaration: { type: 'object', required: ['type_term', 'identity'], additionalProperties: false,
+      properties: { type_term: ref('type_term'), identity: ref('identity') } } };
+
+  const appliesNames = new Map();
+  const applies = native => {
+    if (!appliesNames.has(native)) {
+      const groups = (native.anyOf ?? [native]).map(group => {
+        const node = project(group);
+        return { ...node, properties: { ...node.properties,
+          mode: described(group.properties.mode.enum, mode => modes.get(mode)?.definition ?? drift(`applicability mode ${mode} has no definition`)) } };
+      });
+      const admitted = groups.flatMap(group => group.properties.mode.oneOf.map(row => row.const));
+      const name = admitted.length === modes.size ? 'applies' : `a${appliesNames.size}`;
+
+      const several = groups.some(group => group.properties.context && group.properties.context.maxItems !== 1 && group.properties.context.maxItems !== 0);
+      defs[name] = { ...(several ? { description: 'Listed context referents hold together; order and repetition do not matter.' } : {}), oneOf: groups };
+      appliesNames.set(native, name);
+    }
+    return ref(appliesNames.get(native));
+  };
+  const relationText = name => {
+    const row = relations.get(name);
+    return row.definition + (row.mark ? ` ${row.mark}` : '') + (row.guidance ? ` ${row.guidance}` : '') + (row.subject_types || row.operand_types ? ` Subject ${typeList(row.subject_types)}; objects ${typeList(row.operand_types)}.` : '')
+      + (row.context_types?.length ? ` Context ${typeList(row.context_types)}.` : '')
+      + (row.numeric_domain ? ` The number is an integer of at least ${row.numeric_domain.minimum}.` : '');
+  };
+  defs.pending = { description: 'In place of a number or boolean of a statement\'s object: the value exists, not yet decided. The statement stays '
+      + 'incomplete, keeping all else it says, and the value returns as a choice. This is not omission: an optional value left out '
+      + '(a range with no maximum) is stated absent, and complete.',
+    type: 'object', required: ['pending'], additionalProperties: false, properties: { pending: { const: true } } };
+  const objectNames = new Map();
+  const objects = native => {
+    const projected = projectObjects(native);
+    const key = canonicalJson(projected);
+    if (!objectNames.has(key)) {
+      const name = `o${objectNames.size}`;
+      defs[name] = projected;
+      objectNames.set(key, name);
+    }
+    return ref(objectNames.get(key));
+  };
+  const statementBranch = (branch, terms) => ({ type: 'object', additionalProperties: false, required: ['relation'],
+    properties: { relation: relationDefinitions ? described(terms, relationText)
+      : { oneOf: terms.map(term => ({ const: term })) }, objects: objects(branch.properties.objects),
+      applies: applies(branch.properties.applies) } });
+
+  const behavioralBranches = [];
+  const observationOnlyBranches = [];
+  nativeBranches.forEach((branch, index) => {
+    const terms = branch.properties.relation.enum;
+    const retained = terms.filter(term => relationAvailableForAuthoring(term, 'requirement_behavior'));
+    const observationOnly = terms.filter(term => !relationAvailableForAuthoring(term, 'requirement_behavior'));
+    if (retained.length) {
+      const name = `b${index}`;
+      defs[name] = statementBranch(branch, retained);
+      behavioralBranches.push(ref(name));
+    }
+    if (observationOnly.length) observationOnlyBranches.push(statementBranch(branch, observationOnly));
+  });
+  defs.behavior = { description: 'One controlled behavioral or falsifying statement about the subject: a relation, the objects its signature takes, and when it applies. '
+      + 'The relation fixes the kind and number of objects. Without "applies" a statement is unconditional, where its relation admits that. '
+      + multiplicityGuide(NATIVE_AUTHORING.equality_relations)
+      + (relationDefinitions ? '' : ' Each relation\'s definition and signature is in the requirement guidance vocabulary, under relation_details.'),
+    oneOf: behavioralBranches };
+  defs.observation = { oneOf: [...behavioralBranches, ...observationOnlyBranches] };
+  defs.requirement = { description: 'The subject, with the stated strength, stands in the behavior. "nature" omitted is '
+      + `${JSON.stringify(vocabulary.claim_natures[0])}.`,
+    type: 'object', required: ['subject', 'behavior'], additionalProperties: false,
+    properties: { subject: ref('entity_id'), modality: { enum: [...vocabulary.modalities] }, nature: { enum: [...vocabulary.claim_natures] },
+      behavior: ref('behavior') } };
+  if (!defs.applies) drift('no statement branch admits every applicability mode');
+  const clause = required => ({ type: 'object', required, additionalProperties: false,
+    properties: { member: ref('entity_id'), modality: { enum: [...MEMBERSHIP_MODALITIES] } } });
+  defs.membership_clause = { description: 'One named member. MUST: it is present. MAY: permitted and not required. A forbidden member has no '
+      + 'clause: every member not listed is forbidden.', ...clause(['member']) };
+  defs.membership_requirement = { description: 'A closed membership specification of the subject population under one applicability, each member '
+      + 'named once. The form closes the population: closure is not declared. Order and repetition of members, '
+      + 'and every other property, are unconstrained. Stated once per subject and applicability; without "applies" it is unconditional.',
+    type: 'object', required: ['subject', 'membership'], additionalProperties: false,
+    properties: { subject: ref('entity_id'), membership: { type: 'array', minItems: 1, items: ref('membership_clause') }, applies: ref('applies') } };
+  const statements = { ...defs };
+
+  const nativeVerification = nativeRequirement.properties.verification;
+  const nativeStatement = nativeRequirement.properties.behavior;
+  const projectVerification = node => node === nativeReferent ? ref('entity_id') : node === nativeStatement ? ref('behavior')
+    : node === nativeObservation ? ref('observation')
+    : Array.isArray(node) ? node.map(projectVerification)
+      : isRecord(node) ? Object.fromEntries(Object.entries(node).map(([key, value]) => [key, projectVerification(value)])) : node;
+  const projected = nativeVerification ? projectVerification(nativeVerification) : null;
+  if (!projected || /"(?:select|declare|relation)"/.test(JSON.stringify(projected))) drift(
+    'the native verification names a referent or a statement this projection does not replace by an entity id or the batch behavior');
+  const verification = { description: 'An independently authored check of this requirement. "observes" is about the verifier, "fails_when" about the requirement\'s '
+      + 'subject as written: what, if it happened, would mean the requirement was not met. Nothing in it is derived from the requirement.',
+    ...projected };
+
+  const nativeCollection = NATIVE_CONTRACT_SCHEMA_V1.$defs?.collection?.properties;
+  if (!nativeCollection?.collection_kind?.enum || !nativeCollection.purpose?.pattern) drift('the contract schema has no collection kinds or purpose');
+  const KIND_WORDS = { closed_set: 'The listed requirements are all the members of this collection, and their order means nothing. It may hold part of a request: it does not say the request has no other requirement.',
+    ordered_sequence: 'The listed requirements are in the order given, and the order is meaning.' };
+  const collection = { description: `A group of some or all of this request's requirements. ${memberWords} Each member once. "purpose" tells apart two groups over the same requirements.`,
+    type: 'object', required: ['members'], additionalProperties: false,
+    properties: { kind: described(nativeCollection.collection_kind.enum, kind => KIND_WORDS[kind] ?? drift(`collection kind ${kind} has no description`)),
+      members: { type: 'array', minItems: 1, items: collectionMember }, purpose: { type: 'string', pattern: nativeCollection.purpose.pattern } } };
+  const unresolvedMeaning = { description: 'An operative meaning fragment the grammar cannot faithfully encode, with the reason. "candidate_concept" may '
+      + 'name a vocabulary opportunity; it creates no vocabulary and encodes nothing.',
+    type: 'object', required: ['text', 'reason'], additionalProperties: false,
+    properties: { text: { type: 'string', minLength: 1, pattern: '\\S' }, reason: { enum: [...vocabulary.residue_reasons] }, candidate_concept: { type: 'string', minLength: 1, pattern: '\\S' } } };
+  const unresolved = { description: 'Meaning no relation carries: kept verbatim, keeps the specification incomplete, never rewritten. A compound meaning is '
+      + 'not approximated by the nearest relation: what a relation\'s definition does not say goes here. Plain text, or text with why it '
+      + 'cannot be encoded.',
+    type: 'array', items: { oneOf: [{ type: 'string', minLength: 1, pattern: '\\S' }, ref('unresolved_meaning')] } };
+  const requirementRows = { type: 'array', maxItems: limits.requirements_per_answer, items: { oneOf: [ref('requirement'), ref('membership_requirement')] } };
+  return { statements, collection, unresolved_meaning: unresolvedMeaning, unresolved, requirementRows, membershipClause: clause, verification };
+}
+
+export const REQUIREMENT_ROW_ID_PATTERN = '^row-[0-9a-f]{40}$';
+export const REQUIREMENT_COLLECTION_ROW_ID_PATTERN = '^collection-row-[0-9a-f]{40}$';
+export const REQUIREMENT_BATCH_MEMBERS = Object.freeze(['entities', 'requirements', 'collections', 'unresolved']);
+
+export const REQUIREMENT_ROW_SOURCE_MEMBERS = Object.freeze(['user_requirement', 'user_requirement_occurrence']);
+
+export function buildRequirementBatchSchema({ label, labelReference, claimId, rebindCaseIds, existingRows = true }) {
+  const rowId = { type: 'string', pattern: REQUIREMENT_ROW_ID_PATTERN };
+  const collectionRowId = { type: 'string', pattern: REQUIREMENT_COLLECTION_ROW_ID_PATTERN };
+
+  const shared = buildControlledRequirementDefinitions({ relationDefinitions: false, ...(existingRows
+    ? { collectionMember: { type: 'string', pattern: `(?:${labelReference.pattern})|(?:${REQUIREMENT_ROW_ID_PATTERN})` },
+      memberWords: 'A member is a requirement of this request by its label ("$key"), or a saved requirement row by its row_id.' }
+    : { collectionMember: labelReference, memberWords: 'A member is a requirement of this request by its label ("$key").' }) });
+  const source = {
+    user_requirement: { description: 'The exact passage of this work item\'s saved user_requirements this requirement represents: compared literally, '
+        + 'with no trimming, case folding or normalization. Omitted, the row states no source and none is inferred.', type: 'string', minLength: 1 },
+    user_requirement_occurrence: { description: 'Which occurrence of the passage, counted from 1, left to right, overlapping occurrences included. '
+        + 'Required when the passage occurs more than once; only with user_requirement.', type: 'integer', minimum: 1 } };
+  const key = { key: { ...label, description: 'Labels this new row for this request; "$key" then names it in a collection or an obligation\'s claims.' } };
+  const addressed = existingRows ? { ...key,
+    row_id: { ...rowId, description: 'Selects a saved requirement row as a whole, to restate it or its source. Exclusive with key and id.' } } : key;
+  const corrected = existingRows ? { id: { ...claimId, description: 'Selects one saved requirement claim to correct. Exclusive with key and row_id.' },
+    rebind_case_ids: rebindCaseIds } : {};
+  const verification = ref('requirement_verification');
+  const { requirement, membership_requirement: membership, ...statements } = shared.statements;
+  const defs = { ...statements,
+    requirement: { ...requirement, description: `${requirement.description}${existingRows ? ' A row carries at most one of key, row_id and id.' : ''}`,
+      properties: { ...addressed, ...corrected, ...requirement.properties, verification, ...source } },
+    membership_requirement: { ...membership, description: `${membership.description}${existingRows ? ' A row carries at most one of key and row_id.' : ''}`,
+      properties: { ...addressed, ...membership.properties, verification, ...source } },
+    requirement_verification: { ...shared.verification, anyOf: shared.verification.anyOf.map(option => ({ ...option,
+      properties: { key: { ...label, description: 'Labels this verification for this request; "$key" then names it in an obligation\'s claims or a case.' }, ...option.properties } })) },
+    collection: { ...shared.collection, properties: { key: label,
+      ...(existingRows ? { row_id: { ...collectionRowId, description: 'Selects a saved collection to restate. Exclusive with key.' } } : {}), ...shared.collection.properties } },
+    unresolved_meaning: shared.unresolved_meaning };
+  const batch = { description: 'One batch of controlled requirements: "entities" declares each entity once, named by id; each requirement is one '
+      + 'statement or closed membership; "collections" group them; "unresolved" keeps meaning no relation carries, verbatim. '
+      + 'A row with a modality, objects, a needed applicability or an entity type left out, or a {"pending": true} value, '
+      + 'is saved incomplete, with no identity or expression until completed. Expressions are generated, never supplied.',
+    type: 'object', additionalProperties: false, minProperties: 1,
+    properties: { entities: ref('entities'),
+      requirements: { ...shared.requirementRows, minItems: 1 },
+      collections: { type: 'array', minItems: 1, items: ref('collection') },
+      unresolved: { ...shared.unresolved, description: `${shared.unresolved.description} Supplying it replaces the saved list; omitting it keeps the saved list.` } } };
+  const schema = { ...batch, $defs: defs };
+  assertInterpretable(schema);
+  return { batch, $defs: defs, schema };
+}
+const resolve = (schema, node) => {
+  let current = node;
+  while (current.$ref) {
+    const name = current.$ref.slice('#/$defs/'.length);
+    if (!current.$ref.startsWith('#/$defs/') || !Object.hasOwn(schema.$defs ?? {}, name)) throw new TypeError(`unresolvable reference ${current.$ref}`);
+
+    current = schema.$defs[name];
+  }
+  return current;
+};
+const withoutDescription = ({ description, ...node }) => { void description; return node; };
+const TYPES = { object: isRecord, array: Array.isArray, string: value => typeof value === 'string', integer: Number.isInteger,
+  number: value => typeof value === 'number' && Number.isFinite(value), boolean: value => typeof value === 'boolean' };
+
+const valuesOf = (schema, node) => {
+  const at = resolve(schema, node);
+  if (Object.hasOwn(at, 'const')) return [at.const];
+  if (at.enum) return at.enum;
+  if (at.oneOf?.every(option => Object.hasOwn(resolve(schema, option), 'const'))) return at.oneOf.map(option => resolve(schema, option).const);
+  return null;
+};
+
+export const finiteValues = (schema, node) => valuesOf(schema, node);
+const kindOf = value => Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value;
+const kindsOf = (schema, node) => {
+  const at = resolve(schema, node);
+  if (at.type) return [at.type === 'integer' ? 'number' : at.type];
+  const values = valuesOf(schema, node);
+  return values ? [...new Set(values.map(kindOf))] : null;
+};
+
+function discriminator(schema, options) {
+  const nodes = options.map(option => resolve(schema, option));
+  if (!nodes.every(node => node.type === 'object' && node.properties)) return null;
+  for (const name of nodes[0].required ?? []) {
+    const sets = nodes.map(node => (node.required ?? []).includes(name) && node.properties[name] ? valuesOf(schema, node.properties[name]) : null);
+    if (sets.some(set => set === null)) continue;
+    const all = sets.flat().map(canonicalJson);
+    if (new Set(all).size === all.length) return { name, sets };
+  }
+  return null;
+}
+
+export function admit(schema, value, node = schema, path = []) {
+  const at = resolve(schema, node);
+  const found = [];
+  const bad = (cause, accepts = null, where = path) => found.push({ path: where, cause, accepts });
+  if (at.oneOf) {
+    const finite = valuesOf(schema, at);
+    if (finite) {
+      if (!finite.some(row => canonicalJson(row) === canonicalJson(value))) bad('not_an_accepted_value', { enum: finite });
+      return found;
+    }
+    const selected = discriminator(schema, at.oneOf);
+    if (selected && isRecord(value)) {
+      const accepts = { enum: selected.sets.flat() };
+      if (!Object.hasOwn(value, selected.name)) { bad('missing', accepts, [...path, selected.name]); return found; }
+      const index = selected.sets.findIndex(set => set.some(row => canonicalJson(row) === canonicalJson(value[selected.name])));
+      if (index === -1) { bad('not_an_accepted_value', { ...accepts,
+        ...(selected.name === 'relation' ? { rejected_relation: value[selected.name] } : {}) }, [...path, selected.name]); return found; }
+      return admit(schema, value, at.oneOf[index], path);
+    }
+    const options = at.oneOf.map(option => ({ option, node: resolve(schema, option), rows: admit(schema, value, option, path) }));
+    const fitting = options.filter(row => row.rows.length === 0).length;
+    if (fitting === 1) return found;
+    if (fitting > 1) { bad('fits_more_than_one_alternative'); return found; }
+
+    const same = options.every(row => canonicalJson(row.rows) === canonicalJson(options[0].rows));
+    if (same) return options[0].rows;
+    const kind = kindOf(value);
+    const ofKind = options.filter(row => kindsOf(schema, row.option)?.includes(kind));
+    if (ofKind.length === 1) return ofKind[0].rows;
+
+    const plain = isRecord(value) ? [] : options.filter(row => row.node.type && row.node.type !== 'object');
+    if (plain.length === 1) return plain[0].rows;
+    const names = isRecord(value) ? Object.keys(value) : [];
+    const declares = (row, name) => Object.hasOwn(row.node.properties ?? {}, name);
+    const summary = (row, more = {}) => ({ ...(row.option.$ref ? { form: row.option.$ref.slice('#/$defs/'.length) } : {}), required: [...(row.node.required ?? [])],
+      members: Object.keys(row.node.properties ?? {}), ...(row.node.anyOf ? { anyOf: row.node.anyOf } : {}), ...more });
+
+    const own = row => names.filter(name => declares(row, name) && options.every(other => other === row || !declares(other, name)));
+    const identified = options.filter(row => own(row).length);
+    if (identified.length === 1) return identified[0].rows;
+    if (identified.length > 1) { bad('members_of_more_than_one_alternative', { alternatives: identified.map(row => summary(row, { identified_by: own(row) })) }); return found; }
+
+    const present = required => required.every(name => names.includes(name));
+    const satisfied = options.filter(row => names.some(name => declares(row, name)) && present(row.node.required ?? [])
+      && (!row.node.anyOf || row.node.anyOf.some(option => present(option.required ?? []))));
+    if (satisfied.length === 1) return satisfied[0].rows;
+
+    for (const name of names) if (!options.some(row => declares(row, name))) bad('not_a_member', null, [...path, name]);
+    bad('alternative_not_identified', { alternatives: options.map(row => summary(row)) });
+    return found;
+  }
+
+  if (at.anyOf) {
+    const options = at.anyOf.map(option => admit(schema, value, option, path));
+    if (!options.some(rows => rows.length === 0)) {
+
+      const same = (left, right) => canonicalJson([left.path, left.cause]) === canonicalJson([right.path, right.cause]);
+
+      const names = isRecord(value) ? Object.keys(value) : [];
+      const alternative = index => resolve(schema, at.anyOf[index]);
+      const attempted = options.filter((_rows, index) => names.every(name => Object.hasOwn(alternative(index).properties ?? {}, name)));
+
+      const stated = attempted.filter(rows => (alternative(options.indexOf(rows)).required ?? []).every(name => names.includes(name)));
+      const asked = stated.length ? stated : attempted.length ? attempted : options;
+      const shared = asked[0].filter(row => asked.every(rows => rows.some(other => same(row, other))));
+      if (shared.length) found.push(...shared); else bad('content_missing', { anyOf: at.anyOf });
+    }
+  }
+  if (Object.hasOwn(at, 'const') && canonicalJson(value) !== canonicalJson(at.const)) bad('not_the_accepted_value', { const: at.const });
+  if (at.enum && !at.enum.some(row => canonicalJson(row) === canonicalJson(value))) bad('not_an_accepted_value', { enum: at.enum });
+  if (at.type && !TYPES[at.type](value)) { bad(`not_${at.type === 'array' ? 'a_list' : at.type === 'object' ? 'an_object' : at.type === 'integer' ? 'an_integer' : `a_${at.type}`}`, { type: at.type }); return found; }
+  if (typeof value === 'string') {
+    if (at.minLength !== undefined && [...value].length < at.minLength) bad('too_short', { minLength: at.minLength });
+    if (at.maxLength !== undefined && [...value].length > at.maxLength) bad('too_long', { maxLength: at.maxLength });
+    if (at.pattern !== undefined && !new RegExp(at.pattern, 'u').test(value)) bad('does_not_match_pattern', { pattern: at.pattern });
+  }
+  if (typeof value === 'number') {
+    if (at.minimum !== undefined && value < at.minimum) bad('below_minimum', { minimum: at.minimum });
+    if (at.maximum !== undefined && value > at.maximum) bad('above_maximum', { maximum: at.maximum });
+  }
+  if (Array.isArray(value)) {
+    if (at.minItems !== undefined && value.length < at.minItems) bad('too_few_items', { minItems: at.minItems });
+    if (at.maxItems !== undefined && value.length > at.maxItems) bad('too_many_items', { maxItems: at.maxItems });
+    if (at.uniqueItems && new Set(value.map(canonicalJson)).size !== value.length) bad('lists_a_value_twice');
+    if (at.items) value.forEach((member, index) => found.push(...admit(schema, member, at.items, [...path, index])));
+  }
+  if (isRecord(value)) {
+    const names = Object.keys(value);
+    if (at.minProperties !== undefined && names.length < at.minProperties) bad('too_few_members', { members: Object.keys(at.properties ?? {}) });
+    if (at.maxProperties !== undefined && names.length > at.maxProperties) bad('too_many_members', { maxProperties: at.maxProperties });
+    for (const name of at.required ?? []) if (!Object.hasOwn(value, name)) bad('missing', at.properties?.[name] ? withoutDescription(at.properties[name]) : null, [...path, name]);
+    for (const name of names) {
+      if (at.propertyNames && admit(schema, name, at.propertyNames).length) bad('not_an_accepted_member_name', resolve(schema, at.propertyNames), [...path, name]);
+      if (Object.hasOwn(at.properties ?? {}, name)) found.push(...admit(schema, value[name], at.properties[name], [...path, name]));
+      else if (at.additionalProperties === false) bad('not_a_member', { members: Object.keys(at.properties ?? {}) }, [...path, name]);
+      else if (isRecord(at.additionalProperties)) found.push(...admit(schema, value[name], at.additionalProperties, [...path, name]));
+    }
+  }
+  return found;
+}
+
+export function behaviorBranch(schema, relation) {
+  const branch = schema.$defs.observation.oneOf.map(branch => resolve(schema, branch))
+    .find(branch => valuesOf(schema, branch.properties.relation).includes(relation));
+  return branch ? { ...branch, properties: { ...branch.properties, objects: resolve(schema, branch.properties.objects) } } : null;
+}
+
+export function valueSchemaAt(schema, relation, path) {
+  let node = behaviorBranch(schema, relation)?.properties.objects.items ?? null;
+  for (const part of path) {
+    if (!node) return null;
+    node = resolve(schema, node);
+    const holders = node.anyOf ?? node.oneOf ?? [node];
+    node = holders.map(option => resolve(schema, option)).find(option => Object.hasOwn(option.properties ?? {}, part))?.properties[part] ?? null;
+  }
+  if (!node) return null;
+  const value = (resolve(schema, node).oneOf ?? []).find(option => option.$ref !== '#/$defs/pending');
+  return value && resolve(schema, node).oneOf.some(option => option.$ref === '#/$defs/pending') ? value : null;
+}
+export const isPending = value => isRecord(value) && value.pending === true && Object.keys(value).length === 1;

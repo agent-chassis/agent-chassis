@@ -14,7 +14,7 @@ import {
 } from "./result-shape-conformance-v1-harness.mjs";
 
 const RESULT_SHAPE_CONFORMANCE_V1_PROFILE_DIGEST =
-  "735fc66c518c193972648f0c9d4021803a3e923b241513e47487240da3ed452f";
+  "444fe70ed5b2cee6c4ed5d2ed53ebf75ccd0ed7073eeb193408b7fab40986341";
 const RESULT_SHAPE_CONFORMANCE_V1_GUARANTEE_DIGEST =
   "77dd35821e275dadeb0b82724b51343668e1b595860742aea18e6c3570f85e46";
 
@@ -320,14 +320,14 @@ function exclusionControls(profile) {
   }));
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   return {
     schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: RESULT_SHAPE_CONFORMANCE_V1_PROFILE_DIGEST,
     guarantee_digest: RESULT_SHAPE_CONFORMANCE_V1_GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures),
       ...positiveControls(profile),
       ...mutantControls(profile),
       ...profileRejectionControls(profile),
@@ -344,3 +344,55 @@ export {
   profileRejectionFixtures,
   runProofPackAdequacyControls
 };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-allowed-members-verification-modalities",
+      "claim_id": "claim-allowed-members-verification",
+      "baseline": "isolated-claim-allowed-members-verification-modalities-baseline",
+      "optional": "isolated-claim-allowed-members-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-allowed-shape-verification-modalities",
+      "claim_id": "claim-allowed-shape-verification",
+      "baseline": "isolated-claim-allowed-shape-verification-modalities-baseline",
+      "optional": "isolated-claim-allowed-shape-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-forbidden-shape-verification-modalities",
+      "claim_id": "claim-forbidden-shape-verification",
+      "baseline": "isolated-claim-forbidden-shape-verification-modalities-baseline",
+      "optional": "isolated-claim-forbidden-shape-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-required-members-verification-modalities",
+      "claim_id": "claim-required-members-verification",
+      "baseline": "isolated-claim-required-members-verification-modalities-baseline",
+      "optional": "isolated-claim-required-members-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-result-count-verification-modalities",
+      "claim_id": "claim-result-count-verification",
+      "baseline": "isolated-claim-result-count-verification-modalities-baseline",
+      "optional": "isolated-claim-result-count-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

@@ -1,6 +1,6 @@
 
 
-import { npmPackageBin } from "./common.mjs";
+import { npmPackageBin, npmPackageDirectory } from "./common.mjs";
 
 function invocation({ runtime, projectDir, file, reporter = null, grep = null }) {
   return {
@@ -19,6 +19,7 @@ export default Object.freeze({
     args: [npmPackageBin(runtime, "mocha"), "--version"], cwd: projectDir }),
   ordinaryInvocation: ({ runtime, projectDir, file, selector, proof = null }) => ({
     harness: Object.freeze({ kind: "mocha" }),
+    runnerPackage: npmPackageDirectory(runtime, "mocha"),
     invocation: invocation({ runtime, projectDir, file, grep: selector, reporter: proof?.reporter ?? null })
   })
 });

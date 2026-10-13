@@ -36,7 +36,6 @@ import {
 import {
   pinHarnessInterpreter,
   planNamespaceOnlyMountpoints,
-  planTestExecutionCheckoutWrites,
   prepareWorkerTestRuntimeMounts,
   projectWorkerTestRuntimeEnv
 } from "./launch-isolation-test-runtime-projection.mjs";
@@ -119,8 +118,6 @@ function composeBubblewrapLaunchPlan({
   executionScratchSource = null,
 
   namespaceOnlyMountpoints = false,
-
-  testExecutionCheckoutWrites = false,
   maskTmpfsDirs = [],
   provisionedWorktreeGitBinding = null,
   shareNet = true,
@@ -191,18 +188,6 @@ function composeBubblewrapLaunchPlan({
     maskTmpfsDirs,
     newSession
   });
-  if (testExecutionCheckoutWrites !== false) {
-    if (testExecutionCheckoutWrites !== true || executionTmpSource === null || sparseWorkerNamespace !== null ||
-        writableRoots.length > 0 || writableFiles.length > 0) {
-      fail(
-        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PLAN_INVALID,
-        "test-execution checkout writes apply only to a test execution with its own execution root, on a "
-          + "dense checkout with no writable roots or files"
-      );
-    }
-  }
-  const checkoutWrites = testExecutionCheckoutWrites === true
-    ? planTestExecutionCheckoutWrites({ repoReal }) : null;
 
   const harness = pinHarnessInterpreter({ resolvedCommand, args,
     pathEnv: resolverPathFromEnv(env), prepared: workerTestRuntime });
@@ -333,7 +318,7 @@ function composeBubblewrapLaunchPlan({
     { directories: preparedDirectories, repo: repoReal });
 
   const namespaceMountpoints = namespaceOnlyMountpoints === true && sparseWorkerNamespace === null
-    ? planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds: readOnly, checkoutWrites }) : null;
+    ? planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds: readOnly }) : null;
   const hostMountpointBinds = namespaceMountpoints === null ? readOnly
     : readOnly.filter(({ dst }) => !namespaceMountpoints.mountpoints.includes(dst));
   const readOnlyProjectionMountpoints = prepareReadOnlyProjectionMountpoints(hostMountpointBinds, {
@@ -361,7 +346,6 @@ function composeBubblewrapLaunchPlan({
     executionTmpSource,
     executionScratchSource,
     repoNamespaceArgs: namespaceMountpoints?.args ?? null,
-    testExecutionCheckoutWrites: checkoutWrites,
     tmpfsDirsResolved,
     sparseWorkerNamespace,
     repoReal,
@@ -435,7 +419,6 @@ function composeBubblewrapLaunchPlan({
       : {}),
     ...(namespaceMountpoints === null ? {}
       : { namespaceOnlyMountpoints: namespaceMountpoints.mountpoints }),
-    ...(checkoutWrites === null ? {} : { testExecutionCheckoutWrites: checkoutWrites }),
     decisionsReadOnlyRoots: Object.freeze(decisionsReadOnly.map((b) => Object.freeze({ ...b }))),
     homePolicyReads: Object.freeze(homeReads.map((b) => Object.freeze({ ...b }))),
     homePolicyWritableFiles: Object.freeze(

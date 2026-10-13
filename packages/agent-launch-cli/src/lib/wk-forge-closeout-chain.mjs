@@ -13,6 +13,8 @@ import { authenticateWkCloseoutProjection } from "./wk-forge-handoff-recovery.mj
 import { authenticateCanonicalIntegratedDeliveryTransition } from
   "./backend-integrated-scope-authority.mjs";
 import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
+import { LITERAL_INCLUSION_STATES, observeLiteralInclusionAboveFork } from
+  "./slice-integration-authorization.mjs";
 import { git } from "./wk-handoff-destination.mjs";
 import { withWorkRecordWriteLock } from "@agent-chassis/wiki-core/src/operations/work-record-write-lock.mjs";
 import { defaultRunGit } from "./wk-forge-command.mjs";
@@ -157,26 +159,33 @@ async function commitOnlyWk({ runGit, repo, parent, recordBytes, path, message, 
   return commit;
 }
 
-function authenticateCloseoutIntegratedDelivery({ mainRepo, wk, binding, candidateRecord, closeoutRecord }) {
-  const changed = (Array.isArray(candidateRecord?.slices) ? candidateRecord.slices : [])
-    .filter((before) => {
-      const after = Array.isArray(closeoutRecord?.slices)
-        ? closeoutRecord.slices.find((slice) => slice?.id === before?.id)
-        : undefined;
-      return isPlainObject(after) && typeof after.integrated_delivery_sha === "string" &&
-        after.integrated_delivery_sha !== (before?.integrated_delivery_sha ?? null);
-    })
-    .map((before) => ({
-      slice_id: before.id,
-      observed: closeoutRecord.slices.find((slice) => slice?.id === before.id).integrated_delivery_sha
-    }));
-  if (changed.length !== 1) return { expectation: null, failure: null };
-  const [{ slice_id: sliceId, observed }] = changed;
+function authenticateCloseoutIntegratedDeliveries({ mainRepo, wk, binding, candidateRecord, closeoutRecord }) {
+  const held = new Map((Array.isArray(candidateRecord?.slices) ? candidateRecord.slices : [])
+    .filter(isPlainObject).map((slice) => [slice.id, slice]));
+  const claimed = (Array.isArray(closeoutRecord?.slices) ? closeoutRecord.slices : [])
+    .filter((after) => isPlainObject(after) && typeof after.id === "string" &&
+      typeof after.integrated_delivery_sha === "string" &&
+      after.integrated_delivery_sha !== (held.get(after.id)?.integrated_delivery_sha ?? null))
+    .map((after) => ({ sliceId: after.id, observed: after.integrated_delivery_sha, added: !held.has(after.id) }));
+  const expectations = [];
+  const failures = [];
+  for (const claim of claimed) {
+    const { expectation, failure } = authenticateOneIntegratedDelivery({
+      mainRepo, wk, binding, candidateRecord, ...claim
+    });
+    if (expectation !== null) expectations.push(expectation);
+    if (failure !== null) failures.push(failure);
+  }
+  return { expectations, failures };
+}
+
+function authenticateOneIntegratedDelivery({ mainRepo, wk, binding, candidateRecord, sliceId, observed, added }) {
   const facts = { slice_id: sliceId, observed_integrated_delivery_sha: observed, selected_w: binding?.wk_tip ?? null };
   let proof;
   try {
     proof = authenticateCanonicalIntegratedDeliveryTransition(mainRepo, `${wk}#${sliceId}`, {
-      historicalParentContract: JSON.stringify(candidateRecord)
+      historicalParentContract: JSON.stringify(candidateRecord),
+      unitAddedAfterHistory: added
     });
   } catch (error) {
     const owned = error?.integrated_delivery_authentication;
@@ -191,10 +200,24 @@ function authenticateCloseoutIntegratedDelivery({ mainRepo, wk, binding, candida
     };
   }
   if (proof.current_w !== binding?.wk_tip) {
-    return {
-      expectation: null,
-      failure: { ...facts, reason: "integrated_delivery_not_bound_to_selected_w", authenticated_w: proof.current_w }
-    };
+    const included = (tipSha, targetSha) => observeLiteralInclusionAboveFork({
+      runGit: defaultRunGit, mainRepo, tipSha, forkSha: null, targetSha
+    }).state;
+    const deliveryInSelectedW = included(binding?.wk_tip, proof.integrated_delivery_sha);
+    const selectedWInAuthenticatedW = included(proof.current_w, binding?.wk_tip);
+    if (deliveryInSelectedW !== LITERAL_INCLUSION_STATES.INCLUDED ||
+        selectedWInAuthenticatedW !== LITERAL_INCLUSION_STATES.INCLUDED) {
+      return {
+        expectation: null,
+        failure: {
+          ...facts,
+          reason: "integrated_delivery_not_bound_to_selected_w",
+          authenticated_w: proof.current_w,
+          delivery_in_selected_w: deliveryInSelectedW,
+          selected_w_in_authenticated_w: selectedWInAuthenticatedW
+        }
+      };
+    }
   }
   if (proof.integrated_delivery_sha !== observed) {
     return {
@@ -215,13 +238,16 @@ function authenticateCloseoutIntegratedDelivery({ mainRepo, wk, binding, candida
 function authenticateCloseoutRecord({
   mainRepo, wk, binding, candidateRecord, closeoutRecord, publishedRecord = null
 }) {
-  const delivery = authenticateCloseoutIntegratedDelivery({
+  const deliveries = authenticateCloseoutIntegratedDeliveries({
     mainRepo, wk, binding, candidateRecord, closeoutRecord
   });
   const projection = authenticateWkCloseoutProjection({
-    candidateRecord, liveRecord: closeoutRecord, integratedDelivery: delivery.expectation, publishedRecord
+    candidateRecord, liveRecord: closeoutRecord, integratedDeliveries: deliveries.expectations, publishedRecord
   });
-  return { projection, deliveryFailure: delivery.failure };
+
+  const deliveryFailure = deliveries.failures.find((failure) => failure.slice_id === projection.slice_id) ??
+    deliveries.failures[0] ?? null;
+  return { projection, deliveryFailure };
 }
 
 export function readLiveWkRecord(mainRepo, wk) {
@@ -283,6 +309,20 @@ function acceptanceValidationDrift({ wk, binding, candidateRecord, liveRecord, p
   };
 }
 
+function comparedDrift({ wk, binding, liveRecord, projection }) {
+  const { differences } = projection;
+  if (!Array.isArray(differences)) return {};
+  const slice = projection.reason === "unrelated_slice_drift";
+  return {
+    [slice ? "slice_drift" : "sections_drift"]: Object.freeze({
+      unit: slice ? `${wk}#${projection.slice_id}` : wk,
+      candidate: binding?.candidate ?? null,
+      differences,
+      observed_source_digest: projectWorkRecordFreshness(computeWorkRecordSourceDigest(liveRecord))
+    })
+  };
+}
+
 export function readAuthenticatedLiveCloseout({
   mainRepo, wk, candidateRecord, binding = null, publishedRecord = null
 } = {}) {
@@ -294,11 +334,12 @@ export function readAuthenticatedLiveCloseout({
   });
   if (projection.ok !== true) {
 
-    const { ok: _ok, ...projectionCause } = projection;
+    const { ok: _ok, differences: _differences, ...projectionCause } = projection;
     return {
       ok: false,
       reason: "local_WK_not_authenticated_against_candidate",
       projection: projectionCause,
+      ...comparedDrift({ wk, binding, liveRecord: live.record, projection }),
       ...acceptanceValidationDrift({ wk, binding, candidateRecord, liveRecord: live.record, projection }),
       ...(deliveryFailure === null ? {} : { integrated_delivery_authority: deliveryFailure })
     };

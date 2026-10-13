@@ -4,9 +4,9 @@
 
 For one declared logical behavior source, two distinct baseline and candidate behavior-report artifacts expose equal complete populations of typed observable descriptors by mutual subset, bind one shared exact nonnegative observable count, emit count signals equal to that count, and expose one explicitly selected canonical observable-value pair that is exactly equal. One verification reads both full reports and each verified equality has its controlled complement as a separate falsifier. Exact-bound admission additionally requires two distinct caller-selected source descriptors for the full report artifacts whose complete captured bytes have the same SHA-256.
 
-Profile digest: 5dc11d57d78d5a6faee00bdfa245e932e1ba87ce48603e426f0519ce904db581. Parameter digest: 079e9d80727cb55ae3058c76e158c849a6b20f7a7ba8a594e2285412270f9ba2.
+Profile digest: 9e4ab649264b11c273fcc42c0283fd438d9a4cd81fe3b2ded18092f9f9b39f99. Parameter digest: 80e5d253aea6098dfdcecc703a41fe1ad43d4fb24f988f850764e5f5e884974e.
 
-Admission digest: 21e8460a55b44e20302bd2a194cfc1e8f0969fcaa8b08b6bcde5956b3375e0a0.
+Admission digest: b28f0fbc4b5ea69782fdb2aca1c49ab190825bc03b34c1c4626e20595580e4ed.
 
 Roles: 18/18 accounted; 2 owned gaps. Semantic parameters: 15; internal roles: 3.
 

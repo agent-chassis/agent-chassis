@@ -11,16 +11,20 @@ import { fileURLToPath } from "node:url";
 
 import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/test-proof";
 
+import { readRepositoryRuntimeConfig, repositoryRuntimeConfigPath } from "../test-runtime-setup/config.mjs";
 import { discoverRepositoryEnvironments } from "../test-runtime-setup/discovery.mjs";
 import { DEPENDENCY_ECOSYSTEMS } from "../test-runtime-setup/ecosystems.mjs";
+import { npmInstallationTrees } from "../test-runtime-setup/npm-installation.mjs";
 import {
   loadExecutionConfiguration,
   readinessRecovery
 } from "../test-runtime-setup/readiness.mjs";
 import { TOOLCHAIN_RECIPES } from "../test-runtime-setup/recipes.mjs";
 import { resolvePackageAssetExecutable } from "../launch-isolation-package-asset.mjs";
-import { resolveCurrentEnvironmentRuntime } from "./current-runtime.mjs";
-import { selectContainingProject } from "./runtime-inputs.mjs";
+import { resolveConfiguredExecutable, resolveToolchain, TestRuntimeSetupError } from
+  "../test-runtime-setup/toolchains.mjs";
+import { RUNTIME_CONFIGURATION_INVALID_CODE, resolveCurrentEnvironmentRuntime } from "./current-runtime.mjs";
+import { isUnderSystemRoot, selectContainingProject } from "./runtime-inputs.mjs";
 
 export const WORKER_TEST_RUNTIME_SCHEMA_VERSION = "agent-launch-worker-test-runtime.v1";
 
@@ -115,9 +119,9 @@ function unavailable(code, message, { subject, condition, action, detail = {}, e
   });
 }
 
-function readinessUnavailable(failure, subject) {
+function readinessUnavailable(failure, subject, condition = "this project's runtime inputs are neither configured nor locatable") {
   return unavailable(failure.code, failure.message, {
-    subject, condition: "this project's runtime inputs are neither configured nor locatable",
+    subject, condition,
     detail: failure.detail ?? {},
     action: { actor: "operator", operator_action: failure.recovery?.operator_action ?? null,
       statement: failure.recovery?.statement ?? null }
@@ -136,10 +140,29 @@ function broadSource(source, protectedRoots) {
   return null;
 }
 
+function broadSourceFailure(source, protectedRoots, subject) {
+  const broad = broadSource(source, protectedRoots);
+  if (broad === null) return null;
+  return unavailable(WORKER_TEST_RUNTIME_CODES.TOOLCHAIN_BIND_TOO_BROAD,
+    `runtime source ${broad.source} ${broad.relation === "contains" ? "contains" : "lies inside"} the ${broad.contained_kind} root ${broad.contained_root}`, {
+      subject, condition: "binding it would expose more than the runtime", detail: broad,
+      action: { actor: "operator", operator_action: readinessRecovery().operator_action,
+        statement: "Configure the toolchain as its own installation directory (not a home or repository directory), then rerun explicit setup." } });
+}
+
 function missingExecutable(name, toolchain, role, executable, subject) {
   const expected = executable ?? (toolchain.root
     ? path.join(toolchain.root, TOOLCHAIN_RECIPES[name].executables[role]) : TOOLCHAIN_RECIPES[name].executables[role]);
-  if (typeof executable === "string" && existsSync(executable)) return null;
+  if (typeof executable === "string" && existsSync(executable)) {
+    try {
+      resolveConfiguredExecutable(name, executable);
+      return null;
+    } catch (error) {
+      if (!(error instanceof TestRuntimeSetupError)) throw error;
+      return readinessUnavailable({ code: error.code, message: error.message, detail: error.detail },
+        { ...subject, toolchain: name }, "the selected path is not a usable executable regular file");
+    }
+  }
   return unavailable(WORKER_TEST_RUNTIME_CODES.TOOLCHAIN_INCOMPLETE,
     `the ${name} installation has no ${role} executable at ${expected}`, {
       subject: { ...subject, toolchain: name }, condition: "the requested executable is not installed",
@@ -148,7 +171,7 @@ function missingExecutable(name, toolchain, role, executable, subject) {
         statement: "Install the named executable, or reselect the toolchain installation." } });
 }
 
-function localPackageLinks(nodeModules, repositories, declaredMembers = new Map()) {
+function localPackageLinks(nodeModules, repositories, declaredMembers = new Map(), moduleTrees = []) {
   const links = [];
   const visit = (directory) => {
     for (const entry of readdirSync(directory)) {
@@ -159,6 +182,7 @@ function localPackageLinks(nodeModules, repositories, declaredMembers = new Map(
         try { real = realpathSync(absolute); } catch { real = path.resolve(directory, readlinkSync(absolute)); }
         const name = path.relative(nodeModules, absolute).split(path.sep).join("/");
         if ((declaredMembers.get(name) ?? []).includes(real)) continue;
+        if (moduleTrees.some((tree) => within(tree, real))) continue;
         if (repositories.some((root) => within(root, real))) links.push({ link: absolute, target: real });
       } else if (stat.isDirectory() && entry.startsWith("@")) {
         visit(absolute);
@@ -206,7 +230,7 @@ async function composeProject(entry, index, context) {
     ecosystem: entry.ecosystem, environment: entry.environment, runners: entry.runners };
   const recovery = readinessRecovery();
 
-  const manifests = ecosystem.manifests(projectDir, { members: entry.members });
+  const manifests = ecosystem.manifests(projectDir, { members: entry.members, checkoutRoot: checkoutReal });
   const missing = Object.values(manifests.files ?? {}).map((file) => path.relative(checkoutReal, file))
     .filter((relative) => !scope.visible(relative)).sort();
   if (missing.length > 0) {
@@ -223,38 +247,21 @@ async function composeProject(entry, index, context) {
   if (!runtime.ok) return { ...entry, projectDir, failure: readinessUnavailable(runtime, subject) };
   for (const bind of [...runtime.toolchainBinds, ...runtime.dependencyBinds.filter(({ dst }) =>
     !within(checkoutReal, dst))]) {
-    const broad = broadSource(bind.src, protectedRoots);
-    if (broad !== null) {
-      return { ...entry, projectDir, failure: unavailable(WORKER_TEST_RUNTIME_CODES.TOOLCHAIN_BIND_TOO_BROAD,
-        `runtime source ${broad.source} ${broad.relation === "contains" ? "contains" : "lies inside"} the ${broad.contained_kind} root ${broad.contained_root}`, {
-          subject: { ...subject, toolchain: bind.toolchain ?? null }, condition: "binding it would expose more than the runtime",
-          detail: broad,
-          action: { actor: "operator", operator_action: recovery.operator_action,
-            statement: "Configure the toolchain as its own installation directory (not a home or repository directory), then rerun explicit setup." } }) };
-    }
+    const failure = broadSourceFailure(bind.src, protectedRoots,
+      { ...subject, toolchain: bind.toolchain ?? null });
+    if (failure !== null) return { ...entry, projectDir, failure };
   }
 
-  const memberSources = (runtime.preparation.workspace_links ?? []).map(({ package: name, member }) =>
-    ({ package: name, member: entry.project === "." ? member : `${entry.project}/${member}` }));
-  const hiddenMembers = memberSources.filter(({ member }) => !scope.visible(member));
-  if (hiddenMembers.length > 0) {
-    const directories = [...new Set(hiddenMembers.map(({ member }) => member))].sort();
-    return { ...entry, projectDir, failure: unavailable(WORKER_TEST_RUNTIME_CODES.MEMBER_SOURCE_OUTSIDE_SCOPE,
-      `prepared dependencies of ${entry.project} link workspace members outside the worker's frozen read/write scope`, {
-        subject, condition: "a linked workspace package would resolve to checkout source this worker cannot see",
-        detail: { members: hiddenMembers },
-        action: { actor: "coordinator",
-          coordinator_action: "add the named workspace member directories to the unit's read scope",
-          inputs: { directories } } }) };
-  }
-  if (entry.ecosystem === "npm" && runtime.values.node_modules_source) {
+  const trees = npmInstallationTrees(entry.ecosystem === "npm" ? runtime.preparation : null);
+  if (trees.length > 0) {
     const memberDirectories = (member) => [mainReal, checkoutReal].map((root) => {
       const directory = path.join(root, entry.project === "." ? member : path.join(entry.project, member));
       try { return realpathSync(directory); } catch { return directory; }
     });
-    const declaredMembers = new Map((runtime.preparation.workspace_links ?? []).map(({ package: name, member }) =>
-      [name, memberDirectories(member)]));
-    const links = localPackageLinks(runtime.values.node_modules_source, [mainReal, checkoutReal], declaredMembers);
+    const moduleTrees = trees.map(({ dir }) => dir);
+    const links = trees.flatMap(({ dir, workspace_links: linked }) => localPackageLinks(dir,
+      [mainReal, checkoutReal], new Map(linked.map(({ package: name, member }) =>
+        [name, memberDirectories(member)])), moduleTrees));
     if (links.length > 0) {
       return { ...entry, projectDir, failure: unavailable(WORKER_TEST_RUNTIME_CODES.LOCAL_PACKAGE_UNPROVEN,
         `prepared dependencies of ${entry.project} link repository-local packages`, {
@@ -349,6 +356,8 @@ export async function composeWorkerTestRuntime({ mainRepo, checkout, workerScope
     return `${WORKER_TEST_RUNTIME_TABLE_MOUNT_DIR}/${relative}`;
   };
   let projects = [];
+  const toolchains = new Map();
+  const independentBinds = [];
   const recordFailure = null;
   {
     for (const [index, entry] of selection.projects.entries()) {
@@ -356,37 +365,67 @@ export async function composeWorkerTestRuntime({ mainRepo, checkout, workerScope
         protectedRoots }));
     }
 
-    const toolchains = new Map();
     for (const project of projects) {
       if (project.failure) continue;
-      for (const [name, toolchain] of Object.entries(project.runtime.toolchains)) toolchains.set(name, toolchain);
+      for (const [name, toolchain] of Object.entries(project.runtime.toolchains)) toolchains.set(name, { toolchain });
     }
     const runtimeSubject = { repository: mainReal, checkout: checkoutReal };
-    for (const [name, toolchain] of toolchains) {
-      for (const role of Object.keys(TOOLCHAIN_RECIPES[name].executables)) {
-        if (projectCommandOwners(name, role).length !== 0) continue;
 
-        const missing = missingExecutable(name, toolchain, role, toolchain.executables?.[role], runtimeSubject);
-        rows.push(missing === null
+    const names = [...new Set([...toolchains.keys(), ...projects.flatMap((project) =>
+      DEPENDENCY_ECOSYSTEMS[project.ecosystem].toolchains)])];
+    for (const name of names) {
+      const roles = Object.keys(TOOLCHAIN_RECIPES[name].executables)
+        .filter((role) => projectCommandOwners(name, role).length === 0);
+      if (roles.length === 0) continue;
+      let selected = toolchains.get(name);
+      if (selected === undefined) {
+        let toolchain = loaded.configuration.toolchains?.[name];
+        let failure = null;
+        if (toolchain === undefined) {
+          let saved;
+          try {
+            saved = readRepositoryRuntimeConfig(mainReal);
+          } catch (error) {
+            failure = readinessUnavailable({ code: RUNTIME_CONFIGURATION_INVALID_CODE, message: error.message,
+              detail: { file: repositoryRuntimeConfigPath(mainReal),
+                correction: "correct or remove the saved runtime configuration; its locations are never ignored" } },
+            { ...runtimeSubject, toolchain: name }, "the saved toolchain configuration is invalid");
+          }
+          if (failure === null) {
+            try {
+              toolchain = await resolveToolchain({ name,
+                configuredExecutable: saved.toolchains?.[name]?.executable ?? null,
+                measure: false, enforceRequirement: false });
+            } catch (error) {
+              if (!(error instanceof TestRuntimeSetupError)) throw error;
+              failure = readinessUnavailable({ code: error.code, message: error.message, detail: error.detail },
+                { ...runtimeSubject, toolchain: name }, "the selected toolchain installation cannot be located");
+            }
+          }
+        }
+        selected = { toolchain, failure };
+        toolchains.set(name, selected);
+      }
+      const { toolchain } = selected;
+      let failure = selected.failure ?? null;
+      const root = toolchain?.root;
+      if (failure === null && root && !isUnderSystemRoot(root)) {
+        failure = broadSourceFailure(root, protectedRoots, { ...runtimeSubject, toolchain: name });
+        if (failure === null) independentBinds.push({ src: root, dst: root });
+      }
+      selected.failure = failure;
+      for (const role of roles) {
+        const condition = failure ?? missingExecutable(name, toolchain, role, toolchain.executables?.[role], runtimeSubject);
+        rows.push(condition === null
           ? [commandName(name, role), "toolchain", "-", toolchain.executables[role], "-", "-", "-"]
-          : [commandName(name, role), "unavailable", "-", "-", detailFile(missing), "-", "-"]);
+          : [commandName(name, role), "unavailable", "-", "-", detailFile(condition), "-", "-"]);
       }
     }
 
-    const availableCommands = new Set(rows.filter(([, kind]) => kind === "toolchain").map(([name]) => name));
     for (const project of projects) {
       const ecosystem = DEPENDENCY_ECOSYSTEMS[project.ecosystem];
 
       const detail = project.failure === undefined ? null : detailFile(project.failure);
-      if (project.failure !== undefined) {
-        for (const toolchainName of ecosystem.toolchains) {
-          for (const role of Object.keys(TOOLCHAIN_RECIPES[toolchainName].executables)) {
-            const name = commandName(toolchainName, role);
-            if (availableCommands.has(name) || Object.hasOwn(ecosystem.projectCommands, role)) continue;
-            rows.push([name, "unavailable", project.projectDir, "-", detail, "-", "-"]);
-          }
-        }
-      }
       for (const [role, fact] of Object.entries(ecosystem.projectCommands)) {
         const [toolchainName] = ecosystem.toolchains;
         const name = commandName(toolchainName, role);
@@ -429,6 +468,7 @@ export async function composeWorkerTestRuntime({ mainRepo, checkout, workerScope
     const key = `${src}\0${dst}`;
     if (!seen.has(key)) { seen.add(key); readOnlyBinds.push(Object.freeze({ src, dst })); }
   };
+  for (const { src, dst } of independentBinds) addBind(src, dst);
   const dependencyMounts = [];
   for (const { runtime, project, ecosystem } of available) {
     for (const { src } of runtime.toolchainBinds) addBind(src, src);
@@ -457,6 +497,10 @@ export async function composeWorkerTestRuntime({ mainRepo, checkout, workerScope
       ...(loaded.record_status !== "ready" ? { configuration_record_status: loaded.record_status } : {}),
       record_failure: recordFailure,
       table_digest: publication.digest,
+
+      toolchains: Object.fromEntries([...toolchains].map(([name, { toolchain, failure }]) =>
+        [name, { root: toolchain?.root ?? null, executables: toolchain?.executables ?? {},
+          failure: failure ?? null }])),
       projects: projects.map((project) => Object.freeze({
         ecosystem: project.ecosystem, project: project.project, environment: project.environment,
         members: project.members, runners: project.runners,

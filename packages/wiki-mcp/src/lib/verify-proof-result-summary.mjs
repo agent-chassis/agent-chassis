@@ -2,7 +2,8 @@ const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
 import { VERIFY_PROOF_SUMMARY_SCHEMA_VERSION } from "./mcp-response.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { PUBLIC_PROOF_STATUS_VALUES, isVerifyProofPopulationSubject, projectProofEvidencePresentation,
-  projectVerifyProofSelectedDetail, selectVerifyProofRows } from "./verify-proof-result-detail.mjs";
+  projectVerifyProofRegressions, projectVerifyProofSelectedDetail, selectVerifyProofRows } from
+  "./verify-proof-result-detail.mjs";
 const SUMMARY_DIAGNOSTIC_CODE_LIMIT = 8;
 
 export const RETAINED_OUTCOME_SUMMARY_BYTE_BUDGET = 4096;
@@ -213,6 +214,8 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
   const optOuts = evidence.proof_opt_outs === undefined ? undefined : (({ obligation_ids: ids, ...facts }) => ({
     ...facts, count: ids.length, obligation_ids: ids.slice(0, SUMMARY_OPT_OUT_ID_LIMIT),
     obligation_ids_omitted: Math.max(0, ids.length - SUMMARY_OPT_OUT_ID_LIMIT) }))(evidence.proof_opt_outs);
+
+  const regressions = projectVerifyProofRegressions(evidence);
   const priority = rows.map((row, index) => ({ row, index }))
     .sort((left, right) => Number(left.row.status === "proven") -
       Number(right.row.status === "proven") || left.index - right.index);
@@ -233,6 +236,7 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
       ...(recovery === undefined ? {} : { recovery }),
       counts,
       ...(optOuts === undefined ? {} : { proof_opt_outs: optOuts }),
+      ...(regressions === undefined ? {} : { regressions }),
       proofs,
       proofs_returned: proofs.length,
       proofs_omitted: omitted.length,

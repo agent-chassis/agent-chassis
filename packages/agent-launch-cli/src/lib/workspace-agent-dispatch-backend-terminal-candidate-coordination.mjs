@@ -48,7 +48,6 @@ import {
   verifyTerminalWkCandidateObjectBinding
 } from "./terminal-wk-candidate.mjs";
 import {
-  assertSelectedDependencyMountIntegrity,
   findingsDependencyProjectionEvidenceFromProof
 } from "./terminal-wk-candidate-validation.mjs";
 import {
@@ -885,8 +884,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     let historicalEvidence = null;
     let versionDecision = null;
     if (terminalCandidateReview) {
-
-      assertSelectedDependencyMountIntegrity(terminalCandidate.dependency_proof ?? null);
       versionDecision = assertTerminalWkCandidateVersionDecision(
         terminalCandidate.version_decision ?? terminalCandidate.binding?.version_decision,
         { binding: terminalCandidate.binding, requireSelected: true }
@@ -981,10 +978,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
           findingsDependencyProjectionEvidenceFromProof(
             terminalCandidate.dependency_proof ?? null,
             worktreePath
-          ),
-        reviewer_dependency_binds: Object.freeze([
-          ...(terminalCandidate.dependency_proof?.reviewer_read_only_binds ?? [])
-        ])
+          )
       } : {}),
       diff_base_sha: target.diff_base_sha,
       diff_head_sha: target.diff_head_sha,
@@ -1027,8 +1021,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
           retainedDecision.current_selection_observation) {
       throw new Error("terminal review version selection moved after context freeze");
     }
-
-    assertSelectedDependencyMountIntegrity(context.terminal_candidate_dependency_proof ?? null);
     return context;
   }
 

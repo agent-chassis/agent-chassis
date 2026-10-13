@@ -4,9 +4,9 @@
 
 For one declared authority and revocation event, one complete declared enforcement-consumer population applies the same revoked state during a finite declared propagation interval after revocation and before every member of one complete declared post-revocation attempt population; every such attempt uses that authority, targets that consumer population, is a member of an equal complete refused-attempt population, and neither writes nor mutates any member of one complete declared protected-effect population.
 
-Profile digest: 8db0e17480c65b002867c59f444c334814788bd9808ea94e9983a2b0234e9e95. Parameter digest: 43d70f2fbfcc2a5d43347d65f1af6941361d0fc6ddeceed43ee1de2e2bfbd780.
+Profile digest: d7f1071210a8c578d973e7d8e3f4afccb3b2d03359f451b5571325fc50b085b2. Parameter digest: 56b698798336234c9e50afaccfd3c436928a5cd3c240433dd6693240be10b0a9.
 
-Admission digest: 82c386d3a686aff5248d45831a1aa19cea3548cc236413c9c781193806bfdafd.
+Admission digest: 92a31ffb79e9725321b5d010b1170e689bb49f091405bcc4a847e51bfe2b927b.
 
 Roles: 26/26 accounted; 1 owned gaps. Semantic parameters: 21; internal roles: 5.
 

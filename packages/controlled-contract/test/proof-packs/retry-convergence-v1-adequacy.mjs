@@ -5,7 +5,7 @@ import { buildRetryConvergenceFixture, findClaim, findProposition, ref }
 import { DOMAINS, MUTATIONS, executeRetryConvergence, retryConvergenceGuaranteeSatisfied }
   from "./retry-convergence-v1-harness.mjs";
 const RETRY_CONVERGENCE_V1_PROFILE_DIGEST =
-  "d02af58e4476a861dec78a43e484fd0f22e095f541be604953c23cd217ef4241";
+  "99c33b5a58719aeaf269595f11b21ae1ac553e1ba42aadda9c216adc0ea81d99";
 const RETRY_CONVERGENCE_V1_GUARANTEE_DIGEST =
   "88b5ff9ccadc6a3ede7fc63f49c5ad281d8c6ffc38b68c79b5934a56212f8dce";
 const evaluateFixture = ({ contract, input, evaluation_input, profile }) =>
@@ -86,12 +86,102 @@ const EXCLUSIONS = ["arbitrary-retry-histories", "concurrency-linearizability-or
 function exclusionControls(profile) { const satisfaction = evaluateFixture(baselineFixture(profile));
   return EXCLUSIONS.map((control_id) => ({ control_id, category: "exclusion",
     implementation_outcome: "boundary_demonstrated", profile_satisfaction: satisfaction })); }
-async function runProofPackAdequacyControls({ profile }) { return {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) { return {
   schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION, profile_id: profile.profile_id,
   profile_version: profile.profile_version, profile_digest: RETRY_CONVERGENCE_V1_PROFILE_DIGEST,
   guarantee_digest: RETRY_CONVERGENCE_V1_GUARANTEE_DIGEST,
-  controls: [...positiveControls(profile), ...mutantControls(profile),
+  controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ...retiredRecommendationRefusals(profile), ...positiveControls(profile), ...mutantControls(profile),
     ...profileRejectionControls(profile), ...exclusionControls(profile)] }; }
 export { RETRY_CONVERGENCE_V1_GUARANTEE_DIGEST, RETRY_CONVERGENCE_V1_PROFILE_DIGEST,
   EXCLUSIONS, baselineFixture, evaluateFixture, profileRejectionFixtures,
   runProofPackAdequacyControls };
+
+import { evaluateStableProofPackFixtureV1 as evaluateRetiredModalityFixture }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+function retiredRecommendationRefusals(profile) {
+  const cases = [
+    [
+      "retired-recommendation-refused-failed-attempt-no-final-effect",
+      "claim-failed-attempt-no-final-effect"
+    ],
+    [
+      "retired-recommendation-refused-failed-attempt-not-accepted",
+      "claim-failed-attempt-not-accepted"
+    ],
+    [
+      "retired-recommendation-refused-retry-not-rejected",
+      "claim-retry-not-rejected"
+    ]
+  ];
+  return cases.map(([controlId, claimId]) => {
+    const fixture = buildRetryConvergenceFixture({ profile });
+    const claim = fixture.contract.claims.find(row => row.claim_id === claimId);
+    if (!claim) throw new Error(`missing recommendation refusal claim: ${claimId}`);
+    claim.modality = "SHOULD_NOT";
+    return { control_id: controlId, category: "profile_rejection",
+      implementation_outcome: "not_applicable",
+      profile_satisfaction: evaluateRetiredModalityFixture({
+        contract: fixture.contract, profile,
+        evaluation_input: fixture.input ?? fixture.evaluation_input
+      }).satisfaction };
+  });
+}
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-verify-empty-residue-modalities",
+      "claim_id": "claim-verify-empty-residue",
+      "baseline": "isolated-claim-verify-empty-residue-modalities-baseline",
+      "optional": "isolated-claim-verify-empty-residue-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-failed-no-effect-modalities",
+      "claim_id": "claim-verify-failed-no-effect",
+      "baseline": "isolated-claim-verify-failed-no-effect-modalities-baseline",
+      "optional": "isolated-claim-verify-failed-no-effect-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-failed-refusal-modalities",
+      "claim_id": "claim-verify-failed-refusal",
+      "baseline": "isolated-claim-verify-failed-refusal-modalities-baseline",
+      "optional": "isolated-claim-verify-failed-refusal-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-final-effect-count-modalities",
+      "claim_id": "claim-verify-final-effect-count",
+      "baseline": "isolated-claim-verify-final-effect-count-modalities-baseline",
+      "optional": "isolated-claim-verify-final-effect-count-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-final-state-modalities",
+      "claim_id": "claim-verify-final-state",
+      "baseline": "isolated-claim-verify-final-state-modalities-baseline",
+      "optional": "isolated-claim-verify-final-state-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-retry-success-modalities",
+      "claim_id": "claim-verify-retry-success",
+      "baseline": "isolated-claim-verify-retry-success-modalities-baseline",
+      "optional": "isolated-claim-verify-retry-success-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

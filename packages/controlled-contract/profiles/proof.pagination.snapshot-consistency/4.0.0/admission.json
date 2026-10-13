@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "14df3f6db597a2d40fe4d1c844ecc67b8d5c1e352567f768ec17e7a26f7c763d",
+  "parameter_contract_digest": "e354063a8522c0f7718762fc3c4a2058cb5ad8658bd3a3e0b04d7740a1c0cb61",
   "profile_id": "proof.pagination.snapshot-consistency",
   "profile_version": "4.0.0",
-  "profile_digest": "73fe9548950e963d20c499b344cd0cb633494afc7285835bcae776295acec01d",
+  "profile_digest": "6bc4319bbbd8266407fd952d82fe1908e0a65e307fd23d3a5032aaf6e43986d2",
   "guarantee": "Every page attempt and returned page in the complete declared traversal populations resolves to one immutable snapshot identity and exact captured state; a declared relevant live-source mutation occurs between selected page reads, changes the exact live-source version while the selected snapshot identity and captured state remain unchanged, and the stable and mutation-interleaved ordered member-occurrence sequences are identical.",
   "guarantee_digest": "9a3ea58d8d91e072e4b4cdf456cadb4a4c55ee54631cc22727a94b4c767e4514",
   "explicit_exclusions": [
@@ -16,9 +16,9 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "9ff675daefe32269209e32a774c9e81911eb128f336da6d71efe6df69968739a",
-    "adequacy_result_digest": "901470c0492a0d0f6d99f0d41473685285f4ac78179d37b0453ed32ecd013844",
-    "executable_control_count": 26,
+    "adequacy_declaration_digest": "1d217c674ef1ba0c58143bcbe989113ebf7eca856afe6e7a43d95853c7ba06ae",
+    "adequacy_result_digest": "c88934069cef4928b49da1b260ebda75c186e2190aad4024091a54b9ae98aaba",
+    "executable_control_count": 28,
     "negative_fixture_count": 126,
     "coverage_witness_count": 126
   }

@@ -3,8 +3,8 @@
 import { loadAdmittedProofPackMeaning, loadExactAdmittedProofPackMeaning, readProofPackCatalog }
   from './admitted-proof-packs.mjs';
 import { deepFreeze } from './deterministic-projection-primitives.mjs';
-import { PROOF_AUTHORING_FIELDS, validateProofAuthoringAmendment as validateAmendment }
-  from './obligation-coverage-carrier.mjs';
+import { PROOF_AUTHORING_FIELDS, PROOF_EXCEPTION_ACTIONS, validateProofAuthoringAmendment as validateAmendment,
+  validateProofExceptionRationale } from './obligation-coverage-carrier.mjs';
 
 import { OBLIGATION_COVERAGE_UPSERT_TOOL, ProofAuthoringError, assertProofAuthoringDraft,
   registeredRecoveryInstruction } from './proof-contract.mjs';
@@ -12,7 +12,8 @@ import { FIND_PROOFS_TASK } from './proof-discovery-task.mjs';
 
 export { ProofAuthoringError, assertProofAuthoringDraft };
 const pinFields = Object.freeze(['profile_digest', 'parameter_contract_digest', 'admission_digest']);
-export { PROOF_AUTHORING_FIELDS, PROOF_AUTHORING_FIELD_SCHEMAS } from './obligation-coverage-carrier.mjs';
+export { PROOF_AUTHORING_FIELDS, PROOF_AUTHORING_FIELD_SCHEMAS, PROOF_EXCEPTION_ACTIONS,
+  PROOF_EXCEPTION_RATIONALE_SCHEMA } from './obligation-coverage-carrier.mjs';
 
 export async function pinProofSelection(proofName, {
   catalog = readProofPackCatalog, load = loadAdmittedProofPackMeaning
@@ -85,10 +86,6 @@ async function amendRow(content, rowIndex, obligationId, changes, owners) {
       row.acceptance_criteria = owners.criteria(changes.acceptance_criteria, obligationId);
     }
   }
-  if (Object.hasOwn(changes, 'proof_opt_out')) {
-    if (changes.proof_opt_out === true) row.proof_opt_out = true;
-    else delete row.proof_opt_out;
-  }
   if (changes.refresh_proof_version === true && !(changes.proof_name ?? row.selection?.proof_name)) {
     throw new ProofAuthoringError('proof_unselected', 'Select a proof name before refreshing its version', { phase: 'request' });
   }
@@ -107,16 +104,42 @@ async function amendRow(content, rowIndex, obligationId, changes, owners) {
     for (const key of changes.clear_parameters ?? []) delete selection.parameters[key];
     row.selection = selection;
   }
-  if (row.proof_opt_out === true && (row.selection !== undefined || row.case_id !== undefined)) {
-    throw new ProofAuthoringError('proof_opt_out_conflict',
-      'An obligation cannot both decline proof and keep a proof selection or case', {
-        phase: 'request', field: 'proof_opt_out', obligation_id: obligationId,
-        correction: 'Remove the selection with workspace_controlled_contract_obligation_coverage_remove ' +
-          'removal_scope "selection" before supplying proof_opt_out true, or supply proof_opt_out false ' +
-          'with the proof selection.'
-      });
-  }
+  assertNoProofExceptionConflict(row, obligationId);
   return row;
+}
+
+function assertNoProofExceptionConflict(row, obligationId) {
+  if (row.proof_opt_out !== true || (row.selection === undefined && row.case_id === undefined)) return;
+  throw new ProofAuthoringError('proof_opt_out_conflict',
+    'An obligation cannot both decline proof and keep a proof selection or case', {
+      phase: 'request', field: 'proof_opt_out', obligation_id: obligationId,
+      holds: { proof_opt_out: true, selection: row.selection !== undefined, case_id: row.case_id ?? null },
+      correction: 'Keep one decision. The saved proof selection or case is removed only by its own explicit ' +
+        'removal; a recorded proof exception is withdrawn only by its own explicit withdrawal.'
+    });
+}
+
+export function applyProofAuthoringException(source, obligationId, { action, rationale } = {}) {
+  if (!PROOF_EXCEPTION_ACTIONS.includes(action)) throw new ProofAuthoringError('request_invalid',
+    'A proof exception is applied or withdrawn', { phase: 'request', field: 'action' });
+  const content = structuredClone(assertProofAuthoringDraft(source));
+  const row = content.obligations.find(value => value.obligation_id === obligationId);
+  if (!row) throw new ProofAuthoringError('obligation_not_found', 'The obligation does not exist',
+    { phase: 'request', obligation_id: obligationId });
+  if (action === 'withdraw') {
+    if (rationale !== undefined) throw new ProofAuthoringError('request_invalid',
+      'Withdrawing a proof exception takes no rationale', { phase: 'request', field: 'rationale' });
+    delete row.proof_opt_out;
+    delete row.proof_opt_out_rationale;
+    return assertProofAuthoringDraft(content);
+  }
+  if (!validateProofExceptionRationale(rationale)) throw new ProofAuthoringError('request_invalid',
+    'A proof exception states a trimmed, nonempty rationale', { phase: 'request', field: 'rationale',
+      issues: structuredClone(validateProofExceptionRationale.errors ?? []) });
+  row.proof_opt_out = true;
+  row.proof_opt_out_rationale = rationale;
+  assertNoProofExceptionConflict(row, obligationId);
+  return assertProofAuthoringDraft(content);
 }
 
 export async function upsertProofAuthoringSelection(source, obligations, owners = {}) {

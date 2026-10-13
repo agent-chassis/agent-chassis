@@ -68,13 +68,13 @@ function live(base, mutate = () => {}) {
 
 const sliceOf = (record, id) => record.slices.find((slice) => slice.id === id);
 const authenticate = (candidateRecord, liveRecord, publishedRecord = null) =>
-  authenticateWkCloseoutProjection({ candidateRecord, liveRecord, integratedDelivery: DELIVERY, publishedRecord });
+  authenticateWkCloseoutProjection({ candidateRecord, liveRecord, integratedDeliveries: [DELIVERY], publishedRecord });
 
 function assertAdmitted(candidateRecord, liveRecord, label, publishedRecord = null) {
   const before = structuredClone(liveRecord);
   const result = authenticate(candidateRecord, liveRecord, publishedRecord);
   assert.equal(result.ok, true, `${label}: ${JSON.stringify(result)}`);
-  assert.equal(result.closed_slice_id, "SLICE-002", label);
+  assert.deepEqual(result.closed_slice_ids, ["SLICE-002"], label);
   assert.equal(result.closeoutRecord, liveRecord, `${label}: the live record is carried, never rebuilt`);
   assert.deepEqual(liveRecord, before, `${label}: nothing is stripped from the carried record`);
   return result;
@@ -207,9 +207,12 @@ test("paired refusals: implementation, scope and delivery stay protected beside 
   assertRefused(C, valid((record) => { record.acceptance.criteria = ["relaxed"]; }),
     { reason: "unrelated_record_drift", fields: ["acceptance.criteria"] }, "parent acceptance");
   assertRefused(C, valid((record) => { record.sections.summary = "rewritten"; }),
-    { reason: "unrelated_sections_drift" }, "parent summary");
+    { reason: "unrelated_sections_drift", unit: "WK-2672", fields: ["sections.summary"], differences: [
+        { path: "sections.summary", change: "unsupported", candidate_value: "s", observed_value: "rewritten" }] }, "parent summary");
   assertRefused(C, valid((record) => { sliceOf(record, "SLICE-004").write_scope = ["src/other.mjs"]; }),
-    { reason: "unrelated_slice_drift", slice_id: "SLICE-004" }, "implementation write scope");
+    { reason: "unrelated_slice_drift", slice_id: "SLICE-004", cause: "unsupported_change", fields: ["write_scope"],
+      differences: [{ path: "write_scope", change: "unsupported", candidate_value: ["src/c.mjs"], observed_value: ["src/other.mjs"] }] },
+    "implementation write scope");
   const replayed = "b".repeat(40);
   assertRefused(C, valid((record) => { sliceOf(record, "SLICE-002").integrated_delivery_sha = replayed; }), {
     reason: "integrated_delivery_unauthenticated", slice_id: "SLICE-002", expected_slice_id: "SLICE-002",

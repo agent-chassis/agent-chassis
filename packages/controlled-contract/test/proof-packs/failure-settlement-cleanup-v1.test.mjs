@@ -51,8 +51,8 @@ test("failure settlement pack passes its complete fixed corpus", async () => {
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
     assert.equal(result.passed, true);
-    assert.equal(result.control_count, 40);
-    assert.equal(result.negative_fixture_count, 15);
+    assert.equal(result.control_count, 44);
+    assert.equal(result.negative_fixture_count, 17);
     assert.equal(result.coverage_witness_count, 150);
     assert.deepEqual(result.diagnostics, []);
     assert.equal(result.negative_fixture_results.every(

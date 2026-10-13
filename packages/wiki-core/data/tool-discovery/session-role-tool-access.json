@@ -338,6 +338,14 @@
       ]
     },
     {
+      "source_kind": "record",
+      "selection": "input_contract",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
       "source_kind": "canonical_record",
       "selection": "context",
       "roles": [
@@ -368,6 +376,14 @@
     {
       "source_kind": "canonical_record",
       "selection": "action",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "canonical_record",
+      "selection": "input_contract",
       "roles": [
         "orchestrator",
         "operator"
@@ -570,6 +586,22 @@
     {
       "source_kind": "requirement_guidance",
       "selection": "guidance",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record_kind",
+      "selection": "context",
+      "roles": [
+        "orchestrator",
+        "operator"
+      ]
+    },
+    {
+      "source_kind": "record_kind",
+      "selection": "input_contract",
       "roles": [
         "orchestrator",
         "operator"

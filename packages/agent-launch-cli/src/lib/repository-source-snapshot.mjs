@@ -1,10 +1,10 @@
 
 
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
+import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-export const ORDINARY_SOURCE_SNAPSHOT_SCHEMA_VERSION = "repository-execution-source-snapshot.v2";
+export const ORDINARY_SOURCE_SNAPSHOT_SCHEMA_VERSION = "repository-execution-source-snapshot.v3";
 
 export const REPOSITORY_SOURCE_SNAPSHOT_REFUSALS = Object.freeze({
   symlink: Object.freeze({ code: "test_proof_source_snapshot_symlink_unsupported",
@@ -26,9 +26,9 @@ function canonicalJson(value) {
 }
 
 export function collectRepositorySourceEntries(root, { excludedTopLevelNames = [], exclusions = [],
-  symlinks = "refuse", refuse = defaultRefuse } = {}) {
-  if (symlinks !== "refuse" && symlinks !== "record") {
-    throw new TypeError("repository source entries record or refuse symlinks");
+  symlinks = "refuse", refuse = defaultRefuse, mappedDependencies = null } = {}) {
+  if (symlinks !== "refuse" && symlinks !== "omit") {
+    throw new TypeError("repository source entries omit or refuse symlinks");
   }
   const topLevel = new Set(excludedTopLevelNames);
   const excluded = new Map(exclusions.map(({ path: relative, keepNames = [] }) => [relative, new Set(keepNames)]));
@@ -42,7 +42,6 @@ export function collectRepositorySourceEntries(root, { excludedTopLevelNames = [
         digest: `sha256:${createHash("sha256").update(readFileSync(absolute)).digest("hex")}` });
     } else if (stat.isSymbolicLink()) {
       if (symlinks === "refuse") refuse("symlink", { path: relative });
-      entries.push({ path: relative, kind: "symlink", target: readlinkSync(absolute) });
     } else {
       if (symlinks === "refuse") refuse("special", { path: relative });
       entries.push({ path: relative, kind: "special", mode: stat.mode });
@@ -59,17 +58,18 @@ export function collectRepositorySourceEntries(root, { excludedTopLevelNames = [
     }
   };
   const walk = (directory) => {
+    const mapped = mappedDependencies === null ? [] : mappedDependencies(directory);
     for (const name of readdirSync(directory).sort()) {
       const absolute = path.join(directory, name);
       const relative = relativeOf(absolute);
       if (directory === root && topLevel.has(name)) continue;
-      const stat = lstatSync(absolute);
       const keep = excluded.get(relative);
       if (keep !== undefined) {
-        if (keep.size > 0 && stat.isDirectory()) walkCovered(absolute, keep);
+        if (keep.size > 0 && lstatSync(absolute).isDirectory()) walkCovered(absolute, keep);
         continue;
       }
-      record(absolute, relative, stat, walk);
+      if (mapped.includes(absolute)) continue;
+      record(absolute, relative, lstatSync(absolute), walk);
     }
   };
   walk(root);
@@ -81,22 +81,23 @@ export function repositorySnapshotDigest(value) {
     .digest("hex")}`;
 }
 
-function maskedOrSelfAuthenticated(root) {
+function launcherOwnedOrSelfAuthenticated(root) {
   let gitIsDirectory = false;
   try {
     gitIsDirectory = lstatSync(path.join(root, ".git")).isDirectory();
   } catch {
     gitIsDirectory = false;
   }
-  return [{ path: ".agent-launch", keepNames: [] }, { path: ".env", keepNames: [] },
+  return [{ path: ".agent-launch", keepNames: [] },
     ...(gitIsDirectory ? [{ path: ".git/objects", keepNames: [] }] : [])];
 }
 
-export function captureRepositorySourceSnapshot(root, { exclusions = [] } = {}) {
-  const omitted = [...maskedOrSelfAuthenticated(root), ...exclusions]
+export function captureRepositorySourceSnapshot(root, { exclusions = [], mappedDependencies = null } = {}) {
+  const omitted = [...launcherOwnedOrSelfAuthenticated(root), ...exclusions]
     .map(({ path: relative, keepNames = [] }) => ({ path: relative, keepNames: [...keepNames].sort() }))
     .sort((left, right) => left.path.localeCompare(right.path));
-  const entries = collectRepositorySourceEntries(root, { exclusions: omitted, symlinks: "record" });
+  const entries = collectRepositorySourceEntries(root, { exclusions: omitted, symlinks: "omit",
+    mappedDependencies });
   const body = { schema_version: ORDINARY_SOURCE_SNAPSHOT_SCHEMA_VERSION, exclusions: omitted, entries };
   return Object.freeze({ schema_version: ORDINARY_SOURCE_SNAPSHOT_SCHEMA_VERSION, entry_count: entries.length,
     source_snapshot_digest: repositorySnapshotDigest(body) });

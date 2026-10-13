@@ -34,6 +34,11 @@ function selectedUnit(record, address) {
   return record.slices?.find(({ id }) => id === sliceId) ?? null;
 }
 
+function declaredRegressionTests(source) {
+  const files = source.selectedUnit === null ? null : source.unit?.regression_tests;
+  return Array.isArray(files) && files.length > 0 ? [...files] : null;
+}
+
 const NO_SOURCE_CHOICE_CODES = new Set(["verify_proof.subject_ambiguous.v1",
   "verify_proof.subject_unknown.v1", "verify_proof.native_binding_unavailable.v1"]);
 async function crossWkSourceChoices({ root, subject, wkIds }) {
@@ -160,6 +165,7 @@ async function resolveProductionContextFromRuntime({ args, runtime }) {
     selected_unit: null, content_digest: caseSource.content_digest,
     source_snapshot_digest: sourceGuard.snapshot.source_snapshot_digest };
   const assertSourcesCurrent = () => sourceGuard.assertCurrent();
+  const regressionTests = declaredRegressionTests(selected.source);
   await runtime.assertCurrentIdentity?.();
   const { map: resolution, testTargetDeclarations } = await selected.resolve();
   const generation = await readControlledContractGeneration({ repoRoot, wkId });
@@ -176,7 +182,9 @@ async function resolveProductionContextFromRuntime({ args, runtime }) {
     definition_identities: resolution.definition_identities,
     dependencies: resolution.dependencies.map(({ construction, ...node }) => ({ ...node,
       construction_digest: construction === null ? null : `sha256:${canonicalDigest(construction)}` })),
-    candidate: runtime.candidateIdentity, source_snapshot_digest: sourceGuard.snapshot.source_snapshot_digest };
+    candidate: runtime.candidateIdentity, source_snapshot_digest: sourceGuard.snapshot.source_snapshot_digest,
+
+    ...(regressionTests === null ? {} : { regression_tests: regressionTests }) };
   const binding = deepFreeze({ ...bindingBody, binding_digest: `sha256:${canonicalDigest(bindingBody)}` });
   const assertCurrentIdentity = async () => {
     await runtime.assertCurrentIdentity?.();
@@ -189,6 +197,10 @@ async function resolveProductionContextFromRuntime({ args, runtime }) {
         fresh.source.focus !== selected.source.focus || fresh.kind !== selected.kind) {
       throw new VerifyProofOperationError("verify_proof.execution_source_stale.v1",
         "Saved source selection moved during this invocation");
+    }
+    if (JSON.stringify(declaredRegressionTests(fresh.source)) !== JSON.stringify(regressionTests)) {
+      throw new VerifyProofOperationError("verify_proof.execution_source_stale.v1",
+        "Declared regression tests moved during this invocation");
     }
     const current = await fresh.resolve();
     const currentPack = await loadAdmittedProofPack("proof.verification.test-validity");

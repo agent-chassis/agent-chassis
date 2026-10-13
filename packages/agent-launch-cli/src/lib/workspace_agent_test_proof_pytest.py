@@ -20,8 +20,13 @@ it changes how node ids are spelled and selects no configuration. It also
 overrides ``cache_dir`` to a separate pytest subdirectory of its private
 import-policy scratch, removed when the process settles, so the enabled cache
 provider cannot change the authenticated checkout. It does not set a verbosity.
-Plugin autoload stays disabled, because an autoloaded plugin would join the
-application dependency population this entry measures.
+Plugin autoload is left as the project has it: pytest loads the installed
+plugins an ordinary run of the same file loads, and a project that disables
+autoload itself (``PYTEST_DISABLE_PLUGIN_AUTOLOAD`` or its own options) keeps
+that choice. A loaded plugin is accounted for like every other import: one
+from the project or its bound environment is part of those inputs, and one
+from anywhere else is a member of the application dependency population this
+entry measures.
 
 Two optional installed mechanisms are available:
 
@@ -79,6 +84,7 @@ diagnostic_graph = _load_diagnostic_graph()
 PROTOCOL_SCHEMA = "workspace-agent-test-proof-pytest-events.v1"
 CONFIG_SCHEMA = "workspace-agent-test-proof-pytest-configuration.v1"
 PROTOCOL_FD = 3
+SKIP_REASON_MAX_CHARACTERS = 1024
 MODES = ("probe", "candidate", "falsifier", "traversal")
 FUNCTION_CODE_FLAGS = inspect.CO_OPTIMIZED | inspect.CO_NEWLOCALS
 SOURCE_ONLY_LOADERS = (
@@ -376,6 +382,10 @@ def _plugin(pytest, configuration, fault, tracer):
         def pytest_runtest_logreport(self, report):
             observation = {"nodeid": report.nodeid, "when": report.when, "outcome": report.outcome}
             detail = self.pending.pop((report.nodeid, report.when), None)
+            if report.skipped:
+                reason = _skip_reason(report)
+                if reason is not None:
+                    observation["skip_reason"] = reason
             if report.failed:
                 observation["assertion_failure"] = bool(detail and detail["assertion_failure"])
                 observation["error_codes"] = detail["error_codes"] if detail else ["pytest.phase." + report.when]
@@ -392,6 +402,16 @@ def _plugin(pytest, configuration, fault, tracer):
                     for entry in self.collect_errors]
 
     return LauncherProofPlugin()
+
+
+def _skip_reason(report):
+    """The reason pytest itself recorded for a skipped phase, as it states it, or None."""
+    longrepr = getattr(report, "longrepr", None)
+    if isinstance(longrepr, tuple) and len(longrepr) == 3:
+        longrepr = longrepr[2]
+    if not isinstance(longrepr, str) or len(longrepr) == 0:
+        return None
+    return longrepr[:SKIP_REASON_MAX_CHARACTERS]
 
 
 def _install_import_policy():
@@ -464,7 +484,6 @@ def main(argv):
     root = configuration["root"]
     mode = configuration["mode"]
     startup_modules = set(sys.modules)
-    os.environ["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
     private_cache = _install_import_policy()
     sys.path.insert(0, root)
     for runtime_path in reversed(configuration.get("runtime_paths", [])):

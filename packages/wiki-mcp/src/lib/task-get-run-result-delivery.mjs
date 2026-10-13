@@ -13,6 +13,7 @@ import { managedTestAuthorityIdentity, managedTestAuthorityAuthenticated } from 
 import { projectPublicFinalResult } from "./dispatch-final-result-projection.mjs";
 import { projectRecordedFailureDetail, DISPATCH_FAILURE_ORIGINALS } from "./dispatch-tool-helpers.mjs";
 import { measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
+import { ACTIVE_WORKER_OBSERVE_AGAIN_TIMEOUT_MS } from "./dispatch-monitor-call-deadline.mjs";
 
 export const OBSERVATION_ORIGINAL_PRODUCER = "workspace_agent_run_status";
 
@@ -127,9 +128,11 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
     ...(verification === undefined ? {} : { candidate_verification: verification.state === "offered"
       ? { state: verification.state, candidate: verification.candidate }
       : { state: verification.state, cause: verification.cause } }),
+
     next_calls: result !== undefined ? [detailCall(result)] : observeAgain ? [buildNextCall({ tool: route,
       arguments: request.assigned === true ? { assigned: true }
-        : { subject: observation.subject, attempt_id: observation.run_id } })] : [] };
+        : { subject: observation.subject, attempt_id: observation.run_id,
+          ...(observation.role === "worker" ? { timeout_ms: ACTIVE_WORKER_OBSERVE_AGAIN_TIMEOUT_MS } : {}) } })] : [] };
   for (const result of observation.delivery?.references ?? []) summary.next_calls.push(buildNextCall({
     tool: route, arguments: { result } }));
 

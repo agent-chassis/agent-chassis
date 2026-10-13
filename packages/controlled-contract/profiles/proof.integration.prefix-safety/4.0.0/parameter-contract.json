@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.integration.prefix-safety",
   "profile_version": "4.0.0",
-  "profile_digest": "d5f787bf5a3db86d478030f193cac6efd2b26e903b35c98ce670b89350e7e14a",
+  "profile_digest": "28d91a5f6f1e7af31d7ba606915884a58cf88a9633fa36e0a6cc2a829deaa5d2",
   "description": "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.",
   "parameters": [],
   "role_producers": [

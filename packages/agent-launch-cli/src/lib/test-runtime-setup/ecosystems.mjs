@@ -1,8 +1,7 @@
 
 
 import { createHash } from "node:crypto";
-import { mkdtempSync, existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync,
-  rmSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -12,14 +11,19 @@ import { GO_OFFLINE_MODULE_ENV, goModuleCachePopulation } from
   "@agent-chassis/wiki-core/src/lib/runtime-inputs/ecosystem-inputs-go.mjs";
 
 import { selectWorkingCopySource } from "../test-execution/source-selection.mjs";
-import { PYTHON_PROJECT_FILE, PYTHON_REQUIREMENT_FILES, pyprojectRequirementNames, requirementName,
-  splitTomlKey } from "./discovery.mjs";
+import { denoConfigName, denoLockSelection } from "./deno-config.mjs";
+import { PYTHON_PACKAGING_FILES, PYTHON_PROJECT_FILE, PYTHON_REQUIREMENT_FILES, distinctRequirementDeclarations,
+  pyprojectRequirements, requirementDeclaration, splitTomlKey } from "./discovery.mjs";
+import { GO_WORKSPACE_REFERENCE_REASONS, selectGoWorkspace } from "./go-workspace.mjs";
+import { projectDependencyLocationEnvironment } from "./location-environment.mjs";
+import { DEPENDENCIES_MISSING, NPM_ECOSYSTEM } from "./npm-installation.mjs";
 import { processDiagnostic, runSetupProcess } from "./process.mjs";
 import { TestRuntimeSetupError } from "./toolchains.mjs";
 
 export const ATTEMPT_SCRATCH_ROOT = "/agent-validation-tmp";
-export const DEPENDENCIES_MISSING = "test_runtime_dependencies_missing";
+export { DEPENDENCIES_MISSING };
 export const DEPENDENCY_SOURCE_UNSUPPORTED = "test_runtime_dependency_source_unsupported";
+export const GO_WORKSPACE_INVALID = "test_runtime_go_workspace_invalid";
 
 function fail(code, message, detail = {}) {
   throw new TestRuntimeSetupError(code, message, detail);
@@ -39,70 +43,12 @@ function homeOf(env) {
   return absoluteOrNull(env.HOME) ?? os.homedir();
 }
 
-function readManifest(file) {
-  try {
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch {
-    fail("test_runtime_manifest_invalid", `${file} is not valid JSON`, { manifest: file });
-  }
-}
-
-function packageDeclaresDependencies(file) {
-  const manifest = readManifest(file);
-
-  const optionalPeers = new Set(Object.entries(manifest.peerDependenciesMeta ?? {})
-    .filter(([, meta]) => meta?.optional === true).map(([name]) => name));
-  return ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]
-    .some((field) => Object.keys(manifest[field] ?? {}).some((name) =>
-      field !== "peerDependencies" || !optionalPeers.has(name)));
-}
-
-function requiredPackages(file) {
-  const manifest = readManifest(file);
-  return ["dependencies", "devDependencies"].flatMap((field) => Object.keys(manifest[field] ?? {}));
-}
-
-function nodeModulesEntries(nodeModules) {
-  const entries = [];
-  for (const name of readdirSync(nodeModules).sort()) {
-    if (name.startsWith(".")) continue;
-    const absolute = path.join(nodeModules, name);
-    if (name.startsWith("@") && lstatSync(absolute).isDirectory()) {
-      for (const scoped of readdirSync(absolute).sort()) {
-        entries.push({ name: `${name}/${scoped}`, absolute: path.join(absolute, scoped) });
-      }
-    } else {
-      entries.push({ name, absolute });
-    }
-  }
-  return entries;
-}
-
-function workspaceLinks(installRoot, members) {
-  const nodeModules = path.join(installRoot, "node_modules");
-  if (!existsSync(nodeModules)) return [];
-  const links = [];
-  for (const { name, absolute } of nodeModulesEntries(nodeModules)) {
-    if (!lstatSync(absolute).isSymbolicLink()) continue;
-    const target = readlinkSync(absolute);
-    const resolved = path.resolve(path.dirname(absolute), target);
-    const member = path.relative(installRoot, resolved).split(path.sep).join("/");
-    if (path.isAbsolute(target) || !members.includes(member)) {
-      fail("test_runtime_local_package_link_unsupported",
-        `installed dependency ${name} links ${target}, which is not a declared workspace member`,
-        { package: name, link_target: target, declared_members: members });
-    }
-    links.push(Object.freeze({ package: name, member }));
-  }
-  return links;
-}
-
 function dependenciesMissing(message, detail) {
   fail(DEPENDENCIES_MISSING, message, detail);
 }
 
-function requirementNames(files, projectDir) {
-  const names = new Set();
+function fileRequirements(files, projectDir) {
+  const declarations = [];
   const seen = new Set();
   const visit = (file) => {
     const real = existsSync(file) ? realpathSync(file) : file;
@@ -118,26 +64,51 @@ function requirementNames(files, projectDir) {
         continue;
       }
       if (line.startsWith("-")) continue;
-      const name = requirementName(line);
-      if (name !== null) names.add(name);
+      const declaration = requirementDeclaration(line.replace(/\s+(?:--[a-z][a-z-]*(?:[=\s].*)?|\\)$/u, ""));
+      if (declaration !== null) declarations.push(declaration);
     }
   };
   for (const file of files) visit(file);
-  return [...names].sort();
+  return distinctRequirementDeclarations(declarations);
 }
 
 const PYTHON_INSPECT_PROGRAM = [
-  "import json, os, sys, sysconfig",
+  "import importlib, json, os, sys, sysconfig",
   "import importlib.metadata as metadata",
-  "missing = []",
-  "for name in json.loads(sys.argv[1]):",
+  "def evaluator():",
+  "    for module in ('packaging.requirements', 'pip._vendor.packaging.requirements'):",
+  "        try:",
+  "            return importlib.import_module(module).Requirement",
+  "        except Exception:",
+  "            continue",
+  "    return None",
+  "missing, invalid, unevaluated, parse = [], [], [], False",
+  "for declared in json.loads(sys.argv[1]):",
+  "    name, requirement = declared['name'], declared['requirement']",
   "    try:",
   "        metadata.distribution(name)",
+  "        continue",
   "    except metadata.PackageNotFoundError:",
+  "        pass",
+  "    if ';' in requirement:",
+  "        parse = evaluator() if parse is False else parse",
+  "        if parse is None:",
+  "            unevaluated.append(declared)",
+  "            continue",
+  "        try:",
+  "            marker = parse(requirement).marker",
+  "            applies = marker is None or bool(marker.evaluate())",
+  "        except Exception as error:",
+  "            invalid.append({'requirement': requirement, 'error': f'{type(error).__name__}: {error}'})",
+  "            continue",
+  "        if not applies:",
+  "            continue",
+  "    if name not in missing:",
   "        missing.append(name)",
   "paths = sysconfig.get_paths()",
   "site = sorted({os.path.realpath(paths[key]) for key in ('purelib', 'platlib')})",
-  "print(json.dumps({'missing': missing, 'site': site, 'prefix': sys.prefix}))"
+  "print(json.dumps({'missing': missing, 'invalid': invalid, 'unevaluated': unevaluated, 'site': site,",
+  "    'prefix': sys.prefix}))"
 ].join("\n");
 
 function nearestVirtualEnvironment(repositoryRoot, projectDir, project) {
@@ -338,125 +309,33 @@ async function detectCargoVendor({ project, projectDir, cargoHome, locked, repla
 }
 
 export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
-  npm: Object.freeze({
-    name: "npm",
-    toolchains: Object.freeze(["node"]),
 
-    projectCommands: Object.freeze({}),
-
-    manifests(projectDir, { members = [] } = {}) {
-      const manifest = path.join(projectDir, "package.json");
-      if (!existsSync(manifest)) return { status: "none", files: {} };
-      const lock = path.join(projectDir, "package-lock.json");
-      const memberFiles = Object.fromEntries(members
-        .map((member) => [`${member}/package.json`, path.join(projectDir, member, "package.json")])
-        .filter(([, file]) => existsSync(file)));
-      if (members.length === 0 && !packageDeclaresDependencies(manifest)) {
-        return { status: "none", files: { "package.json": manifest } };
-      }
-
-      if (!existsSync(lock)) {
-        return { status: "lock_missing", required: "package-lock.json",
-          files: { "package.json": manifest, ...memberFiles } };
-      }
-      return { status: "present",
-        files: { "package.json": manifest, "package-lock.json": lock, ...memberFiles } };
-    },
-
-    async detect({ projectDir, project, members, inputs, complete = true }) {
-      const nodeModules = path.join(projectDir, "node_modules");
-      if (!complete && !existsSync(nodeModules)) return { absent: true };
-      const declared = [...new Set(Object.entries(inputs.files).filter(([name]) => name.endsWith("package.json"))
-        .flatMap(([, file]) => requiredPackages(file)))].sort();
-      const absent = existsSync(nodeModules) ? declared.filter((name) => {
-        try { lstatSync(path.join(nodeModules, name)); return false; } catch { return true; }
-      }) : declared;
-      if (complete && (!existsSync(nodeModules) || absent.length > 0)) {
-        dependenciesMissing(`project ${project} has no installed ${existsSync(nodeModules)
-          ? `${absent.join(", ")} in its node_modules` : "node_modules"}`,
-        { dependency_root: nodeModules, missing: absent,
-          correction: `install the project's locked dependencies (for example \`npm ci\` in ${projectDir}), ` +
-            "then rerun setup" });
-      }
-      const nested = members.filter((member) => existsSync(path.join(projectDir, member, "node_modules")));
-      if (nested.length > 0) {
-        fail("test_runtime_workspace_layout_unsupported",
-          "workspace members hold member-private node_modules that the shared workspace installation does not bind",
-          { members: nested, dependency_root: nodeModules });
-      }
-
-      const installed = realpathSync(nodeModules);
-      return { source: "project_node_modules", dir: installed, population: [installed],
-        exclude: [".cache", ".vite"], workspace_links: workspaceLinks(projectDir, members) };
-    },
-
-    runtimeBinding({ dependency, projectHostDir }) {
-      if (dependency.status !== "present") return { binds: [], mountpoints: [], links: [], env: {}, values: {} };
-
-      let existing = null;
-      try { existing = realpathSync(path.join(projectHostDir, "node_modules")); } catch { existing = null; }
-      if (existing === dependency.dir) {
-        return { binds: [{ src: dependency.dir, dst: dependency.dir }], mountpoints: [], links: [], env: {},
-          values: { node_modules_source: dependency.dir, node_modules: path.join(projectHostDir, "node_modules") } };
-      }
-      return {
-        binds: [{ src: dependency.dir, dst: path.join(projectHostDir, "node_modules") }],
-        mountpoints: [path.join(projectHostDir, "node_modules")],
-        links: [],
-        env: {},
-        values: { node_modules_source: dependency.dir, node_modules: path.join(projectHostDir, "node_modules") }
-      };
-    },
-
-    workingCopyBinding({ dependency, workProjectDir }) {
-      const installed = dependency.dir;
-      const values = { node_modules_source: installed, node_modules: installed };
-      const binds = [{ src: installed, dst: installed }];
-      const workModules = path.join(workProjectDir, "node_modules");
-      const linked = dependency.workspace_links ?? [];
-      if (linked.length === 0) {
-        return { binds, mountpoints: [], directories: [],
-          links: [{ path: workModules, target: installed }], env: {}, values };
-      }
-      const members = new Map(linked.map(({ package: name, member }) => [name, member]));
-      const entries = nodeModulesEntries(installed);
-      const scopes = [...new Set(entries.map(({ name }) => name.includes("/") ? name.split("/")[0] : null)
-        .filter(Boolean))];
-      return {
-        binds,
-        mountpoints: [],
-        directories: [workModules, ...scopes.map((scope) => path.join(workModules, scope))],
-        links: entries.map(({ name, absolute }) => ({ path: path.join(workModules, name),
-          target: members.has(name) ? path.join(workProjectDir, members.get(name)) : absolute })),
-        env: {},
-        values
-      };
-    }
-  }),
+  npm: NPM_ECOSYSTEM,
   deno: Object.freeze({
     name: "deno",
     toolchains: Object.freeze(["deno"]),
     projectCommands: Object.freeze({ deno: Object.freeze({}) }),
+
     manifests(projectDir) {
-      const config = ["deno.json", "deno.jsonc"].find((name) => existsSync(path.join(projectDir, name)));
+      const config = denoConfigName(projectDir);
       if (!config) return { status: "none", files: {} };
-      const lock = path.join(projectDir, "deno.lock");
-      if (!existsSync(lock)) {
-        return { status: "lock_missing", required: "deno.lock", files: { [config]: path.join(projectDir, config) } };
-      }
-      return { status: "present", files: { [config]: path.join(projectDir, config), "deno.lock": lock } };
+      const files = { [config]: path.join(projectDir, config) };
+      const lock = denoLockSelection(projectDir);
+      if (lock.disabled) return { status: "present", files };
+      if (!existsSync(lock.file)) return { status: "lock_missing", required: lock.name, files };
+      return { status: "present", files: { ...files, [lock.name]: lock.file } };
     },
 
     async detect({ project, projectDir, inputs, toolchains, env, complete = true }) {
 
-      const lockFile = inputs.files?.["deno.lock"];
+      const lock = denoLockSelection(projectDir);
+      const lockFile = lock.disabled ? undefined : inputs.files?.[lock.name];
       if (lockFile !== undefined && !denoLockHasDependencies(lockFile)) return { none: true };
 
       const deno = toolchains.deno.executables.deno;
       const described = await runSetupProcess(deno, ["info", "--json"], { cwd: projectDir,
         env: { PATH: pathWith(), HOME: homeOf(env), NO_COLOR: "1", DENO_NO_UPDATE_CHECK: "1",
-          ...Object.fromEntries(["DENO_DIR", "XDG_CACHE_HOME"].filter((name) => typeof env[name] === "string")
-            .map((name) => [name, env[name]])) }, timeoutMs: 60000 });
+          ...projectDependencyLocationEnvironment(env, "deno") }, timeoutMs: 60000 });
       let denoDir = null;
       try { denoDir = described.ok ? JSON.parse(described.stdout).denoDir ?? null : null; } catch { denoDir = null; }
       if (absoluteOrNull(denoDir) === null) {
@@ -465,6 +344,8 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
       }
       const population = ["remote", "npm"].map((name) => path.join(denoDir, name)).filter(existsSync);
       if (population.length === 0 && !complete) return { absent: true };
+
+      if (population.length === 0 && lock.disabled) return { none: true };
       if (population.length === 0) {
         dependenciesMissing(`project ${project} has no cached Deno dependencies in ${denoDir}`,
           { dependency_root: denoDir,
@@ -515,9 +396,13 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         .map((name) => [name, path.join(projectDir, name)]));
       if (Object.keys(files).length > 0) return { status: "present", files };
 
-      const pyproject = path.join(projectDir, PYTHON_PROJECT_FILE);
-      if (existsSync(pyproject)) return { status: "present", files: { [PYTHON_PROJECT_FILE]: pyproject } };
-      return { status: "lock_missing", required: [...PYTHON_REQUIREMENT_FILES, PYTHON_PROJECT_FILE].join(" or ") };
+      const declaration = [PYTHON_PROJECT_FILE, ...PYTHON_PACKAGING_FILES]
+        .find((name) => existsSync(path.join(projectDir, name)));
+      if (declaration !== undefined) {
+        return { status: "present", files: { [declaration]: path.join(projectDir, declaration) } };
+      }
+      return { status: "lock_missing",
+        required: [...PYTHON_REQUIREMENT_FILES, PYTHON_PROJECT_FILE, ...PYTHON_PACKAGING_FILES].join(" or ") };
     },
 
     async detect({ repositoryRoot, projectDir, project, inputs, toolchains, selection = null, complete = true }) {
@@ -542,27 +427,43 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
       const declaredIn = Object.keys(inputs.files).sort();
 
       const fromProjectFile = inputs.files[PYTHON_PROJECT_FILE] !== undefined;
-      const names = fromProjectFile ? pyprojectRequirementNames(readFileSync(inputs.files[PYTHON_PROJECT_FILE], "utf8"))
-        : requirementNames(Object.values(inputs.files), projectDir);
+      const declared = fromProjectFile
+        ? pyprojectRequirements(readFileSync(inputs.files[PYTHON_PROJECT_FILE], "utf8"))
+        : fileRequirements(PYTHON_REQUIREMENT_FILES.filter((name) => inputs.files[name] !== undefined)
+          .map((name) => inputs.files[name]), projectDir);
 
       const inspected = await runSetupProcess(python, ["-I", "-B", "-c", PYTHON_INSPECT_PROGRAM,
-        JSON.stringify(names)], { env: { PATH: pathWith(), PYTHONDONTWRITEBYTECODE: "1" }, timeoutMs: 60000 });
+        JSON.stringify(declared)], { env: { PATH: pathWith(), PYTHONDONTWRITEBYTECODE: "1" }, timeoutMs: 60000 });
       let report = null;
       try { report = inspected.ok ? JSON.parse(inspected.stdout) : null; } catch { report = null; }
       if (report === null) {
         fail("test_runtime_environment_unusable", `python environment ${venv ?? interpreter} could not be inspected`,
           { project, environment: venv ?? interpreter, diagnostic: processDiagnostic(inspected) });
       }
-      if (report.missing.length > 0 && complete) {
+      if (report.invalid.length > 0 && complete) {
+        fail("test_runtime_manifest_invalid", `project ${project} declares ` +
+          `${report.invalid.map(({ requirement }) => JSON.stringify(requirement)).join(", ")}, which python ` +
+          `environment ${venv ?? interpreter} cannot read as a requirement`,
+        { project, environment: venv ?? interpreter, requirements: declaredIn, invalid: report.invalid,
+          missing: report.missing,
+          correction: `correct the named requirement in ${declaredIn.join(" or ")}, then rerun setup` });
+      }
+
+      const missing = [...new Set([...report.missing, ...report.unevaluated.map(({ name }) => name)])];
+      if (missing.length > 0 && complete) {
+        const unevaluated = report.unevaluated.length === 0 ? "" : ` (${venv ?? interpreter} has neither packaging ` +
+          `nor pip to evaluate the environment marker of ${report.unevaluated.map(({ requirement }) =>
+            JSON.stringify(requirement)).join(", ")})`;
         dependenciesMissing(`python environment ${venv ?? interpreter} of project ${project} lacks ` +
-          report.missing.join(", "), { project, environment: venv ?? interpreter, missing: report.missing,
+          `${missing.join(", ")}${unevaluated}`, { project, environment: venv ?? interpreter, missing,
+          ...(report.unevaluated.length > 0 ? { marker_unevaluated: report.unevaluated } : {}),
           requirements: declaredIn,
           correction: venv === null
             ? `create the project's virtual environment at ${path.join(projectDir, ".venv")} from ${interpreter} ` +
               "and install its requirements there, then rerun setup"
             : fromProjectFile
               ? `install the dependencies ${PYTHON_PROJECT_FILE} requires into ${venv} (for example \`${python} -m pip ` +
-                `install ${report.missing.join(" ")}\`, at the versions it declares), then rerun setup`
+                `install ${missing.join(" ")}\`, at the versions it declares), then rerun setup`
               : `install the project's requirements into ${venv} (for example \`${python} -m pip install ` +
                 `${declaredIn.map((name) => `-r ${name}`).join(" ")}\` in ${projectDir}), then rerun setup` });
       }
@@ -597,23 +498,40 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
     compilerCacheName: () => "go-build",
 
     projectCommands: Object.freeze({ go: Object.freeze({}) }),
-    manifests(projectDir) {
+
+    manifests(projectDir, { checkoutRoot = projectDir } = {}) {
       const mod = path.join(projectDir, "go.mod");
       if (!existsSync(mod)) return { status: "lock_missing", required: "go.mod" };
       const sum = path.join(projectDir, "go.sum");
       return { status: "present",
-        files: { "go.mod": mod, ...(existsSync(sum) ? { "go.sum": sum } : {}) } };
+        files: { "go.mod": mod, ...(existsSync(sum) ? { "go.sum": sum } : {}),
+          ...selectGoWorkspace(projectDir, checkoutRoot).files } };
     },
 
-    async detect({ project, projectDir, toolchains, env, complete = true }) {
+    async detect({ repositoryRoot, project, projectDir, toolchains, env, complete = true }) {
       const go = toolchains.go.executables.go;
-      const operatorEnv = Object.fromEntries(["HOME", "GOPATH", "GOMODCACHE", "GOENV", "XDG_CONFIG_HOME"]
-        .filter((name) => typeof env[name] === "string").map((name) => [name, env[name]]));
+      const workspace = selectGoWorkspace(projectDir, repositoryRoot);
+      if (complete && workspace.invalid.length > 0) {
+        const outside = workspace.invalid.filter(({ reason }) =>
+          reason === GO_WORKSPACE_REFERENCE_REASONS.OUTSIDE_CHECKOUT);
+        const [first] = workspace.invalid;
+        fail(outside.length === workspace.invalid.length ? DEPENDENCY_SOURCE_UNSUPPORTED : GO_WORKSPACE_INVALID,
+          `the Go workspace ${workspace.file} of project ${project} names ${first.reference} in ` +
+          `${first.declared_in}, which ${first.reason === GO_WORKSPACE_REFERENCE_REASONS.OUTSIDE_CHECKOUT
+            ? "lies outside the checkout" : "holds no go.mod"}`,
+          { project, workspace: workspace.file, invalid: workspace.invalid,
+            supported: "workspace modules and local replacements that are module directories inside the checkout",
+            correction: "restore each named module directory, or correct the `use` or `replace` line that names " +
+              "it, then rerun setup" });
+      }
+      const operatorEnv = projectDependencyLocationEnvironment(env, "go_modules");
       const located = await runSetupProcess(go, ["env", "GOMODCACHE"], { cwd: projectDir,
         env: { PATH: pathWith(path.dirname(go)), HOME: homeOf(env), ...operatorEnv, GOTOOLCHAIN: "local",
           GOTELEMETRY: "off" }, timeoutMs: 60000 });
       const cache = located.ok ? located.stdout.trim() : "";
-      const correction = `download the module's dependencies (for example \`go mod download\` in ${projectDir}) ` +
+      const correction = (workspace.file === null
+        ? `download the module's dependencies (for example \`go mod download\` in ${projectDir}) `
+        : `download the workspace's dependencies (for example \`go mod download\` in each module of ${workspace.file}) `) +
         "into the module cache setup sees, then rerun setup";
 
       if (!path.isAbsolute(cache) && !complete) return { absent: true };
@@ -626,7 +544,7 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         const listed = await runSetupProcess(go, ["list", "-m", "-f",
           "{{if not .Main}}{{.Path}}\t{{.Version}}\t{{.Dir}}\t{{.GoMod}}{{end}}", "all"], { cwd: projectDir,
           env: { PATH: pathWith(path.dirname(go)), HOME: path.join(scratch, "home"), GOMODCACHE: cache,
-            ...GO_OFFLINE_MODULE_ENV, GOWORK: "off", GOCACHE: path.join(scratch, "gocache"),
+            ...GO_OFFLINE_MODULE_ENV, GOWORK: workspace.file ?? "off", GOCACHE: path.join(scratch, "gocache"),
             GOPATH: path.join(scratch, "gopath") }, timeoutMs: 120000 });
 
         if (!listed.ok && !complete) {
@@ -634,8 +552,9 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
             : { absent: true };
         }
         if (!listed.ok) {
-          dependenciesMissing(`the module graph of project ${project} does not resolve from ${cache}`,
-            { module_cache: cache, diagnostic: processDiagnostic(listed), correction });
+          dependenciesMissing(`the module graph of project ${project} does not resolve from ${cache}` +
+            (workspace.file === null ? "" : ` in the workspace ${workspace.file}`),
+          { module_cache: cache, workspace: workspace.file, diagnostic: processDiagnostic(listed), correction });
         }
         const population = goModuleCachePopulation(listed.stdout, cache, existsSync);
         if (population.length === 0) return { none: true };
@@ -645,14 +564,17 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         try { rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); } catch {   }
       }
     },
-    runtimeBinding({ dependency, scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
+
+    runtimeBinding({ dependency, projectHostDir = null, checkoutRoot = projectHostDir,
+      scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
       const present = dependency.status === "present";
+      const workspace = projectHostDir === null ? null : selectGoWorkspace(projectHostDir, checkoutRoot).file;
       return {
         binds: present ? [{ src: dependency.dir, dst: dependency.dir }] : [],
         mountpoints: [],
         links: [],
         env: { GOMODCACHE: present ? dependency.dir : `${scratchRoot}/gomodcache`, ...GO_OFFLINE_MODULE_ENV,
-          GOWORK: "off", GOCACHE: `${scratchRoot}/go-build`, GOPATH: `${scratchRoot}/gopath` },
+          GOWORK: workspace ?? "off", GOCACHE: `${scratchRoot}/go-build`, GOPATH: `${scratchRoot}/gopath` },
         values: {}
       };
     }
@@ -682,7 +604,8 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
     },
 
     async detect({ project, projectDir, inputs, env, complete = true }) {
-      const cargoHome = cargoHomeFromEnvironment(env);
+      const cargoHome = cargoHomeFromEnvironment({ HOME: env.HOME,
+        ...projectDependencyLocationEnvironment(env, "cargo") });
 
       const lockFile = inputs.files?.["Cargo.lock"];
       const unlocked = lockFile === undefined;

@@ -1,7 +1,7 @@
 
 
 import { assertTestProofExecutionBudget } from "./confined-capture.mjs";
-import { runOrdinaryTestFile } from "./ordinary-test-runner.mjs";
+import { runOrdinaryTest } from "./ordinary-test-glob.mjs";
 
 export const ORDINARY_COMPARISON_STATES = Object.freeze({
   NOT_REQUESTED: "not_requested",
@@ -11,6 +11,21 @@ export const ORDINARY_COMPARISON_STATES = Object.freeze({
 });
 
 export function ordinaryComparisonIneligibility(result, { sourceCurrent = true, budget = null } = {}) {
+  if (Array.isArray(result?.files)) {
+    if (result.status !== "completed") return result.stopped ?? result.status;
+    let failed = false;
+    for (const { result: file } of result.files) {
+      if (file.status === "covered") continue;
+      const reason = ordinaryComparisonIneligibility(file);
+      if (reason === "candidate_succeeded") continue;
+      if (reason !== null) return reason;
+      failed = true;
+    }
+    if (!failed) return "candidate_succeeded";
+    if (!sourceCurrent) return "source_moved";
+    if (budget !== null && (budget.interruption() !== null || budget.remainingMs() === 0)) return "budget_expired";
+    return null;
+  }
   if (result?.status !== "executed") return result?.status === "not_run" ? "not_run" : result?.status ?? "not_run";
   const run = result.run;
   if (run?.ran !== true) return "not_run";
@@ -27,11 +42,12 @@ export function ordinaryComparisonIneligibility(result, { sourceCurrent = true, 
 }
 
 export async function runOrdinaryTestWithComparison({ request, candidate, compareParent = false, resolveBaseline,
-  budget, timeoutMs, runFile = runOrdinaryTestFile }) {
+  budget, timeoutMs, runFile = runOrdinaryTest }) {
   assertTestProofExecutionBudget(budget);
   const ordinary = (source) => runFile({ repositoryRoot: source.repositoryRoot, checkoutRoot: source.checkoutRoot,
     target: request.target, runner: request.runner, environment: request.environment ?? null,
-    selector: request.selector ?? null, timeoutMs, budget });
+    selector: request.selector ?? null, timeoutMs, budget },
+  ...(source.targets === undefined ? [] : [{ targets: source.targets }]));
   const candidateResult = await ordinary(candidate);
   const candidateSource = Object.freeze({ ...candidate.current(candidateResult) });
   const settledCandidate = Object.freeze({ result: candidateResult, source: candidateSource });

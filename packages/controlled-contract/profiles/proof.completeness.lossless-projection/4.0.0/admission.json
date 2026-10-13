@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "bca24756b82cd0ccf95ff302b1cc540a87f4dd39f22d6df6be2d7c4b1bc28800",
+  "parameter_contract_digest": "b229ee1b092f77e82832a53119eac5ee965f6f14fb2028b918360df32f145619",
   "profile_id": "proof.completeness.lossless-projection",
   "profile_version": "4.0.0",
-  "profile_digest": "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2",
+  "profile_digest": "198e7b2599fb7cbde6b703179e3572d4f2987bb04f0368ce500ea23c1d1169da",
   "guarantee": "When one declared structured tool exposes one compact mode and one distinct documented complete mode, the declared compact result omits at least one declared heavy member; every declared omission is absent from the compact population, present in the complete-result population, represented in an omission population whose computed union with the compact population equals the complete source population, and represented in a disclosed population equal to the omission population; the complete-result population equals the source population; the compact result names the complete mode and carries the disclosure, complete total, and omission total; both totals equal the corresponding exact bound population cardinalities; and the selected omission reason is a member of a closed declared reason catalog.",
   "guarantee_digest": "e999fd999699e6b4f0ce98b59622c11ee30a74f0f6ce150c18a7bb0a9c887a80",
   "explicit_exclusions": [
@@ -19,10 +19,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "c7727cac8bd8c74255ff29d793981c31522ddd5c2aa9d65d5cfe7458722ae0a5",
-    "adequacy_result_digest": "591700b0a4531f24af1a1510838d2261bae4a61a765d64e5a5d00732befc3605",
-    "executable_control_count": 35,
-    "negative_fixture_count": 10,
+    "adequacy_declaration_digest": "39813eeb7e8af6e655f9423b159de69e87406b3bdd454643de6f86c629e31927",
+    "adequacy_result_digest": "c3fdde7d3d5e8e3a6f72c34f342f90d21680c5d340e217b01bdb88f880689ace",
+    "executable_control_count": 47,
+    "negative_fixture_count": 16,
     "coverage_witness_count": 179
   }
 }

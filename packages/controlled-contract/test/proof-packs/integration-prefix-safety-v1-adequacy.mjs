@@ -6,7 +6,7 @@ import { PROOF_PACK_ADEQUACY_RUN_VERSION } from
 
 const GUARANTEE = "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.";
 const PROFILE_DIGEST =
-  "d5f787bf5a3db86d478030f193cac6efd2b26e903b35c98ce670b89350e7e14a";
+  "28d91a5f6f1e7af31d7ba606915884a58cf88a9633fa36e0a6cc2a829deaa5d2";
 const GUARANTEE_DIGEST =
   "77ffbca9bd9a063e667d13d48668f30e21236d4da2f2eb612db07cd7dc40754e";
 
@@ -310,8 +310,8 @@ function mutantFixture(profile, id) {
   throw new Error(`unknown mutant ${id}`);
 }
 
-async function runProofPackAdequacyControls({ profile }) {
-  const controls = [];
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
+  const controls = [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ];
   for (const [controlId, options] of [
     ["managed-repository-selection", {}],
     ["api-schema-rollout", {}],
@@ -356,3 +356,31 @@ export {
   runProofPackAdequacyControls,
   sourceDocuments
 };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-verify-all-prefix-cases-preserved-modalities",
+      "claim_id": "claim-verify-all-prefix-cases-preserved",
+      "baseline": "isolated-claim-verify-all-prefix-cases-preserved-modalities-baseline",
+      "optional": "isolated-claim-verify-all-prefix-cases-preserved-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

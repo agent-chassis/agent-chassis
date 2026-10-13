@@ -17,6 +17,8 @@ import testProofSchema from '@agent-chassis/controlled-contract/schema/controlle
 import { recordAuthoringChangeSchema } from '@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs';
 import { WIKI_MCP_ASSIGNED_UNIT_ENV_VAR, WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR, WIKI_MCP_COMMIT_RUN_ID_ENV_VAR,
   WIKI_MCP_TOOL_PROFILE_ENV_VAR } from './launcher-run-credential.mjs';
+import { registeredToolRequestContracts } from './registered-tool-request-contracts.mjs';
+import { caseFamilyGuidanceCall } from './requirement-authoring-job-guidance.mjs';
 import { measureMcpInlineResultBytes } from './mcp-response.mjs';
 import { authoringSchemaMembers, familyAuthoringFacts, familyChoiceFacts, projectIndex, projectIndexSummary, projectProof,
   projectProofSummary } from './proof-discovery-response.mjs';
@@ -449,7 +451,7 @@ export function createFindProofsInputContract(z) {
     retainedSelectionSchema: inputSchema.options.find(option => Object.hasOwn(option.shape, 'selection')) });
 }
 
-export function createFindProofsSession({ workspace, z, sessionEnv = process.env, responseEnv = process.env,
+export function createFindProofsSession({ workspace, z, sessionEnv = process.env, responseEnv = process.env, requestContracts = null,
   discover = discoverControlledProofIntentsOperation,
   discoverComplete = discover === discoverControlledProofIntentsOperation
     ? discoverCompleteControlledProofIntentsOperation : discover,
@@ -618,7 +620,7 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
     expected: expectedBinding(), project: async ({ binding, carrier }) =>
       answer({ carrier, locator, currentness: await currentnessOf(binding) }, selection, () => true) });
 
-  function answer({ carrier, locator, currentness }, selection, admits) {
+  async function answer({ carrier, locator, currentness }, selection, admits) {
     const indexCall = { result: locator };
     const named = selection.proof_name ?? null;
     if (named === null && carrier.mode !== 'detail') {
@@ -635,7 +637,13 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
       'selection.proof_name is a proof of this original result; another proof is a fresh proof_name request',
       'the call returns this original result without the selection; it does not return the requested proof');
     const part = selection.part ?? null;
-    const projected = projectProof(carrier, locator, currentness, proof, part, admits);
+
+    const offered = proof.verification_capability !== null && carrier.request.target_family !== undefined
+      ? caseFamilyGuidanceCall(carrier.request.target_family) : null;
+    const reader = requestContracts?.contractFor('workspace_read_wiki') ?? null;
+    const caseGuidance = offered !== null && reader !== null && await reader.acceptsArguments(offered.arguments)
+      ? offered : null;
+    const projected = projectProof(carrier, locator, currentness, proof, part, admits, caseGuidance);
     if (projected.unknown) {
       const { reason, ...subject } = projected.unknown;
       throw correctable(reason, { proof_name: proof.proof_name, ...subject },
@@ -647,9 +655,9 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
     return projected.payload;
   }
 
-  function compact(captured) {
+  async function compact(captured) {
     const { carrier, locator, currentness } = captured;
-    const complete = answer(captured, {}, fits);
+    const complete = await answer(captured, {}, fits);
     if (fits(complete)) return complete;
     return carrier.mode === 'detail' ? projectProofSummary(carrier, locator, currentness, carrier.proofs[0])
       : projectIndexSummary(carrier, locator, currentness);
@@ -663,7 +671,7 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
     const captured = await capture(args);
 
     if (args.part !== undefined) return { selected: await selected(captured.locator, { part: args.part }) };
-    const payload = compact(captured);
+    const payload = await compact(captured);
     const bytes = measureMcpInlineResultBytes(payload);
     if (bytes > bound) throw invalid('summary_exceeds_delivery_bound', { measured_bytes: bytes,
       bound_bytes: bound, metric: 'larger MCP representation', result: captured.locator,
@@ -677,7 +685,8 @@ const digestOf = value => createHash('sha256').update(JSON.stringify(value)).dig
 
 export function registerFindProofsTool({ defineTool, z, jsonContent, errorContent, workspace, sessionEnv,
   responseEnv, ...owners }) {
-  const session = createFindProofsSession({ workspace, z, sessionEnv, responseEnv, ...owners });
+  const session = createFindProofsSession({ workspace, z, sessionEnv, responseEnv,
+    requestContracts: registeredToolRequestContracts(defineTool), ...owners });
   const { inputSchema, advertisedInputSchema, allowedFieldSets, publishedInputSchemaProjection,
     retainedSelectionSchema } = session.contract;
 

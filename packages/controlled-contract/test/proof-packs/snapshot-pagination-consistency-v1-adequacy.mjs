@@ -181,12 +181,12 @@ function exclusionControls(profile) {
   }));
 }
 
-async function runProofPackAdequacyControls({ profile, profile_digest }) {
+async function runProofPackAdequacyControls({ profile, profile_digest , negative_fixtures: negativeFixtures }) {
   return {
     schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id, profile_version: profile.profile_version,
     profile_digest, guarantee_digest: GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures),
       ...positiveControls(profile), ...mutantControls(profile),
       ...rejectionControls(profile), ...exclusionControls(profile)
     ]
@@ -194,3 +194,31 @@ async function runProofPackAdequacyControls({ profile, profile_digest }) {
 }
 
 export { runProofPackAdequacyControls };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-verify-ordered-sequences-identical-modalities",
+      "claim_id": "claim-verify-ordered-sequences-identical",
+      "baseline": "isolated-claim-verify-ordered-sequences-identical-modalities-baseline",
+      "optional": "isolated-claim-verify-ordered-sequences-identical-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

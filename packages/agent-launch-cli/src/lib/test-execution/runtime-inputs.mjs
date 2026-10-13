@@ -9,6 +9,7 @@ import { TEST_RUNTIME_RUNNER_CATALOG, testProofProviderFamily } from
   "@agent-chassis/controlled-contract/test-proof";
 
 import { DEFAULT_SYSTEM_READ_ONLY_ROOTS } from "../launch-isolation-executable.mjs";
+import { readRepositoryRuntimeConfig, repositoryRuntimeConfigPath } from "../test-runtime-setup/config.mjs";
 import { discoverRepositoryEnvironments } from "../test-runtime-setup/discovery.mjs";
 import { ATTEMPT_SCRATCH_ROOT, DEPENDENCY_ECOSYSTEMS } from "../test-runtime-setup/ecosystems.mjs";
 import {
@@ -177,7 +178,8 @@ function uniqueBinds(binds) {
   });
 }
 
-function composeRuntimeInputs(ready, { repositoryRoot = null, workProjectDir, scratchRoot, compilerCache = false }) {
+function composeRuntimeInputs(ready, { repositoryRoot = null, workProjectDir, scratchRoot, compilerCache = false,
+  hostPath = undefined }) {
   const toolchainBinds = [];
   const binDirs = [];
   const executables = {};
@@ -199,15 +201,19 @@ function composeRuntimeInputs(ready, { repositoryRoot = null, workProjectDir, sc
   const binding = workProjectDir !== null && ready.preparation.status === "present" &&
     typeof ecosystem.workingCopyBinding === "function"
     ? ecosystem.workingCopyBinding({ dependency: ready.preparation, workProjectDir, scratchRoot })
-    : ecosystem.runtimeBinding({ dependency: ready.preparation, projectHostDir: ready.projectDir, scratchRoot,
+    : ecosystem.runtimeBinding({ dependency: ready.preparation, projectHostDir: ready.projectDir,
+      checkoutRoot: ready.checkoutRoot, scratchRoot,
       compilerCache: cacheDirectory });
   const binds = [...toolchainBinds.map(({ src, dst }) => ({ src, dst })), ...binding.binds];
   if (binding.values.python) {
     executables.python = binding.values.python;
     binDirs.unshift(path.dirname(binding.values.python));
   }
+  const hostBinDirs = hostPath === undefined ? ["/usr/local/bin", "/usr/bin", "/bin"]
+    : (typeof hostPath === "string" && hostPath.length > 0
+      ? hostPath.split(path.delimiter).filter((directory) => path.isAbsolute(directory)) : []);
   const env = {
-    PATH: [...binDirs, "/usr/local/bin", "/usr/bin", "/bin"].join(path.delimiter),
+    PATH: [...binDirs, ...hostBinDirs].join(path.delimiter),
     HOME: `${scratchRoot}/home`,
     LANG: "C.UTF-8",
     CI: "true",
@@ -263,11 +269,12 @@ export function configuredExecutableFailure(runtime, command) {
 
 export function resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot, descriptor, project,
   candidateRecord = null, located = null, workProjectDir = null, scratchRoot = ATTEMPT_SCRATCH_ROOT,
-  compilerCache = false }) {
+  compilerCache = false, hostPath = undefined }) {
   const ready = resolveCurrentRunnerInputs({ repositoryRoot, checkoutRoot, descriptor, project,
     candidateRecord, located });
   if (!ready.ok) return ready;
-  return composeRuntimeInputs(ready, { repositoryRoot, workProjectDir, scratchRoot, compilerCache });
+  return composeRuntimeInputs(ready, { repositoryRoot, workProjectDir, scratchRoot, compilerCache,
+    hostPath });
 }
 
 export function resolveEnvironmentRuntimeInputs({ repositoryRoot, checkoutRoot, ecosystem, project,
@@ -284,6 +291,26 @@ export function selectContainingProject(candidates, relative) {
   return [...new Set(candidates)]
     .filter((project) => project === "." || relative === project || relative.startsWith(`${project}/`))
     .sort((left, right) => depth(right) - depth(left))[0] ?? null;
+}
+
+export function selectConfiguredFileRunner({ repositoryRoot, target }) {
+  const file = repositoryRuntimeConfigPath(repositoryRoot);
+  let saved;
+  try {
+    saved = readRepositoryRuntimeConfig(repositoryRoot);
+  } catch (error) {
+    return Object.freeze({ ok: false, reason: "configuration_invalid", file, project: null,
+      candidates: Object.freeze([]), message: error.message });
+  }
+  const selections = saved.present ? saved.runners : [];
+  const project = selectContainingProject(selections.map((entry) => entry.project), target);
+  const candidates = Object.freeze(project === null ? []
+    : [...new Set(selections.filter((entry) => entry.project === project).map((entry) => entry.runner))].sort());
+  if (candidates.length !== 1) {
+    return Object.freeze({ ok: false, reason: project === null ? "runner_unconfigured" : "runner_ambiguous",
+      file, project, candidates });
+  }
+  return Object.freeze({ ok: true, runner: candidates[0], project });
 }
 
 const TEST_PROOF_FAMILY_SUFFIXES = Object.freeze(TEST_RUNTIME_RUNNER_CATALOG.runners.map((runner) =>

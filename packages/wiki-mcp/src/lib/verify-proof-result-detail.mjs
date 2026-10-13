@@ -284,6 +284,9 @@ export function projectPublicVerifyProofAggregate(result) {
       nonready: counts.nonready, execution_not_started: counts.execution_not_started },
     proof_results: Object.freeze(proofResults),
     ...(result.proof_opt_outs === undefined ? {} : { proof_opt_outs: structuredClone(result.proof_opt_outs) }),
+
+    ...(result.regression_results === undefined ? {} : {
+      regression_results: structuredClone(result.regression_results) }),
     diagnostics: projectPublicDiagnostic(result.diagnostics ?? [], "diagnostics", redactions),
     diagnostic_redactions: redactions,
 
@@ -294,6 +297,50 @@ export function projectPublicVerifyProofAggregate(result) {
     ...(result.reason_code === null || result.recovery === undefined ? {} : {
       recovery: structuredClone(result.recovery) })
   });
+}
+
+export const VERIFY_PROOF_REGRESSION_ROW_LIMIT = 8;
+
+export const VERIFY_PROOF_REGRESSION_FACT_MAX_BYTES = 512;
+
+const REGRESSION_DIAGNOSTIC_FACTS = Object.freeze(["runner_selection", "failure", "source_movement",
+  "native_result_retention"]);
+
+function boundedRegressionFact(fact) {
+  return Object.fromEntries(Object.entries(fact).flatMap(([name, value]) => {
+    if (typeof value !== "string") return [[name, structuredClone(value)]];
+    const bytes = Buffer.byteLength(value, "utf8");
+    return bytes <= VERIFY_PROOF_REGRESSION_FACT_MAX_BYTES ? [[name, value]]
+      : [[`${name}_omitted`, { utf8_bytes: bytes }]];
+  }));
+}
+
+export function projectVerifyProofRegressions(evidence) {
+  const regressions = evidence?.regression_results;
+  if (regressions === undefined || regressions === null) return undefined;
+  const ordered = regressions.results.map((row, index) => ({ row, index }))
+    .sort((left, right) => Number(left.row.status === "passed") - Number(right.row.status === "passed") ||
+      left.index - right.index);
+  const kept = ordered.slice(0, VERIFY_PROOF_REGRESSION_ROW_LIMIT);
+  return {
+    source_unit: regressions.source_unit,
+    proof_credit_granted: regressions.proof_credit_granted,
+    counts: structuredClone(regressions.counts),
+    results: kept.map(({ row }) => ({
+      file: row.file,
+      status: row.status,
+      ...(row.reason_code === null || row.reason_code === undefined ? {} : { reason_code: row.reason_code }),
+      ...(row.runner === undefined ? {} : { runner: row.runner.runner }),
+      ...(row.execution === undefined ? {} : { exit_code: row.execution.exit_code }),
+
+      ...(row.status === "passed" ? {} : Object.fromEntries(REGRESSION_DIAGNOSTIC_FACTS
+        .filter((name) => row[name] !== null && typeof row[name] === "object")
+        .map((name) => [name, boundedRegressionFact(row[name])]))),
+      ...(row.native_read === undefined ? {} : { native_read: structuredClone(row.native_read) })
+    })),
+    results_returned: kept.length,
+    results_omitted: ordered.length - kept.length
+  };
 }
 
 export const VERIFY_PROOF_SELECTED_DETAIL_SCHEMA_VERSION = "workspace-verify-proof-selected-detail.v1";
@@ -366,8 +413,12 @@ function selectedDiagnostic(entry, idLimit) {
 function selectedTestFailure(proof) {
   const observed = proof.observed_evidence;
   if ((observed === undefined || observed === null) && proof.selected_observation !== undefined) {
-    const { test_id: testId, file, name, status } = proof.selected_observation;
-    return { state: "observed", test_id: testId, file, name, status };
+    const { test_id: testId, file, name, status, skip_phase: skipPhase,
+      skip_reason: skipReason } = proof.selected_observation;
+
+    return { state: "observed", test_id: testId, file, name, status,
+      ...(skipPhase === undefined ? {} : { skip_phase: skipPhase }),
+      ...(skipReason === undefined ? {} : { skip_reason: skipReason }) };
   }
   if (observed === undefined || observed === null) return { state: "not_observed" };
   const event = (observed.observed_identity_candidates ?? [])
@@ -473,7 +524,10 @@ export function projectVerifyProofSelectedDetail(evidence, subject, { fits = () 
       subject: structuredClone(evidence.subject),
       subject_binding: structuredClone(evidence.subject_binding),
       evidence_meaning: VERIFY_PROOF_EVIDENCE_MEANING,
-      proofs: proofs.map((proof) => projectSelectedProof(proof, subject, ids))
+      proofs: proofs.map((proof) => projectSelectedProof(proof, subject, ids)),
+
+      ...(projectVerifyProofRegressions(evidence) === undefined ? {}
+        : { regressions: projectVerifyProofRegressions(evidence) })
     };
   };
   return fitWholePrefix(total, build, fits);

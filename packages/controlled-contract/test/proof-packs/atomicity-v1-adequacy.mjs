@@ -18,7 +18,7 @@ import {
 } from "./atomicity-v1-harness.mjs";
 
 const ATOMICITY_V1_PROFILE_DIGEST =
-  "ab3b0b152fbe27cd65c673f674789cecaf085b86dfe9dbb596b4476f6a054189";
+  "f43e6adf68566acc48f995cc7b7e271db34f759166406bf27573340cd03bca23";
 const ATOMICITY_V1_GUARANTEE_DIGEST =
   "3d9681b4aa9e3f75889648eb4d87f995da443f7768f7c7d1938d4e93701a9a98";
 
@@ -754,14 +754,14 @@ function exclusionControls(profile) {
   );
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   return {
     schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: ATOMICITY_V1_PROFILE_DIGEST,
     guarantee_digest: ATOMICITY_V1_GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ...retiredRecommendationRefusals(profile),
       ...positiveControls(profile),
       ...mutantControls(profile),
       ...profileRejectionControls(profile),
@@ -780,3 +780,55 @@ export {
   removeClaims,
   runProofPackAdequacyControls
 };
+
+import { evaluateStableProofPackFixtureV1 as evaluateRetiredModalityFixture }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+function retiredRecommendationRefusals(profile) {
+  const cases = [
+    [
+      "retired-recommendation-refused-partial-state-not-allowed",
+      "claim-partial-state-not-allowed"
+    ]
+  ];
+  return cases.map(([controlId, claimId]) => {
+    const fixture = buildAtomicityFixture({ profile });
+    const claim = fixture.contract.claims.find(row => row.claim_id === claimId);
+    if (!claim) throw new Error(`missing recommendation refusal claim: ${claimId}`);
+    claim.modality = "SHOULD_NOT";
+    return { control_id: controlId, category: "profile_rejection",
+      implementation_outcome: "not_applicable",
+      profile_satisfaction: evaluateRetiredModalityFixture({
+        contract: fixture.contract, profile,
+        evaluation_input: fixture.input ?? fixture.evaluation_input
+      }).satisfaction };
+  });
+}
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-atomic-settlement-verification-modalities",
+      "claim_id": "claim-atomic-settlement-verification",
+      "baseline": "isolated-claim-atomic-settlement-verification-modalities-baseline",
+      "optional": "isolated-claim-atomic-settlement-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

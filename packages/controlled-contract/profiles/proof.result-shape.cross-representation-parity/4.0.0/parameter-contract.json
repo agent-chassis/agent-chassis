@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.result-shape.cross-representation-parity",
   "profile_version": "4.0.0",
-  "profile_digest": "abbc6e30664d821b34adddc0a02c54b40f6bb3e0e91302e14b402eba2a389162",
+  "profile_digest": "aa232efe89be438425ee777e20f97657a3a14251ef6b289e8b547df182521b4d",
   "description": "For one declared logical source, two distinct result surfaces expose equal complete populations of typed member descriptors by mutual subset, bind one shared exact nonnegative member count, emit count signals equal to that count, and expose one explicitly selected canonical value pair that is exactly equal. One verification reads both full representations and each verified behavior has its controlled complement as a separate falsifier.",
   "parameters": [
     {

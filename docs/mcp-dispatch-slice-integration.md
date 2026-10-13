@@ -223,9 +223,13 @@ reconciled to the reviewed target, or still equal to the authenticated diff base
 In the latter state it independently verifies the target's changed-path set,
 tracked modifications and deletions, added and ignored files, blob contents, and
 file modes against the reviewed commit. An arbitrary staged state, extra file, or
-filesystem drift refuses before reviewer spawn. Integration never touches the
-slice worktree: after its ref movement it finalizes only the WK's own checkout,
-as described under [WK checkout finalization](#wk-checkout-finalization).
+filesystem drift refuses before reviewer spawn. Integration never reads or
+rewrites the slice worktree's contents: after its ref movement it finalizes the
+WK's own checkout, as described under
+[WK checkout finalization](#wk-checkout-finalization), and, once the worker's
+retirement is confirmed, removes the integrated slice worktree whole, as
+described under
+[Integrated slice checkout reaping](#integrated-slice-checkout-reaping).
 
 ### Authenticated historical launcher-index recovery
 
@@ -1476,8 +1480,8 @@ finalization and original capture. Successful completed calls return the same
 original without reading newer judgments. A new explicit request after an
 incomplete attempt can consume a newer saved revision; it cannot change older
 originals. Authenticated cold recovery repairs only missing bookkeeping,
-retirement and checkout finalization. Failed acquisition or release never
-authorizes fresh fallthrough.
+retirement, checkout finalization and slice checkout reaping. Failed acquisition
+or release never authorizes fresh fallthrough.
 The incumbent finalizer in `dispatch-integration-finalization.mjs` uses an exact
 producer-associated binding pair and the existing identity retirement owner;
 missing or ambiguous identity leaves cleanup pending beside confirmed integration.
@@ -1581,6 +1585,54 @@ rewritten, and the latest one answers a later repeat. A completed checkout is
 not finalized again. A retry whose own original cannot be retained still states
 what it did. Reading an original, by anyone, repairs nothing.
 
+### Integrated slice checkout reaping
+
+A successful explicit integration ends the lifetime of its own slice worktree.
+The integration finalizer removes that checkout through the existing exact-slice
+reaper, `releaseRetainedSlice` in `agent-launch-cli/src/lib/worktree-reaper.mjs`,
+under its `successful-integration` disposition, and holds no removal mechanics of
+its own. The reap runs only after the result states the confirmed integration of
+the approved delivery, the producer-associated binding pair has authenticated the
+exact launch, run, retry and base, and the identity retirement owner has
+confirmed the worker's retirement, including its idempotent answer for an
+identity already retired. Its authority is the slice binding's own launch
+reference, run and retry identity, that binding's identity digest and the
+approved original delivery commit. A replayed WK commit, or a later tip of either
+branch, is never removal authority.
+
+Worker dirtiness is not consulted. Later edits, staged or untracked files and
+ignored build or test residue are removed with the checkout; none of them gates
+integration, publication or the reap, and none was ever integrated. The reaper
+keeps the delivery ref at the delivery commit under its exact-ref lock, writes
+its attempt and completion audit, and removes nothing else: the WK checkout, the
+configured checkout, history and every other worktree are untouched.
+
+The reap is its own effect, `effects.slice_checkout`, separate from
+`effects.checkout`: `complete` once the reaper reported the removal, `pending`
+while it is outstanding and `not_attempted` when finalization did not run. WK
+checkout finalization is not a condition of it. Without a confirmed retirement
+nothing is deleted and the effect is `pending` with
+`slice_checkout_reap_awaits_worker_retirement`; a binding pair that no longer
+authenticates the approved delivery leaves it `pending` without entering the
+reaper. A reaper refusal or failure, such as a moved delivery ref, a failed
+removal or a failed audit write, keeps `integrated: true` and every confirmed
+effect, reports `effects.slice_checkout: "pending"` with the reaper's own code
+and message and makes the outcome `partial`; the complete answer and its
+evidence are the retained original's `cleanup.slice_checkout` member. A pending
+result is never cached as success.
+
+An explicit request for the same delivery passes the same approval fence,
+observes the integration as already applied and finishes only the outstanding
+reap. It authenticates the same binding pair without the slice path, in the same
+process or after a restart, and the reaper answers from its own audit: a
+completed removal is observed idempotently, and a removal interrupted before its
+completion audit is completed without a second removal. Reading a retained
+original repairs nothing.
+
+An original delivery commit is therefore executed from its slice checkout before
+that slice is integrated. After integration, the returned integrated commit is
+executed from the WK checkout.
+
 ### WK checkout finalization
 
 Integration advances the WK branch by ref compare-and-swap only, so the WK's own
@@ -1591,9 +1643,10 @@ through `synchronizeIntegratedWkWorktree` in
 `agent-launch-cli/src/lib/integrated-wk-worktree.mjs`: a thin wrapper that
 authenticates the WK half of the delivery's binding pair and asks the shared
 owner for an `index_and_files` update. The worker's slice worktree is not its
-concern and is left exactly as delivery finalized it, so after an integration
-that did not replay, the slice and WK checkouts are two clean copies of one
-commit; the exact-commit test source selects among them
+concern: that checkout is removed by its own separate effect, described under
+[Integrated slice checkout reaping](#integrated-slice-checkout-reaping), so
+after integration the WK checkout is the owned copy of the integrated commit
+that the exact-commit test source selects
 ([local test runtime setup](local-test-runtime-setup.md)).
 
 The WK worktree is integration-owned and holds no local edits. The only expected
@@ -1612,11 +1665,12 @@ this delivery's integrated commit, a newer integration owns the checkout. The
 response keeps `integrated: true`, reports `effects.checkout: "superseded"` and
 outcome `partial` with the owner's superseded cause, and the retained original
 names the newer tip. No same-delivery checkout retry is offered, because none
-could finish; an outstanding record or retirement correction still supplies its
-own recovery call.
+could finish; an outstanding record, retirement or slice cleanup correction
+still supplies its own recovery call.
 
 Checkout finalization and identity retirement are independent; neither outcome
-hides or prevents the other. A checkout failure keeps `integrated: true` and the
+hides or prevents the other, and neither a pending nor a superseded WK checkout
+keeps the integrated slice checkout. A checkout failure keeps `integrated: true` and the
 confirmed record and retirement effects, reports `effects.checkout: "pending"`
 with the owner's code and message, and makes the outcome `partial`. A pending
 result is never cached as success. An explicit request for the same delivery, in
@@ -1627,11 +1681,11 @@ it repeats no ref movement, record write, launch or integration execution.
 `integrate-work.v1` responses distinguish `integrated`, `partial`, `refused` and
 `unresolved`. Unconfirmed integration effects are explicit nulls; confirmed
 effects remain stated even when original storage fails. Responses
-state confirmed integration/record/retirement/checkout effects, the consumed source state,
+state confirmed integration/record/retirement/checkout/slice-checkout effects, the consumed source state,
 revision and row count, policy posture and original availability. Complete rows,
 receipts and diagnostic causes remain in the automatically retained original.
 The bounded response supplies its exact result-read call. Partial completion
-with an outstanding record, retirement or checkout correction also supplies the explicit
+with an outstanding record, retirement, checkout or slice cleanup correction also supplies the explicit
 same-selection recovery call and its condition. An immutable approval refusal
 suppresses that correction call while keeping the original read, cause and
 confirmed effects.

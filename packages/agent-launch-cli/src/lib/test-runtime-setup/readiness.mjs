@@ -29,7 +29,7 @@ import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/
 import { discoverRepositoryEnvironments } from "./discovery.mjs";
 import { DEPENDENCY_ECOSYSTEMS } from "./ecosystems.mjs";
 
-export const TEST_RUNTIME_READINESS_SCHEMA_VERSION = "agent-launch-test-runtime-readiness.v3";
+export const TEST_RUNTIME_READINESS_SCHEMA_VERSION = "agent-launch-test-runtime-readiness.v4";
 export const TEST_RUNTIME_READINESS_RELATIVE_PATH =
   path.join(".agent-launch", "test-runtimes", "readiness.json");
 export const TEST_RUNTIME_PREPARATION_LOCK_RELATIVE_PATH =
@@ -278,9 +278,9 @@ export function settlePreparation(attempt, { status, body = {}, result = null, f
   }
 }
 
-export function measureProjectInputs(ecosystemName, projectDir, { members = [] } = {}) {
+export function measureProjectInputs(ecosystemName, projectDir, { members = [], checkoutRoot = projectDir } = {}) {
   const ecosystem = DEPENDENCY_ECOSYSTEMS[ecosystemName];
-  const manifests = ecosystem.manifests(projectDir, { members });
+  const manifests = ecosystem.manifests(projectDir, { members, checkoutRoot });
 
   if (manifests.status === "lock_missing") {
     return manifests.files === undefined ? manifests
@@ -339,10 +339,10 @@ function toolchainProvenance(toolchain) {
     setup_version: toolchain.version, setup_content_digest: toolchain.content_digest ?? null };
 }
 
-function dependencyProvenance(preparation, { ecosystem, projectDir, members }) {
+function dependencyProvenance(preparation, { ecosystem, projectDir, members, checkoutRoot }) {
   let inputs;
   try {
-    inputs = measureProjectInputs(ecosystem, projectDir, { members });
+    inputs = measureProjectInputs(ecosystem, projectDir, { members, checkoutRoot });
   } catch (error) {
     inputs = { status: "unreadable", code: error?.code ?? null };
   }
@@ -425,12 +425,12 @@ export function resolveCurrentEnvironmentInputs({ repositoryRoot, checkoutRoot, 
   }
   const projectDir = project === "." ? checkoutRoot : path.join(checkoutRoot, project);
   return Object.freeze({ ok: true, readiness_digest: loaded.readiness_digest, record_status: loaded.record_status,
-    environment, toolchains, preparation, projectDir,
+    environment, toolchains, preparation, projectDir, checkoutRoot,
     provenance: Object.freeze({
       toolchains: Object.fromEntries(Object.entries(toolchains).map(([name, toolchain]) =>
         [name, toolchainProvenance(toolchain)])),
       dependencies: Object.freeze(dependencyProvenance(preparation,
-        { ecosystem, projectDir, members: environment.members })) }) });
+        { ecosystem, projectDir, members: environment.members, checkoutRoot })) }) });
 }
 
 export function resolveCurrentRunnerInputs({ repositoryRoot, checkoutRoot, descriptor, project,

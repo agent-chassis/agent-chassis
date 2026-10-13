@@ -612,7 +612,12 @@ export function selectStoreSymbolEdges(db, rawSymbols) {
       if (wanted.has(row.from_symbol) || wanted.has(row.to_symbol)) found.push(row);
     }
   });
+  found.push(...aggregatedSymbolEdges(db, sids));
+  return uniqueSymbolEdges(found);
+}
 
+function aggregatedSymbolEdges(db, sids) {
+  const found = [];
   for (const chunk of chunkList(sids)) {
     for (const row of rows(db, `SELECT p.provider_key, f.value AS from_symbol,
       t.value AS to_symbol, e.payload FROM provider_symbol_edges e
@@ -627,8 +632,47 @@ export function selectStoreSymbolEdges(db, rawSymbols) {
       }));
     }
   }
-  return [...new Map(found.map((edge) => [`${edge.provider_id}\0${edge.edge_id}`, edge])).values()]
+  return found;
+}
+
+function uniqueSymbolEdges(edges) {
+  return [...new Map(edges.map((edge) => [`${edge.provider_id}\0${edge.edge_id}`, edge])).values()]
     .sort(compareSymbolEdges);
+}
+
+const providerSymbolKey = (providerId, symbolId) => `${providerId}\0${symbolId}`;
+
+export function selectStoreDocumentSymbolEdges(db, documentPath, symbols) {
+  const keys = new Set(symbols.map(({ provider_id: providerId, symbol_id: symbolId }) =>
+    providerSymbolKey(providerId, symbolId)));
+  if (keys.size === 0) return [];
+  const own = (edge) => keys.has(providerSymbolKey(edge.provider_id, edge.from_symbol)) ||
+    keys.has(providerSymbolKey(edge.provider_id, edge.to_symbol));
+  const sids = [...lookupStoreStringIds(db, symbols.map(({ symbol_id: symbolId }) => symbolId)).values()];
+  return uniqueSymbolEdges([
+    ...selectStoreSymbolEdgesByDocument(db, [documentPath]).filter(own),
+    ...aggregatedSymbolEdges(db, sids).filter((edge) => own(edge) &&
+      edge.payload?.provenance?.path === documentPath)
+  ]);
+}
+
+export function selectStoreSymbolsReferencedElsewhere(db, documentPath, symbols) {
+  const sids = lookupStoreStringIds(db, [documentPath, ...symbols.map(({ symbol_id: symbolId }) => symbolId)]);
+  const names = new Map();
+  for (const { symbol_id: symbolId } of symbols) {
+    if (sids.has(symbolId)) names.set(sids.get(symbolId), symbolId);
+  }
+  const elsewhere = new Set();
+  for (const chunk of chunkList([...names.keys()])) {
+    for (const row of rows(db, `SELECT DISTINCT p.provider_key, r.sid FROM provider_document_refs r
+      JOIN provider_documents d ON d.did = r.did JOIN providers p ON p.pid = d.pid
+      WHERE r.sid IN (${marks(chunk)}) AND d.document_sid <> ?`,
+    [...chunk, sids.get(documentPath) ?? -1])) {
+      elsewhere.add(providerSymbolKey(row.provider_key, names.get(row.sid)));
+    }
+  }
+  return symbols.filter(({ provider_id: providerId, symbol_id: symbolId }) =>
+    elsewhere.has(providerSymbolKey(providerId, symbolId)));
 }
 
 export function selectStoreSymbolEdgesByDocument(db, documentPaths) {

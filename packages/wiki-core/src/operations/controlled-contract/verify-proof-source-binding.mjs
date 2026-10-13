@@ -13,8 +13,8 @@ import { resolveBehaviorAndVerificationPopulation, createNativeVerificationIndex
 import { ControlledContractToolError } from '../../lib/controlled-contract-tool-shared.mjs';
 import { parseVerifyProofSource, verifyProofPopulationSubject } from './verify-proof-operations.mjs';
 
-function fail(code, details) {
-  throw new ControlledContractToolError(code, 'Cannot select one canonical saved proof source', {
+function fail(code, details, message = 'Cannot select one canonical saved proof source') {
+  throw new ControlledContractToolError(code, message, {
     authority_limb: 'mechanical_failure', ...details
   });
 }
@@ -87,21 +87,45 @@ function sourceChoices(wkId, matches) {
     ({ unit: tupleUnit(wkId, source), focus: source.focus })));
 }
 
+function selectableProofIds(source, contract) {
+  const nativeIndex = createNativeVerificationIndex(contract.content);
+  const qualifying = new Set(source.rows.flatMap(row =>
+    resolveBehaviorAndVerificationPopulation(row, contract.content, nativeIndex).qualifying));
+  return (contract.content.test_proofs ?? []).filter(proof => qualifying.has(proof.verification_claim_id))
+    .map(proof => proof.test_proof_id);
+}
+
+async function failInvalidWorkerSelection(code, details, { repoRoot, wkId, authorizedUnit }) {
+  const ids = new Set();
+  for (const tuple of (await canonicalSourceTuples(repoRoot, wkId))
+    .filter(tuple => tupleUnit(wkId, tuple) === authorizedUnit)) {
+    const source = await resolveSavedProofSource({ repoRoot, wkId, ...tuple }, { requireSource: true });
+    const contract = await resolveDerivedProofContract(source);
+    if (!contract) fail('verify_proof.native_binding_unavailable.v1', { subject: details.subject });
+    for (const id of selectableProofIds(source, contract)) ids.add(id);
+  }
+  const valid = [...ids].sort();
+  const message = `Invalid proof selected. Valid proofs for you: ${valid.join(', ') || 'none'}.`;
+  fail(code, { ...details, valid_proof_ids: valid, message }, message);
+}
+
 export async function resolveVerifyProofSourceBinding({ repoRoot, wkId, subject, source,
   authenticatedRole, authorizedUnit = null }) {
   const selection = parseVerifyProofSource({ subject, ...(source === undefined ? {} : { source }) });
   const population = verifyProofPopulationSubject(subject);
   const addressed = population !== null, explicit = population ?? selection;
   const refusal = { subject, ...(selection === null ? {} : { source_unit: selection.unit }) };
+  const invalid = (code, details) => authenticatedRole === 'worker' && typeof authorizedUnit === 'string'
+    ? failInvalidWorkerSelection(code, details, { repoRoot, wkId, authorizedUnit }) : fail(code, details);
   let tuples;
   if (explicit !== null) {
-    if (explicit.wkId !== wkId) fail('verify_proof.source_unit_forbidden.v1', { ...refusal, wk_id: wkId });
+    if (explicit.wkId !== wkId) await invalid('verify_proof.source_unit_forbidden.v1', { ...refusal, wk_id: wkId });
     tuples = [{ selectedUnit: explicit.selectedUnit, focus: selection?.focus ?? null }];
   } else {
     tuples = await canonicalSourceTuples(repoRoot, wkId);
   }
   const permitted = tuple => authenticatedRole === 'orchestrator' || tupleUnit(wkId, tuple) === authorizedUnit;
-  if (explicit !== null && !permitted(tuples[0])) fail('verify_proof.source_unit_forbidden.v1', {
+  if (explicit !== null && !permitted(tuples[0])) await invalid('verify_proof.source_unit_forbidden.v1', {
     ...refusal, authorized_unit: authorizedUnit
   });
   const matches = [];
@@ -125,7 +149,7 @@ export async function resolveVerifyProofSourceBinding({ repoRoot, wkId, subject,
         obligationMatches.length ? 'obligation' : 'test_proof'
     });
   }
-  if (!matches.length) fail('verify_proof.subject_unknown.v1', { subject });
+  if (!matches.length) await invalid('verify_proof.subject_unknown.v1', { subject });
   if (matches.length !== 1) {
     const choices = sourceChoices(wkId, matches);
     fail('verify_proof.source_tuple_ambiguous.v1', { subject, match_count: matches.length,

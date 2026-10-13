@@ -45,6 +45,12 @@ function recordPaths(change) {
   return [change.oldPath, change.newPath].filter(Boolean);
 }
 
+export const SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED = "dependency_limited";
+
+export function isSidecarProviderCoverageSettled(coverage) {
+  return coverage?.state === "complete" || coverage?.state === SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED;
+}
+
 function decision(action, reason, comparison = null) {
   return Object.freeze({ action, reason, comparison });
 }
@@ -73,7 +79,7 @@ export async function classifySidecarPreparation({
     throw new TypeError("classifying a publication requires the provider input comparison");
   }
   if (publication.repository_commit === requestedCommit) {
-    if (publication.provider_coverage?.state !== "complete") {
+    if (!isSidecarProviderCoverageSettled(publication.provider_coverage)) {
       return decision("incremental", "provider_coverage_incomplete");
     }
     return await providerInputsChanged()

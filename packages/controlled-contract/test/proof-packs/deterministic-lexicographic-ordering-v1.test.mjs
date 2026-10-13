@@ -103,7 +103,7 @@ test("indexed and full-census adequacy prove all controls and weakening witnesse
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
     assert.equal(result.passed, true);
 
-    assert.equal(result.control_count, 93);
+    assert.equal(result.control_count, 103);
     assert.equal(result.negative_fixture_count, 136);
     assert.equal(result.coverage_witness_count, 136);
     assert.deepEqual(result.diagnostics, []);

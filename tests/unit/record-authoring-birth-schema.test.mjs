@@ -9,6 +9,7 @@ import { kindRecordEditableScalarFields } from "../../packages/wiki-core/src/lib
 import { RECORD_KIND_SPECS } from "../../packages/wiki-core/src/lib/work-record-kind-registry.mjs";
 import { WORK_RECORD_READY_SLICE_CREATION_REQUIREMENTS } from
   "../../packages/wiki-core/src/lib/work-record-ready-slice-contract.mjs";
+import { resolveRecordAuthoringDefinition } from "../../packages/wiki-core/src/lib/record-authoring-shared-definitions.mjs";
 import { WORK_ITEM_ORDINARY_MEMBERS, WORK_ITEM_SLICE_CONTRACT_MEMBERS, recordAuthoringChangeSchema,
   validateRecordAuthoringChanges } from
   "../../packages/wiki-core/src/lib/record-authoring-schema.mjs";
@@ -35,8 +36,10 @@ const ordinaryValues = {
   material_refs: [{ ref: "retained-source" }], validation: ["Check."], owner: "operator", tags: ["draft"],
   scope_items: ["Included."], scope_out_of_scope: ["Excluded."], references: ["docs/work-record-schema.md"]
 };
-const requirement = { modality: "must", subject: { select: "ref-subject" },
-  behavior: { relation: "returns", objects: [{ boolean: true }] } };
+
+const requirement = { modality: "MUST", subject: "subject",
+  behavior: { relation: "boolean:exists", objects: [{ boolean: true }] } };
+const requirementEntities = { subject: "cc:runtime_component" };
 const authoredCase = { verification: "$verification", observation: { kind: "return_value" } };
 
 const readyCreation = { title: "Ready slice", depends_on: [], read_scope: ["AGENTS.md"],
@@ -56,9 +59,12 @@ const rowLocations = [
 ];
 const rowInput = (location, rows) => location === "obligations[].case"
   ? { obligations: rows.map((row, index) => ({ key: `obligation-${index}`, case: row })) }
-  : { [location]: rows };
+
+  : location === "requirements" ? { requirements: { entities: requirementEntities, requirements: rows } }
+    : { [location]: rows };
 const rowPath = (location, index) => location === "obligations[].case"
-  ? `changes.obligations[${index}].case` : `changes.${location}[${index}]`;
+  ? `changes.obligations[${index}].case`
+  : location === "requirements" ? `changes.requirements.requirements[${index}]` : `changes.${location}[${index}]`;
 
 test("birth schema accepts empty drafts and preserves owner-derived kind fields", async t => {
   for (const kind of kinds) await t.test(kind, () => {
@@ -76,7 +82,7 @@ test("birth schema accepts empty drafts and preserves owner-derived kind fields"
 
       const sliceContract = { work_kind: "implementation", target_unit: "slice", agent_role: "worker",
         expected_edit_targets: [{ path: "packages/a.mjs", name: "a", kind: "module", operation: "modify" }],
-        expected_changed_line_budget: 10 };
+        expected_changed_line_budget: 10, regression_tests: ["tests/a.test.mjs"] };
       assert.deepEqual(Object.keys(sliceContract), [...WORK_ITEM_SLICE_CONTRACT_MEMBERS]);
       assert.deepEqual(WORK_ITEM_SLICE_CONTRACT_MEMBERS.filter(member => Object.hasOwn(schema.properties, member)), []);
       assert.deepEqual(diagnostics(kind, { title: "Draft", ...sliceContract }).map(({ code, path }) => [code, path]),
@@ -154,16 +160,23 @@ test("birth schema refuses existing-row selectors at every authored depth", asyn
     assert.ok(trailingSelector.every(row => row.path.startsWith(rowPath(location, 1))), JSON.stringify(trailingSelector));
   });
   await t.test("optional labels and semantic reference identities", () => {
-    accepted("work_item", { requirements: [requirement], obligations: [{ key: "obligation", case: {} }] });
+    accepted("work_item", { requirements: { entities: requirementEntities, requirements: [requirement] },
+      obligations: [{ key: "obligation", case: {} }] });
     accepted("work_item", { entries: [{ key: "entry", title: "First", content: { text: "Body" } }],
       dispositions: [{ key: "judgment", entry: { id: 1, version: 1 }, selected_text: { text: "Finding", occurrence: 0 } }],
-      criteria: [{ key: "criterion", text: "Works." }], requirements: [{ ...requirement, verification: {
-        key: "verification", method: "test", verifier: { select: "ref-verifier" },
-        observes: requirement.behavior, fails_when: requirement.behavior } }],
+      criteria: [{ key: "criterion", text: "Works." }],
+      requirements: { entities: { ...requirementEntities, verifier: "cc:test" }, requirements: [{ key: "requirement", ...requirement, verification: {
+        key: "verification", method: "analysis", verifier: "verifier",
+        observes: requirement.behavior, fails_when: requirement.behavior } }] },
       obligations: [{ key: "obligation", claims: ["$requirement", "claim-existing"], criteria: ["$criterion", "derived:existing"],
         proof: { name: "proof.verification.test-validity", parameters: { id: "authored-data" } }, case: authoredCase }] });
-    accepted("work_item", { requirements: [{ ...requirement, subject: { declare: {
-      type_term: "module", identity: { kind: "repo_path", repository: "test/repo", path: "packages/a.mjs" } } } }] });
+
+    accepted("work_item", { requirements: { entities: { subject: { type_term: "cc:runtime_component",
+      identity: { kind: "repository_path", repository: "test/repo", path: "packages/a.mjs" } } }, requirements: [requirement] } });
+
+    refused({ requirements: { entities: requirementEntities, requirements: [{ row_id: `row-${"a".repeat(40)}`, ...requirement }] } },
+      "changes.requirements.requirements[0].row_id");
+    refused({ requirements: [requirement] }, "changes.requirements");
     refused({ entries: [{ title: "Missing label", content: { text: "Body" } }] }, "changes.entries[0].key");
     refused({ criteria: [{ key: "Invalid Label", text: "Works." }] }, "changes.criteria[0].key");
     refused({ obligations: [{ key: "obligation", case: { observation: { kind: 42 } } }] },
@@ -248,8 +261,24 @@ test("birth schema projection leaves existing-save contracts unchanged", async (
       owner.recordAuthoringChangeSchema("work_item", "existing_slice"));
     assert.deepEqual(evaluate(owner), diagnosticsBefore);
 
-    const [created, updated] = owner.recordAuthoringChangeSchema("work_item", "existing").properties.ready_slices.items.oneOf;
-    assert.deepEqual(owner.recordAuthoringChangeSchema("work_item", "birth").properties.ready_slices.items, created);
+    const existing = owner.recordAuthoringChangeSchema("work_item", "existing");
+    const birth = owner.recordAuthoringChangeSchema("work_item", "birth");
+    const resolved = (schema, node) => {
+      if (Array.isArray(node)) return node.map(item => resolved(schema, item));
+      if (node === null || typeof node !== "object") return node;
+      const target = resolveRecordAuthoringDefinition(schema, node);
+      return Object.fromEntries(Object.entries(target).map(([key, value]) => [key, resolved(schema, value)]));
+    };
+    const [created, updated] = existing.properties.ready_slices.items.oneOf;
+    assert.deepEqual([...new Set(JSON.stringify(birth.properties.ready_slices.items).match(/"\$ref":"[^"]+"/gu) ?? [])],
+      ['"$ref":"#/$defs/edit_target_provenance"', '"$ref":"#/$defs/content_carrier"'],
+      "a birth row refers only to its two shared bodies");
+    assert.deepEqual(resolved(birth, birth.properties.ready_slices.items), resolved(existing, created));
+
+    const altered = structuredClone(existing);
+    altered.$defs.ready_slice_edit_targets.items.required = altered.$defs.ready_slice_edit_targets.items.required.slice(1);
+    assert.notDeepEqual(resolved(birth, birth.properties.ready_slices.items),
+      resolved(altered, altered.properties.ready_slices.items.oneOf[0]));
     assert.deepEqual([created.required, updated.required],
       [["key", ...WORK_RECORD_READY_SLICE_CREATION_REQUIREMENTS.every_shaping_mode], ["id"]]);
     const { depends_on: _dependsOn, acceptance: _acceptance, ...incomplete } = readyCreation;

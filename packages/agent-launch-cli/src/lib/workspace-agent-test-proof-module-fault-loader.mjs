@@ -21,8 +21,12 @@ try {
 
 validateTestProofModuleFaultConfiguration(configuration);
 
-const targetUrl = pathToFileURL(path.resolve(process.cwd(), configuration.module_path)).href;
-const faultUrl = buildTestProofFaultModuleUrl(configuration);
+const repositoryRoot = url.searchParams.get("launcher_repository_root");
+if (repositoryRoot === null || !path.isAbsolute(repositoryRoot)) {
+  throw new Error("launcher module-fault loader repository root is required");
+}
+const targetUrl = pathToFileURL(path.resolve(repositoryRoot, configuration.module_path)).href;
+const faultUrl = buildTestProofFaultModuleUrl(configuration, repositoryRoot);
 let exportPopulation = null;
 
 function substituteFaultModule() {
@@ -46,6 +50,6 @@ export async function load(moduleUrl, context, nextLoad) {
   return {
     format: "module",
     shortCircuit: true,
-    source: buildTestProofFaultModuleSource(configuration, exportPopulation)
+    source: buildTestProofFaultModuleSource(configuration, exportPopulation, repositoryRoot)
   };
 }

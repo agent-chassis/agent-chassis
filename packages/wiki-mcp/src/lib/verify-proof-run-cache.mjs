@@ -100,7 +100,9 @@ export async function ensureVerifyProofRunCacheDir(workspaceDir) {
 
 function outcomeOf(kind, record) {
   if (kind === "refusal") return INTERRUPTION_OUTCOMES[record.reason_code] ?? "refused";
-  const codes = [record.reason_code, ...(record.proof_results ?? []).map((proof) => proof.reason_code)];
+
+  const codes = [record.reason_code, ...(record.proof_results ?? []).map((proof) => proof.reason_code),
+    ...(record.regression_results?.results ?? []).map((row) => row.reason_code)];
   for (const code of codes) if (INTERRUPTION_OUTCOMES[code]) return INTERRUPTION_OUTCOMES[code];
   return "completed";
 }

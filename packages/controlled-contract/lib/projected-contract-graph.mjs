@@ -123,7 +123,7 @@ function assertClaimNode(node) {
   ]);
   if (!(declarative || verification) ||
       !["behavior", "evidence", "verification"].includes(node.kind) ||
-      !["MUST", "MUST_NOT", "SHOULD", "SHOULD_NOT", "MAY"].includes(node.modality) ||
+      !["MUST", "MUST_NOT", "MAY"].includes(node.modality) ||
       !IDENTIFIER_PATTERN.propositions.test(node.proposition_id ?? "") ||
       (node.kind === "verification") !== verification ||
       (verification && (typeof node.verification_method !== "string" ||

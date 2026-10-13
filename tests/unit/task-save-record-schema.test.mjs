@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { resolveRecordAuthoringDefinition } from "../../packages/wiki-core/src/lib/record-authoring-shared-definitions.mjs";
 import { WORK_RECORD_EDIT_FIELD_REGISTRY } from
   "../../packages/wiki-core/src/lib/work-record-contract-edit-operations.mjs";
 import { kindRecordEditableScalarFields } from "../../packages/wiki-core/src/lib/kind-record-edit.mjs";
@@ -16,6 +17,7 @@ import { WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES, WORK_RECORD_EXPECTED_EDIT
 import { WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES, WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES,
   WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES } from "../../packages/wiki-core/src/lib/work-record-schema-constants.mjs";
 import {
+  RECORD_AUTHORING_SLICE_CONTEXT,
   WORK_ITEM_CRITERION_NOTES,
   WORK_ITEM_ORDINARY_MEMBERS,
   WORK_ITEM_READY_DISPATCH_ASSERTION_NOTES,
@@ -23,6 +25,7 @@ import {
   WORK_ITEM_SLICE_CONTRACT_MEMBER_NOTE,
   WORK_ITEM_SLICE_LIST_NOTES,
   recordAuthoringChangeSchema,
+  recordAuthoringIssueByMemberPath,
   validateRecordAuthoringChanges
 } from "../../packages/wiki-core/src/lib/record-authoring-schema.mjs";
 
@@ -141,8 +144,17 @@ test("record authoring rows carry exactly one of key or id and typed label refer
     [[INVALID, "changes.remove.obligations[0].scope"]]);
 
   assert.deepEqual(invalid("work_item", { remove: {} }), []);
-  assert.ok(invalid("work_item", { controlled_acceptance: { disposition: "opted_out" } })
-    .some(([, path]) => path === "changes.controlled_acceptance.rationale"), "an opt-out needs its rationale");
+
+  assert.deepEqual(invalid("work_item", { controlled_acceptance: { disposition: "required" } }), []);
+  for (const acceptance of [{ disposition: "opted_out" }, { disposition: "opted_out", rationale: "Because." },
+    { disposition: "required", rationale: "Because." }]) {
+    assert.ok(invalid("work_item", { controlled_acceptance: acceptance })
+      .every(([code, path]) => code === INVALID && path.startsWith("changes.controlled_acceptance")) &&
+      invalid("work_item", { controlled_acceptance: acceptance }).length > 0, JSON.stringify(acceptance));
+  }
+  for (const value of [true, false]) {
+    assert.deepEqual(obligation({ id: "OBL-A", proof_opt_out: value }), [[INVALID, "changes.obligations[0].proof_opt_out"]]);
+  }
 });
 
 test("ready-slice expected edit targets are the owner's closed four-field objects", () => {
@@ -151,10 +163,15 @@ test("ready-slice expected edit targets are the owner's closed four-field object
   assert.deepEqual(WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA.required, Object.keys(target));
   for (const context of ["existing", "birth"]) {
 
-    for (const row of [recordAuthoringChangeSchema("work_item", context).properties.ready_slices.items]
-      .flatMap((items) => items.oneOf ?? [items])) {
-      assert.deepEqual(row.properties.expected_edit_targets,
-        { type: "array", items: WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA }, context);
+    const declared = recordAuthoringChangeSchema("work_item", context);
+    for (const row of [declared.properties.ready_slices.items].flatMap((items) => items.oneOf ?? [items])) {
+      const targets = row.properties.expected_edit_targets;
+      if (context === "existing") assert.deepEqual(targets, { $ref: "#/$defs/ready_slice_edit_targets" });
+      const resolved = structuredClone(resolveRecordAuthoringDefinition(declared, targets));
+      const facets = resolved.items.properties.facet_provenance;
+      facets.properties = Object.fromEntries(Object.entries(facets.properties).map(([member, node]) =>
+        [member, resolveRecordAuthoringDefinition(declared, node)]));
+      assert.deepEqual(resolved, { type: "array", items: WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA }, context);
     }
     const targets = (...entries) => invalid("work_item",
       { ready_slices: [{ ...READY_CREATION, expected_edit_targets: entries }] }, context);
@@ -284,7 +301,8 @@ test("ordinary slice expected edit target declaration agrees with the record own
 test("slice contract members are declared and accepted for an existing slice unit only", () => {
   const NOT_APPLICABLE = "record_authoring_member_not_applicable";
   const values = { work_kind: "implementation", target_unit: "slice", agent_role: "worker",
-    expected_edit_targets: [ORDINARY_TARGET], expected_changed_line_budget: 10 };
+    expected_edit_targets: [ORDINARY_TARGET], expected_changed_line_budget: 10,
+    regression_tests: ["tests/a.test.mjs"] };
   assert.deepEqual(Object.keys(values), [...WORK_ITEM_SLICE_CONTRACT_MEMBERS]);
   const slice = recordAuthoringChangeSchema("work_item", "existing_slice");
   const sliceRows = (context) => {
@@ -556,4 +574,193 @@ test("work-item declarations separate criterion label references from literal sl
   assert.deepEqual(invalid("work_item", { criteria: [{ key: "own", text: "It is ready." }],
     obligations: [{ key: "prove", statement: "It is ready.", criteria: ["$own", "held-criterion-identity"] }] },
   "existing_slice"), []);
+});
+
+test("shared verification and case definitions keep every request's outcome and diagnostics", () => {
+  const statement = { relation: "boolean:exists", objects: [{ boolean: true }] };
+  const verification = { method: "analysis", verifier: "suite", observes: statement,
+    fails_when: { relation: "boolean:fails_when", objects: [{ boolean: true }] } };
+  const requirement = { subject: "unit", modality: "MUST", behavior: statement };
+  const batch = (rows, more = {}) => ({ requirements: { entities: { unit: "cc:runtime_component", suite: "cc:test" }, requirements: rows, ...more } });
+  const diagnosed = (context, changes) => validateRecordAuthoringChanges("work_item", context, changes);
+  const facts = issues => issues.map(({ path, constraint }) => [path, constraint]);
+  const LABEL = { keyword: "pattern", pattern: "^[a-z][a-z0-9-]{0,63}$" };
+  const identity = { keyword: "oneOf", members: ["key", "id"] };
+  const unknown = additionalProperty => ({ keyword: "additionalProperties", additionalProperty });
+  const requirementRow = "changes.requirements.requirements[0]", verificationAt = `${requirementRow}.verification`;
+  const VERIFICATION_MEMBERS = ["key", "method", "verifier", "observes", "fails_when", "runtime_test"];
+  const BATCH_MEMBERS = ["entities", "requirements", "collections", "unresolved"];
+  const cause = (keyword, accepts) => ({ keyword, accepts });
+  const caseAt = "changes.obligations[0].case";
+  const KINDS = ["exit_status", "persisted_artifact", "protocol_message", "return_value", "side_effect", "state_transition",
+    "structured_diagnostic"];
+  for (const context of ["existing", RECORD_AUTHORING_SLICE_CONTEXT]) {
+    const schema = recordAuthoringChangeSchema("work_item", context);
+
+    assert.deepEqual([schema.properties.requirements.type, Object.keys(schema.properties.requirements.properties)], ["object", BATCH_MEMBERS], context);
+    assert.deepEqual(schema.properties.requirements.properties.requirements.items,
+      { oneOf: [{ $ref: "#/$defs/requirement" }, { $ref: "#/$defs/membership_requirement" }] }, context);
+    assert.deepEqual([schema.$defs.requirement, schema.$defs.membership_requirement].map(row => row.properties.verification),
+      [{ $ref: "#/$defs/requirement_verification" }, { $ref: "#/$defs/requirement_verification" }], context);
+    assert.deepEqual(schema.properties.obligations.items.oneOf.map(row => row.properties.case),
+      [{ $ref: "#/$defs/obligation_case" }, { $ref: "#/$defs/obligation_case" }], context);
+
+    const valid = [
+      batch([{ key: "new-claim", ...requirement, verification: { key: "check", ...verification } }]),
+      batch([{ id: "claim-saved", ...requirement, verification }]),
+      batch([{ row_id: `row-${"a".repeat(40)}`, ...requirement }]),
+      batch([{ ...requirement }]),
+
+      batch([{ key: "closed", subject: "unit", membership: [{ member: "suite", modality: "MAY" }] }]),
+      batch([{ subject: "unit", behavior: { relation: "boolean:exists" } }]),
+      { obligations: [{ key: "new-row", case: { key: "new-case", verification: "$check", observation: { kind: "return_value" } } }] },
+      { obligations: [{ id: "OBL-A", case: { id: "case-saved", verification: "claim-saved" } }] },
+      { obligations: [{ key: "new-row", case: {} }] },
+
+      { obligations: [{ key: "new-row", proof: { name: "proof.example", parameters: { anything: { nested: [1, "two", null] } } } }] }
+    ];
+    for (const changes of valid) assert.deepEqual(diagnosed(context, changes), [], `${context}: ${JSON.stringify(changes)}`);
+
+    for (const [changes, expected] of [
+
+      [batch([{ key: "r", ...requirement, verification: { key: "v", method: "analysis" } }]),
+        [[`${verificationAt}.verifier`, cause("missing", { definition: "entity_id" })], [`${verificationAt}.observes`, cause("missing", { definition: "observation" })],
+          [`${verificationAt}.fails_when`, cause("missing", { definition: "behavior" })]]],
+      [batch([{ id: "claim-saved", ...requirement, verification: { ...verification, extra: 1 } }]),
+        [[`${verificationAt}.extra`, cause("not_a_member", { members: VERIFICATION_MEMBERS })]]],
+      [batch([{ key: "r", ...requirement, verification: { ...verification, key: "Bad Label" } }]),
+        [[`${verificationAt}.key`, cause("does_not_match_pattern", { pattern: LABEL.pattern })]]],
+      [batch([{ id: "claim-saved", ...requirement, verification: { ...verification, method: 7 } }]),
+        [[`${verificationAt}.method`, cause("not_an_accepted_value",
+          { enum: ["inspection", "analysis", "demonstration", "test_execution", "audit", "proof"] })]]],
+      [batch([{ key: "r", ...requirement, verification: "text" }]),
+        [[verificationAt, cause("not_an_object", { type: "object" })]]],
+
+      [batch([{ id: "claim-saved", modality: "MUST", subject: "unit" }]),
+        [[`${requirementRow}.behavior`, cause("missing", { definition: "behavior" })]]],
+
+      [batch([{ key: "r", ...requirement, subject: { select: "ref-unit" } }]), [[`${requirementRow}.subject`, cause("not_a_string", { type: "string" })]]],
+      [batch([{ key: "r", ...requirement }], { checks: [] }), [["changes.requirements.checks", cause("not_a_member", { members: BATCH_MEMBERS })]]],
+
+      [{ requirements: [{ key: "r", ...requirement }] }, [["changes.requirements", cause("not_an_object", { type: "object" })]]],
+      [{ requirements: {} }, [["changes.requirements", cause("too_few_members", { members: BATCH_MEMBERS })]]],
+
+      [batch([{ key: "r", ...requirement, user_requirement: "x", user_requirement_occurrence: 0 }]),
+        [[`${requirementRow}.user_requirement_occurrence`, cause("below_minimum", { minimum: 1 })]]],
+
+      [{ remove: { requirement_rows: ["row-1"] } }, [["changes.remove.requirement_rows[0]", { keyword: "pattern", pattern: "^row-[0-9a-f]{40}$" }]]],
+
+      [{ obligations: [{ id: "OBL-A", case: { key: "label", id: "case-a", observation: { kind: 42 } } }] }, [[caseAt, identity]]],
+      [{ obligations: [{ key: "o", case: { key: "c", nope: 1 } }] }, [[`${caseAt}.nope`, unknown("nope")]]],
+      [{ obligations: [{ id: "OBL-A", case: { id: "case-a", nope: 1 } }] }, [[`${caseAt}.nope`, unknown("nope")]]],
+      [{ obligations: [{ key: "o", case: { key: "Bad" } }] }, [[`${caseAt}.key`, LABEL]]],
+      [{ obligations: [{ key: "o", case: { id: "bad id" } }] },
+        [[`${caseAt}.id`, { keyword: "pattern", pattern: "^case-[a-zA-Z0-9][a-zA-Z0-9._:-]*$" }]]],
+      [{ obligations: [{ key: "o", case: { observation: { kind: "unsupported" } } }] },
+        [[`${caseAt}.observation.kind`, { keyword: "enum", allowedValues: KINDS }]]],
+      [{ obligations: [{ id: "OBL-A", case: { id: "case-a", observation: { kind: "unsupported" } } }] },
+        [[`${caseAt}.observation.kind`, { keyword: "enum", allowedValues: KINDS }]]],
+      [{ obligations: [{ key: "o", case: { component: 7 } }] }, [[`${caseAt}.component`, { keyword: "type", type: "object" }]]],
+      [{ obligations: [{ key: "o", case: 7 }] }, [[caseAt, { keyword: "type", type: "object" }]]],
+
+      [{ obligations: [{ case: { key: "c", id: "case-a" } }] }, [["changes.obligations[0]", identity]]],
+      [{}, [["changes", { keyword: "minProperties", limit: 1 }]]]
+    ]) {
+      const issues = diagnosed(context, changes);
+      assert.deepEqual(facts(issues), expected, `${context}: ${JSON.stringify(changes)}`);
+      for (const issue of issues) {
+        assert.deepEqual([issue.code, issue.severity, issue.message.startsWith(`${issue.path} `)], [INVALID, "error", true]);
+        assert.equal(JSON.stringify(issue).includes("$defs"), false, "no definition path reaches the caller");
+      }
+    }
+
+    assert.deepEqual(diagnosed(context, batch([{ key: "r", ...requirement,
+      verification: { ...verification, method: "test_execution", runtime_test: {} } }])).map(({ path, constraint }) => [path, constraint.keyword]),
+    ["boundary", "observable", "falsifier", "selector"].map(member => [`${verificationAt}.runtime_test.${member}`, "missing"]), context);
+
+    const dotted = diagnosed(context, { requirements: { entities: { "src/unit.mjs": { type_term: "go:action",
+      identity: { kind: "repository_path", repository: "r", path: "src/unit.mjs" } } },
+    requirements: [{ ...requirement, subject: "src/unit.mjs" }] } });
+    assert.deepEqual(dotted.map(({ path, path_segments: segments, constraint }) => [path, segments, constraint.keyword]),
+      [["changes.requirements.entities.src/unit.mjs.type_term", ["changes", "requirements", "entities", "src/unit.mjs", "type_term"],
+        "not_an_accepted_value"]], context);
+    assert.deepEqual(recordAuthoringIssueByMemberPath(dotted[0]).path, ["changes", "requirements", "entities", "src/unit.mjs", "type_term"]);
+    assert.equal(Object.hasOwn(diagnosed(context, batch([{ key: "r", ...requirement, modality: "must" }]))[0], "path_segments"), false,
+      "a path of declared members needs no second statement");
+
+    const [method] = diagnosed(context, batch([{ key: "r", ...requirement, verification: { ...verification, method: "checks" } }]));
+    assert.deepEqual([method.path, method.constraint.keyword, method.constraint.accepts.enum.includes("analysis")],
+      [`${verificationAt}.method`, "not_an_accepted_value", true], context);
+
+    assert.deepEqual(facts(diagnosed(context, { obligations: [{ key: "o", case: { key: "Bad" } },
+      { id: "OBL-A", case: { id: "case-a", nope: 2 } }] })),
+    [[`${caseAt}.key`, LABEL], ["changes.obligations[1].case.nope", unknown("nope")]]);
+  }
+});
+
+test("nested shared definitions keep the caller's member paths, constraints and order", () => {
+  const statement = { relation: "boolean:exists", objects: [{ boolean: true }] };
+  const verification = { method: "analysis", verifier: "suite", observes: statement,
+    fails_when: { relation: "boolean:fails_when", objects: [{ boolean: true }] } };
+  const requirement = { subject: "unit", modality: "MUST", behavior: statement };
+  const batch = rows => ({ requirements: { entities: { unit: "cc:runtime_component", suite: "cc:test", gate: "cc:state" }, requirements: rows } });
+  const target = { path: "packages/x.mjs", name: "x", kind: "function", operation: "modify" };
+  const unknown = additionalProperty => ({ keyword: "additionalProperties", additionalProperty });
+  const missing = missingProperty => ({ keyword: "required", missingProperty });
+  const noAlternative = { keyword: "oneOf", passingSchemas: null };
+  const cause = (keyword, accepts) => ({ keyword, accepts });
+
+  const notAnId = at => [[at, cause("not_a_string", { type: "string" })]];
+  const row = "changes.requirements.requirements[0]", caseAt = "changes.obligations[0].case", targets = "changes.ready_slices[0].expected_edit_targets";
+  for (const context of ["existing", RECORD_AUTHORING_SLICE_CONTEXT]) {
+    const schema = recordAuthoringChangeSchema("work_item", context);
+    for (const name of ["behavior", "entity_id", "entities", "pending", "requirement", "membership_requirement", "requirement_verification", "collection",
+      "case_component", "case_target", "case_falsification", "ready_slice_edit_targets"]) assert.ok(Object.hasOwn(schema.$defs, name), `${context}: ${name}`);
+    const resolve = node => node.$ref ? schema.$defs[node.$ref.slice('#/$defs/'.length)] : node;
+    const relationsAt = name => schema.$defs[name].oneOf.flatMap(node => resolve(node).properties.relation.oneOf.map(option => option.const));
+    const RELATIONS = relationsAt('behavior');
+    const OBSERVATION_RELATIONS = relationsAt('observation');
+    for (const valid of [batch([{ key: "r", ...requirement, verification: { key: "v", ...verification } }]),
+      batch([{ id: "claim-a", ...requirement, verification }]),
+      batch([{ key: "r", ...requirement, behavior: { ...statement, applies: { mode: "if", context: ["gate"] } } }]),
+      { ready_slices: [{ id: "SLICE-001", expected_edit_targets: [target] }] }]) {
+      assert.deepEqual(validateRecordAuthoringChanges("work_item", context, valid), [], JSON.stringify(valid));
+    }
+    for (const [changes, expected] of [
+
+      [batch([{ key: "r", ...requirement, subject: { select: "ref-unit" } }]), notAnId(`${row}.subject`)],
+      [batch([{ id: "claim-a", ...requirement, subject: { declare: { type_term: "cc:test" } } }]), notAnId(`${row}.subject`)],
+      [batch([{ id: "claim-a", ...requirement, verification: { ...verification, verifier: { select: "ref-unit" } } }]), notAnId(`${row}.verification.verifier`)],
+      [batch([{ key: "r", ...requirement, behavior: { ...statement, applies: { mode: "if", context: [{ select: "ref-unit" }] } } }]),
+        notAnId(`${row}.behavior.applies.context[0]`)],
+
+      [batch([{ key: "r", ...requirement, verification: { key: "v", ...verification, observes: { relation: 1, objects: [{ boolean: true }] } } }]),
+        [[`${row}.verification.observes.relation`, cause("not_an_accepted_value", { enum: OBSERVATION_RELATIONS, rejected_relation: 1 })]]],
+      [batch([{ id: "claim-a", ...requirement, verification: { ...verification, fails_when: { objects: [{ boolean: true }], extra: 2 } } }]),
+        [[`${row}.verification.fails_when.relation`, cause("missing", { enum: RELATIONS })]]],
+
+      [batch([{ key: "r", ...requirement, behavior: { relation: "boolean:exists", objects: [{ referent: "unit" }] } }]),
+        [[`${row}.behavior.objects[0].boolean`, cause("missing", { oneOf: [{ type: "boolean" }, { definition: "pending" }] })],
+          [`${row}.behavior.objects[0].referent`, cause("not_a_member", { members: ["boolean"] })]]],
+
+      [{ obligations: [{ key: "o", case: { key: "c", component: { select: "BAD" } } }] },
+        [[`${caseAt}.component.reference_id`, missing("reference_id")], [`${caseAt}.component.select`, unknown("select")],
+          [`${caseAt}.component.type_term`, missing("type_term")], [`${caseAt}.component.identity`, missing("identity")],
+          [`${caseAt}.component`, noAlternative]]],
+      [{ obligations: [{ id: "OBL-A", case: { id: "case-a", target: { path: 7 } } }] },
+        [[`${caseAt}.target.path`, { keyword: "type", type: "string" }], [`${caseAt}.target.provider`, missing("provider")],
+          [`${caseAt}.target.selector`, missing("selector")], [`${caseAt}.target`, noAlternative]]],
+      [{ obligations: [{ key: "o", case: { falsification: { strategy: "nope" } } }] },
+        [[`${caseAt}.falsification.strategy`, { keyword: "enum", allowedValues: ["dependency_failure", "forced_invocation", "result_inversion"] }],
+          [`${caseAt}.falsification`, { keyword: "type", type: "null" }]]],
+
+      [{ ready_slices: [{ id: "SLICE-001", expected_edit_targets: [{ ...target, symbol: 1 }] }] }, [[`${targets}[0].symbol`, unknown("symbol")]]],
+      [{ ready_slices: [{ id: "SLICE-001", expected_edit_targets: ["packages/x.mjs"] }] }, [[`${targets}[0]`, { keyword: "type", type: "object" }]]]
+    ]) {
+      const issues = validateRecordAuthoringChanges("work_item", context, changes);
+      assert.deepEqual(issues.map(({ path, constraint }) => [path, constraint]), expected, `${context}: ${JSON.stringify(changes)}`);
+      assert.equal(JSON.stringify(issues).includes("$defs"), false, "no definition path reaches the caller");
+      assert.ok(issues.every(issue => issue.code === INVALID && issue.message.startsWith(`${issue.path} `)));
+    }
+  }
 });

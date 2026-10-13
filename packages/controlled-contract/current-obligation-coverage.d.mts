@@ -199,6 +199,8 @@ export interface ProofAuthoringObligation {
   readonly controlled_contract_node_ids?: readonly string[];
   readonly mechanism?: Readonly<{ owner: string; kind: ObligationCoverageMechanismKind; selector: string }>;
   readonly selection?: ProofAuthoringSelection;
+  readonly proof_opt_out?: true;
+  readonly proof_opt_out_rationale?: string;
 }
 export interface ObligationCoverageDraft {
   readonly cases?: readonly AuthoredTestCaseDefinition[];
@@ -226,6 +228,10 @@ export const PROOF_AUTHORING_FIELD_SCHEMAS: Readonly<Record<string, unknown>>;
 export function validateObligationCoverageDraft(source: unknown): Omit<ObligationCoverageCarrierValidationResult, 'carrier'> & { readonly carrier: ObligationCoverageDraft | null };
 export function upsertProofAuthoringSelection(source: ObligationCoverageDraft, obligations: readonly (ProofAuthoringAmendment & { readonly obligation_id: string })[]): Promise<ObligationCoverageDraft>;
 export function removeProofAuthoringSelection(source: ObligationCoverageDraft, obligationId: string): ObligationCoverageDraft;
+export const PROOF_EXCEPTION_ACTIONS: readonly ['apply', 'withdraw'];
+export const PROOF_EXCEPTION_RATIONALE_SCHEMA: Readonly<Record<string, unknown>>;
+export function applyProofAuthoringException(source: ObligationCoverageDraft, obligationId: string,
+  exception: Readonly<{ action: 'apply'; rationale: string } | { action: 'withdraw' }>): ObligationCoverageDraft;
 export function pinProofSelection(name: string): Promise<ProofAuthoringPin>;
 export function loadPinnedProofSelection(selection: ProofAuthoringPin): Promise<AdmittedProofPackSnapshot>;
 export type ProofAuthoringDiagnosticCategory = 'author_input' | 'canonical_source' | 'system_capability' | 'unclassified';

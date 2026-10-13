@@ -2,6 +2,10 @@ import { prepareRetainedGraphEvidence } from "./work-records-graph-impact.mjs";
 
 import { RECORD_AUTHORING_SLICE_CONTEXT, sliceContractMemberPlacementDiagnostics, validateRecordAuthoringChanges,
   WORK_ITEM_ORDINARY_MEMBERS, WORK_ITEM_SLICE_CONTRACT_MEMBERS } from "../lib/record-authoring-schema.mjs";
+import { RECORD_AUTHORING_EXCEPTION_CODES, RECORD_AUTHORING_EXCEPTION_RATIONALE_PROVENANCE,
+  describeRecordAuthoringException, validateRecordAuthoringException } from "../lib/record-authoring-exception.mjs";
+import { CONTROLLED_ACCEPTANCE_OPT_OUT_RATIONALE_MAX_BYTES, normalizeControlledAcceptanceOptOutRationale } from
+  "../lib/work-record-proof-posture.mjs";
 import { reject, setScalar, setSection } from "../lib/kind-record-edit.mjs";
 import { guardWorkRecordReadySlicePersistedDiff, planWorkRecordReadySlice } from
   "../lib/work-record-ready-slice-contract.mjs";
@@ -9,7 +13,11 @@ import { applyWorkRecordContractEdit, assignWorkRecordToInitiative,
   validateWorkRecordProseDestination, WORK_RECORD_EDIT_FIELD_REGISTRY } from "../lib/work-record-contract-edit-operations.mjs";
 import { cloneJson, finalizeEdit, jsonEqual } from "../lib/work-record-contract-edit-shared.mjs";
 import { acceptanceCriterionInventory } from "./controlled-contract/acceptance-criterion-coverage.mjs";
-import { compileProofAuthoringContractInputs } from "./controlled-contract/proof-authoring-contract-inputs.mjs";
+import { prepareProofAuthoringRequirementBatch } from "./controlled-contract/proof-authoring-contract-inputs.mjs";
+import { projectAuthoredRequirements, requirementDescriptionEntities } from './controlled-contract/contract-requirement-projection.mjs';
+import { prepareRequirementDescriptionSources } from './controlled-contract/contract-requirement-description-sources.mjs';
+import { controlledContractIdentityScope } from './controlled-contract/contract-requirement-authoring.mjs';
+import { TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE } from "../lib/tool-discovery/gating.mjs";
 import { prepareProofAuthoringMutation } from "./controlled-contract/proof-authoring-preparation.mjs";
 import { prospectiveProofAuthoringSource } from "./controlled-contract/proof-authoring-targets.mjs";
 import { controlledContractContentDigest } from "../lib/controlled-contract-tools.mjs";
@@ -114,7 +122,7 @@ async function planOrdinaryMembers({ captured, record, sliceId, changes, reposit
     step(applyWorkRecordContractEdit(current, { operation: "upsert_slice", slice: { id: sliceId,
       ...(Object.hasOwn(changes, "work_kind") ? { work_kind: changes.work_kind } : {}),
       ...(jsonEqual(intent, stored.dispatch_intent) ? {} : { dispatch_intent: intent }),
-      ...Object.fromEntries(["expected_edit_targets", "expected_changed_line_budget"]
+      ...Object.fromEntries(["expected_edit_targets", "expected_changed_line_budget", "regression_tests"]
         .filter((member) => Object.hasOwn(changes, member)).map((member) => [member, changes[member]])) } }),
     `changes.${contract[0]}`);
   }
@@ -337,22 +345,31 @@ function planDispositions({ record, sliceId, changes, labels }) {
   return { record: planned.record, changed: planned.changedFields };
 }
 
-function semanticInput({ pkg, captured, record, changes, labels, now }) {
+function semanticInput({ pkg, captured, record, changes, labels }) {
   const retire = changes.remove?.requirements;
-  const requirements = changes.requirements?.map(({ key: _key, id, verification, ...requirement }) => ({
-    ...requirement, ...(id === undefined ? {} : { replace_claim_id: id }),
-    ...(verification === undefined ? {} : { verification: (({ key: _label, ...rest }) => rest)(verification) }) }));
-  const contractRequirements = requirements === undefined && retire === undefined ? undefined
-    : { ...(requirements === undefined ? {} : { requirements }),
-      ...(retire === undefined ? {} : { retire_claim_ids: retire }) };
-  if (requirements !== undefined) {
-    const compiled = compileProofAuthoringContractInputs({ pkg, initial: { ...captured, record },
-      input: { contractRequirements }, now }).requirementCompilation.compiled;
-    changes.requirements.forEach((row, index) => {
-      labels.bind(row.key, compiled[index].claim_id);
-      labels.bind(row.verification?.key, compiled[index].verification_claim_id);
-    });
+  const removeRows = changes.remove?.requirement_rows;
+
+  let contractRequirements;
+  let batch = null;
+  if (changes.requirements !== undefined || retire !== undefined || removeRows !== undefined) {
+    batch = prepareProofAuthoringRequirementBatch({ pkg, initial: { ...captured, record }, batch: changes.requirements ?? {},
+      removeRowIds: removeRows ?? [], retireClaimIds: retire ?? [], sourceText: record.sections?.user_requirements ?? null });
+    contractRequirements = batch.answer;
+    for (const row of batch.rows) {
+      labels.bind(row.key, Object.freeze({ row_id: row.row_id, state: row.state, constraint_ids: row.constraint_ids, claim_ids: row.claim_ids }));
+      labels.bind(row.verification_key, row.verification_claim_id);
+    }
+    for (const row of batch.collections) labels.bind(row.key, row.collection_row_id);
   }
+
+  const claimsOf = (entry, path) => {
+    const resolved = labels.resolve(entry, ["requirement", "verification"], path);
+    if (resolved === null || typeof resolved !== "object") return [resolved];
+    if (resolved.claim_ids.length === 0) refuse("controlled_contract_requirement_association_population_empty", path,
+      `${path} names ${entry}, a requirement row that emits no claim (${resolved.state === "complete" ? "a closed membership has no native claim" : "the row is incomplete"}); ` +
+      "omit it from claims, or complete the row in this request");
+    return resolved.claim_ids;
+  };
   const nextObligation = allocator("OBL", captured.sources.flatMap((entry) =>
     (entry.source?.content.obligations ?? []).map((row) => row.obligation_id)));
   const nextCase = allocator("case", captured.cases.map((definition) => definition.case_id));
@@ -375,17 +392,17 @@ function semanticInput({ pkg, captured, record, changes, labels, now }) {
     return { obligation_id: obligationId, ...rest,
       ...(criteria === undefined ? {} : { acceptance_criteria: criteria.map((entry, at) =>
         labels.resolve(entry, ["criterion"], `${path}.criteria[${at}]`)) }),
-      ...(claims === undefined ? {} : { controlled_contract_node_ids: claims.map((entry, at) =>
-        labels.resolve(entry, ["requirement", "verification"], `${path}.claims[${at}]`)) }),
+      ...(claims === undefined ? {} : { controlled_contract_node_ids: [...new Set(claims.flatMap((entry, at) =>
+        claimsOf(entry, `${path}.claims[${at}]`)))] }),
       ...(proof?.name === undefined ? {} : { proof_name: proof.name }),
       ...(proof?.parameters === undefined ? {} : { parameters: proof.parameters }),
       ...(proof?.clear_parameters === undefined ? {} : { clear_parameters: proof.clear_parameters }),
       ...(proof?.refresh === undefined ? {} : { refresh_proof_version: proof.refresh }),
       ...(authoredCase === undefined ? {} : { case: authoredCase }) };
   });
-  return { ...(contractRequirements === undefined ? {} : { contractRequirements }),
+  return { batch, input: { ...(contractRequirements === undefined ? {} : { contractRequirements }),
     ...(obligations === undefined ? {} : { obligations }),
-    ...(changes.controlled_acceptance === undefined ? {} : { controlledAcceptance: changes.controlled_acceptance }) };
+    ...(changes.controlled_acceptance === undefined ? {} : { controlledAcceptance: changes.controlled_acceptance }) } };
 }
 
 function declareLabels(changes, labels) {
@@ -396,10 +413,12 @@ function declareLabels(changes, labels) {
   (changes.entries ?? []).forEach((row, index) => labels.declare(row.key, "entry", `changes.entries[${index}].key`));
   (changes.dispositions ?? []).forEach((row, index) =>
     labels.declare(row.key, "disposition", `changes.dispositions[${index}].key`));
-  (changes.requirements ?? []).forEach((row, index) => {
-    labels.declare(row.key, "requirement", `changes.requirements[${index}].key`);
-    labels.declare(row.verification?.key, "verification", `changes.requirements[${index}].verification.key`);
+  (changes.requirements?.requirements ?? []).forEach((row, index) => {
+    labels.declare(row.key, "requirement", `changes.requirements.requirements[${index}].key`);
+    labels.declare(row.verification?.key, "verification", `changes.requirements.requirements[${index}].verification.key`);
   });
+  (changes.requirements?.collections ?? []).forEach((row, index) =>
+    labels.declare(row.key, "requirement_collection", `changes.requirements.collections[${index}].key`));
   (changes.obligations ?? []).forEach((row, index) => {
     labels.declare(row.key, "obligation", `changes.obligations[${index}].key`);
     labels.declare(row.case?.key, "case", `changes.obligations[${index}].case.key`);
@@ -423,7 +442,26 @@ function settleChainedCandidate({ pkg, captured, prepared, preparation }) {
   preparation.assertDefinitions = async () => { for (const check of checks) await check(); };
 }
 
-async function prepareWorkItemChange({ capturedSource: captured, changes, owners }) {
+function exceptionReceipt({ exception, captured, candidate }) {
+  const { kind, action, subject } = exception;
+  const described = describeRecordAuthoringException(kind);
+  const affected = kind === "proof" ? ((row) => ({ obligation_id: row.obligation_id, statement: row.statement ?? null,
+    claims: [...(row.controlled_contract_node_ids ?? [])],
+    criteria: (row.acceptance_criteria ?? []).map((entry) => entry.identity),
+    proof_selected: row.selection !== undefined, case_id: row.case_id ?? null }))(
+    candidate.content.obligations.find((row) => row.obligation_id === subject))
+    : kind === "grammar" ? ((entry) => ({ id: subject, ...(typeof entry === "string" ? { text: entry }
+      : { text: entry.text, ...(entry.reason === undefined ? {} : { reason: entry.reason }) }),
+    specification: "incomplete", compiled: false }))(
+      candidate.canonicalContract.authored_requirements.unresolved[Number(subject.slice(1)) - 1])
+      : { unit: captured.wkId, disposition: action === "apply" ? "opted_out" : "required" };
+  return Object.freeze({ kind, action, subject, affected,
+    ...(action === "apply" ? { rationale: exception.rationale, ...RECORD_AUTHORING_EXCEPTION_RATIONALE_PROVENANCE,
+      consequence: described.consequence, ...(kind === "grammar" ? { enforcement: described.enforcement } : {}) }
+      : { consequence: described.withdraw }) });
+}
+
+async function prepareWorkItemChange({ capturedSource: captured, changes, owners, exception = null }) {
   const { pkg, now, repository = null, resolveExternalReference = null } = owners;
   const sliceId = captured.selectedUnit;
   const labels = labelNamespace();
@@ -455,9 +493,12 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
       `changes.remove.obligations[${index}].id removes ${id} twice in one save`);
     seen.add(id);
   });
+
+  const semantic = exception === null ? semanticInput({ pkg, captured, record, changes, labels })
+    : { batch: null, input: { exception } };
   const steps = [...removals.map((removal) => ({ remove: true,
     input: { obligationId: removal.id, removalScope: removal.scope } })),
-  { remove: false, input: semanticInput({ pkg, captured, record, changes, labels, now }) }];
+  { remove: false, input: semantic.input }];
   let stepInitial = { ...captured, record, unit: selectUnit(record, sliceId), sources };
   let preparation;
   const prepared = [];
@@ -517,16 +558,36 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
   }
 
   const compiled = preparation.contractInputs.requirementCompilation?.compiled ?? [];
-  (changes.requirements ?? []).forEach((row, index) => {
-    for (const [key, id] of [[row.key, compiled[index]?.claim_id],
-      [row.verification?.key, compiled[index]?.verification_claim_id]]) {
-      if (key !== undefined && labels.resolve(`$${key}`, ["requirement", "verification"], "changes.requirements") !== id) {
-        throw new Error(`requirement label ${key} resolved differently across compilation passes`);
-      }
+  for (const row of semantic.batch?.rows ?? []) {
+    const claimIds = [...new Set(row.requirement_indexes.map((index) => compiled[index]?.claim_id))];
+    if (JSON.stringify(claimIds) !== JSON.stringify(row.claim_ids) ||
+        (row.verification_claim_id !== undefined && compiled[row.requirement_indexes[0]]?.verification_claim_id !== row.verification_claim_id)) {
+      throw new Error(`requirement row ${row.row_id} resolved differently across compilation passes`);
     }
-  });
+  }
+  if (semantic.batch !== null || prepared.some(step => step.contractInputs.contractChanged)) {
+    const contract = preparation.contractInputs.contract;
+    const descriptions = await prepareRequirementDescriptionSources({ repoRoot: captured.repoRoot,
+      repository: repository ?? captured.record.repo, owner: controlledContractIdentityScope(captured.wkId, captured.focus),
+      entities: requirementDescriptionEntities(contract, { unit: controlledContractIdentityScope(captured.wkId, captured.focus),
+        previousContract: captured.contract?.content ?? null }) });
+    preparation.requirementDescriptions = projectAuthoredRequirements(contract, { wkId: captured.wkId, focus: captured.focus,
+      sourceText: record.sections?.user_requirements ?? null, sourceDescriptions: descriptions.descriptions,
+      sourceGeneration: descriptions.source_generation });
+    const assertDefinitions = preparation.assertDefinitions;
+    preparation.assertDefinitions = async () => {
+      await assertDefinitions();
+      await descriptions.assertDefinitions();
+    };
+  }
   return { ok: true, record: preparation.candidate.record, preparation, bindings: labels.bindings(),
+    requirement_rows: semantic.batch === null ? null : Object.freeze({
+      rows: semantic.batch.rows.map(({ requirement_indexes: _indexes, index: _index, ...row }) => row),
+      collections: semantic.batch.collections.map(({ index: _index, ...row }) => row),
+      removed_row_ids: semantic.batch.removed_row_ids, removed_collection_row_ids: semantic.batch.removed_collection_row_ids,
+      retired_claim_ids: semantic.batch.retire_claim_ids }),
     criterion_identity_changes: moved, entries, ready_slices: readySlices,
+    ...(exception === null ? {} : { exception: exceptionReceipt({ exception, captured, candidate: preparation.candidate }) }),
     changed_fields: [...new Set(changed)],
     affected_units: preparation.candidate.sourceChanges.map((entry) => entry.selectedUnit),
     diagnostics: [] };
@@ -562,11 +623,53 @@ export function planKindRecordAuthoringChange({ record, changes, actor, now, con
   return { ok: true, updatedRecord: current, changedFields: [...new Set(changed)], diagnostics: [] };
 }
 
+export const RECORD_AUTHORING_REQUIREMENT_TIER_CODE = "record_authoring_requirement_tier_required";
+
+export const RECORD_AUTHORING_REQUIREMENT_MEMBERS = Object.freeze(["requirements", "remove.requirements", "remove.requirement_rows"]);
+
+export function requirementAuthoringTierDiagnostics(changes, registeredTier) {
+  if (registeredTier === TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE) return [];
+  const present = RECORD_AUTHORING_REQUIREMENT_MEMBERS.filter((member) =>
+    member.split(".").reduce((value, key) => value?.[key], changes) !== undefined);
+  return present.map((member) => Object.freeze({ code: RECORD_AUTHORING_REQUIREMENT_TIER_CODE, severity: "error",
+    path: `changes.${member}`,
+    message: `changes.${member} compiles or retires controlled requirements, which this server's registered tier does not provide`,
+    details: { changed: false, member, required_tier: TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE,
+      registered_tier: typeof registeredTier === "string" ? registeredTier : null },
+    correction: `Omit changes.${member}; every other member of this change can be saved at this tier.` }));
+}
+
 export async function inspectRecordAuthoringInitiative({ repoRoot, changes }) {
   if (typeof changes?.initiative !== 'string' || !/^IN-[0-9]{4}$/u.test(changes.initiative)) return [];
   const assignable = await inspectInitiativeAssignmentTarget({ targetDir: repoRoot, initiative: changes.initiative });
   return assignable.ok ? [] : assignable.diagnostics.map(entry => ({ ...entry,
     owner_path: entry.path ?? null, path: 'changes.initiative', correction: assignable.nextAction }));
+}
+
+export async function prepareRecordAuthoringException({ capturedSource, exception, owners }) {
+  if (capturedSource.record.record_kind !== "work_item") return { ok: false, diagnostics: [diagnostic(
+    RECORD_AUTHORING_EXCEPTION_CODES.UNIT_UNSUPPORTED, "unit",
+    "an exception is recorded on a work item or one of its slices; this unit has no proof, grammar or controlled-acceptance exception")] };
+  const invalid = validateRecordAuthoringException(exception);
+  if (invalid.length > 0) return { ok: false, diagnostics: [...invalid] };
+  if (exception.action === "apply" && normalizeControlledAcceptanceOptOutRationale(exception.rationale) === null) {
+    return { ok: false, diagnostics: [diagnostic(RECORD_AUTHORING_EXCEPTION_CODES.INVALID, "exception.rationale",
+      `exception.rationale must be trimmed, nonempty and at most ${CONTROLLED_ACCEPTANCE_OPT_OUT_RATIONALE_MAX_BYTES} UTF-8 bytes`)] };
+  }
+
+  if (exception.kind === "grammar" && owners.registeredTier !== TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE) {
+    return { ok: false, diagnostics: [Object.freeze({ code: RECORD_AUTHORING_REQUIREMENT_TIER_CODE, severity: "error",
+      path: "exception",
+      message: "a grammar exception is recorded on saved controlled requirements, which this server's registered tier does not author",
+      details: { changed: false, member: "exception", kind: "grammar", required_tier: TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE,
+        registered_tier: typeof owners.registeredTier === "string" ? owners.registeredTier : null } })] };
+  }
+  try {
+    return await prepareWorkItemChange({ capturedSource, changes: {}, owners, exception });
+  } catch (error) {
+    if (!(error instanceof PlanRefusal)) throw error;
+    return { ok: false, diagnostics: error.diagnostics };
+  }
 }
 
 export async function prepareRecordAuthoringChange({ capturedSource, changes, context = "existing", owners }) {
@@ -584,6 +687,8 @@ export async function prepareRecordAuthoringChange({ capturedSource, changes, co
     ? RECORD_AUTHORING_SLICE_CONTEXT : context;
   const invalid = validateRecordAuthoringChanges(kind, applicability, changes);
   if (invalid.length > 0) return { ok: false, diagnostics: [...invalid] };
+  const tierRefusals = requirementAuthoringTierDiagnostics(changes, owners.registeredTier);
+  if (tierRefusals.length > 0) return { ok: false, diagnostics: tierRefusals };
   if (context === 'birth') {
     const diagnostics = await inspectRecordAuthoringInitiative({ repoRoot: capturedSource.repoRoot, changes });
     if (diagnostics.length) return { ok: false, diagnostics };

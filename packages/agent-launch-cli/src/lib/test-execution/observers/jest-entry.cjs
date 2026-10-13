@@ -2,16 +2,16 @@
 
 const path = require("node:path");
 
-const { createChannel, failureDiagnostic, loadConfig, projectRequire } = require("./native-channel.cjs");
+const { createChannel, failureDiagnostic, loadConfig, runnerRequire } = require("./native-channel.cjs");
 
 const config = loadConfig(process.argv[2]);
 const channel = createChannel(config, "jest.entry");
 
 async function main() {
   const projectDir = config.project_directory;
-  const jestEntry = projectRequire(config).resolve("jest");
-  const { readConfig } = require(require.resolve("jest-config",
-    { paths: [path.dirname(jestEntry), projectDir] }));
+  const jestEntry = runnerRequire(config).resolve("jest");
+
+  const { readConfig } = require(require.resolve("jest-config", { paths: [path.dirname(jestEntry)] }));
   const jest = require(jestEntry);
   const jestVersion = typeof jest.getVersion === "function" ? jest.getVersion() : null;
   channel.emit("session_start", { runner: { name: "jest", version: jestVersion } });

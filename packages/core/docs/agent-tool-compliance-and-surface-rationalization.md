@@ -238,7 +238,7 @@ frames, duplicate or unmatched IDs, missing phases, and mixed evidence
 identities make the capture incomplete instead of shrinking its denominator. Its
 `source.content_digest` is the capture owner's stable executed-source census
 digest (see the transcript capture section of
-[agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md));
+[conduit capture and probes](agent-launch-conduit-capture-and-probes.md#optional-stdio-mcp-transcript-capture));
 a changed or unobservable census leaves the identity incomplete, and comparison
 refuses it rather than substituting a command or path label.
 

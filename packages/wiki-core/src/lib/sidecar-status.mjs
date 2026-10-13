@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 
 import { computeSidecarGeneratorIdentity } from "./sidecar-generator-identity.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
-import { classifySidecarPreparation } from "./sidecar-incremental.mjs";
+import { classifySidecarPreparation, isSidecarProviderCoverageSettled } from "./sidecar-incremental.mjs";
 import { sidecarProviderInputsChangedAtCommit } from "./sidecar-scip-projects.mjs";
 import { normalizeSidecarRepoPath } from "./sidecar-paths.mjs";
 import { resolveSidecarRepositoryIdentity } from "./sidecar-repository-identity.mjs";
@@ -273,7 +273,7 @@ export function createSidecarIndexStatusEnvelope({ gitState, artifactPaths, stor
   const providerInputsChanged = classification?.reason === "provider_inputs_changed";
   const scipState = providerInputsChanged
     ? unavailableScipState("scip_provider_inputs_changed", "stale")
-    : baseUsable && provider?.state === "complete"
+    : baseUsable && isSidecarProviderCoverageSettled(provider)
     ? { scip_available: provider.scip_available === true,
         graph_available: provider.graph_available === true, staleness: "fresh",
         index_action: "use", status_reason: provider.status_reason ?? "scip_not_prepared",

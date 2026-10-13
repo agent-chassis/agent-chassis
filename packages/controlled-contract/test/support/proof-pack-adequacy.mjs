@@ -3116,7 +3116,8 @@ async function runLoadedProofPackAdequacy(pack, {
     }
     observations = await executable.runProofPackAdequacyControls({
       profile: structuredClone(pack.profile),
-      profile_digest: pack.profile_digest
+      profile_digest: pack.profile_digest,
+      negative_fixtures: structuredClone(pack.negative_fixtures)
     });
   } finally {
     await rm(snapshotRoot, { recursive: true, force: true });

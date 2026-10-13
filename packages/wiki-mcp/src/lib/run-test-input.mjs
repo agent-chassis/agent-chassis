@@ -4,7 +4,7 @@ import { executionTimeoutInputSchema, parseExecutionTimeout } from
   "../../../wiki-core/src/lib/execution-timeout.mjs";
 import { TEST_RUNTIME_ENVIRONMENT_ID_RE } from "@agent-chassis/controlled-contract/test-proof";
 
-import { selectedResponseDetailSchema } from "./selected-response-snapshot.mjs";
+import { selectedResponseLocatorSchema } from "./selected-response-snapshot.mjs";
 
 export const RUN_TEST_TOOL_NAME = "workspace_run_test";
 
@@ -22,12 +22,14 @@ export const RUN_TEST_EXECUTION_FIELDS = Object.freeze(["file", "runner", "envir
 
 export const RUN_TEST_CLEARABLE_FIELDS = Object.freeze(["environment", "selector", "timeout", "compare_parent",
   "source"]);
-const MODE_FIELDS = Object.freeze(["read", "continue", "retry"]);
+const MODE_FIELDS = Object.freeze(["read", "retry"]);
 const COMMIT_RE = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
-const FILE_DESCRIPTION = "Required for an execution. One literal repository-relative file, as the runner names " +
-  "it (for example \"tests/unit/a.test.mjs\"). The runner executes its normal unit for that file, which may " +
-  "include neighboring tests. Not a glob, directory or path outside the checkout.";
+const FILE_DESCRIPTION = "Required for an execution. One repository-relative file, as the runner names it " +
+  "(for example \"tests/unit/a.test.mjs\"), or one glob pattern matching several (for example " +
+  "\"tests/unit/*.test.mjs\" or \"tests/**/*.test.mjs\"; a string containing any of * ? [ ] { } is a " +
+  "pattern). The runner executes its normal unit for each file, which may include neighboring tests. Not a " +
+  "directory, a list or a path outside the checkout.";
 const RUNNER_DESCRIPTION = "Required for an execution. The runtime runner, for example node-test, jest, vitest, " +
   "pytest, go-test or cargo-test.";
 const ENVIRONMENT_DESCRIPTION = "Optional prepared environment <ecosystem>@<installation root> that local " +
@@ -47,11 +49,9 @@ const SOURCE_DESCRIPTION = "Required for an orchestrator execution: {kind:\"curr
   "{kind:\"exact_sha\", value:<full commit>} or {kind:\"branch\", value:<WK ID, WK#SLICE ID or canonical WK or " +
   "slice branch name>}, which runs the commit that branch names now; the commit is held by an existing owned " +
   "clean checkout. Workers and reviewers run their bound source and must omit it.";
-const MODE_RULE = "A request is exactly one mode: execution fields, read, continue or retry.";
-const READ_DESCRIPTION = `Read-only: one view of a retained result an earlier answer named; executes nothing. ${
-  MODE_RULE}`;
-const CONTINUE_DESCRIPTION = `Read-only: a continuation copied unchanged from an earlier answer's next call. ${
-  MODE_RULE}`;
+const MODE_RULE = "A request is exactly one mode: execution fields, read or retry.";
+const READ_DESCRIPTION = "Read-only: one view of a retained result an earlier answer named; executes nothing. " +
+  `failure selects one failed result of the failure view, as a returned call names it. ${MODE_RULE}`;
 const RETRY_DESCRIPTION = "A new explicit execution of the retained request a refusal named. changes sets " +
   "execution fields to non-null values; clear removes distinct optional fields; a field is in at most one of " +
   `them. ${MODE_RULE}`;
@@ -81,13 +81,12 @@ function executionFieldSchemas(z, { described = true } = {}) {
 
 export function runTestInputSchema(z) {
 
-  const continuation = selectedResponseDetailSchema(z);
-  const locator = continuation.shape.source;
+  const locator = selectedResponseLocatorSchema(z);
   return z.object({
     ...executionFieldSchemas(z),
-    read: z.object({ result: locator, view: z.enum(RUN_TEST_VIEWS) }).strict().optional()
+    read: z.object({ result: locator, view: z.enum(RUN_TEST_VIEWS),
+      failure: z.number().int().min(1).optional() }).strict().optional()
       .describe(READ_DESCRIPTION),
-    continue: continuation.optional().describe(CONTINUE_DESCRIPTION),
     retry: z.object({
       request: locator,
       changes: z.object(executionFieldSchemas(z, { described: false })).strict().optional(),
@@ -103,6 +102,10 @@ export function runTestInputSchema(z) {
           message: `a cleared field ${reason}: ${[...new Set(fields)].join(", ")}` });
       }
     }
+    if (args.read?.failure !== undefined && args.read.view !== "failure") {
+      context.addIssue({ code: "custom", path: ["read", "failure"],
+        message: "a failed result is selected in the failure view only" });
+    }
     const execution = RUN_TEST_EXECUTION_FIELDS.filter((field) => args[field] !== undefined);
     const modes = MODE_FIELDS.filter((field) => args[field] !== undefined);
     if (modes.length > 1 || (modes.length === 1 && execution.length > 0)) {
@@ -115,7 +118,7 @@ export function runTestInputSchema(z) {
     for (const field of ["file", "runner"]) {
       if (args[field] === undefined) {
         context.addIssue({ code: "custom", path: [field],
-          message: `an execution names ${field}; a read, continuation or retry names its own mode instead` });
+          message: `an execution names ${field}; a read or retry names its own mode instead` });
       }
     }
   });
@@ -123,9 +126,6 @@ export function runTestInputSchema(z) {
 
 export function parseRunTestRequest(args) {
   if (args.read !== undefined) return Object.freeze({ mode: "read", read: args.read });
-  if (args.continue !== undefined) {
-    return Object.freeze({ mode: "continue", selection: args.continue });
-  }
   if (args.retry !== undefined) {
     return Object.freeze({ mode: "retry", seed: args.retry.request,
       changes: args.retry.changes ?? {}, clear: args.retry.clear ?? [] });
@@ -159,7 +159,7 @@ export function runTestInputRefusal(validationError) {
   const issues = validationError?.issues ?? [];
   const field = ({ path, keys }) => [path.map(String).join("."), ...(Array.isArray(keys) ? keys : [])]
     .filter((part) => part !== "").join(".") || "(request)";
-  return invalid("the workspace_run_test request is not one closed execution, read, continuation or retry", {
+  return invalid("the workspace_run_test request is not one closed execution, read or retry", {
     rejected_fields: [...new Set(issues.map(field))].join(", "),
     issue_count: issues.length,
     first_issue: issues[0]?.message ?? null

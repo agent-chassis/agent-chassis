@@ -50,17 +50,39 @@ order and repo map.
 - [agent-launch-conduit-diagnostics.md](agent-launch-conduit-diagnostics.md) —
   the `stdio_mcp_*` conduit failure taxonomy and operator recovery route.
 - [agent-launch-confinement-mcp-conduit.md](agent-launch-confinement-mcp-conduit.md)
-  — confined repository visibility, the host wiki-MCP local socket conduit, and
-  the unsupported Agy posture.
+  — confined repository visibility, Git metadata projection, the normative
+  launcher agent session contract, and the separate host test capability.
+- [agent-launch-mcp-conduit-lifecycle.md](agent-launch-mcp-conduit-lifecycle.md)
+  — the host wiki-MCP local socket conduit: admission, readiness, teardown,
+  client registrations, and the unsupported Agy posture.
+- [agent-launch-conduit-authority-and-review-sources.md](agent-launch-conduit-authority-and-review-sources.md)
+  — minted conduit authority, review checkout capture, the frozen worker
+  assignment, and terminal candidate validation.
+- [agent-launch-git-status-interception.md](agent-launch-git-status-interception.md)
+  — the orchestrator `git status` adaptation under the private-family overlay.
+- [agent-launch-worker-test-runtimes.md](agent-launch-worker-test-runtimes.md)
+  — the toolchain and dependency projection for a managed worker's commands.
+- [agent-launch-conduit-capture-and-probes.md](agent-launch-conduit-capture-and-probes.md)
+  — optional transcript capture, the metrics destination, and the test-only
+  confined-worker probe.
+- [test-proof-runtime-identity.md](test-proof-runtime-identity.md) — saved
+  proof meaning, runtime binding, candidate binding, and provider families.
+- [test-proof-execution.md](test-proof-execution.md) — host test and proof
+  execution, transformed proof copies, and compiler caches.
+- [test-proof-runtime-environments.md](test-proof-runtime-environments.md) —
+  readiness as configuration and environment routing.
+- [test-proof-observation.md](test-proof-observation.md) — the observation
+  protocol, reach binding, family limits, and module-fault providers.
+- [test-proof-results.md](test-proof-results.md) — proof outcomes, capability
+  limitations, and verification timing.
+- [test-proof-diagnostics.md](test-proof-diagnostics.md) — failure diagnostics,
+  run records, and retained evidence.
+- [junit-test-result-parser.md](junit-test-result-parser.md) — the shared
+  JUnit/XUnit report parser.
 - [agent-launch-family-runtime-state.md](agent-launch-family-runtime-state.md) —
   per-family launcher runtime-state facts.
 - [agent-launch-run-provenance.md](agent-launch-run-provenance.md) — the
   `agent-run-provenance.v1` envelope and run inspection.
-
-## Test tooling
-
-- [semgrep.md](semgrep.md) — the shared Semgrep runner and the explicit test
-  lint: rules, inline exceptions, coverage accounting and retained reports.
 
 ## Records and coordination reference
 

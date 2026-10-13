@@ -1,6 +1,6 @@
 
 
-import { RunnerIntegrationPreconditionError, npmPackageBin } from "./common.mjs";
+import { RunnerIntegrationPreconditionError, npmPackageBin, npmPackageDirectory } from "./common.mjs";
 
 const commandEnvironment = (runtime) => ({
   directories: [`${runtime.scratchRoot}/xdg-data`],
@@ -16,12 +16,13 @@ export default Object.freeze({
     const cli = npmPackageBin(runtime, "vitest");
     if (proof !== null) {
       return { harness: Object.freeze({ kind: "vitest_launcher_entry" }),
+        runnerPackage: npmPackageDirectory(runtime, "vitest"),
         invocation: { command: runtime.executables.node, args: [proof.entry, ...proof.entryArgs], cwd: projectDir,
           ...commandEnvironment(runtime) } };
     }
 
     const listed = await metadata({ command: runtime.executables.node,
-      args: [cli, "list", "--configLoader=runner", "--filesOnly", absoluteFile, "--json"], cwd: projectDir,
+      args: [cli, "list", "--filesOnly", absoluteFile, "--json"], cwd: projectDir,
       ...commandEnvironment(runtime) });
     let files;
     try {
@@ -34,8 +35,7 @@ export default Object.freeze({
       harness: Object.freeze({ kind: "vitest" }),
       selection: Object.freeze({ file_filter: absoluteFile, listed_files: Object.freeze(files) }),
       invocation: { command: runtime.executables.node,
-        args: [cli, "run", "--configLoader=runner",
-          ...(selector === null ? [] : [`--testNamePattern=${selector}`]), absoluteFile],
+        args: [cli, "run", ...(selector === null ? [] : [`--testNamePattern=${selector}`]), absoluteFile],
         cwd: projectDir, ...commandEnvironment(runtime) }
     };
   },

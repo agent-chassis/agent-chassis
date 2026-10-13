@@ -30,7 +30,7 @@ dispatch nested managed runs, resolves it again before writing. The setting is n
 accepted from tool arguments, prompts, model-specific switches, or confined worker
 environments, and the directory is not mounted into confined workers. It is
 independent of `AGENT_CHASSIS_MCP_TRANSCRIPT_ROOT`; enabling one never enables or
-reuses the other. See [Agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md)
+reuses the other. See [Conduit capture and probes](agent-launch-conduit-capture-and-probes.md#anonymous-mcp-metrics-destination)
 and the [environment reference](env-reference.md).
 
 ## What is recorded

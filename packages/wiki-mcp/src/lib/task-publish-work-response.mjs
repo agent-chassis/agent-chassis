@@ -9,7 +9,8 @@ import {
   producerEstablishedRecovery,
   projectDispatchFailureDetail
 } from "./dispatch-tool-helpers.mjs";
-import { acceptanceValidationDriftGuidance } from "./dispatch-tools/forge-handoff-drift-guidance.mjs";
+import { acceptanceValidationDriftGuidance, sectionsDriftGuidance } from
+  "./dispatch-tools/forge-handoff-drift-guidance.mjs";
 import { activeMcpInlineByteLimit, describeRetentionFailure, jsonContent,
   measureMcpInlineResultBytes } from "./mcp-response.mjs";
 import {
@@ -55,8 +56,9 @@ export function publicationCarrier(subject, outcome, env, requestSchemaAuthority
   const decidingFacts = [{ field: "forge_handoff.executor_accepted", value: false }];
   const observedFacts = { "forge_handoff.executor_accepted": false };
   const carried = { forge_executor_refusal: refusalIdentity };
-  const drift = acceptanceValidationDriftGuidance({ refusal, detail, assignedUnit: subject,
-    code, decidingFacts, observedFacts, carried, requestSchemaAuthority });
+  const driftInput = { refusal, detail, assignedUnit: subject,
+    code, decidingFacts, observedFacts, carried, requestSchemaAuthority };
+  const drift = acceptanceValidationDriftGuidance(driftInput) ?? sectionsDriftGuidance(driftInput);
   const originating = originatingFailure(detail);
   const recovery = drift?.recovery ?? producerEstablishedRecovery(detail, {
     unchanged: originating === null ? `the producer's ${refusal.reason} condition no longer holds`

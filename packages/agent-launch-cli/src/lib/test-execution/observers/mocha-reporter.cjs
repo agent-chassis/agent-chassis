@@ -1,11 +1,11 @@
 "use strict";
 
-const { createChannel, failureDiagnostic, installReachSink, loadConfig, projectRequire, repositoryPath,
+const { createChannel, failureDiagnostic, installReachSink, loadConfig, repositoryPath, runnerRequire,
   sameTitles } = require("./native-channel.cjs");
 
 const config = loadConfig();
 
-const Mocha = projectRequire(config)("mocha");
+const Mocha = runnerRequire(config)("mocha");
 const channel = createChannel(config, "mocha");
 installReachSink(channel);
 const { constants } = Mocha.Runner;

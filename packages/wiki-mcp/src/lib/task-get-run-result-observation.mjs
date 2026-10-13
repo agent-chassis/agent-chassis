@@ -9,6 +9,7 @@ import { readManagedRunObservation } from
 import { classifyAgentDispatchSubject } from "./dispatch-tool-helpers.mjs";
 import { RUN_WAIT_TIMEOUT_MS_BOUNDS } from "./dispatch-monitor-call-deadline.mjs";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
+import { selectedResponseCorrectableError, selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
 import { authenticateManagedWorkerSliceBinding, managedTestAuthorityAuthenticated,
   managedTestAuthorityIdentity } from "./managed-test-source-context.mjs";
 
@@ -20,6 +21,16 @@ export const GET_RUN_RESULT_INVENTORY_INPUT_SCHEMA = z.object({
   subject: GET_RUN_RESULT_LIVE_INPUT_SCHEMA.shape.subject, attempt_id: z.string().min(1),
   detail: z.object({ member: z.literal("proof_verifications") }).strict() }).strict();
 export const GET_RUN_RESULT_ASSIGNED_INPUT_SCHEMA = z.object({ assigned: z.literal(true) }).strict();
+
+const EXACT_READ_REQUEST_SCHEMA = selectedResponseRequestSchema(z.object({
+  subject: z.string(), attempt_id: z.string().min(1) }).strict());
+function waitRefusal(reason, subject, attemptId) {
+  return selectedResponseCorrectableError("get_run_result", reason, {}, {
+    arguments: { subject, attempt_id: attemptId }, requestSchema: EXACT_READ_REQUEST_SCHEMA,
+    prerequisite: "a wait observes a live attempt whose reservation is still held; this attempt is read, not waited on",
+    successCondition: "the same subject and attempt without timeout_ms returns that attempt's recorded " +
+      "observation at once; it waits for nothing and starts, captures and integrates nothing" });
+}
 
 export function createGetRunResultObservation({ workspace, sessionEnv,
   preparedDispatchBackend, dispatchSessionIdentity, parseRequest, refuse, responseEnv }) {
@@ -76,9 +87,15 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
       if (!["attempt_observation_unavailable", "unknown_run_or_handle"].includes(live?.refusal?.reason)) return live;
       const cold = await durable(parsed.attempt_id ?? null);
       if (!cold.ok || selection !== null) return cold;
-      if (parsed.timeout_ms !== undefined) return refuse("durable_observation_cannot_wait");
 
       const review = cold.review;
+      if (parsed.timeout_ms !== undefined) {
+        const selected = review?.run_id ?? cold.selected?.dispatch_tuple?.run_id;
+        if (typeof selected !== "string" || (parsed.attempt_id !== undefined && parsed.attempt_id !== selected)) {
+          return refuse("durable_observation_cannot_wait");
+        }
+        throw waitRefusal("durable_observation_cannot_wait", parsed.subject, selected);
+      }
       const original = review?.original_result ?? cold.selected?.original_result;
       if (original == null) return cold;
       const retained = createObservationOriginals({ workspace, sessionEnv, responseEnv }).read(original, parsed.subject);
@@ -100,7 +117,7 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
     if (live.role === "worker") {
       const recorded = await durable(live.run_id);
       if (!recorded.ok) return recorded;
-      if (recorded.selected.released) return refuse("released_attempt_cannot_wait");
+      if (recorded.selected.released) throw waitRefusal("released_attempt_cannot_wait", parsed.subject, live.run_id);
     }
     const waited = await backend.waitForRunStatus({ ...input, attempt_id: live.run_id, timeout_ms: parsed.timeout_ms });
     if (live.role !== "worker" || waited?.accepted !== true) return waited;

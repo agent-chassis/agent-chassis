@@ -1284,10 +1284,13 @@ async function resolveControlledContractGenerationPopulation({
   absentAsNull,
   validateDescriptors,
   invalid,
-  observation = null
+  observation = null,
+
+  savedAuthoringSources = false
 }) {
   const selection = await resolveManifestSelectedGeneration({ repoRoot, wkId, observation });
   if (selection !== null) {
+    if (savedAuthoringSources) return null;
     return resolveManifestSelectedGenerationPopulation({
       repoRoot, wkId, absentAsNull, validateDescriptors, invalid, selection, observation
     });
@@ -1395,6 +1398,25 @@ async function resolveControlledContractGenerationPopulation({
     invalid("canonical generation identity or type changed during resolution");
   }
 
+  if (!descriptors.some((descriptor) => classifyControlledContractCarrierBasename({
+    wkId, basename: descriptor.basename
+  }).member === true)) {
+    if (savedAuthoringSources) {
+      return deepFreezePlainData({
+        schema_version: "controlled-contract-resolved-generation.v1",
+        record_id: wkId,
+        count: descriptors.length,
+        generation_digest: controlledContractGenerationDigest({ wkId, descriptors }),
+        manifest_selection: null,
+        descriptors
+      });
+    }
+    if (absentAsNull) return null;
+    fail("controlled_contract_generation_empty",
+      "canonical same-WK controlled-contract generation contains no carriers");
+  }
+  if (savedAuthoringSources) return null;
+
   const result = {
     schema_version: "controlled-contract-resolved-generation.v1",
     record_id: wkId,
@@ -1415,6 +1437,19 @@ export async function resolveControlledContractAttachmentGeneration({ repoRoot, 
     absentAsNull: true,
     validateDescriptors: validateControlledContractAttachmentGenerationDescriptors,
     invalid: attachmentGenerationInvalid
+  });
+}
+
+export async function resolveControlledContractSavedAuthoringSources({ repoRoot, wkId } = {}) {
+  assertControlledContractOperationInput(arguments[0] ?? {}, ["repoRoot", "wkId"]);
+  normalizeControlledContractIdentity({ wkId, focus: null });
+  return resolveControlledContractGenerationPopulation({
+    repoRoot,
+    wkId,
+    absentAsNull: true,
+    validateDescriptors: validateControlledContractAttachmentGenerationDescriptors,
+    invalid: attachmentGenerationInvalid,
+    savedAuthoringSources: true
   });
 }
 

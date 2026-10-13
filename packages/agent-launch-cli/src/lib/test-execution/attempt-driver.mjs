@@ -2,27 +2,42 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, openSync, readFileSync, closeSync, fstatSync, readSync,
+import { mkdirSync, openSync, readFileSync, closeSync, readSync,
   symlinkSync, writeFileSync, writeSync } from "node:fs";
 import path from "node:path";
 
 import { copySelectedSource } from "./source-copy.mjs";
 
 const PLAN_SCHEMA_VERSION = "workspace-agent-runner-attempt-plan.v2";
-const STATUS_SCHEMA_VERSION = "workspace-agent-runner-attempt-status.v2";
+const STATUS_SCHEMA_VERSION = "workspace-agent-runner-attempt-status.v3";
+
+const COMPLETION_UNPUBLISHED_EXIT_CODE = 124;
+const COMPLETION_UNPUBLISHED_MARKER = "[attempt-driver] completion frame not published:";
 let reported = false;
+let unpublished = false;
 function report(status, channelBytes = Buffer.alloc(0)) {
   if (reported) return;
   reported = true;
   const header = Buffer.from(`${JSON.stringify({ schema_version: STATUS_SCHEMA_VERSION,
     ...status })}\n`, "utf8");
   const message = Buffer.concat([header, channelBytes]);
+  let offset = 0;
   try {
-    let offset = 0;
     while (offset < message.length) offset += writeSync(3, message, offset);
-  } catch {
+  } catch (error) {
+    unpublished = true;
+    try {
+      writeSync(2, `${COMPLETION_UNPUBLISHED_MARKER} ${JSON.stringify({
+        error: error?.code ?? error?.message ?? String(error), written_bytes: offset,
+        frame_bytes: message.length })}\n`);
+    } catch {
 
+    }
   }
+}
+
+function exit(code) {
+  process.exit(unpublished ? COMPLETION_UNPUBLISHED_EXIT_CODE : code);
 }
 
 function underPrivateRoot(target, privateRoot) {
@@ -44,7 +59,7 @@ try {
   if (plan?.schema_version !== PLAN_SCHEMA_VERSION) throw new Error("unsupported plan");
 } catch (error) {
   report({ phase: "plan_invalid", error: error?.message ?? String(error), channel: null });
-  process.exit(125);
+  exit(125);
 }
 
 const channel = plan.channel ?? null;
@@ -52,7 +67,7 @@ const channelCap = Number.isSafeInteger(plan.channel_cap_bytes) ? plan.channel_c
 const privateRoot = typeof plan.scratch_root === "string" ? path.resolve(plan.scratch_root) : "";
 if (privateRoot !== "/agent-validation-tmp" && !privateRoot.startsWith("/tmp/")) {
   report({ phase: "plan_invalid", error: "invalid scratch root", channel: null });
-  process.exit(125);
+  exit(125);
 }
 
 try {
@@ -77,27 +92,24 @@ try {
   }
 } catch (error) {
   report({ phase: "working_copy_failed", error: error?.message ?? String(error), channel: null });
-  process.exit(125);
+  exit(125);
 }
 
-function channelResult(bytes, overflow) {
-  return { kind: channel.kind, bytes: overflow ? 0 : bytes.length, overflow,
-    sha256: overflow ? null : createHash("sha256").update(bytes).digest("hex") };
-}
+const FILE_CHUNK_BYTES = 64 * 1024;
 
-function readChannelFile() {
+function measureChannelFile() {
   const fd = openSync(channel.path, "r");
   try {
-    const size = fstatSync(fd).size;
-    if (size > channelCap) return { bytes: Buffer.alloc(0), overflow: true };
-    const buffer = Buffer.alloc(size);
-    let offset = 0;
-    while (offset < size) {
-      const read = readSync(fd, buffer, offset, size - offset, offset);
+    const hash = createHash("sha256");
+    const buffer = Buffer.allocUnsafe(FILE_CHUNK_BYTES);
+    let bytes = 0;
+    for (;;) {
+      const read = readSync(fd, buffer, 0, buffer.length, null);
       if (read === 0) break;
-      offset += read;
+      hash.update(buffer.subarray(0, read));
+      bytes += read;
     }
-    return { bytes: buffer.subarray(0, offset), overflow: false };
+    return { kind: "file", bytes, sha256: hash.digest("hex") };
   } finally {
     closeSync(fd);
   }
@@ -131,20 +143,21 @@ child.on("error", (error) => {
 child.on("close", (code, signal) => {
   if (spawnError !== null && code === null) {
     report({ phase: "spawn_failed", error: spawnError.code ?? spawnError.message, channel: null });
-    process.exit(126);
+    exit(126);
   }
-  let relayed = { bytes: Buffer.alloc(0), overflow: false };
-  let channelError = null;
-  try {
-    if (channel?.kind === "fd") relayed = { bytes: Buffer.concat(pipeChunks), overflow: pipeOverflow };
-    else if (channel?.kind === "file") relayed = readChannelFile();
-  } catch (error) {
-    channelError = error?.code ?? error?.message ?? String(error);
+  let declared = null;
+  let relayed = Buffer.alloc(0);
+  if (channel?.kind === "fd") {
+    relayed = pipeOverflow ? relayed : Buffer.concat(pipeChunks);
+    declared = { kind: "fd", bytes: relayed.length, overflow: pipeOverflow,
+      sha256: pipeOverflow ? null : createHash("sha256").update(relayed).digest("hex") };
+  } else if (channel?.kind === "file") {
+    try {
+      declared = measureChannelFile();
+    } catch (error) {
+      declared = { kind: "file", error: String(error?.code ?? error?.message ?? error).slice(0, 128) };
+    }
   }
-  report({ phase: "exited", exit_code: code, signal,
-    channel: channel === null ? null : channelError !== null
-      ? { kind: channel.kind, bytes: 0, overflow: false, sha256: null, error: channelError }
-      : channelResult(relayed.bytes, relayed.overflow) },
-  channel === null || channelError !== null || relayed.overflow ? Buffer.alloc(0) : relayed.bytes);
-  process.exit(code ?? 128);
+  report({ phase: "exited", exit_code: code, signal, channel: declared }, relayed);
+  exit(code ?? 128);
 });

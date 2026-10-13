@@ -8,7 +8,7 @@ import {
   buildAuthenticationProvenanceSources
 } from "./authentication-provenance-v1-fixture.mjs";
 
-const PROFILE_DIGEST = "4c54447eaf003dd075263596f590769c4740af17477c8a8d1659bc98c4cf4d7a";
+const PROFILE_DIGEST = "b258c0f95aca2a1652c3484c6ce49fd6d66fbb211afaadf7793ecbc20feef3ef";
 const GUARANTEE_DIGEST = "4f01a730acc440a7b32445445b8119e3f2a70f868bf3563fefbbee327b45eb81";
 
 const EXCLUSIONS = Object.freeze([
@@ -527,14 +527,14 @@ function buildProfileWeakeningControls(profile) {
   const modalityFixture = buildAuthenticationProvenanceFixture({
     mutateContract(contract) {
       contract.claims.find(({ claim_id: id }) =>
-        id === "claim-evidence-authenticates-target").modality = "SHOULD";
+        id === "claim-evidence-authenticates-target").modality = "MAY";
     }
   });
   controls.push([
     "redigested-weaken-authentication-modality",
     evaluateRedigestedWeakening(profile, modalityFixture, (weakened) => {
       weakened.claim_patterns.find(({ pattern_id: id }) =>
-        id === "evidence-authenticates-target").allowed_modalities.push("SHOULD");
+        id === "evidence-authenticates-target").allowed_modalities.push("MAY");
     })
   ]);
 
@@ -692,7 +692,7 @@ function exclusionControls(profile) {
   }));
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   if (profileDigest(profile) !== PROFILE_DIGEST) throw new Error(
     "authentication/provenance profile digest is stale"
   );
@@ -702,7 +702,7 @@ async function runProofPackAdequacyControls({ profile }) {
     profile_version: profile.profile_version,
     profile_digest: PROFILE_DIGEST,
     guarantee_digest: GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures),
       ...positiveControls(profile),
       ...mutantControls(profile),
       ...profileRejectionControls(profile),
@@ -721,3 +721,49 @@ export {
   rejectionFixtures,
   runProofPackAdequacyControls
 };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-verify-evidence-authenticates-target-modalities",
+      "claim_id": "claim-verify-evidence-authenticates-target",
+      "baseline": "isolated-claim-verify-evidence-authenticates-target-modalities-baseline",
+      "optional": "isolated-claim-verify-evidence-authenticates-target-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-evidence-originates-from-source-modalities",
+      "claim_id": "claim-verify-evidence-originates-from-source",
+      "baseline": "isolated-claim-verify-evidence-originates-from-source-modalities-baseline",
+      "optional": "isolated-claim-verify-evidence-originates-from-source-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-target-has-source-of-record-modalities",
+      "claim_id": "claim-verify-target-has-source-of-record",
+      "baseline": "isolated-claim-verify-target-has-source-of-record-modalities-baseline",
+      "optional": "isolated-claim-verify-target-has-source-of-record-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-evidence-observed-in-attempt-modalities",
+      "claim_id": "claim-verify-evidence-observed-in-attempt",
+      "baseline": "isolated-claim-verify-evidence-observed-in-attempt-modalities-baseline",
+      "optional": "isolated-claim-verify-evidence-observed-in-attempt-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

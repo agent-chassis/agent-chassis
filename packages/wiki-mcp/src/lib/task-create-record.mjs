@@ -1,11 +1,14 @@
 
 
 import { getManifestRecordBirthKinds } from "@agent-chassis/wiki-core/src/lib/contract.mjs";
-import { recordAuthoringChangeSchema, validateRecordAuthoringChanges } from "@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs";
+import { recordAuthoringChangeSchema, recordAuthoringIssueByMemberPath, validateRecordAuthoringChanges } from "@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs";
 import { createRecordFromInitial } from "@agent-chassis/wiki-core/src/operations/create.mjs";
 import { serializeWorkRecordDiagnosticValue } from "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { createCreateRecordInputExposure } from "./create-record-input-exposure.mjs";
+import { compactInputSchemaAdvertisement } from "./input-schema-exposure.mjs";
 import { requestSchema } from "./proof-request-schema.mjs";
+import { REQUIREMENT_BATCH_SCHEMA_ENTRY_STATEMENT } from "./requirement-authoring-guidance.mjs";
 import { resolveContractAssessmentContext } from "./task-assess-contract.mjs";
 import { contractAssessmentAuthorityIdentity } from "./controlled-contract-query-context.mjs";
 import { parseToolProfile } from "./tool-profile.mjs";
@@ -35,7 +38,35 @@ export function createCreateRecordInputContract(z) {
   const advertisedInputSchema = z.object({ kind: z.enum(kinds), title,
     initial: z.union(initials).optional().describe("Initial context for the selected kind. Required for source; source metadata must be explicitly supplied.")
   }).strict().describe("Create one record in the session-bound repository. The server enforces the selected kind's closed initial schema; source requires initial. No repository selector.");
-  return Object.freeze({ inputSchema: z.discriminatedUnion("kind", variants), advertisedInputSchema, initialSchemas });
+
+  const compactInitial = compactInitialAlternatives(kinds, initialSchemas);
+  const publishedInputSchemaProjection = (converted) => {
+    const { anyOf: typed, ...declared } = converted?.properties?.initial ?? {};
+    if (!Array.isArray(typed) || typed.length !== compactInitial.length) {
+      throw new TypeError("workspace_create_record publication: the converted request no longer declares one initial alternative per kind");
+    }
+    return { ...converted, properties: { ...converted.properties, initial: { anyOf: compactInitial, ...declared } } };
+  };
+  return Object.freeze({ inputSchema: z.discriminatedUnion("kind", variants), advertisedInputSchema, initialSchemas,
+    publishedInputSchemaProjection });
+}
+
+const DEFERRED_INITIAL_MEMBER = "requirements";
+const DEFERRED_INITIAL_REQUIREMENTS = "One batch of controlled requirements {entities, requirements, collections, unresolved}, " +
+  `validated in full by the server. Its complete declaration: ${REQUIREMENT_BATCH_SCHEMA_ENTRY_STATEMENT}, then the selection that answer returns.`;
+
+export const CREATE_RECORD_INITIAL_CONTRACT_GUIDANCE =
+  "initial lists every member of the selected kind; a member shown without a type has its complete schema in that " +
+  'kind\'s context: workspace_read_wiki {"subject":{"record_kind":"<kind>"}}, then the returned reference with select ' +
+  '{"input_contract":{"tool":"workspace_create_record","members":[...]}} naming every member the creation needs in one ' +
+  "read. A schema already read stays valid; reading one is never required.";
+function compactInitialAlternatives(kinds, initialSchemas) {
+  return kinds.map((kind) => {
+    const compact = compactInputSchemaAdvertisement(initialSchemas[kind]);
+    return { ...compact, description: `${kind} initial context, selected exclusively by kind.`,
+      properties: Object.fromEntries(Object.entries(compact.properties).map(([member, node]) =>
+        [member, kind === "work_item" && member === DEFERRED_INITIAL_MEMBER ? { description: DEFERRED_INITIAL_REQUIREMENTS } : node])) };
+  });
 }
 
 export function buildCreateRecordReadCall({ unit, kind, path }) {
@@ -58,14 +89,16 @@ const notCaused = Object.freeze({ canonical_docs_written: false, proofs_executed
 const addressed = diagnostics => diagnostics.map(row => {
   const path = row.path?.replace(/^changes(?=\.|$)/u, "initial") ?? "$";
   return { ...row, path, ...(typeof row.message === "string" && typeof row.path === "string" &&
-    row.message.startsWith(row.path) ? { message: `${path}${row.message.slice(row.path.length)}` } : {}) };
+    row.message.startsWith(row.path) ? { message: `${path}${row.message.slice(row.path.length)}` } : {}),
+
+  ...(row.path_segments === undefined ? {} : { path_segments: ["initial", ...row.path_segments.slice(1)] }) };
 });
 const MISPLACED_MEMBER = "record_authoring_member_not_applicable";
 const unpublishedCandidate = allocation => allocation?.publication_state === "not_published" && allocation.consumed_id === null;
 
 export function createCreateRecordSurface({ workspace, z, responseEnv = process.env, sessionEnv = process.env,
   generateAndLint, assessment = null, resolveRetainedFindingsSource = null, dispatchSessionIdentity = null,
-  birthOptions = {}, maintenanceOptions = {} }) {
+  registeredTier = null, birthOptions = {}, maintenanceOptions = {} }) {
   const contract = createCreateRecordInputContract(z);
   const role = parseToolProfile(sessionEnv);
   let context = null;
@@ -98,7 +131,8 @@ export function createCreateRecordSurface({ workspace, z, responseEnv = process.
           ...birthOptions, owners: { repository: workspace.repo,
             ...(resolveExternalReference === null ? {} : { resolveExternalReference }),
             resolveRetainedGraphEvidence: source => readRetainedGraphImpact(source, { repository: workspace.repo, responseEnv }),
-            ...birthOptions.owners },
+
+            ...birthOptions.owners, registeredTier },
           ...(assessment === null ? {} : { assess: async ({ wkId }) => {
             const { body: observed } = await assessment.prepare({ unit: wkId });
             return { assessment: observed.assessment, original: observed.original };
@@ -193,9 +227,13 @@ export function createCreateRecordTask(configuration) {
 export function registerCreateRecordTools({ registerTool, ...configuration }) {
   const task = createCreateRecordTask(configuration);
   const requestContracts = registeredToolRequestContracts(registerTool);
-  registerTool(CREATE_RECORD_TOOL_NAME, { description: "Create one draft with its explicitly supplied initial meaning in the session-bound repository. Source requires real metadata. Maintenance recovery uses the immutable creation result and never repeats birth.",
+  registerTool(CREATE_RECORD_TOOL_NAME, { description: "Create one draft with its explicitly supplied initial meaning in the session-bound repository. Source requires real metadata. Maintenance recovery uses the immutable creation result and never repeats birth. " +
+    CREATE_RECORD_INITIAL_CONTRACT_GUIDANCE,
     inputSchema: task.inputContract.inputSchema,
-    advertisedInputSchema: task.inputContract.advertisedInputSchema, writeSemantics: "none",
+    advertisedInputSchema: task.inputContract.advertisedInputSchema,
+    publishedInputSchemaProjection: task.inputContract.publishedInputSchemaProjection, writeSemantics: "none",
+
+    inputSchemaExposure: createCreateRecordInputExposure({ initialSchemas: task.inputContract.initialSchemas }),
 
     inputValidationErrorProjector: async ({ args, validationError }) => {
       const initial = args?.initial;
@@ -205,7 +243,8 @@ export function registerCreateRecordTools({ registerTool, ...configuration }) {
       const owner = validateRecordAuthoringChanges(args.kind, "birth", initial);
       if (!owner.some(row => row.code === MISPLACED_MEMBER)) return null;
       return { terminal_result: { ...jsonContent(await projectToolInputValidationFailure({
-        tool: CREATE_RECORD_TOOL_NAME, args, validationError, ownerDiagnostics: addressed(owner),
+        tool: CREATE_RECORD_TOOL_NAME, args, validationError,
+        ownerDiagnostics: addressed(owner).map(recordAuthoringIssueByMemberPath),
         requestContract: requestContracts.contractFor(CREATE_RECORD_TOOL_NAME)
       }), { env: configuration.responseEnv ?? process.env }), isError: true } };
     } },

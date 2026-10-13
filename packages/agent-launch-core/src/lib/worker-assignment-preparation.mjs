@@ -102,7 +102,10 @@ export function buildWorkerAssignmentCanonicalSummary(
         repo_paths: Array.isArray(selectedSlice.repo_paths) ? selectedSlice.repo_paths : [],
         write_scope: Array.isArray(selectedSlice.write_scope) ? selectedSlice.write_scope : [],
         acceptance: selectedSlice.acceptance || null,
-        dispatch_intent: selectedSlice.dispatch_intent || null
+        dispatch_intent: selectedSlice.dispatch_intent || null,
+
+        ...(Array.isArray(selectedSlice.regression_tests)
+          ? { regression_tests: [...selectedSlice.regression_tests] } : {})
       }
     : null;
   const validationProjection = projectWorkRecordTestProofValidation({

@@ -1,0 +1,848 @@
+{
+  "schema_version": "cel-reference-sources.v1",
+  "sources": {
+    "language": {
+      "repository": "https://github.com/cel-expr/cel-spec",
+      "version": "v0.25.2",
+      "commit": "cb51b4176013ad19bd00df94be273c322916a620",
+      "original_path": "doc/langdef.md",
+      "bundle_path": "cel-spec/langdef.md",
+      "url": "https://github.com/cel-expr/cel-spec/blob/cb51b4176013ad19bd00df94be273c322916a620/doc/langdef.md",
+      "sha256": "46a377cde5a4b0fe1d3023bf7e663d91dfabf6c30868c6b5c2867e057a79ae5b",
+      "bytes": 81787,
+      "license": "Apache-2.0"
+    },
+    "language_license": {
+      "repository": "https://github.com/cel-expr/cel-spec",
+      "version": "v0.25.2",
+      "commit": "cb51b4176013ad19bd00df94be273c322916a620",
+      "original_path": "LICENSE",
+      "bundle_path": "cel-spec/LICENSE",
+      "url": "https://github.com/cel-expr/cel-spec/blob/cb51b4176013ad19bd00df94be273c322916a620/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "license": "Apache-2.0"
+    },
+    "extensions": {
+      "repository": "https://github.com/cel-expr/cel-java",
+      "version": "v0.14.0",
+      "commit": "5cf3ab3c9f0a2ccb4ac449527d41689ed6aa6879",
+      "original_path": "extensions/src/main/java/dev/cel/extensions/README.md",
+      "bundle_path": "cel-java/extensions.md",
+      "url": "https://github.com/cel-expr/cel-java/blob/5cf3ab3c9f0a2ccb4ac449527d41689ed6aa6879/extensions/src/main/java/dev/cel/extensions/README.md",
+      "sha256": "8172385b89c6fde06cb34b4cbf508ec64988e071209e6a33682824f86de6e254",
+      "bytes": 34478,
+      "license": "Apache-2.0"
+    },
+    "extensions_license": {
+      "repository": "https://github.com/cel-expr/cel-java",
+      "version": "v0.14.0",
+      "commit": "5cf3ab3c9f0a2ccb4ac449527d41689ed6aa6879",
+      "original_path": "LICENSE",
+      "bundle_path": "cel-java/LICENSE",
+      "url": "https://github.com/cel-expr/cel-java/blob/5cf3ab3c9f0a2ccb4ac449527d41689ed6aa6879/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "license": "Apache-2.0"
+    }
+  },
+  "definitions": {
+    "cel.eq": {
+      "identifier": "_==_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 65073,
+        "end_byte": 65434,
+        "start_line": 1543,
+        "end_line": 1559,
+        "sha256": "07298bdce0122e119631ae03449ad3c55fd717323c4a3a93d37b9ee856f60ce6",
+        "anchor": "comparison-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "A",
+            "A"
+          ],
+          "result": "bool",
+          "notation": "A == A -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.equality_rules"
+      ]
+    },
+    "cel.ne": {
+      "identifier": "_!=_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 65434,
+        "end_byte": 65720,
+        "start_line": 1560,
+        "end_line": 1574,
+        "sha256": "5c74535039fb97c0801a1cf9dc022afcb559f3b99dc635149d0a8e2ca1a6026d",
+        "anchor": "comparison-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "A",
+            "A"
+          ],
+          "result": "bool",
+          "notation": "A != A -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.equality_rules"
+      ]
+    },
+    "cel.le": {
+      "identifier": "_<=_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 65720,
+        "end_byte": 66317,
+        "start_line": 1575,
+        "end_line": 1596,
+        "sha256": "73d0740cbf31da9e1887d284e56d72e5be04bda3f71f15f0d63f03c21319c331",
+        "anchor": "comparison-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "bool",
+            "bool"
+          ],
+          "result": "bool",
+          "notation": "bool <= bool -> bool"
+        },
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "bool",
+          "notation": "int <= int -> bool"
+        },
+        {
+          "arguments": [
+            "uint",
+            "uint"
+          ],
+          "result": "bool",
+          "notation": "uint <= uint -> bool"
+        },
+        {
+          "arguments": [
+            "double",
+            "double"
+          ],
+          "result": "bool",
+          "notation": "double <= double -> bool"
+        },
+        {
+          "arguments": [
+            "string",
+            "string"
+          ],
+          "result": "bool",
+          "notation": "string <= string -> bool"
+        },
+        {
+          "arguments": [
+            "bytes",
+            "bytes"
+          ],
+          "result": "bool",
+          "notation": "bytes <= bytes -> bool"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Timestamp",
+            "google.protobuf.Timestamp"
+          ],
+          "result": "bool",
+          "notation": "google.protobuf.Timestamp <= google.protobuf.Timestamp -> bool"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Duration",
+            "google.protobuf.Duration"
+          ],
+          "result": "bool",
+          "notation": "google.protobuf.Duration <= google.protobuf.Duration -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.ordering_rules",
+        "cel.numeric_values"
+      ]
+    },
+    "cel.lt": {
+      "identifier": "_<_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 66317,
+        "end_byte": 66854,
+        "start_line": 1597,
+        "end_line": 1619,
+        "sha256": "c507d2888cbd3cd263862132e4b4b9f43a87cb8cc1afd2037af597369fda36c9",
+        "anchor": "comparison-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "bool",
+            "bool"
+          ],
+          "result": "bool",
+          "notation": "bool < bool -> bool"
+        },
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "bool",
+          "notation": "int < int -> bool"
+        },
+        {
+          "arguments": [
+            "uint",
+            "uint"
+          ],
+          "result": "bool",
+          "notation": "uint < uint -> bool"
+        },
+        {
+          "arguments": [
+            "double",
+            "double"
+          ],
+          "result": "bool",
+          "notation": "double < double -> bool"
+        },
+        {
+          "arguments": [
+            "string",
+            "string"
+          ],
+          "result": "bool",
+          "notation": "string < string -> bool"
+        },
+        {
+          "arguments": [
+            "bytes",
+            "bytes"
+          ],
+          "result": "bool",
+          "notation": "bytes < bytes -> bool"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Timestamp",
+            "google.protobuf.Timestamp"
+          ],
+          "result": "bool",
+          "notation": "google.protobuf.Timestamp < google.protobuf.Timestamp -> bool"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Duration",
+            "google.protobuf.Duration"
+          ],
+          "result": "bool",
+          "notation": "google.protobuf.Duration < google.protobuf.Duration -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.ordering_rules",
+        "cel.numeric_values"
+      ]
+    },
+    "cel.ge": {
+      "identifier": "_>=_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 66854,
+        "end_byte": 67472,
+        "start_line": 1620,
+        "end_line": 1642,
+        "sha256": "741f7be95cb79936d1ce70658dbda00d946f82b75fa517253f940cd88acb6c79",
+        "anchor": "comparison-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "bool",
+            "bool"
+          ],
+          "result": "bool",
+          "notation": "bool >= bool -> bool"
+        },
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "bool",
+          "notation": "int >= int -> bool"
+        },
+        {
+          "arguments": [
+            "uint",
+            "uint"
+          ],
+          "result": "bool",
+          "notation": "uint >= uint -> bool"
+        },
+        {
+          "arguments": [
+            "double",
+            "double"
+          ],
+          "result": "bool",
+          "notation": "double >= double -> bool"
+        },
+        {
+          "arguments": [
+            "string",
+            "string"
+          ],
+          "result": "bool",
+          "notation": "string >= string -> bool"
+        },
+        {
+          "arguments": [
+            "bytes",
+            "bytes"
+          ],
+          "result": "bool",
+          "notation": "bytes >= bytes -> bool"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Timestamp",
+            "google.protobuf.Timestamp"
+          ],
+          "result": "bool",
+          "notation": "google.protobuf.Timestamp >= google.protobuf.Timestamp -> bool"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Duration",
+            "google.protobuf.Duration"
+          ],
+          "result": "bool",
+          "notation": "google.protobuf.Duration >= google.protobuf.Duration -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.ordering_rules",
+        "cel.numeric_values"
+      ]
+    },
+    "cel.gt": {
+      "identifier": "_>_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 67472,
+        "end_byte": 67976,
+        "start_line": 1643,
+        "end_line": 1664,
+        "sha256": "2939ba1f87a7e694d50f60a9403132ab7d2965115cec46e94f38e7a9aeff879c",
+        "anchor": "comparison-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "bool",
+            "bool"
+          ],
+          "result": "bool",
+          "notation": "bool > bool -> bool"
+        },
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "bool",
+          "notation": "int > int -> bool"
+        },
+        {
+          "arguments": [
+            "uint",
+            "uint"
+          ],
+          "result": "bool",
+          "notation": "uint > uint -> bool"
+        },
+        {
+          "arguments": [
+            "double",
+            "double"
+          ],
+          "result": "bool",
+          "notation": "double > double -> bool"
+        },
+        {
+          "arguments": [
+            "string",
+            "string"
+          ],
+          "result": "bool",
+          "notation": "string > string -> bool"
+        },
+        {
+          "arguments": [
+            "bytes",
+            "bytes"
+          ],
+          "result": "bool",
+          "notation": "bytes > bytes -> bool"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Timestamp",
+            "google.protobuf.Timestamp"
+          ],
+          "result": "bool",
+          "notation": "google.protobuf.Timestamp > google.protobuf.Timestamp -> bool"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Duration",
+            "google.protobuf.Duration"
+          ],
+          "result": "bool",
+          "notation": "google.protobuf.Duration > google.protobuf.Duration -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.ordering_rules",
+        "cel.numeric_values"
+      ]
+    },
+    "cel.in": {
+      "identifier": "_in_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 68144,
+        "end_byte": 68404,
+        "start_line": 1679,
+        "end_line": 1692,
+        "sha256": "0b8be245d2140a2e6245ad606e06a0c9644d2e85ee897d4be652fe77b277a385",
+        "anchor": "list-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "A",
+            "list(A)"
+          ],
+          "result": "bool",
+          "notation": "A in list(A) -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.equality_rules"
+      ]
+    },
+    "cel.size": {
+      "identifier": "size",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 68404,
+        "end_byte": 68625,
+        "start_line": 1693,
+        "end_line": 1706,
+        "sha256": "c0729c008403b4dd59cebdaccc7d64e321907f901e1b26d929cd41cd066bf3a0",
+        "anchor": "list-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "list(A)"
+          ],
+          "result": "int",
+          "notation": "size(list) -> int"
+        },
+        {
+          "receiver": "list(A)",
+          "arguments": [],
+          "result": "int",
+          "notation": "list.size() -> int"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel.not": {
+      "identifier": "!_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 60205,
+        "end_byte": 60410,
+        "start_line": 1333,
+        "end_line": 1347,
+        "sha256": "be0fb2dec1ca5bbf2fb9de2034fb6c7cfb1220e7030e482973ef75eda2a9f2a5",
+        "anchor": "logical-operators-1"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "bool"
+          ],
+          "result": "bool",
+          "notation": "!bool -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.logical_rules"
+      ]
+    },
+    "cel.or": {
+      "identifier": "_||_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 60410,
+        "end_byte": 60745,
+        "start_line": 1348,
+        "end_line": 1364,
+        "sha256": "e5ce86c003df3728729a39798e7120a0122fc1f553997718a3e2dfabcc5c252e",
+        "anchor": "logical-operators-1"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "bool",
+            "bool"
+          ],
+          "result": "bool",
+          "notation": "bool || bool -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.logical_rules"
+      ]
+    },
+    "cel.and": {
+      "identifier": "_&&_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 60745,
+        "end_byte": 61082,
+        "start_line": 1365,
+        "end_line": 1381,
+        "sha256": "ea0d9af1acfa4cddfcd4a9fffa54a835717735046ed0c458983eabda24a51239",
+        "anchor": "logical-operators-1"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "bool",
+            "bool"
+          ],
+          "result": "bool",
+          "notation": "bool && bool -> bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.logical_rules"
+      ]
+    },
+    "cel.conditional": {
+      "identifier": "_?_:_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 61082,
+        "end_byte": 61773,
+        "start_line": 1382,
+        "end_line": 1406,
+        "sha256": "5e5bd3ca4f6b7d4c0f457d1a389a5981125a4262a4da18eaec55c8fe393c6d81",
+        "anchor": "logical-operators-1"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "bool",
+            "A",
+            "A"
+          ],
+          "result": "A",
+          "notation": "bool ? A : A -> A"
+        }
+      ],
+      "prerequisites": [
+        "cel.logical_rules"
+      ]
+    },
+    "cel.all": {
+      "identifier": "all",
+      "kind": "macro",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 57074,
+        "end_byte": 57690,
+        "start_line": 1232,
+        "end_line": 1250,
+        "sha256": "650dc35218a951c2a277bfeda9b2539d7ca1d6d5a380b7a5f9a39db71931acd7",
+        "anchor": "presence-and-comprehension-macros"
+      },
+      "signatures": [
+        {
+          "receiver": "list(A)",
+          "arguments": [
+            "identifier(A)",
+            "predicate(A) -> bool"
+          ],
+          "result": "bool"
+        },
+        {
+          "receiver": "map(A,B)",
+          "arguments": [
+            "identifier(A)",
+            "predicate(A) -> bool"
+          ],
+          "result": "bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.and"
+      ]
+    },
+    "cel.exists": {
+      "identifier": "exists",
+      "kind": "macro",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 57690,
+        "end_byte": 58256,
+        "start_line": 1251,
+        "end_line": 1269,
+        "sha256": "8a45584e450932f9a20cf7272ad2bb63720afa2ff4652453e5c5cea3153f13d1",
+        "anchor": "presence-and-comprehension-macros"
+      },
+      "signatures": [
+        {
+          "receiver": "list(A)",
+          "arguments": [
+            "identifier(A)",
+            "predicate(A) -> bool"
+          ],
+          "result": "bool"
+        },
+        {
+          "receiver": "map(A,B)",
+          "arguments": [
+            "identifier(A)",
+            "predicate(A) -> bool"
+          ],
+          "result": "bool"
+        }
+      ],
+      "prerequisites": [
+        "cel.or"
+      ]
+    },
+    "cel.double": {
+      "identifier": "double",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 76918,
+        "end_byte": 77289,
+        "start_line": 2050,
+        "end_line": 2066,
+        "sha256": "8c95ab4de1a0d9e7359fa9e8f40d0fa81af6e1d8ba89be65565fd680d5b36f89",
+        "anchor": "types-and-conversions"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "double"
+          ],
+          "result": "double",
+          "notation": "double(double) -> double"
+        },
+        {
+          "arguments": [
+            "int"
+          ],
+          "result": "double",
+          "notation": "double(int) -> double"
+        },
+        {
+          "arguments": [
+            "uint"
+          ],
+          "result": "double",
+          "notation": "double(uint) -> double"
+        },
+        {
+          "arguments": [
+            "string"
+          ],
+          "result": "double",
+          "notation": "double(string) -> double"
+        }
+      ],
+      "prerequisites": [
+        "cel.numeric_values"
+      ]
+    },
+    "cel_java.lists.distinct": {
+      "identifier": "distinct",
+      "kind": "operation",
+      "attribution": "cel_java_extension",
+      "source": "extensions",
+      "section": {
+        "start_byte": 21447,
+        "end_byte": 21803,
+        "start_line": 768,
+        "end_line": 782,
+        "sha256": "7e0b13e9c190660ab6787c6696bad987d96c4f632d72b59261753e5157449c80",
+        "anchor": "distinct"
+      },
+      "signatures": [
+        {
+          "receiver": "list(T)",
+          "arguments": [],
+          "result": "list(T)",
+          "notation": "<list(T)>.distinct() -> <list(T)>"
+        }
+      ],
+      "prerequisites": [
+        "cel.equality_rules"
+      ],
+      "extension": {
+        "library": "lists",
+        "introduced_at_version": 2
+      }
+    },
+    "cel.equality_rules": {
+      "identifier": null,
+      "kind": "semantic_prerequisite",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 48414,
+        "end_byte": 54148,
+        "start_line": 1015,
+        "end_line": 1152,
+        "sha256": "67ade655c2946c0a78acad7587d4725dbaf23b9aef5011f383f9af482475478e",
+        "anchor": "equality"
+      },
+      "signatures": [],
+      "prerequisites": []
+    },
+    "cel.ordering_rules": {
+      "identifier": null,
+      "kind": "semantic_prerequisite",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 54148,
+        "end_byte": 54773,
+        "start_line": 1153,
+        "end_line": 1166,
+        "sha256": "d2834465fb37d0cdeb0cd1b571d444a307fbc0e086f9f9e30b02d1a51868727d",
+        "anchor": "ordering"
+      },
+      "signatures": [],
+      "prerequisites": []
+    },
+    "cel.numeric_values": {
+      "identifier": null,
+      "kind": "semantic_prerequisite",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 10259,
+        "end_byte": 11534,
+        "start_line": 220,
+        "end_line": 242,
+        "sha256": "ab4543a16ff97af41c9872c71c285b4f94cd14a53ac8593623181096aa495d45",
+        "anchor": "numeric-values"
+      },
+      "signatures": [],
+      "prerequisites": []
+    },
+    "cel.logical_rules": {
+      "identifier": null,
+      "kind": "semantic_prerequisite",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 32480,
+        "end_byte": 33479,
+        "start_line": 656,
+        "end_line": 674,
+        "sha256": "d91b80e254f44d0969e4fbeba5d0489dd9d0d5864102ff8d60a731727035a057",
+        "anchor": "logical-operators"
+      },
+      "signatures": [],
+      "prerequisites": []
+    },
+    "cel.aggregate_values": {
+      "identifier": null,
+      "kind": "semantic_prerequisite",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 15718,
+        "end_byte": 17280,
+        "start_line": 336,
+        "end_line": 366,
+        "sha256": "8c761da9e15ae8849784e1f967f5e2434ae57e139f8a2283a2095a8b5a167956",
+        "anchor": "aggregate-values"
+      },
+      "signatures": [],
+      "prerequisites": []
+    },
+    "cel.evaluation": {
+      "identifier": null,
+      "kind": "semantic_prerequisite",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 28361,
+        "end_byte": 30158,
+        "start_line": 577,
+        "end_line": 609,
+        "sha256": "d6e758ca4df205b4c9bd18182ee92722d28d7e2786def750d18b437ad4258874",
+        "anchor": "evaluation"
+      },
+      "signatures": [],
+      "prerequisites": []
+    }
+  }
+}

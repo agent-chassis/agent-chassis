@@ -306,7 +306,7 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     "observed_failures", "observed_failure_count", "ran", "exit_code", "signal",
     "filesystem_error_code", "spawn_error_code", "structured_observation_code", "failure_diagnostic",
     "output_truncated", "output_elided_bytes",
-    "execution_stage", "timed_out", "disposition", "blocker_code", "reason",
+    "execution_stage", "timed_out", "disposition", "blocker_code", "completion", "completion_recovery", "reason",
     "provider_id", "provider_version", "check", "structured_observation_detail",
     "selector", "cause_code", "candidate_commit", "definition_source", "validator_cache", "expected_commit", "observed_commit", "expected_tree",
     "observed_tree", "diagnostic_count", "returned_diagnostic_count",
@@ -316,6 +316,9 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     "valid_choices", "prepared_environments"]) {
     if (detail[key] !== undefined) recoveryFacts[key] = structuredClone(detail[key]);
   }
+
+  if (detail.valid_proof_ids !== undefined) Object.assign(recoveryFacts, {
+    message: detail.message, valid_proof_ids: [...detail.valid_proof_ids] });
   const result = {
     schema_version: VERIFY_PROOF_REFUSAL_SCHEMA_VERSION,
     subject: Object.freeze({ requested: subject, kind: null, canonical_id: null }),

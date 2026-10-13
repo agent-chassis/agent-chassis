@@ -966,7 +966,7 @@
     },
     {
       "intent_id": "controlled-proof-intent.forbidden-operation-noninvocation",
-      "definition": "Establish that one declared subject operation does not use any member of a complete exact nonempty forbidden-operation population in one declared execution context. This prohibition alone does not demonstrate use of a required incumbent implementation.",
+      "definition": "Establish in the declared proof model that one subject operation calls no member of a complete exact nonempty forbidden-operation population while one declared execution context applies. A call to any one member violates the prohibition. This proves neither required incumbent use nor arbitrary implementation noninvocation.",
       "discovery_terms": [
         "forbidden operation noninvocation",
         "complete forbidden operation population",
@@ -977,7 +977,7 @@
       "capable_packs": [
         {
           "profile_id": "proof.operation.forbidden-noninvocation",
-          "profile_version": "4.0.0"
+          "profile_version": "5.0.0"
         }
       ],
       "compatibility": {

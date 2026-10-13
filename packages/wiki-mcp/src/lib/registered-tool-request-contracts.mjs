@@ -6,6 +6,7 @@ import {
   safeParseAsync
 } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
+import { bindInputSchemaExposure, sameInputSchemaExposure } from "./input-schema-exposure.mjs";
 
 export const REGISTERED_TOOL_REQUEST_CONTRACT_CODES = Object.freeze({
   CONFLICT: "registered_tool_request_contract_conflict",
@@ -43,7 +44,8 @@ function projectionUnavailable(toolName, cause) {
   return error;
 }
 
-function createContract(toolName, { inputSchema, publishedInputSchema, publishedInputSchemaProjection = null }) {
+function createContract(toolName, { inputSchema, publishedInputSchema, publishedInputSchemaProjection = null,
+  inputSchemaExposure = null }) {
   const noArgument = publishedInputSchema === undefined;
   let sdkObject;
   let requestSchema = null;
@@ -61,6 +63,8 @@ function createContract(toolName, { inputSchema, publishedInputSchema, published
   let parser;
   return Object.freeze({
     toolName,
+
+    inputSchemaExposure,
 
     publishedRequestSchema() {
       if (requestSchema !== null) return requestSchema;
@@ -107,8 +111,9 @@ export function createRegisteredToolRequestContractStore() {
     return error;
   }
 
-  const sameDeclaration = (entry, { inputSchema, advertisedInputSchema }) =>
-    entry.inputSchema === inputSchema && entry.advertisedInputSchema === advertisedInputSchema;
+  const sameDeclaration = (entry, { inputSchema, advertisedInputSchema, inputSchemaExposure }) =>
+    entry.inputSchema === inputSchema && entry.advertisedInputSchema === advertisedInputSchema &&
+    sameInputSchemaExposure(entry.inputSchemaExposure, inputSchemaExposure);
 
   function assertRetainable(toolName, declaration) {
     if (conflicted.has(toolName)) throw conflict(toolName);
@@ -116,14 +121,20 @@ export function createRegisteredToolRequestContractStore() {
     if (existing !== undefined && !sameDeclaration(existing, declaration)) throw conflict(toolName);
   }
 
+  function bindExposure(inputSchemaExposure) {
+    return inputSchemaExposure === undefined ? null : bindInputSchemaExposure(inputSchemaExposure);
+  }
+
   function retain(toolName, { inputSchema, advertisedInputSchema, publishedInputSchema,
-    publishedInputSchemaProjection }) {
-    assertRetainable(toolName, { inputSchema, advertisedInputSchema });
+    publishedInputSchemaProjection, inputSchemaExposure, boundInputSchemaExposure = null }) {
+    assertRetainable(toolName, { inputSchema, advertisedInputSchema, inputSchemaExposure });
     if (entries.has(toolName)) return;
     entries.set(toolName, Object.freeze({
       inputSchema,
       advertisedInputSchema,
-      contract: createContract(toolName, { inputSchema, publishedInputSchema, publishedInputSchemaProjection })
+      inputSchemaExposure,
+      contract: createContract(toolName, { inputSchema, publishedInputSchema, publishedInputSchemaProjection,
+        inputSchemaExposure: boundInputSchemaExposure })
     }));
   }
 
@@ -133,7 +144,7 @@ export function createRegisteredToolRequestContractStore() {
     }
   });
 
-  return Object.freeze({ assertRetainable, retain, lookup });
+  return Object.freeze({ assertRetainable, bindExposure, retain, lookup });
 }
 
 export function bindRegisteredToolRequestContracts(registrar, store) {

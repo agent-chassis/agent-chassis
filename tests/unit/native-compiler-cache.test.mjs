@@ -117,7 +117,7 @@ test("Deno's dependency stores are linked into its persistent DENO_DIR and re-po
   assert.deepEqual([free.binds, free.env.DENO_DIR], [[], "/tmp/proof/stage/deno-dir"]);
 });
 
-test("each caching ecosystem names its native cache; runner commands keep fresh test execution", () => {
+test("each caching ecosystem names its native cache; runner commands keep fresh test execution", async () => {
   assert.equal(DEPENDENCY_ECOSYSTEMS.go_modules.compilerCacheEnv, "GOCACHE");
   assert.equal(DEPENDENCY_ECOSYSTEMS.go_modules.compilerCacheName(), "go-build");
   assert.equal(DEPENDENCY_ECOSYSTEMS.cargo.compilerCacheEnv, "CARGO_TARGET_DIR");
@@ -126,11 +126,23 @@ test("each caching ecosystem names its native cache; runner commands keep fresh 
   assert.equal(vitestIntegration.compilerCache, "vitest-module-cache");
   const runtime = { executables: { go: "/toolchain/go/bin/go", cargo: "/toolchain/rust/bin/cargo",
     rustc: "/toolchain/rust/bin/rustc" } };
-  const go = goTest.invocation({ runtime, projectDir: "/work/go", packagePath: "./calc", testName: "TestAnswer" });
-  assert.deepEqual(go.args.slice(0, 2), ["test", "-count=1"], "Go never reuses a cached test result");
-  const cargo = cargoTest.invocation({ runtime, projectDir: "/work/rust", target: { kind: "lib" },
-    exactName: "returns_42" });
+
+  const goMetadata = async () => ({ stdout: "calc_test.go\n" });
+  const goStages = [null, { testName: "TestAnswer", overlay: "/work/stage/overlay.json" }];
+  for (const proof of goStages) {
+    const { invocation: go } = await goTest.ordinaryInvocation({ runtime, projectDir: "/work/go",
+      file: "calc/calc_test.go", selector: null, metadata: goMetadata, proof });
+    assert.deepEqual(go.args.slice(0, 2), ["test", "-count=1"], "Go never reuses a cached test result");
+    assert.equal(go.args.at(-1), "./calc");
+  }
+  const cargoMetadata = async () => ({ stdout: JSON.stringify({ packages: [{ name: "calc", version: "0.1.0",
+    manifest_path: "/work/rust/Cargo.toml",
+    targets: [{ name: "calc", kind: ["lib"], src_path: "/work/rust/src/lib.rs" }] }] }) });
+  const { invocation: cargo } = await cargoTest.ordinaryInvocation({ runtime, projectDir: "/work/rust",
+    absoluteFile: "/work/rust/src/lib.rs", selector: null, metadata: cargoMetadata,
+    proof: { target: { kind: "lib" }, exactName: "returns_42" } });
   assert.ok(cargo.args.includes("--message-format=json"), "Cargo reports its per-unit freshness natively");
+  assert.deepEqual(cargo.args.slice(cargo.args.indexOf("--")), ["--", "--exact", "returns_42", "--test-threads", "1"]);
   for (const integration of [goTest, cargoTest, vitestIntegration]) {
     assert.equal(integration.compileOnly, undefined, "no separate compile-only seed build");
   }

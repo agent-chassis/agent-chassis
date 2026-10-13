@@ -402,16 +402,16 @@
     },
     {
       "profile_id": "proof.operation.forbidden-noninvocation",
-      "profile_version": "4.0.0",
-      "path": "profiles/proof.operation.forbidden-noninvocation/4.0.0",
-      "short_description": "A declared operation uses no member of a complete forbidden-operation population.",
+      "profile_version": "5.0.0",
+      "path": "profiles/proof.operation.forbidden-noninvocation/5.0.0",
+      "short_description": "A declared operation calls no member of a complete forbidden-operation population.",
       "usage": {
         "requires": [
-          "Exact subject/context and complete nonempty forbidden-operation population, verification reads and same-scope positive-use falsifier."
+          "Exact subject/context and complete nonempty forbidden-operation population; verification reads and a positive-calls falsifier with the same bindings. Any one forbidden call violates the prohibition."
         ],
         "fits": {
-          "example": "A slice-review operation does not use any member of its declared forbidden-operation population in the selected context.",
-          "why": "The controlled prohibition covers every declared member for this subject/context."
+          "example": "A slice-review operation calls no member of its declared forbidden-operation population in the selected context.",
+          "why": "The declared proof model prohibits each member for this subject/context; it supplies no observation of arbitrary implementation execution."
         },
         "does_not_fit": {
           "example": "A forbidden member is invoked after an allowed call inside that context.",

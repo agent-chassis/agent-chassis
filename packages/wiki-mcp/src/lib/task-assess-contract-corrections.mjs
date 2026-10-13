@@ -47,11 +47,9 @@ export function assessmentSaveGuidance(carrier) {
 }
 
 const applicabilityChoices = () => ({ field: "controlled_acceptance.disposition", selected: null,
-  caller_decision: "The caller decides. Save the chosen changes with the current_read revision; assessment selects neither.",
+  caller_decision: "The caller decides. Save the changes with the current_read revision; assessment saves nothing.",
   choices: [
-    { intent: "declare_applicable", changes: { controlled_acceptance: { disposition: "required" } } },
-    { intent: "opt_out", changes: { controlled_acceptance: { disposition: "opted_out" } },
-      missing_caller_input: ["controlled_acceptance.rationale"] }] });
+    { intent: "declare_applicable", changes: { controlled_acceptance: { disposition: "required" } } }] });
 const withSaveGuidance = (carrier, used) => used ? { save_guidance: assessmentSaveGuidance(carrier) } : {};
 
 export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], codes = [], clauses = {} } = {}) {
@@ -65,15 +63,20 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
   const constraints = [...new Set(subjects.flatMap(subject => inputs(subject).map(clause => clause.constraint))
     .filter(constraint => typeof constraint === "string"))];
   const required = codes.includes("controlled_acceptance_disposition_missing")
-    ? ["controlled_acceptance.disposition; opted_out also requires an authored rationale"]
+    ? ["controlled_acceptance.disposition"]
     : purpose === "criterion_coverage"
       ? ["obligations[].criteria associations chosen by the author; incomplete obligations must also be repaired"]
+      : purpose === "definition"
+        ? ["requirements: supply the applicable typed definition for the affected object and use; assessment supplies no replacement meaning"]
       : fields.length > 0 ? fields
       : subjects.some(subject => typeof authoredField(subject) === "string")
         ? [...new Set(subjects.map(authoredField).filter(field => typeof field === "string"))]
         : ["the corrected authored values identified by the diagnosis and its subjects; assessment supplies no replacement meaning"];
   const missingApplicability = codes.includes("controlled_acceptance_disposition_missing");
-  return { status: saveStatus(carrier), executable: false, ...address(carrier), purpose,
+
+  const definitionUnit = carrier.unit.split("#")[0];
+  const unit = purpose === "definition" ? definitionUnit : carrier.unit;
+  return { status: saveStatus(carrier), executable: false, ...address(carrier), unit, purpose,
     required_authored_input: required,
     ...(supported && missingApplicability ? { applicability: applicabilityChoices() } : {}),
     subjects: subjects.map(subject => ({
@@ -86,9 +89,9 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
         ...(typeof clause.when === "string" ? { when: clause.when } : {}) })) }) })),
     ...(constraints.length === 0 ? {} : { constraints }),
     ...(discovery.length === 0 ? {} : { discovery }),
-    current_read: supported ? { tool: "workspace_read_wiki", arguments: { subject: carrier.unit } } : null,
+    current_read: supported ? { tool: "workspace_read_wiki", arguments: { subject: unit } } : null,
     save: { supported, tool: "save_record", executable: false,
-      authored_members: purpose === "applicability" ? ["controlled_acceptance"] : ["obligations"] } };
+      authored_members: purpose === "applicability" ? ["controlled_acceptance"] : purpose === "definition" ? ["requirements"] : ["obligations"] } };
 }
 
 export function projectAssessmentDiagnosis(carrier, diagnosis, clauses = {}) {
@@ -99,10 +102,12 @@ export function projectAssessmentDiagnosis(carrier, diagnosis, clauses = {}) {
     || diagnosis.subjects?.some(selects);
   return { ...facts, recovery: authored
     ? { actor_recovery: recovery?.actor_recovery ?? "agent",
-      authoring: assessmentAuthoringGuidance(carrier, { purpose: "diagnosis", subjects: diagnosis.subjects,
+      authoring: assessmentAuthoringGuidance(carrier, { purpose: diagnosis.family === "definition" ? "definition" : "diagnosis", subjects: diagnosis.subjects,
         codes: [diagnosis.code, ...(diagnosis.reason_codes ?? [])], clauses }) }
     : { actor_recovery: recovery?.actor_recovery ?? "none", explanation: recovery?.explanation ?? null,
       instructions: "This diagnosis establishes no supported authored correction. Preserve its owner cause; a current reassessment does not execute proofs or grant credit." }, correction_call: null,
+    ...(diagnosis.family === "definition" ? { inspection: { tool: "workspace_read_wiki",
+      arguments: { subject: carrier.unit.split("#")[0] } } } : {}),
     ...(authored ? { requires_authored_values: true } : {}) };
 }
 
@@ -125,12 +130,16 @@ export function projectAssessmentGuidance(carrier, assessment) {
     user_requirements_comparison: comparison, ...facts } = assessment;
   const codes = assessment.diagnostics?.meanings.map(row => row.code) ?? [];
   const applicability = codes.includes("controlled_acceptance_disposition_missing");
+  const definition = assessment.diagnostics?.meanings.some(row => row.owner === "contract-requirement-descriptions"
+    && row.category === "author_input") || diagnoses?.some(row => row.family === "definition" && row.category === "author_input");
   const authored = assessment.diagnostics?.meanings.some(row => row.category === "author_input")
     || diagnoses?.some(row => row.category === "author_input" || row.recovery_status === "authored_correction_available");
   const projected = diagnoses?.map(row => projectAssessmentDiagnosis(carrier, row, corrections ?? {}));
   const guided = applicability || authored || coverage?.correction != null
     || Object.keys(corrections ?? {}).length > 0 || projected?.some(row => row.recovery.authoring !== undefined);
   return { ...facts,
+    ...(assessment.specification?.findings > 0 ? { specification: { ...assessment.specification,
+      inspection: { tool: "workspace_read_wiki", arguments: { subject: carrier.unit.split("#")[0] } } } } : {}),
     ...(comparison === undefined ? {} : { user_requirements_comparison: comparison.read_call === null
       ? comparison : { ...comparison,
         read_call: { tool: "workspace_read_wiki", arguments: { subject: carrier.unit } },
@@ -144,12 +153,13 @@ export function projectAssessmentGuidance(carrier, assessment) {
     ...(projected === undefined ? {} : { diagnoses: projected }),
     ...(corrections === undefined ? {} : { corrections: projectAssessmentCorrections(corrections) }),
     ...(applicability || authored ? { authoring: assessmentAuthoringGuidance(carrier,
-      { purpose: applicability ? "applicability" : "diagnosis", codes }) } : {}),
+      { purpose: applicability ? "applicability" : definition ? "definition" : "diagnosis", codes }) } : {}),
     ...withSaveGuidance(carrier, guided) };
 }
 
 export function assessmentCurrentRead(body) {
   return body.assessment?.authoring?.current_read ?? body.assessment?.acceptance_coverage?.correction?.current_read
     ?? body.selected_diagnosis?.diagnosis.recovery?.authoring?.current_read
+    ?? body.selected_diagnosis?.diagnosis.inspection ?? body.assessment?.specification?.inspection
     ?? body.assessment?.user_requirements_comparison?.read_call ?? null;
 }

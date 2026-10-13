@@ -9,9 +9,10 @@ import { selectInitialWkBaseBranch } from
   "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate-exact-unit-identity.mjs";
 
 export function createStartAgentTask({ workspace, sessionEnv = process.env, responseEnv = process.env,
-  inputContract, dispatchContext, buildResultCall = null, requestContracts = null }) {
+  inputContract, dispatchContext, buildResultCall = null, requestContracts = null,
+  acquireSavedUnitReference = null }) {
   const context = { ...dispatchContext, workspaceRepos: [workspace],
-    resolveWorkspaceRepo: () => workspace, responseEnv, requestContracts };
+    resolveWorkspaceRepo: () => workspace, sessionEnv, responseEnv, requestContracts, acquireSavedUnitReference };
   async function prepare(request) {
     const parsed = inputContract.inputSchema.safeParse(request);
     if (!parsed.success) throw inputContract.inputValidationError(request, parsed.error);

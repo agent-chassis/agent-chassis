@@ -16,7 +16,7 @@ import {
 } from "./single-use-replay-refusal-harness.mjs";
 
 const PROFILE_DIGEST =
-  "d35e3c226ad539a7cbcaa539e6daa638878c4849680f5af468513666a697f3ef";
+  "989b34bb49141dac8d2780ef5564c6d0aa512f12f9a1c967b5196aa693227673";
 const GUARANTEE_DIGEST =
   "b555f4eace29c9d9054bbacd990817451c6a260db3e83ef887ef5bc0584507d2";
 
@@ -273,14 +273,14 @@ function exclusionControls(profile) {
   }));
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   return {
     schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: PROFILE_DIGEST,
     guarantee_digest: GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ...retiredRecommendationRefusals(profile),
       ...positiveControls(profile),
       ...mutantControls(profile),
       ...profileRejectionControls(profile),
@@ -297,3 +297,93 @@ export {
   rejectionMutations,
   runProofPackAdequacyControls
 };
+
+import { evaluateStableProofPackFixtureV1 as evaluateRetiredModalityFixture }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+function retiredRecommendationRefusals(profile) {
+  const cases = [
+    [
+      "retired-recommendation-refused-authority-consumed-after-first-use",
+      "claim-authority-consumed-after-first-use"
+    ],
+    [
+      "retired-recommendation-refused-replay-is-not-accepted",
+      "claim-replay-is-not-accepted"
+    ],
+    [
+      "retired-recommendation-refused-replay-does-not-create-effect",
+      "claim-replay-does-not-create-effect"
+    ]
+  ];
+  return cases.map(([controlId, claimId]) => {
+    const fixture = buildSingleUseReplayRefusalFixture({ profile });
+    const claim = fixture.contract.claims.find(row => row.claim_id === claimId);
+    if (!claim) throw new Error(`missing recommendation refusal claim: ${claimId}`);
+    claim.modality = "SHOULD_NOT";
+    return { control_id: controlId, category: "profile_rejection",
+      implementation_outcome: "not_applicable",
+      profile_satisfaction: evaluateRetiredModalityFixture({
+        contract: fixture.contract, profile,
+        evaluation_input: fixture.input ?? fixture.evaluation_input
+      }).satisfaction };
+  });
+}
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-replay-effect-verification-modalities",
+      "claim_id": "claim-replay-effect-verification",
+      "baseline": "isolated-claim-replay-effect-verification-modalities-baseline",
+      "optional": "isolated-claim-replay-effect-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-success-verification-modalities",
+      "claim_id": "claim-success-verification",
+      "baseline": "isolated-claim-success-verification-modalities-baseline",
+      "optional": "isolated-claim-success-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-first-effect-verification-modalities",
+      "claim_id": "claim-first-effect-verification",
+      "baseline": "isolated-claim-first-effect-verification-modalities-baseline",
+      "optional": "isolated-claim-first-effect-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-consumption-verification-modalities",
+      "claim_id": "claim-consumption-verification",
+      "baseline": "isolated-claim-consumption-verification-modalities-baseline",
+      "optional": "isolated-claim-consumption-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-replay-refusal-verification-modalities",
+      "claim_id": "claim-replay-refusal-verification",
+      "baseline": "isolated-claim-replay-refusal-verification-modalities-baseline",
+      "optional": "isolated-claim-replay-refusal-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-replay-occurrence-verification-modalities",
+      "claim_id": "claim-replay-occurrence-verification",
+      "baseline": "isolated-claim-replay-occurrence-verification-modalities-baseline",
+      "optional": "isolated-claim-replay-occurrence-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

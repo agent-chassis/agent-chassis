@@ -10,7 +10,9 @@ import { settlePreparedRecordAuthoring } from "./controlled-contract/proof-autho
 import { captureProofAssessmentOperation } from "./controlled-contract/proof-validation-operations.mjs";
 import { parseProofSourceUnitAddress } from "./controlled-contract/saved-proof-source.mjs";
 import { editKindRecord } from "./kind-record-edit.mjs";
-import { inspectRecordAuthoringInitiative, planKindRecordAuthoringChange, prepareRecordAuthoringChange } from "./record-authoring-plan.mjs";
+import { inspectRecordAuthoringInitiative, planKindRecordAuthoringChange, prepareRecordAuthoringChange,
+  prepareRecordAuthoringException } from "./record-authoring-plan.mjs";
+import { RECORD_AUTHORING_EXCEPTION_CODES } from "../lib/record-authoring-exception.mjs";
 
 export const SAVE_RECORD_RESULT_SCHEMA_VERSION = "save-record-result.v1";
 const KIND_RECORD_UNIT = /^(?:IN|DEC)-[0-9]{4}$/u;
@@ -60,7 +62,7 @@ function publishedEffects(initial, snapshot) {
     contract_written: digest(initial.contract?.content) !== digest(snapshot.contract?.content) };
 }
 
-async function saveWorkItem({ repoRoot, unit, revision, changes }, options) {
+async function saveWorkItem({ repoRoot, unit, revision, changes, exception }, options) {
   const { wkId, selectedUnit } = parseProofSourceUnitAddress(unit);
   const target = { repoRoot, wkId, focus: null, selectedUnit };
   const pkg = await loadControlledContractProofAuthoring();
@@ -72,21 +74,30 @@ async function saveWorkItem({ repoRoot, unit, revision, changes }, options) {
       "revision is not the current revision of this unit; read the unit again and save against the revision it returns")] });
   }
 
-  const initiativeDiagnostics = await inspectRecordAuthoringInitiative({ repoRoot: initial.repoRoot, changes });
+  const initiativeDiagnostics = exception !== undefined ? []
+    : await inspectRecordAuthoringInitiative({ repoRoot: initial.repoRoot, changes });
   if (initiativeDiagnostics.length) return refused({ unit, revision, diagnostics: initiativeDiagnostics });
+
+  const owners = { pkg, now: options.now ?? today, repository: options.repository ?? null,
+    registeredTier: options.registeredTier ?? null,
+    resolveExternalReference: options.resolveExternalReference ?? null,
+    resolveRetainedGraphEvidence: options.resolveRetainedGraphEvidence ?? null };
   let plan;
   try {
-    plan = await prepareRecordAuthoringChange({ capturedSource: initial, changes,
-      owners: { pkg, now: options.now ?? today, repository: options.repository ?? null,
-        resolveExternalReference: options.resolveExternalReference ?? null,
-        resolveRetainedGraphEvidence: options.resolveRetainedGraphEvidence ?? null } });
+
+    plan = exception !== undefined
+      ? await prepareRecordAuthoringException({ capturedSource: initial, exception, owners })
+      : await prepareRecordAuthoringChange({ capturedSource: initial, changes, owners });
   } catch (error) {
 
     if (typeof error?.code !== "string" || error.details?.changed !== false) throw error;
+    const root = exception !== undefined ? "exception" : "changes";
     return refused({ unit, revision, diagnostics: [diagnostic(error.code,
-      typeof error.details.path === "string" && error.details.path.startsWith("changes") ? error.details.path : "changes", error.message,
+      typeof error.details.path === "string" && error.details.path.startsWith(root) ? error.details.path : root, error.message,
       { details: publishedOwnerDetails(error.details, options.requirementGuidanceCall),
-        correction: "Correct the addressed changes using the owner details and save against the current revision." })] });
+        correction: exception !== undefined
+          ? "Nothing was saved. Correct the addressed exception using the owner details and request it against the current revision."
+          : "Correct the addressed changes using the owner details and save against the current revision." })] });
   }
   if (!plan.ok) return refused({ unit, revision, diagnostics: plan.diagnostics });
 
@@ -108,8 +119,10 @@ async function saveWorkItem({ repoRoot, unit, revision, changes }, options) {
     prior_revision: revision, revision: settled.snapshot.authoringIdentity,
     record_source_digest: computeWorkRecordSourceDigest(settled.snapshot.record),
     bindings: plan.bindings, criterion_identity_changes: plan.criterion_identity_changes,
+    ...(plan.requirement_rows === null || plan.requirement_rows === undefined ? {} : { requirement_rows: plan.requirement_rows }),
     entries: plan.entries,
     ready_slices: plan.ready_slices,
+    ...(plan.exception === undefined ? {} : { exception: plan.exception }),
     changed_fields: settled.no_op ? [] : plan.changed_fields,
     ...(settled.receipt?.terminal_receipt?.ok === false ? { persistence: settled.receipt.terminal_receipt } : {}),
     effects: { ...(settled.no_op ? { published: false } : publishedEffects(initial, settled.snapshot)),
@@ -165,13 +178,22 @@ async function saveKindRecord({ repoRoot, unit, revision, changes }, options) {
     assessment: null });
 }
 
-export async function saveRecord({ repoRoot, unit, revision, changes } = {}, options = {}) {
+export async function saveRecord({ repoRoot, unit, revision, changes, exception } = {}, options = {}) {
   if (typeof unit !== "string" || typeof revision !== "string" || revision.length === 0) {
     return refused({ unit: typeof unit === "string" ? unit : null, diagnostics: [diagnostic(
       "save_record_request_invalid", typeof unit === "string" ? "revision" : "unit",
       "save_record takes an existing unit and the revision last read for it")] });
   }
-  if (WORK_ITEM_UNIT.test(unit)) return saveWorkItem({ repoRoot, unit, revision, changes }, options);
+
+  if (exception !== undefined && changes !== undefined) {
+    return refused({ unit, diagnostics: [diagnostic("save_record_request_invalid", "exception",
+      "a save carries changes or one exception, never both")] });
+  }
+  if (exception !== undefined && !WORK_ITEM_UNIT.test(unit)) {
+    return refused({ unit, diagnostics: [diagnostic(RECORD_AUTHORING_EXCEPTION_CODES.UNIT_UNSUPPORTED, "unit",
+      "an exception is recorded on a work item or one of its slices; this unit has no proof, grammar or controlled-acceptance exception")] });
+  }
+  if (WORK_ITEM_UNIT.test(unit)) return saveWorkItem({ repoRoot, unit, revision, changes, exception }, options);
   if (KIND_RECORD_UNIT.test(unit)) return saveKindRecord({ repoRoot, unit, revision, changes }, options);
   return refused({ unit, diagnostics: [diagnostic("save_record_unit_unsupported", "unit",
     "unit must name an existing work record, slice, initiative or decision of the current repository")] });

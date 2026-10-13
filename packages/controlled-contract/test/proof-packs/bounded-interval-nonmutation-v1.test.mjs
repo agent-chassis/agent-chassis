@@ -16,6 +16,7 @@ import { certificationDirectory, readDefinitionDocument } from "../support/certi
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const identity = { profile_id: "proof.state.bounded-interval-nonmutation", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 const readJson = (name) => readDefinitionDocument(identity, name);
 
@@ -28,8 +29,8 @@ test("bounded-interval-nonmutation profile is valid, pre-dispatch, digest-bound,
   assert.equal(Object.hasOwn(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(adequacy.profile_digest, profileDigest(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
-  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 58);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 49);
+  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 56);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 51);
   assert.deepEqual(adequacy.explicit_exclusions, [...EXCLUSIONS].sort());
 });
 
@@ -38,7 +39,7 @@ test("three bounded domain histories pass and all seven mutants are killed", asy
     boundedIntervalNonmutationGuaranteeSatisfied(executeBoundedIntervalNonmutation({ domain })), true, domain);
   for (const mutant of Object.keys(MUTATIONS)) assert.equal(
     boundedIntervalNonmutationGuaranteeSatisfied(executeBoundedIntervalNonmutation({ mutant })), false, mutant);
-  const controls = (await runProofPackAdequacyControls({ profile: BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE })).controls;
+  const controls = (await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile: BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE })).controls;
   for (const control of controls.filter(({ category }) => category === "positive")) {
     assert.equal(control.implementation_outcome, "passed", control.control_id);
     assert.equal(control.profile_satisfaction, "satisfied", control.control_id);
@@ -59,9 +60,9 @@ test("full-census certification passes with exact closure and stored result", as
     repositoryRoot, variationMode: "full_census" });
   assert.equal(fullCensus.passed, true, JSON.stringify(fullCensus.diagnostics));
   assert.deepEqual(fullCensus.diagnostics, []);
-  assert.equal(fullCensus.control_count, 29);
-  assert.equal(fullCensus.negative_fixture_count, 3);
-  assert.equal(fullCensus.coverage_witness_count, 58);
+  assert.equal(fullCensus.control_count, 35);
+  assert.equal(fullCensus.negative_fixture_count, 5);
+  assert.equal(fullCensus.coverage_witness_count, 56);
   assert.equal(fullCensus.negative_fixture_results.every(({ outcome }) => outcome === "rejected"), true);
   assert.equal(fullCensus.coverage_witness_results.every(({ outcome }) => outcome === "survived"), true);
   const [stored, admission] = await Promise.all([

@@ -1,4 +1,7 @@
 import path from "node:path";
+import { Parser } from "web-tree-sitter";
+import { loadTreeSitterProvider, providerDescriptorForLanguage } from "./sidecar-graph-import-facts.mjs";
+import { sidecarLanguageForPath } from "./sidecar-language-descriptions.mjs";
 
 import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
 import { assembleCallNavigationResult } from "./sidecar-call-query.mjs";
@@ -6,10 +9,11 @@ import { sameGraphSnapshot, unavailableCommittedSnapshot } from "./sidecar-commi
 import { committedEnvelopeFields, prepareCommittedQuery, runSnapshotQuery } from
   "./sidecar-query-selection.mjs";
 import { readSidecarSymbolSelection } from "./sidecar-store.mjs";
+import { sidecarDependencyLimitations } from "./sidecar-scip-projects.mjs";
 import { normalizeSidecarNavigationInput } from "./sidecar-navigation-input.mjs";
 import { compactNavigationFreshness } from "./sidecar-query-projection.mjs";
 import { fitNavigationSummary, projectNativeNavigation } from "./sidecar-navigation-projection.mjs";
-import { resolveNativeNavigation } from "./sidecar-navigation-resolution.mjs";
+import { nativePositionSymbols, resolveNativeNavigation } from "./sidecar-navigation-resolution.mjs";
 import { assembleNativeNavigationResult } from "./sidecar-navigation-source-query.mjs";
 
 const SCIP_STATUS_NOT_CONFIGURED = "scip_not_configured";
@@ -49,7 +53,13 @@ function compactSymbolStatusReason(result, resolutionState) {
 }
 
 function compactSymbolNextAction(result, queryKind, resolutionState) {
-  const action = unresolvedNextAction(result, queryKind, resolutionState);
+  const limited = Array.isArray(result?.dependency_limitations) ? result.dependency_limitations.length : 0;
+  const action = [unresolvedNextAction(result, queryKind, resolutionState), limited === 0 ? null
+    : `Dependency resolution was incomplete for ${limited} provider project${limited === 1 ? "" : "s"} this ` +
+      "answer may depend on (dependency_limitations): an absent or unresolved result there is not an " +
+      "authoritative no-match. Make the reported dependencies available offline; an explicit code-index " +
+      "build attempts those projects again, as does automatic preparation once their inputs change."]
+    .filter(Boolean).join(" ") || null;
 
   return action !== null && result?.staleness === "stale"
     ? `${action} This answer describes graph_snapshot.repository_commit, not freshness.current_head; ` +
@@ -64,9 +74,11 @@ function unresolvedNextAction(result, queryKind, resolutionState) {
     result?.scip_state?.graph_available !== true ||
     (callGraphQuery && result?.scip_state?.call_graph_available === false)
   ) {
-    return "Committed preparation runs every required SCIP provider before it publishes, so an " +
-      "unavailable provider fails preparation instead of publishing incomplete coverage; " +
-      "provision the provider and retry. When no SCIP provider applies to the committed " +
+    return "Committed preparation attempts every applicable SCIP provider project and publishes what " +
+      "they produce; a project whose provider is not installed, or that could not be indexed while its " +
+      "dependencies were missing, is listed with its reason in " +
+      "graph_snapshot.provider_coverage.inactive_projects. Provision the provider or make the " +
+      "dependencies available, then prepare again. When no SCIP provider applies to the committed " +
       "sources, symbol results stay unavailable. Status is read-only. Unsupported call " +
       "attribution is not repaired by provisioning; use definition or reference results.";
   }
@@ -182,6 +194,8 @@ function createSymbolQueryEnvelope({
 }) {
   const { status } = prepared;
   const scipState = scipStateOverride || createScipUnavailableState(layer);
+
+  const dependencyLimitations = sidecarDependencyLimitations(layer?.coverage, input.path);
   return createSidecarResultEnvelope({
     source_kind: "scip",
     canonicality: "derived",
@@ -211,6 +225,7 @@ function createSymbolQueryEnvelope({
     definitions,
     callers,
     callees,
+    ...(dependencyLimitations.length > 0 ? { dependency_limitations: dependencyLimitations } : {}),
     ...(navigation.call_attribution ? { call_attribution: navigation.call_attribution } : {}),
     symbol_facts: navigation.symbol_facts,
     source_hits: navigation.source_hits,
@@ -264,7 +279,9 @@ async function selectCommittedSymbols({ dir, cacheDir, input, context }) {
   const prepared = await prepareCommittedQuery({ dir: path.resolve(String(dir || ".")), cacheDir },
     context);
   const selection = readSidecarSymbolSelection({ repoRoot: prepared.repoRoot, cacheDir,
-    symbol: input.symbol, documentPath: input.path });
+    symbol: input.symbol ?? null, documentPath: input.path ?? null,
+    positionSymbols: Object.hasOwn(input, "symbol") ? null
+      : (rows) => nativePositionSymbols(rows, input) });
   if (!sameGraphSnapshot(selection.publication, prepared.graph_snapshot)) {
     throw unavailableCommittedSnapshot("repository_snapshot_changed", prepared.status);
   }
@@ -280,7 +297,7 @@ async function evaluateNavigationQuery(input, queryKind, context) {
   const publicInput = { symbol: input.symbol ?? null, path: input.path ?? null,
     line: input.line ?? null, character: input.character ?? null };
   const { prepared, selection, repoRoot } = await selectCommittedSymbols({ dir: input.dir,
-    cacheDir: input.cacheDir, input: publicInput, context });
+    cacheDir: input.cacheDir, input, context });
   const layer = layerFromStore(selection);
   const callQuery = CALL_QUERY_KINDS.has(queryKind);
   if (layer.scip_available !== true || layer.graph_available === false) {
@@ -330,4 +347,67 @@ export async function getSidecarSymbolCallers(options = {}, context = null) {
 
 export async function getSidecarSymbolCallees(options = {}, context = null) {
   return buildNavigationQuery(options, "symbol_callees", context);
+}
+
+export async function resolveCommittedSourceSymbol({ path: sourcePath, symbol, source_text }) {
+  const provider = await loadTreeSitterProvider();
+  const languageKey = sidecarLanguageForPath(sourcePath);
+  const language = provider.languages?.get(languageKey);
+  if (!provider.available || !language) return { state: 'unavailable', code: 'description_symbol_parser_unavailable',
+    reason: provider.reason ?? 'unsupported_language' };
+  const parser = new Parser();
+  let tree;
+  try {
+    parser.setLanguage(language);
+    tree = parser.parse(source_text);
+    if (!tree || tree.rootNode.hasError) return { state: 'unavailable', code: 'description_source_parse_error' };
+    const candidates = [];
+    const unsupportedBindings = [];
+    const declarationTypes = new Set(['function_declaration', 'generator_function_declaration', 'class_declaration',
+      'variable_declarator', 'method_definition', 'field_definition', 'function_definition', 'class_definition', 'assignment',
+      'method_declaration', 'type_spec', 'var_spec', 'const_spec', 'function_item', 'struct_item', 'enum_item',
+      'const_item', 'static_item', 'type_item', 'mod_item']);
+    const staticValue = node => {
+      if (!node) return false;
+      if (['number', 'integer', 'float', 'string', 'true', 'false', 'null', 'none', 'boolean_literal',
+        'integer_literal', 'float_literal', 'string_literal'].includes(node.type)) return true;
+      if (['array', 'list', 'tuple', 'object', 'dictionary', 'pair', 'parenthesized_expression'].includes(node.type))
+        return node.namedChildren.every(child => child.type === 'property_identifier' || staticValue(child));
+      if (node.type === 'unary_expression') return /^[-+]\s*\d/u.test(node.text) && node.namedChildren.every(staticValue);
+      return false;
+    };
+    const visit = (node, owners = []) => {
+      const nameNode = declarationTypes.has(node.type) ? node.childForFieldName('name') ?? node.childForFieldName('left') : null;
+      const name = nameNode && ['identifier', 'type_identifier', 'property_identifier', 'field_identifier'].includes(nameNode.type) ? nameNode.text : null;
+      const qualified = name === null ? owners : [...owners, name];
+      if (['object_pattern', 'array_pattern', 'import_specifier', 'namespace_import', 'export_specifier'].includes(node.type) &&
+        node.namedChildren.some(child => child.text === symbol)) unsupportedBindings.push(node.text);
+      if (name !== null && (symbol === name || symbol === qualified.join('.') || symbol === qualified.join('::'))) {
+        const value = node.childForFieldName('value') ?? node.childForFieldName('right');
+        let statement = node.type === 'variable_declarator' ? node.parent : node;
+        if (statement.parent?.type === 'export_statement') statement = statement.parent;
+        const callable = ['function_declaration', 'generator_function_declaration', 'function_definition', 'function_item',
+          'method_definition', 'method_declaration'].includes(node.type) || ['arrow_function', 'function_expression'].includes(value?.type);
+        const meanings = ['subject', 'object'];
+        if (callable) meanings.push('behavior');
+        if (staticValue(value)) meanings.push('value', 'structure');
+        if (staticValue(value) && ['array', 'list', 'tuple'].includes(value.type)) meanings.push('population');
+        candidates.push({ path: sourcePath, symbol: qualified.join('.'), declaration_kind: node.type,
+          name_line: nameNode.startPosition.row + 1,
+          start_line: statement.startPosition.row + 1, end_line: statement.endPosition.row + 1,
+          source_text: statement.text, defined_meanings: meanings });
+      }
+      for (const child of node.namedChildren) visit(child, qualified);
+    };
+    visit(tree.rootNode);
+    const provenance = providerDescriptorForLanguage(languageKey);
+    if (!candidates.length && unsupportedBindings.length) return { state: 'unavailable', code: 'description_symbol_binding_unsupported',
+      bindings: unsupportedBindings, provider: provenance };
+    return candidates.length === 1 ? { state: 'resolved', definition: candidates[0], provider: provenance }
+      : { state: candidates.length ? 'ambiguous' : 'missing',
+        code: candidates.length ? 'description_symbol_ambiguous' : 'description_symbol_missing', candidates, provider: provenance };
+  } finally {
+    tree?.delete();
+    parser.delete();
+  }
 }

@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "67070befb75dadbb88da2325bead05d10ab97cfa640e72411fcb25906175c5ab",
+  "parameter_contract_digest": "d74b7a9c1d1a3c2fa6d9d3ef2aa5d0da3be952309263a551558081116434bb6b",
   "profile_id": "proof.failure.supplementary-isolation",
   "profile_version": "4.0.0",
-  "profile_digest": "dd846a9ca4c6177b9d1d8620cb7c44a34eb9fffd3ff305edf43fa25c9b87bd5c",
+  "profile_digest": "ca966f5066849616e3c28f5420d27de94606562428319d455f78f46820507b00",
   "guarantee": "Within one exact captured attempt, one core computation settles one valid core result; one distinct supplementary computation then fails without producing a result; one final result follows, preserves the exact captured core value and complete core-member population, represents the supplementary component in exactly one closed present-unavailable or omitted-disclosed form, and discloses exactly one captured failure reason from the captured closed reason population.",
   "guarantee_digest": "ed305a7aa0efc0ef774d93f7ee7f3afde9fc7e46f8cb364f8456714e2121104a",
   "explicit_exclusions": [
@@ -19,8 +19,8 @@
   ],
   "certification": {
     "method": "executable_semantic_adequacy",
-    "adequacy_declaration_digest": "d0b6276ef59878c609a75228d7b3eb4bf79b3e2bba76d19f504ebf34fb1cdff1",
-    "adequacy_result_digest": "278e58dc210ab983c6735ef371039468944318b5c3d75fde7f781a104c66cf48",
+    "adequacy_declaration_digest": "5c64466253a7be6c7d74a53d1e16c84a9eaf2a38801d1bfc9c921fce88dec14e",
+    "adequacy_result_digest": "c8f39c3db089fd2a2d70eeb52a7b5b29efc3d717b0307b6bff412130e74ff3eb",
     "executable_control_count": 39,
     "negative_fixture_count": 0,
     "coverage_witness_count": 0

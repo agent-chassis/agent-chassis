@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "280b6c7e8217727a18c6255039133ad6d18902180afe53237bde15fb604c979b",
+  "parameter_contract_digest": "b8105cc04ec501635b0f16106ba3b547547b45c1d50ba6c9d65baef7bd4822b9",
   "profile_id": "proof.failure.cleanup-noninterference",
   "profile_version": "4.0.0",
-  "profile_digest": "8336a9179a31578b836572ccfeebd4d45916d2d504ca9ae2e0b31026a5d66b2f",
+  "profile_digest": "359e6b9b95577d6704531174d599fbd3f17c72b6fe58643d7247dd0951811b4f",
   "guarantee": "After one declared failure, cleanup empties the complete declared residue population. A distinct complete protected-resource population is observed through the same bound population identity before failure and after settlement; both complete state populations have the protected-resource cardinality and the after-state population equals the before-state population. A separately selected authority, distinct from the failed attempt's authority, has equal state before and after settlement, is preserved by cleanup, later authorizes a valid attempt, and that attempt returns the expected successful result.",
   "guarantee_digest": "62ae4f4831d33b86afebf1116205c1b494c8fa64b83f6e135ed7b22dc854f0e5",
   "explicit_exclusions": [
@@ -20,9 +20,9 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "43d47a01d6a26f5543c3a4b8c3b2cefbf3732f6bd231728a0fee150c72b84044",
-    "adequacy_result_digest": "00220e0ecc0602e899424fca03c54586ba92514d2255fbca1ca516f244ad7e7c",
-    "executable_control_count": 49,
+    "adequacy_declaration_digest": "ba95180d0cf96f47027c379d6d0c679a29b41d6345f494778f58046843fe4cad",
+    "adequacy_result_digest": "a9210aac7c4c492b96d1d429c903f06033b44a198a57ba0d70ae369f9a9e361e",
+    "executable_control_count": 57,
     "negative_fixture_count": 176,
     "coverage_witness_count": 176
   }

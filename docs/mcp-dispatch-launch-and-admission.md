@@ -130,8 +130,9 @@ A worker preview of an exact slice whose readiness is
 `workspace_assess_contract({unit: <that exact slice>})`, in `next_calls` and
 `allowed_next_calls`, checked against the serving registrar's full request
 contract. The preview assesses nothing itself and repeats no completeness
-calculation: the returned assessment names the slice's uncovered criteria and
-the authored correction, and executes no proof and grants no credit. When this
+calculation: the returned assessment names the slice's incomplete
+specification or uncovered criteria and the supported corrections, and
+executes no proof and grants no credit. When this
 server holds no assessment consumer, or its contract rejects the call or fails
 to validate it, the preview returns `contract_assessment_limitation` (`code`:
 `contract_assessment_consumer_unavailable`,
@@ -141,6 +142,101 @@ to validate it, the preview returns `contract_assessment_limitation` (`code`:
 guidance, every other preview outcome is unchanged, and actual start keeps
 its own refusal. How a slice authors that coverage is described under
 [Requirement-authoring guidance](acceptance-coverage-mcp.md#requirement-authoring-guidance).
+
+Every worker action preview, ready or refused, also returns
+`requirements_comparison` for the previewed unit: the saved requirement rows as
+the saved-contract query owner projects them for this session's source and
+population. `rows` states each row's `row_id`, every `constraint_ids` and
+`claim_ids` member it emits, its generated `meaning` and its `source` link as
+saved (`state` `absent`, `current` or `stale`, the exact `user_requirement`
+passage, its occurrence, the digest of the text it was resolved in and its
+location), with the count of rows in each link state. A stale link is shown as
+saved with the owner's correction; a row without a link is counted `absent`.
+`residual.explicit_unresolved` holds the recorded unresolved meaning. The
+display is compact: at most 8 rows and 8 unresolved entries, and at most 1024
+Unicode scalars of each passage and meaning, each with its
+`total_count`/`returned_count`/`omitted_count` or `*_extent`. `instruction` is
+"Check that the linked requirements preserve the user’s meaning and that
+nothing is missing. Correct the mappings or record unresolved meaning as
+residue." The preview compiles nothing, matches no passage, relinks nothing and
+judges no meaning; a link establishes neither semantic fidelity nor
+implementation correctness.
+
+`residual.unmapped_source_text` is the assessment owner's accounting of the
+saved `sections.user_requirements` text against the saved links; the preview
+calculates none of it. With `state: "accounted"`, `members` are the segments of
+the exact saved text that no current link covers, each with its `start` and
+`end` in UTF-16 code units, its `text` as saved and `whitespace_only`. Only a
+current link whose recorded location still holds its passage covers text: a
+stale or absent link covers nothing, so a changed source text is unmapped until
+its rows are resubmitted, and links that repeat or overlap cover their text
+once. `links` counts the current, stale-excluded, absent and inconsistent
+links, `linked` the merged covered intervals and their length, and `source` the
+digest and length of the text accounted. Nothing is trimmed, normalized,
+summarized or interpreted. The compact bounds apply to segments too; a segment
+beyond them keeps its exact location in `omitted_locations`, and the current
+read returns the text it locates. Explicit unresolved meaning stays in
+`residual.explicit_unresolved` and is never merged with unmapped text. Text
+that is wholly linked proves neither semantic fidelity nor implementation
+correctness. When no source text is saved, the session reads a selected
+population, or the accounting is refused or unreadable, the member is `state:
+"unknown"`, `accounted: false` with its reason and no segment list: missing
+accounting is never an empty residual. `coverage.assessed` lists
+`unmapped_requirement_source_text` only when it was accounted, and
+`saved_requirement_source_links` only when the saved rows were read; otherwise
+each is in `coverage.unchecked`, where `requirement_meaning_fidelity` always
+is. When the saved rows cannot be read, `status` is `unavailable` with
+`limitation.code: "saved_requirements_read_unavailable"` and the owner's cause,
+and both residual members are `unknown`.
+
+`detail.call` is the read that returns every row whole,
+`workspace_read_wiki({reference, select:{contract:"requirements"}})`, through
+the serving reader's own current reference of the unit, with the retention that
+reference cost; `correction.current_read` is `workspace_read_wiki({subject})`,
+which returns the unit's current revision and exact source text. Both are
+checked against the serving registrar's full request contract. When the preview
+has no readiness correction and recommends no assessment of incomplete
+requirements, they are its `next_calls` and `allowed_next_calls`; a readiness
+correction call is never displaced or joined, so beside one they stay stated
+inside `requirements_comparison` only. Otherwise `detail.limitation` (`code`:
+`requirements_detail_consumer_unavailable`,
+`requirements_detail_reader_not_composed`,
+`requirements_detail_reference_unavailable`,
+`requirements_detail_full_contract_rejected` or
+`requirements_detail_validation_failed`) or
+`correction.current_read_limitation` is returned with no call. `correction`
+names the caller-authored `save_record` member `changes.requirements`, addressed
+by the displayed `row_id`: it is never executable, supplies no revision, row
+value or occurrence, and saves nothing. The comparison is advisory: it changes
+no readiness outcome, refusal cause or launch-time fact, and adds no dispatch
+prohibition.
+
+When the saved-contract query owner reports the displayed requirements as
+`state: "incomplete"`, the comparison also carries `assessment`: `{available:
+true, call}` with the one recommended guidance call
+`workspace_assess_contract({unit: <the previewed unit>})`, checked against the
+serving registrar's full request contract. The preview reads that owner's state
+and nothing else: it runs no assessment, recomputes no definition, counts no
+missing definition and infers no meaning. The returned assessment identifies
+where the unit's saved specification or acceptance coverage is incomplete,
+with the affected requirement, obligation and object identities, and the
+supported corrections; it executes no proof, grants no credit, changes no
+readiness and supplies no replacement definition or executable save. The
+definition itself is the caller's `save_record` at the revision the
+assessment's current read returns. With no readiness correction, that call is
+the preview's single `next_calls` and `allowed_next_calls` member, and
+`detail.call` and `correction.current_read` stay available inside the
+comparison. A readiness correction keeps the top level exactly as it was and
+the assessment stays stated in the comparison; for
+`controlled_acceptance_incomplete` the correction already is this call, so it
+is validated and returned once. When this server holds no assessment consumer,
+or its contract rejects the call or fails to validate it, `assessment` is
+`{available: false, limitation}` with the same `contract_assessment_*` codes
+and no call is emitted anywhere; the reads are then offered as before. A
+comparison whose state is anything else, or that is `absent` or `unavailable`,
+carries no `assessment`. The recommendation changes no readiness cause,
+`dispatchable`, preview effect or actual-start behavior and adds no dispatch
+prohibition.
 
 The shared managed-lifecycle projection reads the serving registration set and
 retained full request contracts: transport observes `start_agent`, validation

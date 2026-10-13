@@ -32,6 +32,7 @@ import { certificationDirectory, readDefinitionDocument } from "../support/certi
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const identity = { profile_id: "proof.concurrency.single-winner-effect", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 const readJson = (name) => readDefinitionDocument(identity, name);
 
@@ -44,8 +45,8 @@ test("single-winner-effect profile is current, pre-dispatch, and digest bound", 
   assert.equal(Object.hasOwn(SINGLE_WINNER_EFFECT_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(adequacy.profile_digest, profileDigest(SINGLE_WINNER_EFFECT_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
-  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 178);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 149);
+  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 175);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 152);
   assert.deepEqual(adequacy.explicit_exclusions, [
     "arbitrary-histories-beyond-two-attempts",
     "hidden-or-out-of-population-effects",
@@ -69,7 +70,7 @@ test("three domain oracles pass and every named mutant is killed", async () => {
     false,
     mutant
   );
-  const controls = (await runProofPackAdequacyControls({
+  const controls = (await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
     profile: SINGLE_WINNER_EFFECT_V1_PROFILE
   })).controls;
   for (const control of controls.filter(({ category }) => category === "positive")) {
@@ -101,9 +102,9 @@ test("indexed and full-census certification pass with exact dependency closure",
     });
     assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
     assert.deepEqual(result.diagnostics, []);
-    assert.equal(result.control_count, 36);
-    assert.equal(result.negative_fixture_count, 3);
-    assert.equal(result.coverage_witness_count, 178);
+    assert.equal(result.control_count, 49);
+    assert.equal(result.negative_fixture_count, 8);
+    assert.equal(result.coverage_witness_count, 175);
     assert.equal(result.negative_fixture_results.every(
       ({ outcome }) => outcome === "rejected"
     ), true);

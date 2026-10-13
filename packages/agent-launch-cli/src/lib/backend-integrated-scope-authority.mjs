@@ -66,10 +66,27 @@ const TERMINAL_UNREADABLE_DELIVERY_REASONS = Object.freeze({
   zero_delta_evidence_unreadable: "zero_delta_evidence_delta_unreadable"
 });
 
-function targetIntegratedDeliveryTransition(historical, currentProjection, sliceId) {
+function targetIntegratedDeliveryTransition(historical, currentProjection, sliceId,
+  { unitAddedAfterHistory = false } = {}) {
   const historicalIndex = historical.slices.findIndex((entry) => entry?.id === sliceId);
   const liveIndex = currentProjection.slices.findIndex((entry) => entry?.id === sliceId);
-  if (historicalIndex < 0 || liveIndex < 0 || historicalIndex !== liveIndex) {
+  if (unitAddedAfterHistory && historicalIndex < 0 && liveIndex >= 0) {
+    const liveValue = currentProjection.slices[liveIndex].integrated_delivery_sha;
+    if (typeof liveValue !== "string" || !INTEGRATED_DELIVERY_OID_RE.test(liveValue)) {
+      integratedDeliveryAuthenticationFailure(
+        "integrated_delivery_transition_not_absent_or_null_to_exact",
+        "the integration-written delivery transition cannot be distinguished from authored replacement",
+        { historical: "absent_unit", live: liveValue ?? null }
+      );
+    }
+    return Object.freeze({
+      path: `/slices/${liveIndex}/integrated_delivery_sha`,
+      change_kind: "add",
+      from: "absent_unit",
+      to: liveValue
+    });
+  }
+  if (unitAddedAfterHistory || historicalIndex < 0 || liveIndex < 0 || historicalIndex !== liveIndex) {
     integratedDeliveryAuthenticationFailure(
       "addressed_delivery_unit_mismatch",
       "the producer receipt cannot be bound to one exact canonical delivery path"
@@ -102,12 +119,14 @@ function mintIntegrationAuthenticatedIntegratedDeliveryProof({
   historicalRecord,
   currentProjection,
   currentState,
+  unitAddedAfterHistory,
   runGit
 }) {
   const transition = targetIntegratedDeliveryTransition(
     historicalRecord,
     currentProjection,
-    currentState.slice_id
+    currentState.slice_id,
+    { unitAddedAfterHistory }
   );
   const expectedWkRef =
     `refs/heads/wk/${currentState.initiative}/${currentState.record_id}`;
@@ -480,7 +499,7 @@ export function classifyCanonicalIntegratedSliceContract(
 export function authenticateCanonicalIntegratedDeliveryTransition(
   mainRepo,
   subject,
-  { historicalParentContract } = {}
+  { historicalParentContract, unitAddedAfterHistory = false } = {}
 ) {
   const match = typeof subject === "string" ? subject.match(EXACT_IMPLEMENTATION_SLICE_RE) : null;
   if (!match) throw new Error("integrated slice subject is not canonical");
@@ -506,6 +525,7 @@ export function authenticateCanonicalIntegratedDeliveryTransition(
     historicalRecord,
     currentProjection,
     currentState,
+    unitAddedAfterHistory: unitAddedAfterHistory === true,
     runGit: defaultRunGit
   });
 }

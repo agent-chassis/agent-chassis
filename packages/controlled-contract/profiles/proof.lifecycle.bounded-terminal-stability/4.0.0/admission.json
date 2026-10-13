@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "3fabdc9f96a31999d759c43359b0448d81b445f01c82770b12ce4cedfd110d74",
+  "parameter_contract_digest": "30c85078d0c495a736f1ae5ad4625936d8f04e66072c08afe7eff2f4690c3c3e",
   "profile_id": "proof.lifecycle.bounded-terminal-stability",
   "profile_version": "4.0.0",
-  "profile_digest": "70ca1add63597016b58367ac8f033c0ede96262036d77914c3cdf6f4427974a2",
+  "profile_digest": "4513f0e6e9a346ee870fcf61a01ea5b0a0b99889ddc9022fb6f08a10688550e0",
   "guarantee": "For one declared lifecycle entity, terminal event, terminal state, and explicit bounded horizon, one complete nonempty horizon-scoped observation population records the terminal state for every observation after the terminal event and before the horizon; complete singleton observed-state and terminal-state populations are equal; and one complete in-horizon reactivation-event population has exact cardinality zero.",
   "guarantee_digest": "b5addc399e9e17e3fb2d0445d1e8411655e85dc8c2736fda9e0817b2ec0d8394",
   "explicit_exclusions": [
@@ -17,9 +17,9 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "ece2e29d551d5ed70601a55945069145aeed341de94ce0a6a20c01754d9656a8",
-    "adequacy_result_digest": "e8a8c0cebd14fc23e1a074a8c2114f211b3aca2cb8ae1d4b09753a8aad303529",
-    "executable_control_count": 25,
+    "adequacy_declaration_digest": "62e9cd96d0403a39144eb64fd7c9f17e9e4b477033ffcbb53b99ccf65c489f0c",
+    "adequacy_result_digest": "62df4049adc4d6d7502a26d736d5838e8ccfb8cc33886822cdfddf10372e81a1",
+    "executable_control_count": 29,
     "negative_fixture_count": 71,
     "coverage_witness_count": 71
   }

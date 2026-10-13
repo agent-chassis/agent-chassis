@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "07fba8090aa3731dc70656edcc9b5f314f2e77c9113522b9577524a6aa611ea0",
+  "parameter_contract_digest": "9e5a4abe9a7329894c95b2538bb2bf626167ca554f123cfeb227bfbf82d7dd39",
   "profile_id": "proof.observation.sound-negative",
   "profile_version": "4.0.0",
-  "profile_digest": "4c143f826dd0d3209fd994c6362b7b9d4b47f766da7dbbe14f469815bdd92c0c",
+  "profile_digest": "d1ac5b9d2adb68e2752b03be3230b46a7c54f872cc55de7d00eb75d4c09ac015",
   "guarantee": "For one exact captured target, observation attempt, complete declared source and raw-observation populations, and interval, every valid observation is authenticated and directly grounded to its exact target, source of record, attempt, observation position, and raw observation; declared and observed source coverage is complete; every source outcome has one stable endpoint pair; every valid observation fails to match the target; the invalidating-condition population is exactly empty; and the same exact projection derives the sole absent conclusion.",
   "guarantee_digest": "e632a6e78c5bcabd9e1f87b1ce3f3a8bf877d348f6d810edd0256f3a0ca36f62",
   "explicit_exclusions": [
@@ -19,8 +19,8 @@
   ],
   "certification": {
     "method": "executable_semantic_adequacy",
-    "adequacy_declaration_digest": "bbd52d34317b72d86a3fc9a30487f390c1d19e4e22c3d316a7ba90ae6c872a82",
-    "adequacy_result_digest": "ef36899eb078c908341ff5dcff926fba160dd9e7fd440c663fcd052730eb40d6",
+    "adequacy_declaration_digest": "84f2ac4a8b2c4cfeb52c5f37411b8604e3b9e9c79f8ada9e5d1d98a524b61d23",
+    "adequacy_result_digest": "448b21e0041157983d40f238f4e2143d4f616da1e255aa7052f9b7a886fb2a7a",
     "executable_control_count": 34,
     "negative_fixture_count": 0,
     "coverage_witness_count": 0

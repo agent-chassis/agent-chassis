@@ -31,8 +31,12 @@ const OBLIGATION_COVERAGE_MAX_BYTES = 1048576;
 
 export const PROOF_AUTHORING_FIELDS = Object.freeze([
   'statement', 'controlled_contract_node_ids', 'mechanism', 'proof_name',
-  'parameters', 'clear_parameters', 'refresh_proof_version', 'acceptance_criteria', 'proof_opt_out'
+  'parameters', 'clear_parameters', 'refresh_proof_version', 'acceptance_criteria'
 ]);
+
+export const PROOF_EXCEPTION_ACTIONS = Object.freeze(['apply', 'withdraw']);
+export const PROOF_EXCEPTION_RATIONALE_SCHEMA = deepFreeze(
+  structuredClone(OBLIGATION_DRAFT_SCHEMA.$defs.obligation.properties.proof_opt_out_rationale));
 export const PROOF_AUTHORING_FIELD_SCHEMAS = deepFreeze({
   ...Object.fromEntries(['statement', 'controlled_contract_node_ids', 'mechanism'].map(key => {
     const property = OBLIGATION_DRAFT_SCHEMA.$defs.obligation.properties[key];
@@ -46,15 +50,21 @@ export const PROOF_AUTHORING_FIELD_SCHEMAS = deepFreeze({
   refresh_proof_version: { const: true },
   acceptance_criteria: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 },
     description: 'Criterion identities from query acceptance_criteria[].identity that this obligation ' +
-      'covers, all on the selected unit. Replaces the saved associations; [] clears them; omission preserves.' },
-  proof_opt_out: { type: 'boolean', description: 'true records that the author declines proof for ' +
-    'this obligation; it still covers its associated criteria and grants no verification credit. ' +
-    'false clears it. Refused together with a proof selection or case.' }
+      'covers, all on the selected unit. Replaces the saved associations; [] clears them; omission preserves.' }
 });
-const { validateAmendment } = await compiledValidators('controlled-contract.proof-authoring-amendment.v1', {
+const { validateAmendment, validateRationale } = await compiledValidators('controlled-contract.proof-authoring-amendment.v1', {
   validators: { validateAmendment: { type: 'object', additionalProperties: false,
-    $defs: OBLIGATION_DRAFT_SCHEMA.$defs, properties: PROOF_AUTHORING_FIELD_SCHEMAS } }
+    $defs: OBLIGATION_DRAFT_SCHEMA.$defs, properties: PROOF_AUTHORING_FIELD_SCHEMAS },
+  validateRationale: PROOF_EXCEPTION_RATIONALE_SCHEMA }
 });
+
+function validateProofExceptionRationale(value) {
+  return validateRationale(value);
+}
+Object.defineProperty(validateProofExceptionRationale, 'errors', {
+  get: () => validateRationale.errors ?? []
+});
+export { validateProofExceptionRationale };
 
 function validateProofAuthoringAmendment(value) {
   return jsonData(value) && validateAmendment(value);
@@ -244,6 +254,11 @@ function validateObligationCoverageDraft(carrier) {
       }
       if (row.proof_opt_out === true && (row.selection !== undefined || row.case_id !== undefined)) {
         diagnostics.push({ code: "obligation_coverage_proof_opt_out_conflict", pointer: `${pointer}/proof_opt_out` });
+      }
+
+      if (row.proof_opt_out_rationale !== undefined && row.proof_opt_out !== true) {
+        diagnostics.push({ code: "obligation_coverage_proof_opt_out_rationale_orphan",
+          pointer: `${pointer}/proof_opt_out_rationale` });
       }
       if (new Set((row.acceptance_criteria ?? []).map(entry => entry.identity)).size !==
           (row.acceptance_criteria ?? []).length) {

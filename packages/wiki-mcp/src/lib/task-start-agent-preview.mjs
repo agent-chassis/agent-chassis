@@ -14,13 +14,24 @@ import { servedGuidanceRead, startAgentBaseCorrection, startAgentBaseSelection }
 import { WK_BASE_SELECTION } from
   "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate-exact-unit-identity.mjs";
 import { contractAssessmentCall } from "./task-assess-contract-surface.mjs";
+import { obligationCoverageQueryOperation, queryControlledContractObligationCoverageOperation } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/obligation-coverage-query.mjs";
+import { assessRequirementSourceResidualOperation } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/proof-validation-operations.mjs";
+import { REQUIREMENT_SOURCE_FIELD, REQUIREMENT_SOURCE_STATES } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-source-links.mjs";
+import { REQUIREMENT_BATCH_STATUS } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-projection.mjs";
+import { assertObligationCoverageQueryScope, resolveObligationCoverageQueryContext } from
+  "./controlled-contract-query-context.mjs";
 
 const CONTROLLED_ACCEPTANCE_INCOMPLETE = "controlled_acceptance_incomplete";
 
-export async function servedSliceAssessment(unit, requestContracts) {
+export async function servedUnitAssessment(unit, requestContracts) {
   const call = { kind: "guidance", recommended: true, ...contractAssessmentCall({ unit }),
-    information: "Assess this exact slice to read which of its acceptance criteria no obligation covers and the " +
-      "authored correction; assessing executes no proof, grants no credit and changes no readiness." };
+    information: "Assess this exact unit to read where its saved specification or acceptance coverage is incomplete, " +
+      "with the affected identities and the supported corrections; assessing executes no proof, grants no credit and " +
+      "changes no readiness, and it supplies no replacement definition and no executable save." };
   const limit = (code, cause) => ({ limitation: { code, tool: call.tool, ...(cause === undefined ? {} : { cause }) } });
   try {
     const contract = requestContracts?.contractFor?.(call.tool);
@@ -30,6 +41,143 @@ export async function servedSliceAssessment(unit, requestContracts) {
   } catch (error) {
     return limit("contract_assessment_validation_failed", { code: error.code ?? null, message: error.message });
   }
+}
+
+export const REQUIREMENTS_COMPARISON_INSTRUCTION = "Check that the linked requirements preserve the user’s meaning " +
+  "and that nothing is missing. Correct the mappings or record unresolved meaning as residue.";
+const READ_TOOL = "workspace_read_wiki";
+const REQUIREMENTS_SELECTION = Object.freeze({ contract: "requirements" });
+
+const COMPARISON_MEMBERS = 8, COMPARISON_SCALARS = 1024;
+const cause = error => ({ code: error?.code ?? null, message: String(error?.message ?? error) });
+function compactText(member, text) {
+  if (typeof text !== "string") return { [member]: text };
+  const scalars = Array.from(text);
+  return scalars.length <= COMPARISON_SCALARS ? { [member]: text }
+    : { [member]: scalars.slice(0, COMPARISON_SCALARS).join(""),
+      [`${member}_extent`]: { unit: "unicode_scalars", length: COMPARISON_SCALARS, total: scalars.length } };
+}
+const compactMembers = (members, project) => ({ total_count: members.length,
+  returned_count: Math.min(members.length, COMPARISON_MEMBERS),
+  omitted_count: Math.max(members.length - COMPARISON_MEMBERS, 0),
+  members: members.slice(0, COMPARISON_MEMBERS).map(project) });
+
+function comparisonRow(row) {
+  const { user_requirement: passage, constraint_ids: _constraints, claim_ids: _claims, ...link } = row.source;
+  return { row_id: row.row_id, state: row.state, constraint_ids: row.constraint_ids, claim_ids: row.claim_ids,
+    ...compactText("meaning", row.meaning),
+    source: { ...link, ...(passage === undefined ? {} : compactText("user_requirement", passage)) } };
+}
+
+const UNMAPPED_LOCATIONS = 64;
+const unaccounted = (reason, more = {}) => ({ state: "unknown", accounted: false, source_field: REQUIREMENT_SOURCE_FIELD,
+  reason, ...more });
+function compactResidual(facts) {
+  if (facts?.accounted !== true) return unaccounted(facts?.reason ?? "the assessment owner returned no residual accounting");
+  const { segments } = facts.unmapped;
+  const omitted = segments.slice(COMPARISON_MEMBERS);
+  return { state: facts.state, accounted: true, source_field: facts.source_field, source: facts.source, links: facts.links,
+    linked: { interval_count: facts.linked.interval_count, length: facts.linked.length },
+    length: facts.unmapped.length, location_unit: facts.source.unit,
+    ...compactMembers(segments, ({ text, ...segment }) => ({ ...segment, ...compactText("text", text) })),
+    ...(omitted.length === 0 ? {} : { omitted_locations: omitted.slice(0, UNMAPPED_LOCATIONS)
+      .map(({ start, end }) => ({ start, end })) }) };
+}
+async function unmappedSourceText(unit, context) {
+  if (context.population !== "all") return unaccounted("this session reads a selected population of the saved rows, " +
+    "which cannot account for the whole source text");
+  const [wkId, slice] = unit.split("#");
+  try {
+    const facts = await assessRequirementSourceResidualOperation({ repoRoot: context.sourceRoot, wkId,
+      ...(slice === undefined ? {} : { selectedUnit: slice }) });
+    return facts?.ok === false ? unaccounted("the assessment owner refused the residual accounting",
+      { cause: { code: facts.code ?? null, message: facts.message ?? null } }) : compactResidual(facts);
+  } catch (error) {
+    return unaccounted("the residual accounting could not be read", { cause: cause(error) });
+  }
+}
+
+async function requirementsDetailRead(unit, { requestContracts, acquireSavedUnitReference }) {
+  const limit = (code, reason) => ({ limitation: { code, tool: READ_TOOL, then_select: REQUIREMENTS_SELECTION,
+    ...(reason === undefined ? {} : { cause: reason }) } });
+  try {
+    const contract = requestContracts?.contractFor?.(READ_TOOL);
+    if (!contract) return limit("requirements_detail_consumer_unavailable");
+    if (typeof acquireSavedUnitReference !== "function") return limit("requirements_detail_reader_not_composed");
+    let acquired;
+    try {
+      acquired = await acquireSavedUnitReference(unit);
+    } catch (error) {
+      return limit("requirements_detail_reference_unavailable", cause(error));
+    }
+    const call = { kind: "guidance", tool: READ_TOOL,
+      arguments: { reference: acquired.reference, select: { ...REQUIREMENTS_SELECTION } },
+      information: "Read every saved requirement row of this unit whole: constraints, generated CEL, typed bindings, " +
+        "input and source links, with the complete passages and meanings this preview shortened. Reading changes nothing." };
+    return await contract.acceptsArguments(call.arguments) === true
+      ? { call, transport_retention: acquired.effects?.transport_retention ?? null }
+      : limit("requirements_detail_full_contract_rejected");
+  } catch (error) {
+    return limit("requirements_detail_validation_failed", cause(error));
+  }
+}
+
+export async function savedRequirementsComparison(unit, { workspace, sessionEnv, requestContracts,
+  acquireSavedUnitReference, servedAssessment = null }) {
+  const [wkId, slice] = unit.split("#");
+  const residual = (unresolved, unmapped) => ({ explicit_unresolved: unresolved, unmapped_source_text: unmapped });
+  const fidelity = "A source link records where a passage is. It establishes neither that the linked requirements " +
+    "preserve the user's meaning nor that an implementation is correct.";
+  let saved, source = null;
+  try {
+    saved = await obligationCoverageQueryOperation(async () => {
+      const context = source = await resolveObligationCoverageQueryContext({ env: sessionEnv, workspace });
+      assertObligationCoverageQueryScope(context, { unit });
+      return queryControlledContractObligationCoverageOperation({ repoRoot: context.sourceRoot, wkId,
+        ...(slice === undefined ? {} : { selectedUnit: slice }), view: "complete", population: context.population });
+    });
+  } catch (error) {
+    saved = { ok: false, ...cause(error) };
+  }
+
+  const current = await servedGuidanceRead({ kind: "guidance", tool: READ_TOOL, arguments: { subject: unit },
+    information: `Read this unit's current revision and its exact ${REQUIREMENT_SOURCE_FIELD} text before comparing or ` +
+      "correcting its saved requirements; reading changes nothing." }, requestContracts);
+  const correction = { executable: false, automatic: false, save_tool: "save_record", unit,
+    member: "changes.requirements", rows_addressed_by: "requirements[].row_id as displayed",
+    unresolved_member: "changes.requirements.unresolved",
+    revision_from: "the current read's response.revision; no revision is supplied here",
+    declaration_from: "save_record's current changes.requirements declaration",
+    values: "caller_authored", repeated_passage: "the caller states user_requirement_occurrence; none is chosen here",
+    ...(current.limitation ? { current_read_limitation: current.limitation } : { current_read: current.call }) };
+  const authored = saved?.ok === false ? null : saved?.authored_requirements ?? null;
+  if (authored === null) {
+    return { comparison: { unit, instruction: REQUIREMENTS_COMPARISON_INSTRUCTION, status: "unavailable",
+      limitation: { code: "saved_requirements_read_unavailable",
+        cause: { code: saved?.code ?? null, message: saved?.message ?? "the saved contract read returned no authored requirements" } },
+      residual: residual({ state: "unknown", reason: "the saved requirements could not be read" },
+        unaccounted("the saved requirements could not be read")),
+      link_meaning: fidelity, correction }, calls: current.call ? [current.call] : [] };
+  }
+  const detail = await requirementsDetailRead(unit, { requestContracts, acquireSavedUnitReference });
+  const assessment = authored.state !== REQUIREMENT_BATCH_STATUS.incomplete ? null
+    : servedAssessment ?? await servedUnitAssessment(unit, requestContracts);
+  const states = Object.fromEntries(Object.values(REQUIREMENT_SOURCE_STATES).map(state =>
+    [state, authored.rows.filter(row => row.source.state === state).length]));
+  return { comparison: { unit, instruction: REQUIREMENTS_COMPARISON_INSTRUCTION, status: authored.status,
+    state: authored.state, contract_content_digest: saved.contract_content_digest,
+    source_field: REQUIREMENT_SOURCE_FIELD,
+    rows: { ...compactMembers(authored.rows, comparisonRow), source_links: states },
+    residual: residual(compactMembers(authored.unresolved, entry =>
+      typeof entry.text === "string" ? { ...entry, ...compactText("text", entry.text) } : entry),
+    await unmappedSourceText(unit, source)),
+    link_meaning: fidelity,
+    detail: detail.limitation ? { available: false, limitation: detail.limitation }
+      : { available: true, call: detail.call, transport_retention: detail.transport_retention },
+    ...(assessment === null ? {} : { assessment: assessment.limitation
+      ? { available: false, limitation: assessment.limitation } : { available: true, call: assessment.call } }),
+    correction }, calls: [...(detail.call ? [detail.call] : []), ...(current.call ? [current.call] : [])],
+  assessment_call: assessment?.call ?? null };
 }
 
 const coverage = (assessed, unchecked) => ({ assessed, unchecked,
@@ -76,7 +224,7 @@ export async function previewStartAgent({ request, context, workspace }) {
   const plan = backend.planLaunch({ ...args, workspace_dir: workspace.dir });
   if (plan.accepted !== true) return { accepted: false, refusal: plan.refusal };
   let source, assessment, graphDependent = false, scope = null, baseSelection = null, sliceAssessment = null,
-    initiative = null;
+    initiative = null, requirements = null;
   if (args.role === "reviewer" || args.role === "redteam") {
     const material = await backend.resolveAdvisoryReviewMaterial({ ...args, workspace_alias: workspace.repo });
     const target = material.normalized_target;
@@ -104,7 +252,7 @@ export async function previewStartAgent({ request, context, workspace }) {
 
     if (readiness.dispatchable === false && readiness.decision_code === CONTROLLED_ACCEPTANCE_INCOMPLETE &&
         args.role === "worker" && args.subject.includes("#")) {
-      sliceAssessment = await servedSliceAssessment(args.subject, context.requestContracts);
+      sliceAssessment = await servedUnitAssessment(args.subject, context.requestContracts);
     }
 
     const recovery = readiness.recovery?.graph_impact;
@@ -115,6 +263,10 @@ export async function previewStartAgent({ request, context, workspace }) {
       ...(initiative === null ? {} : { initiative_authoring: initiative.authoring }) }),
       graph: { state: graphDependent ? "not_assessed" : "not_required" },
       execution_admitted: "unchecked" };
+
+    requirements = await savedRequirementsComparison(args.subject, { workspace, sessionEnv: context.sessionEnv,
+      requestContracts: context.requestContracts, acquireSavedUnitReference: context.acquireSavedUnitReference,
+      servedAssessment: sliceAssessment });
     const unknown = { state: "unknown", reason: graphDependent
       ? "committed graph snapshot not assessed" : "committed graph snapshot not required" };
     source = { subject: args.subject,
@@ -128,6 +280,14 @@ export async function previewStartAgent({ request, context, workspace }) {
       : scope.reason?.code === WORKER_SCOPE_BASE_SELECTION_MISSING_DECISION_CODE ? scopeFacts.slice(0, 1) : [];
   const scopeCoverage = { assessed: scopeAssessed,
     unchecked: scope === null ? [] : scopeFacts.filter(fact => !scopeAssessed.includes(fact)) };
+
+  const readinessOwners = [baseSelection, initiative, sliceAssessment].filter(owner => owner !== null);
+  const readinessCalls = readinessOwners.flatMap(owner => owner.call ? [owner.call] : []);
+  const comparisonCalls = readinessOwners.length === 0 && requirements?.assessment_call
+    ? [requirements.assessment_call] : requirements?.calls ?? [];
+  const nextCalls = readinessCalls.length > 0 ? readinessCalls : comparisonCalls;
+  const read = requirements !== null && requirements.comparison.status !== "unavailable";
+  const accounted = requirements?.comparison.residual.unmapped_source_text.accounted === true;
   return { outcome: "preview", preview_kind: "action", subject: args.subject, role: args.role,
     selection: { app: plan.app, model: plan.model, backend: plan.backend,
       executor_available: plan.executor_available }, capabilities: capabilitiesFor(args.role), source, assessment,
@@ -136,17 +296,19 @@ export async function previewStartAgent({ request, context, workspace }) {
       wkId: args.subject.split("#", 1)[0], branch: scope.base.ref, selection: scope.base.selection,
       saved: scope.base.selection === WK_BASE_SELECTION.SAVED }) }),
     ...(baseSelection === null ? {} : { correction: baseSelection.correction,
-      ...(baseSelection.limitation ? { readiness_guidance_limitation: baseSelection.limitation }
-        : { next_calls: [baseSelection.call] }) }),
-    ...(initiative === null ? {} : initiative.limitation
-      ? { readiness_guidance_limitation: initiative.limitation } : { next_calls: [initiative.call] }),
-    ...(sliceAssessment === null ? {} : sliceAssessment.limitation
-      ? { contract_assessment_limitation: sliceAssessment.limitation } : { next_calls: [sliceAssessment.call] }),
+      ...(baseSelection.limitation ? { readiness_guidance_limitation: baseSelection.limitation } : {}) }),
+    ...(initiative?.limitation ? { readiness_guidance_limitation: initiative.limitation } : {}),
+    ...(sliceAssessment?.limitation ? { contract_assessment_limitation: sliceAssessment.limitation } : {}),
+    ...(requirements === null ? {} : { requirements_comparison: requirements.comparison }),
+    ...(nextCalls.length === 0 ? {} : { next_calls: nextCalls }),
     effects: { cache: "not_consumed",
       child_started: false, canonical_written: false, runtime_prepared: false, integration_requested: false },
     coverage: coverage(["canonical_subject", "configured_model", "override_permission", "executor_availability",
       args.role === "worker" ? "configured_worker_target" : "review_material",
-      ...(args.role === "worker" ? ["authored_readiness"] : []), ...scopeCoverage.assessed],
+      ...(args.role === "worker" ? ["authored_readiness"] : []), ...scopeCoverage.assessed,
+      ...(read ? ["saved_requirement_source_links"] : []), ...(accounted ? ["unmapped_requirement_source_text"] : [])],
       ["CCE", "launch_time", "isolation", "publication", "cleanup", ...(args.role === "worker" ? ["graph_admission"] : []),
-        ...(graphDependent ? ["committed_graph"] : []), ...scopeCoverage.unchecked]) };
+        ...(graphDependent ? ["committed_graph"] : []), ...scopeCoverage.unchecked,
+        ...(requirements === null ? [] : [...(read ? [] : ["saved_requirement_source_links"]),
+          "requirement_meaning_fidelity", ...(accounted ? [] : ["unmapped_requirement_source_text"])])]) };
 }

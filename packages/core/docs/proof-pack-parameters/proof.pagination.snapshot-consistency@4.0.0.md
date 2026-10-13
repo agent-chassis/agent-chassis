@@ -4,9 +4,9 @@
 
 Every page attempt and returned page in the complete declared traversal populations resolves to one immutable snapshot identity and exact captured state; a declared relevant live-source mutation occurs between selected page reads, changes the exact live-source version while the selected snapshot identity and captured state remain unchanged, and the stable and mutation-interleaved ordered member-occurrence sequences are identical.
 
-Profile digest: 73fe9548950e963d20c499b344cd0cb633494afc7285835bcae776295acec01d. Parameter digest: 14df3f6db597a2d40fe4d1c844ecc67b8d5c1e352567f768ec17e7a26f7c763d.
+Profile digest: 6bc4319bbbd8266407fd952d82fe1908e0a65e307fd23d3a5032aaf6e43986d2. Parameter digest: e354063a8522c0f7718762fc3c4a2058cb5ad8658bd3a3e0b04d7740a1c0cb61.
 
-Admission digest: 822ee5d4e18a987ac3bb07c863b8cd0f69e2e0c1f4828e66f89488ba6ddc53d9.
+Admission digest: 65ca8ed40b197e46ef715ca77ec5b8aebd85edf32d035de07255af677764acbf.
 
 Roles: 31/31 accounted; 6 owned gaps. Semantic parameters: 25; internal roles: 6.
 

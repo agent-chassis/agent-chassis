@@ -1,3 +1,4 @@
+import { loadProofPack } from "../support/proof-pack-adequacy.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -31,6 +32,7 @@ const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const identity = { profile_id: "proof.authorization.failed-attempt-nonconsumption", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 
 const readJson = (name) => readDefinitionDocument(identity, name);
@@ -95,7 +97,7 @@ test("failed-attempt nonconsumption binds and passes all executable controls", a
     variationMode: "full_census"
   });
   assert.equal(result.passed, true);
-  assert.equal(result.control_count, 59);
+  assert.equal(result.control_count, 64);
   assert.equal(result.negative_fixture_count, 87);
   assert.equal(result.coverage_witness_count, 199);
   assert.equal(result.negative_fixture_results.every(
@@ -186,7 +188,7 @@ test("every remaining profile mechanism has independent adequacy discrimination"
   for (const mutate of mutations) {
     const profile = structuredClone(original);
     mutate(profile);
-    const observations = await runProofPackAdequacyControls({ profile });
+    const observations = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile });
     assert.equal(adequacySubstancePasses(observations.controls), false);
   }
 });

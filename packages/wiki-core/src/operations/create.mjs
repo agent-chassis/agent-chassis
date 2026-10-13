@@ -1,7 +1,6 @@
 import path from "node:path";
 import { getManifestRecordBirthKinds, loadManifest } from "../lib/contract.mjs";
 import { extractFrontMatter } from "../lib/wiki-frontmatter.mjs";
-import { validateRecordAuthoringChanges } from "../lib/record-authoring-schema.mjs";
 import { prepareSourceAreaBirth } from "./record-birth-plan.mjs";
 import { lintRecordFrontMatter } from "./lint-record-rules.mjs";
 import {
@@ -11,6 +10,8 @@ import {
 } from "../lib/wiki.mjs";
 
 export async function prepareSourceAreaRecordBirth({ kind, title, initial = {}, id, date }) {
+
+  const { validateRecordAuthoringChanges } = await import("../lib/record-authoring-schema.mjs");
   const diagnostics = validateRecordAuthoringChanges(kind, "birth", initial)
     .map(row => ({ ...row, path: row.path.replace(/^changes/u, "initial") }));
   if (diagnostics.length > 0) {

@@ -4,9 +4,9 @@
 
 For one declared logical source, two distinct result surfaces expose equal complete populations of typed member descriptors by mutual subset, bind one shared exact nonnegative member count, emit count signals equal to that count, and expose one explicitly selected canonical value pair that is exactly equal. One verification reads both full representations and each verified behavior has its controlled complement as a separate falsifier.
 
-Profile digest: abbc6e30664d821b34adddc0a02c54b40f6bb3e0e91302e14b402eba2a389162. Parameter digest: 9f014d9621e0ebae975ac8b2cae72aba1cebbe5313984b5174b53b0f1d0245a2.
+Profile digest: aa232efe89be438425ee777e20f97657a3a14251ef6b289e8b547df182521b4d. Parameter digest: 789727809ac529b4b794d1d6113ca96ea88be49fa1acce79f24ae9a8567973f4.
 
-Admission digest: e317b5b525ca000477c39decd00547cf916651cb4306a4f21e581a699097febc.
+Admission digest: b9fc4d3bcdb98eccae60e7ddbdee066f7de0080ef6b42d09a3441fa28a46acc5.
 
 Roles: 18/18 accounted; 2 owned gaps. Semantic parameters: 15; internal roles: 3.
 

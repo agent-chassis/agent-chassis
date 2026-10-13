@@ -4,6 +4,8 @@ import { ControlledContractToolError, VALIDATE_PROOF_INPUT_SCHEMA } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
 import { boundProofValidationAssessment } from
   "@agent-chassis/wiki-core/src/operations/controlled-contract/proof-authoring-diagnostic-projection.mjs";
+import { boundAuthoringExceptions } from
+  "@agent-chassis/wiki-core/src/operations/controlled-contract/authoring-exception-assessment.mjs";
 
 import { measureMcpInlineResultBytes } from "./mcp-response.mjs";
 import { CONTRACT_ASSESSMENT_ROUTE } from "./controlled-contract-query-context.mjs";
@@ -123,6 +125,9 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
     const selected = read.selected_diagnosis;
     const retained = carrier.diagnosis_inventory.diagnoses.map((entry) => entry.diagnostic_group_id);
     const complete = selected === undefined ? assessmentBody(carrier) : null;
+
+    const summary = complete === null || complete.exceptions === undefined ? complete
+      : { ...complete, exceptions: boundAuthoringExceptions(complete.exceptions) };
     const historicalCall = (arguments_) => ({ ...contractAssessmentCall(arguments_), purpose: "historical_retrieval" });
 
     const diagnosisRequest = (id) => ({ original: { source, diagnosis_id: id } });
@@ -168,14 +173,14 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
         [...new Set(diagnostics.issues.map((issue) => issue.diagnosis_id).filter((id) => id !== null))];
       const view = (bounded) => {
         const diagnostics = indexedDiagnostics(bounded.diagnostics);
-        return answer({ ...complete, diagnostics }, offeredBy(diagnostics));
+        return answer({ ...summary, diagnostics }, offeredBy(diagnostics));
       };
       projected = view(boundProofValidationAssessment(carrier.assessment,
         (candidate) => delivered(view(candidate)) <= bound));
     } else {
 
       const all = complete.diagnoses ?? [];
-      const view = (rows, calls) => answer({ ...complete, ...(complete.diagnoses === undefined ? {} : {
+      const view = (rows, calls) => answer({ ...summary, ...(complete.diagnoses === undefined ? {} : {
         diagnoses: rows, diagnoses_returned: rows.length, diagnoses_omitted: all.length - rows.length,
         complete: rows.length === all.length }) }, all.slice(0, calls).map((entry) => entry.diagnostic_group_id));
       const fits = (rows, calls) => delivered(view(rows, calls)) <= bound;

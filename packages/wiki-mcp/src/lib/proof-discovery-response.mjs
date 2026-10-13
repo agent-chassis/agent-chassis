@@ -1,5 +1,6 @@
 
 
+import { resolveRecordAuthoringDefinition } from '@agent-chassis/wiki-core/src/lib/record-authoring-shared-definitions.mjs';
 import { FIND_PROOFS_TASK } from '@agent-chassis/controlled-contract/proof-discovery-task';
 
 export const PROOF_PART_KINDS = Object.freeze(['overview', 'authoring', 'parameter', 'constraint']);
@@ -25,9 +26,10 @@ const SOURCE_SCOPE = 'host package catalogue; not the content of a frozen review
 const EFFECTS = Object.freeze({ canonical_writes: false, proofs_executed: false,
   retained: 'this result, as derived response storage' });
 
-const rowVariants = row => Array.isArray(row.oneOf) && row.oneOf.every(variant => variant.type === 'object')
-  ? row.oneOf : [row];
-const ROW_IDENTITIES = Object.freeze(['key', 'id']);
+const rowVariants = row => { const alternatives = row.oneOf ?? row.anyOf;
+  return Array.isArray(alternatives) && alternatives.every(variant => variant.type === 'object') ? alternatives : [row]; };
+
+const ROW_IDENTITIES = Object.freeze(['key', 'row_id', 'id']);
 function rowMembers(row) {
   const variants = rowVariants(row);
   const names = [...new Set(variants.flatMap(variant => Object.keys(variant.properties)))];
@@ -44,14 +46,20 @@ const rowProperty = (row, name) => rowVariants(row).find(variant => Object.hasOw
   .properties[name];
 
 export function authoringSchemaMembers(changeSchema) {
-  const requirement = changeSchema.properties.requirements.items;
-  const obligation = changeSchema.properties.obligations.items;
+
+  const declared = node => resolveRecordAuthoringDefinition(changeSchema, node);
+
+  const batch = declared(changeSchema.properties.requirements);
+  const [requirement, membership] = batch.properties.requirements.items.oneOf.map(declared);
+  const obligation = declared(changeSchema.properties.obligations.items);
   return {
-    requirements: { ...rowMembers(requirement),
-      verification: rowMembers(rowProperty(requirement, 'verification')) },
+    requirements: { field: 'changes.requirements.requirements', batch_members: Object.keys(batch.properties),
+      ...rowMembers(requirement),
+      verification: rowMembers(declared(rowProperty(requirement, 'verification'))),
+      closed_membership: rowMembers(membership) },
     obligations: { ...rowMembers(obligation),
-      proof: rowMembers(rowProperty(obligation, 'proof')).members,
-      case: rowMembers(rowProperty(obligation, 'case')) }
+      proof: rowMembers(declared(rowProperty(obligation, 'proof'))).members,
+      case: rowMembers(declared(rowProperty(obligation, 'case'))) }
   };
 }
 
@@ -196,7 +204,7 @@ function overviewPart(proof) {
   };
 }
 
-function authoringPart(carrier, proof) {
+function authoringPart(carrier, proof, caseGuidance) {
   const needsCase = proof.verification_capability !== null;
   const family = needsCase ? carrier.family : null;
   const members = carrier.authoring_members;
@@ -206,7 +214,7 @@ function authoringPart(carrier, proof) {
     `${obligation}.key (a new obligation) or .id (an existing one)`,
     `${obligation}.statement`,
     `${obligation}.criteria: held criterion ids or $key labels of changes.criteria`,
-    `${obligation}.claims: held claim ids or $key labels of changes.requirements`];
+    `${obligation}.claims: held claim ids or $key labels of changes.requirements.requirements`];
   missing.push(...proof.refinements.filter(parameter => parameter.source.policy === 'configurable' &&
     !optionalParameter(parameter)).map(parameter => `${obligation}.proof.parameters.${parameter.name}`));
   if (needsCase) {
@@ -229,6 +237,9 @@ function authoringPart(carrier, proof) {
       : 'none: this proof declares no test-execution capability',
 
     ...(needsCase && carrier.case_choices !== undefined ? { case_choices: carrier.case_choices } : {}),
+    ...(needsCase && caseGuidance !== null ? {
+      case_guidance_selection: { guidance: caseGuidance.arguments.subject.topic }
+    } : {}),
     ...(needsCase ? { family: { ...familySelection(carrier), ...(family === null
       ? { missing_input: 'target_family', missing_input_of: FIND_PROOFS_TASK,
         choose: 'next_calls.choose_family lists every family with the exact call that reads this ' +
@@ -293,7 +304,7 @@ function constraintPart(proof, ref) {
   return proof.constraints.find(entry => entry.ref === ref) ?? null;
 }
 
-export function projectProof(carrier, locator, currentness, proof, part, fits) {
+export function projectProof(carrier, locator, currentness, proof, part, fits, caseGuidance = null) {
   const select = selection => selecting(locator, { proof_name: proof.proof_name, part: selection });
   const identity = { answer: 'proof', proof: proofIdentity(proof) };
   const firstParameter = proof.refinements[0]?.name ?? null;
@@ -315,11 +326,12 @@ export function projectProof(carrier, locator, currentness, proof, part, fits) {
     return awaitsFamily(carrier, proof) ? { primary: 'choose_family',
       choose_family: familyChoice(carrier, proof), ...calls,
       selection: 'secondary: select and parts read this result\'s parameters and constraints; ' +
-        'they do not choose the family' } : calls;
+        'they do not choose the family' } : { ...calls,
+      ...(caseGuidance === null ? {} : { case_guidance: caseGuidance }) };
   };
-  const authoring = () => build({ authoring: authoringPart(carrier, proof) }, afterAuthoring());
+  const authoring = () => build({ authoring: authoringPart(carrier, proof, caseGuidance) }, afterAuthoring());
   if (part === null) {
-    const combined = build({ overview: overviewPart(proof), authoring: authoringPart(carrier, proof) },
+    const combined = build({ overview: overviewPart(proof), authoring: authoringPart(carrier, proof, caseGuidance) },
       afterAuthoring());
     return { payload: fits(combined) ? combined : overview() };
   }

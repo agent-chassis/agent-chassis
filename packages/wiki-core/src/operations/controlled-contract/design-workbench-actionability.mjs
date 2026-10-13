@@ -266,8 +266,8 @@ function authoringDescriptor(manifest, dimension, row) {
   if (dimension.dimension_id === "authoring_stage" &&
       manifest.subject.controlled_acceptance_state === "absent") return {
     semantic_owner: "proof_posture",
-    response_kinds: ["declare_controlled_acceptance_applies",
-      "explicitly_opt_out_controlled_acceptance"],
+
+    response_kinds: ["declare_controlled_acceptance_applies"],
     owner_context: {
       expected_record_source_digest:
         manifest.subject.record_source_digest ?? null

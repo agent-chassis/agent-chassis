@@ -15,7 +15,10 @@ import { executeVerifyProofForContext, aggregateResult, VERIFY_PROOF_AGGREGATE_S
 import { startTestProofInvocationTiming } from "../../../agent-launch-core/src/lib/test-proof-timing.mjs";
 import { validatedVerifyProofEvidence, deliverStandaloneVerification, deliverManagedVerification, recordedInvocation, deliveryFailure, shippedVerifyProofCalls } from "./verify-proof-delivery.mjs";
 
-async function executeProductionVerifyProof({ args: received, env, repoRoot, repository, deps, signal, run }) {
+async function executeProductionVerifyProof({ args: received, env, responseEnv, repoRoot, repository, deps, signal,
+  run }) {
+
+  const regressionHost = { repository, sessionEnv: env, responseEnv };
   const state = (deps.resolveLauncherRunState ?? resolveLauncherRunState)(env);
   assertVerifyProofCallerShape(received, { authenticatedRole: state.role });
   let args = received;
@@ -63,7 +66,8 @@ async function executeProductionVerifyProof({ args: received, env, repoRoot, rep
       resolutionContext: context.resolutionContext,
       runtime: context.runtime,
       deps,
-      signal
+      signal,
+      regressionHost
     });
   }
   const result = await (deps.withOrchestratorTestProofRuntime ??
@@ -83,7 +87,8 @@ async function executeProductionVerifyProof({ args: received, env, repoRoot, rep
       resolutionContext: context.resolutionContext,
       runtime: context.runtime,
       deps,
-      signal
+      signal,
+      regressionHost
     });
   });
   if (result?.schema_version === VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION) return result;
@@ -133,6 +138,7 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
       result = await executeProductionVerifyProof({
         args,
         env,
+        responseEnv,
         repoRoot: realpathSync(path.resolve(workspace.dir)),
         repository: workspace.repo,
         deps,

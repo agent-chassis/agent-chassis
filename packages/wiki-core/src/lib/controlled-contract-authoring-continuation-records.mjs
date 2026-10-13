@@ -12,7 +12,7 @@ import { continuationContentDigest } from "./controlled-contract-continuation-en
 
 export const CONTINUATION_SCHEMA = "controlled-contract-authoring-continuation.v1";
 export const CONTROLLED_CONTRACT_DESIGN_RESPONSE_KINDS = Object.freeze([
-  "declare_controlled_acceptance_applies", "explicitly_opt_out_controlled_acceptance",
+  "declare_controlled_acceptance_applies",
 
   "contract_requirements"
 ]);

@@ -10,12 +10,13 @@ import {
   testRuntimeRunner
 } from "@agent-chassis/controlled-contract/test-proof";
 
-import { ATTEMPT_SCRATCH_ROOT, DEPENDENCY_ECOSYSTEMS } from "../../test-runtime-setup/ecosystems.mjs";
-import { nativeNodeId, projectNativeObservation } from "../native-observation.mjs";
+import { DEPENDENCY_ECOSYSTEMS } from "../../test-runtime-setup/ecosystems.mjs";
+import { nativeNodeId, openNativeObservation } from "../native-observation.mjs";
 import { mintProofStage, resolveTestFileRuntime } from "../ordinary-test-runner.mjs";
 import { resolveInstalledRunnerIntegration } from "../runner-integrations.mjs";
 import { nativeCompilerCachePath, openNativeCompilerCache } from "../runtime-inputs.mjs";
 import { SourceInstrumentationError } from "../source-instrumentation/index.mjs";
+import { copyProofSource, planProofSourceCopy } from "../proof-source-copy.mjs";
 import {
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES,
   assertClosedInput,
@@ -147,9 +148,8 @@ export function nativeProviderImplementation(spec) {
   const compilerCachePolicy = (input) => cachesCompilation()
     ? { open: (runtime) => openCompilerCache(input, runtime) } : null;
 
-  function attemptFacts({ mode, worktree, project, projectHost, runtime, selectedTest, test, moduleRelative }) {
-
-    const workRoot = worktree;
+  function attemptFacts({ mode, worktree, workRoot = worktree, project, projectHost, runtime, selectedTest, test,
+    moduleRelative }) {
     return {
       mode,
       worktree,
@@ -239,14 +239,11 @@ export function nativeProviderImplementation(spec) {
     const selection = resolved.selection ?? {};
     const moduleRelative = mode === "falsifier" ? selection.mutation.module_path
       : mode === "traversal" ? selection.module_path : null;
-    const privateRoot = path.join(ATTEMPT_SCRATCH_ROOT, ".launcher-test-proof");
-    const configPath = path.join(privateRoot, "config.json");
-    const channelPath = path.join(privateRoot, "channel.jsonl");
     const nonce = randomBytes(32).toString("hex");
     let provenance = null;
     let composed = false;
 
-    const compose = async ({ runtime, project, cache, projectDir }) => {
+    const compose = async ({ runtime, project, cache, projectDir, executionRoot }) => {
       composed = true;
 
       const providerAssetDigest = assetDigest(spec);
@@ -261,11 +258,21 @@ export function nativeProviderImplementation(spec) {
       }
       const currentDigest = runtimeInputsDigest(runtime, providerAssetDigest);
       provenance = runtimeProvenanceSincePreparation(prepared, runtime, currentDigest);
+      const privateRoot = path.join(executionRoot.scratch, ".launcher-test-proof");
+      const configPath = path.join(privateRoot, "config.json");
+      const channelPath = path.join(privateRoot, "channel.jsonl");
+
+      const copiedSource = spec.runtime_runner === "go-test"
+        ? null : copyProofSource({
+          plan: planProofSourceCopy(worktree, { repositoryRoot: input.authority.main_repo }),
+          destinationRoot: path.join(executionRoot.scratch, "proof-source") });
+      const workRoot = copiedSource?.destinationRoot ?? worktree;
+      const workProject = project === "." ? workRoot : path.join(workRoot, project);
       const attempt = Object.freeze({
-        ...attemptFacts({ mode, worktree, project, projectHost: projectDir, runtime, selectedTest,
+        ...attemptFacts({ mode, worktree, workRoot, project, projectHost: workProject, runtime, selectedTest,
           test: native.selection.title_path ?? native.selection.identifier_path, moduleRelative }),
         nonce,
-        workProject: projectDir,
+        workProject,
         privateRoot,
         configPath,
         channelPath,
@@ -282,16 +289,12 @@ export function nativeProviderImplementation(spec) {
       const layout = await spec.layout(attempt);
       const instrumentation = await spec.instrument(attempt, layout);
 
-      const sourceWrites = (instrumentation.writes ?? []).filter(({ path: file }) =>
-        file.startsWith(`${worktree}/`));
-      const scratchWrites = (instrumentation.writes ?? []).filter((write) => !sourceWrites.includes(write));
-
       const config = {
         schema_version: OBSERVER_CONFIG_SCHEMA_VERSION,
         nonce,
         channel: channelPath,
-        repository_root: worktree,
-        project_directory: projectDir,
+        repository_root: workRoot,
+        project_directory: workProject,
         test_file: attempt.testFileWork,
         selected: { file: selectedTest.file, test: attempt.test,
           ...(instrumentation.selected_extra ?? {}) },
@@ -330,14 +333,15 @@ export function nativeProviderImplementation(spec) {
         additions: {
           env: { [OBSERVER_CONFIG_ENV]: configPath },
           directories: [privateRoot],
-          writes: [{ path: configPath, content: `${JSON.stringify(config)}\n` }, ...scratchWrites],
-          overlays: sourceWrites,
+          observerConfig: { path: configPath, value: config },
+          writes: instrumentation.writes ?? [],
+          ...(copiedSource === null ? {} : { copyRoot: copiedSource.destinationRoot }),
           channel: { kind: "file", path: channelPath },
           readOnlyBinds: spec.assets.map((asset) => ({ src: asset, dst: asset }))
         },
         nativeReport: typeof spec.report === "function" ? () => spec.report(attempt, layout) : null,
-        observe: ({ channelBytes, exitCode, channelOverflow, nativeReport }) => projectNativeObservation({
-          channelBytes, channelOverflow, exitCode, expectation, nativeReport })
+
+        observe: { open: () => openNativeObservation({ expectation }) }
       };
     };
     let run;

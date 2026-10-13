@@ -1,6 +1,6 @@
 
 
-import { npmPackageBin } from "./common.mjs";
+import { npmPackageBin, npmPackageDirectory } from "./common.mjs";
 
 export default Object.freeze({
   runner_id: "runner.jest",
@@ -11,6 +11,7 @@ export default Object.freeze({
     const cli = npmPackageBin(runtime, "jest");
     return {
       harness: Object.freeze(proof === null ? { kind: "jest" } : { kind: "jest_launcher_entry" }),
+      runnerPackage: npmPackageDirectory(runtime, "jest"),
       invocation: { command: runtime.executables.node,
         args: proof !== null ? [proof.entry, ...proof.entryArgs]
           : [cli, "--runTestsByPath", ...(selector === null ? [] : [`--testNamePattern=${selector}`]), file],

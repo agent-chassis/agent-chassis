@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.completeness.lossless-projection",
   "profile_version": "4.0.0",
-  "profile_digest": "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2",
+  "profile_digest": "198e7b2599fb7cbde6b703179e3572d4f2987bb04f0368ce500ea23c1d1169da",
   "description": "When one declared structured tool exposes one compact mode and one distinct documented complete mode, the declared compact result omits at least one declared heavy member; every declared omission is absent from the compact population, present in the complete-result population, represented in an omission population whose computed union with the compact population equals the complete source population, and represented in a disclosed population equal to the omission population; the complete-result population equals the source population; the compact result names the complete mode and carries the disclosure, complete total, and omission total; both totals equal the corresponding exact bound population cardinalities; and the selected omission reason is a member of a closed declared reason catalog.",
   "parameters": [
     {

@@ -63,16 +63,20 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
   const bind = fn => fn({ registerTool, ...host });
   const policy = JSON.parse(readFileSync(SESSION_ROLE_TOOL_ACCESS_POLICY_PATH, "utf8"));
   const assessment = granted("workspace_assess_contract") ? bind(registerContractAssessmentTool) : null;
-  const authoring = { registerTool, ...host, assessment, generateAndLint,
+
+  const authoring = { registerTool, ...host, registeredTier, assessment, generateAndLint,
     resolveRetainedFindingsSource: dispatchBackend?.resolveRetainedFindingsSource, dispatchSessionIdentity };
   const create = granted("workspace_create_record") ? registerCreateRecordTools(authoring) : null;
-  const save = granted("save_record") ? registerSaveRecordTools(authoring) : null;
+
+  let read = null;
+  const save = granted("save_record") ? registerSaveRecordTools({ ...authoring,
+    acquireSavedUnitReference: unit => read.acquireSavedUnitReference(unit) }) : null;
 
   const { readAdvertisedDoc } = registerToolDocReadTools({ registerTool: () => undefined,
     z, jsonContent, errorContent, docsCarrier, sessionRole, registeredTier });
   const originalCall = source => ({ tool: "workspace_read_wiki", arguments: { reference: source } });
   let inspection, publication, landing;
-  const read = registerReadWikiTools({ registerTool, workspaceRepos, z, jsonContent, errorContent,
+  read = registerReadWikiTools({ registerTool, workspaceRepos, z, jsonContent, errorContent,
     resolveWorkspaceRepo, resolveWorkspaceReadRepo: createWorkspaceReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo }),
     sessionRole, policy, env: { ...sessionEnv, ...responseEnv }, readPackageDocument: readAdvertisedDoc,
     readOriginalReference: async ({ args, source, binding }) => {
@@ -135,6 +139,7 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
     }, { env: responseEnv }));
   }
   if (granted("start_agent")) registerStartAgentTool({ registerTool, ...host, requestContracts,
+    acquireSavedUnitReference: unit => read.acquireSavedUnitReference(unit),
     buildResultCall: argumentsValue => buildNextCall({ tool: "get_run_result", arguments: argumentsValue }),
     dispatchContext: { registerTool, registeredToolNames, dispatchBackend, dispatchSessionIdentity,
       launcherConfirmedNoCceAuthority: isAuthenticatedLauncherNoCceAuthorityCapability(launcherNoCceAuthorityCapability),

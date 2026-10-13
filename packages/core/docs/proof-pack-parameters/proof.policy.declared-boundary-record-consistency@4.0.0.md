@@ -4,9 +4,9 @@
 
 For one exact closed declared policy, one exact caller-supplied boundary observation record whose provenance is caller_asserted, and one exact captured subject set, the package-owned transformer measures every subject under the declared closed unit and measurement-class lexicon, derives the complete N-1/N/N+1 census for every nonzero limit and the exact N/N+1 census for a zero maximum, validates every recorded disposition against the complete declared table, and emits complete populations, exact counts, associations, and one canonical report bound to the exact source-set digest.
 
-Profile digest: b9931249971f3f8e10e69501cf6b89fa6da42d37e1afae9cfde6410d6bfe7388. Parameter digest: d04c6809292a1bec7924235ce2034e391afb45c343d9553fa3b4fbe21b933778.
+Profile digest: 16ab5db2006c0a9b786f4ad5c9853f125c21ab26b0fda45e89bed0c862f220f8. Parameter digest: 000329a964c366178d41cc0577416d14e2ac559f249d14aa010a7784d41c7f65.
 
-Admission digest: 6dbca15f231b58d962680d9f7499e61cc6a5f0e640f44d57689efea1d41d5367.
+Admission digest: b6602d57974a65cc1fb9df0a72d5edc4a5ac46bd3e4fbcd681a1362a37146ade.
 
 Roles: 19/19 accounted; 2 owned gaps. Semantic parameters: 13; internal roles: 6.
 

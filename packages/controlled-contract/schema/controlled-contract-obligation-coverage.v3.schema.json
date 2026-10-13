@@ -509,6 +509,13 @@
         "proof_opt_out": {
           "const": true,
           "description": "The author explicitly declines proof for this obligation. It keeps its statement and criterion coverage, grants no execution or verification credit, and excludes a proof selection or case."
+        },
+        "proof_opt_out_rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "pattern": "^\\S(?:[\\s\\S]*\\S)?$",
+          "description": "The author's own reason no supported proof is appropriate for this obligation's verification, recorded with proof_opt_out as written. It is never assessed and is absent on a decision saved without one."
         }
       }
     },

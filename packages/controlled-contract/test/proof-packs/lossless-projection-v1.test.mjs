@@ -1,3 +1,4 @@
+import { loadProofPack } from "../support/proof-pack-adequacy.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -41,6 +42,7 @@ const controlledContractRoot = path.resolve(
 );
 const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
 const identity = { profile_id: "proof.completeness.lossless-projection", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 
 const readJson = (name) => readDefinitionDocument(identity, name);
@@ -243,8 +245,8 @@ test("lossless projection 1.0 binds and admits its complete proof corpus", async
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
     assert.equal(result.passed, true, variationMode);
-    assert.equal(result.control_count, 35);
-    assert.equal(result.negative_fixture_count, 10);
+    assert.equal(result.control_count, 47);
+    assert.equal(result.negative_fixture_count, 16);
     assert.equal(result.negative_fixture_results.every(
       ({ outcome }) => outcome === "rejected"
     ), true);
@@ -345,7 +347,7 @@ test("executable controls span distinct projections and kill every implementatio
       );
     }
 
-    const observations = await runProofPackAdequacyControls({
+    const observations = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
       profile: LOSSLESS_PROJECTION_V1_PROFILE
     });
     const categories = observations.controls.reduce((counts, { category }) => ({

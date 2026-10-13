@@ -3,7 +3,7 @@ const DEFAULT_ACYCLIC_ROLES = Object.freeze([
   "derives_from", "refines", "replaces", "depends_on", "precedes"
 ]);
 const CLAIM_KINDS = Object.freeze(["behavior", "evidence", "verification"]);
-const CLAIM_MODALITIES = Object.freeze(["MUST", "MUST_NOT", "SHOULD", "SHOULD_NOT", "MAY"]);
+const CLAIM_MODALITIES = Object.freeze(["MUST", "MUST_NOT", "MAY"]);
 
 function compareIds(left, right) {
   const leftString = String(left);

@@ -34,6 +34,8 @@ export const CODEX_REQUIRED_MCP_CONDUIT_ABSENT_REASON =
 
 export const CODEX_WIKI_TOOL_INPUT_SCHEMA_MAX_BYTES = 131072;
 
+export const CODEX_WIKI_TOOL_TIMEOUT_SEC = 1260;
+
 export function buildCodexStdioMcpRegistrationOverrides(binding) {
   assertTrustedStdioMcpConduitBinding(binding);
   if (binding.family !== "codex") {
@@ -46,7 +48,7 @@ export function buildCodexStdioMcpRegistrationOverrides(binding) {
   const args = [...relay.args].map((value) => JSON.stringify(value)).join(",");
 
   return Object.freeze([
-    `mcp_servers={wiki={enabled=true,required=true,command=${command},args=[${args}],startup_timeout_sec=${STDIO_MCP_CLIENT_READINESS_TIMEOUT_SEC},tool_input_schema_max_bytes=${CODEX_WIKI_TOOL_INPUT_SCHEMA_MAX_BYTES}}}`
+    `mcp_servers={wiki={enabled=true,required=true,command=${command},args=[${args}],startup_timeout_sec=${STDIO_MCP_CLIENT_READINESS_TIMEOUT_SEC},tool_timeout_sec=${CODEX_WIKI_TOOL_TIMEOUT_SEC},tool_input_schema_max_bytes=${CODEX_WIKI_TOOL_INPUT_SCHEMA_MAX_BYTES}}}`
   ]);
 }
 

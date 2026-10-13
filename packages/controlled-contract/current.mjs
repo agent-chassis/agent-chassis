@@ -339,7 +339,8 @@ export {
 
 export { ProofAuthoringError, PROOF_AUTHORING_FIELDS, PROOF_AUTHORING_FIELD_SCHEMAS,
   assertProofAuthoringDraft, pinProofSelection, loadPinnedProofSelection,
-  upsertProofAuthoringSelection, removeProofAuthoringSelection
+  upsertProofAuthoringSelection, removeProofAuthoringSelection,
+  PROOF_EXCEPTION_ACTIONS, PROOF_EXCEPTION_RATIONALE_SCHEMA, applyProofAuthoringException
 } from "./lib/proof-authoring-selection.mjs";
 
 export {

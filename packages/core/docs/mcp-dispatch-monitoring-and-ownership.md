@@ -9,7 +9,13 @@ shares the production `createPreparedWorkspaceAgentDispatchBackend` instance wit
 
 A default `{subject,attempt_id?}` performs one immediate live observation.
 `timeout_ms` selects a bounded wait within the existing monitor-call deadline
-owner's limits. An elapsed wait is not cancellation and performs no producer
+owner's limits: an integer from 1 through 1200000 milliseconds (twenty minutes).
+A value outside that range is refused, never clamped, and a shorter explicit wait
+is honored as asked. The wait is the backend's existing loop at its five-second
+interval. It returns as soon as the attempt is terminal and producer publication
+has settled, with the same success, failure and unavailable-result facts an
+immediate read reports, so a completed attempt is seen within about one
+interval. An elapsed wait is not cancellation and performs no producer
 settlement, canonical write, Git mutation, integration, launch or rerun. If the
 same call remains pending in the client, continue that call identity rather than
 starting another one. A later call is a separate observation, never approval.
@@ -43,9 +49,19 @@ The default result contains actual attempt/status/terminal facts, producer
 pending state, a compact final-result summary, publication state, recorded counts
 when available, original availability and the exact selected detail call. Accepted
 nonterminal or original-publication-pending observations return an executable
-`get_run_result` call pinned to the server-selected subject and attempt, without
-replaying a timeout. Available originals take precedence. Refusals and failed
-publication offer no observation call as a publication repair.
+`get_run_result` call pinned to the server-selected subject and attempt. For a
+worker attempt that call carries `timeout_ms:1200000`, selected by the server, so
+following it unchanged waits for the attempt instead of polling it; a caller's own
+timeout is never replayed. A review attempt's call and a worker's
+`{assigned:true}` call carry no timeout and stay immediate reads. Available
+originals take precedence. Refusals and failed publication offer no observation
+call, and no wait, as a publication repair.
+
+The calling client's own tool-request deadline bounds a wait independently of the
+server. A client that abandons the request sooner ends only its own call: the
+attempt and its producer continue, and a later read observes them. The
+launcher's Codex registration allows the `wiki` server 1260 seconds per tool
+request; see [client registrations](agent-launch-mcp-conduit-lifecycle.md#client-registrations).
 Complete child text and internal journal carriers never appear in that summary.
 No field invents result durability, cleanup, success or proof credit. The
 `observation` facts report `executed:false`, `integrated:false`, `retained:false`.
@@ -63,6 +79,14 @@ A worker's assigned read authenticates its launcher slice binding and reads the
 existing attempt journal. Live worker waits classify that same durable attempt
 before waiting, preserving journal faults and tuple contradictions. A released
 attempt cannot wait. A cold durable observation cannot perform a live wait.
+A wait returned earlier may be followed after its attempt was released or its
+serving process restarted. It is still refused, as `released_attempt_cannot_wait`
+or `durable_observation_cannot_wait`, and that refusal carries one executable
+`get_run_result` call for the same authenticated subject and exact attempt with
+no timeout. The wait is never converted into a read on the caller's behalf, and
+the call never names a newer attempt. A wrong caller, subject or attempt, an
+ambiguous selection and unreadable evidence keep their own refusals and are
+offered no such call.
 Reviewer sessions have result-original access within their native execution
 entitlement, not orchestrator live-run observation. Redteam sessions have no
 result or execution tool.

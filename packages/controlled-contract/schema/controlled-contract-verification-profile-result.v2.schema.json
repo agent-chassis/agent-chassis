@@ -367,19 +367,19 @@
         "algebra_digest": {
           "type": "string",
           "enum": [
-            "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c"
+            "2d0858d7e27c673d28d7c84a3f5568573311b14cb6173412ed3688df8a855c41"
           ]
         },
         "definitions_digest": {
           "type": "string",
           "enum": [
-            "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759"
+            "feb1945d0554c40997be536b8f56d01db2769bd4f1d7941f1f7ae63488851655"
           ]
         },
         "complete_digest": {
           "type": "string",
           "enum": [
-            "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9"
+            "ac76824133e6b0716f5c81aae2e0c4fa9e7bf8ac041072a3c5b2b4e33b8ce516"
           ]
         }
       }

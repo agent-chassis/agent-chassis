@@ -4,6 +4,8 @@ import { realpathSync } from "node:fs";
 import { z as defaultZ } from "zod";
 import { resolveUniqueManagedLifecycleBindingPairForRecovery } from "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate-identity.mjs";
 import { synchronizeIntegratedWkWorktree } from "@agent-chassis/agent-launch-cli/src/lib/integrated-wk-worktree.mjs";
+import { releaseRetainedSlice } from "@agent-chassis/agent-launch-cli/src/lib/worktree-reaper.mjs";
+import { digestTrustedExactReviewEvidence } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-validation.mjs";
 import { resolveCommittedSliceIntegrationOriginal } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
 import { captureDiagnosticEvidence } from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { readSavedReviewDispositions } from "@agent-chassis/wiki-core/src/operations/work-record-dispositions.mjs";
@@ -17,7 +19,7 @@ import { selectedResponseQueryInvalidError } from "./selected-response-snapshot.
 
 export function integrateWorkBackendOptions({ workspace, sessionEnv = process.env, responseEnv = sessionEnv,
   backendOptions: { synchronizeIntegratedWkWorktree: synchronizeWkWorktree = synchronizeIntegratedWkWorktree,
-    ...backendOptions } }) {
+    releaseRetainedSlice: releaseSlice = releaseRetainedSlice, ...backendOptions } }) {
   const env = Object.freeze({ ...sessionEnv });
   const responseConfiguration = Object.freeze({ ...responseEnv });
   const trustedWorkspace = Object.freeze({ ...workspace, dir: path.resolve(workspace.dir) });
@@ -45,14 +47,16 @@ export function integrateWorkBackendOptions({ workspace, sessionEnv = process.en
         return { ...integration, cleanup_pending: true, cleanup: { state: "pending",
           managed_identity_retirement: { state: "pending", retired: false, code: error.code ?? "delivery_worker_tuple_unavailable",
             evidence: captureDiagnosticEvidence(error) },
-          wk_checkout: { state: "pending", code: error.code ?? "delivery_worker_tuple_unavailable" } } };
+          wk_checkout: { state: "pending", code: error.code ?? "delivery_worker_tuple_unavailable" },
+          slice_checkout: { state: "pending", reaped: false, code: error.code ?? "delivery_worker_tuple_unavailable" } } };
       }
       if (pair?.slice_binding?.run_id !== approvedDelivery.run_id ||
           pair?.slice_binding?.retry_id !== approvedDelivery.retry_id ||
           pair?.slice_binding?.base_sha !== approvedDelivery.base) {
         return { ...integration, cleanup_pending: true, cleanup: { state: "pending",
           managed_identity_retirement: { state: "pending", retired: false, code: "delivery_worker_tuple_unavailable" },
-          wk_checkout: { state: "pending", code: "delivery_worker_tuple_unavailable" } } };
+          wk_checkout: { state: "pending", code: "delivery_worker_tuple_unavailable" },
+          slice_checkout: { state: "pending", reaped: false, code: "delivery_worker_tuple_unavailable" } } };
       }
       const finalized = await withDeliveryFinalization({ integration }, {
         status: { subject: approvedDelivery.subject, monitor_handle: approvedDelivery.launch_ref, run_id: pair.run_id },
@@ -60,7 +64,19 @@ export function integrateWorkBackendOptions({ workspace, sessionEnv = process.en
         deps: { retireManagedWorkerIdentity: backendOptions.requireManagedProvisioning === true ? retireManagedWorkerIdentity : null,
 
           synchronizeIntegratedWkWorktree: () => synchronizeWkWorktree({ mainRepo: trustedWorkspace.dir,
-            wkBinding: pair.wk_binding, integratedSha: integration.slice_sha }) } });
+            wkBinding: pair.wk_binding, integratedSha: integration.slice_sha }),
+
+          reapIntegratedSliceCheckout: async () => {
+            if (integration.delivery_sha !== approvedDelivery.commit) {
+              throw Object.assign(new Error("the integration result does not state the approved delivery commit"),
+                { code: "slice_checkout_reap_delivery_unconfirmed" });
+            }
+            return releaseSlice({ mainRepo: trustedWorkspace.dir, launchRef: pair.slice_binding.launch_ref,
+              runId: pair.slice_binding.run_id, retryId: pair.slice_binding.retry_id,
+              disposition: "successful-integration", workerTerminated: true, integrationSucceeded: true,
+              integratedSha: approvedDelivery.commit,
+              worktreeIdentityDigest: digestTrustedExactReviewEvidence(pair.slice_binding) });
+          } } });
       const { integration: _integration, ...finalization } = finalized;
       return { ...integration, ...finalization };
     } };

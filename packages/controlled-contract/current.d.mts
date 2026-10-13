@@ -437,6 +437,7 @@ export {
   OBLIGATION_COVERAGE_MAX_ROWS, OBLIGATION_COVERAGE_MAX_BYTES,
   validateObligationCoverageDraft, PROOF_AUTHORING_FIELDS, PROOF_AUTHORING_FIELD_SCHEMAS,
   upsertProofAuthoringSelection, removeProofAuthoringSelection, pinProofSelection,
+  PROOF_EXCEPTION_ACTIONS, PROOF_EXCEPTION_RATIONALE_SCHEMA, applyProofAuthoringException,
   loadPinnedProofSelection, ProofAuthoringError, assertProofAuthoringDraft,
   PROOF_AUTHORING_DIAGNOSTIC_GROUPS_VERSION, groupProofAuthoringDiagnostics,
   OBLIGATION_COVERAGE_SCHEMA_VERSION, OBLIGATION_COVERAGE_SCHEMA,

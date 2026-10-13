@@ -86,6 +86,12 @@ export function projectNativeNavigation(result, base, { limit = COMPACT_LIMIT } 
       hit_ids: hitIds.filter((id) => displayed.has(id)), total_hit_count: hitIds.length }));
   const scipAvailable = result?.scip_state?.scip_available === true &&
     result?.scip_state?.graph_available === true;
+
+  const limitations = list(result?.symbol_facts).filter((fact) => list(fact.limitations).length > 0);
+  const shownLimitations = limitations.slice(0, limit);
+
+  const dependencyLimitations = list(result?.dependency_limitations);
+  const shownDependencyLimitations = dependencyLimitations.slice(0, limit);
   return {
     ...base,
     resolution: { ...base.resolution, kind: resolution.kind ?? null,
@@ -101,6 +107,9 @@ export function projectNativeNavigation(result, base, { limit = COMPACT_LIMIT } 
       source_hits: counted(allHits.length, hits.length),
       context_regions: counted(allRegions.length, regions.length),
       complete_files: counted(list(result?.complete_files).length, 0),
+      limitations: counted(limitations.length, shownLimitations.length),
+      ...(dependencyLimitations.length > 0 ? { dependency_limitations:
+        counted(dependencyLimitations.length, shownDependencyLimitations.length) } : {}),
       summary: structuredClone(result?.summary?.counts ?? null)
     },
     candidates: shownCandidates.map((candidate) => {
@@ -117,9 +126,10 @@ export function projectNativeNavigation(result, base, { limit = COMPACT_LIMIT } 
     [field]: shownRows.map(compactRow),
     source_hits: hits.map(compactHit),
     context_regions: regions,
-    limitations: list(result?.symbol_facts).filter((fact) => list(fact.limitations).length > 0)
-      .map((fact) => ({ provider_id: fact.provider_id, symbol_id: fact.symbol_id,
-        limitations: [...fact.limitations] })),
+    limitations: shownLimitations.map((fact) => ({ provider_id: fact.provider_id,
+      symbol_id: fact.symbol_id, limitations: [...fact.limitations] })),
+    ...(dependencyLimitations.length > 0
+      ? { dependency_limitations: structuredClone(shownDependencyLimitations) } : {}),
     next_action: [base.next_action, scipAvailable ? RETAINED_ANSWER_NEXT_ACTION : null]
       .filter(Boolean).join(" ")
   };

@@ -11,6 +11,7 @@ import {
   gitStdout,
   requireRunGit
 } from "./terminal-materialization-primitives.mjs";
+import { verifiedNpmDependencyMappings } from "./test-execution/dependency-projection.mjs";
 
 export const TERMINAL_CANDIDATE_MATERIALIZATION_SCHEMA_VERSION =
   "agent_launch.terminal_candidate_materialization.v1";
@@ -74,7 +75,10 @@ export async function verifyTerminalCandidateCheckout({ binding, candidateRoot, 
 
     const trackedUnderMountpoint = await probe(["ls-files", "--", "node_modules"],
       "could not inspect candidate checkout dependency mountpoint tracking");
-    if (trackedUnderMountpoint === "") {
+    const verifiedMapping = trackedUnderMountpoint === "" && mountpointStat.isSymbolicLink() &&
+      verifiedNpmDependencyMappings({ repositoryRoot: binding.main_repo, checkoutRoot: checkoutPath })(checkoutPath)
+        .includes(dependencyMountpoint);
+    if (trackedUnderMountpoint === "" && !verifiedMapping) {
       if (!mountpointStat.isDirectory() || mountpointStat.isSymbolicLink() ||
           realpathSync(dependencyMountpoint) !== dependencyMountpoint) {
         fail(TERMINAL_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.VERIFY_FAILED,

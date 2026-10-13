@@ -95,6 +95,8 @@ function unavailable(issues) {
 
 function reportDiagnosis({ context, lines: collected, overflow }, workRoot) {
   const lines = [...collected];
+
+  while (lines[0] === "") lines.shift();
   while (lines.at(-1) === "") lines.pop();
   const header = HEADER_RE.exec(lines[0] ?? "");
   if (header === null) return unavailable([unreadable()]);
@@ -116,7 +118,9 @@ function reportDiagnosis({ context, lines: collected, overflow }, workRoot) {
   const text = boundedMessage(message, issues);
   const code = properties.code ?? (CODE_RE.test(header[2] ?? "") ? header[2] : undefined);
 
-  if (text === "" && code === undefined && firstFrame < 0) return unavailable([unreadable()]);
+  if (header[3] === undefined && code === undefined && firstFrame < 0) {
+    return unavailable([unreadable()]);
+  }
   const location = reportedLocation(context, firstFrame < 0 ? [] : lines.slice(firstFrame, lastFrame + 1),
     workRoot);
   return nativeRecordFailureDiagnostic({ origin: NODE_TEST_STARTUP_FAILURE_ORIGIN, issues,
@@ -138,8 +142,9 @@ export function nodeTestNativeReport({ workRoot }) {
       if (TERMINATOR_RE.test(text)) {
         result = block === null ? unavailable([unreadable()]) : reportDiagnosis(block, workRoot);
         block = null;
-      } else if (caret !== null && text === "") {
-        block = { context: caret.context, lines: [], overflow: false };
+      } else if (caret !== null) {
+
+        block = { context: caret.context, lines: text === "" ? [] : [text], overflow: false };
       } else if (block !== null) {
         if (block.lines.length < NODE_TEST_NATIVE_REPORT_BOUNDS.lines) block.lines.push(text);
         else block.overflow = true;

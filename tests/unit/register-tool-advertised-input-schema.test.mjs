@@ -54,7 +54,11 @@ import {
   recommendToolRouteFromVocabulary
 } from "../../packages/wiki-core/src/operations/tool-router.mjs";
 import { assertStructuredCarrier } from "../helpers/mcp-journey-accounting.mjs";
-import { factorSaveRecordRowIdentities } from "../../packages/wiki-mcp/src/lib/task-save-record-tools.mjs";
+import { createSaveRecordInputContract, saveRecordUnitVariant } from
+  "../../packages/wiki-mcp/src/lib/task-save-record-tools.mjs";
+import { createRequire } from "node:module";
+import { INPUT_SCHEMA_EXPOSURE_CODES } from "../../packages/wiki-mcp/src/lib/input-schema-exposure.mjs";
+import { createSaveRecordInputExposure } from "../../packages/wiki-mcp/src/lib/save-record-input-exposure.mjs";
 
 const AUTHORITATIVE = z.object({
   unit: z.string().regex(/^WK-[0-9]{4}$/u),
@@ -192,6 +196,53 @@ test("shared task correction removes only unsupported fields and passes the full
   assert.notEqual((await handler(corrected.arguments)).isError, true);
   assert.deepEqual(boundary.calls, [corrected.arguments]);
   assert.equal(args.answer.extra, true, "projection never changes the refused request");
+});
+
+test("owner-supplied read-only guidance stays beside the refusal's facts and is never a corrected request", async () => {
+
+  const read = { tool: PLAIN_ROUTE, recommended: true, purpose: "the applicable contract",
+    arguments: { reference: { ref_id: "aB3_dE9x" }, select: { context: true } } };
+  const guided = (ownerGuidance) => {
+    const boundary = createBoundary();
+    boundary.register({ description: "d", inputSchema: AUTHORITATIVE, advertisedInputSchema: ADVERTISED,
+      inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: {
+        ...jsonContent(await projectToolInputValidationFailure({ tool: boundary.toolName, args, validationError,
+          requestContract: boundary.contracts.contractFor(boundary.toolName),
+          ...(ownerGuidance === undefined ? {} : { ownerGuidance }) })), isError: true
+      } }) });
+    return { ...boundary, handler: boundary.registered.get(boundary.toolName).handler };
+  };
+  const authored = { unit: "WK-2665", answer: { kind: "wording" } };
+  const removable = { unit: "WK-2665", answer: { kind: "skip", extra: true } };
+  const plain = guided();
+  const defaults = { authored: (await plain.handler(authored)).structuredContent,
+    removable: (await plain.handler(removable)).structuredContent };
+
+  const withRead = guided({ calls: [read], reference_acquisition: { reads: ["record"], writes: [] } });
+  const body = (await withRead.handler(authored)).structuredContent;
+  assert.deepEqual(body.next_calls, [read]);
+  assert.match(body.correction, /^Supply the missing caller choices.*they write nothing and are not a corrected request\.$/u);
+  assert.deepEqual(body.owner_guidance, { reference_acquisition: { reads: ["record"], writes: [] } });
+  assert.deepEqual([body.invalid_fields, body.required_inputs, body.issue_count, body.code, body.accepted],
+    [defaults.authored.invalid_fields, defaults.authored.required_inputs, defaults.authored.issue_count,
+      "tool_input_validation_failed", false], "the field and caller-choice facts are unchanged");
+  assert.deepEqual(withRead.calls, [], "the full validator still refuses before the handler");
+
+  const both = (await withRead.handler(removable)).structuredContent;
+  assert.deepEqual(both.next_calls[0], defaults.removable.next_calls[0]);
+  const { recommended: _recommended, ...alongside } = read;
+  assert.deepEqual(both.next_calls.slice(1), [alongside]);
+  assert.match(both.correction, /^Call the corrected request with the unsupported fields removed\. The read-only calls/u);
+
+  const unavailable = { state: "unavailable", missing_capability: "c", owner: "o", reason: "r" };
+  const none = (await guided({ calls: [], unavailable }).handler(authored)).structuredContent;
+  assert.deepEqual([none.next_calls, none.owner_guidance, none.correction],
+    [[], { unavailable }, defaults.authored.correction]);
+  for (const absent of [null, { calls: [] }]) {
+    assert.deepEqual((await guided(absent).handler(authored)).structuredContent, defaults.authored);
+    assert.deepEqual((await guided(absent).handler(removable)).structuredContent, defaults.removable);
+  }
+  assert.equal(Object.hasOwn(defaults.authored, "owner_guidance"), false);
 });
 
 test("shared task refusals retain each union branch's useful schema diagnosis", async () => {
@@ -645,6 +696,9 @@ test("a declared published-schema projection is listed and retained as one decla
   const row = (identity, title) => z.object({ ...identity, title, note: z.string().max(8).optional() }).strict();
   const keyed = z.object({ unit: z.string(), rows: z.array(z.union([
     row({ key: z.string().regex(/^[a-z]+$/u) }, z.string()), row({ id: z.number().int() }, z.string().optional())])) }).strict();
+
+  const deferRows = (schema) => ({ ...schema, properties: { ...schema.properties,
+    rows: { description: "Rows are declared in full by the owner." } } });
   let servers = 0;
   const connected = async () => {
     const server = new McpServer({ name: "projection", version: "1" });
@@ -665,26 +719,17 @@ test("a declared published-schema projection is listed and retained as one decla
   const handled = [];
   const handler = async (args) => { handled.push(args); return { content: [{ type: "text", text: "ok" }] }; };
   boundary.registerTool(PRIMARY_ROUTE, { description: "d", inputSchema: keyed, advertisedInputSchema: keyed,
-    publishedInputSchemaProjection: factorSaveRecordRowIdentities }, handler);
+    publishedInputSchemaProjection: deferRows }, handler);
   boundary.registerTool(PLAIN_ROUTE, { description: "d", inputSchema: keyed }, handler);
   const client = await connect();
   const listed = new Map((await client.listTools()).tools.map(tool => [tool.name, tool.inputSchema]));
   const converted = toJsonSchemaCompat(keyed, { strictUnions: true, pipeStrategy: "input" });
-  const title = { type: "string" }, note = { type: "string", maxLength: 8 };
-  const key = { type: "string", pattern: "^[a-z]+$" }, id = { type: "integer" };
-  assert.deepEqual(listed.get(PRIMARY_ROUTE).properties.rows, { type: "array", description: "key and id are mutually exclusive.",
-    items: { description: "key and id are mutually exclusive.", allOf: [
-      { type: "object", properties: { key, title, note, id }, additionalProperties: false },
-      { anyOf: [{ type: "object", properties: { key, title }, required: ["key", "title"], not: { required: ["id"] } },
-        { type: "object", properties: { id }, required: ["id"], not: { required: ["key"] } }] }] } });
+  assert.deepEqual(listed.get(PRIMARY_ROUTE), { ...converted, properties: { ...converted.properties,
+    rows: { description: "Rows are declared in full by the owner." } } }, "the projection of the SDK conversion is what is listed");
   assert.deepEqual(listed.get(PRIMARY_ROUTE), boundary.contracts.contractFor(PRIMARY_ROUTE).publishedRequestSchema(),
     "tools/list and the retained contract state one declaration");
   assert.deepEqual(listed.get(PLAIN_ROUTE), converted, "a registration without a projection lists the SDK conversion");
   assert.deepEqual(boundary.contracts.contractFor(PLAIN_ROUTE).publishedRequestSchema(), converted);
-
-  const closed = z.object({ key: z.string().optional(), id: z.number().optional() }).strict();
-  assert.equal(Object.hasOwn(toJsonSchemaCompat(z.object({ row: z.intersection(closed, z.object({}).passthrough()) }),
-    { strictUnions: true, pipeStrategy: "input" }).properties.row.allOf[0], "additionalProperties"), false);
 
   const refused = await client.callTool({ name: PRIMARY_ROUTE,
     arguments: { unit: "WK-2520", rows: [{ key: "new", title: "T", unlisted: true }] } });
@@ -702,7 +747,101 @@ test("a declared published-schema projection is listed and retained as one decla
   late.server.registerTool("unmanaged", { description: "d" }, handler);
   const lateBoundary = createBoundary({ server: late.server });
   assert.throws(() => lateBoundary.register({ description: "d", inputSchema: keyed,
-    publishedInputSchemaProjection: factorSaveRecordRowIdentities }), /agent_tool_published_schema_projection_unavailable/u);
+    publishedInputSchemaProjection: deferRows }), /agent_tool_published_schema_projection_unavailable/u);
+});
+
+test("compact advertisements preserve registrar authority and full validation", async (t) => {
+  const scope = createTestResourceScope();
+  t.after(() => scope.dispose());
+  const contract = createSaveRecordInputContract(z);
+  const declaration = { description: "d", inputSchema: contract.inputSchema,
+    advertisedInputSchema: contract.advertisedInputSchema,
+    publishedInputSchemaProjection: contract.publishedInputSchemaProjection, inputSchemaExposure: saveExposure() };
+  const server = new McpServer({ name: "compact", version: "1" });
+  const client = new Client({ name: "reader", version: "1" });
+  scope.add("compact server", () => server.close());
+  scope.add("compact client", () => client.close());
+  const boundary = createBoundary({ server });
+  boundary.register(declaration);
+  const [left, right] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(right), client.connect(left)]);
+  const listed = (await client.listTools()).tools.find(tool => tool.name === PRIMARY_ROUTE).inputSchema;
+  const retained = boundary.contracts.contractFor(PRIMARY_ROUTE);
+  assert.deepEqual(listed, retained.publishedRequestSchema(), "tools/list and the retained contract state one declaration");
+
+  const flat = toJsonSchemaCompat(contract.advertisedInputSchema, { strictUnions: true, pipeStrategy: "input" });
+  const { changes: listedChanges, ...listedEnvelope } = listed.properties;
+  const { changes: flatChanges, ...flatEnvelope } = flat.properties;
+  assert.deepEqual([listedEnvelope, listed.required, listed.additionalProperties, listedChanges.description],
+    [flatEnvelope, flat.required, flat.additionalProperties, flatChanges.description]);
+  const published = { work_item_slice: 0, initiative: 1, decision: 2 };
+  for (const [variant, index] of Object.entries(published)) {
+    const source = SAVE_SOURCES[variant], compact = listedChanges.anyOf[index];
+    assert.deepEqual(Object.keys(compact.properties), Object.keys(source.properties), `${variant}: every member, in owner order`);
+    assert.deepEqual([compact.type, compact.additionalProperties, compact.minProperties], ["object", false, 1]);
+    for (const [member, node] of Object.entries(compact.properties)) {
+      const owner = source.properties[member];
+      const deferred = Object.keys(node).every(keyword => keyword === "description");
+      if (deferred) assert.equal(node.description, owner.description, `${variant}.${member}: deferred with the owner's description`);
+      else assert.deepEqual(node, owner, `${variant}.${member}: a published member is the owner's complete declaration`);
+    }
+    assert.equal(JSON.stringify(compact).includes("$ref") || Object.hasOwn(compact, "$defs"), false);
+  }
+  assert.deepEqual(Object.entries(listedChanges.anyOf[0].properties).filter(([, node]) => Object.keys(node).length > 0 &&
+    !Object.keys(node).every(keyword => keyword === "description")).map(([member]) => member),
+  ["title", "priority", "base_branch", "owner", "initiative", "work_kind", "target_unit", "agent_role",
+    "expected_changed_line_budget", "status"], "exactly the scalar members stay typed");
+  const bytes = { flat: Buffer.byteLength(JSON.stringify(flat)), compact: Buffer.byteLength(JSON.stringify(listed)) };
+  assert.ok(bytes.compact * 8 < bytes.flat, JSON.stringify(bytes));
+
+  const Ajv = createRequire(import.meta.url)("ajv");
+  const admits = new Ajv({ strict: false, allErrors: true }).compile(listed);
+  const revision = `sha256:${"a".repeat(64)}`;
+  const ownerValid = [
+    { unit: "WK-0001", revision, changes: { title: "T", notes: "N", tasks: [{ action: "append_todo", value: "t" }] } },
+    { unit: "WK-0001", revision, changes: { criteria: [{ key: "criterion", text: "Meaning." }, { id: "criterion-a" }],
+      entries: [{ key: "design", title: "Design", content: { text: "Body." } }, { id: 1, title: "Retitled" }],
+      controlled_acceptance: { disposition: "required" },
+      obligations: [{ key: "proof", statement: "S", criteria: ["$criterion"], proof: { name: "p", parameters: { any: [1, { open: true }] } } }] } },
+    { unit: "WK-0001#SLICE-001", revision, changes: { work_kind: "implementation", expected_changed_line_budget: 3, priority: "high" } },
+    { unit: "IN-0001", revision, changes: { title: "Initiative", summary: "S" } },
+    { unit: "DEC-0001", revision, changes: { title: "Decision" } },
+    { unit: "WK-0001", maintenance_retry: { save_result: { ref_id: "aB3_dE9x" } } }];
+  for (const request of ownerValid) {
+    assert.equal(contract.inputSchema.safeParse(request).success, true, `owner-valid: ${JSON.stringify(request)}`);
+    assert.equal(admits(request), true, `admitted by the compact declaration: ${JSON.stringify(request)}`);
+  }
+
+  for (const request of [{ unit: "WK-0001", revision, changes: { no_such_member: 1 } },
+    { unit: "WK-0001", revision, changes: { priority: "urgent" } }, { unit: "WK-0001", revision, changes: {}, extra: 1 }]) {
+    assert.equal(admits(request), false, JSON.stringify(request));
+  }
+
+  const handler = (args) => client.callTool({ name: PRIMARY_ROUTE, arguments: args });
+  for (const changes of [{ entries: [{ id: 1, content: { texts: "x" } }] }, { criteria: [{ key: "INVALID LABEL", text: "t" }] },
+    { obligations: [{ key: "proof", case: { key: "case", unavailable: true } }] }, { notes: 7 }]) {
+    const request = { unit: "WK-0001", revision, changes };
+    assert.equal(admits(request), true, `the compact declaration admits it: ${JSON.stringify(changes)}`);
+    assert.equal(await retained.acceptsArguments(request), false, JSON.stringify(changes));
+    assert.equal((await handler(request)).isError, true, JSON.stringify(changes));
+  }
+  assert.deepEqual(boundary.calls, [], "no refused request reached the handler");
+  const valid = { unit: "WK-0001", revision, changes: { criteria: [{ key: "criterion", text: "Meaning." }],
+    entries: [{ id: 1, title: "Retitled" }] } };
+  assert.equal(await retained.acceptsArguments(valid), true);
+  assert.notEqual((await handler(valid)).isError, true);
+  assert.deepEqual(boundary.calls, [valid], "the first call is the save itself");
+
+  assert.equal(retained.inputSchemaExposure.source("work_item_slice").select({ members: ["obligations"] }).schema.properties.obligations,
+    SAVE_SOURCES.work_item_slice.properties.obligations);
+
+  const hidden = createBoundary({ toolProfile: "reviewer" });
+  hidden.register(declaration);
+  assert.deepEqual([hidden.registered.size, hidden.contracts.contractFor(PRIMARY_ROUTE)], [0, null]);
+  const failed = createBoundary({ server: { registerTool() { throw new Error("sdk refused registration"); } } });
+  assert.throws(() => failed.register(declaration), /sdk refused registration/u);
+  assert.equal(failed.contracts.contractFor(PRIMARY_ROUTE), null);
+  assert.equal(createBoundary().contracts.contractFor(PRIMARY_ROUTE), null, "another registrar holds no declaration of this one");
 });
 
 test("hidden, skipped and failed registrations lend no contract, and registrars stay isolated", async () => {
@@ -751,6 +890,72 @@ test("a conflicting registration withdraws the retained contract instead of leav
   assert.throws(() => boundary.register({ description: "d", inputSchema: original }),
     (error) => error.code === CONFLICT);
   assert.equal(boundary.contracts.contractFor(PLAIN_ROUTE), null);
+});
+
+const SAVE_SOURCES = createSaveRecordInputContract(z).changeSchemas;
+const saveExposure = (changeSchemas = SAVE_SOURCES) => createSaveRecordInputExposure({ changeSchemas,
+  variants: ["WK-0001", "WK-0001#SLICE-001", "IN-0001", "DEC-0001"].map(unit => saveRecordUnitVariant(unit)) });
+
+test("a declared input schema exposure is bound with a successful registration and decides nothing", async () => {
+  const boundary = createBoundary();
+  const declared = { description: "d", inputSchema: AUTHORITATIVE, advertisedInputSchema: ADVERTISED,
+    inputSchemaExposure: saveExposure() };
+  boundary.register(declared);
+  const { config, handler } = boundary.registered.get(PRIMARY_ROUTE);
+  assert.equal(Object.hasOwn(config, "inputSchemaExposure"), false, "the declaration never reaches the SDK");
+  const contract = boundary.contracts.contractFor(PRIMARY_ROUTE);
+  const selected = contract.inputSchemaExposure.source("work_item").select({ groups: ["acceptance"], members: ["title"] });
+  assert.deepEqual(selected.members, ["title", "criteria", "requirements", "obligations", "controlled_acceptance"]);
+  assert.equal(selected.schema.properties.obligations, SAVE_SOURCES.work_item.properties.obligations);
+
+  const without = createBoundary();
+  without.register({ description: "d", inputSchema: AUTHORITATIVE, advertisedInputSchema: ADVERTISED });
+  assert.deepEqual(contract.publishedRequestSchema(), without.contracts.contractFor(PRIMARY_ROUTE).publishedRequestSchema());
+  assert.equal(without.contracts.contractFor(PRIMARY_ROUTE).inputSchemaExposure, null);
+  assert.equal(await contract.acceptsArguments({ unit: "WK-2520", answer: { kind: "wording" } }), false);
+  const refused = await handler({ unit: "WK-2520", answer: { kind: "wording" } });
+  assert.deepEqual([refused.isError, refused.structuredContent.diagnostic.code], [true, "tool_input_validation_failed"]);
+  assert.deepEqual(boundary.calls, [], "the full validator refuses before the handler, whatever a selection disclosed");
+
+  boundary.register({ ...declared, inputSchemaExposure: saveExposure() });
+  assert.equal(boundary.contracts.contractFor(PRIMARY_ROUTE), contract);
+});
+
+test("an input schema exposure is lent by no hidden, invalid, failed or conflicting registration", () => {
+  const declared = { description: "d", inputSchema: AUTHORITATIVE, advertisedInputSchema: ADVERTISED,
+    inputSchemaExposure: saveExposure() };
+  const hidden = createBoundary({ toolProfile: "reviewer" });
+  hidden.register(declared);
+  assert.equal(hidden.contracts.contractFor(PRIMARY_ROUTE), null);
+
+  const invalid = createBoundary();
+  const { groups } = declared.inputSchemaExposure.sources.work_item;
+  assert.throws(() => invalid.register({ ...declared, inputSchemaExposure: { ...declared.inputSchemaExposure,
+    sources: { ...declared.inputSchemaExposure.sources,
+      work_item: { ...declared.inputSchemaExposure.sources.work_item, groups: groups.slice(1) } } } }),
+  (error) => error.code === INPUT_SCHEMA_EXPOSURE_CODES.MEMBER_UNASSIGNED);
+  assert.equal(invalid.registered.size, 0);
+  assert.equal(invalid.contracts.contractFor(PRIMARY_ROUTE), null);
+
+  const failed = createBoundary({ server: { registerTool() { throw new Error("sdk refused registration"); } } });
+  assert.throws(() => failed.register(declared), /sdk refused registration/u);
+  assert.equal(failed.contracts.contractFor(PRIMARY_ROUTE), null);
+
+  const first = createBoundary(), second = createBoundary();
+  first.register(declared);
+  assert.equal(second.contracts.contractFor(PRIMARY_ROUTE), null);
+  second.register(declared);
+  assert.notEqual(first.contracts.contractFor(PRIMARY_ROUTE).inputSchemaExposure,
+    second.contracts.contractFor(PRIMARY_ROUTE).inputSchemaExposure);
+
+  const changedSource = JSON.parse(JSON.stringify(SAVE_SOURCES.work_item));
+  changedSource.properties.title = { type: "string", maxLength: 8 };
+  assert.throws(() => first.register({ ...declared, inputSchemaExposure: saveExposure({ ...SAVE_SOURCES, work_item: changedSource }) }),
+    (error) => error.code === CONFLICT);
+  assert.equal(first.contracts.contractFor(PRIMARY_ROUTE), null);
+  assert.throws(() => second.register({ description: "d", inputSchema: AUTHORITATIVE, advertisedInputSchema: ADVERTISED }),
+    (error) => error.code === CONFLICT, "dropping the declaration is a different contract");
+  assert.equal(second.contracts.contractFor(PRIMARY_ROUTE), null);
 });
 
 const GENERATED = z.object({

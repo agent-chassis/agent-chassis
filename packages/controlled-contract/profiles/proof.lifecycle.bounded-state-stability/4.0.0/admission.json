@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "07485182dab6b90eb077ca3b91268e58d0552f4246db4dd3f8bced76f64bd023",
+  "parameter_contract_digest": "ff6e3189124a30cd378d6d5a6ef4145d8a7670e1a0423b24589fdaa457a98da4",
   "profile_id": "proof.lifecycle.bounded-state-stability",
   "profile_version": "4.0.0",
-  "profile_digest": "b4eb7cd57b344d8dec861f7231ae4b0e4b39917581078aec6ea5651378aa5cae",
+  "profile_digest": "4d3c0633d235478ec0a8936feb30a00be61aadfef94588ae2aeab39db59579fc",
   "guarantee": "For one subject, without asserting terminality, with one elected baseline state at a start boundary and a distinct later end boundary, the complete nonempty observation population lies strictly inside the bounded interval; every observation reads that same subject and records the baseline state, and the complete observed-state population equals the complete singleton baseline-state population.",
   "guarantee_digest": "f83f797c792540d6085598adc202a6f6fb603bc3bc7bd324245e454113d709cd",
   "explicit_exclusions": [
@@ -17,10 +17,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "69cb8ff887eea28e008fcb1a8311dd4a1e427c58a0fb98e0e33bceb1b53f4644",
-    "adequacy_result_digest": "16ad264445509ad646ab010ba404e076ee27b7b2fb77f394eaf9114ab1eb257a",
-    "executable_control_count": 36,
-    "negative_fixture_count": 3,
+    "adequacy_declaration_digest": "72c2152acff15803068af558994d00e21a1e14eb3229d184dea87dfd49a7b868",
+    "adequacy_result_digest": "9d574250096433269674d29fa9b64ea9aff50063e4d3fea3f06637d4db791c27",
+    "executable_control_count": 38,
+    "negative_fixture_count": 4,
     "coverage_witness_count": 76
   }
 }

@@ -56,6 +56,7 @@ import {
 import { mcpMetricsServerEnv } from "./mcp-metrics-config.mjs";
 import { nativeUsageTaskEnv } from "@agent-chassis/agent-launch-core/src/lib/native-usage-records.mjs";
 import { projectProxyEnvironment } from "@agent-chassis/agent-launch-core/src/lib/proxy-environment.mjs";
+import { projectHostServerRuntimeEnvironment } from "./test-runtime-setup/location-environment.mjs";
 import {
   LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION,
   WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR,
@@ -347,6 +348,8 @@ function buildServerEnv(input, role, {
     ...(process.env.TZ ? { TZ: process.env.TZ } : {}),
 
     ...projectProxyEnvironment(process.env),
+
+    ...projectHostServerRuntimeEnvironment(process.env),
 
     NODE_USE_ENV_PROXY: process.env.NODE_USE_ENV_PROXY ?? "1",
     WIKI_MCP_TOOL_PROFILE: role,

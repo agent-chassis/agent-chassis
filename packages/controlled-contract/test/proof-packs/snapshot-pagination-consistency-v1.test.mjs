@@ -41,7 +41,7 @@ test("snapshot pack passes its executable adequacy and published admission", asy
     variationMode: "full_census"
   });
   assert.equal(result.passed, true);
-  assert.equal(result.control_count, 26);
+  assert.equal(result.control_count, 28);
   assert.equal(result.negative_fixture_count, 126);
   assert.equal(result.coverage_witness_count, 126);
   const admission = await json(runtimeDirectory, "admission.json");

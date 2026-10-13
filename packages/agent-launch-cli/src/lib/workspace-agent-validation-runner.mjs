@@ -1,7 +1,7 @@
 
 
 import path from "node:path";
-import { existsSync, mkdirSync, realpathSync, rmSync, statSync, accessSync, constants } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, accessSync, constants } from "node:fs";
 
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
@@ -49,6 +49,8 @@ import { assertLauncherTestProofRuntimeAuthority } from
   "./workspace-agent-test-proof-runtime-identity.mjs";
 import { mintProofStage, runOrdinaryTestFile, runProofStageTestFile } from
   "./test-execution/ordinary-test-runner.mjs";
+import { inspectDependencyMountpoint } from "./dependency-mountpoint-occupant.mjs";
+import { compiledValidatorCacheRoot } from "@agent-chassis/controlled-contract/validator-cache";
 
 const AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS = Object.freeze({
   node_check: Object.freeze({
@@ -732,17 +734,8 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
   });
   if (isWorkspaceAgentValidationRunRefusal(authorized)) return authorized;
 
-  const consumesProjection = execution === null || execution.consumer_dependencies === true;
-  const dependencyProof = consumesProjection ? authority.dependency_proof : null;
-  const reviewerBinds = dependencyProof?.projection_selected === true
-    ? [...dependencyProof.reviewer_read_only_binds]
-    : [];
-  if (dependencyProof?.projection_selected === true) {
-    assertSelectedDependencyMountIntegrity(dependencyProof);
-  }
-
-  const authorityBinds = [...reviewerBinds, ...(dependencyProof?.validator_cache_read_only_binds ?? [])
-    .filter(({ dst }) => !reviewerBinds.some((bind) => bind.dst === dst))];
+  const consumesValidatorCache = execution === null || execution.consumer_dependencies === true;
+  const authorityBinds = consumesValidatorCache ? [...(authority.validator_cache_read_only_binds ?? [])] : [];
 
   const request = {
     repositoryRoot: authority.main_repo,
@@ -754,13 +747,6 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
   };
   const envelope = {
     unit: authority.selected_unit,
-    dependency: Object.freeze({
-      mount_selected: dependencyProof?.projection_selected === true,
-      projection_identity: dependencyProof?.projection_identity ?? null,
-      installation_digest: dependencyProof?.dependency_installation_digest ?? null,
-      ...(consumesProjection ? {} : { consumer_dependency_projection: "not_consumed" }),
-      advisory: true
-    }),
     advisory: true,
     admission_effect: "none",
     review_effect: "none",
@@ -774,6 +760,20 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
   const stage = authorityBinds.length === 0 ? execution.stage : mintProofStage({
     compilerCache: execution.stage.compilerCache,
     compose: async (facts) => {
+      const expectedCacheRoot = compiledValidatorCacheRoot();
+      const expectedCacheDestination = path.join(authority.worktree_path,
+        ".cache", "controlled-contract", "validators");
+      for (const bind of authorityBinds) {
+        if (bind.src === bind.dst) continue;
+        if (bind.src === expectedCacheRoot && bind.dst === expectedCacheDestination) {
+          projectVerifiedValidatorCache(bind);
+          continue;
+        }
+        throw proofStageInputProjectionError(bind,
+          Object.assign(new Error("authenticated differing input mapping has no host projection owner"), {
+            code: "unsupported_authenticated_mapping"
+          }));
+      }
       const composed = await execution.stage.compose(facts);
       const mounted = new Set(facts.runtime.binds.map(({ dst }) => dst));
       return { ...composed, additions: { ...(composed.additions ?? {}),
@@ -783,6 +783,84 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
   });
   const result = await runProofStageTestFile(request, stage);
   return proofStageRun({ result, authorized, execution, executionBudget, envelope });
+}
+
+function proofStageInputProjectionError({ src, dst }, cause) {
+  return Object.assign(new Error(
+    `authenticated proof input could not be projected from ${src} to ${dst}: ${cause?.message ?? String(cause)}`
+  ), {
+    code: "proof_stage_input_projection_failed.v1",
+    details: Object.freeze({ source: src, destination: dst,
+      cause_code: cause?.code ?? null, cause_details: cause?.details ?? cause?.detail ?? null })
+  });
+}
+
+function projectVerifiedValidatorCache({ src, dst }) {
+  try {
+    const sourceStat = lstatSync(src);
+    const sourceReal = realpathSync(src);
+    if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink() || sourceReal !== src) {
+      throw Object.assign(new Error("verified validator cache source is no longer a real directory"), {
+        code: "validator_cache_source_changed"
+      });
+    }
+    const checkoutRoot = path.resolve(dst, "..", "..", "..", "..");
+    const relative = path.relative(checkoutRoot, path.dirname(dst));
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw Object.assign(new Error("validator cache destination escaped its authenticated checkout"), {
+        code: "validator_cache_destination_invalid"
+      });
+    }
+    let parent = checkoutRoot;
+    for (const segment of relative.split(path.sep).filter(Boolean)) {
+      parent = path.join(parent, segment);
+      try {
+        lstatSync(parent);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+        mkdirSync(parent, { mode: 0o700 });
+      }
+      const parentStat = lstatSync(parent);
+      if (!parentStat.isDirectory() || parentStat.isSymbolicLink() || realpathSync(parent) !== parent) {
+        throw Object.assign(new Error(`validator cache destination parent is redirected: ${parent}`), {
+          code: "validator_cache_destination_parent_invalid"
+        });
+      }
+    }
+    let occupant = inspectDependencyMountpoint(dst);
+    if (occupant.state === "absent") {
+      try {
+        symlinkSync(src, dst, "dir");
+        return;
+      } catch (error) {
+        if (error?.code !== "EEXIST") throw error;
+
+        occupant = inspectDependencyMountpoint(dst);
+      }
+    }
+    if (occupant.state !== "occupied" || occupant.kind !== "symlink") {
+      const kind = occupant.kind ?? occupant.state;
+      throw Object.assign(new Error(
+        `validator cache destination ${dst} is occupied by ${kind}; remove or relocate that conflicting entry before retrying`
+      ), {
+        code: "validator_cache_destination_conflict",
+        details: Object.freeze({ occupant_state: occupant.state, occupant_kind: kind })
+      });
+    }
+    const linkTarget = readlinkSync(dst);
+    const occupantReal = realpathSync(dst);
+    if (occupantReal !== sourceReal) {
+      throw Object.assign(new Error(
+        `validator cache destination ${dst} is a symlink to ${linkTarget} (resolved as ${occupantReal}), not ${sourceReal}; remove or relocate that conflicting link before retrying`
+      ), {
+        code: "validator_cache_destination_conflict",
+        details: Object.freeze({ occupant_state: occupant.state, occupant_kind: occupant.kind,
+          occupant_target: linkTarget, occupant_realpath: occupantReal })
+      });
+    }
+  } catch (error) {
+    throw proofStageInputProjectionError({ src, dst }, error);
+  }
 }
 
 function proofStageRun({ result, authorized, execution, executionBudget, envelope }) {
@@ -798,13 +876,14 @@ function proofStageRun({ result, authorized, execution, executionBudget, envelop
     target: authorized.posixRelative,
     raw_exec_enabled: false,
     enforcement_posture: Object.freeze({
-      confined: true,
-      execution_context: "confined_target_execution",
+      confined: false,
+      execution_context: "host_test_execution",
       executes_target: true,
-      repo_mount: "read_only",
-      secrets_masked: true,
-      network: "denied",
-      env: "launcher_minted_clean",
+      filesystem: "host_permissions",
+      network: "host_permissions",
+      repo_mount: "host_checkout",
+      secrets_masked: false,
+      env: "curated_test_environment",
       spawn_site: "launcher_shared_test_runner"
     })
   };
@@ -817,7 +896,7 @@ function proofStageRun({ result, authorized, execution, executionBudget, envelop
     resolution: Object.freeze((result.resolution ?? []).map(({ invocation, run }) => Object.freeze({ invocation,
       disposition: run.disposition, exit_code: run.exit_code ?? null, timed_out: run.timed_out === true })))
   });
-  if (result.status === "executed" || result.status === "not_run") {
+  if (result.status === "executed" || result.status === "not_run" || result.status === "unconfirmed") {
     return Object.freeze({ ...result.run, ...labels, runner_execution: runnerExecution, ...envelope });
   }
   const interruption = executionBudget?.interruption() ?? null;

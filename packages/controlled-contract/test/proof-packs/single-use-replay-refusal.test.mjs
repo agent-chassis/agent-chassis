@@ -1,3 +1,4 @@
+import { loadProofPack } from "../support/proof-pack-adequacy.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -30,6 +31,7 @@ const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const identity = { profile_id: "proof.single-use.replay-refusal", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 
 const readJson = (name) => readDefinitionDocument(identity, name);
@@ -56,16 +58,16 @@ test("single-use replay refusal binds and passes the complete release corpus", a
   ]);
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
-  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 263);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 138);
+  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 260);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 141);
 
   const result = await runProofPackAdequacy(packDirectory, {
     variationMode: "full_census"
   });
   assert.equal(result.passed, true);
-  assert.equal(result.control_count, 40);
-  assert.equal(result.negative_fixture_count, 16);
-  assert.equal(result.coverage_witness_count, 263);
+  assert.equal(result.control_count, 55);
+  assert.equal(result.negative_fixture_count, 22);
+  assert.equal(result.coverage_witness_count, 260);
   assert.equal(result.negative_fixture_results.every(
     ({ outcome }) => outcome === "rejected"
   ), true);
@@ -147,7 +149,7 @@ test("relation, collection, and distinct-role mechanisms independently matter", 
   for (const mutate of mutations) {
     const profile = structuredClone(original);
     mutate(profile);
-    const observations = await runProofPackAdequacyControls({ profile });
+    const observations = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile });
     assert.equal(adequacySubstancePasses(observations.controls), false);
   }
 });

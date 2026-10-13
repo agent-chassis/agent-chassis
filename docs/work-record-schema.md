@@ -229,6 +229,42 @@ slice, or reshaping a slice to implementation, requires an authored non-empty
 `write_scope`. Edit authority is never inferred from `read_scope`,
 `repo_paths`, or `expected_edit_targets`.
 
+### Slice regression tests
+
+A slice may carry `regression_tests`: an ordered list of existing test files
+that a verification of that slice runs beside its saved proofs. The field is
+optional and exists on slices only; a work record that carries it at the top
+level is invalid.
+
+- Each entry is one literal repository-relative file, held to the same rule as
+  a scope entry: a malformed, absolute or escaping path, a directory and a glob
+  are refused. An entry listed twice is refused, so each file runs exactly
+  once. No file extension is required, and no runner, command or selector is
+  part of an entry.
+- An omitted list and an empty list are both valid and both declare no
+  regression run.
+- The list is stored in the order and spelling it was authored in. It is
+  authored on a selected slice unit (`regression_tests` of a `save_record` on
+  `WK#SLICE`) or on a slice row (`ready_slices[]` or `slices[]` of a save on the
+  parent), and both routes store the same value. Authoring it on the parent
+  record is refused with the slice placements named.
+- The list changes no scope and is checked against none. A listed file may be
+  outside the slice's `read_scope`, and may be inside its `write_scope`:
+  choosing tests the worker is not asked to edit is authoring advice, not a
+  rule. Nothing about the list prevents a listed file from being edited.
+- Choosing the list is authoring advice carried by the orchestrator role guide:
+  use `query_code_index` references and impact information to find affected
+  callers and relevant existing tests, including consumers outside the edit
+  scope, inspect the candidates, declare the appropriate files on the slices
+  whose workers they concern, and put the supporting context those workers need
+  in `read_scope`. Index coverage can be incomplete, so a file absent from the
+  results is not thereby irrelevant. The guide asks for a relevant selection,
+  not a whole-suite run.
+
+The selected-slice read, the slice brief and the worker assignment summary
+carry the list as authored. How the files run is described in
+[Test Proof Execution](test-proof-execution.md#declared-regression-files).
+
 ### Findings units
 
 A findings unit is one whose `work_kind` is `review` or `redteam`. `work_kind` is

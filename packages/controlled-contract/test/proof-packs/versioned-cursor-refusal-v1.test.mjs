@@ -51,9 +51,9 @@ test("versioned cursor pack passes executable adequacy and admission", async () 
     variationMode: "full_census"
   });
   assert.equal(result.passed, true);
-  assert.equal(result.control_count, 33);
-  assert.equal(result.negative_fixture_count, 232);
-  assert.equal(result.coverage_witness_count, 232);
+  assert.equal(result.control_count, 51);
+  assert.equal(result.negative_fixture_count, 226);
+  assert.equal(result.coverage_witness_count, 226);
   const admission = await json(runtimeDirectory, "admission.json");
   assert.ok(admission.explicit_exclusions.includes(
     "standalone-traversal-completeness"

@@ -8,8 +8,10 @@ import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
 import {
   classifySidecarPreparation,
   isSidecarBaseInputPath,
+  isSidecarProviderCoverageSettled,
   prepareSidecarIncrementalDelta,
-  SIDECAR_EXTRACTION_BASIS
+  SIDECAR_EXTRACTION_BASIS,
+  SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED
 } from "./sidecar-incremental.mjs";
 import { filterSidecarSourcePaths } from "./sidecar-paths.mjs";
 import { compareSidecarProviderInputRecords } from "./sidecar-scip-project-inputs.mjs";
@@ -19,9 +21,14 @@ import {
   isSidecarGoProjectFile,
   observeSidecarProviderRecordAgain,
   planSidecarProviderProjects,
+  SCIP_TYPESCRIPT_PROJECT_CONFIG,
+  SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE,
+  sidecarDependencyLimitations,
   sidecarGoModules
 } from "./sidecar-scip-projects.mjs";
+import { typescriptConfigPackagePopulation } from "./sidecar-scip-typescript-config.mjs";
 import {
+  describeSidecarGoToolchainsAtCommit,
   describeSidecarRustProjectsAtCommit,
   discoverSidecarScipProjects,
   runScipProjectsFromCommittedSnapshot,
@@ -44,6 +51,8 @@ import { binaryCompare } from "./sidecar-store-queries.mjs";
 import { SIDECAR_STORE_SCHEMA_VERSION } from "./sidecar-store-schema.mjs";
 
 export const SCIP_STATUS_PROVIDERS_INACTIVE = "scip_providers_inactive";
+
+export const SCIP_STATUS_DEPENDENCIES_UNAVAILABLE = "scip_dependencies_unavailable";
 
 const ZERO_METRICS = Object.freeze({
   parsed_files: 0, affected_units: 0, file_upserts: 0, file_deletes: 0,
@@ -122,6 +131,14 @@ async function readProjectFiles(repoRoot, tracked) {
   }));
 }
 
+async function readCommittedText(repoRoot, tracked, relativePath) {
+  const file = tracked.find(({ path: value }) => value === relativePath);
+  if (!file) return null;
+  const entry = (await readCommittedBlobBytes({ repoRoot, objectIds: [file.blob_oid] }))
+    .get(file.blob_oid.toLowerCase());
+  return entry?.state === "available" ? entry.bytes.toString("utf8") : null;
+}
+
 function symbolValue(nodeId) {
   return typeof nodeId === "string" && nodeId.startsWith("symbol:")
     ? nodeId.slice("symbol:".length)
@@ -183,7 +200,16 @@ function providerCoverageEntry(project, layer, inputCommit) {
 
     uncovered_documents: coverage.uncovered_documents ?? [],
     unattributed_reference_count: coverage.unattributed_reference_count ?? 0,
-    call_graph_available: coverage.call_graph_available === true
+    call_graph_available: coverage.call_graph_available === true,
+
+    ...(layer.dependency_limitation ? { dependency_limitation: layer.dependency_limitation } : {})
+  };
+}
+
+function dependencyUnavailableCoverageEntry(project, { dependency_limitation, provider_failure }) {
+  return {
+    key: project.key, indexer: project.indexer, project: project.project,
+    reason: SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE, dependency_limitation, provider_failure
   };
 }
 
@@ -198,15 +224,18 @@ function inactiveCoverageEntry({ project, record }) {
 }
 
 function providerCoverage(entries, inactive) {
+  const unavailable = inactive.some(({ reason }) => reason === SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE);
   return {
-    state: "complete",
+    state: unavailable || entries.some(({ dependency_limitation }) => dependency_limitation)
+      ? SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED : "complete",
     projects: entries,
     inactive_projects: inactive,
     scip_available: entries.length > 0,
     graph_available: entries.some(({ symbol_count }) => symbol_count > 0),
     call_graph_available: entries.some(({ call_graph_available }) => call_graph_available),
     status_reason: entries.length > 0 ? SCIP_STATUS_EXTRACTED
-      : inactive.length > 0 ? SCIP_STATUS_PROVIDERS_INACTIVE : SCIP_STATUS_NOT_APPLICABLE
+      : unavailable ? SCIP_STATUS_DEPENDENCIES_UNAVAILABLE
+        : inactive.length > 0 ? SCIP_STATUS_PROVIDERS_INACTIVE : SCIP_STATUS_NOT_APPLICABLE
   };
 }
 
@@ -278,7 +307,7 @@ const recordPaths = (change) => [change.oldPath, change.newPath].filter(Boolean)
 
 export async function updateSidecarIndex({
   repoRoot, paths, head, tree, mode, observed, lock,
-  signal = null, buildHooks = null, providerDeadlineMs = undefined
+  signal = null, buildHooks = null, providerDeadlineMs = undefined, retryDependencyLimited = false
 }) {
   const publication = observed.state === "available" && observed.publication?.repository_commit
     ? observed.publication : null;
@@ -291,10 +320,18 @@ export async function updateSidecarIndex({
   const sources = await collectTrackedSources(repoRoot, head);
   const projectFiles = await readProjectFiles(repoRoot, sources.tracked);
   const goFiles = new Map([...projectFiles].filter(([value]) => isSidecarGoProjectFile(value)));
+  const goToolchains = await describeSidecarGoToolchainsAtCommit({ trackedPaths: sources.tracked_paths, goFiles,
+    deadlineMs: providerDeadlineMs });
   const rustProjects = await describeSidecarRustProjectsAtCommit({ sourceRepoRoot: repoRoot, committedHead: head,
     trackedPaths: sources.tracked_paths, deadlineMs: providerDeadlineMs });
   throwIfSidecarPreparationCancelled(signal);
-  const projects = discoverSidecarScipProjects(sources.tracked_paths, { goFiles, rustProjects });
+  const typescriptConfig = sources.tracked_paths.includes(SCIP_TYPESCRIPT_PROJECT_CONFIG)
+    ? await typescriptConfigPackagePopulation({ repoRoot, configPath: SCIP_TYPESCRIPT_PROJECT_CONFIG,
+        trackedPaths: sources.tracked_paths,
+        readCommitted: (value) => readCommittedText(repoRoot, sources.tracked, value) })
+    : { population: [], missing: [] };
+  const projects = discoverSidecarScipProjects(sources.tracked_paths, { goFiles, goToolchains, rustProjects,
+    typescriptConfigPackages: typescriptConfig.population, typescriptConfigMissing: typescriptConfig.missing });
 
   const rustMappings = Object.assign({}, ...rustProjects.map(({ dependency_mapping }) => dependency_mapping ?? {}));
   const rustCrates = sidecarRustCrates(new Map([...projectFiles].filter(([value]) => isSidecarRustManifest(value))))
@@ -308,7 +345,8 @@ export async function updateSidecarIndex({
       repoRoot, fromCommit: publication.repository_commit, toCommit: head
     }),
     providerInputsChanged: async () => plan.some(({ current }) => !current) ||
-      Object.keys(priorRecords).some((key) => !projects.some((project) => project.key === key))
+      Object.keys(priorRecords).some((key) => !projects.some((project) => project.key === key)) ||
+      (retryDependencyLimited && sidecarDependencyLimitations(publication?.provider_coverage).length > 0)
   });
   if (classification.action === "reuse") {
     return { action: "coalesced", publication, metrics: ZERO_METRICS };
@@ -333,16 +371,19 @@ export async function updateSidecarIndex({
     throw new SidecarScipProvisionError(`required SCIP provider ${failed.project.key} failed: ${
       failed.failure.message}`, { code: failed.failure.code });
   }
-  const priorCoverage = !clean && publication?.provider_coverage?.state === "complete"
+  const priorCoverage = !clean && isSidecarProviderCoverageSettled(publication?.provider_coverage)
     ? publication.provider_coverage : null;
   const priorProjects = new Map((priorCoverage?.projects ?? []).map((entry) => [entry.key, entry]));
+  const priorUnavailable = new Map((priorCoverage?.inactive_projects ?? [])
+    .filter(({ reason }) => reason === SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE)
+    .map((entry) => [entry.key, entry]));
   const active = plan.filter(({ activation }) => activation === "active");
   const inactive = plan.filter(({ activation }) => activation === "inactive");
   const reused = [];
   const rerun = [];
   for (const item of active) {
-    const prior = priorProjects.get(item.project.key);
-    if (prior && item.unchanged) reused.push(item);
+    const prior = priorProjects.get(item.project.key) ?? priorUnavailable.get(item.project.key);
+    if (prior && item.unchanged && !(retryDependencyLimited && prior.dependency_limitation)) reused.push(item);
     else rerun.push(item);
   }
   const removedKeys = [...priorProjects.keys()].filter((key) =>
@@ -359,10 +400,19 @@ export async function updateSidecarIndex({
     deadlineMs: providerDeadlineMs
   });
   throwIfSidecarPreparationCancelled(signal);
+
+  const ran = rerun.filter(({ project }) => !layers.get(project.key).dependency_unavailable);
   const entries = [
-    ...reused.map(({ project }) => priorProjects.get(project.key)),
-    ...rerun.map(({ project }) => providerCoverageEntry(project, layers.get(project.key), head))
+    ...reused.map(({ project }) => priorProjects.get(project.key)).filter(Boolean),
+    ...ran.map(({ project }) => providerCoverageEntry(project, layers.get(project.key), head))
   ].sort((left, right) => binaryCompare(left.key, right.key));
+
+  const inactiveEntries = plan.flatMap((item) => {
+    if (inactive.includes(item)) return [inactiveCoverageEntry(item)];
+    if (reused.includes(item)) return [priorUnavailable.get(item.project.key)].filter(Boolean);
+    return rerun.includes(item) && !ran.includes(item) ? [dependencyUnavailableCoverageEntry(item.project,
+      layers.get(item.project.key).dependency_unavailable)] : [];
+  });
   const inputRecords = Object.fromEntries([
     ...reused.map(({ project, record }) => [project.key, record]),
     ...rerun.map(({ project }) => [project.key, layers.get(project.key).input_record]),
@@ -372,11 +422,11 @@ export async function updateSidecarIndex({
 
   let providerData = null;
   if (rerun.length > 0 || removedKeys.length > 0 || priorCoverage === null) {
-    const rows = rerun.map(({ project }) => providerRows(project, layers.get(project.key)));
+    const rows = ran.map(({ project }) => providerRows(project, layers.get(project.key)));
     providerData = {
 
       ...(priorCoverage ? { provider_keys: [...rerun.map(({ project }) => project.key), ...removedKeys] } : {}),
-      providers: rerun.map(({ project }) => ({
+      providers: ran.map(({ project }) => ({
         provider_id: project.key, descriptor: layers.get(project.key).provider_descriptor,
         input_identity: head, coverage: entries.find(({ key }) => key === project.key)
       })),
@@ -394,7 +444,7 @@ export async function updateSidecarIndex({
       regular_file_count: sources.files.filter(({ mode }) => mode !== "120000").length,
       symlink_count: sources.symlink_count, gitlink_count: sources.gitlink_count },
     provider_input_identity: providerInputIdentity(head, generatorValue, entries, inputRecords),
-    provider_coverage: providerCoverage(entries, inactive.map(inactiveCoverageEntry)),
+    provider_coverage: providerCoverage(entries, inactiveEntries),
     published_at: new Date().toISOString()
   };
   const selected = clean
@@ -421,7 +471,7 @@ export async function updateSidecarIndex({
 
     if (!clean && error?.code === "sidecar_selected_data_invalid") {
       return updateSidecarIndex({ repoRoot, paths, head, tree, mode: "rebuild", observed, lock,
-        signal, buildHooks, providerDeadlineMs });
+        signal, buildHooks, providerDeadlineMs, retryDependencyLimited });
     }
     throw error;
   }
@@ -467,7 +517,7 @@ export async function buildSidecarIndex(rawOptions) {
   const ensured = await ensureSidecarIndex({
     dir: options.dir, cacheDir: options.cacheDir, mode: options.rebuild ? "rebuild" : "update",
     signal: options.signal, buildHooks: options.buildHooks,
-    providerDeadlineMs: options.providerDeadlineMs, dirtyState: true
+    providerDeadlineMs: options.providerDeadlineMs, dirtyState: true, retryDependencyLimited: true
   });
   return ensured.build ?? createSidecarBuildEnvelope({
     cacheDir: ensured.status.cache_path,

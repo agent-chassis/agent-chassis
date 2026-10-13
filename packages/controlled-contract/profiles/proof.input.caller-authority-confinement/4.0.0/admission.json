@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "accd695e0befd324bea3f3e072ca82a52ce863101c801b3ffc5aef2d700ea74c",
+  "parameter_contract_digest": "3c6ee9cb1461ef44a3f4b4d81f449449a7f12200bbb2f2a0f05ebd5b56c4342c",
   "profile_id": "proof.input.caller-authority-confinement",
   "profile_version": "4.0.0",
-  "profile_digest": "3fd1bb644c2ef19e3326e5ce09b1a20eee221c16a1e75736ecdaef95533bfaf6",
+  "profile_digest": "e41c9d1a76e6942b30a830e059d4e11745453b4f3020f8d7c1a134e19f6d447b",
   "guarantee": "For one exact closed canonical caller-input policy, one exact accepted request and parser attempt, one distinct exact authority-bearing forbidden request and parser attempt, and one authenticated complete ordered observation cut ending at that forbidden attempt's exact refusal, the package-owned combined projection exactly partitions declared members, derives typed structural identities and all member-to-coordinate-to-operation-to-effect associations, proves the accepted opaque path-like control selects no coordinate and is accepted, proves the forbidden member is refused, exactly reconciles the policy-derived source census, and establishes no resolver, loader, filesystem, environment, module, catalog, subprocess, return, or success occurrence for the forbidden attempt before refusal.",
   "guarantee_digest": "c1223d3646244ecd972d854b9e5243b2e756d63b638be031aa90b4ba449bcc5c",
   "explicit_exclusions": [
@@ -16,8 +16,8 @@
   ],
   "certification": {
     "method": "executable_semantic_adequacy",
-    "adequacy_declaration_digest": "e75095734cdd0e574baca8c539e2f27ed2ede8aada4a272a32b96160724815fa",
-    "adequacy_result_digest": "f23d43f5b121e1c3d32664c0fefcca685601e1f3919e4ea3191a8f676fd0a76b",
+    "adequacy_declaration_digest": "7040ab3eefcee92c414b35b8b87053d241024a907d9a828c8728d906fb06b90b",
+    "adequacy_result_digest": "bab2c0962a68159e5a11c3a7aa169de1faad4f1dfe8e9f331edbd407f0f4c6a8",
     "executable_control_count": 85,
     "negative_fixture_count": 0,
     "coverage_witness_count": 0

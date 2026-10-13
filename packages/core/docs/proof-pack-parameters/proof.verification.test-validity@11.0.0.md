@@ -4,9 +4,9 @@
 
 For one exact test_execution proof instance, complete launcher-authenticated runtime evidence bound to the exact candidate or source snapshot, controlled-contract generation, obligation, proof-plan entry, declared target, test-proof binding, admitted profile, certification, guarantee, and evaluator satisfies the guarantee only when the candidate passes, the one test the binding's declarative test selector names is discovered, executed, and not skipped, every declared falsifier is present, every falsifier the provider could apply is detected, every required traversal is present and proven, and no prohibited shortcut is observed. A falsifier the provider could not apply is an authenticated capability limitation: it earns no detection credit, is not counterevidence, and never excuses a surviving sibling. A supported, isolated, actually observed mutation that leaves the selected test passing falsifies the guarantee; for a passing candidate, an incomplete falsifier population or a supported falsifier that is neither detected nor such a survivor is not executable, and a failed candidate gains no mutation counterevidence from its falsifier rows. No authored baseline inventory participates, and sibling tests observed in the same run neither earn nor withhold credit. Complete valid negative inventory or execution facts falsify the guarantee; missing evidence or an unavailable exact evaluator is not executable; malformed, unauthenticated, stale, ambiguous, cross-bound, contradictory, or digest-mismatched evidence is refused.
 
-Profile digest: 00b85715c61e2463a78d872792a059c672db449e13ba745cb89de720a6c4af40. Parameter digest: d20d36c2ad90007146ee6707d67934f151468c9e7a1eb05fa7d4100c9af17804.
+Profile digest: 0fb4442ad17c66442523fbb2c626d0e25ff50566377ff0b7ea901b3a7ea2bb52. Parameter digest: b251ca727287111459978d23939e493212b468fdd287878ff001af34f98807eb.
 
-Admission digest: 08395afdc02a10e6dcce143981c8a18a723462d456f01788cf5822a7261f6dcc.
+Admission digest: dc605f34853c0d6f244b8d5b43d0f6e8e1f9d674c82c8794e972eef676864eba.
 
 Roles: 2/2 accounted; 0 owned gaps. Semantic parameters: 2; internal roles: 2.
 

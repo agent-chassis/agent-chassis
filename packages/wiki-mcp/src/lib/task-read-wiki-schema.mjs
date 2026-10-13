@@ -10,8 +10,11 @@ import { WORK_RECORD_EDIT_FIELD_REGISTRY } from
 import { MANAGED_ASSIGNMENT_READ_FIELDS } from "./managed-assignment-read.mjs";
 import { PACKAGE_DOCUMENT_READ_FIELDS } from "./tool-doc-read-tools.mjs";
 import { selectedResponseLocatorSchema } from "./selected-response-snapshot.mjs";
+import { RECORD_AUTHORING_EXCEPTION_KINDS } from "@agent-chassis/wiki-core/src/lib/record-authoring-exception.mjs";
+import { INPUT_CONTRACT_EXCEPTION_OPERATION, INPUT_CONTRACT_TOOLS } from "./task-read-wiki-input-contract.mjs";
+import { recordBirthKinds } from "./task-read-wiki-record-kind.mjs";
 
-const SUBJECT_SOURCE_KINDS = ["record", "canonical_record", "document", "manifest", "repository",
+const SUBJECT_SOURCE_KINDS = ["record", "canonical_record", "document", "manifest", "repository", "record_kind",
   "requirement_guidance"];
 export const READ_WIKI_INVENTORIES = Object.freeze(["entries", "slices", "tasks", "fields", "matches", "findings"]);
 export const READ_WIKI_MEMBERSHIPS = Object.freeze(["work", "integration"]);
@@ -29,11 +32,10 @@ export function describeReadWikiTool(inputSchema) {
     ...(declared.has("subject") || declared.has("search") ? [] : ["the references this server returns"])
   ];
   const sources = [...declared].map((key) => key === "reference" ? "a returned reference" : key);
-  return `Read ${list(material)}. First name one source (${list(sources)}) for compact context; then pass the ` +
-    "returned reference with one select for the complete selection in one result. Read-only." +
-    (declared.has("subject") ? " A WK subject's facts carry the advisory terminal_review_designation; a findings " +
-      "unit's facts and each inventory:\"slices\" member carry review_purpose when one is in effect. These " +
-      "describe the saved record and grant no permission." : "");
+  return `Read ${list(material)}. Name one source (${list(sources)}) for compact context; pass its ` +
+    "returned reference and one select for the complete result. Read-only." +
+    (declared.has("subject") ? " WK subject facts carry advisory terminal_review_designation; findings-unit facts and " +
+      "inventory:\"slices\" members carry review_purpose when in effect. These saved facts grant no permission." : "");
 }
 
 function selectionSchemas(z, grants) {
@@ -63,7 +65,23 @@ function selectionSchemas(z, grants) {
     obligation: [z.object({ obligation: text, parameters: z.literal(true).optional() }).strict()],
     finding: [z.object({ finding: text }).strict()],
 
-    guidance: [z.object({ guidance: z.array(text).min(1) }).strict()]
+    guidance: [z.object({ guidance: z.array(text).min(1) }).strict()],
+
+    input_contract: [z.object({ input_contract: z.object({
+      tool: z.enum(grants.granted("record_kind", "input_contract") ? INPUT_CONTRACT_TOOLS : INPUT_CONTRACT_TOOLS.slice(0, 1)),
+      members: z.array(z.string().min(1)).min(1)
+        .describe("Every member the job needs, together, each once; the unit or kind decides which apply.")
+    }).strict().describe("{tool, members}: the complete input schema of the named members in one result: " +
+      "save_record changes with a saved unit's reference" + (grants.granted("record_kind", "input_contract")
+      ? ", workspace_create_record initial with a record kind's" : "") + ". Never required.") }).strict(),
+
+    z.object({ input_contract: z.object({
+      tool: z.literal(INPUT_CONTRACT_TOOLS[0]),
+      operation: z.literal(INPUT_CONTRACT_EXCEPTION_OPERATION),
+      kind: z.enum(RECORD_AUTHORING_EXCEPTION_KINDS).optional()
+        .describe("One exception kind; omitted, every kind is returned.")
+    }).strict().describe("{tool:\"save_record\", operation:\"exception\", kind?}: the complete exception request " +
+      "contract of a saved work item or slice, with each kind's meaning and consequence. Read-only; never required.") }).strict()]
   };
 }
 
@@ -80,19 +98,22 @@ export function createReadWikiInputSchema(z, grants) {
   if (allowsSubject) {
 
     const guidance = contextKinds.has("requirement_guidance");
+
+    const recordKind = contextKinds.has("record_kind");
     shape.subject = z.union([
       nonEmpty,
       z.object({ repository: z.literal(true) }).strict(),
       z.object({ contract: z.literal(true) }).strict(),
+      ...(recordKind ? [z.object({ record_kind: z.enum(recordBirthKinds()) }).strict()] : []),
       ...(guidance ? [z.object({ requirement_guidance: z.literal(true),
 
         topic: z.array(z.string().min(1)).min(1).optional() }).strict()] : [])
     ]).optional().describe(
-      "A canonical id (WK-0001, WK-0001#SLICE-001, DEC-0001, IN-0001), a repo-relative docs/ or wiki/ " +
-      `document path, {repository:true}${guidance ? ", {contract:true} or {requirement_guidance:true} (requirement " +
-        "vocabulary and authoring guidance for save_record; optional topic chooses the recommended selection " +
-        "of the compact context, whose returned reference also reads the other offered topics)"
-        : " or {contract:true}"}. Returns compact context and its selections.`);
+      "A canonical id (WK-0001, WK-0001#SLICE-001, DEC-0001, IN-0001), a docs/ or wiki/ document path, the " +
+      `repository${guidance ? ", the contract manifest or requirement guidance for save_record (topic chooses the " +
+        "recommended selection)" : " or the contract manifest"}${recordKind ? "; or a record kind to create, whose " +
+        "reference reads workspace_create_record's complete initial schema before any record exists" : ""}. ` +
+      "Returns compact context and its selections.");
   }
   if (allowsSearch) {
     shape.search = z.object({

@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.readiness.before-success",
   "profile_version": "4.0.0",
-  "profile_digest": "37b911f302572e3a5382c888dfc01d316afa2c5aa1f8ff90e6368fdf352a0fe0",
+  "profile_digest": "f92441c87ff956fff471e39afc1db41ee85eb81847581630d5b085afb25bf709",
   "description": "One grounded capability initialized by one attempt is exercised by a distinct readiness operation after initialization; the readiness result accepts the probe and its observed complete state equals a criterion-conforming expected ready state; and the declared completion report does not precede that readiness result.",
   "parameters": [
     {

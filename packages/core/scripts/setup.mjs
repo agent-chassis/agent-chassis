@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 import { parseExecutableSelector, parseRunnerSelector } from "./test-runtime-setup/cli.mjs";
 
+const TEST_RUNTIME_SETUP_MODULE = "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/index.mjs";
+
 export const SETUP_AGENTS = Object.freeze([
   Object.freeze({
     key: "claude",
@@ -54,6 +56,11 @@ cannot ask):
   --executable <toolchain>=<absolute-path>
                                 where a toolchain is installed, when PATH has
                                 none or the wrong one (repeatable)
+
+Exit status: 0 when setup succeeded, which includes a repository with no test
+project and is not by itself runtime readiness; 3 when every earlier step
+succeeded and the local test runtimes are not ready or could not be resolved;
+any other nonzero status when setup failed otherwise.
 
 --test-runtimes reruns only that last step for an already-configured
 repository, with the same resolution and the same saved configuration. Run
@@ -227,14 +234,19 @@ function printNextCommands(output) {
   output.write(renderNextCommands());
 }
 
-async function prepareTestRuntimes({ options, cwd, input, output, env }) {
-  const { prepareRepositoryTestRuntimes } = await import("./test-runtime-setup/prepare.mjs");
+export const TEST_RUNTIMES_UNAVAILABLE_EXIT_CODE = 3;
+
+async function prepareTestRuntimes({ prepare, options, cwd, input, output, env }) {
+  const prepareRepositoryTestRuntimes = prepare ??
+    (await import("./test-runtime-setup/prepare.mjs")).prepareRepositoryTestRuntimes;
   try {
     return await prepareRepositoryTestRuntimes({ repositoryRoot: cwd, runners: options.runners,
       language: options.language, executables: options.executables, dryRun: options.dryRun,
       input, output, env });
   } catch (error) {
-    output.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    const { TestRuntimeSetupError } = await import(TEST_RUNTIME_SETUP_MODULE);
+    if (!(error instanceof TestRuntimeSetupError)) throw error;
+    output.write(`${error.message}\n`);
     return { ok: false, status: "failed" };
   }
 }
@@ -244,7 +256,9 @@ export async function runSetup({
   cwd = process.cwd(),
   input = process.stdin,
   output = process.stdout,
-  env = process.env
+  env = process.env,
+
+  prepare = null
 } = {}) {
   if (argv.includes("--test-runtimes")) {
     const { runTestRuntimesSetup } = await import("./test-runtime-setup/cli.mjs");
@@ -281,8 +295,8 @@ export async function runSetup({
   runCommand("npx", ["agent-launch", "init-config"], step);
 
   printStep(output, "Detect local test runtimes");
-  const prepared = await prepareTestRuntimes({ options, cwd, input, output, env });
-  if (!prepared.ok) process.exitCode = 1;
+  const prepared = await prepareTestRuntimes({ prepare, options, cwd, input, output, env });
+  if (!prepared.ok) process.exitCode = TEST_RUNTIMES_UNAVAILABLE_EXIT_CODE;
 
   printNextCommands(output);
 }

@@ -76,6 +76,9 @@ See [selected responses](mcp-selected-response-details.md).
 
 Create with the closed kind-specific `workspace_create_record` contract; save
 with `save_record({unit,revision,changes})` using the current combined revision.
+Both publish compact declarations: the nested grammar of a creation is read
+through a record kind's reference and that of a save through a saved unit's,
+each in one selected read.
 The existing transaction retains native atomicity, certainty and maintenance
 rules. Malformed and stale saves do not silently rebase. Assessment shares its
 owner with authoring and executes no proof provider. Saved dispositions remain
@@ -264,7 +267,7 @@ generation is settled through its own lifecycle. Conduit teardown closes
 admission, settles every owned generation once, reaps owned processes, and
 removes endpoint and credential state. Readiness, expected transport EOF,
 abnormal server loss, and cleanup classification are detailed in the
-[conduit lifecycle](agent-launch-confinement-mcp-conduit.md).
+[conduit lifecycle](agent-launch-mcp-conduit-lifecycle.md).
 
 For reviewer and redteam, the expected set comes only from the launcher role
 profile and configured tier. Reviewer receives the execution and result tools;
@@ -355,6 +358,106 @@ rules. `registeredToolRequestContracts` is the serving consumer authority for
 producer continuations. Registration, grants, descriptors, selected reads and
 role guides describe the same current contract. Displaced agent routes are
 absent and non-callable in source and selected installed packages.
+
+A registration may also declare an input schema exposure: the owner's own JSON
+source schemas with navigation metadata. `input-schema-exposure.mjs` is the
+pure derivation helper. From one source it selects any members, by name, by
+group, or both in one selection, and returns each selected member exactly as
+the owner declares it, the owner object's own constraints, and every local
+definition the selection reaches, in the owner's order. It converts, factors
+and shortens nothing, applies no size bound to a selection, and refuses an
+empty, unknown or malformed selection and any reference it cannot follow. A
+group is navigation metadata, not a required sequence of reads, and each
+source member has exactly one group.
+
+`save_record` declares its four per-variant `changes` sources (work item, work
+item slice, initiative, decision) through `save-record-input-exposure.mjs`; the
+variant's own source decides which members exist and apply. The registrar binds
+a declaration before the SDK registers the tool and retains the binding with
+the request contract only when registration succeeds, per registrar; a
+declaration that differs from the retained one is a conflicting registration.
+A source's digest is the identity of its whole schema, not a record revision.
+The binding keeps one reference graph per declared source and remembers no
+selection.
+
+Sharing a repeated definition is the source owner's act, before binding. The
+work-item and work-item-slice `changes` sources state each owner object they
+place at more than one position once, as a local definition in the source's
+own `$defs`: the case object of an obligation row (`obligation_case`), which
+both variants of the row refer to; the definitions of the one requirement
+batch, which its owner states once and both sources carry as their own — the
+entity id every use names (`entity_id`), the entity declarations
+(`entities`, `entity`, `entity_declaration`, `type_term`, `identity`), the
+role-specific statements (`behavior` for requirement behavior and behavioral
+failure conditions, `observation` for verification observations), with their
+applicability and operand forms, the two row forms (`requirement`,
+`membership_requirement`) and the one verification both carry
+(`requirement_verification`), `collection` and `unresolved_meaning`; a case's `case_component`, `case_target` and
+`case_falsification`; and a ready slice's `ready_slice_edit_targets`. Each
+definition is a concrete body, the owner's own node with every constraint and
+description it had inline; a body refers onward to the definitions it
+contains, never to itself or to an alias. A reference is `#/$defs/<name>`
+within the same schema, and the source's digest is the digest of the schema in
+that form. Work-item birth keeps only the new-row grammar and shares its
+repeated prose content carrier as its own `content_carrier` definition, and the
+identical nullable provenance choice its ready-slice target facets take as
+`edit_target_provenance`. Both bodies retain every owner constraint and
+instruction; their references and definitions arrive in the same selected read.
+Initiative and decision sources keep their inline owner representation. That shared schema is the one the save
+validates a request against before any effect and the one the registered
+request converter reads, so what a request may carry is unchanged; a refusal
+names the caller's own member path and constraint, judged by the row variant
+the request selects, and never a definition path. A selection that reaches a
+shared definition returns it in the same result, so one selected schema is one
+self-contained document and following a reference inside it is not another
+read.
+
+The binding is internal: it publishes nothing and adds no agent call. The
+registered full input schema remains the only validator, so a selection never
+widens or narrows what a request may carry, and reading one is never a
+precondition of a call.
+
+`save_record` publishes a compact declaration beside that validator. The
+compact advertisement is a pure, shallow projection of the same owner sources,
+made by `input-schema-compact-advertisement.mjs` and composed for the request
+by `task-save-record-tools.mjs` through the registrar's published-schema
+projection. The request envelope is published as the SDK converts it. Each
+published `changes` alternative keeps every member name in the owner's order
+and the object's self-contained constraints (its type, closedness, nonempty
+rule and required names). A member whose declaration is a scalar type or a
+closed set of scalar values is published exactly as the owner declares it;
+every other member is deferred whole, published with the owner's description
+and no constraint. The cut is structural, never by size, and no member is
+published in part. The projection carries no reference and no rule about a
+deferred subtree, so it only widens: every request the owner accepts is
+admitted by the compact declaration, and the full validator refuses everything
+else before any handler or effect. A deferred member's complete declaration is
+read through the selected input contract of a saved unit, which returns the
+owner's own nodes; the compact declaration is never the source of a nested
+rule. The tool description states this, and a schema already read stays valid
+after saves.
+
+Semantic guidance uses the same authenticated reader and owner vocabulary;
+it does not replace the selected input schema or decide whether a save is valid.
+The selected requirement schema recommends `authoring_vocabulary`, a complete
+job answer with shared definitions and one copy of each relation signature.
+Every signature lists its allowed `behavior`, `fails_when` and `observes`
+positions. A missing position forbids that relation, including observation-only
+relations at behavior or failure positions. All operand and applicability
+constraints are present in that answer; no external definition read is needed.
+The separate `vocabulary` and `observation_vocabulary` topics remain complete
+answers to their respective position questions.
+
+An explicitly chosen proof `target_family` offers complete case guidance through
+`workspace_read_wiki`: `['case_authoring','family',<family>]`. It states its scope,
+common case meaning and every selected-family target, falsifier and example.
+It retains association choices and ambiguity, cardinality, components,
+observations, support states and bounds. The complete general `case_authoring`
+topic remains available, and case answers offer other complete family selections
+with the same reference. Neither query recognition nor an omitted family
+silently chooses a family for this guidance. Saving still derives bindings,
+validates authored meaning and reports drafts and refusals through its owners;
+reading guidance executes no proof and grants no credit.
 
 ## Trusted runtime and CCE
 

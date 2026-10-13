@@ -1,7 +1,7 @@
 
 
 import { createHash } from "node:crypto";
-import { DEFAULT_MANDATORY_MODALITIES } from "@agent-chassis/controlled-contract/native-contract-dag";
+import { projectRequirementDescriptions } from './contract-requirement-projection.mjs';
 
 import {
   CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
@@ -88,6 +88,15 @@ function mint(prefix, subject, body) {
   return `${prefix}-${digest}`;
 }
 
+export const controlledContractIdentityScope = (wkId, focus = null) =>
+  canonicalMaterial({ wk_id: wkId, focus: focus ?? null });
+
+export const emptyControlledContractContent = (schemaIdentity) => ({
+  schema_version: schemaIdentity.schema_version, vocabulary_version: schemaIdentity.vocabulary_version,
+  profile_id: schemaIdentity.profile_id, references: [], propositions: [], claims: [], relations: [],
+  collections: [], residue: [], annotations: [], test_proof_version: schemaIdentity.test_proof_version,
+  test_proofs: [] });
+
 function projectionFailure(code, message, details) {
   fail(code, message, { phase: "projection", ...details });
 }
@@ -162,7 +171,8 @@ function statementInput(proposition, context) {
 }
 
 export function projectControlledContractRequirements(contract, {
-  controlledContractNodeIds = null
+  controlledContractNodeIds = null, descriptionOwner = null,
+  sourceDescriptions = new Map(), sourceGeneration = null, visibleNodeIds = null
 } = {}) {
   if (contract === null || contract === undefined) return Object.freeze({
     status: "absent", meaning_identity: null, requirements: Object.freeze([]),
@@ -277,12 +287,18 @@ export function projectControlledContractRequirements(contract, {
       verification_claim_ids: Object.freeze(linked.map(({ claim: row }) => row.claim_id)),
       meaning })];
   }).sort((left, right) => left.claim_id.localeCompare(right.claim_id));
+  const described = descriptionOwner === null ? { state: 'incomplete', roots: [], nodes: [],
+    missing: [{ code: 'description_owning_scope_missing' }] } : projectRequirementDescriptions(contract, {
+    unit: descriptionOwner, claimIds: selectedNodes === null ? null : new Set(requirements.map(row => row.claim_id)),
+    visibleNodeIds, sourceDescriptions });
+  for (const node of described.nodes) for (const referenceId of node.reference_ids) usedReferences.add(referenceId);
   const projectedReferences = [...usedReferences].sort().map(referenceId =>
     Object.freeze(structuredClone(references.get(referenceId))));
   const projection = {
     status: "present",
     requirements: Object.freeze(requirements),
     references: Object.freeze(projectedReferences),
+    descriptions: described, source_generation: sourceGeneration,
     selection: Object.freeze({ mode: selectedNodes === null ? "all" : "associated",
       total_requirements: requirementClaims.length,
       returned_requirements: requirements.length,
@@ -296,7 +312,7 @@ export function projectControlledContractRequirements(contract, {
       .update(canonicalMaterial(projection)).digest("hex")}` });
 }
 
-export function projectControlledContractReferenceClosure(contract, uses) {
+export function projectControlledContractReferenceClosure(contract, uses, { descriptionOwner = null, sourceDescriptions = new Map() } = {}) {
   if (uses.length === 0) return Object.freeze([]);
   const references = indexedProjectionPopulation(contract ?? {}, "references", "reference_id");
   const ids = new Set();
@@ -305,8 +321,14 @@ export function projectControlledContractReferenceClosure(contract, uses) {
       subject: "case" });
     ids.add(referenceId);
   }
-  return Object.freeze([...ids].sort().map(referenceId =>
-    Object.freeze(structuredClone(references.get(referenceId)))));
+  const descriptions = descriptionOwner === null ? null : projectRequirementDescriptions(contract, {
+    unit: descriptionOwner, claimIds: new Set(), additionalRoots: [...ids].map(id => ({ owner: descriptionOwner,
+      entity: { type_term: references.get(id).type_term, identity: references.get(id).identity } })), sourceDescriptions });
+  for (const node of descriptions?.nodes ?? []) for (const id of node.reference_ids) ids.add(id);
+  return Object.freeze([...ids].sort().map(referenceId => Object.freeze({ ...structuredClone(references.get(referenceId)),
+    ...(descriptions === null ? {} : { description: descriptions.roots.find(row =>
+      canonicalMaterial(row.entity.identity) === canonicalMaterial(references.get(referenceId).identity)) ??
+      { state: descriptions.state, role: 'definition_context' } }) })));
 }
 
 function text(value, field) {
@@ -562,11 +584,17 @@ class RequirementCompilation {
     const observesId = this.proposition(verifierId, verification.observes,
       `${field}.verification.observes`);
 
-    const falsifyingId = this.proposition(subjectId, verification.fails_when,
+    const falsifyingSubjectId = verification.subject === undefined ? subjectId
+      : this.referent(verification.subject, `${field}.verification.subject`);
+    const falsifyingId = this.proposition(falsifyingSubjectId, verification.fails_when,
       `${field}.verification.fails_when`);
 
-    const verificationModality = DEFAULT_MANDATORY_MODALITIES.includes(value.modality)
-      ? "MUST" : value.modality === "MAY" ? "MAY" : "SHOULD";
+    const verificationModalities = { MUST: "MUST", MUST_NOT: "MUST", MAY: "MAY" };
+    const verificationModality = verificationModalities[value.modality];
+    if (verificationModality === undefined) fail("controlled_contract_requirement_invalid",
+      `${field}.modality has no verification meaning`,
+      finiteVocabularyDetails(`${field}.modality`, value.modality,
+        Object.keys(verificationModalities), "modalities"));
     const verificationBody = { kind: "verification", modality: verificationModality,
       proposition_id: observesId, verification_method: verification.method,
       falsifying_proposition_id: falsifyingId };
@@ -630,7 +658,8 @@ class RequirementCompilation {
 
 export function compileControlledContractRequirements({
   wkId, focus = null, answer, contract = null, vocabulary, schemaIdentity,
-  buildTestProofTemplate, retainedReferenceIds = []
+  buildTestProofTemplate, retainedReferenceIds = [],
+  statementBound = CONTROLLED_CONTRACT_REQUIREMENT_LIMITS.requirements_per_answer
 }) {
   const requirements = answer.requirements ?? [];
   const retireClaimIds = answer.retire_claim_ids ?? [];
@@ -638,8 +667,10 @@ export function compileControlledContractRequirements({
   const count = requirements.length + retireClaimIds.length;
   const populations = [["requirements", requirements], ["retire_claim_ids", retireClaimIds]];
   const emptySupplied = populations.find(([key, list]) => Object.hasOwn(answer, key) && list.length === 0);
+
+  const authoredRows = answer.authored_requirements;
   if (!Array.isArray(requirements) || !Array.isArray(retireClaimIds) || emptySupplied !== undefined ||
-      count === 0 || count > CONTROLLED_CONTRACT_REQUIREMENT_LIMITS.requirements_per_answer) {
+      (count === 0 && authoredRows === undefined) || count > statementBound) {
 
     fail("controlled_contract_requirement_invalid",
       "one authoring answer carries between one and its bounded number of requirements",
@@ -697,7 +728,10 @@ export function compileControlledContractRequirements({
 
     test_proofs: [...compilation.testProofs.entries()]
       .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-      .map(([, binding]) => binding)
+      .map(([, binding]) => binding),
+
+    ...(((rows) => rows === undefined || rows.rows.length + rows.collections.length + rows.unresolved.length === 0 ? {}
+      : { authored_requirements: structuredClone(rows) })(authoredRows ?? contract?.authored_requirements))
   }, requirements, compiled, correctionTargets, retainedReferenceIds, retirementTargets);
   return Object.freeze({ content, corrections, retirements,
     compiled: Object.freeze(compiled.map((entry, index) => Object.freeze({

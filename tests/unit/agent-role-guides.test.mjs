@@ -32,7 +32,7 @@ const SUBJECT = "WK-9999#SLICE-001";
 
 const occurrences = (text, needle) => text.split(needle).length - 1;
 
-const GUIDE_WORD_CAPS = Object.freeze({ orchestrator: 790, "managed-worker": 600, reviewer: 600 });
+const GUIDE_WORD_CAPS = Object.freeze({ orchestrator: 1070, "managed-worker": 600, reviewer: 600 });
 const words = (text) => text.split(/\s+/u).filter(Boolean).length;
 
 function managedWorkerPrompt({ assignmentDelivery = "inline" } = {}) {
@@ -145,6 +145,60 @@ test("orchestrator guide explains the read-only checkout and the supported test 
   assert.ok(orchestrator.includes(`${route.join(" ")} verify_proof executes saved proofs against tested source;`));
 
   assert.doesNotMatch(orchestrator, /\bava\b|npm test/iu);
+});
+
+test("orchestrator guide decomposes the request before dispatch and bounds completion claims by evidence", () => {
+  const orchestrator = readAgentRoleGuide("orchestrator");
+
+  for (const [anchor, addition] of [
+    ["Clarify ambiguity, narrowing or added scope with the user.",
+      "Before dispatch, decompose the request into precise, independently checkable requirements, accounting for " +
+      "every behavior-bearing clause, including the defaults, exceptions, options and interactions it states or " +
+      "necessarily implies. Keep ambiguity that is not yet clarified explicit; never silently narrow the request or " +
+      "invent requirements. Derive acceptance, contracts, obligations and assignments from these requirements,"],
+    ["Saved proofs are primary acceptance checks: map every material requirement to the assertions or other " +
+      "evidence that would establish it.",
+    "Evidence may be shared where it genuinely establishes each requirement it is mapped to; this needs no " +
+      "criterion, obligation or test per clause, no exhaustive combinations and no separate tracking document."],
+    ["validity and passing checks establish neither semantic coverage nor discriminating assertions.",
+      "Before accepting delivery, revisit that mapping against the delivered source and its actual assertions, and " +
+      "bind evidence to source. Distinguish supported, unmet and unverified requirements; completion claims must " +
+      "not exceed the evidence."]
+  ]) {
+    assert.equal(occurrences(orchestrator, `${anchor} ${addition}`), 1, addition);
+  }
+
+  assert.ok(!orchestrator.includes("map every material requirement to evidence."));
+  assert.ok(!orchestrator.includes("Check delivered source and tests against requirements"));
+});
+
+test("orchestrator guide selects slice regressions and reads their outcomes beside the proofs", () => {
+  const orchestrator = readAgentRoleGuide("orchestrator");
+
+  for (const [anchor, addition] of [
+    ["Limit write_scope independently to intended changes.",
+      "When shaping a slice, select relevant existing regression test files and save them as its regression_tests; " +
+      "prefer tests outside its write_scope, as advice rather than a gate."],
+    ["prefer tests outside its write_scope, as advice rather than a gate.",
+      "Use query_code_index references and impact information to identify affected callers and relevant existing " +
+      "tests, including consumers outside the edit scope. Inspect candidates, assign appropriate regression_tests " +
+      "to the relevant workers, and include necessary supporting context in read_scope. Account for incomplete " +
+      "index coverage; absence from results does not establish irrelevance."],
+    ["completion claims must not exceed the evidence.",
+      "A slice verify_proof also runs each declared regression file once, on the host, even outside the worker's " +
+      "read_scope and without widening access; an omitted list runs none and claims no regression pass, and a file " +
+      "whose project configures no single runner is reported, never guessed. Inspect both proof and regression " +
+      "outcomes before claiming verification succeeded."]
+  ]) {
+    assert.equal(occurrences(orchestrator, `${anchor} ${addition}`), 1, addition);
+  }
+
+  assert.equal(occurrences(orchestrator, "regression_tests"), 2);
+
+  assert.doesNotMatch(orchestrator, /full (?:existing )?(?:test )?suite|entire (?:test )?suite|benchmark/iu);
+  assert.doesNotMatch(orchestrator, /regression[^.]*\b(?:runner:|command|must not overlap|cannot be modified)/iu);
+
+  assert.equal(occurrences(orchestrator, "Run native tests with workspace_run_test and saved proofs with verify_proof;"), 1);
 });
 
 test("orchestrator guide orders WK closeout before final publication", () => {

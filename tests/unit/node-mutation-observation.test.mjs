@@ -303,7 +303,7 @@ test("Node mutation identities bind each current launcher attempt", async () => 
       .searchParams.get("launcher_module_fault"), attempt.mutation_attestation_code);
 
     const source = buildTestProofFaultModuleSource(configuration,
-      [{ name: forced ? "run" : "value", callable: true }]);
+      [{ name: forced ? "run" : "value", callable: true }], workingDirectory);
     for (const [base, name] of Object.entries(attempt.witness_names)) {
       assert.ok(source.includes(`function ${name}(`), name);
       assert.equal(source.includes(`function ${base}(`), false, base);
@@ -652,7 +652,7 @@ test("dependency selection follows the runtime-reported ancestry of the selected
 test("forced selection is closed and every execution selection changes authenticated identity", () => {
   const configuration = moduleFaultConfiguration("forced_invocation");
   const population = [{ name: "run", callable: true }];
-  assert.doesNotThrow(() => buildTestProofFaultModuleSource(configuration, population));
+  assert.doesNotThrow(() => buildTestProofFaultModuleSource(configuration, population, workingDirectory));
   const original = testProofFaultMutationAttestationCode(configuration);
   for (const change of [
     (value) => { value.entry_export = "anotherEntry"; },
@@ -678,7 +678,7 @@ test("forced selection is closed and every execution selection changes authentic
   ]) {
     const value = structuredClone(configuration);
     change(value);
-    assert.throws(() => buildTestProofFaultModuleSource(value, population));
+    assert.throws(() => buildTestProofFaultModuleSource(value, population, workingDirectory));
   }
 });
 

@@ -7,6 +7,7 @@ import {
   adaptRawSchemaDiagnostic,
   selectCausalSchemaDiagnostics
 } from "./bounded-diagnostic-projection.mjs";
+import { authoredRequirementDiagnostics, hasAuthoredRequirements } from "./canonical-requirements-v1.mjs";
 import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { buildEqualityNormalizationV1 } from "./equality-normalization-v1.mjs";
 import { createNativeContractRuntime } from "./native-contract-runtime.mjs";
@@ -286,8 +287,10 @@ function validateAndResolveNativeContractV1(contract) {
   const nativeResult = schemaValid ? nativeSemanticRuntimeV1.validateAndResolve(contract) : null;
   const diagnostics = schemaValid ? [
 
-    ...nativeResult.diagnostics.filter(diagnostic => !(diagnostic.code === 'empty_contract' && contract.test_proofs.length > 0)),
-    ...testProofPopulationDiagnostics(contract)
+    ...nativeResult.diagnostics.filter(diagnostic => !(diagnostic.code === 'empty_contract' &&
+      (contract.test_proofs.length > 0 || hasAuthoredRequirements(contract)))),
+    ...testProofPopulationDiagnostics(contract),
+    ...authoredRequirementDiagnostics(contract)
   ].sort((left, right) =>
     compareCodeUnits(left.code, right.code) ||
     compareCodeUnits(JSON.stringify(left), JSON.stringify(right))

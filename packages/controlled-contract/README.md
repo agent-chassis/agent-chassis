@@ -11,10 +11,8 @@ The package owns the closed schema and every current exact companion; authored
 WK values and generic instance resolution remain separate consumers.
 
 Current admissions use v3 and bind `parameter_contract_digest`. The proof-intent
-catalog and multi-pack assessment use v2. The current pack versions advance from
-the work record baseline: ordinary 3.0.0 packs become 4.0.0, idempotency 4.0.0 becomes
-5.0.0. Test-validity publishes 7.0.0 and 8.0.0; work record selects only 8.0.0
-as current in all three scoped catalogs and the evaluator registry. Named and
+catalog and multi-pack assessment use v2. The catalog publishes one current version per proof: ordinary packs use 4.0.0,
+idempotency and forbidden noninvocation use 5.0.0, and test-validity uses 11.0.0. Named and
 exact loads reject other versions with `proof_pack_exact_version_not_current`.
 The work record section below records the prior stage-free cutover baseline.
 See [durable parameter guidance](../../docs/proof-pack-parameters.md) and the
@@ -44,13 +42,13 @@ controlled-contract-select-proof-packs \
 
 controlled-contract-describe-proof-pack \
   --profile-id proof.completeness.lossless-projection \
-  --profile-version 3.0.0 \
+  --profile-version 4.0.0 \
   --intent controlled-proof-intent.lossless-projection
 
 controlled-contract-inspect-proof-pack-bindings \
   --input contract.json \
   --profile-id proof.completeness.lossless-projection \
-  --profile-version 3.0.0 \
+  --profile-version 4.0.0 \
   --intent controlled-proof-intent.lossless-projection
 
 controlled-contract-build-proof-plan \
@@ -930,7 +928,7 @@ superseded implementation-readiness 2.0.0 pin is retired and its files are delet
 | `proof.lifecycle.bounded-state-stability` | 2.0.0 | 3.0.0 | catalog |
 | `proof.lifecycle.bounded-terminal-stability` | 2.0.0 | 3.0.0 | catalog |
 | `proof.observation.sound-negative` | 2.0.0 | 3.0.0 | catalog |
-| `proof.operation.forbidden-noninvocation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.operation.forbidden-noninvocation` | 4.0.0 | 5.0.0 | catalog |
 | `proof.ordering.lexicographic-conformance` | 2.0.0 | 3.0.0 | catalog |
 | `proof.ordering.visibility-after-durable-settlement` | 2.0.0 | 3.0.0 | catalog |
 | `proof.ownership.exact-isolation` | 2.0.0 | 3.0.0 | catalog |
@@ -1015,3 +1013,20 @@ as requiring resolution. No old-source parser or automatic migration is provided
 Package 1.0.0 and existing implemented-capability bindings remain unchanged by
 this local source cutover. Local packaging checks do not authorize a release or
 republication under an existing release identity.
+
+### Forbidden-operation noninvocation
+
+`proof.operation.forbidden-noninvocation@5.0.0` uses the current grammar:
+one identified subject `MUST_NOT reference:calls` any member of an exact,
+complete, nonempty forbidden-operation population while the declared execution
+context applies. A call to even one member violates the prohibition; calls by
+another subject or outside that context do not. The positive-calls falsifier
+and verification bind the same subject, context and complete population.
+
+This corrects the former broad dependency/consumption guarantee to invocation.
+The full-census certification exercises the declared proof model and its
+synthetic controls. It establishes no actual execution or mutation result,
+truthful grounding, unmodeled dynamic/reflection/environment calls, undeclared
+operations, out-of-context calls, or production call-graph discovery. Runtime
+publication contains only 5.0.0; saved selections are never automatically
+rewritten or credited under the changed guarantee.

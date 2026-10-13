@@ -198,6 +198,135 @@ without the topic just returned, so another topic is read as
 answer is complete and publishes an empty `next_calls`. An optional
 `subject.topic` only chooses the context's recommended selection.
 
+`authoring_vocabulary` is one complete authoring-job selection: common vocabulary
+definitions appear once, and each complete relation signature states every
+allowed position among `behavior`, `fails_when` and `observes`. Operand bounds,
+applicability modes and their definitions remain local to that answer. Position
+membership is explicit; an observation-only relation is unavailable wherever
+the owner forbids it. This answer and its recommendations are derived from the
+existing vocabulary owners, while separate position-topic reads remain complete.
+
+`['case_authoring','family',<explicit family>]` selects common case semantics and
+the complete chosen family's instructions, targets, constraints, falsifiers and
+language-appropriate examples. Its value identifies the selected scope. The
+general `case_authoring` answer remains complete for all families. General and
+scoped case answers additionally offer each other supported family as a complete
+guidance selector, using the same authenticated reference. A missing, unsupported
+or further fragmented family selection refuses with the actual selector and a
+call to guidance context; it substitutes no family. These selections reuse the
+ordinary guidance grants and selected-full transport, retaining every selected
+instruction without a size cap, pager or separate registry.
+
+### Save input contract selection
+
+The reference of a saved work item, work item slice, initiative or decision
+also reads the registered `save_record` schema of the `changes` members one
+authoring job needs. `save_record`'s published declaration lists every member
+and defers each composite member's nested declaration to this selection, so it
+is where a caller reads a row's members, requiredness and constraints:
+
+```text
+workspace_read_wiki({reference:<returned record reference>,
+  select:{input_contract:{tool:"save_record",members:["criteria","requirements","obligations"]}}})
+```
+
+The selector is strict: the literal tool `save_record` and a nonempty list of
+member names, each once. It takes no repository, kind, variant, role, digest or
+field path. One read names every member the job needs and returns them
+together; there is no read per member or per definition. The role's request
+schema declares the selector, and any members of the unit's variant may be
+named together.
+
+The unit the authenticated reference names decides the variant, by the same
+unit-address rule `save_record` uses. A reference to a document, repository,
+assignment, entry or receipt is not a saved unit and is refused. The schema is
+selected from the exposure the live `save_record` registration of the serving
+registrar bound (see [MCP Integration](mcp-integration.md#registered-request-contracts)),
+never rebuilt by the reader. The central policy grants the
+`(record, input_contract)` and `(canonical_record, input_contract)` pairs to
+the orchestrator and operator roles, the roles that hold `save_record`; a role
+without the grant has no such selector in its request schema. A granted role in
+a session with no registered `save_record` binding is refused with no supported
+route, and the refusal names the missing registration.
+
+The answer states, as separate facts, the unit, the derived variant, the
+selected members in the owner's order, the digest of the whole variant schema,
+the complete selected schema, and the record's current authoring revision. The
+digest identifies the schema and does not change with the record; the revision
+identifies the record. `coverage` states that the schema is structurally
+complete for the selected members and that semantic rules are decided by
+`save_record` and its owners when a save is made. `guidance` lists the owner's
+topic paths for the selected members, and `next_calls` holds the
+requirement-guidance reads for those paths that the serving registrar accepts.
+The answer never contains a `save_record` call. Proof-specific input stays with
+`workspace_find_proofs`. The selected schema is delivered whole in one result
+through the selected-full class, on both carriers, above the ordinary inline
+limit.
+
+A held schema stays usable after saves: reading it is never required before a
+save, grants nothing, and yields no token a save takes. When only the record's
+revision moved after the reference was returned, the same unit, variant and
+members still select the same schema, so the current schema is served in the
+same call and `recovered` reports the observed and current revisions and the
+unchanged unit, variant and members. Nothing is written and no save is retried.
+Every other selection of a moved reference keeps `source_moved`.
+
+A refusal states its cause, the subject, that nothing was written and that no
+schema was disclosed. A member the unit's variant does not take is refused with
+the names that are not applicable and the variant's valid member names; the
+caller chooses, and no member is dropped or substituted. A repeated member name
+is refused the same way. A unit that can no longer be read, or one no save
+variant covers, is refused with no supported route: no other unit or variant
+stands in for it.
+
+#### Navigation to the selection
+
+A saved unit's context offers the selection as optional job choices. After the
+context's own calls, which keep their order and their one recommendation,
+`next_calls` holds one executable read per coherent job, through the context's
+own `reference`, each with a `job` name and a `purpose`. A work item or slice
+is offered `record_editing` (content, planning, tasks, review evidence,
+lifecycle and removals), `acceptance_work` (criteria, requirements, obligations
+and controlled acceptance) and `slice_planning` (slices and ready slices, with
+the slice contract members on a slice unit). An initiative or decision is
+offered one `record_editing` choice of its whole record. A job is a combination
+of the save owner's member groups resolved against the unit's own source, so
+together the jobs name every member once. The choices are never recommended,
+are not listed in `selections`, and embed no schema. They are presets, not a
+sequence, a dependency or a permission: a caller may name any members of the
+variant in one selection, across jobs.
+
+The choices appear only for a role granted the selection, over a live
+`save_record` binding, and only when the serving reader accepts each exact
+call. A document, repository, assignment, search or receipt context, and a
+role that cannot author, is offered none.
+
+A refused `save_record` offers the same selection sized to the request. When
+the unit is a saved unit, `changes` is a nonempty object and every one of its
+members belongs to that unit's variant, the refusal's `next_calls` holds one
+read of all the members the request named, in the owner's order. This covers a
+malformed nested value and an owner's semantic refusal alike. The schema is
+structural guidance and is not presented as resolving a semantic cause: the
+refusal keeps its cause, field facts, caller choices and the owner's own
+guidance calls, which stay first and recommended, and a corrected request, when
+one exists, remains the one recommended call. The read is never described as a
+corrected save, and no save is retried.
+
+To offer that read the save owner asks the serving reader for the refused
+unit's current reference. The reader resolves the unit through its own source
+owners, under the session's context and selection grants, and retains the
+ordinary descriptor; the refusal reports that read and retention, and no
+canonical data is written. When the session has no binding, reader, grant or
+readable unit, the refusal states the missing capability and its owner instead
+of a call, and the original refusal is unchanged.
+
+No schema read is offered when the unit, the form of `changes` or any named
+member is invalid, unknown or not of the unit's variant; the refusal stands as
+made and no member is dropped or replaced. A stale revision keeps the unit's
+current context as its one recommended recovery. A maintenance retry, a
+published save and an unchanged save acquire no reference and offer no schema
+read: a schema already held is reused.
+
 Work context includes a small literal summary with its scalar extent. Orchestrator
 context also reports the parent record's literal requirements and source extent,
 including absent and empty values, for both root and slice reads. Recommendations
@@ -275,6 +404,64 @@ unchanged. That call returns the context and its choices, not the refused
 whole-record content; the caller chooses one offered selection, and none is
 inferred or followed for it. A foreign, unauthorized, missing, changed or stale
 reference keeps its own refusal and recovery.
+
+### Creation input contract selection
+
+A record kind is a reader source of its own, so the grammar of a creation is
+read before any record exists:
+
+```text
+workspace_read_wiki({subject:{record_kind:"work_item"}})
+workspace_read_wiki({reference:<returned kind reference>,
+  select:{input_contract:{tool:"workspace_create_record",members:[...]}}})
+```
+
+`workspace_create_record` publishes `kind`, `title` and, for each kind, every
+`initial` member by name; a scalar member keeps its declaration and a composite
+member's nested declaration is deferred to this selection. The kind's context
+states the kind, its `initial` member names in the birth owner's order and the
+digest of the kind's whole initial schema, which is also its `revision`: a kind
+has no record revision, unit or receipt, and none is reported. Its `next_calls`
+holds one optional `record_creation` read of every member through the
+context's own reference. Any members of the kind may be named together, and one
+read returns them with every definition they reference.
+
+The schema is selected from the exposure the live `workspace_create_record`
+registration of the serving registrar bound, derived from the birth owner's
+per-kind schema, never rebuilt by the reader. A work item states the content
+carrier its body-prose members, entries and ready-slice sections share once, as
+a local definition of the same schema. The central policy grants the
+`(record_kind, context)` and `(record_kind, input_contract)` pairs to the
+orchestrator and operator roles, the roles that hold `workspace_create_record`;
+a role without the grant has no kind subject and no such selector in its
+request schema. Reading the contract is never required before a creation,
+grants nothing and yields no token a creation takes; the full creation
+validator decides every request.
+
+A kind the manifest does not create, a member the kind does not take and a
+repeated member are refused by name with the valid choices. `save_record` is
+not read through a kind reference and `workspace_create_record` is not read
+through a saved unit's: either pairing is refused with
+`input_contract_tool_source_mismatch`. A session with no registered
+`workspace_create_record` binding is refused with no supported route. No
+refusal discloses a schema, and neither read writes anything.
+
+### Selection forms
+
+`workspace_read_wiki` publishes `select` as one object that lists every
+selection key the role is granted. A key whose declaration is a scalar type or
+a closed set of scalar values keeps it; a key whose value is structured is
+listed by name with its description; a record field name is published as a
+string, because the fields of a resource are that resource's own. The compact
+object only widens: the role's full validator decides every request, including
+that exactly one selection is named.
+
+A selection whose value the caller must find is stated completely by the
+answer that supplies those values. The entries inventory, the field inventory
+and the obligation population each carry `selection_context`: the tool, the
+same reference, and `form`, the validator's own declaration of that selection
+for the session's role. A context's own `selections` and `next_calls` are
+concrete requests and need no form.
 
 ## Proof discovery and code-index selections
 
@@ -360,10 +547,16 @@ derives the stored test identity from the saved path and titles. Discovery
 classifies no selector syntax and corrects no request; a selector member of
 another family is refused by the save, which names the member to write.
 
-An authoring answer carries only calls that read its own retained result
-and, for a missing family, the family choice. Inline strategy examples accompany
-target constraints; there is no linked-example route or call into the
-requirement-authoring guidance. The selected proof's
+An authoring answer carries calls that read its own retained result and, for a
+missing family, the family choice. With an explicit `target_family`, it also
+offers `next_calls.case_guidance`, the reader's focused guidance-context call,
+and `authoring.case_guidance_selection`, the complete family selector, only when
+the live serving reader contract admits that context call for this session.
+A caller
+holding a requirement-guidance reference can pass that reference and selector
+directly; otherwise the focused context returns the exact selected read. Query
+recognition alone offers no scoped guidance call. Inline strategy examples
+accompany target constraints; there is no linked-example route. The selected proof's
 `authoring` already states whether a case is required (`authoring.case`), the
 values the answer establishes (`save.changes`) and every input that remains the
 caller's own (`save.missing_inputs`). A proof that declares no test execution
@@ -375,7 +568,8 @@ missing values in an existing WK; incomplete drafts remain savable. Selected
 family target constraints include inline supported/rejected strategy snippets
 chosen from the family’s existing languages, authored once per mechanism and
 language variant. Retained reads preserve both guidance and examples. The answer
-does not vary with the reading session's role.
+keeps its captured semantic facts; optional guidance navigation follows the
+receiving registrar's actual reader grants and never widens them.
 
 `query_code_index` retains its published-index and currentness owner. Its returned
 selections deliver complete semantic rows through authenticated selected-full

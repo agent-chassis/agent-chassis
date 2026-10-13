@@ -15,8 +15,8 @@ import {
   forbiddenOperationNoninvocationGuaranteeSatisfied
 } from "./forbidden-operation-noninvocation-v1-harness.mjs";
 
-const PROFILE_DIGEST = "d33c7c3eb034b334d4bcda5705c3334a98e408ecf91663b03bab81b60058956d";
-const GUARANTEE_DIGEST = "37c6bfcae8528804a5a06d4013d6595e92742ce97e982ef126790662e6acf7df";
+const PROFILE_DIGEST = "99d76e278eacfec4bd5b70eca510af04fd7f39788af1082c74885238696b5702";
+const GUARANTEE_DIGEST = "ceb829c30d301a48cf89646f0c159e35b03e4b867e8428c0eff96b81e16a9f21";
 const EXCLUSIONS = Object.freeze([
   "actual-execution-or-mutation-test-outcome",
   "dishonest-reference-context-population-or-verification-grounding",
@@ -52,14 +52,14 @@ function positiveControls(profile) {
   });
 }
 
-function addObservedForbiddenUse(contract, operationId, {
+function addObservedForbiddenCall(contract, operationId, {
   subjectId = "ref-subject-operation", contextId = "ref-execution-context",
-  propositionId = "prop-observed-forbidden-use", claimId = "claim-observed-forbidden-use"
+  propositionId = "prop-observed-forbidden-call", claimId = "claim-observed-forbidden-call"
 } = {}) {
   contract.propositions.push({
     proposition_id: propositionId,
     subject_reference_id: subjectId,
-    operator: "reference:uses",
+    operator: "reference:calls",
     applicability_context: {
       mode: "when", operand_reference_ids: [contextId]
     },
@@ -94,18 +94,25 @@ function legitimateControls(profile) {
         execution_context: "cc:scope", forbidden_operations: "cc:runtime_component"
       }
     }],
-    ["forbidden-use-outside-selected-context", {
+    ["permitted-call-in-selected-context", {
+      mutate_contract(contract) {
+        contract.references.push({ reference_id: "ref-permitted-operation", type_term: "cc:operation",
+          identity: { kind: "durable_id", domain: "noninvocation-control", value: "permitted" } });
+        addObservedForbiddenCall(contract, "ref-permitted-operation");
+      }
+    }],
+    ["forbidden-call-outside-selected-context", {
       mutate_contract(contract) {
         contract.references.push({
           reference_id: "ref-other-context", type_term: "cc:configuration",
           identity: { kind: "profile_term", term: "outside-selected-context" }
         });
-        addObservedForbiddenUse(contract, "ref-forbidden-operation-1", {
+        addObservedForbiddenCall(contract, "ref-forbidden-operation-1", {
           contextId: "ref-other-context"
         });
       }
     }],
-    ["forbidden-use-by-different-subject", {
+    ["forbidden-call-by-different-subject", {
       mutate_contract(contract) {
         contract.references.push({
           reference_id: "ref-other-subject", type_term: "cc:operation",
@@ -114,7 +121,7 @@ function legitimateControls(profile) {
             path: "src/other.mjs", symbol: "otherSubject"
           }
         });
-        addObservedForbiddenUse(contract, "ref-forbidden-operation-1", {
+        addObservedForbiddenCall(contract, "ref-forbidden-operation-1", {
           subjectId: "ref-other-subject"
         });
       }
@@ -132,18 +139,18 @@ function mutantFixture(profile, mutant) {
   return baselineFixture(profile, {
     mutate_contract(contract) {
       if (mutant === "last-forbidden-operation-restored") {
-        addObservedForbiddenUse(contract, "ref-forbidden-operation-2");
+        addObservedForbiddenCall(contract, "ref-forbidden-operation-2");
         return;
       }
       if (mutant === "multiple-forbidden-operations-restored") {
-        addObservedForbiddenUse(contract, "ref-forbidden-operation-1");
+        addObservedForbiddenCall(contract, "ref-forbidden-operation-1");
         const proposition = contract.propositions.find(
-          ({ proposition_id: propositionId }) => propositionId === "prop-observed-forbidden-use"
+          ({ proposition_id: propositionId }) => propositionId === "prop-observed-forbidden-call"
         );
         proposition.operands.push(ref("ref-forbidden-operation-2"));
         return;
       }
-      addObservedForbiddenUse(contract, "ref-forbidden-operation-1");
+      addObservedForbiddenCall(contract, "ref-forbidden-operation-1");
     }
   });
 }
@@ -176,6 +183,21 @@ function removeClaim(contract, patternId) {
 
 function profileRejectionFixtures(profile) {
   return {
+    "permission-is-not-prohibition": () => baselineFixture(profile, {
+      modality_overrides: { "subject-does-not-call-forbidden-operations": "MAY" }
+    }),
+    "optional-verification-does-not-discharge-prohibition": () => baselineFixture(profile, {
+      modality_overrides: { "verify-forbidden-operation-noninvocation": "MAY" }
+    }),
+    "retired-recommendation-prohibition": () => baselineFixture(profile, {
+      modality_overrides: { "subject-does-not-call-forbidden-operations": "SHOULD_NOT" }
+    }),
+    "retired-recommendation-verification": () => baselineFixture(profile, {
+      modality_overrides: { "verify-forbidden-operation-noninvocation": "SHOULD" }
+    }),
+    "empty-forbidden-population": () => baselineFixture(profile, {
+      role_id_overrides: { forbidden_operations: [] }
+    }),
     "missing-forbidden-population-count": () => baselineFixture(profile, {
       mutate_contract(contract) {
         contract.claims = contract.claims.filter(({ claim_id: claimId }) =>
@@ -193,12 +215,12 @@ function profileRejectionFixtures(profile) {
     }),
     "missing-noninvocation-behavior": () => baselineFixture(profile, {
       mutate_contract(contract) {
-        removeClaim(contract, "subject-does-not-use-forbidden-operations");
+        removeClaim(contract, "subject-does-not-call-forbidden-operations");
       }
     }),
     "wrong-noninvocation-subject": () => baselineFixture(profile, {
       proposition_overrides: {
-        "subject-does-not-use-forbidden-operations": {
+        "subject-does-not-call-forbidden-operations": {
           subject_reference_id: "ref-verification"
         }
       }
@@ -209,8 +231,26 @@ function profileRejectionFixtures(profile) {
           reference_id: "ref-other-context", type_term: "cc:configuration",
           identity: { kind: "profile_term", term: "other-execution-context" }
         });
-        findProposition(contract, "subject-does-not-use-forbidden-operations")
+        findProposition(contract, "subject-does-not-call-forbidden-operations")
           .applicability_context.operand_reference_ids = ["ref-other-context"];
+      }
+    }),
+    "partial-noninvocation-population": () => baselineFixture(profile, {
+      mutate_contract(contract) {
+        findProposition(contract, "subject-does-not-call-forbidden-operations").operands.pop();
+      }
+    }),
+    "wrong-noninvocation-population": () => baselineFixture(profile, {
+      mutate_contract(contract) {
+        contract.references.push({ reference_id: "ref-other-operation", type_term: "cc:operation",
+          identity: { kind: "durable_id", domain: "noninvocation-control", value: "other" } });
+        findProposition(contract, "subject-does-not-call-forbidden-operations").operands[0] = ref("ref-other-operation");
+      }
+    }),
+    "retired-broad-use-declaration": () => baselineFixture(profile, {
+      mutate_contract(contract) {
+        findProposition(contract, "subject-does-not-call-forbidden-operations").operator = "reference:uses";
+        findProposition(contract, "verify-forbidden-operation-noninvocation", { falsifier: true }).operator = "reference:uses";
       }
     }),
     "missing-verification-observation": () => baselineFixture(profile, {
@@ -255,6 +295,18 @@ function profileRejectionFixtures(profile) {
         }
       }
     }),
+    "partial-falsifier-population": () => baselineFixture(profile, {
+      mutate_contract(contract) {
+        findProposition(contract, "verify-forbidden-operation-noninvocation", { falsifier: true }).operands.pop();
+      }
+    }),
+    "wrong-falsifier-population": () => baselineFixture(profile, {
+      mutate_contract(contract) {
+        contract.references.push({ reference_id: "ref-other-operation", type_term: "cc:operation",
+          identity: { kind: "durable_id", domain: "noninvocation-control", value: "other" } });
+        findProposition(contract, "verify-forbidden-operation-noninvocation", { falsifier: true }).operands[0] = ref("ref-other-operation");
+      }
+    }),
     "missing-forbidden-operation-binding": () => baselineFixture(profile, {
       mutate_input(input) {
         input.reference_bindings = input.reference_bindings.filter(
@@ -284,14 +336,14 @@ function exclusionControls(profile) {
   }));
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   return {
     schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: PROFILE_DIGEST,
     guarantee_digest: GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures),
       ...positiveControls(profile),
       ...legitimateControls(profile),
       ...mutantControls(profile),
@@ -310,3 +362,31 @@ export {
   profileRejectionFixtures,
   runProofPackAdequacyControls
 };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-verify-forbidden-operation-noninvocation-modalities",
+      "claim_id": "claim-verify-forbidden-operation-noninvocation",
+      "baseline": "isolated-claim-verify-forbidden-operation-noninvocation-modalities-baseline",
+      "optional": "isolated-claim-verify-forbidden-operation-noninvocation-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

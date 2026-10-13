@@ -1,5 +1,9 @@
 
 
+export { celDefinitionIndex, selectCelDefinition } from
+  "@agent-chassis/controlled-contract/cel-definition-reference";
+import { relationAvailableForAuthoring } from "@agent-chassis/controlled-contract/vocabulary";
+
 export const CONTROLLED_CONTRACT_REQUIREMENT_LIMITS = Object.freeze({
   requirements_per_answer: 8,
   context_referents: 4,
@@ -138,8 +142,10 @@ export function publishAuthoringVocabularyForGuidance(projection) {
   });
 }
 
-export function projectControlledContractAuthoringVocabulary(vocabulary) {
-  const relationDetails = Object.freeze([...vocabulary.operator_signatures.entries()]
+export function projectControlledContractAuthoringVocabulary(vocabulary, position = "requirement_behavior") {
+  const signatures = [...vocabulary.operator_signatures.entries()]
+    .filter(([term]) => relationAvailableForAuthoring(term, position));
+  const relationDetails = Object.freeze(signatures
     .map(([term, signature]) => Object.freeze({
       term,
       operand_kind: signature.operand_kind,
@@ -167,21 +173,20 @@ export function projectControlledContractAuthoringVocabulary(vocabulary) {
 
     relation_term_format: "<object_kind>:<name>",
     relations_by_object_kind: Object.freeze(Object.fromEntries(
-      [...new Set([...vocabulary.operator_signatures.values()]
+      [...new Set(signatures.map(([, signature]) => signature)
         .map(({ operand_kind: kind }) => kind))].sort().map((kind) => [kind,
-        Object.freeze([...vocabulary.operator_signatures.entries()]
+        Object.freeze(signatures
           .filter(([, signature]) => signature.operand_kind === kind)
           .map(([term]) => localRelationName(term, kind)).sort())]))),
     single_object_relations_by_object_kind: Object.freeze(Object.fromEntries(
-      [...new Set([...vocabulary.operator_signatures.values()]
+      [...new Set(signatures.map(([, signature]) => signature)
         .map(({ operand_kind: kind }) => kind))].sort().map((kind) => [kind,
-        Object.freeze([...vocabulary.operator_signatures.entries()]
+        Object.freeze(signatures
           .filter(([, signature]) => signature.operand_kind === kind &&
             signature.maximum_operands === 1)
           .map(([term]) => localRelationName(term, kind)).sort())]))),
 
-    restricted_applicability: Object.freeze([...vocabulary.operator_signatures
-      .entries()]
+    restricted_applicability: Object.freeze(signatures
       .filter(([, signature]) =>
         signature.applicability_modes.length < vocabulary.applicability_modes.size)
       .map(([term, signature]) => Object.freeze({ term,

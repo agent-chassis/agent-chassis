@@ -1,0 +1,25 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "e117b5acaea479e88daa4757be755df1e684a809f0105276e51c89f293e5f554",
+  "profile_id": "proof.operation.forbidden-noninvocation",
+  "profile_version": "5.0.0",
+  "profile_digest": "99d76e278eacfec4bd5b70eca510af04fd7f39788af1082c74885238696b5702",
+  "guarantee": "For one caller-declared subject operation, one declared execution context, and one complete exact nonempty forbidden-operation population, the subject must not call any forbidden member while that context applies. A call to even one member violates the prohibition. One verification reads the exact subject, context, population and every forbidden member, verifies that prohibition, and carries positive calls over the same complete population, subject and context as its falsifier. This certifies the declared proof model, not arbitrary implementation execution or broad dependency use.",
+  "guarantee_digest": "ceb829c30d301a48cf89646f0c159e35b03e4b867e8428c0eff96b81e16a9f21",
+  "explicit_exclusions": [
+    "actual-execution-or-mutation-test-outcome",
+    "dishonest-reference-context-population-or-verification-grounding",
+    "dynamic-reflective-or-environment-dependent-invocation-absent-from-the-declared-model",
+    "forbidden-operations-outside-the-caller-declared-complete-population",
+    "invocation-after-or-outside-the-declared-context",
+    "production-path-or-call-graph-discovery"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "1891077ed08b623322bd9625a579b2511b258354f65da2dee49dad4ad98389ef",
+    "adequacy_result_digest": "fe63fb6574fee84b58b20536a4b89d3f2c3bdca2f1765c8e713afdd3fd48016b",
+    "executable_control_count": 48,
+    "negative_fixture_count": 2,
+    "coverage_witness_count": 27
+  }
+}

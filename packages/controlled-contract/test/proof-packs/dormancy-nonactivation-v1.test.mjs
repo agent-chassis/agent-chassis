@@ -111,7 +111,7 @@ test("dormancy full-census admission binds every fixed negative and rebound witn
   });
   assert.equal(fullCensus.passed, true, JSON.stringify(fullCensus.diagnostics));
   assert.deepEqual(fullCensus.diagnostics, []);
-  assert.equal(fullCensus.control_count, 42);
+  assert.equal(fullCensus.control_count, 44);
   assert.equal(fullCensus.negative_fixture_count, 52);
   assert.equal(fullCensus.coverage_witness_count, 52);
   assert.equal(fullCensus.negative_fixture_results.every(

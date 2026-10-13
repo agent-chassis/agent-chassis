@@ -179,7 +179,7 @@ function emitterSource({ prefix, channel, nonce, sourceId }) {
 \tseq int
 }
 
-func ${prefix}Emit(record map[string]any) {
+func ${prefix}Emit(record map[string]interface{}) {
 \t${prefix}State.Lock()
 \tdefer ${prefix}State.Unlock()
 \trecord["v"] = 1
@@ -240,9 +240,9 @@ func zzLauncherTestProofEnter(t *testing.T, name string) func() {
 \tpanicked := false
 \tpanicMessage := ""
 \ttest := []string{name}
-\tzzLauncherTestProofObserverEmit(map[string]any{"kind": "test_start", "test": test, "file": ${goString(file)}})
+\tzzLauncherTestProofObserverEmit(map[string]interface{}{"kind": "test_start", "test": test, "file": ${goString(file)}})
 \tt.Cleanup(func() {
-\t\tzzLauncherTestProofObserverEmit(map[string]any{"kind": "window_end", "test": test,
+\t\tzzLauncherTestProofObserverEmit(map[string]interface{}{"kind": "window_end", "test": test,
 \t\t\t"file": ${goString(file)}})
 \t\tfailed := t.Failed() || panicked
 \t\toutcome := "passed"
@@ -251,18 +251,18 @@ func zzLauncherTestProofEnter(t *testing.T, name string) func() {
 \t\t} else if t.Skipped() {
 \t\t\toutcome = "skipped"
 \t\t}
-\t\trecord := map[string]any{"kind": "test_result", "test": test, "file": ${goString(file)},
+\t\trecord := map[string]interface{}{"kind": "test_result", "test": test, "file": ${goString(file)},
 \t\t\t"outcome": outcome, "assertion_failure": failed && !panicked}
 \t\t// The observer holds a recovered panic value itself; a testing.T failure's
 \t\t// messages are written to Go's own test report, not to this observer.
 \t\tif panicked {
-\t\t\trecord["failure_diagnostic"] = map[string]any{"schema_version": "launcher-test-failure-diagnostic.v1",
-\t\t\t\t"status": "captured", "root_error": "error-0", "values": []any{}, "issues": []any{},
-\t\t\t\t"errors": []any{map[string]any{"id": "error-0", "name": "panic", "message": panicMessage}}}
+\t\t\trecord["failure_diagnostic"] = map[string]interface{}{"schema_version": "launcher-test-failure-diagnostic.v1",
+\t\t\t\t"status": "captured", "root_error": "error-0", "values": []interface{}{}, "issues": []interface{}{},
+\t\t\t\t"errors": []interface{}{map[string]interface{}{"id": "error-0", "name": "panic", "message": panicMessage}}}
 \t\t} else if failed {
-\t\t\trecord["failure_diagnostic"] = map[string]any{"schema_version": "launcher-test-failure-diagnostic.v1",
-\t\t\t\t"status": "unavailable", "root_error": nil, "errors": []any{}, "values": []any{},
-\t\t\t\t"issues": []any{map[string]any{"path": "/error", "reason": "error_not_supplied"}}}
+\t\t\trecord["failure_diagnostic"] = map[string]interface{}{"schema_version": "launcher-test-failure-diagnostic.v1",
+\t\t\t\t"status": "unavailable", "root_error": nil, "errors": []interface{}{}, "values": []interface{}{},
+\t\t\t\t"issues": []interface{}{map[string]interface{}{"path": "/error", "reason": "error_not_supplied"}}}
 \t\t}
 \t\tzzLauncherTestProofObserverEmit(record)
 \t})
@@ -292,7 +292,7 @@ import (
 
 ${emitterSource({ prefix: "zzLauncherTestProofReachSink", channel, nonce, sourceId: "go.reach" })}
 func zzLauncherTestProofReach(token string) {
-\tzzLauncherTestProofReachSinkEmit(map[string]any{"kind": "reach", "token": token})
+\tzzLauncherTestProofReachSinkEmit(map[string]interface{}{"kind": "reach", "token": token})
 }
 `;
 }

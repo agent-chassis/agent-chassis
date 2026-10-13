@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.compatibility.behavioral-preservation",
   "profile_version": "4.0.0",
-  "profile_digest": "5dc11d57d78d5a6faee00bdfa245e932e1ba87ce48603e426f0519ce904db581",
+  "profile_digest": "9e4ab649264b11c273fcc42c0283fd438d9a4cd81fe3b2ded18092f9f9b39f99",
   "description": "For one declared logical behavior source, two distinct baseline and candidate behavior-report artifacts expose equal complete populations of typed observable descriptors by mutual subset, bind one shared exact nonnegative observable count, emit count signals equal to that count, and expose one explicitly selected canonical observable-value pair that is exactly equal. One verification reads both full reports and each verified equality has its controlled complement as a separate falsifier. Exact-bound admission additionally requires two distinct caller-selected source descriptors for the full report artifacts whose complete captured bytes have the same SHA-256.",
   "parameters": [
     {

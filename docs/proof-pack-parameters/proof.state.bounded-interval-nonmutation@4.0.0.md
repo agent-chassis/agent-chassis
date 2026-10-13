@@ -4,9 +4,9 @@
 
 For one caller-declared actor or process, one declared interval with distinct ordered start and end events, and one complete exact nonempty protected-resource population, the actor neither writes nor mutates any protected member during that interval; same-actor, same-population, same-interval positive write and mutation propositions falsify the plan, including mutate then restore.
 
-Profile digest: 937e729ac57add4eb1db4d3f459be576d261a329825589ca7bc6e212d21e55c7. Parameter digest: d410a20d7e033ec4e94ba07cad1b724c9c67b48f7ee10c6762d78b26264338d1.
+Profile digest: 0eed7aee9b04925c5a4cabbd0d8286c16926f5f936a7f5026ccae8af253af8e2. Parameter digest: 78b78731ec1853be5b6e6f30b73eb039e8a7af11df9786cbccb59fa61b2cb43d.
 
-Admission digest: e20e03c60aac2fdeb9acf6d0ceadcb91e357b6d98bd80b6ef096d98f70ca3553.
+Admission digest: 96e8c2deddc253cec1c2d2e0973ae2e2ff044d0a3996a325c303e1c459f3030b.
 
 Roles: 8/8 accounted; 0 owned gaps. Semantic parameters: 7; internal roles: 1.
 

@@ -155,6 +155,11 @@ function renderSlicesBrief(record, { sliceId = null, scopePresentation = null } 
       "",
       renderListSection("Slice Validation", projectedValidation(selected),
         renderWorkRecordValidationEntry),
+
+      ...(stringList(selected.regression_tests).length === 0 ? [] : [
+        "",
+        renderListSection("Slice Regression Tests", stringList(selected.regression_tests), escapeInlineCode)
+      ]),
       "",
       renderDispatchIntent(selected)
     ];

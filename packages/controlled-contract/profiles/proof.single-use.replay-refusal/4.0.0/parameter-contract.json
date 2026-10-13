@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.single-use.replay-refusal",
   "profile_version": "4.0.0",
-  "profile_digest": "d35e3c226ad539a7cbcaa539e6daa638878c4849680f5af468513666a697f3ef",
+  "profile_digest": "989b34bb49141dac8d2780ef5564c6d0aa512f12f9a1c967b5196aa693227673",
   "description": "Given one declared single-use authority and authorized input, two distinct ordered attempts of the same operation using that authority and input, one closed one-member effect-occurrence population, one elected durable effect resource with complete observations before first use, after first success, and after replay refusal, and one expected success state: the first attempt is accepted, reaches the expected state, creates the sole declared effect occurrence, and changes the elected resource state; after that success the authority no longer authorizes the input; the replay is rejected and not accepted, creates no member of the declared effect population, and leaves the elected resource state equal to its post-first-use state.",
   "parameters": [
     {

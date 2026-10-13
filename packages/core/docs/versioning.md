@@ -99,7 +99,7 @@ exact registry-unsupported traversal disposition), never executable paths,
 commands, argv, environment, callbacks, shell text, or arbitrary modules. The
 admitted falsifier strategies and traversal mechanisms are exactly those the
 current package provider catalog declares for each provider (see
-[Test-proof runtime identity](test-proof-runtime-identity.md)); every
+[Test-proof runtime identity](test-proof-runtime-identity.md#provider-witness-validators)); every
 credit-bearing mechanism has one provider-owned witness validator, and a
 mechanism without one cannot receive credit. Other strategies fail resolution
 and other boundary kinds use authenticated `registry_unsupported`/`review_only`
@@ -370,7 +370,7 @@ when every declared check was applied.
 
 An empty limitation population never means a check was satisfied, and a
 limitation never earns the credit of the check it replaces
-(see [Test-proof runtime identity](test-proof-runtime-identity.md#capability-limitations)).
+(see [Test-proof runtime identity](test-proof-results.md#capability-limitations)).
 
 ### Proof-definition format cutover (work record)
 

@@ -119,7 +119,11 @@ export function createCodeIndexStatusResponse(workspaceRepo, status, preparation
         "they do not prepare, refresh or repair it."
       : "The published index is usable at indexed_commit: ask a code question with the selectors " +
         "supported_questions lists. The evidence selections inspect this status's retained provider and " +
-        "provenance facts; no question needs them first."
+        "provenance facts; no question needs them first." + (provider?.state === "dependency_limited"
+        ? " Missing dependencies limited provider coverage (graph_snapshot.provider_coverage.state): the " +
+          "retained provider facts name each affected project and what it is missing, and an answer that " +
+          "may depend on one says so."
+        : "")
   };
 }
 

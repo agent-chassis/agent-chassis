@@ -23,6 +23,10 @@ only a supplied proof-plan request loads the memoized narrow proof-plan compiler
 The production surface creates with `workspace_create_record` and updates with
 `save_record({unit,revision,changes})`. The revision is the current combined
 source-bound authoring revision returned by `workspace_read_wiki` context.
+A deliberate proof, grammar or whole-unit controlled-acceptance exception is the
+separate request `save_record({unit,revision,exception})`; no member of
+`changes` or of a creation's `initial` records one. See
+[Deliberate exceptions](acceptance-coverage-mcp.md#deliberate-exceptions).
 Creation and save compose the existing store, semantic participants, assessment
 and maintenance owners; they add no transaction or fallback publication path.
 Original responses are authenticated `workspace_read_wiki` references. Reading
@@ -41,7 +45,11 @@ derives record or slice applicability from the unit address it names
 enforces one closed `changes` branch per address form. It publishes a work item
 once, as the slice-unit declaration, with each slice contract member marked
 slice-unit only; the unit address decides applicability at the server.
-`workspace_create_record` advertises and enforces the birth declaration.
+`workspace_create_record` advertises and enforces the birth declaration. It
+publishes a work item's `initial.requirements` by name with its declaration
+deferred: the complete requirement batch declaration is the
+`requirement_batch_schema` topic of the requirement guidance, readable before
+any record exists, and the server validates the whole batch on creation.
 
 A slice contract member authored on the record unit or at birth is refused
 before any canonical write or allocation with
@@ -593,8 +601,14 @@ shaping, criteria, judgments, status and closure through their existing
 planners, and requirement, obligation, case and applicability meaning through
 the semantic preparation owner against the prospective record. Several explicit
 obligation removals and selected-row edits are prepared in order, each against
-the state the previous one left, and settle as one candidate. Request-local
-labels resolve only to the identities those owners issue. A malformed or stale
+the state the previous one left, and settle as one candidate. Requirements are
+one batch (`entities`, `requirements`, `collections`, `unresolved`) that the
+batch owner prepares against the stored contract and the prospective record,
+under the host's captured paid tier only; a change that carries no requirement
+member is saved at any tier. Its authored rows are stored beside the claims
+they emit and settle with them as one contract participant. Request-local
+labels resolve only to the identities those owners issue; a requirement label
+resolves to its saved row and every claim that row emits. A malformed or stale
 batch publishes nothing; a structurally valid incomplete draft is saved, including
 a case whose verification is left unresolved because none or several are
 eligible. Every supplied valid change commits together with that draft, and an
@@ -705,8 +719,15 @@ of them. Retention failure is reported alongside the save's actual effects and
 does not replay the mutation.
 
 The importable `registerSaveRecordTools` registers `save_record` with exactly
-`{unit, revision, changes}` or `{unit, maintenance_retry: {save_result}}` through
-the real handler and response guard. A notes/entry-only work-item save delivers
+`{unit, revision, changes}`, `{unit, revision, exception}` or
+`{unit, maintenance_retry: {save_result}}` through the real handler and response
+guard. The exception variant takes a work item or slice unit and the exception
+owner's closed `{kind, action, subject, rationale?}`; it is prepared, fenced by
+the same combined revision, settled, compensated and maintained exactly as an
+authored change is, and its retry is the same maintenance retry. A refused
+exception, or an ordinary save that names a member which no longer records one,
+is offered the read of the exception contract and no replacement request.
+A notes/entry-only work-item save delivers
 a concise receipt with its outcome, unit, revision, actual changed fields and
 entry identities, publication effects, maintenance result and actionable
 failures. Its complete exact-source assessment stays in the immutable retained

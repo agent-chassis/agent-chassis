@@ -1,15 +1,19 @@
 
 
-import { lstatSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/test-proof";
 
+import { DEPENDENCY_ECOSYSTEMS } from "../test-runtime-setup/ecosystems.mjs";
+import { enclosingPackage } from "../test-runtime-setup/npm-workspace.mjs";
 import { readinessRecovery } from "../test-runtime-setup/readiness.mjs";
 import { resolveCurrentRunnerRuntime } from "./current-runtime.mjs";
+import { DEPENDENCY_EXCLUSION_FAILED_CODE, DEPENDENCY_PROJECTION_CONFLICT_CODE, SELECTED_SOURCE_UNAVAILABLE_CODE,
+  ensureNpmDependencyProjection, excludeNpmDependencyProjection } from "./dependency-projection.mjs";
 import { SavedTestEntrypointsError, readSavedTestEntrypoints } from "../test-runtime-setup/test-entrypoints.mjs";
 import { DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS, mintTestProofExecutionBudget } from "./confined-capture.mjs";
-import { executeConfinedInvocation, withExecutionRoot } from "./confined-invocation.mjs";
+import { createExecutionRoot, executeConfinedInvocation } from "./confined-invocation.mjs";
 import { resolveInstalledRunnerIntegration } from "./runner-integrations.mjs";
 import { RunnerIntegrationPreconditionError } from "./runner-integrations/common.mjs";
 import { configuredExecutableFailure } from "./runtime-inputs.mjs";
@@ -17,6 +21,7 @@ import { configuredExecutableFailure } from "./runtime-inputs.mjs";
 export const ORDINARY_TEST_RUN_SCHEMA_VERSION = "ordinary-test-file-run.v1";
 export const ORDINARY_TEST_RUN_CODES = Object.freeze({
   REQUEST_INVALID: "ordinary_test_request_invalid",
+  TARGET_NO_MATCH: "ordinary_test_target_no_match",
   RUNNER_UNKNOWN: "ordinary_test_runner_unknown",
   TARGET_INVALID: "ordinary_test_target_invalid",
   TARGET_MISSING: "ordinary_test_target_missing",
@@ -45,12 +50,12 @@ class OrdinaryRefusal extends Error {
 
 const refuse = (code, message, detail, recovery) => { throw new OrdinaryRefusal(code, message, detail, recovery); };
 
-function targetDefect(value) {
+export function ordinaryTargetDefect(value, { pattern = false } = {}) {
   if (typeof value !== "string" || value.length === 0) return "it is not a nonempty string";
   if (value.includes("\0")) return "it contains NUL";
   if (value.includes("\\")) return "it contains a backslash";
   if (value.startsWith("/") || /^[A-Za-z]:/u.test(value)) return "it is not repository-relative";
-  if (GLOB_CHARACTER.test(value)) return "it contains a glob character";
+  if (!pattern && GLOB_CHARACTER.test(value)) return "it contains a glob character";
   for (const segment of value.split("/")) {
     if (segment === "") return "it has an empty segment";
     if (segment === "." || segment === "..") return `it has a ${segment} segment`;
@@ -98,7 +103,7 @@ function validateRequest(request) {
     budget = null } = request;
   const repositoryRoot = absoluteRoot(request.repositoryRoot, "repositoryRoot");
   const checkoutRoot = absoluteRoot(request.checkoutRoot, "checkoutRoot");
-  const defect = targetDefect(request.target);
+  const defect = ordinaryTargetDefect(request.target);
   if (defect !== null) {
     refuse(ORDINARY_TEST_RUN_CODES.TARGET_INVALID, `the target must be one literal repository-relative file: ${defect}`,
       { target: typeof request.target === "string" ? request.target : null });
@@ -125,17 +130,6 @@ function validateRequest(request) {
     budget };
 }
 
-function overlayDestination(checkout, destination) {
-  let stat = null;
-  try { stat = lstatSync(destination); } catch { stat = null; }
-  if (typeof destination !== "string" || !destination.startsWith(`${checkout}/`) || stat === null ||
-      !stat.isFile() || realpathSync(destination) !== destination) {
-    throw Object.assign(new Error(`${destination} is not an existing regular file of the checkout`),
-      { code: "test_proof_source_overlay_invalid", detail: { path: destination } });
-  }
-  return destination;
-}
-
 const PROOF_STAGES = new WeakSet();
 const COMPILER_CACHE_UNAVAILABLE_CODES = Object.freeze(["test_proof_native_compiler_cache_unavailable",
   "test_proof_native_compiler_cache_not_excluded"]);
@@ -148,10 +142,11 @@ export function mintProofStage({ compilerCache = null, compose }) {
 }
 
 export async function resolveTestFileRuntime({ repositoryRoot, checkoutRoot, target, descriptor, environment = null,
-  compilerCache = null }) {
+  compilerCache = null, executionRoot = null, hostPath = undefined }) {
   const resolve = async (caching) => {
     const { located, runtime } = await resolveCurrentRunnerRuntime({ repositoryRoot, checkoutRoot, target,
-      runner: descriptor, environment, compilerCache: caching });
+      runner: descriptor, environment, compilerCache: caching,
+      ...(executionRoot === null ? {} : { scratchRoot: executionRoot.scratch, hostPath }) });
     if (!located.configured) {
       return { ok: false, kind: "unrouted", code: "test_runtime_runner_not_prepared",
         message: `no ${descriptor.dependency_ecosystem} project in this checkout owns ${target}`,
@@ -185,13 +180,38 @@ export async function resolveTestFileRuntime({ repositoryRoot, checkoutRoot, tar
   }
 }
 
-async function currentRuntime(validated, stage) {
-  const resolved = await resolveTestFileRuntime({ ...validated, compilerCache: stage?.compilerCache ?? null });
+async function currentRuntime(validated, stage, executionRoot = null) {
+  const resolved = await resolveTestFileRuntime({ ...validated, compilerCache: stage?.compilerCache ?? null,
+    executionRoot, hostPath: executionRoot === null ? undefined : process.env.PATH ?? null });
   if (!resolved.ok) {
     refuse(resolved.code, resolved.message, resolved.kind === "runtime"
       ? { ...resolved.detail, route: resolved.route } : resolved.detail, resolved.recovery);
   }
   return resolved;
+}
+
+function provisionInvocationDependencies(runtime, { checkoutRoot, invocationCheckout, invocationProjectDir, file }) {
+  if (runtime.preparation?.ecosystem !== "npm" || runtime.preparation.status !== "present") return runtime;
+  const exclude = (projection) => {
+    if (invocationCheckout === checkoutRoot) excludeNpmDependencyProjection({ checkoutRoot, projection });
+  };
+  let projection;
+  try {
+    projection = ensureNpmDependencyProjection({ dependency: runtime.preparation,
+      projectHostDir: invocationProjectDir });
+  } catch (error) {
+    if ((error?.published ?? []).length > 0) exclude({ trees: error.published });
+    throw error;
+  }
+  exclude(projection);
+  return Object.freeze({ ...runtime, values: Object.freeze({ ...DEPENDENCY_ECOSYSTEMS.npm.runtimeBinding({
+    dependency: runtime.preparation, projectHostDir: invocationProjectDir }).values,
+  package_context: enclosingPackage(runtime.environment?.members ?? [], file) }) });
+}
+
+function observerConfigWrite({ path: file, value }, runnerPackage) {
+  return { path: file,
+    content: `${JSON.stringify(runnerPackage === null ? value : { ...value, runner_package: runnerPackage })}\n` };
 }
 
 function savedAssociations(checkoutRoot, descriptor, project) {
@@ -212,8 +232,110 @@ function savedAssociations(checkoutRoot, descriptor, project) {
 
 const DIAGNOSTIC_EXCERPT_MAX_BYTES = 256;
 
+const ERROR_STATEMENT = /\b[A-Za-z_$.]*(?:Error|Exception)(?: \[[A-Z0-9_]+\])?:/u;
+const FAILED_RESULT_LINE = /[✘✗✖✕]|\bFAIL(?:ED)?\b/u;
 const ERROR_LINE_WORD =
-  /\b[A-Za-z]*(?:Error|Exception)\b|\berror(?=[:[])|\bpanic(?:ked)?\b|\bFAIL(?:ED)?\b|\bfatal\b/u;
+  /(?:^|[\s:])[A-Za-z_$.]*(?:Error|Exception)\s*$|\berror(?=[:[])|\bpanic(?:ked)?\b|\bfatal\b/u;
+const PASSING_LINE = /^\s*(?:[✔✓√]|ok\b|PASS(?:ED)?\b|--- PASS\b)|\bPASSED(?:\s+\[[^\]]*\])?\s*$|\.\.\. ok\s*$/u;
+
+const NO_WORD_LINE = /^[^\p{L}\p{N}]*$/u;
+
+function* linesFrom(text, from = 0) {
+  for (let start = from; start < text.length;) {
+    const newline = text.indexOf("\n", start);
+    const end = newline < 0 ? text.length : newline;
+    yield { start, line: text.slice(start, end) };
+    start = end + 1;
+  }
+}
+
+function firstErrorLine(text) {
+  let fallback = null;
+  let listing = false;
+  let listed = false;
+  for (const { start, line } of linesFrom(text)) {
+    const passing = PASSING_LINE.test(line);
+    const failed = !passing && FAILED_RESULT_LINE.test(line);
+    if (!passing && ERROR_STATEMENT.test(line)) return start;
+    if (fallback === null) {
+      if (failed || (!passing && ERROR_LINE_WORD.test(line))) fallback = start;
+      listing = failed;
+    } else if (listing) {
+      if (passing || failed) listed = true;
+      else if (!NO_WORD_LINE.test(line)) {
+        if (listed) return start;
+        listing = false;
+      }
+    }
+  }
+  return fallback;
+}
+
+const failedResult = (line) => !PASSING_LINE.test(line) && FAILED_RESULT_LINE.test(line) &&
+  !/^\s*FAIL(?:ED)?\s*$/u.test(line) && !/:\s*$/u.test(line);
+const WORD_CHARACTER = /[\p{L}\p{N}_]/u;
+
+const resultLine = (line) => PASSING_LINE.test(line) || FAILED_RESULT_LINE.test(line);
+
+function failedResultLines(text) {
+  const seen = new Set();
+  const lines = [];
+  let previous = null;
+  for (const entry of linesFrom(text)) {
+    if (NO_WORD_LINE.test(entry.line)) continue;
+    const result = resultLine(entry.line);
+    if (result && previous?.failed !== undefined) previous.failed.listed = true;
+    let failed;
+    if (failedResult(entry.line) && !seen.has(entry.line.trim())) {
+      seen.add(entry.line.trim());
+      failed = { ...entry, listed: previous?.result === true };
+      lines.push(failed);
+    }
+    previous = { result, failed };
+  }
+  return lines;
+}
+
+const headingWords = (line) => line.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+function namePosition(line, words) {
+  const at = words.length < 3 ? -1 : line.indexOf(words);
+  return at < 0 || WORD_CHARACTER.test(line.slice(0, at).slice(-1)) ||
+    WORD_CHARACTER.test(line.slice(at + words.length, at + words.length + 1)) ? -1 : at;
+}
+
+function failedResultStart(text, { start, line, listed }, results) {
+  if (!listed) return start;
+  let named = null;
+  let past = false;
+  for (const next of linesFrom(text, start + line.length + 1)) {
+    if (resultLine(next.line)) continue;
+    if (!past && NO_WORD_LINE.test(next.line)) continue;
+    past = true;
+    const words = headingWords(next.line);
+    const at = namePosition(line, words);
+    if (at < 0) continue;
+    let useful = false;
+    for (const following of linesFrom(text, next.start + next.line.length + 1)) {
+      if (NO_WORD_LINE.test(following.line)) continue;
+      useful = !resultLine(following.line) &&
+        !results.some((result) => namePosition(result.line, headingWords(following.line)) >= 0);
+      break;
+    }
+    if (!useful) continue;
+    if (named === null || at < named.at || (at === named.at && words.length > named.words.length)) {
+      named = { at, words, start: next.start };
+    }
+  }
+  return named?.start ?? start;
+}
+
+export function ordinaryFailedResultDiagnostic(text, { failure = null, maxBytes = DIAGNOSTIC_EXCERPT_MAX_BYTES } = {}) {
+  const lines = failedResultLines(text);
+  if (failure === null || failure > lines.length) return Object.freeze({ failures: lines.length });
+  const start = failedResultStart(text, lines[failure - 1], lines);
+  return Object.freeze({ failures: lines.length, failure, offset: Buffer.byteLength(text.slice(0, start), "utf8"),
+    text: utf8Bounded(text.slice(start), maxBytes, false), total_bytes: Buffer.byteLength(text, "utf8") });
+}
 
 function utf8Bounded(text, limit, fromEnd) {
   const bytes = Buffer.from(text, "utf8");
@@ -223,20 +345,19 @@ function utf8Bounded(text, limit, fromEnd) {
   return (fromEnd ? bytes.subarray(cut) : bytes.subarray(0, cut)).toString("utf8");
 }
 
-function captureExcerpt(text) {
+function captureExcerpt(text, maxBytes) {
   const total = Buffer.byteLength(text, "utf8");
-  const match = ERROR_LINE_WORD.exec(text);
-  if (match !== null) {
-    const start = text.lastIndexOf("\n", match.index) + 1;
+  const start = firstErrorLine(text);
+  if (start !== null) {
     return { basis: "first_error_line", offset: Buffer.byteLength(text.slice(0, start), "utf8"),
-      text: utf8Bounded(text.slice(start), DIAGNOSTIC_EXCERPT_MAX_BYTES, false), total_bytes: total };
+      text: utf8Bounded(text.slice(start), maxBytes, false), total_bytes: total };
   }
-  if (total <= DIAGNOSTIC_EXCERPT_MAX_BYTES) return { basis: "whole", offset: 0, text, total_bytes: total };
-  const tail = utf8Bounded(text, DIAGNOSTIC_EXCERPT_MAX_BYTES, true);
+  if (total <= maxBytes) return { basis: "whole", offset: 0, text, total_bytes: total };
+  const tail = utf8Bounded(text, maxBytes, true);
   return { basis: "tail", offset: total - Buffer.byteLength(tail, "utf8"), text: tail, total_bytes: total };
 }
 
-export function ordinaryRunDiagnostic(run) {
+export function ordinaryRunDiagnostic(run, { maxBytes = DIAGNOSTIC_EXCERPT_MAX_BYTES } = {}) {
   if (run.ran === false) {
     for (const source of ["blocker_message", "spawn_error"]) {
       const text = run[source];
@@ -247,9 +368,33 @@ export function ordinaryRunDiagnostic(run) {
     }
   }
   const captured = ["stderr", "stdout"].filter((source) => typeof run[source] === "string" && run[source].length > 0)
-    .map((source) => ({ source, ...captureExcerpt(run[source]) }));
+    .map((source) => ({ source, ...captureExcerpt(run[source], maxBytes) }));
   const chosen = captured.find(({ basis }) => basis === "first_error_line") ?? captured[0];
   return chosen === undefined ? null : Object.freeze(chosen);
+}
+
+const REQUEST_REFUSAL_CODES = new Set(Object.values(ORDINARY_TEST_RUN_CODES));
+const REQUEST_FIELDS_CORRECTABLE = Object.freeze(["file", "runner", "environment", "selector"]);
+
+export function ordinaryRequestCorrection(result) {
+  if (result?.status !== "refused" && result?.status !== "selection_unresolved") return null;
+  const detail = result.detail ?? {};
+  if (detail.reason === "selection_command_unsuccessful") return null;
+  if (Array.isArray(detail.valid_choices)) {
+    return Object.freeze({ fields: Object.freeze(["environment"]), set: "environment",
+      rejected: typeof detail.requested_environment === "string" ? detail.requested_environment : null,
+      choices: Object.freeze([...detail.valid_choices]) });
+  }
+  if (result.code === "test_runtime_runner_not_prepared") {
+    return Object.freeze({ fields: Object.freeze(["file", "runner"]) });
+  }
+  if (!REQUEST_REFUSAL_CODES.has(result.code)) return null;
+  if (result.code === ORDINARY_TEST_RUN_CODES.RUNNER_UNKNOWN && Array.isArray(detail.runners)) {
+    return Object.freeze({ fields: REQUEST_FIELDS_CORRECTABLE, set: "runner",
+      rejected: typeof detail.runner === "string" ? detail.runner : null,
+      choices: Object.freeze([...detail.runners]) });
+  }
+  return Object.freeze({ fields: REQUEST_FIELDS_CORRECTABLE });
 }
 
 class SelectionUnresolved extends Error {
@@ -276,8 +421,8 @@ function refusal(error, extra = {}) {
     recovery: error.recovery ?? null, ...extra });
 }
 
-export function runOrdinaryTestFile(request) {
-  return runTestFile(request, null);
+export function runOrdinaryTestFile(request, started = null) {
+  return runTestFile(request, null, started);
 }
 
 export function runProofStageTestFile(request, stage) {
@@ -285,10 +430,40 @@ export function runProofStageTestFile(request, stage) {
     throw Object.assign(new Error("a proof stage contribution must be launcher-minted"),
       { code: "test_proof_stage_untrusted" });
   }
-  return runTestFile(request, stage);
+  return runTestFile(request, stage, null);
 }
 
-async function runTestFile(request, stage) {
+async function runTestFile(request, stage, started) {
+  const executionRoot = createExecutionRoot();
+  let result;
+  let thrown = null;
+  try {
+    result = await runTestFileWithRoot(request, stage, executionRoot, started);
+  } catch (error) {
+    thrown = error;
+  }
+  const cleanup = executionRoot.release();
+  if (cleanup.status === "failed") {
+    if (thrown !== null) throw new AggregateError([thrown, executionRoot.removalError],
+      "test invocation failed and its owned execution root could not be removed", { cause: thrown });
+    const run = result?.run ?? null;
+    const cleanupRecovery = Object.freeze({ scope: "owned_execution_root", execution_root: executionRoot.root,
+        original_cause: Object.freeze({ ran: run?.ran ?? false, exit_code: run?.exit_code ?? null,
+          blocker_code: run?.blocker_code ?? result?.code ?? null }),
+        uncertainty: "execution-root removal was not confirmed",
+        next_action: `Inspect execution root ${executionRoot.root} and remove it after confirming no owned process can use it`,
+        actor: "host operator" });
+    const cleanupFacts = { cleanup_failed: true, cleanup_scope: "owned_execution_root",
+      cleanup_error: `execution_root_removal_${cleanup.errno ?? "failed"}`,
+      cleanup_recovery: cleanupRecovery };
+    return Object.freeze({ ...result, ...cleanupFacts,
+      ...(run === null ? {} : { run: Object.freeze({ ...run, ...cleanupFacts }) }) });
+  }
+  if (thrown !== null) throw thrown;
+  return result;
+}
+
+async function runTestFileWithRoot(request, stage, executionRoot, started) {
   let validated;
   let associations;
   let prepared;
@@ -297,7 +472,7 @@ async function runTestFile(request, stage) {
     const { checkoutRoot, target, descriptor } = validated;
     const absoluteFile = checkoutFile(checkoutRoot, target, { missing: ORDINARY_TEST_RUN_CODES.TARGET_MISSING,
       escapes: ORDINARY_TEST_RUN_CODES.TARGET_ESCAPES, notFile: ORDINARY_TEST_RUN_CODES.TARGET_NOT_FILE });
-    prepared = await currentRuntime(validated, stage);
+    prepared = await currentRuntime(validated, stage, executionRoot);
     associations = savedAssociations(checkoutRoot, descriptor, prepared.project);
     validated.absoluteFile = absoluteFile;
   } catch (error) {
@@ -305,7 +480,8 @@ async function runTestFile(request, stage) {
     throw error;
   }
   const { checkoutRoot, target, descriptor, selector, timeoutMs } = validated;
-  const { project, route, runtime, cache } = prepared;
+  const { project, route, cache } = prepared;
+  let { runtime } = prepared;
   const ownedBudget = validated.budget === null ? mintTestProofExecutionBudget({ timeoutMs }) : null;
   const budget = validated.budget ?? ownedBudget;
   const resolution = [];
@@ -315,14 +491,19 @@ async function runTestFile(request, stage) {
   const projectDir = project === "." ? checkoutRoot : path.join(checkoutRoot, project);
   let contribution = null;
 
+  let runnerPackage = null;
+
   const staged = (invocation, phase) => {
     const additions = contribution?.additions ?? {};
+    const writes = [...(additions.observerConfig === undefined ? []
+      : [observerConfigWrite(additions.observerConfig, runnerPackage)]), ...(additions.writes ?? [])];
     return {
       ...invocation,
       env: { ...(invocation.env ?? {}), ...(additions.env ?? {}) },
       directories: [...(additions.directories ?? []), ...(invocation.directories ?? []), ...runtime.directories],
       readOnlyBinds: [...(invocation.readOnlyBinds ?? []), ...(additions.readOnlyBinds ?? [])],
-      ...(additions.writes === undefined ? {} : { writes: additions.writes }),
+      executionRoot,
+      ...(writes.length === 0 ? {} : { writes }),
       ...(phase === "run" && additions.channel !== undefined ? { channel: additions.channel } : {}),
       ...(cache.directory === null ? {} : { writableCache: cache.directory })
     };
@@ -338,20 +519,7 @@ async function runTestFile(request, stage) {
       timeoutMs, budget, baseEvidence: baseEvidence(phase),
       ...(phase === "run" && contribution !== null ? { nativeReport: contribution.nativeReport ?? null,
         observe: contribution.observe ?? null } : {}) });
-    const overlays = contribution?.additions?.overlays ?? [];
-    if (overlays.length === 0) return confined(staged(invocation, phase));
-
-    return withExecutionRoot((executionRoot) => {
-      const directory = path.join(executionRoot.root, "overlay");
-      mkdirSync(directory, { mode: 0o700 });
-      const binds = overlays.map(({ path: destination, content }, index) => {
-        const source = path.join(directory, String(index));
-        writeFileSync(source, content, { mode: 0o400 });
-        return { src: source, dst: overlayDestination(checkoutRoot, destination) };
-      });
-      const owned = staged(invocation, phase);
-      return confined({ ...owned, executionRoot, readOnlyBinds: [...owned.readOnlyBinds, ...binds] });
-    });
+    return confined(staged(invocation, phase));
   };
 
   const metadata = async (invocation) => {
@@ -365,12 +533,26 @@ async function runTestFile(request, stage) {
     const file = project === "." ? target : path.posix.relative(project, target);
     if (stage !== null) {
       contribution = await stage.compose({ runtime, project, route, cache, checkout: checkoutRoot, projectDir,
+        executionRoot,
         target, file, entrypoints: associations });
+    }
+    const invocationCheckout = contribution?.additions?.copyRoot ?? checkoutRoot;
+    const invocationProjectDir = project === "." ? invocationCheckout : path.join(invocationCheckout, project);
+    const invocationAbsoluteFile = path.join(invocationCheckout, target);
+    try {
+      runtime = provisionInvocationDependencies(runtime, { checkoutRoot, invocationCheckout,
+        invocationProjectDir, file });
+    } catch (error) {
+      if (![DEPENDENCY_PROJECTION_CONFLICT_CODE, SELECTED_SOURCE_UNAVAILABLE_CODE,
+        DEPENDENCY_EXCLUSION_FAILED_CODE].includes(error?.code)) throw error;
+      return refusal(new OrdinaryRefusal(error.code, error.message, { ...error.detail, route }),
+        { resolution: Object.freeze(resolution) });
     }
     let plan;
     try {
       plan = await resolveInstalledRunnerIntegration(descriptor).ordinaryInvocation({ runtime,
-        checkout: checkoutRoot, projectDir, project, target, absoluteFile: validated.absoluteFile, file, selector,
+        checkout: invocationCheckout, projectDir: invocationProjectDir, project, target,
+        absoluteFile: invocationAbsoluteFile, file, selector,
         entrypoints: associations, metadata, proof: contribution?.proof ?? null });
     } catch (error) {
       if (error instanceof SelectionUnresolved || (error instanceof RunnerIntegrationPreconditionError &&
@@ -383,6 +565,15 @@ async function runTestFile(request, stage) {
       throw error;
     }
     const { invocation, harness, selection = {} } = plan;
+    runnerPackage = plan.runnerPackage ?? null;
+    if (started !== null) {
+      const command = JSON.stringify([invocation.command, invocation.args, invocation.cwd]);
+      if (started.has(command)) {
+        return Object.freeze({ schema_version: ORDINARY_TEST_RUN_SCHEMA_VERSION, status: "covered", ok: false,
+          proof_credit: false, covered_by: started.get(command), resolution: Object.freeze(resolution) });
+      }
+      started.set(command, target);
+    }
     let run;
     try {
       run = await execute(invocation, "run");
@@ -392,7 +583,7 @@ async function runTestFile(request, stage) {
     }
     return Object.freeze({
       schema_version: ORDINARY_TEST_RUN_SCHEMA_VERSION,
-      status: run.ran === true ? "executed" : "not_run",
+      status: run.ran === true ? "executed" : run.completion?.confirmed === false ? "unconfirmed" : "not_run",
       ok: run.ok === true,
       proof_credit: false,
       run,

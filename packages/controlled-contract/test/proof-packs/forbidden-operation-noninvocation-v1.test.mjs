@@ -14,7 +14,7 @@ import {
   EXCLUSIONS,
   runProofPackAdequacyControls
 } from "./forbidden-operation-noninvocation-v1-adequacy.mjs";
-import { FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE }
+import { FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE, buildForbiddenOperationNoninvocationFixture }
   from "./forbidden-operation-noninvocation-v1-fixture.mjs";
 import {
   DOMAINS,
@@ -26,11 +26,15 @@ import {
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { evaluateVerificationProfileV1 } from "../../lib/verification-profile-v1.mjs";
 import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
+import { validateStableV1Family } from "../../lib/stable-v1-family-validation.mjs";
+import { buildStableTestProofPopulation } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
-const identity = { profile_id: "proof.operation.forbidden-noninvocation", profile_version: "4.0.0" };
+const identity = { profile_id: "proof.operation.forbidden-noninvocation", profile_version: "5.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 const readJson = (name) => readDefinitionDocument(identity, name);
 
@@ -40,11 +44,24 @@ test("forbidden-operation noninvocation profile is valid and bounded to one decl
   assert.deepEqual(validateProfileSemanticsV1(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE), []);
   assert.equal(Object.hasOwn(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(profileDigest(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE),
-    "d33c7c3eb034b334d4bcda5705c3334a98e408ecf91663b03bab81b60058956d");
+    "99d76e278eacfec4bd5b70eca510af04fd7f39788af1082c74885238696b5702");
   assert.equal((await readJson("evaluation-input.template.json")).reference_bindings.length, 5);
+  const baseline = buildForbiddenOperationNoninvocationFixture();
+  const familyContract = structuredClone(baseline.contract);
+  familyContract.test_proofs = buildStableTestProofPopulation(familyContract);
+  const family = validateStableV1Family({ contract: familyContract, profile: baseline.profile, input: baseline.input });
+  assert.equal(family.valid, true, JSON.stringify(family.diagnostic_details));
+  let evaluated;
+  try {
+    evaluated = evaluateVerificationProfileV1({ contract: familyContract,
+      profile: baseline.profile, evaluation_input: baseline.input });
+  } catch (error) {
+    throw new Error(`${error.code}: ${JSON.stringify(error.details)}`, { cause: error });
+  }
+  assert.equal(evaluated.satisfaction, "satisfied", JSON.stringify(evaluated));
 });
 
-test("three unrelated domains pass and restoration of every forbidden operation is killed", async () => {
+test("three unrelated domains pass and one forbidden call, including either end of the population, is killed", async () => {
   for (const domain of Object.keys(DOMAINS)) assert.equal(
     forbiddenOperationNoninvocationGuaranteeSatisfied(
       executeForbiddenOperationNoninvocation({ domain })
@@ -53,7 +70,7 @@ test("three unrelated domains pass and restoration of every forbidden operation 
     forbiddenOperationNoninvocationGuaranteeSatisfied(
       executeForbiddenOperationNoninvocation({ mutant })
     ), false, mutant);
-  const controls = (await runProofPackAdequacyControls({
+  const controls = (await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
     profile: FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE
   })).controls;
   for (const control of controls.filter(({ category }) => category === "positive")) {
@@ -67,11 +84,11 @@ test("three unrelated domains pass and restoration of every forbidden operation 
 });
 
 test("every declared plan rejection is substantive and every exclusion stays explicit", async () => {
-  const controls = (await runProofPackAdequacyControls({
+  const controls = (await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
     profile: FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE
   })).controls;
   const rejections = controls.filter(({ category }) => category === "profile_rejection");
-  assert.equal(rejections.length, 13);
+  assert.equal(rejections.length, 24);
   for (const control of rejections) assert.notEqual(
     control.profile_satisfaction, "satisfied", control.control_id
   );
@@ -87,10 +104,10 @@ test("full-census certification is closed, digest-bound, and published", async (
   });
   assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
   assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.control_count, 35);
-  assert.equal(result.negative_fixture_count, 1);
-  assert.equal(result.coverage_witness_count, 28);
-  assert.equal(result.negative_fixture_results[0].outcome, "rejected");
+  assert.equal(result.control_count, 48);
+  assert.equal(result.negative_fixture_count, 2);
+  assert.equal(result.coverage_witness_count, 27);
+  assert.equal(result.negative_fixture_results.every(row => row.outcome === "rejected"), true);
   assert.equal(result.coverage_witness_results.every(({ outcome }) => outcome === "survived"), true);
   const [stored, admission] = await Promise.all([
     readJson("certification-result.full-census.json"), readJson("admission.json")

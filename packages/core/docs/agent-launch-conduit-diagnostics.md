@@ -27,7 +27,7 @@ EOF followed by a clean host-server exit is an expected drain, including while
 an interactive orchestrator process remains live. That transport fact does not
 complete the orchestrator session or authorize signalling its process. Abnormal
 server loss retains the bounded terminal supervision described in the
-[conduit lifecycle](agent-launch-confinement-mcp-conduit.md).
+[conduit lifecycle](agent-launch-mcp-conduit-lifecycle.md#private-root-and-teardown).
 
 Orchestrator `session.json` records a bounded `stdio_mcp_reason` and
 `stdio_mcp_detail` before terminal publication. The detail identifies readiness,
@@ -137,7 +137,7 @@ by the typed phase, and restart or resume through the normal launcher entrypoint
 Independent MCP command invocations may connect while admission is open, each
 with a fresh server generation. They do not reuse a prior stream or repair a
 failed conduit; the launcher-owned discovery-probe promotion described in the
-[conduit lifecycle](agent-launch-confinement-mcp-conduit.md) is a separate,
+[conduit lifecycle](agent-launch-mcp-conduit-lifecycle.md#lifecycle-phases-and-discovery-probes) is a separate,
 bounded readiness transition.
 Do not increase `startup_timeout_sec` for post-readiness loss: that budget governs
 only initialize plus `tools/list` and cannot restore a conduit that already

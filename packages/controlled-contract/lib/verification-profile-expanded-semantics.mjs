@@ -66,7 +66,7 @@ function createExpandedProfileSemanticValidator({
     return targetOperand.kind === "boolean" && falsifierOperand.kind === "boolean" &&
       targetOperand.value === !falsifierOperand.value;
   }
-  const negativeModalities = new Set(["MUST_NOT", "SHOULD_NOT"]);
+  const negativeModalities = new Set(["MUST_NOT"]);
   
   function falsifierModeForTarget(targetPattern) {
     const polarities = new Set(targetPattern.allowed_modalities.map((modality) =>

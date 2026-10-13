@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "1dce9d21d4fe40221981092258ff72cf3f7349a26c6214ad2bd7f71988d4793e",
+  "parameter_contract_digest": "3316c1dc5f1d6af4097930a14e9f7cc40c9af9aea7585bff02ecf91d64d9ca70",
   "profile_id": "proof.ownership.exact-isolation",
   "profile_version": "4.0.0",
-  "profile_digest": "9446d388315a4c607f7b3fd4b0b28c066f866d34215b129eb7ac8c9295f777cd",
+  "profile_digest": "2e82c0b44ea889ff2a4b5ec2babcf74cc8c4d49dcfbb5c01d57b8bd164d386b6",
   "guarantee": "Given one grounded owned resource, legitimate owner, distinct foreign subject, legitimate authority, reusable operation, refused foreign attempt, protected interval, complete authority-state observations before the foreign attempt and after refusal, and a distinct later valid attempt and expected successful result: the resource is assigned to the legitimate owner; the authority authorizes that owner but not the foreign subject for the operation; the foreign attempt targets the exact resource and is refused before writing or mutating it; the authority state after refusal equals its state before the attempt; and the later attempt uses the same authority, owner, operation, and resource and reaches the expected result state.",
   "guarantee_digest": "5a3b73c64e5fb0057b749b9cc0422bebd0118b282d213e251b7d43a9f2d41e5c",
   "explicit_exclusions": [
@@ -17,10 +17,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "ffb38655ddc3851a1fde5bdacaed181270af8ae798456815c7d8af96a63d6b7a",
-    "adequacy_result_digest": "422736208f73dcdab931f942de0d063ea6b442b013f5757cecd5df31baecf2a5",
-    "executable_control_count": 38,
-    "negative_fixture_count": 15,
-    "coverage_witness_count": 222
+    "adequacy_declaration_digest": "1dbd50c3464f8476c4c2578e903f7df58ce8bedc3506b838695b4d28e2b38a0c",
+    "adequacy_result_digest": "5820c854c96fb0ef16a87f1246389fc8f8f41d4ec85f4e18af3ccccd08ae0868",
+    "executable_control_count": 48,
+    "negative_fixture_count": 19,
+    "coverage_witness_count": 220
   }
 }

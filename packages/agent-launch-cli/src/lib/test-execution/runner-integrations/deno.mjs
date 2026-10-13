@@ -1,11 +1,12 @@
 
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { denoConfigName, denoLockSelection } from "../../test-runtime-setup/deno-config.mjs";
+
 function projectConfig(hostProjectDir, projectDir) {
-  const name = ["deno.json", "deno.jsonc"].find((candidate) =>
-    existsSync(path.join(hostProjectDir, candidate)));
+  const name = denoConfigName(hostProjectDir);
   return name === undefined ? [] : ["--config", path.join(projectDir, name)];
 }
 
@@ -15,8 +16,7 @@ function lockFailure(code, message) {
 
 const recordedCount = (value) => Object.keys(value ?? {}).length;
 
-function lockedDependencies(hostProjectDir) {
-  const file = path.join(hostProjectDir, "deno.lock");
+function lockedDependencies(file) {
   let text;
   try {
     text = readFileSync(file, "utf8");
@@ -49,7 +49,13 @@ export default Object.freeze({
   runner_id: "runner.deno",
 
   setupProbe: ({ runtime, projectDir }) => {
-    const dependencies = lockedDependencies(projectDir);
+    const lock = denoLockSelection(projectDir);
+    if (lock.disabled) {
+      return { command: runtime.executables.deno, cwd: projectDir,
+        args: ["test", "--no-run", "--no-check", "--cached-only", "--no-prompt", "--permit-no-files",
+          ...projectConfig(projectDir, projectDir)] };
+    }
+    const dependencies = lockedDependencies(lock.file);
     return { command: runtime.executables.deno, cwd: projectDir,
       args: dependencies.length === 0 ? ["info", "--json"]
         : ["check", "--cached-only", "--frozen", ...projectConfig(projectDir, projectDir), ...dependencies] };

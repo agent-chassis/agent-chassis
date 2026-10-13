@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   classifyControlledContractGenerationRepositoryPath,
+  classifyControlledContractRepositoryPath,
   validateControlledContractAttachmentGenerationDescriptors
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
 import {
@@ -615,10 +616,21 @@ export function createControlledContractGenerationTreeOperations({
     });
   }
 
+  function isSavedAuthoringSource(observed) {
+    if (observed?.ordinary !== true) return false;
+    try {
+      const value = JSON.parse(observed.bytes.toString("utf8"));
+      return value !== null && typeof value === "object" && !Array.isArray(value);
+    } catch {
+      return false;
+    }
+  }
+
   async function storedPopulationPathsFromTree({ runGit, binding, treeish }) {
     const observation = await generationSourceObservationFromTree({ runGit, binding, treeish });
     const carrierPaths = [];
     const manifestPaths = [];
+    const authoringSources = [];
     for (const entry of await observation.storeEntries()) {
       const repositoryPath = `wiki/contracts/${entry.name}`;
       const classification = classifyControlledContractGenerationRepositoryPath({
@@ -628,10 +640,19 @@ export function createControlledContractGenerationTreeOperations({
         fail(codes.STORED_GENERATION_INVALID,
           "stored tree contains a malformed active controlled-contract path");
       }
-      if (classification.classification === "active_member") carrierPaths.push(repositoryPath);
-      else if (classification.reason === "server_owned_carrier_set_manifest") manifestPaths.push(repositoryPath);
+      if (classification.classification === "active_member") {
+        const observed = classifyControlledContractRepositoryPath({
+          wkId: binding.record_id, repositoryPath
+        }).classification === "active_member" ? null : await observation.readFile(repositoryPath);
+        if (isSavedAuthoringSource(observed)) {
+          authoringSources.push({ path: repositoryPath, bytes_base64: observed.bytes.toString("base64") });
+        } else {
+          carrierPaths.push(repositoryPath);
+        }
+      } else if (classification.reason === "server_owned_carrier_set_manifest") manifestPaths.push(repositoryPath);
     }
-    return deepFreeze({ source: { ...observation.source }, carrierPaths, manifestPaths });
+    authoringSources.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+    return deepFreeze({ source: { ...observation.source }, carrierPaths, manifestPaths, authoringSources });
   }
 
   async function selectedGenerationFromTree({ runGit, binding, treeish }) {

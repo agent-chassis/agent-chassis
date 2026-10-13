@@ -1,3 +1,4 @@
+import { loadProofPack } from "../support/proof-pack-adequacy.mjs";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -30,6 +31,7 @@ const repositoryRoot = path.resolve(packageRoot, "../..");
 const profileId = "proof.compatibility.behavioral-preservation";
 const execFileAsync = promisify(execFile);
 const identity = { profile_id: profileId, profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 const runtimeDirectory = path.join(packageRoot, "profiles", profileId, "4.0.0");
 const cli = path.join(packageRoot, "bin/assess-contract.mjs");
@@ -131,7 +133,7 @@ test("ordinary adequacy and the fixed negative/rebound corpus pass in full-censu
   });
   assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
   assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.control_count, 41);
+  assert.equal(result.control_count, 51);
   assert.equal(result.negative_fixture_count, 87);
   assert.equal(result.coverage_witness_count, 87);
   assert.equal(result.negative_fixture_results.every(
@@ -144,7 +146,7 @@ test("ordinary adequacy and the fixed negative/rebound corpus pass in full-censu
 
 test("ordinary plan controls admit breadth and reject every inadequate plan", async () => {
   const profile = await readJson(runtimeDirectory, "profile.json");
-  const run = await runProofPackAdequacyControls({
+  const run = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
     profile, profile_digest: profileDigest(profile)
   });
   const positives = run.controls.filter(({ category }) => category === "positive");

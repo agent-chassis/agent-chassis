@@ -4,9 +4,9 @@
 
 A declared failed attempt using one legitimate authority is refused; that authority complete declared state observed after refusal equals its complete declared state observed before the attempt; and a later distinct authorized attempt using the same authority reaches a declared expected successful result state.
 
-Profile digest: d949ae751ce8612a2d2aa0d9166aeb23bf95b821fd97761c365e52925e82cbc4. Parameter digest: 52da26a460c268920729d35a9604933d4594c6e97925c03fdfe488eaffd3ad79.
+Profile digest: af916599cda1778afbea46717ab16bc45ac5789beef97dbe08da79037e05cf3b. Parameter digest: 150f7482978887c2e8cc0f7f44f5ec290cb4cb2315ed6fbe51da83a89ddf088d.
 
-Admission digest: 911148984500eb3f1e2f0d0a86991d41a1c7cbd539fed2b2600b48e9fa2561fc.
+Admission digest: 0139d8c23e195eb64a8ef495b81ea36e54d960a244dd50eb81cf473fa5d56568.
 
 Roles: 20/20 accounted; 3 owned gaps. Semantic parameters: 17; internal roles: 3.
 

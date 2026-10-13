@@ -71,7 +71,7 @@ const TEST_PROOF_EVIDENCE_FAILURES = Object.freeze({
   test_proof_selected_identity_not_observed:
     "repair_the_declared_test_startup_or_reporter_observation_then_retry",
 
-  test_proof_selected_test_skipped: "remove_the_selected_test_skip_then_retry",
+  test_proof_selected_test_skipped: "resolve_the_reported_selected_test_skip_then_retry",
   test_proof_caller_executor_forbidden:
     "repair_the_server_owned_verify_proof_execution_input_then_retry",
   test_proof_candidate_execution_error: null,
@@ -411,10 +411,14 @@ export function projectedSourceUnitForbidden(error, { subject = null, request = 
   if (sourceUnit !== undefined && parsedUnit(sourceUnit) === null) return null;
   if (details.wk_id !== undefined && parsedUnit(details.wk_id)?.selectedUnit !== null) return null;
   const authorizedUnit = details.authorized_unit ?? null;
+  const validProofIds = details.valid_proof_ids;
+  if (validProofIds !== undefined && (!Array.isArray(validProofIds) || !validProofIds.every(boundedText) ||
+      typeof details.message !== "string")) return null;
   const facts = { subject: details.subject,
     ...(sourceUnit === undefined ? {} : { source_unit: sourceUnit }),
     ...(details.wk_id === undefined ? {} : { wk_id: details.wk_id }),
-    authorized_unit: typeof authorizedUnit === "string" ? authorizedUnit : null };
+    authorized_unit: typeof authorizedUnit === "string" ? authorizedUnit : null,
+    ...(validProofIds === undefined ? {} : { valid_proof_ids: [...validProofIds], message: details.message }) };
   const requestedUnit = sourceUnit ?? details.subject;
   const requested = parsedUnit(requestedUnit);
   const authorized = parsedUnit(authorizedUnit);
@@ -556,7 +560,7 @@ export const TEST_PROOF_FAILURES = Object.freeze({
         : null;
     }
   },
-  test_proof_exact_candidate_dependency_projection_unavailable: {
+  test_proof_exact_candidate_validator_cache_bind_invalid: {
     recovery_action: "repair_the_authenticated_exact_candidate_dependency_projection_then_retry",
     detail(detail) {
       return typeof detail?.reason_code === "string" &&
@@ -633,8 +637,13 @@ const LAUNCHER_ATTRIBUTION_OBSERVATION_CODES = new Set([
   "test_proof_structured_test_identity_duplicate"
 ]);
 
+const OBSERVATION_TRANSPORT_FAILED_CODE = "test_proof_observation_transport_failed";
+
+const OBSERVATION_FACT_CODES = new Set(["test_proof_structured_test_inventory_incomplete",
+  "test_proof_structured_events_oversized"]);
+
 const PUBLISHED_DETAIL_CODES = new Set([...LAUNCHER_ATTRIBUTION_OBSERVATION_CODES,
-  ...NATIVE_SOURCE_OBSERVATION_CODES]);
+  ...NATIVE_SOURCE_OBSERVATION_CODES, OBSERVATION_TRANSPORT_FAILED_CODE, ...OBSERVATION_FACT_CODES]);
 const LATER_STAGES = new Set(["falsifier", "traversal", "receipt"]);
 const LAUNCHER_OBSERVATION_DEFECT_ACTION = "report_the_launcher_selected_test_observation_defect";
 const LAUNCHER_OBSERVATION_CORRECTION_OWNER = "launcher_test_proof_provider";
@@ -696,6 +705,8 @@ function evidenceExecutionRecovery(details) {
       runtimeSetupCode(details.blocker_code)) {
     return "run_local_test_runtime_setup_then_retry";
   }
+
+  if (details.completion_recovery !== undefined) return details.completion_recovery.action;
   const selection = selectedTestCorrection(details);
   if (selection !== null) return selection.action;
   if (checkShapeLimitation(details)) return CHECK_SHAPE_LIMITATION_ACTION;
@@ -917,6 +928,8 @@ function projectedSelectedIdentityNotObserved(detail, executionContext) {
   };
 }
 
+const SKIP_REASON_MAX_CHARACTERS = 1024;
+const SKIP_PHASE_RE = /^[a-z][a-z0-9_]{0,31}$/u;
 function projectedSelectedSkip(detail) {
   const event = detail?.selected_event;
   if (event === null || typeof event !== "object" || Array.isArray(event) ||
@@ -924,8 +937,14 @@ function projectedSelectedSkip(detail) {
   const identity = publicObservedIdentity(event);
   if (identity === null || identity.test_id !== detail.expected_test_id ||
       identity.status !== "skipped") return null;
+  if (event.skip_reason !== undefined && (typeof event.skip_reason !== "string" ||
+      event.skip_reason.length === 0 || event.skip_reason.length > SKIP_REASON_MAX_CHARACTERS)) return null;
+  if (event.skip_phase !== undefined && (typeof event.skip_phase !== "string" ||
+      !SKIP_PHASE_RE.test(event.skip_phase))) return null;
   return { test_id: identity.test_id, file: identity.file, name: identity.name,
-    nesting: identity.nesting, status: identity.status };
+    nesting: identity.nesting, status: identity.status,
+    ...(event.skip_phase === undefined ? {} : { skip_phase: event.skip_phase }),
+    ...(event.skip_reason === undefined ? {} : { skip_reason: event.skip_reason }) };
 }
 
 function projectedPriorCandidateObservation(observation) {

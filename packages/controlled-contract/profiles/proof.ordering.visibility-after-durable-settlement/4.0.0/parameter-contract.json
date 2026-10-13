@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.ordering.visibility-after-durable-settlement",
   "profile_version": "4.0.0",
-  "profile_digest": "ff03e0a4dce59b8ecdf7b811f5f383b3fbe3380509c8e3aa7e46df823c750cbd",
+  "profile_digest": "f5e3a5de0ae1f1bfdd30bcccf4b4969026389947715fea0e84efd509a3f89edf",
   "description": "For one caller-declared effect population, declared success or visibility cannot precede durable settlement of every declared effect; failure visibility is empty, and a selected post-visibility observation of that declared population equals the caller-declared expected durable state.",
   "parameters": [
     {

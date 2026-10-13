@@ -5,25 +5,28 @@ import path from "node:path";
 import { mintTestProofExecutionBudget } from
   "../../../agent-launch-cli/src/lib/test-execution/confined-capture.mjs";
 import { runOrdinaryTestWithComparison } from "../../../agent-launch-cli/src/lib/test-execution/ordinary-run.mjs";
-import { ORDINARY_TEST_RUN_CODES, runOrdinaryTestFile } from
+import { runOrdinaryTest } from "../../../agent-launch-cli/src/lib/test-execution/ordinary-test-glob.mjs";
+import { ordinaryRequestCorrection } from
   "../../../agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
 import { MANAGED_TEST_SOURCE_CODES, managedTestAuthorityIdentity, observeRuntimeAfterRun,
   resolveManagedTestSource } from "./managed-test-source-context.mjs";
 import { MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
-import { RUN_TEST_INPUT_CODES, RUN_TEST_STREAM_VIEWS, RUN_TEST_TOOL_NAME, applyRunTestRetry, parseRunTestRequest,
+import { RUN_TEST_INPUT_CODES, RUN_TEST_TOOL_NAME, applyRunTestRetry, parseRunTestRequest,
   runTestInputRefusal, runTestInputSchema, runTestRequestSeed } from "./run-test-input.mjs";
-import { RUN_TEST_RESPONSE_MAX_BYTES, RUN_TEST_RETAINED_KINDS, presentRunTestAnswer, presentRunTestDetail,
-  presentRunTestDetailRefusal, presentRunTestFailure, presentRunTestRefusal, runTestCarrier,
-  runTestExpectedBinding, runTestReadCall, runTestRefusalClipped, runTestRetentionFailure, runTestRetryCall,
-  runTestViewSelection } from "./run-test-result.mjs";
-import { createSelectedResponseSession, readSelectedResponseSource, retainSelectedResponseSource,
-  selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
+import { RUN_TEST_RETAINED_KINDS, presentRunTestAnswer, presentRunTestDetailRefusal, presentRunTestFailure,
+  presentRunTestRead, presentRunTestRefusal, runTestCarrier, runTestExpectedBinding, runTestReadCall,
+  runTestRefusalClipped, runTestRetentionFailure, runTestRetryCall, runTestViewSelection } from
+  "./run-test-result.mjs";
+import { readSelectedResponseSource, retainSelectedResponseSource, selectedResponseRequestSchema } from
+  "./selected-response-snapshot.mjs";
 
-export const RUN_TEST_DESCRIPTION = "Run one repository test file with its prepared runtime runner and report the " +
-  "native outcome; never proof credit (use verify_proof for saved proofs). file is one literal " +
-  "repository-relative file; the runner executes its normal unit for it, which may include neighboring tests, " +
-  "and decides what passes. Optional environment, native selector and timeout. Orchestrators must name source: " +
+export const RUN_TEST_DESCRIPTION = "Run one repository test file, or the files one glob pattern matches, with " +
+  "its prepared runtime runner and report the native outcome; never proof credit (use verify_proof for saved " +
+  "proofs). file is one repository-relative file or one glob (for example tests/**/*.test.mjs); the runner " +
+  "executes its normal unit for each file, which may include neighboring tests, and decides what passes. A glob " +
+  "answers with counts and one file's outcome, never a file list. Optional environment, native selector and " +
+  "timeout. Orchestrators must name source: " +
   "{kind:\"current_main\"} (the configured checkout, dirty state included), {kind:\"exact_sha\",value} or " +
   "{kind:\"branch\",value} (a WK ID, WK#SLICE ID or canonical branch name; runs the commit that branch names " +
   "now and reports both), held by an existing owned clean checkout; workers and reviewers run their " +
@@ -32,8 +35,8 @@ export const RUN_TEST_DESCRIPTION = "Run one repository test file with its prepa
   "once on the parent's existing owned checkout when the run exits normally with a nonzero code, and reports both " +
   "outcomes without inferring a cause. Responses are limited to 1 KiB (1,024 UTF-8 bytes) total. stdout and " +
   "stderr share the remaining response budget and may be truncated; returned output is not a complete log. The " +
-  "complete settled result is retained: copy next_calls (read, continue) to read each view and stream; reads " +
-  "execute nothing. retry is a new execution of a refused request with the returned changes.";
+  "settled result is retained: copy next_calls (read) to read each view and stream tail; reads execute " +
+  "nothing. retry is a new execution of a refused request with the returned changes.";
 
 const EXECUTION_ROLES = Object.freeze(["orchestrator", "reviewer", "worker"]);
 const CODES = Object.freeze({
@@ -43,17 +46,24 @@ const CODES = Object.freeze({
   SESSION_UNAVAILABLE: "run_test.session_unavailable.v1"
 });
 
-const NATIVE_CORRECTABLE_FIELDS = "file, runner, environment, selector";
-
-function nativeChoice(result) {
-  if (result.code !== ORDINARY_TEST_RUN_CODES.RUNNER_UNKNOWN || !Array.isArray(result.detail?.runners)) return {};
-  return { set: "retry.changes.runner",
-    ...(typeof result.detail.runner === "string" ? { rejected: result.detail.runner } : {}),
-    choices: result.detail.runners.join(", ") };
+function nativeCorrection(requested) {
+  return { changeable: requested.fields.join(", "),
+    ...(requested.set === undefined ? {} : { set: `retry.changes.${requested.set}`,
+      ...(typeof requested.rejected === "string" ? { rejected: requested.rejected } : {}),
+      choices: requested.choices.length === 0 ? "none" : requested.choices.join(", ") }) };
 }
+
+const NO_REQUEST_CORRECTION = Object.freeze({ changeable: "none" });
 
 function refusal(payload) {
   return Object.assign(new Error(payload.message ?? payload.code), { code: payload.code, envelope: payload });
+}
+
+export async function runOrdinaryTestAndObserve({ runRequest, expansion = [], request, runFile = runOrdinaryTest,
+  observeRuntime = observeRuntimeAfterRun }) {
+  const result = await runFile(runRequest, ...expansion);
+  return Object.freeze({ ...result, runtime_after_run: await observeRuntime({
+    repositoryRoot: runRequest.repositoryRoot, checkoutRoot: runRequest.checkoutRoot, request, result }) });
 }
 
 export function createRunTestResultReader({ z, inputSchema = runTestInputSchema(z), jsonContent,
@@ -61,34 +71,29 @@ export function createRunTestResultReader({ z, inputSchema = runTestInputSchema(
 
   const modeRequestSchema = (mode) => selectedResponseRequestSchema(inputSchema.innerType()
     .pick({ [mode]: true }));
-  const session = createSelectedResponseSession({
-    route: RUN_TEST_TOOL_NAME,
-    requestSchema: modeRequestSchema("continue"),
-    buildDetailArguments: (_binding, selection) => ({ continue: selection }),
-    requireAuthorityIdentity: true,
-    maximumBytes: RUN_TEST_RESPONSE_MAX_BYTES,
-    presentResponse: presentRunTestDetail,
-    env: responseEnv
-  });
   const refuse = (payload) => errorContent(refusal(payload));
   const expected = (kind, { workspace, state }) => runTestExpectedBinding({ kind, repository: workspace.repo,
     authorityIdentity: managedTestAuthorityIdentity(state) });
 
-  const read = async (selection, caller) => {
+  const read = async ({ result, view, failure = null }, caller) => {
     try {
-      const detail = (chosen) => session.detail({
-        expected: expected(RUN_TEST_RETAINED_KINDS.NATIVE_RESULT, caller), detail: chosen });
-      const response = await detail(selection);
-      const first = response.read?.range_required === true && response.read.field === undefined &&
-        RUN_TEST_STREAM_VIEWS.includes(response.read.view) ? response.next_calls?.[0]?.arguments?.continue : undefined;
-      return jsonContent(first === undefined ? response : await detail(first));
+      const envelope = readSelectedResponseSource(result, { env: responseEnv,
+        expected: expected(RUN_TEST_RETAINED_KINDS.NATIVE_RESULT, caller) });
+      return jsonContent(presentRunTestRead({ view, failure, carrier: envelope.carrier, locator: result }));
     } catch (error) {
       if (error?.envelope === undefined) throw error;
       return refuse(presentRunTestDetailRefusal(error));
     }
   };
 
-  return Object.freeze({ session, modeRequestSchema, expected, read });
+  const retain = (carrier, caller, commit = null) => retainSelectedResponseSource({
+    binding: { ...expected(RUN_TEST_RETAINED_KINDS.NATIVE_RESULT, caller), observation_identity: commit },
+    carrier,
+    ownerCall: (retained) => runTestReadCall(retained, "outcome"),
+    ownerRequestSchema: modeRequestSchema("read")
+  }, { env: responseEnv });
+
+  return Object.freeze({ modeRequestSchema, expected, read, retain });
 }
 
 export function registerRunTestTool({
@@ -103,7 +108,7 @@ export function registerRunTestTool({
   deps = {}
 }) {
   const inputSchema = runTestInputSchema(z);
-  const { session, modeRequestSchema, expected, read } = createRunTestResultReader({
+  const { modeRequestSchema, expected, read, retain: retainOriginal } = createRunTestResultReader({
     z, inputSchema, jsonContent, errorContent, responseEnv });
   const refuse = (payload) => errorContent(refusal(payload));
   const fail = (error, stage) => refuse(presentRunTestFailure(error, { code: CODES.EXECUTION_FAILED, stage }));
@@ -117,13 +122,6 @@ export function registerRunTestTool({
       facts: { executed: false, stage: "session_authentication" } })) };
     }
   };
-
-  const retainOriginal = (carrier, caller, commit = null) => session.retain({
-    binding: { ...expected(RUN_TEST_RETAINED_KINDS.NATIVE_RESULT, caller), observation_identity: commit },
-    carrier,
-    ownerCall: (retained) => runTestReadCall(retained, "outcome"),
-    ownerRequestSchema: modeRequestSchema("read")
-  }).source;
 
   const retainSeed = (args, caller) => {
     try {
@@ -190,17 +188,15 @@ export function registerRunTestTool({
       }
 
       const currentFor = (checkout) => () => checkout.current();
-      const runAndObserve = async (runRequest) => {
-        const result = await (deps.runFile ?? runOrdinaryTestFile)(runRequest);
-        return Object.freeze({ ...result, runtime_after_run: await (deps.observeRuntime ?? observeRuntimeAfterRun)({
-          repositoryRoot: runRequest.repositoryRoot, checkoutRoot: runRequest.checkoutRoot,
-          request: ordinary, result }) });
-      };
+      const runAndObserve = (runRequest, ...expansion) => runOrdinaryTestAndObserve({ runRequest, expansion,
+        request: ordinary, ...(deps.runFile === undefined ? {} : { runFile: deps.runFile }),
+        ...(deps.observeRuntime === undefined ? {} : { observeRuntime: deps.observeRuntime }) });
       try {
         outcome = await runOrdinaryTestWithComparison({
           request: ordinary,
+
           candidate: { repositoryRoot: source.repositoryRoot, checkoutRoot: source.checkoutRoot,
-            current: currentFor(source) },
+            current: currentFor(source), ...(source.targets === undefined ? {} : { targets: source.targets }) },
           compareParent: request.compareParent,
           resolveBaseline: () => {
             const baseline = source.baseline();
@@ -220,15 +216,16 @@ export function registerRunTestTool({
     }
 
     const status = outcome.candidate.result.status;
+    const requested = ordinaryRequestCorrection(outcome.candidate.result);
     let correction = null;
     let retainedCorrection = null;
-    if (status === "refused" || status === "selection_unresolved") {
+    if (requested !== null) {
       const { seed, failure } = retainSeed(args, caller);
-      if (failure === undefined) {
-        retainedCorrection = { retry_request: seed, changeable: NATIVE_CORRECTABLE_FIELDS,
-          ...nativeChoice(outcome.candidate.result) };
-      }
+      if (failure === undefined) retainedCorrection = { retry_request: seed, ...nativeCorrection(requested) };
       correction = retainedCorrection ?? { correction_seed: "unavailable", ...failure };
+    } else if (status === "refused" || status === "selection_unresolved") {
+      retainedCorrection = NO_REQUEST_CORRECTION;
+      correction = NO_REQUEST_CORRECTION;
     }
 
     let locator = null;
@@ -280,9 +277,8 @@ export function registerRunTestTool({
       }
       const caller = { workspace: resolveWorkspaceRepo(workspaceRepos), state };
       if (request.mode === "read") {
-        return await read(runTestViewSelection(request.read.result, request.read.view), caller);
+        return await read(runTestViewSelection(request.read.result, request.read.view, request.read.failure), caller);
       }
-      if (request.mode === "continue") return await read(request.selection, caller);
       if (request.mode === "retry") {
         let parsed;
         try {

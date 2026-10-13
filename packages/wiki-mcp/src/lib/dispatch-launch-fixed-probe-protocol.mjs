@@ -232,6 +232,57 @@ function decodeConnectedDirectives(prompt) {
 }
 `;
 
+export const CONNECTED_ROW_VERIFY_DIRECTIVE = "CONNECTED-ROW-VERIFY";
+const ROW_KEY = /^[a-z][a-z0-9-]{0,63}$/u;
+
+export function buildConnectedRowVerificationDirective(row, subject) {
+  if (typeof row !== "string" || !ROW_KEY.test(row)) {
+    throw new TypeError("a connected row verification directive names one lower-case row key");
+  }
+  if (typeof subject !== "string" || subject.length === 0) {
+    throw new TypeError("a connected row verification directive subject is a nonempty string");
+  }
+  return `${CONNECTED_ROW_VERIFY_DIRECTIVE} ${JSON.stringify({ row, subject })}`;
+}
+
+export const FIXED_PROBE_CONNECTED_ROW_DIRECTIVES_SOURCE = String.raw`
+function decodeConnectedRowDirectives(prompt, rowKeys) {
+  const prefix = ` + JSON.stringify(CONNECTED_ROW_VERIFY_DIRECTIVE) + String.raw`;
+  const start = ` + JSON.stringify(CONNECTED_OPERATIVE_NOTES_HEADING) + String.raw`;
+  const end = ` + JSON.stringify(CONNECTED_OPERATIVE_WINDOW_END) + String.raw`;
+  const occurrences = needle => prompt.split(needle).length - 1;
+  if (occurrences(start) !== 1 || occurrences(end) !== 1 ||
+      prompt.indexOf(start) > prompt.indexOf(end)) {
+    throw new Error("operative notes window boundaries are not complete and unique");
+  }
+  if (!Array.isArray(rowKeys) || rowKeys.length === 0 || new Set(rowKeys).size !== rowKeys.length) {
+    throw new Error("the fixed plan's row keys are not a nonempty distinct list");
+  }
+  const window = promptSectionAfter(prompt, start, end);
+  const lines = window.split("\n").filter(line => line === prefix || line.startsWith(prefix + " "));
+  const subjects = {};
+  for (const line of lines) {
+    let value;
+    try { value = JSON.parse(line.slice(prefix.length + 1)); }
+    catch { throw new Error(prefix + " directive is malformed"); }
+    if (value === null || typeof value !== "object" || Array.isArray(value) ||
+        Object.keys(value).sort().join(",") !== "row,subject" ||
+        typeof value.row !== "string" || typeof value.subject !== "string" || value.subject === "") {
+      throw new Error(prefix + " directive must carry exactly one row and one nonempty subject");
+    }
+    if (!rowKeys.includes(value.row)) throw new Error(prefix + " directive names unknown row " + value.row);
+    if (Object.hasOwn(subjects, value.row)) throw new Error(prefix + " directive repeats row " + value.row);
+    if (Object.values(subjects).includes(value.subject)) {
+      throw new Error(prefix + " directive gives one subject to two rows: " + value.subject);
+    }
+    subjects[value.row] = value.subject;
+  }
+  const missing = rowKeys.filter(key => !Object.hasOwn(subjects, key));
+  if (missing.length > 0) throw new Error(prefix + " directive missing for rows " + missing.join(","));
+  return { notes: window.trim(), directive_lines: lines, subjects };
+}
+`;
+
 const FIXED_PROBE_FAMILIES = Object.freeze(["codex", "claude"]);
 
 function nativePlanShape(family, childArgs, label) {

@@ -4,9 +4,9 @@
 
 When a declared failure is injected at a declared boundary positioned between two distinct ordered constituent effects of one compound-operation attempt, the declared constituent-effect population of at least two members, observed at the declared settlement event that follows the injected failure, has a settled state that is a member of a closed two-member population of allowed settled states whose declared members are the fully-committed state and the fully-uncommitted state, and the declared partial-commit state is not a member of that allowed population.
 
-Profile digest: ab3b0b152fbe27cd65c673f674789cecaf085b86dfe9dbb596b4476f6a054189. Parameter digest: 19510d87460c76011178b0689d5bc10920707e03509e54f384490f8d74a51b85.
+Profile digest: f43e6adf68566acc48f995cc7b7e271db34f759166406bf27573340cd03bca23. Parameter digest: dfa6c600372d482f9776341767ad831eab0a47ac244c2aa488e7eff3b6733d69.
 
-Admission digest: cf818165f93745adbde56881a17e09b4f86c3f236b4745ecd8784fad4b254894.
+Admission digest: 7c3e05aa0ba20f328224f41d7707ae51d2cf52349f6b36d7423523f34beaab0a.
 
 Roles: 21/21 accounted; 2 owned gaps. Semantic parameters: 18; internal roles: 3.
 

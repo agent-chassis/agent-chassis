@@ -48,14 +48,22 @@ repository selected.
   a WK: no contract, generation, manifest, proof result or authentication receipt
   is created, and its proof posture is neither read as a permission nor changed.
   A recorded proof opt-out and no opt-out at all publish through the same path.
+  Saved proof-authoring sources (`*.obligation-coverage.json`) are not carriers:
+  with no controlled carrier and no manifest of the WK beside them, the live
+  resolver and the exact-commit observer both select no generation, so a WK
+  whose opt-out and `proof_opt_out` obligations were authored through
+  `save_record` publishes and merges through this same path with its sources
+  unchanged in the checkout and in the candidate tree. The live resolver still
+  reads them: a malformed or unreadable one refuses with its own failure.
+  Beside a manifest-selected generation they remain members of that generation,
+  and a controlled carrier without its manifest still refuses.
   Missing proof credit and an unfinished or absent review do not refuse
   publication either, and the live record need not be in `review`: it is
   published with the parent status it actually holds, and no review transition is
   required or written. A record already `done` publishes too: the chain keeps
   its two commits and the completion truthfully changes nothing. What refuses is mechanical failure: an unreadable or
-  malformed record or carrier, a generation the checkout selects that `W` does
-  not hold, a generation `W` holds that the checkout no longer selects, a
-  candidate whose recorded generation state differs from the current one, a moved
+  malformed record or carrier, a generation `W` holds that the checkout no longer
+  selects, a WK ref that moved off the selected candidate's own history, a moved
   ref, or a Git or forge fault. Each keeps its owner's own code and message.
 - **A selected candidate is resolved from durable state on every call.** Forge
   publication resolves `C` from the fixed current-selection ref through the
@@ -70,6 +78,13 @@ repository selected.
   it keeps its authenticated cause, stops that attempt before any forge effect,
   and the registered `workspace_publish_work` route reports it with
   `stage: "candidate_resolution"`. Recovery consults no current landing state.
+- **Publication synchronizes the current contract before it resolves `C`.** A
+  generation the checkout selects that `W` does not hold is not a refusal of
+  publication: the same call persists it and publishes the candidate of the
+  resulting tip, as
+  [Publication synchronizes the current contract](#publication-synchronizes-the-current-contract)
+  describes. No separate persistence, recovery, inspection or candidate-advance
+  call is needed.
 - **The fence holds before any external effect.** Repository, WK, fork, tip,
   candidate identity, tree, parent and controlled generation are rechecked under
   the existing exclusion before the branch or the proposal is touched. A moved or
@@ -583,7 +598,11 @@ merged through the same authentication as any other. Preparation, recovery and
 handoff forward its refusals unchanged, and a merge refusal
 (`controlled_generation_identity_unverified`) carries the owner's failure whole
 as its `evidence`. For a local or Git handoff of such a WK the checkout's owned
-coordination population is the WK record alone. Candidate status uses the observation form and
+coordination population is the WK record and the WK's saved proof-authoring
+sources. Each source is prepared as any other owned path: one already holding
+the published bytes is staged for the fast-forward, and one whose live bytes
+differ refuses with `selected_path_content_differs` naming it, with the live
+file left exactly as it is. Candidate status uses the observation form and
 candidate advance the expected-`W` form, through this same owner rather than a
 resolve, bind, and authenticate sequence of their own; status keeps
 `candidate_identity_invalid_or_moved` for an absent generation, and advance keeps
@@ -604,12 +623,17 @@ record read, and no format is inferred from an object id. The terminal-candidate
 coordinator uses it the same way, inside the authority exclusion it already
 holds: hot preparation with the integrated `W` as the expected `W`, and cold
 recovery in the observation form. Nothing is derived, materialized, or published
-after it refuses, and each refusal keeps that operation's own cause, selected by
-the owner's code and `condition`: a generation `W` holds that nothing current
-selects and a mismatched expected `W`, the persistent WK ref having moved before
-preparation, are forwarded as thrown, and only a current generation that is not
-the one persisted in `W` is `controlled_generation_stale`. An absent generation
-is not a refusal there. This owner checks the current
+after it refuses, and each refusal keeps that operation's own cause: only the
+refusal the generation owner itself identifies as a current generation that is
+not the one persisted in `W` is `controlled_generation_stale`, before and after
+publication's synchronization alike. Every other refusal is forwarded as thrown
+with its type, code, message, details and cause: a generation `W` holds that
+nothing current selects, a mismatched expected `W`, a WK ref that moved or could
+not be read during authentication, and a current generation that could not be
+read. An absent generation
+is not a refusal there. Publication alone answers a current generation the exact
+`W` does not hold by persisting it and authenticating again; hot preparation,
+cold recovery and read-only observation keep the refusal. This owner checks the current
 generation's descriptor mechanics; the full historical validation described below
 belongs to the exact-commit read and is not applied here.
 
@@ -828,14 +852,19 @@ closeout-chain owner (`authenticateWkCloseoutChain`, over the pure
 `authenticateWkCloseoutProjection`) authenticates the `C -> K -> D` chain that
 forge handoff prepares before publication and that handoff retry and forge merge
 recognize; it requires no terminal-review unit, review completion, or
-review-specific commit content. The closing implementation slice may carry the
+review-specific commit content. A closing implementation slice may carry the
 `integrated_delivery_sha` the integration record write added: the commit the
 integration installed on the WK ref, which after a replay is not the original
 delivery. The projection admits that value only when it equals the expectation
 its caller established for that slice from the integration authority's producer
 proof (see Producer-authenticated integrated-delivery evidence below), bound to
-`C`'s own record as the historical contract and to the proof's WK tip being the
-candidate's selected `W`. That authenticated integration transition (slice
+`C`'s own record as the historical contract and to the candidate's own recorded
+`W`: the proof's WK tip is that `W`, or, once publication has synchronized the WK
+branch above it, the exact delivery is literally included in that `W` and that
+`W` is literally included in the proof's WK tip. A delivery only the newer tip
+holds, and a WK history rewound or rewritten away from the recorded `W`,
+authenticate nothing, and authenticating an earlier publication this way selects
+no candidate and grants no write. That authenticated integration transition (slice
 `done` with the installed commit) closes the slice on its own, so a new slice
 closure is optional; a bare `done` with neither a first canonical closure nor an
 authenticated delivery is not a closeout. The live field alone, a substituted
@@ -852,6 +881,27 @@ re-establishes the same expectation from the candidate binding; without it the
 chain is not authenticated. The producer proof needs the retained slice delivery
 ref and the canonical record's recorded value; when either is gone the closeout
 refuses rather than accepting the field.
+
+Every integrated slice is authenticated on its own, and publication carries
+each of them without any contract change or record synchronization into the WK
+branch. Any number of implementation slices `C` holds may close by their own
+authenticated integration transition; one slice's expectation never admits
+another slice's value, so swapped, substituted or unauthenticated deliveries
+refuse `integrated_delivery_unauthenticated` with the slice they were claimed
+on. At most one slice `C` holds may still close by its first closure with no
+authenticated delivery. A slice shaped after the WK branch was cut is not in
+`C`'s record at all. It is carried only as an implementation slice the
+integration marked `done` with exactly the commit the same producer proof
+establishes for it: the proof is asked for that case explicitly, admits it only
+when `C`'s record holds no unit of that identity, and applies every repository
+check unchanged (the retained slice delivery, the integration-written commit,
+its literal inclusion in the recorded `W`). `C` says nothing else about such a
+slice, so its other fields are published as the canonical record holds them.
+Any other added slice refuses `slice_cardinality` with its `slice_id`: one that
+was never integrated, is not `done`, or is not an implementation slice. The
+slices `C` holds keep their order and every protection above, and a repeat
+handoff keeps a slice the published `K` carried this way
+(`published_closeout_drift` with field `status` when it is gone).
 
 Canonical entries appended after `C` are closeout bookkeeping, not contract. An
 entry created through the canonical entry writer on the parent or on a slice `C`
@@ -882,6 +932,68 @@ requirements, acceptance, summary, tasks, scope, dispatch intent, material
 selection or any other authored field refuse with that field's own reason. The
 notes' text is not read, classified or fed into the frozen worker or reviewer
 assignment.
+
+Task completion is coordination progress, not contract. A task `C` holds, on
+the parent or on a slice `C` already holds, may be marked done after `C`
+through `save_record`'s task action, and publication carries it by itself: for
+a first publication and for a repeat that replaces the same unlanded
+publication, with no reverted task, record edit, candidate inspection or
+candidate advance in between. The projection admits exactly what the canonical
+task planner's `mark_done` writes, by asking that planner rather than reading
+task text: the same task at the same index with only its `status` moved to
+`done`, and on a slice the well-formed `updated` the writer moves with it. `K`
+is the live record with the completion state it actually holds, `D` differs
+from `K` only by the parent `done`, and the live record is not changed. A
+completion alone is never read as a slice closeout. Every other task change
+stays drift, alone or beside a completion: a rewritten, reopened, added,
+removed or reordered task, or a status the writer does not write. A repeat
+handoff keeps every completion the published `K` carries
+(`published_closeout_drift` with the task's `sections.tasks[<index>].status`
+field).
+
+A parent section that differs from `C` in any other way refuses
+`unrelated_sections_drift` and says exactly where. The projection cause carries
+the `unit`, `fields` (every unsupported path: `sections.summary`,
+`sections.scope.items`, `sections.tasks[2].text`, `sections.tasks[3]` for an
+added task, `sections.closure` for a rewritten or non-canonical closure) and,
+when a task completion was compared beside them, `permitted_task_completions`,
+so a permitted completion is never mistaken for the cause and never conceals a
+rewrite of the same task. Handoff preparation adds `sections_drift` beside the
+projection: the `unit`, the `candidate` commit the comparison was made against,
+the identity of the observed record (`observed_source_digest`) and
+`differences`, one row per compared path with its `change` (`unsupported` or
+`task_completion`), the `candidate_value` and the `observed_value` (`null` where
+a side holds none). The paths stay in the first answer; when the compared values
+do not fit it, `sections_drift` is the member the bounded answer names and its
+one read returns whole, and that read publishes nothing. The registered response
+keeps the refusal and offers one guidance read, `workspace_read_wiki({subject})`.
+The correction is the coordinator's: each named path is saved back to its
+`candidate_value` through `save_record` at the revision that read returns, and
+publication is requested again. Nothing is restored into the live record by
+publication, a change `save_record` does not offer has no correction established
+there, and inspecting or advancing the candidate does not resolve a mismatch
+between the live record and the candidate's own record.
+
+An ordinary slice that differs from `C` in a way the closeout cannot carry
+refuses `unrelated_slice_drift` with the same exactness. The projection cause
+carries the `slice_id`, a `cause`, `fields` (paths relative to the slice:
+`write_scope`, `title`, `sections.summary`, `sections.tasks[0].text`) and any
+`permitted_task_completions`; handoff preparation adds `slice_drift` beside it,
+shaped as `sections_drift` is, with `unit` naming the slice. Each `differences`
+row is `unsupported`, `task_completion`, `slice_closeout` (a member that by
+itself has the shape of a slice closeout: `status` reaching `done`, a first
+canonical `sections.closure`, the authenticated `integrated_delivery_sha`) or
+`moved_date` (a well-formed `updated`), so the slice's own closeout is never
+mistaken for the cause. `cause` is `unsupported_change` when `fields` names the
+other differences; `another_slice_closes`, with `closing_slice_id`, when the
+slice would be a second slice closing by its first closure with no
+authenticated delivery; and `not_a_slice_closeout` when its
+closeout members do not together form one (a bare `done`, or a closure without
+`done`). In the last two `fields` names those members themselves. Only
+`unsupported_change` offers the guidance read, of the slice unit
+(`workspace_read_wiki({subject: "<WK>#<SLICE>"})`), with the same
+coordinator-owned correction; the other two keep `no_supported_route` beside
+their facts.
 
 Review history is coordination, never a publication gate. The projection
 matches review-consumer slices (`review_purpose: "terminal_whole_wk"`) by their
@@ -946,6 +1058,175 @@ protected field, alone or beside `acceptance.validation`, offers no guidance and
 keeps `no_supported_route`. When the serving registrar cannot offer the read,
 the refusal states the missing capability instead.
 
+## Publication synchronizes the current contract
+
+`workspace_publish_work({subject})` publishes the WK as it currently is. When
+the current canonical controlled-contract generation is not the one the exact
+`W` holds, the same call synchronizes it, prepares the candidate of the
+resulting tip and publishes that candidate. This applies to a first publication
+and to a WK whose publication is already made and not yet landed. It all runs
+inside the one same-WK exclusion the publisher already holds; the exclusion is
+never reacquired.
+
+- **Synchronization is the persistence owner's own write.** The coordinator
+  authenticates the current generation at exact `W` as before. Only when that
+  owner refuses because the exact `W` was read and does not hold the current
+  generation's authentication tuple (a refusal the owner identifies itself, by
+  identity; its code, message and details are unchanged and carry no
+  `condition`) does publication call the generation persistence owner,
+  which commits the generation's own population and the canonical WK record as
+  one sole-parent child of the bound tip and advances the WK ref under that
+  expected tip. Integrated implementation files and every other WK's refs are
+  left exactly as they are. The owner then authenticates once more at the
+  resulting tip. Persistence is called at most once per call and for no other
+  refusal: a moved ref, an unreadable or malformed generation, and a generation
+  `W` holds that nothing selects keep their owner's failure. A WK with no
+  current generation and no saved proof-authoring sources has nothing to
+  persist and none is authored for it.
+- **Saved proof-authoring sources are synchronized the same way.** A WK with no
+  generation may still hold proof-authoring sources saved through `save_record`.
+  Publication alone additionally asks the exact-`W` owner whether `tree(W)` holds
+  exactly those saved sources, by path and bytes. When it does not, the owner
+  raises the same not-persisted refusal and the persistence owner commits the
+  sources and the canonical WK record as one sole-parent child of the bound tip,
+  under the same expected-tip update, re-resolution and concurrency checks. The
+  candidate is then the candidate of that tip, so it holds the record the
+  sources were saved with. No contract, generation or manifest is created, and
+  the WK still authenticates as having no generation. Integration, recovery and
+  read-only observation never ask this question and are unchanged by sources
+  `W` does not hold. A proof posture changed after `W` with no saved source
+  beside it is not synchronized and keeps the closeout comparison's refusal.
+- **The candidate is the candidate of the resulting tip.** With no selected
+  candidate, the candidate is constructed from the durable fork and WK refs as
+  before. A selected candidate whose own recorded `W` is an ancestor of the
+  current tip, and whose recorded base the durable fork ref still names, is
+  authenticated read-only from its own recorded state (its immutable version
+  must exist and name it) and is then replaced through the
+  same deterministic derivation and the one candidate ref transaction, which
+  advances the current-selection ref from exactly that candidate while fencing
+  the fork and WK refs. This also replaces a selection left behind by a WK tip
+  that moved forward for any other reason. A WK ref that was rewound or
+  rewritten off the selected candidate's history is not a later tip of the same
+  lifecycle, and without the fork ref no later candidate can be derived: nothing
+  is persisted or replaced for either and recovery's own refusal stands.
+- **An existing unlanded publication is replaced in place.** A publication's
+  destination branch and handoff ref are named for the candidate it was first
+  made for, and they keep that name. When the current candidate has no
+  destination of its own and exactly one destination named for another immutable
+  candidate version of the WK exists at the selected destination, that is the
+  WK's publication. Its head is authenticated as `C1 -> K -> D` above the
+  candidate version it descends from, which is authenticated read-only from that
+  version's own objects; this is evidence about the old publication and grants
+  no authority to publish. The new candidate is authenticated separately, as for
+  any publication. The live record is authenticated against the new candidate and
+  against the published `K`, the chain `C2 -> K2 -> D2` is built above the new
+  candidate, and it replaces the old head through the existing expected-old
+  protections: the local handoff ref compare-and-swap, the Git destination
+  lease followed by the local ref, or the hosted branch lease behind the same
+  exact open proposal. No second branch, ref or proposal is created, and the
+  result's `branch` and `handoff_ref` are the publication's own names. A
+  publication made for another candidate is never treated as unchanged, whatever
+  the WK record holds: equal record bytes say nothing about the candidate or
+  contract its head carries. Landing observation and forge merge consume the
+  replacement through those same names; a hosted proposal's branch therefore
+  names the WK and the candidate of its first publication, not necessarily the
+  candidate that landed.
+- **The hosted proposal describes the candidate it publishes.** The tool-owned
+  part of a proposal's description is one delimited block written by one
+  formatter at creation and at every later update: it names the published
+  candidate and the WK and states that publication runs no test, proof or
+  review and establishes no result of one. On every call that finds an existing
+  open proposal, its description is read and, when that block does not name the
+  candidate the head now publishes, only the block is rewritten; text outside
+  it is left byte for byte, and a description with no block gets the block
+  added after its own content. The title, head, base and state are never
+  changed and no proposal is created or closed for it. The update is attempted
+  at most once per call and its answer is never trusted: the description is
+  read once more and must hold exactly what was requested. An update that did
+  not happen or cannot be confirmed refuses
+  `pull_request_description_update_not_observed` (an unreadable description
+  refuses `pull_request_description_unobservable`) with the proposal, the
+  published head, the update's own answer and the `effects` that occurred,
+  including a branch this call already moved; a repeat moves nothing again and
+  completes only the description. A confirmed update reports
+  `effects.pull_request_description: "updated"`, and an update whose answer was
+  lost but which the re-read confirms keeps that answer as the result's
+  `diagnostic`. A merged proposal is never redescribed.
+- **An already-landed publication is detected before anything is written.**
+  Immediately before the first generation persistence or selection replacement
+  of a call, and only then, the publisher observes the WK's existing publication
+  read-only through the same owners it uses afterwards: an immutable candidate
+  version authenticated from its own recorded state, the publication identity
+  and destination resolved for it, the chain authenticator, and each
+  transport's landing observation. A publication that already landed refuses
+  `published_handoff_already_landed` with the landed head and nothing is
+  persisted, replaced, published or redescribed. A call that would write nothing
+  never makes this observation, so an unchanged repeat over a landed
+  publication still returns the landed head. A WK with no candidate version,
+  no publication, or a publication observed not to have landed passes. When a
+  candidate version exists and its publication or landing cannot be observed
+  (an owner refuses, or a read fails), that is never taken for "not landed":
+  the call refuses `published_handoff_landing_unobservable` with the
+  `observation` that could not be completed and the owner's own refusal as
+  `cause` or the failure as thrown as `evidence`, and nothing is written. The
+  observation is early, not the final check: the publisher's own landing and
+  proposal rechecks still run, and a landing that happens after it is reported
+  by those rechecks with the effects that actually occurred.
+- **Protections are unchanged.** An unexpected destination head is never
+  overwritten or adopted, a publication recorded at a different destination
+  refuses `handoff_destination_changed`, more than one existing destination for
+  the WK refuses `wk_publication_not_unique` with each one named, and a
+  publication that already landed is only observed: a landed head made for an
+  earlier candidate refuses `published_handoff_already_landed`. The landing and
+  proposal rechecks, the live-record lock and the single re-observation after
+  each mutation are the repeat handoff's own.
+- **Unchanged repeats do nothing.** When the persisted generation is current, the
+  selected candidate is the candidate of `W` and the publication holds its
+  chain, a repeat in the same or a fresh process persists nothing, replaces
+  nothing and publishes nothing, and reports `existing` effects.
+- **A held version is never replaced.** The publisher's internal
+  `expectedVersion` is an equality fence. With one supplied, nothing is persisted
+  or replaced: a request whose held version the current contract or WK tip would
+  supersede refuses with the owner's cause (`controlled_generation_stale`,
+  carrying the generation owner's refusal, or the candidate owner's
+  `input_moved`) before any synchronization or publication effect.
+- **What was changed is reported, including beside a later failure.** A result
+  carries `synchronization` only when this call's preparation changed something:
+  `generation` is `persisted` (with `wk_ref`, `previous_wk_tip`, `wk_tip` and
+  `generation_digest`) for this call's own acknowledged ref write and `existing`
+  otherwise, and `terminal_candidate: "replaced"` with `previous_candidate` and
+  `candidate` is present only for a selection it replaced. When the write
+  persisted saved proof-authoring sources of a WK with no generation, the
+  account carries `authoring_sources: "persisted"` with `wk_ref`,
+  `previous_wk_tip`, `wk_tip` and `authoring_sources_digest` instead, and no
+  `generation` or `generation_digest` member. A refusal after such a
+  change carries the same `synchronization` beside its own cause and `effects`.
+  Nothing is rolled back and no absence of effects is claimed: the persisted
+  commit and the replaced selection stand, and a repeat converges from that
+  state without persisting again. Preparation and publication are separate
+  facts: a closeout refusal after preparation replaced the selection reports
+  both, the destination still holds the earlier publication, and a selected
+  candidate that inspects as healthy does not establish that it was published.
+- **Failures keep their origin.** A failure of the generation resolver, the
+  persistence owner, the candidate owner or the destination is the value its
+  owner threw, with its message, code, condition, details and cause chain; the
+  affected WK is stated beside it. The generation owner's refusals carry the
+  failure they were raised for as their `cause` and not only its code, and a
+  resolver that failed during exact-`W` authentication is reported as
+  unresolvable, never as movement. A Git read that fails while the published
+  head's candidate version is being identified is a failed observation
+  (`closeout_chain_unobservable`, observation `candidate_version_ancestry`)
+  carrying the Git failure as thrown with the WK and head it was read for; only
+  a read that completes and names no candidate version of the WK is a
+  publication disagreement. A WK ref another writer advances while the
+  generation is being persisted is never overwritten: the persistence owner's
+  expected-old update fails, its own conflict is the failure, no
+  synchronization effect is claimed and nothing is published.
+- **Publication stays publication.** Synchronizing and preparing the candidate
+  runs no test, proof, review, integration, merge or canonical completion and
+  grants no validation credit. The branch-local `done` record of the closeout
+  chain remains branch-local.
+
 ## Repeat handoff refreshes the same publication
 
 After a successful handoff, an ordinary WK edit can leave the published
@@ -953,9 +1234,12 @@ closeout record stale. Repeating the same `workspace_publish_work` call, with
 the same request, updates that one publication; there is no separate command,
 editor hook or background publication, and normal editing is unchanged.
 
-- **Observe before refreshing.** The repeat resolves the same candidate,
-  generation, destination and base identity and authenticates the published
-  head as `C -> K -> D`. Landing and proposal state are observed before the live
+- **Observe before refreshing.** The repeat resolves the current candidate and
+  generation and the same destination and base identity and authenticates the
+  published head as `C -> K -> D`. (When the candidate itself changed, the
+  publication is replaced as
+  [Publication synchronizes the current contract](#publication-synchronizes-the-current-contract)
+  describes; the bullets below describe a repeat over the same candidate.) Landing and proposal state are observed before the live
   record is read. A landed publication (exact-head
   ancestry of the local or Git landing base, or a single exact merged proposal)
   is only observed: when the canonical record is that publication's `D` or its
@@ -2090,13 +2374,15 @@ candidate read or an expected version populated by the task.
 
 The existing publisher, production publication-state resolver and coordinator
 own current candidate resolution and cold recovery under the same live WK
-exclusion. They authenticate the candidate and controlled generation and apply
+exclusion. They synchronize the current controlled generation into the WK
+branch, prepare the candidate of the resulting tip, authenticate both and apply
 the closeout, expected-old publication and live-record fences. Local, plain Git
 and hosted outcomes, exact candidate and publication identities, destinations,
 proposals, unchanged repeats, permitted notes refresh and partial effects remain
 producer facts. A later explicit request resolves the current state again. The
-task performs no integration, candidate advancement, proof, review, merge or
-canonical completion; a published branch-local done record remains branch-local.
+task itself performs no integration, persistence, candidate selection, proof,
+review, merge or canonical completion; a published branch-local done record
+remains branch-local.
 
 `createPublishWorkTask` returns `{name, config, inputSchema, handler, call,
 readOriginal, repeatRequest}`. The `workspace-publish-work.v1` envelope has the

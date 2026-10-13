@@ -17,7 +17,7 @@ import {
 } from "./cancellation-isolation-v1-harness.mjs";
 
 const PROFILE_DIGEST =
-  "a9c6a53a8c9923d7959d44fba9c2c11ec858bb218a2bf43708df383597af2fc4";
+  "1d804848df3b18b1ff1f8f1c3740a957d3e78765483b1796fc7b70277eef13b9";
 const GUARANTEE_DIGEST =
   "20b89764350b8a5bd1a4c04f0ef63b2a648b72619515aa4fb174ce6d7e03b109";
 
@@ -498,14 +498,14 @@ function exclusionControls(profile) {
   }));
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   return {
     schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: PROFILE_DIGEST,
     guarantee_digest: GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ...retiredRecommendationRefusals(profile),
       ...positiveControls(profile),
       ...mutantControls(profile),
       ...profileRejectionControls(profile),
@@ -523,3 +523,73 @@ export {
   rejectionMutations,
   runProofPackAdequacyControls
 };
+
+import { evaluateStableProofPackFixtureV1 as evaluateRetiredModalityFixture }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+function retiredRecommendationRefusals(profile) {
+  const cases = [
+    [
+      "retired-recommendation-refused-surviving-authority-not-invalidated",
+      "claim-surviving-authority-not-invalidated"
+    ]
+  ];
+  return cases.map(([controlId, claimId]) => {
+    const fixture = buildCancellationIsolationFixture({ profile });
+    const claim = fixture.contract.claims.find(row => row.claim_id === claimId);
+    if (!claim) throw new Error(`missing recommendation refusal claim: ${claimId}`);
+    claim.modality = "SHOULD_NOT";
+    return { control_id: controlId, category: "profile_rejection",
+      implementation_outcome: "not_applicable",
+      profile_satisfaction: evaluateRetiredModalityFixture({
+        contract: fixture.contract, profile,
+        evaluation_input: fixture.input ?? fixture.evaluation_input
+      }).satisfaction };
+  });
+}
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-cancellation-verification-modalities",
+      "claim_id": "claim-cancellation-verification",
+      "baseline": "isolated-claim-cancellation-verification-modalities-baseline",
+      "optional": "isolated-claim-cancellation-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-state-isolation-verification-modalities",
+      "claim_id": "claim-state-isolation-verification",
+      "baseline": "isolated-claim-state-isolation-verification-modalities-baseline",
+      "optional": "isolated-claim-state-isolation-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-authority-isolation-verification-modalities",
+      "claim_id": "claim-authority-isolation-verification",
+      "baseline": "isolated-claim-authority-isolation-verification-modalities-baseline",
+      "optional": "isolated-claim-authority-isolation-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-success-verification-modalities",
+      "claim_id": "claim-success-verification",
+      "baseline": "isolated-claim-success-verification-modalities-baseline",
+      "optional": "isolated-claim-success-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

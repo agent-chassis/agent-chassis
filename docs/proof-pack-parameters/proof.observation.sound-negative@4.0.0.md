@@ -4,9 +4,9 @@
 
 For one exact captured target, observation attempt, complete declared source and raw-observation populations, and interval, every valid observation is authenticated and directly grounded to its exact target, source of record, attempt, observation position, and raw observation; declared and observed source coverage is complete; every source outcome has one stable endpoint pair; every valid observation fails to match the target; the invalidating-condition population is exactly empty; and the same exact projection derives the sole absent conclusion.
 
-Profile digest: 4c143f826dd0d3209fd994c6362b7b9d4b47f766da7dbbe14f469815bdd92c0c. Parameter digest: 07fba8090aa3731dc70656edcc9b5f314f2e77c9113522b9577524a6aa611ea0.
+Profile digest: d1ac5b9d2adb68e2752b03be3230b46a7c54f872cc55de7d00eb75d4c09ac015. Parameter digest: 9e5a4abe9a7329894c95b2538bb2bf626167ca554f123cfeb227bfbf82d7dd39.
 
-Admission digest: b8801d6e8096244dd719313e6da7e37f0d2a1ad334a451fe2042b9b293c71a47.
+Admission digest: c770890b6d1a6139fe4b04d0038053020ecf01bf108103be1167760a258fe53b.
 
 Roles: 35/35 accounted; 10 owned gaps. Semantic parameters: 23; internal roles: 12.
 

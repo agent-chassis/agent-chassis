@@ -57,7 +57,8 @@ credit.
 
 Every obligation of the selected unit must be accounted for before its contract
 is reported complete: its author either selected a proof whose exact definition
-validates, or explicitly declined proof with `proof_opt_out: true`. An
+validates, or explicitly declined proof through a
+[deliberate proof exception](#deliberate-exceptions). An
 obligation with neither is unfinished authoring. It stays savable, reports
 `obligation_coverage_proof_unselected`, is counted invalid and keeps the unit
 incomplete; nothing selects a proof, infers an opt-out or borrows a parent's or
@@ -238,7 +239,7 @@ members of the public native-carrier census. Read-only findings materialization
 copies that complete population through the attachment-generation resolver,
 which validates descriptor identity and bytes without the association
 validation; its capture contract is owned by
-[Agent Launch Confinement MCP Conduit](agent-launch-confinement-mcp-conduit.md).
+[Conduit authority and review sources](agent-launch-conduit-authority-and-review-sources.md#review-checkout-capture).
 
 Launcher persistence and exact-W authentication use the generation-specific
 classifier for that complete population while retaining the native-only public
@@ -363,9 +364,12 @@ corresponding authored fields. Empty node lists are savable. Optional
 Omission preserves the existing value. Optional `acceptance_criteria` lists the
 exact criterion identities of the selected unit, from query `acceptance_criteria[].identity`,
 that the obligation covers: never criterion text, positions or invented labels. A supplied list replaces the saved associations, `[]`
-clears them and omission preserves them. Optional `proof_opt_out: true` records
-that the author declines proof for that obligation; `false` clears it. Both are
-described in [Author-declared criterion coverage](#author-declared-criterion-coverage).
+clears them and omission preserves them, as
+[Author-declared criterion coverage](#author-declared-criterion-coverage)
+describes. No obligation member declines proof and no `controlled_acceptance`
+value exempts a unit: a supplied `proof_opt_out`, or a disposition other than
+`required`, is refused by the request schema and by the operation itself before
+any effect. Both decisions are [deliberate exceptions](#deliberate-exceptions).
 The former authored `gap` field and all
 four former `gap_kind` values are retired. Supplying one is an explicit
 request-schema refusal. A retained source containing one is invalid and reports
@@ -380,8 +384,8 @@ normal recovery when authored verification meaning is genuinely missing or
 contradictory: keep `controlled_acceptance: {disposition: "required"}` and
 author the missing requirement, verifier, observation, failure condition, or
 canonical link. Missing catalog support is selected-route readiness and is not
-authored meaning. It is not evidence for `opted_out`, whose rationale is an
-explicit authored disposition the server neither infers nor classifies.
+authored meaning. The guidance offers no exception: a missing definition, a
+failed execution or unavailable tooling is never a reason for one.
 
 ### Execution capability is not an authored gap
 
@@ -451,16 +455,64 @@ or installed executor remains a nonblocking route observation. Mixed populations
 may therefore contain route-free inspection and executable behavioral
 obligations without converting inspection into an execution prerequisite.
 
-### A saved exemption is authored, not assessed
+### Deliberate exceptions
 
-Saving `controlled_acceptance: {disposition: "opted_out", rationale}` stays
-available under the same authoring contract. The rationale is checked for shape
+Ordinary authoring states no exception. The `changes` of `save_record`, the
+`initial` of `workspace_create_record` and the obligation-coverage upsert carry
+no member that declines a proof, leaves meaning unencoded or exempts a unit, and
+general authoring guidance and assessment corrections never propose one. An
+incomplete draft and unresolved meaning stay savable and are not exceptions.
+
+An exception is one explicit request, `save_record({unit, revision,
+exception})`, exclusive with `changes` and `maintenance_retry`. `exception` is
+`{kind, action, subject}` with a `rationale` when `action` is `apply`;
+`withdraw` takes none. It names one existing saved subject at the unit's current
+revision, and settles through the same fenced, compensated save as any authored
+change, under the same session role. The `save_record` declaration lists
+`exception` as one generic entry; its kinds, complete schema and consequences
+are read through the saved unit's reference with
+`select: {input_contract: {tool: "save_record", operation: "exception"}}`,
+optionally narrowed by `kind`. That read changes nothing and is never a
+precondition: a correctly formed request is accepted without it, and no token or
+approval is involved. Its request template leaves the rationale, and any subject
+the caller must name, empty.
+
+| `kind` | `subject` | Applying records | Consequence, stated on every surface |
+| --- | --- | --- | --- |
+| `proof` | a saved obligation id of the selected unit | `proof_opt_out: true` and `proof_opt_out_rationale` on that obligation | "Proof explicitly declined: no supported proof is appropriate for this verification. Tests may still be written and run. Their results do not automatically establish this verification or grant controlled proof credit." |
+| `grammar` | the id (`u1`, `u2`, ...) of a saved unresolved meaning at the supplied revision | `grammar_exception.rationale` on that unresolved item | "This meaning cannot be faithfully encoded in the supported grammar. It remains in residue: NOT ENFORCED by the system." |
+| `controlled_acceptance` | the work item of the selected unit | the whole-unit exemption in the record's proof posture | "Controlled acceptance exempted by the author. The stated rationale has not been assessed for eligibility." |
+
+The rationale is the author's own text, trimmed, nonempty and at most 8192
+bytes. It is recorded as written. Nothing reads it, classifies it or decides
+whether the exception is eligible; urgency, convenience, a failed test or proof,
+missing executable support, unavailable tooling and a missing definition are not
+themselves a justification.
+
+A proof exception keeps the obligation's statement, claim links and criterion
+associations exactly as saved, and the requirement and verification stay
+applicable. It is refused with `obligation_coverage_proof_opt_out_conflict`,
+changing nothing, while the obligation keeps a proof selection or a test case:
+neither is removed for the caller. Withdrawing it leaves the obligation
+undecided and selects no proof.
+
+A grammar exception keeps the unresolved text and its reason word for word. No
+row, identity or expression is made for it, it is never compiled coverage, and
+the specification stays incomplete. An unresolved id belongs to its revision, so
+a stale request is refused rather than reaching another item. Restating the
+unresolved list keeps the exception on each meaning it restates word for word;
+withdrawing keeps the text. It is recorded on saved controlled requirements and
+is therefore served under the paid tier only.
+
+The whole-unit exemption is a separate applicability decision and is neither of
+the others; saved requirements, obligations and proofs are not deleted, and
+withdrawing restores `required`. The rationale is checked for shape
 and size and for nothing else: no operation reads it, classifies it, or
 establishes that the exempted obligation really does not apply. Every surface
 that presents the exemption therefore carries the same provenance
 (`controlled-acceptance-opt-out-provenance.v1`: `rationale: "caller_authored"`,
 `rationale_assessment: "not_performed"`, `assessed_by: null`) — the upsert
-receipt, the obligation-coverage query's contract-input summary, the design
+operation's receipt, the obligation-coverage query's contract-input summary, the design
 workbench (whose exempted rows report
 `controlled_acceptance_opted_out_authored_unassessed`), the
 controlled-acceptance projection's
@@ -470,6 +522,36 @@ opt-out follows that recorded disposition and nothing else, so an exempted
 dimension is never a catalog-certified claim of inapplicability or evidence that
 a proof succeeded. Real missing proof on an authored required obligation remains
 mechanical incompleteness.
+
+A save that applies or withdraws an exception returns `exception`: the kind,
+action and subject, the affected saved meaning, the rationale as written with
+`rationale_assessment: "not_performed"`, and the consequence. A receipt too
+large for one frame still states the kind, action, subject and consequence.
+
+Assessment reports exceptions as `assessment.exceptions`, apart from unfinished
+drafting. `proof` counts `selected`, `declined` and `undecided` obligations and,
+for declined ones, repeats verification's facts (`accounting: "opted_out"`,
+`proofs_executed: 0`, `credit_granted: 0`) with each declined obligation and its
+rationale; credit established by a selected proof is unaffected.
+`grammar` counts `unresolved_meanings` and `exceptions`, marks the excepted
+meanings `NOT ENFORCED` and reports `specification: "incomplete"` whenever any
+meaning is unresolved. `controlled_acceptance` reports the disposition and, when
+exempted, the rationale and its unassessed provenance. An exception saved
+without a rationale reports `rationale_state: "not_recorded"`; none is supplied
+for it. Every count is exact. A delivered summary lists at most eight subjects
+per list and cuts long text, marking `truncated_members`, counting omissions and
+setting `complete: false`; when nothing is cut it equals the retained
+assessment, which always lists every subject whole.
+
+No other surface records or suggests an exception. The design workbench's
+proof-posture row offers one response form,
+`declare_controlled_acceptance_applies`; its owner refuses any other answer with
+`controlled_contract_authoring_continuation_invalid` before any write and names
+the exception request instead of treating the answer as an exemption. The
+routing vocabulary carries no opt-out, exemption or exception phrase: its
+controlled-contract authoring intent states that an exception is the separate
+`save_record({unit, revision, exception})` request and names the reader
+selection that returns its contract.
 
 `proof_name` selects an exact proof catalog entry; it is not an authored title
 or case ID. Find catalog names with `workspace_find_proofs`.
@@ -1523,19 +1605,18 @@ wording or proof results.
   Criterion edits also change the work record and therefore the combined
   revision, so an upsert using the earlier digest is refused as stale.
 
-`proof_opt_out: true` records that the author declines proof for one
-obligation. The obligation keeps its statement and criterion associations and
-covers those criteria when its authored meaning is valid. It needs no
-rationale, executable selection, binding, executor or result, and it grants no
+A [proof exception](#deliberate-exceptions) records that the author declines
+proof for one obligation. The obligation keeps its statement and criterion
+associations and covers those criteria when its authored meaning is valid. It
+needs no executable selection, binding, executor or result, and it grants no
 execution or verification credit. It cannot coexist with a proof selection or
-case: such an amendment, or a later case amendment on the opted-out obligation,
-is refused atomically with `obligation_coverage_proof_opt_out_conflict`, and a
-saved source holding both is invalid. It is distinct from the whole-unit
-`controlled_acceptance: {disposition: "opted_out"}` exemption, whose behavior
-is unchanged, and it revives no retired `gap_kind`. An obligation with neither
-a selected proof nor an opt-out is unfinished authoring and covers no criterion
-until its author makes one of those two decisions. Missing executable support
-for a selected proof never requires an opt-out.
+case: applying it to such an obligation, or a later selection or case amendment
+on the declined obligation, is refused atomically with
+`obligation_coverage_proof_opt_out_conflict`, and a saved source holding both is
+invalid. It is distinct from the whole-unit exemption and revives no retired
+`gap_kind`. An obligation with neither a selected proof nor a proof exception is
+unfinished authoring and covers no criterion. Missing executable support for a
+selected proof never requires an exception.
 
 Coverage of the selected unit (`acceptance-criterion-coverage.v1`) is the unit's
 current criteria minus those named by a current association of one of the
@@ -1951,18 +2032,24 @@ including `select: {contract: "coverage"}`. Save supported authored changes with
 the serving tool's typed work-item changes schema. Existing obligation and case
 rows use `id`; new rows use `key`. Obligation associations use `criteria` and
 `claims`; proof choices and parameters use `proof.name` and `proof.parameters`.
+Requirements are authored as the one `changes.requirements` batch
+(`entities`, `requirements`, `collections`, `unresolved`), which the host's
+paid tier alone serves; its members, row identities, source links and readback
+are stated in
+[Controlled contract operations](mcp-controlled-contract-operations.md). A
+requirement label in an obligation's `claims` names every claim its row emits,
+and the save answers that label with the row: its `row_id`, `state`,
+`constraint_ids` and `claim_ids`.
 A refused save publishes the owner's refusal details with the authored `field`,
 the identities the owner considered, its correction and its next calls. It never
 publishes a `guidance_path`, the owner's internal location of a guidance member.
 Where that member is part of the requirement-authoring guidance below, the
 details carry `guidance_call` instead: the `workspace_read_wiki` call that
-focuses that member. A requirement-vocabulary refusal therefore keeps its owner
-code, `field`, `rejected_value` and `accepted_alternatives`, writes nothing, and
-returns one callable read. The refusal's top-level `next_calls` recommends that
-same call, once per guidance member and after any unit read, when the session's
-reader accepts it; following it returns the focused context whose recommended
-selection is the accepted values. A location outside the published guidance is
-dropped with no call.
+focuses that member. A term outside the requirement vocabulary (a modality, a
+relation, a verification method, an entity type) is refused by the batch's own
+declaration before anything is compiled: the refusal names the member, states
+the values accepted there, and writes nothing. A location outside the published
+guidance is dropped with no call.
 
 ### Requirement-authoring guidance
 
@@ -1988,9 +2075,10 @@ returned call; a save refusal's `guidance_call` uses this form. A path that name
 | Topic | Content |
 | --- | --- |
 | `save_record_inputs` | `members`: which `changes` member takes each saved identity a contract read returns (`owner_field` is the member the unit's `{contract: "obligations"}` or `{contract: "cases"}` selection returns, read and never authored; `save_record_field` is the member that takes it), with the three new-row labels; `not_authored_here`: requirement notes and residue are not authored through `save_record`; how `key` labels and `$<key>` references bind rows in one request, and `associations`: how an obligation's `claims`, `criteria`, `proof.name`, `case`, `case.verification` and `case.id` associate it with a requirement, a criterion, a proof and a test case, each by the owner's own rule, and `slice_coverage.steps`: the order in which a slice gets coverage of its own. |
-| `fields` | The owner's explanation of `subject`, `behavior`, `verifier`, `observes` and `fails_when`, with the shape each takes. |
-| `required_object_shapes` | The referent, statement and verification shapes, with requirement replacement and retirement stated by the current save inputs: a replaced requirement is `changes.requirements[].id`, kept cases are `changes.requirements[].rebind_case_ids`, and retired requirements are `changes.remove.requirements`. The underlying operation keeps its own input names; this guidance does not publish them. |
+| `fields` | The owner's explanation of `subject`, `behavior`, `verifier`, `observes` and `fails_when`, with the shape each takes. In a save each names its entities by the ids the batch declares under `entities`. |
+| `required_object_shapes` | The referent, statement and verification shapes, with requirement replacement and retirement stated by the current save inputs: a corrected requirement claim is `changes.requirements.requirements[].id`, kept cases are `changes.requirements.requirements[].rebind_case_ids`, retired requirements are `changes.remove.requirements`, and whole saved rows are restated by `changes.requirements.requirements[].row_id` or removed by `changes.remove.requirement_rows`. The underlying operation keeps its own input names; this guidance does not publish them. |
 | `vocabulary` | Every accepted term: modalities, natures, verification methods, type terms, identity kinds, applicability modes and relation signatures. |
+| `requirement_batch_schema` | The complete declaration of a new record's requirement batch: the batch with every definition it refers to, self-contained. `workspace_create_record` publishes `initial.requirements` by name with its declaration deferred to this topic, because a record that does not exist yet has no selected contract to read; the server still validates the whole batch. A saved unit reads its own batch declaration through its selected `input_contract`. |
 | `unresolved_coverage` | What to author when a proof, family or falsifier is missing, its record naming each obligation field by the `changes` member that carries it (`claims`, `proof.name`), with calls to the case-authoring and input-mapping topics and the `workspace_find_proofs` route, whose query is the author's own. |
 | `conditional_verification_requirements`, `runtime_test_authoring`, `native_runtime_test_vocabulary` | When a verification is required and how its runtime test is stated. |
 | `case_authoring` | The test-case members: verification association (`changes.obligations[].case.verification`, eligible through `changes.obligations[].claims`), component, target, observation and falsification. Each listed family keeps its provider identity and version, runner, source suffixes, selector form and `target_variant`, which names its entry in `target_variants` with the target fields and `path_owner`. Each falsification strategy lists the fields an author writes and may not write; what the save derives is not listed. |
@@ -2007,15 +2095,10 @@ whose criterion an already saved parent requirement and test case show:
    its `{contract: "cases"}` selection for `case_id`.
 3. Save the slice's own obligations on the slice unit at the slice's revision.
    No requirement and no case body is restated, so neither is duplicated.
-   Each also selects its proof
-   with `proof.name` or states an explicit `proof_opt_out`, as two exclusive
-   arms. A proof-backed obligation names `claims`, the applicable saved
-   `case.id`, `criteria` and the proof that case verifies. An opted-out
-   obligation states `proof_opt_out: true` with its `claims` and `criteria`
-   and names no case and no proof selection; combining an opt-out with either
-   is refused with `obligation_coverage_proof_opt_out_conflict`. An opt-out
-   accounts for the obligation's meaning as valid and grants no verification
-   credit. An obligation with neither arm covers no criterion.
+   A proof-backed obligation names `claims`, the applicable saved `case.id`,
+   `criteria` and, in `proof.name`, the proof that case verifies. An obligation
+   that selects no proof stays saved as an undecided draft and covers no
+   criterion.
 4. Assess that exact slice with `workspace_assess_contract({unit:
    "WK-NNNN#SLICE-NNN"})`.
 
@@ -2070,13 +2153,12 @@ it is never an executable correction or a member of `next_calls`. Missing
 applicability, statements, criterion associations, proof choices and parameters
 remain missing until the author supplies them. For
 `controlled_acceptance_disposition_missing`, a supported correction's
-`applicability` states the caller's two choices and selects neither
+`applicability` states the one authored choice and saves nothing
 (`selected: null`): `declare_applicable` takes
-`changes: {controlled_acceptance: {disposition: "required"}}`, and `opt_out`
-takes `disposition: "opted_out"` with `controlled_acceptance.rationale` listed
-as `missing_caller_input`. Save the chosen changes with the `current_read`
-revision. Assessment never supplies a revision or rationale, and never chooses
-applicability or an exemption. Frozen or focused guidance carries no choices.
+`changes: {controlled_acceptance: {disposition: "required"}}`. Save those
+changes with the `current_read` revision. Assessment never supplies a revision,
+and no correction offers an exemption or any other exception. Frozen or focused
+guidance carries no choices.
 
 The user-requirements comparison preserves its assessed scope and advisory.
 Its `read_call` obtains the selected unit's current context through
@@ -2099,6 +2181,28 @@ original reads execute no proofs and grant no credit; a capability owner's
 failure keeps its originating cause and does not become an authored defect.
 Removing a proof selection preserves the obligation and shared or sibling case
 meaning.
+
+Source-present assessment also reports `specification` from the requirement
+description owner, separately from obligation accounting and criterion coverage.
+Its status can be incomplete while every obligation is accounted and coverage
+is complete. `authored_meaning`, `lowering` and `source_resolution` distinguish
+missing definitions, unsupported lowering and unavailable definition source;
+unavailable capability or source does not establish omitted authored meaning.
+The compact issue index keeps native findings with affected requirement row,
+claim, object and obligation identities. Retained diagnosis selections preserve
+those captured facts after repair and restart without resolving definitions again.
+Whole-unit findings need no obligation; slice and selected-obligation findings
+use only their linked requirement roots and needed definition context.
+
+Definition diagnoses offer `workspace_read_wiki` inspection and, where supported,
+`save_record` guidance for caller-authored `requirements`. Definitions belong to
+the parent specification even when a slice obligation reaches them: the correction
+explicitly names that parent and leaves slice obligations untouched. Follow the
+current read for its revision and complete contract selections, then supply the
+intended typed definition through the serving save schema. The assessment supplies
+no replacement meaning or executable save. Frozen authority grants no write;
+named focused-contract correction remains unsupported. Historical retrieval is
+never a repair or current write revision.
 
 Acceptance-coverage evaluation, identity comparison, rebase planning, and
 transaction participation remain internal where readiness, persistence, or

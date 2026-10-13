@@ -1,0 +1,215 @@
+{
+  "$defs": {
+    "authored_requirements": {
+      "description": "Requirement rows as they were authored, beside the claims they emit. A row is additive over the claim graph: a contract with no rows states its claims exactly as before, and no claim needs a row. Every canonical constraint, rendering and generated expression of a row is derived from its input and is never stored as an editable definition.",
+      "type": "object",
+      "required": ["rows", "collections", "unresolved"],
+      "additionalProperties": false,
+      "properties": {
+        "rows": { "type": "array", "items": { "$ref": "#/$defs/authored_requirement_row" } },
+        "collections": { "type": "array", "items": { "$ref": "#/$defs/authored_requirement_collection" } },
+        "unresolved": { "type": "array", "items": { "$ref": "#/$defs/authored_unresolved_meaning" } }
+      }
+    },
+    "authored_requirement_row_id": {
+      "description": "The durable identity of one authored row. It is not a semantic identity: a row keeps it through correction.",
+      "type": "string",
+      "pattern": "^row-[0-9a-f]{40}$"
+    },
+    "authored_requirement_collection_row_id": {
+      "type": "string",
+      "pattern": "^collection-row-[0-9a-f]{40}$"
+    },
+    "authored_constraint_id": {
+      "description": "The identity of one canonical constraint: a digest of the unit it is stated for and the constraint.",
+      "type": "string",
+      "pattern": "^constraint-[0-9a-f]{40}$"
+    },
+    "authored_entity": {
+      "description": "An entity as its author named it, bound to what it is. An entity whose type is not yet decided carries its name alone, and the row that names it is incomplete.",
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "type_term": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "identity": { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string", "minLength": 1 } } }
+      },
+      "dependentRequired": { "type_term": ["identity"], "identity": ["type_term"] }
+    },
+    "authored_pending_value": {
+      "description": "A value that exists and is not yet decided. The row that states it is incomplete.",
+      "type": "object",
+      "required": ["pending"],
+      "additionalProperties": false,
+      "properties": { "pending": { "const": true } }
+    },
+    "authored_applicability": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "minLength": 1 },
+        "context": { "type": "array", "items": { "$ref": "#/$defs/authored_entity" } }
+      }
+    },
+    "authored_statement_object": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "referent": { "$ref": "#/$defs/authored_entity" },
+        "number": { "anyOf": [{ "type": "number" }, { "$ref": "#/$defs/authored_pending_value" }] },
+        "boolean": { "anyOf": [{ "type": "boolean" }, { "$ref": "#/$defs/authored_pending_value" }] },
+        "range": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minimum": { "anyOf": [{ "type": "number" }, { "$ref": "#/$defs/authored_pending_value" }] },
+            "maximum": { "anyOf": [{ "type": "number" }, { "$ref": "#/$defs/authored_pending_value" }] }
+          }
+        }
+      }
+    },
+    "authored_requirement_statement": {
+      "description": "One statement as written: its subject, and whatever of its strength, nature, objects and applicability has been stated so far.",
+      "type": "object",
+      "required": ["subject", "behavior"],
+      "additionalProperties": false,
+      "properties": {
+        "subject": { "$ref": "#/$defs/authored_entity" },
+        "modality": { "type": "string", "enum": ["MUST", "MUST_NOT", "MAY"] },
+        "nature": { "type": "string", "minLength": 1 },
+        "behavior": {
+          "type": "object",
+          "required": ["relation"],
+          "additionalProperties": false,
+          "properties": {
+            "relation": { "type": "string", "minLength": 1 },
+            "objects": { "type": "array", "items": { "$ref": "#/$defs/authored_statement_object" } },
+            "applies": { "$ref": "#/$defs/authored_applicability" }
+          }
+        }
+      }
+    },
+    "authored_requirement_membership": {
+      "description": "One closed membership as written: every MUST member is required, a MAY member is permitted and not required, and every member not listed is forbidden.",
+      "type": "object",
+      "required": ["subject", "membership"],
+      "additionalProperties": false,
+      "properties": {
+        "subject": { "$ref": "#/$defs/authored_entity" },
+        "membership": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["member"],
+            "additionalProperties": false,
+            "properties": {
+              "member": { "$ref": "#/$defs/authored_entity" },
+              "modality": { "type": "string", "enum": ["MUST", "MAY"] }
+            }
+          }
+        },
+        "applies": { "$ref": "#/$defs/authored_applicability" }
+      }
+    },
+    "authored_requirement_source": {
+      "description": "Where a row's meaning was stated in its work item's saved user requirements: the exact passage, the chosen one-based occurrence, the digest of the source text it was found in and its location there. Provenance only; it takes no part in any identity.",
+      "type": "object",
+      "required": ["user_requirement", "user_requirement_occurrence", "source", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "user_requirement": { "type": "string", "minLength": 1 },
+        "user_requirement_occurrence": { "type": "integer", "minimum": 1 },
+        "source": {
+          "type": "object",
+          "required": ["wk_id", "field", "digest"],
+          "additionalProperties": false,
+          "properties": {
+            "wk_id": { "type": "string", "pattern": "^WK-[0-9]+$" },
+            "field": { "const": "sections.user_requirements" },
+            "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "location": {
+          "type": "object",
+          "required": ["unit", "start", "end"],
+          "additionalProperties": false,
+          "properties": {
+            "unit": { "const": "utf16_code_units" },
+            "start": { "type": "integer", "minimum": 0 },
+            "end": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "authored_requirement_row": {
+      "description": "One authored row with what it emits. constraint_ids and claim_ids are empty while the row is incomplete; a closed membership has a constraint and no claim, because no native relation carries it.",
+      "type": "object",
+      "required": ["row_id", "input", "pending", "constraint_ids", "claim_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "row_id": { "$ref": "#/$defs/authored_requirement_row_id" },
+        "input": { "oneOf": [{ "$ref": "#/$defs/authored_requirement_statement" }, { "$ref": "#/$defs/authored_requirement_membership" }] },
+        "pending": {
+          "description": "The exact unfinished fields of the input, each as a path from the row.",
+          "type": "array",
+          "items": { "type": "array", "minItems": 1, "items": { "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "integer", "minimum": 0 }] } }
+        },
+        "constraint_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/authored_constraint_id" } },
+        "claim_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/claim_id" } },
+        "source": { "$ref": "#/$defs/authored_requirement_source" }
+      }
+    },
+    "authored_requirement_collection": {
+      "description": "A group of authored rows. A closed set has no order; an ordered sequence keeps the order given. It is kept as structure and is never a predicate.",
+      "type": "object",
+      "required": ["collection_row_id", "member_row_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "collection_row_id": { "$ref": "#/$defs/authored_requirement_collection_row_id" },
+        "kind": { "type": "string", "enum": ["closed_set", "ordered_sequence"] },
+        "purpose": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "member_row_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/authored_requirement_row_id" } }
+      }
+    },
+    "authored_unresolved_meaning": {
+      "description": "Meaning no relation carries, kept word for word. It keeps the specification incomplete and is never compiled.",
+      "oneOf": [
+        { "type": "string", "minLength": 1, "pattern": "\\S" },
+        {
+          "type": "object",
+          "required": ["text", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "text": { "type": "string", "minLength": 1, "pattern": "\\S" },
+            "reason": { "type": "string", "minLength": 1 },
+            "candidate_concept": { "type": "string", "minLength": 1, "pattern": "\\S" },
+            "grammar_exception": { "$ref": "#/$defs/authored_grammar_exception" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["text", "grammar_exception"],
+          "additionalProperties": false,
+          "properties": {
+            "text": { "type": "string", "minLength": 1, "pattern": "\\S" },
+            "grammar_exception": { "$ref": "#/$defs/authored_grammar_exception" }
+          }
+        }
+      ]
+    },
+    "authored_grammar_exception": {
+      "description": "The author's deliberate choice to leave one unresolved meaning unencoded because the supported grammar cannot faithfully state it, with the author's own reason. The meaning stays unresolved and is NOT ENFORCED: it is never compiled, never given an expression and never makes the specification complete. The reason is recorded as written and never assessed.",
+      "type": "object",
+      "required": ["rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "rationale": { "type": "string", "minLength": 1, "maxLength": 8192, "pattern": "^\\S(?:[\\s\\S]*\\S)?$" }
+      }
+    }
+  }
+}

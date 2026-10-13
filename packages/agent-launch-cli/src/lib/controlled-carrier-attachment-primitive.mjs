@@ -15,6 +15,8 @@ import {
   resolveControlledContractAttachmentGeneration,
   validateControlledContractAttachmentGenerationDescriptors
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
+import { resolveControlledContractSavedAuthoringSources } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-tool-shared.mjs";
 import {
   assertAuthenticatedControlledContractGeneration,
   assertResolvedControlledContractGenerationsEqual,
@@ -96,17 +98,30 @@ export const CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES = Object.freeze({
   INDETERMINATE: "agent_launch.controlled_contract_generation.indeterminate.v1"
 });
 
+const generationNotPersistedRefusals = new WeakSet();
+
+export function isControlledContractGenerationNotPersisted(error) {
+  return typeof error === "object" && error !== null && generationNotPersistedRefusals.has(error);
+}
+
+function failGenerationNotPersisted(message, details, cause) {
+  const refusal = new ControlledContractGenerationPersistenceError(
+    CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED, message, details, cause);
+  generationNotPersistedRefusals.add(refusal);
+  throw refusal;
+}
+
 export class ControlledContractGenerationPersistenceError extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
+  constructor(code, message, details = {}, cause = undefined) {
+    super(message, cause === undefined ? undefined : { cause });
     this.name = "ControlledContractGenerationPersistenceError";
     this.code = code;
     this.details = structuredClone(details);
   }
 }
 
-function fail(code, message, details = {}) {
-  throw new ControlledContractGenerationPersistenceError(code, message, details);
+function fail(code, message, details = {}, cause = undefined) {
+  throw new ControlledContractGenerationPersistenceError(code, message, details, cause);
 }
 
 function isPlainObject(value) {
@@ -256,7 +271,7 @@ async function resolveGitDirectoryAsync(runGit, repo) {
     return realpathSync(gitDir);
   } catch (error) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.BINDING_INVALID,
-      "resolved Git directory is unavailable", { cause_code: error?.code ?? null });
+      "resolved Git directory is unavailable", { cause_code: error?.code ?? null }, error);
   }
 }
 
@@ -353,6 +368,11 @@ function assertGenerationEnvelope(generation, wkId) {
   }
 }
 
+async function resolvePersistencePopulation({ repoRoot, wkId }) {
+  return await resolveControlledContractAttachmentGeneration({ repoRoot, wkId }) ??
+    resolveControlledContractSavedAuthoringSources({ repoRoot, wkId });
+}
+
 export async function resolveControlledContractGenerationBinding(input = {}) {
   assertExactKeys(input, [
     "repoRoot", "wkId", "generation", "lifecycleBinding", "deps"
@@ -394,7 +414,7 @@ async function resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding, deps
     repository = realpathSync(path.resolve(repoRoot));
   } catch (error) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.BINDING_INVALID,
-      "canonical repository is unavailable", { cause_code: error?.code ?? null });
+      "canonical repository is unavailable", { cause_code: error?.code ?? null }, error);
   }
   const recordPath = path.join(repository, "wiki", "work-records", `${wkId}.json`);
   let recordEntry;
@@ -409,7 +429,7 @@ async function resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding, deps
     resolvedRecordPath = realpathSync(recordPath);
   } catch (error) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.BINDING_INVALID,
-      "canonical WK record identity is unavailable", { cause_code: error?.code ?? null });
+      "canonical WK record identity is unavailable", { cause_code: error?.code ?? null }, error);
   }
   if (!recordEntry.isFile() || recordEntry.isSymbolicLink() ||
       resolvedRecordPath !== recordPath) {
@@ -421,7 +441,7 @@ async function resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding, deps
     recordBytes = readFileSync(recordPath);
   } catch (error) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.BINDING_INVALID,
-      "canonical WK record could not be read", { cause_code: error?.code ?? null });
+      "canonical WK record could not be read", { cause_code: error?.code ?? null }, error);
   }
   let record;
   try {
@@ -459,7 +479,7 @@ async function resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding, deps
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED,
       "canonical WK record became unavailable during generation binding", {
         cause_code: error?.code ?? null
-      });
+      }, error);
   }
   if (!recordBytes.equals(observedRecordBytes)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED,
@@ -543,7 +563,7 @@ async function resolveCommitAuthenticationRequest(input) {
     repository = realpathSync(path.resolve(repoRoot));
   } catch (error) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.BINDING_INVALID,
-      "canonical repository is unavailable", { cause_code: error?.code ?? null });
+      "canonical repository is unavailable", { cause_code: error?.code ?? null }, error);
   }
   const runGit = deps.runGit ?? defaultControlledContractGenerationRunGit;
   const gitDir = await resolveGitDirectoryAsync(runGit, repository);
@@ -616,7 +636,7 @@ export async function authenticateControlledContractGenerationAtW(input = {}) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
       "current controlled-contract generation could not be resolved", {
         cause_code: error?.code ?? null
-      });
+      }, error);
   }
   try {
     if (current === null) throw new Error("current generation is absent");
@@ -629,7 +649,7 @@ export async function authenticateControlledContractGenerationAtW(input = {}) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
       "bound generation is not the current canonical controlled-contract generation", {
         cause_code: error?.code ?? null
-      });
+      }, error);
   }
 
   let observations;
@@ -639,10 +659,11 @@ export async function authenticateControlledContractGenerationAtW(input = {}) {
     });
   } catch (error) {
     if (error instanceof ControlledContractGenerationPersistenceError) {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+
+      failGenerationNotPersisted(
         "persistent WK tree does not contain one complete controlled-contract authentication tuple", {
           cause_code: error.code
-        });
+        }, error);
     }
     throw error;
   }
@@ -658,10 +679,10 @@ export async function authenticateControlledContractGenerationAtW(input = {}) {
       manifestObservations: observations.manifestObservations
     });
   } catch (error) {
-    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
+    failGenerationNotPersisted(
       "persistent WK tree does not contain the exact authenticated controlled generation", {
         cause_code: error?.code ?? null
-      });
+      }, error);
   }
   let finalCurrent;
   try {
@@ -670,10 +691,11 @@ export async function authenticateControlledContractGenerationAtW(input = {}) {
       wkId: binding.record_id
     });
   } catch (error) {
+
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
-      "current controlled-contract generation moved during exact-W authentication", {
+      "current controlled-contract generation could not be resolved after exact-W authentication", {
         cause_code: error?.code ?? null
-      });
+      }, error);
   }
   try {
     if (finalCurrent === null) throw new Error("current generation is absent");
@@ -682,9 +704,9 @@ export async function authenticateControlledContractGenerationAtW(input = {}) {
       expected: current,
       observed: finalCurrent
     });
-  } catch {
+  } catch (error) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
-      "current controlled-contract generation moved during exact-W authentication");
+      "current controlled-contract generation moved during exact-W authentication", {}, error);
   }
 
   const finalTip = await resolveRefTipAsync(
@@ -710,7 +732,8 @@ export async function authenticateCurrentControlledContractGenerationStateAtW(in
 }
 
 async function observeCurrentGenerationAbsenceAtW({
-  repoRoot, wkId, expectsWkTip, expectedWkTipSha, expectsGeneration, expectedGeneration, deps
+  repoRoot, wkId, expectsWkTip, expectedWkTipSha, expectsGeneration, expectedGeneration,
+  requireSavedAuthoringSources, deps
 }) {
   const source = await resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding: null, deps });
   if (expectsWkTip && source.wk_tip_sha !== expectedWkTipSha) {
@@ -723,7 +746,7 @@ async function observeCurrentGenerationAbsenceAtW({
   }
   const runGit = deps.runGit ?? defaultControlledContractGenerationRunGit;
 
-  const { carrierPaths, manifestPaths } = await storedPopulationPathsFromTree({
+  const { carrierPaths, manifestPaths, authoringSources } = await storedPopulationPathsFromTree({
     runGit,
     binding: { repository: source.repository, git_dir: source.git_dir, record_id: wkId },
     treeish: source.wk_tip_sha
@@ -743,6 +766,22 @@ async function observeCurrentGenerationAbsenceAtW({
         carrier_count: carrierPaths.length,
         manifest_count: manifestPaths.length
       });
+  }
+  if (requireSavedAuthoringSources) {
+    const saved = await resolveControlledContractSavedAuthoringSources({
+      repoRoot: source.repository, wkId
+    });
+
+    if (saved !== null && (saved.descriptors.length !== authoringSources.length ||
+        saved.descriptors.some((descriptor, index) =>
+          descriptor.path !== authoringSources[index].path ||
+          descriptor.bytes_base64 !== authoringSources[index].bytes_base64))) {
+      failGenerationNotPersisted(
+        "persistent WK tree does not contain the saved proof-authoring sources", {
+          saved_source_count: saved.descriptors.length,
+          stored_source_count: authoringSources.length
+        });
+    }
   }
 
   const absence = constructControlledContractGenerationAbsence({
@@ -773,9 +812,12 @@ async function observeCurrentGenerationAbsenceAtW({
 }
 
 async function authenticateCurrentGenerationAtW(input, { admitAbsence }) {
-  assertExactKeys(input, ["repoRoot", "wkId", "expectedWkTipSha", "expectedGeneration", "deps"],
-    "current controlled-generation authority request");
-  const { repoRoot, wkId, expectedWkTipSha, expectedGeneration, deps = {} } = input;
+  assertExactKeys(input, [
+    "repoRoot", "wkId", "expectedWkTipSha", "expectedGeneration", "requireSavedAuthoringSources", "deps"
+  ], "current controlled-generation authority request");
+  const {
+    repoRoot, wkId, expectedWkTipSha, expectedGeneration, requireSavedAuthoringSources = false, deps = {}
+  } = input;
 
   const expectsWkTip = Object.hasOwn(input, "expectedWkTipSha");
   const expectsGeneration = Object.hasOwn(input, "expectedGeneration");
@@ -784,6 +826,8 @@ async function authenticateCurrentGenerationAtW(input, { admitAbsence }) {
       (expectsWkTip &&
         (typeof expectedWkTipSha !== "string" || !OID_PATTERN.test(expectedWkTipSha))) ||
       (expectsGeneration && !expectsWkTip) ||
+      typeof requireSavedAuthoringSources !== "boolean" ||
+      (requireSavedAuthoringSources && !admitAbsence) ||
       !isPlainObject(deps)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INVALID_INPUT,
       "current generation authority requires canonical repository, WK, and exact-W identity");
@@ -795,7 +839,8 @@ async function authenticateCurrentGenerationAtW(input, { admitAbsence }) {
   if (generation === null) {
     if (admitAbsence) {
       return observeCurrentGenerationAbsenceAtW({
-        repoRoot, wkId, expectsWkTip, expectedWkTipSha, expectsGeneration, expectedGeneration, deps
+        repoRoot, wkId, expectsWkTip, expectedWkTipSha, expectsGeneration, expectedGeneration,
+        requireSavedAuthoringSources, deps
       });
     }
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED,
@@ -1112,7 +1157,7 @@ function reauthenticateBindingSource(binding) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED,
       "bound repository or canonical WK source became unavailable", {
         cause_code: error?.code ?? null
-      });
+      }, error);
   }
 
   const identityMoved = repository !== binding.repository || gitDir !== binding.git_dir;
@@ -1307,7 +1352,7 @@ export async function persistControlledContractGeneration(input = {}) {
 
   reauthenticateBindingSource(binding);
 
-  const current = await resolveControlledContractAttachmentGeneration({
+  const current = await resolvePersistencePopulation({
     repoRoot: binding.repository,
     wkId: binding.record_id
   });

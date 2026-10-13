@@ -171,14 +171,19 @@ function parseTomlStringArray(value) {
   return out;
 }
 
-export function readCodexConfigText(env) {
+export function resolveCodexClientHome(env) {
   const view = env && typeof env === "object" ? env : {};
   const codexHome = isNonEmptyString(view.CODEX_HOME)
     ? view.CODEX_HOME
     : isNonEmptyString(view.HOME)
       ? path.join(view.HOME, ".codex")
       : null;
-  if (!codexHome || !path.isAbsolute(codexHome)) return null;
+  return codexHome && path.isAbsolute(codexHome) ? codexHome : null;
+}
+
+export function readCodexConfigText(env) {
+  const codexHome = resolveCodexClientHome(env);
+  if (codexHome === null) return null;
   const configPath = path.join(codexHome, "config.toml");
   try {
     return readFileSync(configPath, "utf8");

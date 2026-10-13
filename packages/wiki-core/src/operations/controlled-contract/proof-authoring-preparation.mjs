@@ -13,6 +13,8 @@ import { attributeControlledContractRequirementDiagnostics } from
 import { proofCatalogDiscoveryRecovery } from './coverage-recovery-guidance.mjs';
 import { acceptanceCriterionAssociationOwner, acceptanceCriterionInventory } from
   './acceptance-criterion-coverage.mjs';
+import { prepareGrammarException } from './contract-requirement-projection.mjs';
+import { RECORD_AUTHORING_EXCEPTION_CODES } from '../../lib/record-authoring-exception.mjs';
 
 export const unitAddress = value => value.selectedUnit === null ? value.wkId : `${value.wkId}#${value.selectedUnit}`;
 const caseReferenceIds = (cases, obligations = []) => [...new Set([
@@ -83,6 +85,24 @@ function assertProspectiveCaseContract(pkg, candidate) {
     });
 }
 
+function exceptionInput({ initial, exception }) {
+  if (exception.kind === 'grammar') {
+    const prepared = prepareGrammarException({ contract: initial.contract?.content ?? null, subject: exception.subject,
+      action: exception.action, ...(exception.action === 'apply' ? { rationale: exception.rationale } : {}) });
+    return { contractRequirements: prepared.answer };
+  }
+  if (exception.kind === 'controlled_acceptance') {
+    if (exception.subject !== initial.wkId) throw new ControlledContractToolError(
+      RECORD_AUTHORING_EXCEPTION_CODES.SUBJECT_UNKNOWN,
+      `exception.subject names ${JSON.stringify(exception.subject)}; the whole-unit exemption of ${unitAddress(initial)} is recorded on ${initial.wkId}`, {
+        changed: false, phase: 'request', path: 'exception.subject', kind: 'controlled_acceptance',
+        subject: exception.subject, unit: unitAddress(initial), accepted_subject: initial.wkId });
+    return { controlledAcceptance: exception.action === 'apply'
+      ? { disposition: 'opted_out', rationale: exception.rationale } : { disposition: 'required' } };
+  }
+  return {};
+}
+
 export async function prepareProofAuthoringMutation({ pkg, initial, input, remove, now }) {
   if (remove && !['selection', 'obligation'].includes(input.removalScope)) {
     throw new ControlledContractToolError('obligation_coverage_request_invalid',
@@ -91,7 +111,23 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
       });
   }
   if (remove) findObligation(initial, input.obligationId);
-  const editsObligations = remove || Object.hasOwn(input, 'obligations');
+
+  const exception = !remove && Object.hasOwn(input, 'exception') ? input.exception : null;
+  if (exception !== null) {
+    const combined = ['obligations', 'contractRequirements', 'controlledAcceptance'].filter(key => Object.hasOwn(input, key));
+    if (combined.length > 0) throw new ControlledContractToolError('obligation_coverage_request_invalid',
+      'An exception is requested alone, never beside authored members', {
+        changed: false, phase: 'request', path: 'exception', combined_with: combined });
+    input = exceptionInput({ initial, exception });
+  } else if (!remove && Object.hasOwn(input, 'controlledAcceptance') &&
+      input.controlledAcceptance?.disposition !== 'required') {
+    throw new ControlledContractToolError('obligation_coverage_request_invalid',
+      'controlled_acceptance takes disposition required; no authored member exempts a unit', {
+        changed: false, phase: 'request', path: 'changes.controlled_acceptance',
+        accepted_dispositions: ['required'] });
+  }
+  const proofException = exception?.kind === 'proof' ? exception : null;
+  const editsObligations = remove || Object.hasOwn(input, 'obligations') || proofException !== null;
   const editsRequirements = !remove && Object.hasOwn(input, 'contractRequirements');
   const editsPosture = !remove && Object.hasOwn(input, 'controlledAcceptance');
   const orphanRebindings = (editsRequirements ? input.contractRequirements?.requirements ?? [] : [])
@@ -104,14 +140,25 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
         path: ['contract_requirements', 'requirements', index, 'rebind_case_ids'],
         message: 'rebind_case_ids requires replace_claim_id' })) });
   const obligations = remove ? [{ obligation_id: input.obligationId }]
-    : editsObligations ? input.obligations : [];
+    : proofException !== null ? [{ obligation_id: proofException.subject }]
+      : editsObligations ? input.obligations : [];
   if (editsObligations && (!Array.isArray(obligations) || obligations.length === 0)) {
     throw new ControlledContractToolError(
       'obligation_coverage_request_invalid', 'Supply a nonempty obligations list');
   }
   const source = initial.source?.content ?? { schema_version: pkg.OBLIGATION_DRAFT_SCHEMA_VERSION,
     wk_id: initial.wkId, selected_unit: initial.selectedUnit, focus: initial.focus, obligations: [] };
-  const authoredContent = editsObligations ? structuredClone(remove
+  if (proofException !== null && !initial.rows.some(row => row.obligation_id === proofException.subject)) {
+    throw new ControlledContractToolError(RECORD_AUTHORING_EXCEPTION_CODES.SUBJECT_UNKNOWN,
+      `exception.subject names ${JSON.stringify(proofException.subject)}, which is no saved obligation of ${unitAddress(initial)}`, {
+        changed: false, phase: 'request', path: 'exception.subject', kind: 'proof', subject: proofException.subject,
+        unit: unitAddress(initial), saved_obligations: initial.rows.length,
+        correction: 'Read the selected unit\'s obligations for their saved ids; an exception names one existing obligation.' });
+  }
+  const authoredContent = proofException !== null ? structuredClone(pkg.applyProofAuthoringException(source,
+    proofException.subject, { action: proofException.action,
+      ...(proofException.action === 'apply' ? { rationale: proofException.rationale } : {}) }))
+    : editsObligations ? structuredClone(remove
     ? input.removalScope === 'selection'
       ? pkg.removeProofAuthoringSelection(source, input.obligationId)
       : removeProofAuthoringObligation(pkg, source, input.obligationId)
@@ -237,8 +284,8 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
     'An obligation cannot both decline proof and keep a proof selection or case', {
       changed: false, phase: 'request', unit: unitAddress(initial),
       obligation_ids: optOutCases.map(row => row.obligation_id),
-      correction: 'Omit the case and proof selection for an opted-out obligation, or supply ' +
-        'proof_opt_out false with them.' });
+      correction: 'Keep one decision. A proof exception is withdrawn only by its own explicit withdrawal; ' +
+        'a proof selection or case is removed only by its own explicit removal.' });
 
   const validatedSources = new Map();
   for (const entry of candidate.sourceChanges) {

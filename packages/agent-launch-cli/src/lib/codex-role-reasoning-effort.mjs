@@ -5,6 +5,8 @@ import { isLiteLlmRoute } from "./agent-launch-model-route.mjs";
 
 export const CODEX_LITELLM_KEY_READER = "/usr/bin/cat";
 
+export const CODEX_LITELLM_STREAM_MAX_RETRIES = 5;
+
 const PROFILE_OWNED_EFFORT_ROLES = new Set(["orch", "orch-resume", "orchestrator", "resume"]);
 
 export function codexModelArgs(resolvedProfile) {
@@ -38,6 +40,7 @@ export function buildCodexModelProviderOverrides({ modelSelection = null, keyFil
     `name=${tomlString("agent-launch LiteLLM gateway")}`,
     `base_url=${tomlString(route.base_url)}`,
     `wire_api=${tomlString("responses")}`,
+    `stream_max_retries=${CODEX_LITELLM_STREAM_MAX_RETRIES}`,
     `auth={command=${tomlString(CODEX_LITELLM_KEY_READER)},args=[${tomlString(keyFilePath)}]}`
   ].join(",");
   return [

@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "20524d8830de268ea39fb3d3eb410ce3408b368d4b44a5f79a03c8d8b3d1846f",
+  "parameter_contract_digest": "3ba75ab1ff64d9015f02fa595641a583ebf834b5aebe3203f39ad44aa6d6ac34",
   "profile_id": "proof.integration.prefix-safety",
   "profile_version": "4.0.0",
-  "profile_digest": "d5f787bf5a3db86d478030f193cac6efd2b26e903b35c98ce670b89350e7e14a",
+  "profile_digest": "28d91a5f6f1e7af31d7ba606915884a58cf88a9633fa36e0a6cc2a829deaa5d2",
   "guarantee": "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.",
   "guarantee_digest": "77ffbca9bd9a063e667d13d48668f30e21236d4da2f2eb612db07cd7dc40754e",
   "explicit_exclusions": [
@@ -16,9 +16,9 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "8ff1297fa0f5565e94c8792457e4930420ef7e7a945e26494b82b3fb7e10cf3d",
-    "adequacy_result_digest": "24b0e73f8262efe9b284f8bb44fae49ee78393f513bf4c548226cfc7cd70e2ac",
-    "executable_control_count": 18,
+    "adequacy_declaration_digest": "6e6eee4f6089889c4142ca7b5bc2b2679b61d9d40cf96746be31c6ad0fb59345",
+    "adequacy_result_digest": "515daca68e4c4f771a8986bb34188cd6e9eb197e9b1dbee2e1c414ce928edd4b",
+    "executable_control_count": 20,
     "negative_fixture_count": 44,
     "coverage_witness_count": 44
   }

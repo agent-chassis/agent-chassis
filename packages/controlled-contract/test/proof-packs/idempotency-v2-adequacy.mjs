@@ -13,7 +13,7 @@ const ref = (referenceId) => ({ kind: "reference", reference_id: referenceId });
 const IDEMPOTENCY_V2_GUARANTEE_DIGEST =
   "38166c31a5bcf62c7d3cdde9af1b4ecec27b67d299a4a190a15715f96f852050";
 const IDEMPOTENCY_V2_PROFILE_DIGEST =
-  "6d7ab2f8910eb58d184da889470c732f462f2997ef85040f09a0ff945283c3e4";
+  "5829f7a995e07b827e2810623b0e593eb3d4ea3e64154ae8c9ae0d61fa179a23";
 
 function evaluateFixture(fixture) {
   return evaluateStableProofPackFixtureV1({
@@ -529,14 +529,14 @@ function exclusionControls(profile) {
 
 async function runProofPackAdequacyControls({
   profile
-}) {
+, negative_fixtures: negativeFixtures }) {
   return {
     schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: IDEMPOTENCY_V2_PROFILE_DIGEST,
     guarantee_digest: IDEMPOTENCY_V2_GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures),
       ...positiveControls(profile),
       ...mutantControls(profile),
       ...profileRejectionControls(profile),
@@ -552,3 +552,37 @@ export {
   runProofPackAdequacyControls,
   truthfulFixtureForExecution
 };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-idempotency-equivalence-verification-modalities",
+      "claim_id": "claim-idempotency-equivalence-verification",
+      "baseline": "isolated-claim-idempotency-equivalence-verification-modalities-baseline",
+      "optional": "isolated-claim-idempotency-equivalence-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-pre-second-equality-verification-modalities",
+      "claim_id": "claim-pre-second-equality-verification",
+      "baseline": "isolated-claim-pre-second-equality-verification-modalities-baseline",
+      "optional": "isolated-claim-pre-second-equality-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

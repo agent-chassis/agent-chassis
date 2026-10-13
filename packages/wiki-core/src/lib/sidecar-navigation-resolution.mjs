@@ -43,7 +43,24 @@ function selectedNativeRows(selection) {
   return [...rows.values()].sort(compareNativeRows);
 }
 
+function positionAnchors(rows, input) {
+  return rows.filter((row) => typeof row.payload?.symbol_key === "string" &&
+    row.document_path === input.path && validRange(row.payload.range) &&
+    row.payload.range.start_line <= input.line && input.line <= row.payload.range.end_line);
+}
+
+export function nativePositionSymbols(rows, input) {
+  const named = new Map();
+  for (const row of positionAnchors(rows, input)) {
+    named.set(`${row.provider_id}\0${row.symbol_id}`, { provider_id: row.provider_id,
+      symbol_id: row.symbol_id, document_local: parseScipSymbol(row.payload.symbol).local });
+  }
+  return [...named.values()];
+}
+
 function symbolFacts(selection, rows) {
+  const partial = new Set((selection.partial_symbols ?? []).map((symbol) =>
+    `${symbol.provider_id}\0${symbol.symbol_id}`));
   const projects = selection.publication?.provider_coverage?.projects;
   const indexers = new Map((Array.isArray(projects) ? projects : [])
     .filter((project) => typeof project?.key === "string" && typeof project.indexer === "string")
@@ -55,7 +72,8 @@ function symbolFacts(selection, rows) {
     const nativeIndexers = new Set(native.map((row) => row.payload.indexer));
     const indexer = nativeIndexers.size === 1 ? [...nativeIndexers][0]
       : native.length === 0 ? indexers.get(symbol.provider_id) : undefined;
-    const key = nativeKeys.size === 1 ? [...nativeKeys][0]
+    const whole = !partial.has(`${symbol.provider_id}\0${symbol.symbol_id}`);
+    const key = nativeKeys.size === 1 && whole ? [...nativeKeys][0]
       : native.length === 0 && indexer && !parseScipSymbol(symbol.raw_symbol).local
         ? JSON.stringify([indexer, symbol.raw_symbol]) : null;
     return { ...structuredClone(symbol), symbol_key: key, indexer: indexer ?? null,
@@ -96,10 +114,7 @@ export function resolveNativeNavigation({ input, selection }) {
   const rows = selectedNativeRows(selection);
   const facts = symbolFacts(selection, rows);
   const position = !Object.hasOwn(input, "symbol");
-  const anchors = position
-    ? rows.filter((row) => row.document_path === input.path && validRange(row.payload.range) &&
-      row.payload.range.start_line <= input.line && input.line <= row.payload.range.end_line)
-    : [];
+  const anchors = position ? positionAnchors(rows, input) : [];
   const keys = new Set(anchors.map((row) => row.payload.symbol_key));
   if (!position) {
     for (const row of rows) {

@@ -32,6 +32,10 @@ function functionName(node) {
   return null;
 }
 
+function anonymousName(node) {
+  return `<anonymous:${node.startPosition.row + 1}:${node.startPosition.column + 1}>`;
+}
+
 function probeIndex(body) {
   let index = body.startIndex + 1;
   for (const statement of namedChildren(body)) {
@@ -45,9 +49,9 @@ function probeIndex(body) {
 function collectFunctions(node, found = []) {
   if (FUNCTION_TYPES.has(node.type)) {
     const body = node.childForFieldName("body");
-    const name = functionName(node);
-    if (body?.type === "statement_block" && name !== null) {
-      found.push({ node, body, name, line: node.startPosition.row + 1 });
+    if (body?.type === "statement_block") {
+      found.push({ node, body, name: functionName(node) ?? anonymousName(node),
+        line: node.startPosition.row + 1 });
     }
   }
   for (const child of node.namedChildren) collectFunctions(child, found);

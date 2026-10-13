@@ -74,5 +74,5 @@ The current forbidden-operation fixture still observes
 its runner binding updated to the integration helper. The provider suite copies
 that helper into its test snapshot. These current tests grant no canonical
 proof credit and do not rewrite historical bindings. The generic
-[runtime identity contract](test-proof-runtime-identity.md#forced-operation-invocation)
+[runtime identity contract](test-proof-observation.md#module-fault-export-identity)
 continues to own provider semantics.

@@ -21,19 +21,31 @@ function loadConfig(configPath = process.env[CONFIG_ENV]) {
   return config;
 }
 
-function projectModule(config) {
-  if (typeof config?.project_directory !== "string" || !path.isAbsolute(config.project_directory)) {
-    throw new Error("the launcher test-proof observer configuration names no project directory");
+function selectedRunnerPackage(config) {
+  if (typeof config?.runner_package !== "string" || !path.isAbsolute(config.runner_package)) {
+    throw new Error("the launcher test-proof observer configuration names no selected runner package");
   }
-  return path.join(config.project_directory, "launcher-test-proof.cjs");
+  return { directory: config.runner_package, real: fs.realpathSync(config.runner_package),
+    module: path.join(config.runner_package, "launcher-test-proof.cjs") };
 }
 
-function projectRequire(config) {
-  return createRequire(projectModule(config));
+function runnerRequire(config) {
+  const selected = selectedRunnerPackage(config);
+  const anchored = createRequire(selected.module);
+  const resolve = (specifier) => {
+    const resolved = anchored.resolve(specifier);
+    const relative = path.relative(selected.real, fs.realpathSync(resolved));
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error(`the selected runner package at ${selected.directory} does not supply ${specifier}; ` +
+        `Node resolved it to another installation (${resolved}), which is not loaded`);
+    }
+    return resolved;
+  };
+  return Object.assign((specifier) => anchored(resolve(specifier)), { resolve });
 }
 
-function importProjectModule(config, specifier) {
-  return new vm.Script("(specifier) => import(specifier)", { filename: projectModule(config),
+function importRunnerModule(config, specifier) {
+  return new vm.Script("(specifier) => import(specifier)", { filename: selectedRunnerPackage(config).module,
     importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER }).runInThisContext()(specifier);
 }
 
@@ -86,10 +98,10 @@ module.exports = {
   CONFIG_ENV,
   createChannel,
   failureDiagnostic,
-  importProjectModule,
+  importRunnerModule,
   installReachSink,
   loadConfig,
-  projectRequire,
   repositoryPath,
+  runnerRequire,
   sameTitles
 };

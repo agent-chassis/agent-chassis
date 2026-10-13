@@ -19,7 +19,7 @@ Tool names are exact, with no aliases or deprecated forms.
 | Start or preview a canonical unit | `start_agent` | `subject`, optional configured selection; `preview:true` for action or role capabilities |
 | Observe or read execution results | `get_run_result` | Subject/attempt, assigned observation, retained original, or assigned recorded invocation |
 | Integrate a selected delivery | `integrate_work` | Exact returned `delivery:{ref_id}` |
-| Native test execution | `workspace_run_test` | File/runner and native execution selectors, or native owner's read/retry/continue modes |
+| Native test execution | `workspace_run_test` | File (or glob)/runner and native execution selectors, or native owner's read/retry modes |
 | Saved proof execution | `verify_proof` | `subject`, optional `source`, `branch` or `git_sha`, `environment`, `timeout` |
 | Deliver a worker assignment | `workspace_deliver_work` | Empty object, launcher-authenticated assignment |
 | Inspect a candidate | `workspace_inspect_candidate` | WK `subject` and owner's optional historical selection |
@@ -56,6 +56,9 @@ selection calls to read fields, entries, populations, currentness or integrity
 whole. `workspace_read_wiki({assignment:true})` selects a worker's authenticated
 frozen assignment; it accepts no caller assignment identity. A reference selects
 the resource the first answer returned, under the same source and role grants.
+`workspace_read_wiki({subject:{record_kind:"work_item"}})` returns a record
+kind's creation context before any record exists; its reference reads the
+complete `initial` schema of the members a creation authors.
 It never grants arbitrary filesystem access.
 
 Selecting an entry returns its complete body, exact `entry_id`/`version_id` and
@@ -196,7 +199,8 @@ A test result grants no proof credit. See
 execution selectors never become read aliases. Results preserve the selected
 population, actual attempted execution, capability limitations, failures and
 source identities. A successful process exit alone is no proof success.
-See [test-proof runtime identity](test-proof-runtime-identity.md).
+See [test-proof runtime identity](test-proof-runtime-identity.md) and
+[test-proof results](test-proof-results.md).
 
 ## Candidate, publication and completion
 

@@ -198,11 +198,13 @@ export function declareControlledContractObligationCoverageUpsertInputSchema({
   const referent = declaredReferent(requirement.properties.subject, vocabulary);
   const statement = declaredStatement(requirement.properties.behavior, referent,
     requirement.properties.subject, vocabulary);
+  const observation = declaredStatement(verification.properties.observes, referent,
+    requirement.properties.subject, guidance.observation_vocabulary);
   const runtimeTests = runtimeTestAuthoring.map((variant) => declaredRuntimeTest(
     verification.properties.runtime_test, referent, variant,
     guidance.native_runtime_test_vocabulary.provider_bound_boundary_kinds));
   const testMethod = runtimeRule.when["verification.method"];
-  const verificationFields = { verifier: referent, observes: statement, fails_when: statement };
+  const verificationFields = { verifier: referent, observes: observation, fails_when: statement };
 
   const declaredVerification = anyOf([
     ...runtimeTests.map((runtimeTest) => objectWith(verification, { ...verificationFields,

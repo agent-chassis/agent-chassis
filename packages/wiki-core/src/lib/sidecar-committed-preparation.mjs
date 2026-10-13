@@ -1,6 +1,30 @@
 import { ensureSidecarIndex } from "./sidecar-ensure.mjs";
 import { SidecarGraphIndexUnbuildableError } from "./sidecar-graph-impact-artifact.mjs";
 import { resolveSidecarRepositoryIdentity } from "./sidecar-repository-identity.mjs";
+import { runSidecarGit } from "./sidecar-status.mjs";
+import { validateVirtualSidecarPath } from "./sidecar-paths.mjs";
+
+export async function captureCommittedSourceContext({ dir = "." } = {}) {
+  const repoRoot = await resolveSidecarRepositoryIdentity({ dir });
+  const repository_commit = await runSidecarGit(repoRoot, ["--no-replace-objects", "rev-parse", "HEAD^{commit}"]);
+  const repository_tree = await runSidecarGit(repoRoot, ["--no-replace-objects", "rev-parse", `${repository_commit}^{tree}`]);
+  return { repoRoot, repository_commit, repository_tree };
+}
+
+export async function readCommittedSourceDescriptors(context, paths) {
+  const wanted = [...new Set(paths)];
+  for (const filePath of wanted) validateVirtualSidecarPath(filePath);
+  if (!wanted.length) return new Map();
+  const output = await runSidecarGit(context.repoRoot, ["--no-replace-objects", "--literal-pathspecs", "ls-tree", "-z",
+    context.repository_commit, "--", ...wanted], { maxBuffer: 16 * 1024 * 1024 });
+  const descriptors = new Map();
+  for (const record of output.split("\0").filter(Boolean)) {
+    const match = record.match(/^(\d{6}) (blob|tree|commit) ([0-9a-f]+)\t([\s\S]+)$/u);
+    if (!match) throw new TypeError("committed source descriptor output is malformed");
+    if (wanted.includes(match[4])) descriptors.set(match[4], { path: match[4], mode: match[1], blob_oid: match[3] });
+  }
+  return descriptors;
+}
 
 export function unavailableCommittedSnapshot(outcome, status) {
   return new SidecarGraphIndexUnbuildableError(

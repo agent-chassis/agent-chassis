@@ -248,7 +248,7 @@ test("the shared renderer emits provider overrides only for a LiteLLM route, wit
   assert.deepEqual(overrides, [
     `model_provider="${LITELLM_CODEX_PROVIDER_ID}"`,
     `model_providers.${LITELLM_CODEX_PROVIDER_ID}={name="agent-launch LiteLLM gateway",` +
-      'base_url="http://127.0.0.1:4123/v1",wire_api="responses",' +
+      'base_url="http://127.0.0.1:4123/v1",wire_api="responses",stream_max_retries=5,' +
       `auth={command="${CODEX_LITELLM_KEY_READER}",args=["/run/key file"]}}`,
     'web_search="disabled"'
   ]);

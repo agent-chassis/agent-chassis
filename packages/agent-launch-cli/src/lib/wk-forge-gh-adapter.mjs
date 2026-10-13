@@ -193,6 +193,38 @@ export function buildGhForge({ repository, mainRepo, deps = {} }) {
       };
     },
 
+    readPullRequestDescription({ number }) {
+      const operation = "read_pull_request_description";
+      const res = runGh({ args: ["api", ...hostArgs, `repos/${owner}/${name}/pulls/${number}`] });
+      if (res.spawn_error || res.ok !== true) {
+        throw forgeCommandError("gh pull request read failed", { operation, result: res });
+      }
+      let item;
+      try {
+        item = JSON.parse(res.stdout);
+      } catch (error) {
+        throw forgeCommandError("gh pull request read response could not be parsed",
+          { operation, result: res, cause: error });
+      }
+      if (item === null || typeof item !== "object" || item.number !== number ||
+          (item.body !== null && typeof item.body !== "string")) {
+        throw forgeCommandError("gh pull request read response is not the proposal", { operation, result: res });
+      }
+      return { kind: "ok", body: item.body ?? "" };
+    },
+
+    updatePullRequestDescription({ number, body }) {
+      const operation = "update_pull_request_description";
+      const res = runGh({
+        args: ["api", ...hostArgs, "--method", "PATCH", `repos/${owner}/${name}/pulls/${number}`,
+          "-f", `body=${body}`]
+      });
+      return res.spawn_error || res.ok !== true
+        ? { kind: "uncertain",
+          evidence: forgeCommandEvidence("gh pull request description update failed", { operation, result: res }) }
+        : { kind: "updated" };
+    },
+
     async observeLandedPullRequest({ number }) {
       const operation = "observe_landed_pull_request";
       if (!Number.isSafeInteger(number) || number <= 0) {
@@ -342,6 +374,28 @@ function validateObservedPullRequest({ item, repository, base, head }) {
       head_sha: headSha
     })
   };
+}
+
+const WK_PROPOSAL_BLOCK_START = "<!-- agent-launch:wk-publication -->";
+const WK_PROPOSAL_BLOCK_END = "<!-- /agent-launch:wk-publication -->";
+
+export function wkProposalTitle({ wk, title }) {
+  return `${wk}: ${String(title ?? "terminal candidate").trim()}`;
+}
+
+export function wkProposalDescription({ wk, candidate, body = "" }) {
+  const block = [
+    WK_PROPOSAL_BLOCK_START,
+    `Published terminal candidate ${candidate} for ${wk}.`,
+    "Publication runs no test, proof or review and establishes no result of one; " +
+      "reviewer and redteam evidence is advisory.",
+    WK_PROPOSAL_BLOCK_END
+  ].join("\n");
+  const start = body.indexOf(WK_PROPOSAL_BLOCK_START);
+  const end = start < 0 ? -1 : body.indexOf(WK_PROPOSAL_BLOCK_END, start);
+  if (end >= 0) return body.slice(0, start) + block + body.slice(end + WK_PROPOSAL_BLOCK_END.length);
+  if (body.trim().length === 0) return `${block}\n`;
+  return `${body}${body.endsWith("\n") ? "\n" : "\n\n"}${block}\n`;
 }
 
 export function returnedOutcomeEvidence(returned) {

@@ -1,7 +1,7 @@
 
 
 import { createHash } from "node:crypto";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, realpathSync, renameSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -191,7 +191,7 @@ async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, r
       executable: rustc.requested_path, requiredRoles: ["cargo", "rustc"], source: "path", probe,
       probeContext: { cwd, env: { root: selection, describe: selection, version: selection }, timeoutMs } });
     const base = { indexer: SIDECAR_RUST_INDEXER, sysroot: null, locked: false, input_paths: [],
-      dependency_population: null, dependency_mapping: null, refusal: null };
+      dependency_population: null, dependency_mapping: null, dependency_limitation: null, refusal: null };
     if (installation.status !== "observed") {
       covered.add(manifest);
       projects.set(manifestDir, { ...base, key: `${SIDECAR_RUST_INDEXER}#${manifestDir}`, project: manifestDir,
@@ -243,16 +243,72 @@ async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, r
       continue;
     }
     project.locked = existsSync(path.join(snapshotRoot, workspace, "Cargo.lock"));
+    const metadataRequest = (extra) => ({ executable: cargo, cwd: path.join(snapshotRoot, workspace),
+      env: cargoEnv, timeoutMs, args: ["metadata", "--format-version=1", "--offline", ...extra] });
+
+    const cargoRefused = (error) => error?.code === "scip_indexer_exit_failed" &&
+      Number.isInteger(error.exit?.code) && error.exit.signal === null;
+    const reason = (error) => String(error?.message ?? error).slice(0, 500);
+    let metadataText;
+    try {
+      metadataText = await runText(run, metadataRequest(project.locked ? ["--locked"] : []));
+    } catch (error) {
+      if (!cargoRefused(error)) {
+        project.refusal = failure(error?.code ?? "scip_rust_metadata_failed",
+          `Cargo metadata for workspace ${workspace} did not complete: ${reason(error)}`);
+        continue;
+      }
+
+      const lockPath = path.join(snapshotRoot, workspace, "Cargo.lock");
+      let lockless = error;
+      if (project.locked) {
+        renameSync(lockPath, `${lockPath}.aside`);
+        try {
+          await runText(run, metadataRequest([]));
+          lockless = null;
+        } catch (inner) {
+          lockless = inner;
+        } finally {
+          rmSync(lockPath, { force: true });
+          renameSync(`${lockPath}.aside`, lockPath);
+        }
+        if (lockless === null) {
+          project.refusal = failure("scip_rust_lockfile_unusable", `Cargo resolves workspace ${workspace} offline ` +
+            `without its committed Cargo.lock but not with it: ${reason(error)}`);
+          continue;
+        }
+        if (!cargoRefused(lockless)) {
+          project.refusal = failure(lockless?.code ?? "scip_rust_metadata_failed",
+            `Cargo metadata for workspace ${workspace} did not complete: ${reason(lockless)}`);
+          continue;
+        }
+      }
+
+      let unresolved = null;
+      try {
+        await runText(run, metadataRequest(["--no-deps"]));
+      } catch (inner) {
+        unresolved = inner;
+      }
+      if (unresolved === null) {
+
+        project.dependency_limitation = failure("scip_rust_dependencies_unavailable",
+          `Cargo metadata for workspace ${workspace} failed offline with ` +
+          `CARGO_HOME ${cargoHome}: ${reason(lockless)}; make the locked ` +
+          "dependencies available in that Cargo home (downloads stay disabled), then prepare again");
+      } else {
+        project.refusal = failure(cargoRefused(unresolved) ? "scip_rust_metadata_failed"
+          : unresolved?.code ?? "scip_rust_metadata_failed",
+        `Cargo metadata for workspace ${workspace} failed without resolving any dependency: ${reason(unresolved)}`);
+      }
+      continue;
+    }
     let metadata;
     try {
-      metadata = JSON.parse(await runText(run, { executable: cargo, cwd: path.join(snapshotRoot, workspace),
-        env: cargoEnv, timeoutMs, args: ["metadata", "--format-version=1", "--offline",
-          ...(project.locked ? ["--locked"] : [])] }));
+      metadata = JSON.parse(metadataText);
     } catch (error) {
-      project.refusal = failure(error?.code === "scip_indexer_timeout" ? error.code
-        : "scip_rust_dependencies_unavailable", `Cargo metadata for workspace ${workspace} failed offline with ` +
-        `CARGO_HOME ${cargoHome}: ${String(error?.message ?? error).slice(0, 500)}; make the locked ` +
-        "dependencies available in that Cargo home (downloads stay disabled), then prepare again");
+      project.refusal = failure("scip_rust_metadata_malformed",
+        `Cargo metadata for workspace ${workspace} is not the JSON Cargo documents: ${reason(error)}`);
       continue;
     }
     const population = new Set();

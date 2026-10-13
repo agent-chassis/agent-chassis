@@ -18,6 +18,7 @@ import {
   assertBubblewrapAvailable,
   spawnIsolated
 } from "../lib/launch-isolation.mjs";
+import { resolveCodexClientHome } from "../lib/launch-isolation-executable.mjs";
 import {
   WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS
 } from "../lib/launch-isolation-failopen.mjs";
@@ -457,14 +458,16 @@ async function runPlannedChildWithRoute(plan, io, route) {
 
   const usageBindingDir = typeof plan.runDir === "string" ? plan.runDir
     : typeof plan.runtimeDir === "string" ? plan.runtimeDir : null;
-  const nativeUsage = usageBindingDir !== null && typeof plan.env?.CODEX_HOME === "string"
+
+  const usageCodexHome = resolveCodexClientHome(plan.env);
+  const nativeUsage = usageBindingDir !== null && usageCodexHome !== null
     ? prepareCodexSessionUsageLaunch({
         workspaceDir: plan.repo,
         identity: { repo: plan.repo, subject: plan.subject, role: plan.role,
           route: supervisedOrchestratorPlan ? "orchestrator" : "direct_role",
           mode: plan.mode === "interactive" ? "interactive" : "headless" },
         bindingDir: usageBindingDir,
-        codexHome: plan.env.CODEX_HOME,
+        codexHome: usageCodexHome,
         checkpoints: true,
         begun: plan.nativeUsageTask?.task ? plan.nativeUsageTask : null
       })
@@ -574,9 +577,10 @@ async function runPlannedChildWithRoute(plan, io, route) {
   }
 
   try {
-    if (supervisedOrchestratorPlan && typeof nativeUsage?.records_dir === "string" && typeof plan.runtimeDir === "string") {
 
-      await writeNativeUsagePointer(plan.runtimeDir, nativeUsage.records_dir).catch(() => {});
+    const usageRecordsDir = nativeUsage?.records_dir ?? plan.nativeUsageTask?.task?.task_dir ?? null;
+    if (supervisedOrchestratorPlan && typeof usageRecordsDir === "string" && typeof plan.runtimeDir === "string") {
+      await writeNativeUsagePointer(plan.runtimeDir, usageRecordsDir).catch(() => {});
     }
     if (supervisedOrchestratorPlan) {
       await runInteractiveOrchestratorChild({ plan, io, bwrapPlan, onChild: onChildHeld });

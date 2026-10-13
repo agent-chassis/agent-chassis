@@ -4,7 +4,9 @@ export const MONITOR_CALL_DEFAULT_TIMEOUT_MS = 60000;
 
 export const RUN_STATUS_CALL_BUDGET_MS = MONITOR_CALL_DEFAULT_TIMEOUT_MS;
 
-export const RUN_WAIT_TIMEOUT_MS_BOUNDS = Object.freeze({ min: 1, max: 300000 });
+export const RUN_WAIT_TIMEOUT_MS_BOUNDS = Object.freeze({ min: 1, max: 1200000 });
+
+export const ACTIVE_WORKER_OBSERVE_AGAIN_TIMEOUT_MS = RUN_WAIT_TIMEOUT_MS_BOUNDS.max;
 
 export const BACKEND_SETTLE_GRACE_MS = 1000;
 

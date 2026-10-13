@@ -252,8 +252,21 @@ reason to substitute filename guesses for graph evidence.
 
 During automatic pair preparation, the committed snapshot runner invokes only the fixed
 installed `scip-typescript`, `scip-python`, `scip-go` and `rust-analyzer`
-providers (`scip-go` with the installed `go` toolchain; `rust-analyzer` with the
-`cargo` and `rustc` of the toolchain the `PATH` `rustc` selects). It looks each
+providers (`scip-go` with the Go toolchain the `PATH` `go` selects;
+`rust-analyzer` with the `cargo` and `rustc` of the toolchain the `PATH` `rustc`
+selects). The `PATH` `go` may be older than a project's `go.work` or `go.mod`
+requires and run another installed toolchain for it. The Go provider's own
+processes run with toolchain switching disabled (`GOTOOLCHAIN=local`), so the
+runner asks the `PATH` `go` once per Go project which toolchain it runs there
+(`go env GOROOT` over the committed `go.mod` and `go.work` text, under the
+server's own `GOTOOLCHAIN`, with the module proxy off) and starts that
+toolchain's `go` itself, for the offline dependency load and for `scip-go`
+alike. When it is not the `PATH` `go`, the project's input record carries both:
+the selected toolchain as the `go` role with its root as the `GOROOT` setting,
+and the `PATH` `go` as `go_selector`. A toolchain the project selects that is
+not installed refuses the project with `scip_go_toolchain_unavailable` and Go's
+own diagnostic; none is downloaded, and this selection reads no test-runtime
+configuration. It looks each
 name up on the server's `PATH`, runs the resolved absolute executable with
 `shell:false` against the committed snapshot, and does not use `npx`, install
 packages or toolchains, fetch modules or crates, or accept executable paths from
@@ -262,13 +275,118 @@ scripts and procedural macros run inside the temporary snapshot. The runner pass
 captured commit to `scip-python` as `--project-version` and to `scip-go` as
 `--module-version`, so indexing does not depend on repository or version
 metadata that is absent from the archive. It does not add `.git` data to the
-snapshot or guess a replacement version. An applicable project whose provider
+snapshot or guess a replacement version. The archive carries no installed
+package, and the TypeScript compiler cannot read a project whose committed
+`tsconfig.json` chain `extends` a configuration package the repository installs
+without committing. Exactly those installed package directories, found in the
+repository's own `node_modules` by the compiler's lookup, are copied into the
+snapshot at the same relative location before `scip-typescript` runs, and they
+are that project's dependency population: their content is part of its input
+record, so a changed configuration package prepares the project again. Nothing
+else of the installed tree is visible to the provider; a configuration package
+that is not installed is not supplied and is the project's missing dependency
+(below). A failed provider run reports the provider's
+stderr and the start of its stdout, since `scip-typescript` reports compiler
+configuration errors on stdout. An applicable project whose provider
 executable is not installed is reported as inactive coverage
-(`provider_coverage.inactive_projects`), never as a successful run. Every active
-project is required: a failed executable lookup, a refused Go or Rust project,
-unavailable Go or Rust dependencies, or a provider execution or decode failure fails
-preparation before publication, so the previously published data and its commit
-tag stay in place and no partial provider coverage is published. A
+(`provider_coverage.inactive_projects`, reason `provider_not_installed`), never
+as a successful run. Every active project is attempted. A failed executable
+lookup, a refused Go or Rust project, a dependency load that cannot run or be
+measured, or a provider execution or decode failure fails preparation before
+publication, so the previously published data and its commit tag stay in place.
+
+Missing dependencies are not such a failure. A repository an agent is asked to
+repair often lacks them, and neither a complete dependency set nor a project
+that compiles is a condition for indexing it. Each provider's own dependency
+owner says what is missing: for Go, the packages Go cannot locate with module
+lookup disabled (the module is not in the module cache, or nothing provides
+it), or, when the package load itself exits with a failure status, the
+modules Go's own module listing (`go list -m -e all`) then reports it cannot
+load, under `scip_go_dependencies_unavailable`; for Rust, Cargo's report when
+its offline metadata exits with a failure status, the same resolution without
+the committed `Cargo.lock` still does, and the same metadata without
+dependency resolution (`--no-deps`) succeeds, under
+`scip_rust_dependencies_unavailable`; for TypeScript, the configuration
+packages the committed `tsconfig.json` chain extends that are not installed,
+under `scip_typescript_config_package_unavailable`. Nothing is downloaded or
+installed. That report is the project's `dependency_limitation` (`code` and
+`message`), and the provider still runs on the committed sources:
+
+- When the provider produces output, it is published and the project's entry
+  in `provider_coverage.projects` carries the `dependency_limitation`. What
+  resolves without the dependency is usable; a reference into the missing
+  dependency is not resolved, and a provider may attribute it elsewhere.
+- When the owner itself established that the provider cannot read the project
+  without the missing dependency, and the provider exits with a failure
+  status, the project publishes nothing and is listed in
+  `provider_coverage.inactive_projects` with reason `dependencies_unavailable`,
+  its `dependency_limitation` and the provider's own report as
+  `provider_failure`. Other projects are unaffected. Two kinds of project are
+  such a project. A TypeScript project whose configuration chain extends an
+  uninstalled package: the compiler cannot load its configuration, so the
+  missing package is sufficient for the failure whatever else the provider
+  reports. And a Go module whose package load exits with a failure status
+  while Go's module listing reports modules it cannot load: `scip-go` reads
+  the module through that same load. Depending on the module, `scip-go` then
+  exits with a failure status or exits successfully having indexed no
+  document; either way the module is listed this way, with
+  `provider_failure` saying which. If it does report documents, they are
+  published beside the `dependency_limitation` as above.
+
+Only that combination is tolerated, and a provider's report is never read to
+decide it: a report that names a missing dependency does not establish that
+the dependency is why the provider failed. Apart from the Go module above,
+`scip-go` and `rust-analyzer` index a project with missing dependencies and
+exit successfully, so a failure of either on such a project is not attributed
+to them. A Go package load that exits with a failure status while Go's module
+listing reports no module it cannot load (a `go.mod` Go refuses to update, for
+example), or whose module listing does not complete, is not a missing
+dependency and fails preparation with Go's report; so does a load that does
+not start, is killed, times out or exceeds an output limit. A provider failure
+on a project with no reported missing dependency, a `scip-go` or
+`rust-analyzer` failure on any other project that has one, and a provider
+that is killed, times out,
+exceeds an output limit or writes undecodable output on any project, still
+fail preparation with their own cause. A Rust workspace that Cargo resolves
+without its committed lock but not with it (a lock that is out of date or that
+Cargo cannot parse) is refused with `scip_rust_lockfile_unusable`; Cargo
+metadata that fails without resolving any dependency with
+`scip_rust_metadata_failed`; output that is not JSON with
+`scip_rust_metadata_malformed`; and a Cargo that does not start, is killed,
+times out or exceeds an output limit with the runner's own code. None of those
+is a missing dependency.
+
+An import of a package nothing provides is not a dependency owner's report.
+`scip-typescript` and `scip-python` index a source file with such an import
+and exit successfully, the importing symbols are published, and the project is
+not limited; only the import itself stays unresolved. `provider_coverage.state` is `complete` when
+no project is limited and `dependency_limited` otherwise, so limited
+resolution is never reported as complete. When no project publishes output and
+one is unavailable for its dependencies, `scip_available` is false with status
+reason `scip_dependencies_unavailable`; the index is still published, and the
+base graph, status and build results remain usable.
+
+A dependency-limited publication is a settled result of its inputs. It is
+reused like a complete one, and queries do not prepare it again while those
+inputs are unchanged. A limited project is attempted again when its input
+record changes (a commit-sensitive Go project at every new commit, any project
+when its committed inputs, executables or measured dependency population
+change) and by an explicit build, which reruns the limited projects alone at
+an unchanged commit. A dependency made available without a change the input
+record observes (a module added to the Go module cache, a crate added to the
+Cargo home) is therefore picked up by an explicit build or by the next commit,
+not by a query at the same commit. A navigation answer that may draw on a
+limited project carries `dependency_limitations`: the limited projects whose
+directory holds the requested path, or every limited project when a symbol is
+named without a path, each with `coverage` `partial` or `unavailable`. An
+absent or unresolved result there is not an authoritative no-match.
+
+A package Go does locate but reports an error for (a missing `go:embed` input,
+for example) is not a missing dependency: the project is handed to the
+provider, whose own run decides the preparation, and a provider failure fails
+it with the provider's report as for any project. Go's error for such a
+package is not recorded in the publication. Published coverage, limited or
+complete, does not establish that a project compiles or that its tests pass. A
 commit-independent project whose input record did not change keeps its earlier
 output and the commit that produced it; a commit-sensitive producer reruns at
 every new commit. Provider activation, input records and Go and Rust execution

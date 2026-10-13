@@ -338,8 +338,8 @@ function mutantFixture(profile, id) {
   throw new Error(`unknown mutant ${id}`);
 }
 
-async function runProofPackAdequacyControls({ profile, profile_digest: profileDigest }) {
-  const controls = [];
+async function runProofPackAdequacyControls({ profile, profile_digest: profileDigest , negative_fixtures: negativeFixtures }) {
+  const controls = [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ];
   const positive = (controlId, fixture) => controls.push({ control_id: controlId,
     category: "positive", implementation_outcome: "passed",
     profile_satisfaction: satisfaction(fixture) });
@@ -395,3 +395,55 @@ export {
   buildCrossRepresentationParityFixture,
   runProofPackAdequacyControls
 };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-canonical-value-verification-modalities",
+      "claim_id": "claim-canonical-value-verification",
+      "baseline": "isolated-claim-canonical-value-verification-modalities-baseline",
+      "optional": "isolated-claim-canonical-value-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-left-population-parity-verification-modalities",
+      "claim_id": "claim-left-population-parity-verification",
+      "baseline": "isolated-claim-left-population-parity-verification-modalities-baseline",
+      "optional": "isolated-claim-left-population-parity-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-right-population-parity-verification-modalities",
+      "claim_id": "claim-right-population-parity-verification",
+      "baseline": "isolated-claim-right-population-parity-verification-modalities-baseline",
+      "optional": "isolated-claim-right-population-parity-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-left-count-verification-modalities",
+      "claim_id": "claim-left-count-verification",
+      "baseline": "isolated-claim-left-count-verification-modalities-baseline",
+      "optional": "isolated-claim-left-count-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-right-count-verification-modalities",
+      "claim_id": "claim-right-count-verification",
+      "baseline": "isolated-claim-right-count-verification-modalities-baseline",
+      "optional": "isolated-claim-right-count-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

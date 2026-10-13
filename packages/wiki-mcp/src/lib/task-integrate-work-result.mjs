@@ -66,7 +66,9 @@ function factsOf(result, admits) {
     retirement_state: result.cleanup.managed_identity_retirement?.state ?? null,
     retirement_code: result.cleanup.managed_identity_retirement?.code ?? null,
     ...(isRecord(result.cleanup.wk_checkout) ? { checkout_state: result.cleanup.wk_checkout.state,
-      checkout_code: result.cleanup.wk_checkout.code ?? null } : {}) };
+      checkout_code: result.cleanup.wk_checkout.code ?? null } : {}),
+    ...(isRecord(result.cleanup.slice_checkout) ? { slice_checkout_state: result.cleanup.slice_checkout.state,
+      slice_checkout_code: result.cleanup.slice_checkout.code ?? null } : {}) };
   if (admits !== isShortFact) return outcome;
   const written = projectPublishedIntegrationReceipt({ integration: result }).integration.transition;
   if (isRecord(written?.written_record)) outcome.written_record = written.written_record.omitted;
@@ -165,17 +167,21 @@ export function prepareIntegrateWorkResponse({ result, original, request, respon
         : result.integrated === true ? "unconfirmed" : "not_attempted"),
       retirement: result.cleanup?.managed_identity_retirement?.state ?? "not_attempted",
 
-      checkout: result.cleanup?.wk_checkout?.state ?? "not_attempted" },
+      checkout: result.cleanup?.wk_checkout?.state ?? "not_attempted",
+
+      slice_checkout: result.cleanup?.slice_checkout?.state ?? "not_attempted" },
     delivery: { commit: result.delivery_sha ?? null, integrated_sha: result.wk_sha ?? null },
     saved_dispositions: saved === null || saved === undefined ? { state: "unconsumed" } : {
       state: saved.state, source: saved.source ?? null, row_count: saved.rows?.length ?? 0,
       cause_code: saved.cause?.code ?? null },
     policy: result.boundary_authorization?.policy_posture ?? result.policy_posture ?? "not_evaluated",
     cause: result.refusal === undefined ? { code: result.code ?? result.recovery_failure?.value?.properties?.code ?? result.record_reconciliation?.code ??
-      result.cleanup?.wk_checkout?.code ?? result.cleanup?.managed_identity_retirement?.code ?? retained?.original?.retention_failure?.cause_code ??
+      result.cleanup?.wk_checkout?.code ?? result.cleanup?.managed_identity_retirement?.code ??
+      result.cleanup?.slice_checkout?.code ?? retained?.original?.retention_failure?.cause_code ??
       original?.evidence?.value?.properties?.code ?? null,
     message: result.reason ?? result.recovery_failure?.value?.message ?? result.record_reconciliation?.reason ??
-      result.cleanup?.wk_checkout?.message ?? original?.evidence?.value?.message ?? null }
+      result.cleanup?.wk_checkout?.message ?? result.cleanup?.slice_checkout?.message ??
+      original?.evidence?.value?.message ?? null }
       : { code: result.refusal.code ?? null, message: result.refusal.reason ?? null },
     original: retained?.original ?? { available: false, locator: null,
       cause: original?.evidence?.code ?? "integration_original_unavailable" },
@@ -188,8 +194,8 @@ export function prepareIntegrateWorkResponse({ result, original, request, respon
     tool: "integrate_work", arguments: request, recommended: false,
 
     condition: result.cleanup?.wk_checkout?.state === "superseded"
-      ? "after the reported record or retirement cause is corrected; explicit recovery only"
-      : "after the reported record, retirement or checkout cause is corrected; explicit recovery only" });
+      ? "after the reported record, retirement or slice cleanup cause is corrected; explicit recovery only"
+      : "after the reported record, retirement, checkout or slice cleanup cause is corrected; explicit recovery only" });
 
   const integratedSubject = retained?.subject;
   if (result.integrated === true && result.integration_effects_unconfirmed !== true &&

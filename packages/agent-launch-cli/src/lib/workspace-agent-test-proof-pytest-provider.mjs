@@ -7,7 +7,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isLauncherTestFailureDiagnostic } from "./workspace-agent-test-proof-error-diagnostic.mjs";
-import { launcherArtifact } from "./workspace-agent-test-proof-node-observation.mjs";
+import { TEST_PROOF_SELECTED_TEST_SKIPPED_CODE, launcherArtifact } from
+  "./workspace-agent-test-proof-node-observation.mjs";
 import { nativeRuntimeTestId } from "./workspace-agent-test-proof-runtime-identity.mjs";
 
 export const PYTEST_PROOF_PLUGIN_PATH = fileURLToPath(
@@ -400,6 +401,19 @@ function selectedIdentityNotObserved(expectation, collected, collectionErrors = 
   });
 }
 
+const SKIP_REASON_MAX_CHARACTERS = 1024;
+
+function selectedTestSkipped(expectation, payload, byPhase) {
+  const skipped = PHASE_ORDER.map((when) => byPhase[when]).find((phase) => phase?.outcome === "skipped");
+  const reason = typeof skipped?.skip_reason === "string" && skipped.skip_reason.length > 0
+    ? skipped.skip_reason.slice(0, SKIP_REASON_MAX_CHARACTERS) : null;
+  const notObserved = selectedIdentityNotObserved(expectation, payload.collection.collected_node_ids,
+    payload.collection?.errors);
+  return refusal(TEST_PROOF_SELECTED_TEST_SKIPPED_CODE, { ...notObserved.detail,
+    selected_event: observedIdentity(expectation, expectation.node_id, { status: "skipped", error_codes: [],
+      skip_phase: skipped.when, ...(reason === null ? {} : { skip_reason: reason }) }) });
+}
+
 function runtimeErrorDetail(runtimeError) {
   return { runtime_error_code: typeof runtimeError?.code === "string" ? runtimeError.code : null,
     message: typeof runtimeError?.message === "string" ? runtimeError.message : null,
@@ -579,6 +593,8 @@ export function observeLauncherPytestRun({
     if ((exitCode === 0) !== (outcome !== "failed")) {
       return refusal("test_proof_structured_events_exit_status_mismatch");
     }
+
+    if (outcome === "skipped") return selectedTestSkipped(expectation, payload, authenticated.byPhase);
     const inventory = {
       mechanism: "pytest_phase_events",
       node_id: expectation.node_id,

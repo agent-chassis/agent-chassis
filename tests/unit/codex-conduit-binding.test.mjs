@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   CODEX_CONDUIT_BINDING_REFUSAL_REASON,
+  CODEX_WIKI_TOOL_TIMEOUT_SEC,
   resolveCodexConduitInput
 } from "../../packages/agent-launch-cli/src/lib/codex-conduit-binding.mjs";
 import {
@@ -228,4 +229,10 @@ test("WK-2351: an unmanaged route may not carry a managed completion credential"
     "session_contract_completion_transport_mismatch", "managed completion transport");
 
   refuses(managed, "session_contract_capability_unknown", "managed reviewer contract");
+});
+
+test("codex wiki tool-request allowance exceeds the twenty-minute wait by a bounded margin", () => {
+  const longestWaitSec = 1200000 / 1000;
+  assert.equal(CODEX_WIKI_TOOL_TIMEOUT_SEC, 1260);
+  assert.ok(CODEX_WIKI_TOOL_TIMEOUT_SEC > longestWaitSec && CODEX_WIKI_TOOL_TIMEOUT_SEC - longestWaitSec <= 60);
 });

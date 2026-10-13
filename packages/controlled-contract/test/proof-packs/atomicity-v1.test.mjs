@@ -33,7 +33,7 @@ test("atomicity 2.0 binds its canonical guarantee and executable controls", asyn
     variationMode: "full_census"
   });
   assert.equal(result.passed, true);
-  assert.equal(result.control_count, 46);
+  assert.equal(result.control_count, 49);
   assert.equal(result.negative_fixture_count, 66);
   assert.equal(result.coverage_witness_count, 294);
   assert.deepEqual(result.diagnostics, []);

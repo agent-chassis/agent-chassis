@@ -14,7 +14,7 @@ import {
 } from "./lossless-projection-v1-harness.mjs";
 
 const LOSSLESS_PROJECTION_V1_PROFILE_DIGEST =
-  "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2";
+  "198e7b2599fb7cbde6b703179e3572d4f2987bb04f0368ce500ea23c1d1169da";
 const LOSSLESS_PROJECTION_V1_GUARANTEE_DIGEST =
   "e999fd999699e6b4f0ce98b59622c11ee30a74f0f6ce150c18a7bb0a9c887a80";
 
@@ -369,14 +369,14 @@ function exclusionControls(profile) {
   }));
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   return {
     schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: LOSSLESS_PROJECTION_V1_PROFILE_DIGEST,
     guarantee_digest: LOSSLESS_PROJECTION_V1_GUARANTEE_DIGEST,
-    controls: [
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures),
       ...positiveControls(profile),
       ...mutantControls(profile),
       ...profileRejectionControls(profile),
@@ -393,3 +393,61 @@ export {
   profileRejectionFixtures,
   runProofPackAdequacyControls
 };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-projection-omission-verification-modalities",
+      "claim_id": "claim-projection-omission-verification",
+      "baseline": "isolated-claim-projection-omission-verification-modalities-baseline",
+      "optional": "isolated-claim-projection-omission-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-lossless-recovery-verification-modalities",
+      "claim_id": "claim-lossless-recovery-verification",
+      "baseline": "isolated-claim-lossless-recovery-verification-modalities-baseline",
+      "optional": "isolated-claim-lossless-recovery-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-disclosure-completeness-verification-modalities",
+      "claim_id": "claim-disclosure-completeness-verification",
+      "baseline": "isolated-claim-disclosure-completeness-verification-modalities-baseline",
+      "optional": "isolated-claim-disclosure-completeness-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-projection-accounting-verification-modalities",
+      "claim_id": "claim-projection-accounting-verification",
+      "baseline": "isolated-claim-projection-accounting-verification-modalities-baseline",
+      "optional": "isolated-claim-projection-accounting-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-total-count-verification-modalities",
+      "claim_id": "claim-total-count-verification",
+      "baseline": "isolated-claim-total-count-verification-modalities-baseline",
+      "optional": "isolated-claim-total-count-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-omission-count-verification-modalities",
+      "claim_id": "claim-omission-count-verification",
+      "baseline": "isolated-claim-omission-count-verification-modalities-baseline",
+      "optional": "isolated-claim-omission-count-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

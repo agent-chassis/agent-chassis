@@ -14,7 +14,7 @@ import { addressedCorrectionCall, PROOF_VALIDATION_EXECUTION,
   proofValidationAssessment, proofValidationIssues, projectProofAuthoringDiagnosticGroups,
   semanticCauseGroupDiagnosis, usedCorrectionDefinitions } from
   './proof-authoring-diagnostic-projection.mjs';
-import { projectProofAuthoringContractInputs } from './proof-authoring-contract-inputs.mjs';
+import { projectProofAuthoringContractInputs, prepareProofAuthoringDescriptionRead } from './proof-authoring-contract-inputs.mjs';
 import { acceptanceCriterionInventory, assessAcceptanceCriterionCoverage } from
   './acceptance-criterion-coverage.mjs';
 import { inspectControlledContractDesignWorkbenchOperation } from
@@ -22,6 +22,10 @@ import { inspectControlledContractDesignWorkbenchOperation } from
 import { projectControlledContractTerminalGapDetails, semanticCauseCorrection,
   semanticCauseMeaning, semanticCauseSubject } from
   './terminal-gap-classification.mjs';
+import { REQUIREMENT_SOURCE_FIELD, REQUIREMENT_SOURCE_LOCATION_UNIT, REQUIREMENT_SOURCE_STATES,
+  requirementSourceDigest } from './contract-requirement-source-links.mjs';
+import { assessProofAuthoringDefinitions } from './proof-authoring-definition-assessment.mjs';
+import { assessAuthoringExceptions, boundAuthoringExceptions } from './authoring-exception-assessment.mjs';
 
 function validationCall(resolved, fields = {}) {
   return { tool: 'workspace_validate_proof', arguments: {
@@ -99,6 +103,64 @@ function userRequirementsComparison(resolved, scope, deps) {
     read_call: state === 'not_recorded' ? null : { tool: 'workspace_work_record_summary',
       arguments: { unit: resolved.wkId, ordinary_field: { field: 'sections.user_requirements' } } }
   } };
+}
+
+export function accountRequirementSourceResidual(authored, sourceText) {
+  if (typeof sourceText !== 'string' || sourceText.length === 0) {
+    return { state: 'unknown', accounted: false, source_field: REQUIREMENT_SOURCE_FIELD,
+      reason: `no ${REQUIREMENT_SOURCE_FIELD} text is saved, so no residual can be accounted` };
+  }
+  const digest = requirementSourceDigest(sourceText);
+  const links = { current: 0, stale_excluded: 0, absent: 0, inconsistent_row_ids: [] };
+  const covering = [];
+  for (const row of authored?.rows ?? []) {
+    const link = row.source;
+    if (link.state === REQUIREMENT_SOURCE_STATES.absent) { links.absent += 1; continue; }
+    if (link.state !== REQUIREMENT_SOURCE_STATES.current) { links.stale_excluded += 1; continue; }
+    const { start, end } = link.location ?? {};
+    if (link.source?.digest !== digest || !Number.isInteger(start) || !Number.isInteger(end) || start < 0 ||
+        end <= start || sourceText.slice(start, end) !== link.user_requirement) {
+      links.inconsistent_row_ids.push(row.row_id);
+      continue;
+    }
+    links.current += 1;
+    covering.push({ start, end });
+  }
+  covering.sort((left, right) => left.start - right.start || left.end - right.end);
+  const linked = [];
+  for (const interval of covering) {
+    const last = linked.at(-1);
+    if (last !== undefined && interval.start <= last.end) last.end = Math.max(last.end, interval.end);
+    else linked.push({ ...interval });
+  }
+  const segments = [];
+  const unmapped = (start, end) => {
+    if (end <= start) return;
+    const text = sourceText.slice(start, end);
+    segments.push({ start, end, text, whitespace_only: text.trim().length === 0 });
+  };
+  let cursor = 0;
+  for (const interval of linked) { unmapped(cursor, interval.start); cursor = interval.end; }
+  unmapped(cursor, sourceText.length);
+  const length = intervals => intervals.reduce((total, interval) => total + interval.end - interval.start, 0);
+  return { state: 'accounted', accounted: true, source_field: REQUIREMENT_SOURCE_FIELD,
+    source: { digest, length: sourceText.length, unit: REQUIREMENT_SOURCE_LOCATION_UNIT }, links,
+    linked: { interval_count: linked.length, length: length(linked), intervals: linked },
+    unmapped: { segment_count: segments.length, length: length(segments), segments } };
+}
+
+export async function assessRequirementSourceResidualOperation(input) {
+  return proofAuthoringOperation(async () => {
+    assertControlledContractOperationInput(input, ['repoRoot', 'wkId', 'focus', 'selectedUnit']);
+    const resolved = await bindProofAuthoringRevision(await resolveProofAuthoringSource(
+      obligationCoverageResolutionInput(input)));
+    const sourceText = resolved.record?.sections?.user_requirements ?? null;
+
+    const { projectAuthoredRequirements } = await import('./contract-requirement-projection.mjs');
+    return { unit: unitAddress(resolved), content_digest: resolved.revision,
+      ...accountRequirementSourceResidual(projectAuthoredRequirements(resolved.contract?.content ?? null,
+        { wkId: resolved.wkId, focus: resolved.focus, sourceText }), sourceText) };
+  });
 }
 
 const dispatchNotAssessed = resolved => ({ status: 'not_assessed',
@@ -221,12 +283,14 @@ function selectedGroupAnswer({ envelope, diagnosis, resolved, clauses, delivery 
 }
 
 function selectedObligationAnswer({ envelope, obligationId, row, route, diagnoses, ownerFailures,
-  resolved, clauses, delivery, comparison }) {
+  resolved, clauses, delivery, comparison, specification, exceptions }) {
 
   const build = (admitted) => ({ schema_version: PROOF_VALIDATION_SELECTED_DIAGNOSIS_SCHEMA_VERSION, ...envelope,
     selected: { obligation_id: obligationId, authored: row?.status ?? 'invalid',
       route: route === null ? 'not_assessed' : route.prevents_selected_route === false ? 'clear' : 'blocked' },
     owner_failures: ownerFailures,
+    specification,
+    exceptions,
     diagnoses: admitted.map(({ entry }) => entry),
     corrections: Object.assign({}, ...admitted.map(({ corrections }) => corrections)),
     diagnoses_total: diagnoses.length, diagnoses_returned: admitted.length,
@@ -275,8 +339,13 @@ function assessProof(input, deps, { capture, fields }) {
     const delivery = validationDelivery(deps);
     const resolved = await bindProofAuthoringRevision(await resolveProofAuthoringSource(
       obligationCoverageResolutionInput(input), { requireSource: false }));
+
+    const exceptions = (() => {
+      const complete = assessAuthoringExceptions(resolved, { obligationId: input.obligationId });
+      return capture ? complete : boundAuthoringExceptions(complete);
+    })();
     if (resolved.source === null) {
-      const assessment = await sourceAbsentValidation(resolved, input, delivery, deps);
+      const assessment = await sourceAbsentValidation(resolved, input, delivery, deps, exceptions);
 
       const absent = { status: 'not_applicable', failure: null };
       return { assessment, diagnosis_inventory: capture ? diagnosisInventory({ resolved, envelope: assessment,
@@ -291,6 +360,16 @@ function assessProof(input, deps, { capture, fields }) {
     const { occurrenceRecoveryFacts, occurrencePublicRecovery, OCCURRENCE_CORRECTION_CLAUSES } =
       await import('@agent-chassis/controlled-contract/executable-map');
     const { result, executableMapFailure } = await assessSavedContractSource({ resolved, context }, deps);
+    let definitionFailure = null;
+    let definitions;
+    try {
+      definitions = await assessProofAuthoringDefinitions(resolved, pkg, obligationId);
+    } catch (error) {
+      definitionFailure = independentOwnerFailure(error, 'contract-requirement-descriptions');
+      if (definitionFailure === null) throw error;
+      definitions = { specification: { status: 'unavailable', authored_meaning: 'unresolved',
+        lowering: 'not_assessed', source_resolution: 'unavailable', findings: null }, entries: [] };
+    }
     const grouped = pkg.groupProofAuthoringDiagnostics(result);
     const diagnosticProjection = projectProofAuthoringDiagnosticGroups({
       grouped,
@@ -316,7 +395,7 @@ function assessProof(input, deps, { capture, fields }) {
     const semanticDetails = workbench === null ? null :
       projectControlledContractTerminalGapDetails({ workbench });
     const semanticGroups = semanticDetails?.groups ?? [];
-    const ownerFailures = [executableMapFailure, workbenchFailure].filter(Boolean).map(publicOwnerFailure);
+    const ownerFailures = [executableMapFailure, workbenchFailure, definitionFailure].filter(Boolean).map(publicOwnerFailure);
     const assessment = validationAssessment(resolved, result);
     const envelope = validationEnvelope(resolved, { sourceDigest: result.source_digest,
       contextDigest: result.context_digest });
@@ -333,7 +412,8 @@ function assessProof(input, deps, { capture, fields }) {
         group.diagnostic_group_id === input.diagnosticGroupId);
       const semanticGroup = semanticGroups.find(group =>
         group.semantic_cause_id === input.diagnosticGroupId);
-      if (proofIndex === -1 && semanticGroup === undefined) {
+      const definition = definitions.entries.find(entry => entry.diagnosis.selected.diagnostic_group_id === input.diagnosticGroupId);
+      if (proofIndex === -1 && semanticGroup === undefined && definition === undefined) {
         if (workbenchFailure !== null) {
           throw new ControlledContractToolError(
             'obligation_coverage_semantic_diagnostic_detail_unavailable',
@@ -355,7 +435,7 @@ function assessProof(input, deps, { capture, fields }) {
             next_calls: [validationCall(resolved)]
           });
       }
-      const diagnosis = proofIndex === -1 ? semanticDiagnosis(semanticGroup) : authoringDiagnosis(proofIndex);
+      const diagnosis = definition?.diagnosis ?? (proofIndex === -1 ? semanticDiagnosis(semanticGroup) : authoringDiagnosis(proofIndex));
       return { assessment: selectedGroupAnswer({ envelope, diagnosis, resolved, clauses, delivery }),
         diagnosis_inventory: null };
     }
@@ -376,28 +456,32 @@ function assessProof(input, deps, { capture, fields }) {
         return { family: 'semantic', diagnosis, subjects: diagnosis.subjects.filter(named),
           priority: ISSUE_PRIORITY.semantic(group.recovery.status) };
       });
-      return [...authoring, ...semantic].map((entry, order) => ({ ...entry, order }))
+      return [...definitions.entries.map(entry => ({ ...entry, priority: 0 })), ...authoring, ...semantic].map((entry, order) => ({ ...entry, order }))
         .sort((left, right) => left.priority - right.priority || left.order - right.order);
     };
     const diagnoses = capture || obligationId !== undefined ? ownerDiagnoses() : [];
     const inventory = capture ? diagnosisInventory({ resolved, envelope, obligationId, entries: diagnoses,
       families: { authoring: familyAvailability(executableMapFailure, 'incomplete'),
+        ...(definitions.entries.length === 0 && definitionFailure === null ? {}
+          : { definition: familyAvailability(definitionFailure, 'unavailable') }),
         semantic: familyAvailability(workbenchFailure, 'unavailable') }, clauses }) : null;
 
     if (obligationId !== undefined) {
       const row = result.rows.find(entry => entry.obligation_id === obligationId) ?? null;
       return { assessment: selectedObligationAnswer({ envelope, obligationId, row,
         route: row?.selected_proof_assessment ?? null, diagnoses, ownerFailures, resolved, clauses, delivery,
-        comparison: userRequirementsComparison(resolved, 'selected_obligation', deps) }),
+        comparison: userRequirementsComparison(resolved, 'selected_obligation', deps), specification: definitions.specification,
+        exceptions }),
       diagnosis_inventory: inventory };
     }
 
     const coverage = wholeUnitCriterionCoverage(pkg, resolved,
       result.rows.filter(row => row.status === 'valid').map(row => row.obligation_id));
-    const issues = proofValidationIssues({ authoringGroups: diagnosticProjection.groups,
-      rawGroups: grouped.groups, semanticGroups, semanticMeaning: semanticCauseMeaning });
+    const issues = [...definitions.entries.map(entry => entry.issue), ...proofValidationIssues({ authoringGroups: diagnosticProjection.groups,
+      rawGroups: grouped.groups, semanticGroups, semanticMeaning: semanticCauseMeaning })];
     const answer = proofValidationAssessment({
       envelope: { ...envelope, authored: assessment.authored, route: assessment.route,
+        specification: definitions.specification, exceptions,
         owner_failures: ownerFailures, execution: { ...PROOF_VALIDATION_EXECUTION },
         dispatch: dispatchNotAssessed(resolved), acceptance_coverage: compactCriterionCoverage(coverage),
         ...(assessment.authored.status === 'valid'
@@ -422,13 +506,14 @@ const ISSUE_PRIORITY = Object.freeze({
   semantic: status => status === 'authored_correction_available' || status === 'system_owner_failure' ? 1 : 3
 });
 
-async function sourceAbsentValidation(resolved, input, delivery, deps) {
+async function sourceAbsentValidation(resolved, input, delivery, deps, exceptions) {
   if (input.obligationId !== undefined) findObligation(resolved, input.obligationId);
   if (input.diagnosticGroupId !== undefined) throw new ControlledContractToolError(
     'obligation_coverage_diagnostic_group_not_found',
     'The diagnostic group is unknown or belongs to a different resolved snapshot', {
       changed: false, diagnostic_group_id: input.diagnosticGroupId, next_calls: [validationCall(resolved)] });
-  const contractInputs = projectProofAuthoringContractInputs(resolved);
+  const contractInputs = projectProofAuthoringContractInputs(resolved, {
+    descriptionPreparation: await prepareProofAuthoringDescriptionRead(resolved) });
   const coveragePkg = await loadControlledContractProofAuthoring();
   const findings = [];
   if (contractInputs.controlled_acceptance.status === 'unset') findings.push({
@@ -454,6 +539,7 @@ async function sourceAbsentValidation(resolved, input, delivery, deps) {
   return proofValidationAssessment({
     envelope: { ...validationEnvelope(resolved, { sourceDigest: null, contextDigest: identity }),
       authored: { status: findings.length === 0 ? 'valid' : 'invalid', ...zero },
+      exceptions,
       route: { status: 'not_assessed', assessed: 0, prevents: 0, stages: {
         authored_inputs: { complete: 0, incomplete: 0 }, canonical_sources: { current: 0, unresolved: 0 },
         system_capability: { available: 0, unavailable: 0 },

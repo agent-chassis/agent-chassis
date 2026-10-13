@@ -98,5 +98,5 @@ test("published admission binds the remediated adequacy", async () => {
   assert.equal(pack.admission.certification.method, "executable_semantic_adequacy");
   assert.equal(pack.admission.certification.executable_control_count, 85);
   assert.equal(pack.admission.profile_digest,
-    "3fd1bb644c2ef19e3326e5ce09b1a20eee221c16a1e75736ecdaef95533bfaf6");
+    "e41c9d1a76e6942b30a830e059d4e11745453b4f3020f8d7c1a134e19f6d447b");
 });

@@ -668,16 +668,16 @@
         "packages/agent-launch-cli/src/lib/test-execution/ordinary-run.mjs",
         "packages/agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs"
       ],
-      "notes": "Runs one literal repository-relative test file with its prepared runtime runner against the server-authenticated source and reports the native process outcome with no proof credit. Every response is at most 1,024 UTF-8 bytes; stdout and stderr are clipped tails, and the complete settled result is retained for this route's own read and continue calls; retry reruns a refused request.",
+      "notes": "Runs one repository-relative test file, or the files one glob pattern in file matches, with the prepared runtime runner against the server-authenticated source and reports the native process outcome with no proof credit. A glob answers with counts and one file's outcome, never a file list. Every response is at most 1,024 UTF-8 bytes; stdout and stderr are clipped tails, and the settled result is retained for this route's own read calls; retry reruns a refused request.",
       "use_when": [
         "An authenticated orchestrator, worker or reviewer needs the native outcome of one repository test file (optionally one native selector) in its prepared runtime environment; an orchestrator names source {kind:current_main} or {kind:exact_sha,value}.",
         "A failing run should be compared once with the same request on the source parent that an owned checkout already holds (compare_parent:true).",
-        "An earlier answer named omitted output or a retained view: copy its returned read or continue call exactly; each read names the selection that follows it, and reads never execute.",
+        "An earlier answer named omitted output or a retained view: copy its returned read call exactly; each read names the view that follows it, and reads never execute.",
         "A refusal returned a retry call (for example a worker's source cleared, or an orchestrator's source named): invoke that exact call to run the corrected request as a new execution."
       ],
       "do_not_use_when": [
         "The question is whether saved proofs hold; use verify_proof, which owns proof credit.",
-        "The task needs a command, arguments, environment variables, a root, a glob, a directory or another session's source; none is an input.",
+        "The task needs a command, arguments, environment variables, a root, a directory, a list of files or another session's source; none is an input.",
         "A worker or reviewer wants to name a source or an exact commit; their launcher-bound source is implicit."
       ],
       "authoritative_for": [
@@ -689,7 +689,7 @@
         ],
         "operation": "run one repository test file",
         "arguments": {
-          "file": "$repository_relative_test_file",
+          "file": "$repository_relative_test_file_or_glob",
           "runner": "$runtime_runner",
           "selector": "$optional_native_selector",
           "compare_parent": "$optional_compare_parent",

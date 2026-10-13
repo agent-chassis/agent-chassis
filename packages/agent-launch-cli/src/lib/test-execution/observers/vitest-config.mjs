@@ -8,19 +8,23 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import channelModule from "./native-channel.cjs";
 
-const { projectRequire } = channelModule;
+const { runnerRequire } = channelModule;
 
 export const LAUNCHER_RUNNER = fileURLToPath(new URL("./vitest-runner.mjs", import.meta.url));
 
 export async function loadProjectVitest(config) {
-  const project = projectRequire(config);
-  const vitest = await import(pathToFileURL(project.resolve("vitest/node")).href);
-  const version = JSON.parse(readFileSync(project.resolve("vitest/package.json"), "utf8")).version;
+  const runner = runnerRequire(config);
+  const vitest = await import(pathToFileURL(runner.resolve("vitest/node")).href);
+  const version = JSON.parse(readFileSync(runner.resolve("vitest/package.json"), "utf8")).version;
   return { vitest, version };
 }
 
-const baseOptions = () => ({ run: true, watch: false, cache: false, color: false, configLoader: "runner",
-  fileParallelism: false });
+const baseOptions = () => ({ run: true, watch: false, cache: false, color: false, fileParallelism: false });
+
+async function resolvedConfiguration(vitest, options, viteOverrides = {}) {
+  const ctx = await vitest.createVitest("test", options, viteOverrides);
+  try { return ctx.config; } finally { await ctx.close(); }
+}
 
 function pluginSignature(plugin) {
   return [plugin?.name, ...Object.keys(plugin ?? {}).sort().map((key) => {
@@ -49,7 +53,8 @@ function resolvedOptionsText(config) {
 
 async function loadTsconfigResolution(config) {
   try {
-    const viteRequire = createRequire(projectRequire(config).resolve("vite/package.json"));
+    const vitestRequire = createRequire(runnerRequire(config).resolve("vitest/package.json"));
+    const viteRequire = createRequire(vitestRequire.resolve("vite/package.json"));
     const rolldown = await import(pathToFileURL(viteRequire.resolve("rolldown/experimental")).href);
     return typeof rolldown.resolveTsconfig === "function" && typeof rolldown.TsconfigCache === "function"
       ? rolldown : null;
@@ -106,13 +111,13 @@ export function launcherCacheKeyGenerator({ reuse, tsconfigResolution }) {
 }
 
 export async function resolveLauncherVitest({ vitest, config, moduleCache = null }) {
-  const resolved = await vitest.resolveConfig({ ...baseOptions() });
-  if (resolved.test?.runner) return { customRunner: true };
+  const resolved = await resolvedConfiguration(vitest, { ...baseOptions(), fsModuleCache: false });
+  if (resolved.runner) return { customRunner: true };
   const options = { ...baseOptions(), runner: LAUNCHER_RUNNER, fsModuleCache: false };
   const reuse = { reason: typeof moduleCache === "string" ? "undecided" : "module_cache_unavailable" };
   if (typeof moduleCache !== "string") return { customRunner: false, options, viteOverrides: {}, reuse };
   let builtIn = null;
-  await vitest.resolveConfig({ ...options, config: false },
+  await resolvedConfiguration(vitest, { ...options, config: false },
     { plugins: [launcherPlugin((config) => { builtIn = pluginSignatures(config); })] });
   const tsconfigResolution = await loadTsconfigResolution(config);
   let decided = false;

@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { isLauncherTestFailureDiagnostic } from "../workspace-agent-test-proof-error-diagnostic.mjs";
-import { launcherArtifact } from "../workspace-agent-test-proof-node-observation.mjs";
+import { NODE_TEST_PROOF_REPORTER_PROTOCOL_CAP_BYTES, launcherArtifact } from
+  "../workspace-agent-test-proof-node-observation.mjs";
 import { nativeRuntimeTestId } from "../workspace-agent-test-proof-runtime-identity.mjs";
 
 export const NATIVE_EVENTS_SCHEMA_VERSION = "launcher-test-proof-native-events.v1";
@@ -16,7 +17,10 @@ const KINDS = new Set(["session_start", "collected", "test_start", "window_start
 const OUTCOMES = new Set(["passed", "failed", "skipped"]);
 const SOURCE_RE = /^[a-z0-9][a-z0-9_.:-]{0,63}$/u;
 const MAX_TEXT = 64 * 1024;
-const MAX_RECORDS = 100000;
+
+const MAX_CONTROL_RECORDS = 100000;
+const MAX_WRITERS = 100000;
+const MAX_RECORD_BYTES = NODE_TEST_PROOF_REPORTER_PROTOCOL_CAP_BYTES;
 const PROBE_TOKEN_RE = /^[0-9a-f]{32}$/u;
 
 const MAX_RUNNER_ERRORS = 8;
@@ -85,35 +89,6 @@ function recordShapeValid(record) {
   }
 }
 
-export function authenticateNativeEvents({ channelBytes, expectation, channelOverflow = false }) {
-  if (channelOverflow) return refusal("test_proof_structured_events_oversized");
-  if (!Buffer.isBuffer(channelBytes)) return refusal("test_proof_structured_events_invalid");
-  const text = channelBytes.toString("utf8");
-  if (Buffer.byteLength(text, "utf8") !== channelBytes.length) {
-    return refusal("test_proof_structured_events_invalid");
-  }
-  const lines = text.split("\n");
-  if (lines.at(-1) !== "") return lines.length === 1 && lines[0] === ""
-    ? { valid: true, records: [] } : refusal("test_proof_structured_events_invalid");
-  lines.pop();
-  if (lines.length > MAX_RECORDS) return refusal("test_proof_structured_events_oversized");
-  const records = [];
-  const nextSeq = new Map();
-  for (const line of lines) {
-    let record;
-    try { record = JSON.parse(line); } catch { return refusal("test_proof_structured_events_invalid"); }
-    if (!recordShapeValid(record)) return refusal("test_proof_structured_events_invalid");
-    if (record.nonce !== expectation.attempt_nonce) {
-      return refusal("test_proof_structured_events_cross_attempt");
-    }
-    const expected = nextSeq.get(record.src) ?? 0;
-    if (record.seq !== expected) return refusal("test_proof_structured_events_lifecycle_invalid");
-    nextSeq.set(record.src, expected + 1);
-    records.push(record);
-  }
-  return { valid: true, records };
-}
-
 export function nativeNodeId(file, test, identityFormat) {
   const rest = identityFormat.kind === "json_title_path" ? JSON.stringify(test)
     : test.join(identityFormat.separator);
@@ -130,11 +105,11 @@ function streamContext(expectation) {
     selected_node_id: expectation.node_id ?? null };
 }
 
-function recordRefusal(code, expectation, record, index, recordCount) {
-  return refusal(code, { ...streamContext(expectation), record_kind: record.kind,
+function refusedRecord(code, expectation, record, index) {
+  return { code, detail: { ...streamContext(expectation), record_kind: record.kind,
     ...(Array.isArray(record.test) ? { observed_node_id: nodeIdOf(record, expectation) } : {}),
     ...(record.kind === "test_result" ? { observed_outcome: record.outcome } : {}),
-    writer: record.src, sequence: record.seq, record_index: index, record_count: recordCount });
+    writer: record.src, sequence: record.seq, record_index: index } };
 }
 
 function candidateFacts(nodeId, expectation) {
@@ -182,9 +157,9 @@ function selectedReportDiagnosis(observed, report) {
   return { ...observed, issues: [...observed.issues, ...reported.issues] };
 }
 
-function reportedBuildFailure(records, report) {
+function reportedBuildFailure(recordCount, report) {
   const build = report?.build_failure;
-  if (!isLauncherTestFailureDiagnostic(build) || records.length > 0) return null;
+  if (!isLauncherTestFailureDiagnostic(build) || recordCount > 0) return null;
   return report.unreadable !== true ? build : { ...build, issues: [...build.issues,
     { path: "/native_report", reason: "native_report_unreadable" }] };
 }
@@ -204,61 +179,77 @@ function withRunCause(result, { build = null, runnerErrors = null }) {
   return { ...result, detail };
 }
 
-export function readNativeObservation({ channelBytes, channelOverflow = false, exitCode,
-  expectation, nativeReport = null }) {
-  const authenticated = authenticateNativeEvents({ channelBytes, expectation, channelOverflow });
-  if (!authenticated.valid) return authenticated;
-  const { records } = authenticated;
-  const runtimeError = records.find(({ kind }) => kind === "runtime_error");
-  if (runtimeError !== undefined) {
-    return NATIVE_OBSERVER_RUNTIME_CODES.includes(runtimeError.code)
-      ? refusal(runtimeError.code, { message: boundedText(runtimeError.message) ?? null,
-        ...(runtimeError.failure_diagnostic === undefined ? {}
-          : { failure_diagnostic: runtimeError.failure_diagnostic }) })
-      : refusal("test_proof_structured_events_invalid");
-  }
-  const sessionEnd = records.find(({ kind }) => kind === "session_end");
-  const causes = {
-    build: reportedBuildFailure(records, nativeReport),
-    runnerErrors: sessionEnd?.runner_errors === undefined ? null
-      : { errors: sessionEnd.runner_errors, count: sessionEnd.runner_error_count }
-  };
-  const observed = readSelectedObservation({ records, exitCode, expectation, channelBytes });
-  if (!observed.valid) return withRunCause(observed, causes);
-  const { selected } = observed;
-  return selected.outcome !== "failed" ? observed : { ...observed, selected: { ...selected,
-    failure_diagnostic: reportedSelectedDiagnostic(selected.failure_diagnostic, nativeReport) } };
+function limitRefusal(limit, measured, threshold, unit, recordIndex, exact) {
+  return refusal("test_proof_structured_events_oversized", { limit, measured, threshold, unit,
+    measured_is_lower_bound: !exact, record_index: recordIndex });
 }
 
-function readSelectedObservation({ records, exitCode, expectation, channelBytes }) {
+export function openNativeObservation({ expectation }) {
+  const digest = createHash("sha256");
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+
+  let pending = [];
+  let pendingBytes = 0;
+  let oversize = null;
+  let notBytes = false;
+  let malformed = false;
+  let limit = null;
+  let failure = null;
+  let recordCount = 0;
+  let controlRecords = 0;
+  const nextSeq = new Map();
+
   const selected = expectation.node_id;
   const discovered = new Set(expectation.declared_node_ids ?? []);
   const collectedOnce = new Set();
-  const started = [];
   const lifecycle = new Map();
 
   let windowOpen = false;
-  const reaches = [];
   let sessionEnded = false;
-  for (const [index, record] of records.entries()) {
-    const refuse = (code) => recordRefusal(code, expectation, record, index, records.length);
+  let sessionEnd = null;
+  let runner;
+  let runtimeError = null;
+  let lifecycleRefusal = null;
+
+  const instrumentation = expectation.capability === "candidate_execution" ? null
+    : expectation.instrumentation ?? null;
+  const probes = new Map((instrumentation?.probes ?? []).map((probe) => [probe.token, probe]));
+  const reachCounts = new Map();
+  let reachUnauthenticated = false;
+
+  function applyLifecycle(record, index) {
+    const refuse = (code) => { lifecycleRefusal = refusedRecord(code, expectation, record, index); };
     if (sessionEnded) return refuse("test_proof_structured_events_lifecycle_invalid");
     if (record.kind === "session_end") {
       sessionEnded = true;
-      continue;
+      sessionEnd = record;
+      return undefined;
     }
     if (record.kind === "reach") {
-      reaches.push({ ...record, window: windowOpen ? "selected" : "outside" });
-      continue;
+      if (instrumentation === null) return undefined;
+      const probe = probes.get(record.token);
+      if (probe === undefined) {
+        reachUnauthenticated = true;
+        return undefined;
+      }
+      const window = windowOpen ? "selected" : "outside";
+      const key = `${window}\0${record.token}`;
+      const entry = reachCounts.get(key) ?? { window, module_path: instrumentation.module_path,
+        source_digest: instrumentation.source_digest, function_name: probe.function_name, line: probe.line,
+        mutated: probe.mutated, entries: 0 };
+      entry.entries += 1;
+      reachCounts.set(key, entry);
+      return undefined;
     }
+    if (record.kind === "session_start" && runner === undefined) runner = record.runner ?? null;
     if (!["collected", "test_start", "window_start", "window_end", "test_result"]
-      .includes(record.kind)) continue;
+      .includes(record.kind)) return undefined;
     const nodeId = nodeIdOf(record, expectation);
     if (record.kind === "collected") {
       if (collectedOnce.has(nodeId)) return refuse("test_proof_structured_test_identity_duplicate");
       collectedOnce.add(nodeId);
       discovered.add(nodeId);
-      continue;
+      return undefined;
     }
     const state = lifecycle.get(nodeId) ??
       { started: false, window_start: false, window_end: false, result: null };
@@ -270,7 +261,6 @@ function readSelectedObservation({ records, exitCode, expectation, channelBytes 
       }
       if (nodeId !== selected) return refuse("test_proof_structured_events_unselected_execution");
       state.started = true;
-      started.push(nodeId);
       windowOpen = expectation.window_start !== "explicit";
     } else if (record.kind === "window_start") {
       if (expectation.window_start !== "explicit" || !state.started || state.window_start ||
@@ -297,39 +287,189 @@ function readSelectedObservation({ records, exitCode, expectation, channelBytes 
       state.result = record;
       windowOpen = false;
     }
+    return undefined;
   }
-  if (expectation.completion === "session_end" && !sessionEnded) {
-    return refusal("test_proof_structured_test_inventory_incomplete");
-  }
-  const selectedState = lifecycle.get(selected);
-  if (selectedState === undefined || (!selectedState.started && selectedState.result === null)) {
-    if (!discovered.has(selected) || exitCode === 0 || expectation.completion === "session_end") {
-      return selectedIdentityNotObserved(expectation, discovered);
+
+  function acceptRecord(bytes) {
+    const index = recordCount;
+    recordCount += 1;
+    let text;
+    try {
+      text = decoder.decode(bytes);
+    } catch {
+      malformed = true;
+      return;
     }
-    return refusal("test_proof_structured_test_inventory_incomplete");
+    if (failure !== null || limit !== null) return;
+    let record;
+    try {
+      record = JSON.parse(text);
+    } catch {
+      failure = refusal("test_proof_structured_events_invalid");
+      return;
+    }
+    if (!recordShapeValid(record)) {
+      failure = refusal("test_proof_structured_events_invalid");
+      return;
+    }
+    if (record.nonce !== expectation.attempt_nonce) {
+      failure = refusal("test_proof_structured_events_cross_attempt");
+      return;
+    }
+    if (!nextSeq.has(record.src) && nextSeq.size >= MAX_WRITERS) {
+      limit = limitRefusal("writers", nextSeq.size + 1, MAX_WRITERS, "writers", index, false);
+      return;
+    }
+    const expected = nextSeq.get(record.src) ?? 0;
+    if (record.seq !== expected) {
+      failure = refusal("test_proof_structured_events_lifecycle_invalid");
+      return;
+    }
+    nextSeq.set(record.src, expected + 1);
+    if (record.kind !== "reach") {
+      controlRecords += 1;
+      if (controlRecords > MAX_CONTROL_RECORDS) {
+        limit = limitRefusal("control_records", controlRecords, MAX_CONTROL_RECORDS, "records", index, false);
+        return;
+      }
+    }
+    if (record.kind === "runtime_error" && runtimeError === null) runtimeError = record;
+    if (lifecycleRefusal === null) applyLifecycle(record, index);
   }
-  if (selectedState.result === null) return refusal("test_proof_structured_test_inventory_incomplete");
-  const result = selectedState.result;
-  if ((exitCode === 0) !== (result.outcome !== "failed")) {
-    return refusal("test_proof_structured_events_exit_status_mismatch", { ...streamContext(expectation),
-      selected_outcome: result.outcome, exit_code: exitCode, record_count: records.length });
+
+  function write(chunk) {
+    if (!Buffer.isBuffer(chunk)) {
+      notBytes = true;
+      return;
+    }
+    digest.update(chunk);
+    let start = 0;
+    while (start < chunk.length) {
+      const newline = chunk.indexOf(0x0a, start);
+      const end = newline < 0 ? chunk.length : newline;
+      const part = chunk.subarray(start, end);
+      if (oversize !== null) {
+        oversize.bytes += part.length;
+      } else if (pendingBytes + part.length > MAX_RECORD_BYTES) {
+        oversize = { bytes: pendingBytes + part.length, index: recordCount };
+        pending = [];
+        pendingBytes = 0;
+      } else if (newline < 0) {
+        pending.push(part);
+        pendingBytes += part.length;
+      }
+      if (newline < 0) return;
+      if (oversize !== null) {
+        if (limit === null) {
+          limit = limitRefusal("record_bytes", oversize.bytes, MAX_RECORD_BYTES, "bytes", oversize.index, true);
+        }
+        recordCount += 1;
+        oversize = null;
+      } else {
+        acceptRecord(pending.length === 0 ? part : Buffer.concat([...pending, part], pendingBytes + part.length));
+        pending = [];
+        pendingBytes = 0;
+      }
+      start = newline + 1;
+    }
   }
-  return {
-    valid: true,
-    records_digest: `sha256:${sha256(channelBytes)}`,
-    selected: {
-      node_id: selected,
-      outcome: result.outcome,
-      started: selectedState.started,
-      assertion_failure: result.outcome === "failed" && result.assertion_failure === true,
-      ...(result.outcome === "failed" ? { failure_diagnostic: result.failure_diagnostic } : {})
-    },
-    discovered_node_ids: [...discovered].sort(),
-    executed_node_ids: result.outcome === "skipped" ? [] : [selected],
-    skipped_node_ids: result.outcome === "skipped" ? [selected] : [],
-    reaches,
-    runner: records.find(({ kind }) => kind === "session_start")?.runner ?? null
-  };
+
+  function authentication({ channelOverflow = false } = {}) {
+    if (channelOverflow) return refusal("test_proof_structured_events_oversized");
+    if (notBytes || malformed || oversize !== null || pendingBytes > 0) {
+      return refusal("test_proof_structured_events_invalid");
+    }
+    return limit ?? failure ?? { valid: true, record_count: recordCount };
+  }
+
+  function inventoryIncomplete(missing) {
+    const state = lifecycle.get(selected);
+    return refusal("test_proof_structured_test_inventory_incomplete", { ...streamContext(expectation),
+      missing, completion_requirement: expectation.completion === "session_end" ? "session_end" : "selected_result",
+      session_end_observed: sessionEnded, selected_collected: discovered.has(selected),
+      selected_started: state?.started === true, selected_result_observed: (state?.result ?? null) !== null,
+      discovered_count: discovered.size, record_count: recordCount });
+  }
+
+  function selectedObservation(exitCode) {
+    if (lifecycleRefusal !== null) {
+      return refusal(lifecycleRefusal.code, { ...lifecycleRefusal.detail, record_count: recordCount });
+    }
+    if (expectation.completion === "session_end" && !sessionEnded) return inventoryIncomplete("session_end");
+    const selectedState = lifecycle.get(selected);
+    if (selectedState === undefined || (!selectedState.started && selectedState.result === null)) {
+      if (!discovered.has(selected) || exitCode === 0 || expectation.completion === "session_end") {
+        return selectedIdentityNotObserved(expectation, discovered);
+      }
+      return inventoryIncomplete("selected_test_start");
+    }
+    if (selectedState.result === null) return inventoryIncomplete("selected_test_result");
+    const result = selectedState.result;
+    if ((exitCode === 0) !== (result.outcome !== "failed")) {
+      return refusal("test_proof_structured_events_exit_status_mismatch", { ...streamContext(expectation),
+        selected_outcome: result.outcome, exit_code: exitCode, record_count: recordCount });
+    }
+    return {
+      valid: true,
+      records_digest: `sha256:${digest.copy().digest("hex")}`,
+      selected: {
+        node_id: selected,
+        outcome: result.outcome,
+        started: selectedState.started,
+        assertion_failure: result.outcome === "failed" && result.assertion_failure === true,
+        ...(result.outcome === "failed" ? { failure_diagnostic: result.failure_diagnostic } : {})
+      },
+      discovered_node_ids: [...discovered].sort(),
+      executed_node_ids: result.outcome === "skipped" ? [] : [selected],
+      skipped_node_ids: result.outcome === "skipped" ? [selected] : [],
+
+      reaches: reachUnauthenticated ? null : [...reachCounts.values()].sort((left, right) =>
+        `${left.window}\0${left.function_name}\0${left.line}`.localeCompare(
+          `${right.window}\0${right.function_name}\0${right.line}`)),
+      runner: runner ?? null
+    };
+  }
+
+  function observation({ exitCode, nativeReport = null, channelOverflow = false }) {
+    const authenticated = authentication({ channelOverflow });
+    if (!authenticated.valid) return authenticated;
+    if (runtimeError !== null) {
+      return NATIVE_OBSERVER_RUNTIME_CODES.includes(runtimeError.code)
+        ? refusal(runtimeError.code, { message: boundedText(runtimeError.message) ?? null,
+          ...(runtimeError.failure_diagnostic === undefined ? {}
+            : { failure_diagnostic: runtimeError.failure_diagnostic }) })
+        : refusal("test_proof_structured_events_invalid");
+    }
+    const causes = {
+      build: reportedBuildFailure(recordCount, nativeReport),
+      runnerErrors: sessionEnd?.runner_errors === undefined ? null
+        : { errors: sessionEnd.runner_errors, count: sessionEnd.runner_error_count }
+    };
+    const observed = selectedObservation(exitCode);
+    if (!observed.valid) return withRunCause(observed, causes);
+    const { selected: test } = observed;
+    return test.outcome !== "failed" ? observed : { ...observed, selected: { ...test,
+      failure_diagnostic: reportedSelectedDiagnostic(test.failure_diagnostic, nativeReport) } };
+  }
+
+  return { write, authentication, observation,
+    finish: ({ exitCode, nativeReport = null, channelOverflow = false }) => projectObservation(
+      observation({ exitCode, nativeReport, channelOverflow }), expectation, exitCode) };
+}
+
+function opened({ channelBytes, expectation }) {
+  const reader = openNativeObservation({ expectation });
+  reader.write(channelBytes);
+  return reader;
+}
+
+export function authenticateNativeEvents({ channelBytes, expectation, channelOverflow = false }) {
+  return opened({ channelBytes, expectation }).authentication({ channelOverflow });
+}
+
+export function readNativeObservation({ channelBytes, channelOverflow = false, exitCode,
+  expectation, nativeReport = null }) {
+  return opened({ channelBytes, expectation }).observation({ exitCode, nativeReport, channelOverflow });
 }
 
 function nativeTestId(expectation, nodeId) {
@@ -366,28 +506,12 @@ function structuredResult(observation, expectation, exitCode) {
   };
 }
 
-function aggregateReaches(reaches, instrumentation) {
-  const probes = new Map((instrumentation.probes ?? []).map((probe) => [probe.token, probe]));
-  const byKey = new Map();
-  for (const reach of reaches) {
-    const probe = probes.get(reach.token);
-    if (probe === undefined) return null;
-    const key = `${reach.window}\0${reach.token}`;
-    const entry = byKey.get(key) ?? { window: reach.window, module_path: instrumentation.module_path,
-      source_digest: instrumentation.source_digest, function_name: probe.function_name, line: probe.line,
-      mutated: probe.mutated, entries: 0 };
-    entry.entries += 1;
-    byKey.set(key, entry);
-  }
-  return [...byKey.values()].sort((left, right) =>
-    `${left.window}\0${left.function_name}\0${left.line}`.localeCompare(
-      `${right.window}\0${right.function_name}\0${right.line}`));
-}
-
 export function projectNativeObservation({ channelBytes, channelOverflow = false, exitCode,
   expectation, nativeReport = null }) {
-  const observation = readNativeObservation({ channelBytes, channelOverflow, exitCode, expectation,
-    nativeReport });
+  return opened({ channelBytes, expectation }).finish({ exitCode, nativeReport, channelOverflow });
+}
+
+function projectObservation(observation, expectation, exitCode) {
   if (!observation.valid) return observation;
   const result = structuredResult(observation, expectation, exitCode);
   const structuredArtifact = launcherArtifact("structured_test_result", result);
@@ -428,7 +552,7 @@ export function projectNativeObservation({ channelBytes, channelOverflow = false
       instrumentation.source_digest) {
     return refusal("test_proof_structured_events_source_mismatch");
   }
-  const reaches = aggregateReaches(observation.reaches, instrumentation);
+  const { reaches } = observation;
   if (reaches === null) return refusal("test_proof_structured_events_reach_unauthenticated");
   const status = outcome === "skipped" ? "skipped" : outcome;
   if (expectation.capability === "falsifier_execution") {

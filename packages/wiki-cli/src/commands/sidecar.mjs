@@ -13,6 +13,8 @@ import {
   getSidecarSymbolDefinition,
   getSidecarSymbolReferences
 } from "@agent-chassis/wiki-core/src/lib/sidecar-symbol-query.mjs";
+import { sidecarDependencyLimitations } from "@agent-chassis/wiki-core/src/lib/sidecar-scip-projects.mjs";
+import { resolveScipProviderDeadlineMs } from "@agent-chassis/wiki-core/src/lib/sidecar-scip-provision.mjs";
 import { optionalOption, parseArgs } from "../lib/cli.mjs";
 
 const HELP_TEXT = `Usage: wiki code-index <command> [options]
@@ -34,10 +36,16 @@ Commands:
   rebuild  Force a clean rebuild of the repo code index
   status   Report read-only repo code index status
 
+Build options:
+  --provider-timeout-ms <integer>
+           Allowance for each code-index provider's run, in milliseconds
+           (default 300000; 1000 through 3600000)
+
 Query output: --json or --verbose prints the complete answer; plain output lists every population.
 
 Examples:
   wiki code-index build --json --dir /path/to/repo
+  wiki code-index build --json --provider-timeout-ms 600000 --dir /path/to/repo
   wiki code-index context-for-path --json --path packages/app/src/service.mjs --dir /path/to/repo
   wiki code-index impact --json --paths packages/app/src/service.mjs --dir /path/to/repo
   wiki code-index impact --json --live-git --dir /path/to/repo
@@ -62,6 +70,9 @@ function printBuildSummary(result) {
   console.log(`Cache path: ${result.cache_path}`);
   console.log(`Artifact path: ${result.artifact_path}`);
   console.log(`Indexed sources: ${result.source_count}`);
+  for (const limitation of sidecarDependencyLimitations(result.graph_snapshot?.provider_coverage)) {
+    console.log(`Dependency-limited project ${limitation.key} (${limitation.coverage}): ${limitation.message}`);
+  }
 }
 
 const PLAIN_OBJECT_FIELDS = ["input", "impact_state", "source", "symbol_resolution", "scip_state",
@@ -153,23 +164,41 @@ async function runStatus(argv) {
   printStatusSummary(status);
 }
 
+function providerDeadlineOption(options) {
+  if (!Object.hasOwn(options, "provider-timeout-ms")) return undefined;
+  const raw = options["provider-timeout-ms"];
+  try {
+    return resolveScipProviderDeadlineMs(
+      typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : Number.NaN);
+  } catch (error) {
+    throw new Error(`code-index build --provider-timeout-ms ${
+      raw === true ? "requires a value" : `received ${JSON.stringify(raw)}`}: ${error.message}`);
+  }
+}
+
+export function codeIndexBuildRequest(options, { rebuild = false } = {}) {
+  return {
+    dir: path.resolve(String(options.dir || ".")),
+    cacheDir: optionalOption(options, "cache-dir") || undefined,
+    rebuild,
+    ...(rebuild ? {} : { providerDeadlineMs: providerDeadlineOption(options) })
+  };
+}
+
 async function runBuild(argv, { rebuild = false } = {}) {
   const { options } = parseArgs(argv);
   if (options.help) {
     console.log(
-      `Usage: wiki code-index ${rebuild ? "rebuild" : "build"} --json [--dir <path>] [--cache-dir <path>]`
+      `Usage: wiki code-index ${rebuild ? "rebuild" : "build"} --json [--dir <path>] [--cache-dir <path>]${
+        rebuild ? "" : " [--provider-timeout-ms <integer>]"}`
     );
     return;
   }
 
-  const targetDir = path.resolve(String(options.dir || "."));
+  const request = codeIndexBuildRequest(options, { rebuild });
   let result;
   try {
-    result = await buildSidecarIndex({
-      dir: targetDir,
-      cacheDir: optionalOption(options, "cache-dir") || undefined,
-      rebuild
-    });
+    result = await buildSidecarIndex(request);
   } catch (error) {
     if (options.json && error instanceof SidecarIndexEnsureError) {
       console.log(JSON.stringify(error.envelope, null, 2));

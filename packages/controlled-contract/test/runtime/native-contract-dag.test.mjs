@@ -116,7 +116,7 @@ test("mandatory verification claims without a valid verifies edge are explicit",
 
 test("nonmandatory verification is supplementary and cannot discharge coverage", () => {
   const result = resolveNativeContractDag({
-    claims: [behavior(1), verification(1, "SHOULD")],
+    claims: [behavior(1), verification(1, "MAY")],
     relations: [verifies(1, "verification-1", "behavior-1")],
     collections: []
   });
@@ -135,7 +135,7 @@ test("nonmandatory verification is supplementary and cannot discharge coverage",
 
 test("supplementary verification does not invalidate already-covered behavior", () => {
   const result = resolveNativeContractDag({
-    claims: [behavior(1), verification(1), verification(2, "SHOULD")],
+    claims: [behavior(1), verification(1), verification(2, "MAY")],
     relations: [
       verifies(1, "verification-1", "behavior-1"),
       verifies(2, "verification-2", "behavior-1")
@@ -276,7 +276,7 @@ test("cycles in dependency-like relation families are reported deterministically
 
 test("diagnostics and coverage facts are invariant to authored array order", () => {
   const contract = {
-    claims: [behavior(1), verification(1), verification(2, "SHOULD")],
+    claims: [behavior(1), verification(1), verification(2, "MAY")],
     relations: [
       verifies(1, "missing-verifier", "behavior-1"),
       verifies(2, "verification-2", "behavior-1")
@@ -290,4 +290,12 @@ test("diagnostics and coverage facts are invariant to authored array order", () 
     relations: [...contract.relations].reverse()
   });
   assert.deepEqual(second, first);
+});
+
+
+test("current claim modalities reject both recommendation variants", () => {
+  for (const modality of ["SHOULD", "SHOULD_NOT"]) {
+    const result = resolveNativeContractDag({ claims: [behavior(1, modality)], relations: [] });
+    assert.ok(result.diagnostics.some(row => row.code === "invalid_claim_modality" && row.actual_modality === modality));
+  }
 });

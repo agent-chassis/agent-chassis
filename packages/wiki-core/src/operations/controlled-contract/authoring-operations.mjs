@@ -283,10 +283,19 @@ export async function applyControlledContractDesignSemanticResponse({
     }
   }
   case "proof_posture":
+
+    if (response.kind !== "declare_controlled_acceptance_applies") {
+      throw new ControlledContractToolError(
+        "controlled_contract_authoring_continuation_invalid",
+        "the proof-posture row accepts only the declaration that controlled acceptance applies",
+        { changed: false, response_kind: response.kind ?? null,
+          failed_constraint: "response_kind_declares_controlled_acceptance_applies",
+          eligible_response_forms: ["declare_controlled_acceptance_applies"],
+          exception_contract: { tool: "save_record", request: ["unit", "revision", "exception"],
+            kind: "controlled_acceptance" } });
+    }
     return persistControlledAcceptanceProofPosture({ repoRoot, wkId, focus,
-      disposition: response.kind === "declare_controlled_acceptance_applies"
-        ? "required" : "opted_out",
-      rationale: response.rationale ?? null,
+      disposition: "required", rationale: null,
       expectedSourceDigest: context.expected_record_source_digest });
   case "contract_carrier": {
 

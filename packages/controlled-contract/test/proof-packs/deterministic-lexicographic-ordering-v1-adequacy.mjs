@@ -15,7 +15,7 @@ import { buildLexicographicDocuments } from
 
 const GUARANTEE = "For exact captured input, complete result, ordering policy, and item-key/comparator evidence artifacts, the package-owned deterministic-lexicographic-conformance.v1 transformer validates complete mutually inclusive item populations and exact counts, at least two typed keys with explicit precedence and direction, first-unequal-key ordering, equal-key fallthrough to one stable item-identity tie-breaker, non-equality for every distinguishable pair, the complete captured result, and observed input, declaration, and equivalent-serialization permutation invariance; it emits one exact digest-bound conformance report containing the complete typed fact set and derived declared-item, result-item, and policy-key populations, and the profile retains its own population, count, claim, falsifier, and verifies spine.";
 const PROFILE_DIGEST =
-  "310c34d26afb0b6ad757ec7a55dfea1305f3cead32034ecbc51b67ec841af22b";
+  "dae2d1e16dd572ca09d64759e113dbc18b7d627f0932790902ca234268652103";
 const GUARANTEE_DIGEST =
   "93cd1b6fdab1f2173ab1d256c99f7b56f3ddf568dc9554596cee2dabf9e6a62c";
 
@@ -289,8 +289,8 @@ function factWeakeningControl(controlId) {
   }
 }
 
-async function runProofPackAdequacyControls({ profile, profile_digest: profileDigest }) {
-  const controls = [];
+async function runProofPackAdequacyControls({ profile, profile_digest: profileDigest , negative_fixtures: negativeFixtures }) {
+  const controls = [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ];
   for (const [controlId, caseId] of [
     ["numeric-unicode-two-key", "numeric-unicode"],
     ["timestamp-integer-two-key", "timestamp-integer"],
@@ -355,3 +355,55 @@ export {
   runProofPackAdequacyControls,
   satisfaction
 };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-verify-declared-within-result-modalities",
+      "claim_id": "claim-verify-declared-within-result",
+      "baseline": "isolated-claim-verify-declared-within-result-modalities-baseline",
+      "optional": "isolated-claim-verify-declared-within-result-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-determinism-modalities",
+      "claim_id": "claim-verify-determinism",
+      "baseline": "isolated-claim-verify-determinism-modalities-baseline",
+      "optional": "isolated-claim-verify-determinism-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-lexicographic-conformance-modalities",
+      "claim_id": "claim-verify-lexicographic-conformance",
+      "baseline": "isolated-claim-verify-lexicographic-conformance-modalities-baseline",
+      "optional": "isolated-claim-verify-lexicographic-conformance-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-result-count-modalities",
+      "claim_id": "claim-verify-result-count",
+      "baseline": "isolated-claim-verify-result-count-modalities-baseline",
+      "optional": "isolated-claim-verify-result-count-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-result-within-declared-modalities",
+      "claim_id": "claim-verify-result-within-declared",
+      "baseline": "isolated-claim-verify-result-within-declared-modalities-baseline",
+      "optional": "isolated-claim-verify-result-within-declared-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

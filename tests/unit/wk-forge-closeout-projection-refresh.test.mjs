@@ -72,7 +72,7 @@ test("parent notes replacement is admitted and counts as the closeout change bes
   const result = authenticate(live, { published: publishedRecord() });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.deepEqual(result.replaced_notes, ["WK-2672"]);
-  assert.equal(result.closed_slice_id, "SLICE-002");
+  assert.deepEqual(result.closed_slice_ids, ["SLICE-002"]);
   assert.equal(result.closeoutRecord, live, "the observed live record is carried, never rebuilt");
 
   const notesOnly = structuredClone(candidateRecord());
@@ -80,7 +80,7 @@ test("parent notes replacement is admitted and counts as the closeout change bes
   notesOnly.sections.agent_notes = ["line one", "line two"];
   const alone = authenticate(notesOnly);
   assert.equal(alone.ok, true, JSON.stringify(alone));
-  assert.equal(alone.closed_slice_id, null);
+  assert.deepEqual(alone.closed_slice_ids, []);
 });
 
 test("notes on an earlier slice, the closing slice and the review slice are admitted without extra closures", () => {
@@ -94,21 +94,26 @@ test("notes on an earlier slice, the closing slice and the review slice are admi
   });
   const result = authenticate(live, { published: publishedRecord() });
   assert.equal(result.ok, true, JSON.stringify(result));
-  assert.equal(result.closed_slice_id, "SLICE-002", "only the closing slice closes");
+  assert.deepEqual(result.closed_slice_ids, ["SLICE-002"], "only the closing slice closes");
   assert.deepEqual(result.replaced_notes,
     ["WK-2672#SLICE-001", "WK-2672#SLICE-002", "WK-2672#SLICE-003"]);
 });
 
 test("notes never carry a protected-field change past its specific cause", () => {
   const cases = [
-    [(record) => { record.sections.summary = "rewritten"; }, { reason: "unrelated_sections_drift" }],
-    [(record) => { record.sections.tasks = ["t", "new task"]; }, { reason: "unrelated_sections_drift" }],
+    [(record) => { record.sections.summary = "rewritten"; }, { reason: "unrelated_sections_drift", unit: "WK-2672", fields: ["sections.summary"], differences: [
+      { path: "sections.summary", change: "unsupported", candidate_value: "s", observed_value: "rewritten" }] }],
+    [(record) => { record.sections.tasks = ["t", "new task"]; },
+      { reason: "unrelated_sections_drift", unit: "WK-2672", fields: ["sections.tasks[1]"], differences: [
+        { path: "sections.tasks[1]", change: "unsupported", candidate_value: null, observed_value: "new task" }] }],
     [(record) => { record.acceptance.criteria = ["changed"]; },
       { reason: "unrelated_record_drift", fields: ["acceptance.criteria"] }],
     [(record) => { record.slices[0].write_scope = ["src/other.mjs"]; },
-      { reason: "unrelated_slice_drift", slice_id: "SLICE-001" }],
+      { reason: "unrelated_slice_drift", slice_id: "SLICE-001", cause: "unsupported_change", fields: ["write_scope"],
+        differences: [{ path: "write_scope", change: "unsupported", candidate_value: ["src/a.mjs"], observed_value: ["src/other.mjs"] }] }],
     [(record) => { record.slices[0].sections.summary = "rewritten"; },
-      { reason: "unrelated_slice_drift", slice_id: "SLICE-001" }],
+      { reason: "unrelated_slice_drift", slice_id: "SLICE-001", cause: "unsupported_change", fields: ["sections.summary"],
+        differences: [{ path: "sections.summary", change: "unsupported", candidate_value: "x", observed_value: "rewritten" }] }],
     [(record) => { record.slices[2].title = "renamed review"; }, {
       reason: "review_consumer_slice_drift", slice_id: "SLICE-003", cause: "candidate_review_changed", fields: ["title"]
     }]
@@ -125,7 +130,9 @@ test("notes never carry a protected-field change past its specific cause", () =>
 
 test("a notes value outside the schema shape, or a slice date C never held, is not admitted", () => {
   const object = edited((record) => { record.sections.agent_notes = { text: "not notes" }; });
-  assert.deepEqual(authenticate(object), { ok: false, reason: "unrelated_sections_drift" });
+  assert.deepEqual(authenticate(object), { ok: false, reason: "unrelated_sections_drift", unit: "WK-2672",
+    fields: ["sections.agent_notes"], differences: [{ path: "sections.agent_notes", change: "unsupported",
+      candidate_value: "", observed_value: { text: "not notes" } }] });
   const candidate = candidateRecord();
   delete candidate.slices[0].updated;
   const live = structuredClone(candidate);
@@ -133,7 +140,8 @@ test("a notes value outside the schema shape, or a slice date C never held, is n
   live.slices[0].sections.agent_notes = "note";
   live.slices[0].updated = "2026-09-24";
   assert.deepEqual(authenticateWkCloseoutProjection({ candidateRecord: candidate, liveRecord: live }),
-    { ok: false, reason: "unrelated_slice_drift", slice_id: "SLICE-001" });
+    { ok: false, reason: "unrelated_slice_drift", slice_id: "SLICE-001", cause: "unsupported_change",
+      fields: ["updated"], differences: [{ path: "updated", change: "unsupported", candidate_value: null, observed_value: "2026-09-24" }] });
 });
 
 test("a refresh preserves every entry the published closeout carries under the exact-prefix rule", () => {
@@ -173,12 +181,12 @@ test("a refresh keeps the published parent closure and the published slice close
   ];
   for (const [mutate, facts] of cases) {
     const live = edited((record) => { record.sections.agent_notes = "n"; mutate(record); }, published);
-    const integratedDelivery = { slice_id: "SLICE-002", integrated_delivery_sha: "a".repeat(40) };
+    const integratedDeliveries = [{ slice_id: "SLICE-002", integrated_delivery_sha: "a".repeat(40) }];
     assert.equal(authenticateWkCloseoutProjection({
-      candidateRecord: candidateRecord(), liveRecord: live, integratedDelivery
+      candidateRecord: candidateRecord(), liveRecord: live, integratedDeliveries
     }).ok, true, `C alone admits ${JSON.stringify(facts)}`);
     assert.deepEqual(authenticateWkCloseoutProjection({
-      candidateRecord: candidateRecord(), liveRecord: live, integratedDelivery, publishedRecord: published
+      candidateRecord: candidateRecord(), liveRecord: live, integratedDeliveries, publishedRecord: published
     }), { ok: false, reason: "published_closeout_drift", ...facts });
   }
   const reopened = edited((record) => {
@@ -242,7 +250,9 @@ test("an introduced policy never carries unrelated protected drift", () => {
     record.completion_policy = POLICY;
     record.slices[0].write_scope = ["src/other.mjs"];
   });
-  assert.deepEqual(authenticate(scoped), { ok: false, reason: "unrelated_slice_drift", slice_id: "SLICE-001" });
+  assert.deepEqual(authenticate(scoped), { ok: false, reason: "unrelated_slice_drift", slice_id: "SLICE-001",
+    cause: "unsupported_change", fields: ["write_scope"], differences: [{ path: "write_scope",
+      change: "unsupported", candidate_value: ["src/a.mjs"], observed_value: ["src/other.mjs"] }] });
 });
 
 test("a refresh keeps the policy the published closeout introduced", () => {

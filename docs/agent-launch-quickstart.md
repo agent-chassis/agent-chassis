@@ -622,7 +622,8 @@ This quickstart only documents the operator-facing dispatch address form.
 
 The launcher-owned repository namespace, shared host wiki-MCP socket conduit, and
 unsupported Agy posture are documented in
-[agent-launch-confinement-mcp-conduit.md](agent-launch-confinement-mcp-conduit.md).
+[agent-launch-confinement-mcp-conduit.md](agent-launch-confinement-mcp-conduit.md)
+and [agent-launch-mcp-conduit-lifecycle.md](agent-launch-mcp-conduit-lifecycle.md).
 
 ### New-directory write scopes
 

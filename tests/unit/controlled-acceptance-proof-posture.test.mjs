@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -17,6 +18,10 @@ import { applyControlledContractDesignSemanticResponse } from
   "../../packages/wiki-core/src/operations/controlled-contract/authoring-operations.mjs";
 import { persistControlledAcceptanceProofPostureOperation } from
   "../../packages/wiki-core/src/operations/controlled-contract/proof-posture-operations.mjs";
+import { semanticDescriptor } from
+  "../../packages/wiki-core/src/operations/controlled-contract/design-workbench-actionability.mjs";
+import { CONTROLLED_CONTRACT_DESIGN_RESPONSE_KINDS } from
+  "../../packages/wiki-core/src/lib/controlled-contract-authoring-continuation-records.mjs";
 import { today } from "../../packages/wiki-core/src/lib/wiki-shared.mjs";
 import { isWorkRecordUpdatedDate } from "../../packages/agent-launch-cli/src/lib/wk-forge-handoff-recovery.mjs";
 
@@ -218,17 +223,49 @@ test("guarded responses invoke exactly one proof-posture semantic owner", async 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].disposition, "required");
 
-  calls.length = 0;
-  await applyControlledContractDesignSemanticResponse({ repoRoot: "/repo", wkId: "WK-9997",
-    continuationRecord, response: { kind: "explicitly_opt_out_controlled_acceptance",
-      rationale: "No executable behavior." } }, {
-    persistControlledAcceptanceProofPosture: async (input) => {
-      calls.push(input); return { written: true };
-    }
-  });
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].disposition, "opted_out");
+  assert.equal(calls[0].rationale, null);
   assert.equal(calls[0].expectedSourceDigest, `sha256:${"a".repeat(64)}`);
+
+  for (const response of [{ kind: "explicitly_opt_out_controlled_acceptance", rationale: "No executable behavior." },
+    { kind: "contract_requirements" }, { rationale: "No executable behavior." }]) {
+    calls.length = 0;
+    await assert.rejects(applyControlledContractDesignSemanticResponse({ repoRoot: "/repo", wkId: "WK-9997",
+      continuationRecord, response }, {
+      persistControlledAcceptanceProofPosture: async (input) => {
+        calls.push(input); return { written: true };
+      }
+    }), (error) => error.code === "controlled_contract_authoring_continuation_invalid" &&
+      error.details.changed === false &&
+      error.details.failed_constraint === "response_kind_declares_controlled_acceptance_applies" &&
+      error.details.exception_contract.kind === "controlled_acceptance", JSON.stringify(response));
+    assert.equal(calls.length, 0, JSON.stringify(response));
+  }
+  assert.deepEqual(CONTROLLED_CONTRACT_DESIGN_RESPONSE_KINDS.filter((kind) => /opt.?out/iu.test(kind)), []);
+});
+
+test("an absent posture offers the applicability declaration and suggests no exemption", () => {
+  const digest = `sha256:${"a".repeat(64)}`;
+  const descriptor = semanticDescriptor(
+    { subject: { controlled_acceptance_state: "absent", record_source_digest: digest } },
+    { dimension_id: "authoring_stage", owner_result: null }, { evidence: { stage: "contract_required" } });
+  assert.deepEqual(descriptor, { semantic_owner: "proof_posture",
+    response_kinds: ["declare_controlled_acceptance_applies"],
+    owner_context: { expected_record_source_digest: digest } });
+  assert.doesNotMatch(JSON.stringify(descriptor), /opt.?out|exempt|exception/iu);
+});
+
+test("no routing phrase sends an opt-out or exemption request to an authoring route", async () => {
+  const vocabulary = JSON.parse(await readFile(new URL(
+    "../../packages/wiki-core/data/tool-routing-intents.v1.json", import.meta.url), "utf8"));
+  const phrases = vocabulary.intents.flatMap((intent) => [...(intent.match_phrases ?? []),
+    ...(intent.recommended_first_tool.operation_routes ?? []).flatMap((route) => route.match_phrases ?? [])]);
+  assert.ok(phrases.length > 0);
+  assert.deepEqual(phrases.filter((phrase) =>
+    /opt.?out|exempt|exception|controlled acceptance disposition/iu.test(phrase)), []);
+
+  const authoring = vocabulary.intents.find(({ intent }) => intent === "controlled_contract_authoring");
+  assert.match(authoring.use_when[0], /never this intent: it is the separate save_record \{unit, revision, exception\} request/u);
+  assert.match(authoring.use_when[0], /workspace_read_wiki returns for select \{input_contract: \{tool: save_record, operation: exception\}\}/u);
 });
 
 test("retired or derived controlled-acceptance fields cannot be serialized", () => {

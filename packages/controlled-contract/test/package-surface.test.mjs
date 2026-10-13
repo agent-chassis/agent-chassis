@@ -7,6 +7,8 @@ import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { createTestFixture } from "../../../tests/helpers/test-fixture.mjs";
+import { spawnManagedTestProcess } from "../../../tests/helpers/managed-test-process.mjs";
 
 import {
   TASK_RESULT_PROJECTION_VOCABULARY,
@@ -21,6 +23,78 @@ import {
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const agentLaunchPackageRoot = path.resolve(packageRoot, "../agent-launch-cli");
 const execFileAsync = promisify(execFile);
+
+test("a packed CEL definition reader works offline with access restricted to the installed package", async (t) => {
+  const fixture = await createTestFixture({ prefix: "cel-reference-install-" });
+  t.after(() => fixture.dispose());
+  let sequence = 0;
+  async function run(command, args, cwd) {
+    const processOwner = spawnManagedTestProcess({ command, args,
+      spawnOptions: { cwd, env: childEnvironment(), stdio: ["ignore", "pipe", "pipe"] } },
+    { displayLabel: `CEL offline ${command}`, stdoutTailBytes: 4 * 1024 * 1024, stderrTailBytes: 16_384 });
+    fixture.resources.add(`process ${sequence++}`, () => processOwner.dispose());
+    let timer;
+    const deadline = new Promise((resolve, reject) => {
+      timer = setTimeout(() => processOwner.stop().then(() => reject(new Error(command + ' timed out')), reject), 60_000);
+    });
+    let result;
+    try { result = await Promise.race([processOwner.waitForExit(), deadline]); }
+    finally { clearTimeout(timer); }
+    assert.equal(result.code, 0, JSON.stringify(result));
+    return processOwner.stdoutTail;
+  }
+  const packed = JSON.parse(await run("npm", ["pack", "--json", "--ignore-scripts",
+    "--pack-destination", fixture.rootPath, "--cache", path.join(fixture.rootPath, "npm-cache")], packageRoot))[0];
+  const consumer = path.join(fixture.rootPath, "consumer");
+  const moduleRoot = path.join(consumer, "node_modules", "@agent-chassis");
+  await mkdir(moduleRoot, { recursive: true });
+  await run("tar", ["-xzf", path.join(fixture.rootPath, packed.filename), "-C", moduleRoot], fixture.rootPath);
+  const { rename } = await import("node:fs/promises");
+  const installed = path.join(moduleRoot, "controlled-contract");
+  await rename(path.join(moduleRoot, "package"), installed);
+
+  const program = `
+    import assert from 'node:assert/strict';
+    import { registerHooks } from 'node:module';
+    registerHooks({ resolve(specifier, context, nextResolve) {
+      if (/^(?:node:)?(?:https?|http2|net|tls|dns)(?:\\/|$)/u.test(specifier)) {
+        throw new Error('offline network import refused: ' + specifier);
+      }
+      return nextResolve(specifier, context);
+    } });
+    globalThis.fetch = () => { throw new Error('offline fetch refused'); };
+    await assert.rejects(import('node:net'), /offline network import refused/);
+    assert.throws(() => fetch('https://example.invalid'), /offline fetch refused/);
+    const { celDefinitionIndex, selectCelDefinition } = await import('@agent-chassis/controlled-contract/cel-definition-reference');
+    const index = celDefinitionIndex();
+    for (const id of Object.keys(index.operations)) assert.ok(selectCelDefinition(['operations',id]).text.length > 0);
+    for (const term of index.relations) assert.equal(selectCelDefinition(['relations',term]).attribution,'local_application');
+    console.log('offline selected definitions verified');
+  `;
+  const output = await run(process.execPath, ["--permission", `--allow-fs-read=${installed}`,
+    "--input-type=module", "-e", program], consumer);
+  assert.match(output, /offline selected definitions verified/);
+  const sourcePath = path.join(installed, "vendor/cel-java/extensions.md");
+  const sourceText = await readFile(sourcePath, "utf8");
+  await writeFile(sourcePath, `${sourceText}\ntampered\n`);
+  await run(process.execPath, ["--permission", `--allow-fs-read=${installed}`, "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import { selectCelDefinition } from '@agent-chassis/controlled-contract/cel-definition-reference';
+    assert.throws(() => selectCelDefinition(['operations','cel_java.lists.distinct']),
+      {code:'cel_reference_source_integrity'});
+  `], consumer);
+  await writeFile(sourcePath, sourceText);
+  const manifestPath = path.join(installed, "vendor/cel-reference-sources.json");
+  const sourceManifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  sourceManifest.definitions["cel_java.lists.distinct"].section.sha256 = "0".repeat(64);
+  await writeFile(manifestPath, JSON.stringify(sourceManifest));
+  await run(process.execPath, ["--permission", `--allow-fs-read=${installed}`, "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import { selectCelDefinition } from '@agent-chassis/controlled-contract/cel-definition-reference';
+    assert.throws(() => selectCelDefinition(['operations','cel_java.lists.distinct']),
+      {code:'cel_reference_section_integrity'});
+  `], consumer);
+});
 
 function childEnvironment() {
   const environment = { ...process.env };

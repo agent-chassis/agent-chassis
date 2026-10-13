@@ -2,14 +2,13 @@
 
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 
-import { ordinaryRunDiagnostic } from
+import { ordinaryFailedResultDiagnostic, ordinaryRunDiagnostic } from
   "../../../agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs";
 import { managedTestAuthorityAuthenticated } from "./managed-test-source-context.mjs";
 import { describeRetentionFailure, measureMcpInlineResultBytes } from "./mcp-response.mjs";
 import { RUN_TEST_STREAM_VIEWS, RUN_TEST_STRUCTURED_VIEWS, RUN_TEST_TOOL_NAME, RUN_TEST_VIEWS } from
   "./run-test-input.mjs";
-import { SELECTED_RESPONSE_MEMBERS_COLLECTION, readSelectedResponseSource, selectedResponseQueryInvalidError } from
-  "./selected-response-snapshot.mjs";
+import { readSelectedResponseSource, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
 
 export const RUN_TEST_RESPONSE_MAX_BYTES = 1024;
 
@@ -21,33 +20,9 @@ export const RUN_TEST_RETAINED_KINDS = Object.freeze({
 const MECHANICAL_FAILURE = "mechanical_failure";
 const PERSISTENCE_OWNER = "selected-response persistence (response state directory)";
 
-const READ_RANGE_BYTES = RUN_TEST_RESPONSE_MAX_BYTES;
-
 const FIXED_FACT_MAX_BYTES = 64;
 
-const VIEW_LAYOUT = Object.freeze({
-  outcome: Object.freeze({
-    execution: Object.freeze(["status", "ok", "proof_credit", "executed", "code", "exit_code", "signal", "timed_out",
-      "cancelled", "cleanup_failed", "output_lost", "output_elided_bytes", "blocker"]),
-    request: Object.freeze(["runner", "environment", "compare_parent", "timeout_ms", "source"]),
-    runtime_after_run: Object.freeze(["status", "changed", "code", "cause"]),
-    file: null, selector: null, native: null }),
-  source: Object.freeze({
-    identity: Object.freeze(["kind", "role", "branch", "commit", "tree", "dirty", "snapshot_digest", "slice_start"]),
-    currentness: Object.freeze(["current", "moved"]) }),
-  comparison: Object.freeze({
-    eligibility: Object.freeze(["state", "reason"]),
-    candidate: Object.freeze(["commit", "snapshot_digest", "status", "ok", "exit_code"]),
-    baseline: Object.freeze(["commit", "snapshot_digest", "status", "ok", "exit_code", "signal", "timed_out",
-      "cancelled", "output_lost", "code", "current", "moved"]),
-    baseline_runtime_after_run: Object.freeze(["status", "changed", "code", "cause"]),
-    detail: null, baseline_native: null }),
-  failure: Object.freeze({
-    cause: Object.freeze(["present", "stage", "code", "cause_code"]),
-    effects: Object.freeze(["candidate_executed", "baseline_executed", "cleanup_failed", "output_lost"]),
-    message: null, detail: null, recovery: null,
-    correction: Object.freeze(["retry_request", "changeable", "set", "rejected", "choices"]) })
-});
+const ANSWER_ACTION_MAX_BYTES = 256;
 
 const fits = (payload, isError) =>
   measureMcpInlineResultBytes(payload, { isError }) <= RUN_TEST_RESPONSE_MAX_BYTES;
@@ -88,10 +63,16 @@ function fitPayload({ heads = {}, tails = {}, assemble, isError = false }) {
   const clip = (texts, cut, cap) => Object.fromEntries(Object.entries(texts)
     .map(([key, text]) => [key, cut(text, cap)]));
   const longest = (texts) => Math.max(0, ...Object.values(texts).map((text) => Buffer.byteLength(text, "utf8")));
-  const headCap = largestFitting(longest(heads),
-    (cap) => assemble(clip(heads, clippedHead, cap), clip(tails, utf8Tail, 0)), isError);
-  if (headCap < 0) throw new RangeError(`${RUN_TEST_TOOL_NAME} could not fit its essential facts in 1,024 bytes`);
-  const shownHeads = clip(heads, clippedHead, headCap);
+  const groups = Array.isArray(heads) ? heads : [heads];
+  const noTails = clip(tails, utf8Tail, 0);
+  let shownHeads = {};
+  groups.forEach((group, at) => {
+    const later = Object.assign({}, ...groups.slice(at + 1).map((next) => clip(next, clippedHead, 0)));
+    const cap = largestFitting(longest(group),
+      (tried) => assemble({ ...shownHeads, ...clip(group, clippedHead, tried), ...later }, noTails), isError);
+    if (cap < 0) throw new RangeError(`${RUN_TEST_TOOL_NAME} could not fit its essential facts in 1,024 bytes`);
+    shownHeads = { ...shownHeads, ...clip(group, clippedHead, cap) };
+  });
   const build = (cap) => assemble(shownHeads, clip(tails, utf8Tail, cap));
   return build(largestFitting(longest(tails), build, isError));
 }
@@ -100,9 +81,9 @@ const omitted = (full, shown) => Buffer.byteLength(full, "utf8") - Buffer.byteLe
 const locatorOf = ({ ref_id: refId }) => ({ ref_id: refId });
 const jsonText = (value) => value === undefined || value === null ? null : JSON.stringify(value);
 
-export function runTestReadCall(locator, view, reason = undefined) {
+export function runTestReadCall(locator, view, reason = undefined, failure = null) {
   return buildNextCall({ tool: RUN_TEST_TOOL_NAME, ...(reason === undefined ? {} : { reason }),
-    arguments: { read: { result: locatorOf(locator), view } } });
+    arguments: { read: { result: locatorOf(locator), view, ...(failure === null ? {} : { failure }) } } });
 }
 
 export function runTestRetryCall(seed, { changes = null, clear = null } = {}, reason = undefined) {
@@ -111,10 +92,29 @@ export function runTestRetryCall(seed, { changes = null, clear = null } = {}, re
       ...(clear === null ? {} : { clear }) } } });
 }
 
-export function runTestViewSelection(locator, view) {
-  return { source: locatorOf(locator), collection: SELECTED_RESPONSE_MEMBERS_COLLECTION, selector: { id: view },
-    field_path: ["value"] };
+export function runTestViewSelection(locator, view, failure = undefined) {
+  return { result: locatorOf(locator), view, ...(failure === undefined ? {} : { failure }) };
 }
+
+function globFacts(result) {
+  if (!Array.isArray(result?.files)) return null;
+  const ran = result.files.filter((file) => file.result?.status === "executed");
+  const covered = result.files.filter((file) => file.result?.status === "covered").length;
+
+  const unconfirmed = result.files.filter((file) => file.result?.status === "unconfirmed").length;
+  return { matched: result.files.length, ran: ran.length, failed: ran.filter((file) => file.result.ok !== true).length,
+    not_run: result.files.length - ran.length - covered - unconfirmed, ...(covered === 0 ? {} : { covered }),
+    ...(result.stopped === null ? {} : { stopped: result.stopped }) };
+}
+
+function shownFile(result) {
+  if (!Array.isArray(result?.files)) return null;
+  const attempted = result.files.filter((file) => file.result !== null && file.result.status !== "covered");
+  if (result.stopped === "unconfirmed") return attempted.at(-1) ?? null;
+  return attempted.find((file) => file.result.ok !== true) ?? attempted[0] ?? null;
+}
+
+const nativeResult = (result) => shownFile(result)?.result ?? result;
 
 export function runTestExpectedBinding({ kind, repository, authorityIdentity }) {
   if (!managedTestAuthorityAuthenticated(authorityIdentity)) {
@@ -138,8 +138,13 @@ export function projectRunTestNativeResult({ result, repository, authorityIdenti
     native_read: runTestReadCall(result, views[0] ?? RUN_TEST_STRUCTURED_VIEWS[0]) };
 }
 
+const executionUnconfirmed = (run) => run?.ran === false && run.completion?.tests_may_have_executed === true;
+
+const executedFact = (run) => executionUnconfirmed(run) ? "unknown" : run?.ran === true;
+
 function runFacts(run) {
-  return { exit_code: run.exit_code ?? null, ...(run.signal ? { signal: run.signal } : {}),
+  return { ...(executionUnconfirmed(run) ? { executed: "unknown" } : {}),
+    exit_code: run.exit_code ?? null, ...(run.signal ? { signal: run.signal } : {}),
     timed_out: run.timed_out === true,
     cancelled: run.cancelled === true, cleanup_failed: run.cleanup_failed === true,
     output_lost: run.output_truncated === true,
@@ -147,8 +152,11 @@ function runFacts(run) {
 }
 
 function baselineFacts(baseline) {
-  const result = baseline.result;
+  const glob = globFacts(baseline.result);
+
+  const result = glob === null ? baseline.result : { ...baseline.result, run: undefined };
   return { commit: baseline.commit, status: result?.status ?? null, ok: result?.ok === true,
+    ...(glob === null ? {} : { glob }),
     ...(result?.run === undefined ? {} : { exit_code: result.run.exit_code ?? null,
       ...(result.run.timed_out === true ? { timed_out: true } : {}),
       ...(result.run.cancelled === true ? { cancelled: true } : {}),
@@ -193,7 +201,8 @@ function comparisonFacts(comparison) {
 
 export function runTestStreams(outcome) {
   const streams = {};
-  const add = (side, result) => {
+  const add = (side, settled) => {
+    const result = nativeResult(settled);
     for (const stream of ["stdout", "stderr"]) {
       const text = result?.run?.[stream];
       if (typeof text === "string" && text.length > 0) streams[`${side}_${stream}`] = text;
@@ -206,6 +215,7 @@ export function runTestStreams(outcome) {
 
 function withoutStreams(result) {
   if (result === null || result === undefined || result.run === undefined) return result ?? null;
+  if (Array.isArray(result.files)) return result;
   const { stdout: _stdout, stderr: _stderr, ...run } = result.run;
   return { ...result, run };
 }
@@ -217,8 +227,11 @@ function settledFailure(result) {
   }
   if (result?.run?.ran === false) {
 
-    return { stage: "not_run", code: result.run.blocker_code ?? null,
-      message: ordinaryRunDiagnostic(result.run)?.text ?? jsonText(result.run.spawn_error) };
+    return { stage: executionUnconfirmed(result.run) ? "unconfirmed" : "not_run",
+      code: result.run.blocker_code ?? null,
+      message: ordinaryRunDiagnostic(result.run)?.text ?? jsonText(result.run.spawn_error),
+      ...(executionUnconfirmed(result.run) ? { detail: result.run.completion,
+        recovery: result.run.completion_recovery } : {}) };
   }
   return null;
 }
@@ -237,6 +250,51 @@ function capturedCause(result) {
     ? { phase, view: `candidate_${diagnostic.source}`, ...diagnostic } : null;
 }
 
+function ownerAction(cause) {
+  const detail = cause?.detail !== null && typeof cause?.detail === "object" ? cause.detail : {};
+  const stated = [detail.correction, detail.action?.statement, cause?.recovery?.statement]
+    .find((text) => typeof text === "string" && text.length > 0);
+  return stated ?? null;
+}
+
+const requestCorrectable = (correction) => correction !== null && correction?.retry_request !== undefined;
+
+const refusalAction = (cause, correction) => requestCorrectable(correction) &&
+  cause?.code !== "test_runtime_runner_not_prepared" ? null : ownerAction(cause);
+
+function failureDiagnostic(result) {
+  if (result?.status !== "executed" || result.ok === true || result.run?.ran !== true) return null;
+  const diagnostic = ordinaryRunDiagnostic(result.run, { maxBytes: RUN_TEST_RESPONSE_MAX_BYTES });
+  if (diagnostic?.basis === "first_error_line" &&
+      ordinaryFailedResultDiagnostic(result.run[diagnostic.source]).failures === 0) {
+    const source = diagnostic.source === "stderr" ? "stdout" : "stderr";
+    const stream = result.run[source];
+    const selected = typeof stream === "string"
+      ? ordinaryFailedResultDiagnostic(stream, { failure: 1, maxBytes: RUN_TEST_RESPONSE_MAX_BYTES }) : null;
+    if (selected?.failure !== undefined) {
+      return { identified: true, failures: selected.failures, view: `candidate_${source}`,
+        offset: selected.offset, total_bytes: selected.total_bytes, text: selected.text };
+    }
+  }
+  return diagnostic?.basis === "first_error_line"
+    ? { identified: true, failures: ordinaryFailedResultDiagnostic(result.run[diagnostic.source]).failures,
+      view: `candidate_${diagnostic.source}`, offset: diagnostic.offset,
+      total_bytes: diagnostic.total_bytes, text: diagnostic.text }
+    : { identified: false, view: null, offset: null, total_bytes: null, text: null };
+}
+
+function selectedFailureDiagnostic(carrier, failure) {
+  const retained = carrier.failure?.diagnostic ?? null;
+  const stream = retained?.identified === true ? carrier[retained.view] : null;
+  const selected = typeof stream === "string"
+    ? ordinaryFailedResultDiagnostic(stream, { failure, maxBytes: RUN_TEST_RESPONSE_MAX_BYTES }) : { failures: 0 };
+  return selected.failure === undefined
+    ? { identified: false, failure, failures: selected.failures, view: null, offset: null, total_bytes: null,
+      text: null }
+    : { identified: true, failure, failures: selected.failures, view: retained.view, offset: selected.offset,
+      total_bytes: selected.total_bytes, text: selected.text };
+}
+
 function composedSelectorFilter(result) {
   const composed = result.identity?.selection?.test_id_filter;
   return result.status === "executed" && result.ok !== true && typeof result.identity?.selector === "string" &&
@@ -246,22 +304,30 @@ function composedSelectorFilter(result) {
 export function runTestCarrier({ request, source = null, outcome = null, failure = null,
   baselineSnapshotDigest = null, correction = null }) {
   const candidate = outcome?.candidate.result ?? null;
-  const run = candidate?.run ?? null;
+
+  const shown = shownFile(candidate);
+  const run = nativeResult(candidate)?.run ?? null;
   const comparison = outcome?.comparison ?? { state: "not_reached" };
   const attempted = comparison.state === "attempted" ? comparison.baseline : null;
-  const cause = failure ?? settledFailure(candidate);
-  const stream = (result, name) => typeof result?.run?.[name] === "string" ? result.run[name] : null;
-  const ran = (result) => outcome === null ? "unknown" : result?.run?.ran === true;
+  const cause = failure ?? settledFailure(nativeResult(candidate));
+  const mismatch = cause?.detail !== null && typeof cause?.detail === "object" ? cause.detail.mismatch : undefined;
+  const stream = (result, name) => {
+    const text = nativeResult(result)?.run?.[name];
+    return typeof text === "string" ? text : null;
+  };
+  const ran = (result) => outcome === null ? "unknown" : executedFact(nativeResult(result)?.run);
+  const baselineRun = nativeResult(attempted?.result)?.run ?? null;
   return {
     outcome: {
       execution: { status: candidate?.status ?? "not_settled", ok: candidate?.ok === true, proof_credit: false,
-        executed: run?.ran === true, code: candidate?.code ?? null, exit_code: run?.exit_code ?? null,
+        executed: executedFact(run), code: candidate?.code ?? null, exit_code: run?.exit_code ?? null,
         signal: run?.signal ?? null, timed_out: run?.timed_out === true, cancelled: run?.cancelled === true,
         cleanup_failed: run?.cleanup_failed === true, output_lost: run?.output_truncated === true,
         output_elided_bytes: run?.output_elided_bytes ?? 0, blocker: run?.blocker_code ?? null },
       request: { runner: request.runner, environment: request.environment, compare_parent: request.compareParent,
         timeout_ms: request.timeout.milliseconds, source: request.source },
       runtime_after_run: runtimeAfterRunFacts(candidate),
+      ...(globFacts(candidate) === null ? {} : { glob: globFacts(candidate), shown_file: shown?.target ?? null }),
       file: request.file,
       selector: request.selector,
 
@@ -280,12 +346,14 @@ export function runTestCarrier({ request, source = null, outcome = null, failure
       baseline: { commit: attempted?.commit ?? null,
         snapshot_digest: attempted === null ? null : baselineSnapshotDigest,
         status: attempted?.result?.status ?? null, ok: attempted === null ? null : attempted.result?.ok === true,
-        exit_code: attempted?.result?.run?.exit_code ?? null, signal: attempted?.result?.run?.signal ?? null,
-        timed_out: attempted?.result?.run?.timed_out === true, cancelled: attempted?.result?.run?.cancelled === true,
-        output_lost: attempted?.result?.run?.output_truncated === true, code: attempted?.result?.code ?? null,
+        exit_code: baselineRun?.exit_code ?? null, signal: baselineRun?.signal ?? null,
+        timed_out: baselineRun?.timed_out === true, cancelled: baselineRun?.cancelled === true,
+        output_lost: baselineRun?.output_truncated === true, code: attempted?.result?.code ?? null,
         current: attempted === null ? null : attempted.source?.current === true,
         moved: attempted?.source?.reason ?? null },
       baseline_runtime_after_run: runtimeAfterRunFacts(attempted?.result),
+      ...(globFacts(attempted?.result) === null ? {} : { baseline_glob: globFacts(attempted.result),
+        baseline_shown_file: shownFile(attempted.result)?.target ?? null }),
       detail: jsonText(comparison.detail),
       baseline_native: jsonText(withoutStreams(attempted?.result)) },
     failure: {
@@ -294,10 +362,16 @@ export function runTestCarrier({ request, source = null, outcome = null, failure
       effects: { candidate_executed: ran(candidate), baseline_executed: ran(attempted?.result),
         cleanup_failed: run?.cleanup_failed === true, output_lost: run?.output_truncated === true },
       message: cause?.message ?? null,
+
+      action: refusalAction(cause, correction),
+      mismatch: jsonText(mismatch),
+
+      diagnostic: failureDiagnostic(nativeResult(candidate)),
       detail: jsonText(cause?.detail),
       recovery: jsonText(cause?.recovery),
-      correction: correction === null ? null : { retry_request: locatorOf(correction.retry_request),
-        changeable: correction.changeable, set: correction.set ?? null, rejected: correction.rejected ?? null,
+
+      correction: correction === null ? null : { retry_request: correction.retry_request === undefined ? null
+        : locatorOf(correction.retry_request), changeable: correction.changeable, set: correction.set ?? null, rejected: correction.rejected ?? null,
         choices: correction.choices ?? null } },
     candidate_stdout: stream(candidate, "stdout"),
     candidate_stderr: stream(candidate, "stderr"),
@@ -314,16 +388,28 @@ export function runTestRetentionFailure(error, { operation, subject, capability 
 }
 
 export function presentRunTestAnswer({ outcome, source, locator, retention = null, correction = null }) {
-  const result = outcome.candidate.result;
+
+  const settled = outcome.candidate.result;
+  const glob = globFacts(settled);
+  const shown = shownFile(settled);
+  const result = shown?.result ?? settled;
   const streams = runTestStreams(outcome);
   const message = typeof result.message === "string" ? result.message : "";
-  const isError = result.status === "refused" || result.status === "selection_unresolved";
-  const runtimeAfter = compactRuntimeAfterRun(result);
+  const isError = settled.status === "refused" || settled.status === "selection_unresolved";
+  const runtimeAfter = compactRuntimeAfterRun(settled);
   const cause = capturedCause(result);
   const causeText = typeof cause?.text === "string" ? cause.text : "";
   const filter = composedSelectorFilter(result);
 
-  const causeView = isError || result.status === "not_run" ? "failure" : "outcome";
+  const unconfirmed = executionUnconfirmed(result.run);
+  const recovery = unconfirmed && typeof result.run.completion_recovery?.action === "string"
+    ? result.run.completion_recovery : null;
+  const recoveryText = recovery?.action ?? "";
+
+  const action = isError ? refusalAction(settledFailure(result), correction) ?? "" : "";
+  const actionHead = clippedHead(action, ANSWER_ACTION_MAX_BYTES);
+
+  const causeView = isError || result.status !== "executed" || unconfirmed ? "failure" : "outcome";
 
   const assembleAt = (level) => (heads, tails) => {
 
@@ -339,15 +425,27 @@ export function presentRunTestAnswer({ outcome, source, locator, retention = nul
     const causeOmitted = omitted(causeText, shownCause);
     const shownFilter = heads.filter ?? "";
     const filterOmitted = filter === "" ? 0 : omitted(filter, shownFilter);
+    const shownRecovery = heads.recovery ?? "";
+    const recoveryOmitted = omitted(recoveryText, shownRecovery);
+    const shownAction = heads.action ?? "";
+    const actionOmitted = omitted(action, shownAction);
 
-    const first = firstClipped ?? causeView;
+    const diagnosed = cause?.view !== undefined && !reached ? "failure" : undefined;
+    const first = unconfirmed ? causeView : diagnosed ?? firstClipped ?? causeView;
     return {
-      status: result.status,
-      ok: result.ok === true,
+      status: settled.status,
+      ok: settled.ok === true,
       proof_credit: false,
-      ...(isError ? { code: result.code, executed: false, authority_limb: MECHANICAL_FAILURE } : {}),
+      ...(isError ? { code: settled.code, executed: false, authority_limb: MECHANICAL_FAILURE } : {}),
+
+      ...(glob === null ? {} : { glob }),
+      ...(shown === null ? {} : { file: clipFact(shown.target), file_status: result.status,
+        ...(typeof result.code === "string" ? { file_code: result.code } : {}) }),
       ...(shownMessage === "" ? {} : { message: shownMessage }),
       ...(messageOmitted > 0 ? { message_omitted_bytes: messageOmitted } : {}),
+
+      ...(shownAction === "" ? {} : { action: shownAction }),
+      ...(actionOmitted > 0 ? { action_omitted_bytes: actionOmitted } : {}),
 
       ...(cause === null || reached || (level >= 4 && cause.source !== "none") ? {}
         : { cause: { phase: cause.phase, source: cause.source,
@@ -362,6 +460,10 @@ export function presentRunTestAnswer({ outcome, source, locator, retention = nul
         ...(outcome.candidate.source.reason === undefined ? {} : { moved: outcome.candidate.source.reason }) },
       ...(result.run === undefined ? {} : { run: runFacts(result.run) }),
 
+      ...(shownRecovery === "" ? {} : { recovery: { action: shownRecovery, repair_call: recovery.repair_call,
+        automatic_rerun: recovery.automatic_rerun,
+        ...(recoveryOmitted > 0 ? { omitted_bytes: recoveryOmitted } : {}) } }),
+
       ...(shownFilter === "" ? {} : { selection: { test_id_filter: shownFilter,
         ...(filterOmitted > 0 ? { omitted_bytes: filterOmitted } : {}) } }),
 
@@ -370,8 +472,9 @@ export function presentRunTestAnswer({ outcome, source, locator, retention = nul
       comparison: level >= 2 ? comparisonState(outcome.comparison) : comparisonFacts(outcome.comparison),
 
       ...(output === null ? {} : { output, native_output_only: true }),
-      output_complete: firstClipped === undefined && messageOmitted === 0 && causeOmitted === 0 &&
-        filterOmitted === 0,
+
+      output_complete: glob === null && firstClipped === undefined && messageOmitted === 0 && causeOmitted === 0 &&
+        filterOmitted === 0 && recoveryOmitted === 0 && actionOmitted === 0,
       ...(retention === null ? {} : { retention }),
       ...(level >= 3 || correction === null ? {} : { correction: typeof correction.rejected === "string"
         ? { ...correction, rejected: clipFact(correction.rejected) } : correction }),
@@ -380,23 +483,31 @@ export function presentRunTestAnswer({ outcome, source, locator, retention = nul
   };
 
   const firstLineBytes = Buffer.byteLength(causeText.split("\n", 1)[0], "utf8");
+  const actionBytes = Buffer.byteLength(actionHead, "utf8") +
+    (action === "" ? 0 : Buffer.byteLength(message, "utf8"));
   let fitted = null;
   for (const level of [0, 1, 2, 3, 4]) {
     try {
-      const payload = fitPayload({ heads: level >= 4 ? {} : { ...(message === "" ? {} : { message }),
-        ...(causeText === "" ? {} : { cause: causeText }), ...(filter === "" ? {} : { filter }) },
+
+      const payload = fitPayload({ heads: level >= 4 ? {} : [action === "" ? {} : { action: actionHead },
+        { ...(message === "" ? {} : { message }),
+          ...(causeText === "" ? {} : { cause: causeText }), ...(filter === "" ? {} : { filter }),
+          ...(recoveryText === "" ? {} : { recovery: recoveryText }) }],
       tails: level >= 1 ? {} : streams, assemble: assembleAt(level), isError });
       const shown = payload.cause?.text === undefined ? null : Buffer.byteLength(payload.cause.text, "utf8");
-      if (shown === null && fitted !== null) continue;
-      if (fitted === null || shown > fitted.shown) fitted = { payload, shown };
-      if (shown === null || shown >= firstLineBytes) break;
+      const shownAction = Buffer.byteLength(payload.action ?? "", "utf8") +
+        (action === "" ? 0 : Buffer.byteLength(payload.message ?? "", "utf8"));
+      if (shown === null && shownAction === 0 && fitted !== null) continue;
+      const score = (shown ?? 0) + shownAction;
+      if (fitted === null || score > fitted.score) fitted = { payload, score };
+      if ((shown === null || shown >= firstLineBytes) && shownAction >= actionBytes) break;
     } catch (error) {
       if (!(error instanceof RangeError)) throw error;
     }
   }
   if (fitted !== null) return { isError, payload: fitted.payload };
 
-  return { isError, payload: { status: result.status, ok: result.ok === true, proof_credit: false,
+  return { isError, payload: { status: settled.status, ok: settled.ok === true, proof_credit: false,
     presentation: "overflow", output_complete: false,
     next_calls: locator === null ? [] : [runTestReadCall(locator, causeView)] } };
 }
@@ -471,90 +582,66 @@ export function presentRunTestDetailRefusal(error) {
   facts: { executed: false, ...facts }, nextCalls: calls });
 }
 
-function continuation(page, extra, options = {}) {
-  const retained = page.retained_source;
-  return buildNextCall({ tool: RUN_TEST_TOOL_NAME, ...options, arguments: { continue: {
-    source: locatorOf(retained),
-    ...(typeof page.task_result_identity === "string" ? { snapshot_identity: page.task_result_identity } : {}),
-    collection: page.collection, ...(page.selector === null || page.selector === undefined
-      ? {} : { selector: page.selector }), ...extra } } });
-}
+const RETAINED_ONLY = Object.freeze(["native", "baseline_native"]);
 
-function nextFieldPath(view, fieldPath) {
-  const layout = VIEW_LAYOUT[view];
-  if (layout === undefined || fieldPath.length < 2) return null;
-  const [, top, sub] = fieldPath;
-  const subs = layout[top];
-  if (sub !== undefined && Array.isArray(subs) && subs.indexOf(sub) >= 0 && subs.indexOf(sub) + 1 < subs.length) {
-    return ["value", top, subs[subs.indexOf(sub) + 1]];
+const LAST_FITTED = Object.freeze(["detail", "recovery"]);
+
+export function presentRunTestRead({ view, carrier, locator, failure = null }) {
+  const base = { observation: "retained_prior_observation", executed: false };
+  const value = failure === null ? carrier[view]
+    : { ...carrier[view], diagnostic: selectedFailureDiagnostic(carrier, failure) };
+
+  const following = [...RUN_TEST_VIEWS.slice(RUN_TEST_VIEWS.indexOf(view) + 1), ...RUN_TEST_VIEWS];
+  const after = view !== "failure" ? following[0]
+    : following.find((next) => !RUN_TEST_STREAM_VIEWS.includes(next) || (carrier[next] ?? null) !== null);
+
+  const shown = view === "failure" && value?.diagnostic?.identified === true ? failure ?? 1 : null;
+  const nextCalls = [...(shown !== null && shown < value.diagnostic.failures
+    ? [runTestReadCall(locator, "failure", "next_failed_result", shown + 1)] : []),
+  runTestReadCall(locator, after, "next_view")];
+  if (RUN_TEST_STREAM_VIEWS.includes(view)) {
+    if (value === null || value === undefined) {
+      return { ...base, read: { view, state: "not_attempted" }, next_calls: nextCalls };
+    }
+    if (value === "") return { ...base, read: { view, state: "empty", total_bytes: 0 }, next_calls: nextCalls };
+    return fitPayload({ tails: { text: value }, assemble: (_heads, tails) => ({ ...base, read: { view,
+      state: "captured", total_bytes: Buffer.byteLength(value, "utf8"), text: tails.text,
+      omitted_bytes: omitted(value, tails.text), partial: omitted(value, tails.text) > 0 }, next_calls: nextCalls }) });
   }
-  const tops = Object.keys(layout);
-  return tops.indexOf(top) >= 0 && tops.indexOf(top) + 1 < tops.length
-    ? ["value", tops[tops.indexOf(top) + 1]] : null;
-}
 
-function showsCorrection(view, fieldPath, value) {
-  if (view !== "failure") return false;
-  if (fieldPath.length === 1) return (value?.correction ?? null) !== null;
-  return fieldPath[1] === "correction" && (fieldPath.length > 2 || (value ?? null) !== null);
-}
+  let withNulls = null;
+  for (const dropNull of [false, true]) {
+    const heads = {};
 
-function following(page, view, fieldPath, value = undefined) {
-  const next = nextFieldPath(view, fieldPath);
-  if (next !== null) return [continuation(page, { field_path: next }, { reason: "next_field" })];
-  const after = showsCorrection(view, fieldPath, value) ? RUN_TEST_VIEWS[0]
-    : RUN_TEST_VIEWS[(RUN_TEST_VIEWS.indexOf(view) + 1) % RUN_TEST_VIEWS.length];
-  return [runTestReadCall(page.retained_source, after, "next_view")];
-}
-
-export function presentRunTestDetail(response) {
-  const page = response.page;
-  const view = page.selector?.id ?? null;
-  const base = { observation: response.observation?.kind ?? "retained_prior_observation", executed: false };
-  if (!Array.isArray(page.field_path)) {
-
-    const views = (page.items ?? []).map((item) => item?.stable_id ?? item?.id ?? null);
-    return { ...base, read: { views, total: page.total ?? page.matched_count ?? views.length },
-      next_calls: [runTestReadCall(page.retained_source,
-        RUN_TEST_VIEWS.find((known) => views.includes(known)) ?? RUN_TEST_VIEWS[0])] };
-  }
-  const fieldPath = page.field_path;
-  const read = { view, ...(fieldPath.length > 1 ? { field: fieldPath.slice(1) } : {}) };
-  if (typeof page.value_base64 === "string") {
-    const bytes = Buffer.from(page.value_base64, "base64");
-    let start = 0;
-    while (start < bytes.length && (bytes[start] & 0xc0) === 0x80) start += 1;
-    const body = bytes.subarray(start);
-    const build = (cap) => {
-      const length = utf8HeadLength(body, cap);
-      const offset = page.offset + start;
-      const nextOffset = offset + length < page.total ? offset + length : null;
-      return { ...base, read: { ...read, offset, length, total: page.total,
-        text: body.subarray(0, length).toString("utf8"), next_offset: nextOffset },
-      next_calls: nextOffset === null ? following(page, view, fieldPath) : [continuation(page,
-        { field_path: fieldPath, offset: nextOffset, length: Math.min(READ_RANGE_BYTES, page.total - nextOffset) },
-        { recommended: true })] };
+    const tiers = [{}, {}, {}];
+    const facts = (node, trail) => {
+      if (typeof node === "string" && clippable(node)) {
+        heads[trail] = node;
+        tiers[LAST_FITTED.includes(trail) ? 2 : trail === "mismatch" ? 1 : 0][trail] = node;
+        return (shown) => shown[trail];
+      }
+      if (node === null || typeof node !== "object") return () => node;
+      const members = Object.entries(node).filter(([, child]) => !(dropNull && child === null))
+        .map(([key, child]) => [key, trail === "" && RETAINED_ONLY.includes(key)
+          ? () => (child === null ? null : { retained: true, bytes: Buffer.byteLength(child, "utf8") })
+          : facts(child, trail === "" ? key : `${trail}.${key}`)]);
+      return (shown) => Object.fromEntries(members.map(([key, build]) => [key, build(shown)]));
     };
-
-    return build(Math.max(largestFitting(body.length, build, false), 0));
+    const build = facts(value ?? {}, "");
+    try {
+      const payload = fitPayload({ heads: tiers, assemble: (shown) => {
+        const clipped = Object.fromEntries(Object.keys(heads).map((key) => [key, omitted(heads[key], shown[key])])
+          .filter(([, bytes]) => bytes > 0));
+        return { ...base, read: { view, ...build(shown),
+          ...(Object.keys(clipped).length === 0 ? {} : { omitted_bytes: clipped }),
+          ...(dropNull ? { omitted_facts: "null" } : {}) }, next_calls: nextCalls };
+      } });
+      const firstClipped = Object.keys(payload.read.omitted_bytes ?? {}).some((key) => key in tiers[0]);
+      if (dropNull || !firstClipped || !JSON.stringify(value ?? {}).includes(":null")) return payload;
+      withNulls = payload;
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+    }
   }
-  if (page.range_required === true) {
-    return { ...base, read: { ...read, total: page.total, range_required: true, next_offset: 0 },
-      next_calls: [continuation(page, { field_path: fieldPath, offset: 0,
-        length: Math.min(READ_RANGE_BYTES, page.total) }, { recommended: true }),
-      ...following(page, view, fieldPath)] };
-  }
-  if (Array.isArray(page.fields)) {
-
-    return { ...base, read: { ...read, complete: false, field_count: page.total ?? page.fields.length },
-      next_calls: page.fields.length === 0 ? following(page, view, fieldPath)
-        : [continuation(page, { field_path: page.fields[0].path }, { recommended: true, reason: "first_field" })] };
-  }
-  const value = page.value;
-  const stream = RUN_TEST_STREAM_VIEWS.includes(view) && fieldPath.length === 1;
-  const shown = stream && (value === null || value === undefined) ? { state: "not_attempted" }
-    : stream && value === "" ? { state: "empty", total: 0 }
-      : typeof value === "string" ? { text: value, total: page.total ?? null, next_offset: null }
-        : value === undefined ? { state: "absent" } : { value };
-  return { ...base, read: { ...read, ...shown }, next_calls: following(page, view, fieldPath, value) };
+  return withNulls ?? { ...base, read: { view, presentation: "overflow" }, next_calls: nextCalls };
 }

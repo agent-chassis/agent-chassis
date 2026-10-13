@@ -11,16 +11,22 @@ import {
 
 const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
 const SIGNAL_RE = /^SIG[A-Z0-9]{1,32}$/u;
-const DISPOSITIONS = Object.freeze(["passed", "failed", "not_run"]);
+const DISPOSITIONS = Object.freeze(["passed", "failed", "not_run", "unconfirmed"]);
 const CONTROL_RE = /[\u0000-\u001f\u007f]/u;
 const NATIVE_INSTRUMENTATION_UNSUPPORTED_CODE = "test_proof_native_instrumentation_unsupported";
 const ADAPTER_REASON_RE = /^[a-z][a-z0-9_]{0,63}$/u;
 
 const REJECTED_RECORD_TEXT_KEYS = Object.freeze(["provider_id", "provider_version",
   "selected_node_id", "observed_node_id", "record_kind", "observed_outcome", "selected_outcome",
-  "writer"]);
+  "writer", "missing", "completion_requirement"]);
 const REJECTED_RECORD_COUNT_KEYS = Object.freeze(["sequence", "record_index", "record_count",
-  "exit_code"]);
+  "exit_code", "discovered_count"]);
+
+const REJECTED_RECORD_FLAG_KEYS = Object.freeze(["session_end_observed", "selected_collected",
+  "selected_started", "selected_result_observed"]);
+
+const OVERSIZED_OBSERVATION_CODE = "test_proof_structured_events_oversized";
+const LIMIT_TERM_RE = /^[a-z][a-z0-9_]{0,63}$/u;
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const boundedText = (value) => typeof value === "string" && value.length > 0 &&
@@ -36,7 +42,23 @@ export function rejectedRecordContext(detail) {
   for (const key of REJECTED_RECORD_COUNT_KEYS) {
     if (Number.isSafeInteger(detail[key])) context[key] = detail[key];
   }
+  for (const key of REJECTED_RECORD_FLAG_KEYS) {
+    if (typeof detail[key] === "boolean") context[key] = detail[key];
+  }
   return context;
+}
+
+function limitContext(detail) {
+  if (!isObject(detail) || detail.limit === undefined) return null;
+  const count = (value) => Number.isSafeInteger(value) && value >= 0;
+  if (typeof detail.limit !== "string" || !LIMIT_TERM_RE.test(detail.limit) ||
+      typeof detail.unit !== "string" || !LIMIT_TERM_RE.test(detail.unit) ||
+      !count(detail.measured) || !count(detail.threshold) ||
+      typeof detail.measured_is_lower_bound !== "boolean" ||
+      (detail.record_index !== undefined && !count(detail.record_index))) return undefined;
+  return { limit: detail.limit, measured: detail.measured, threshold: detail.threshold, unit: detail.unit,
+    measured_is_lower_bound: detail.measured_is_lower_bound,
+    ...(detail.record_index === undefined ? {} : { record_index: detail.record_index }) };
 }
 
 function instrumentationContext(detail) {
@@ -45,19 +67,72 @@ function instrumentationContext(detail) {
   return { reason: detail.reason, ...(boundedText(detail.test) ? { test: detail.test } : {}) };
 }
 
+const OBSERVATION_TRANSPORT_FAILED_CODE = "test_proof_observation_transport_failed";
+const TRANSPORT_TEXT_KEYS = Object.freeze(["channel_kind", "failure", "errno", "interruption"]);
+const TRANSPORT_COUNT_KEYS = Object.freeze(["expected_bytes", "observed_bytes", "consumed_bytes"]);
+const TRANSPORT_DIGEST_KEYS = Object.freeze(["expected_sha256", "observed_sha256"]);
+const TRANSPORT_TEXT_RE = /^[A-Za-z][A-Za-z0-9_]{0,127}$/u;
+const SHA256_RE = /^[0-9a-f]{64}$/u;
+
+function transportContext(detail) {
+  if (!isObject(detail) || typeof detail.failure !== "string" || !TRANSPORT_TEXT_RE.test(detail.failure)) {
+    return null;
+  }
+  const context = {};
+  for (const key of TRANSPORT_TEXT_KEYS) {
+    if (typeof detail[key] === "string" && TRANSPORT_TEXT_RE.test(detail[key])) context[key] = detail[key];
+  }
+  for (const key of TRANSPORT_COUNT_KEYS) {
+    if (Number.isSafeInteger(detail[key]) && detail[key] >= 0) context[key] = detail[key];
+  }
+  for (const key of TRANSPORT_DIGEST_KEYS) {
+    if (typeof detail[key] === "string" && SHA256_RE.test(detail[key])) context[key] = detail[key];
+  }
+  return context;
+}
+
 function observationDetail(code, detail) {
+  if (code === OBSERVATION_TRANSPORT_FAILED_CODE) return transportContext(detail);
   if (code === TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.code) {
     const identity = projectTestProofForcedInvocationIdentityFailure(detail);
     return identity === null ? undefined : { reason: identity.reason,
       module_path: identity.module_path, export_name: identity.export_name };
   }
   if (code === NATIVE_INSTRUMENTATION_UNSUPPORTED_CODE) return instrumentationContext(detail);
+  if (code === OVERSIZED_OBSERVATION_CODE) return limitContext(detail);
 
   if (isObject(detail) && typeof detail.selected_node_id !== "string" &&
       Object.keys(detail).every((key) => key === "reason" || key === "test")) {
     return instrumentationContext(detail);
   }
   return rejectedRecordContext(detail);
+}
+
+function unconfirmedCompletion(run) {
+  const { completion, completion_recovery: recovery } = run;
+  const stated = completion?.publication_error ?? null;
+  if (!isObject(completion) || !isObject(recovery) || completion.confirmed !== false ||
+      completion.runner_outcome !== "unknown" || completion.tests_may_have_executed !== true ||
+      typeof completion.frame_error !== "string" || !STABLE_CODE_RE.test(completion.frame_error) ||
+      (completion.frame_bytes_received !== null && !(Number.isSafeInteger(completion.frame_bytes_received) &&
+        completion.frame_bytes_received >= 0)) ||
+      (completion.driver_exit_code !== null && !Number.isSafeInteger(completion.driver_exit_code)) ||
+      (completion.driver_signal !== null && !(typeof completion.driver_signal === "string" &&
+        SIGNAL_RE.test(completion.driver_signal))) ||
+      (stated !== null && !(isObject(stated) && boundedText(stated.error) &&
+        Number.isSafeInteger(stated.written_bytes) && Number.isSafeInteger(stated.frame_bytes))) ||
+      typeof recovery.action !== "string" || !STABLE_CODE_RE.test(recovery.action) ||
+      recovery.repair_call !== "none" || recovery.automatic_rerun !== false ||
+      !boundedText(recovery.actor) || !boundedText(recovery.next_action)) return undefined;
+  return {
+    completion: { confirmed: false, runner_outcome: "unknown", tests_may_have_executed: true,
+      frame_error: completion.frame_error, frame_bytes_received: completion.frame_bytes_received,
+      driver_exit_code: completion.driver_exit_code, driver_signal: completion.driver_signal,
+      publication_error: stated === null ? null : { error: stated.error, written_bytes: stated.written_bytes,
+        frame_bytes: stated.frame_bytes } },
+    completion_recovery: { actor: recovery.actor, action: recovery.action, repair_call: "none",
+      automatic_rerun: false, next_action: recovery.next_action }
+  };
 }
 
 function runCause(run) {
@@ -122,6 +197,11 @@ export function boundedRunFacts(run) {
     if (detail === undefined) return null;
     facts.test_proof_observation = { code: observation.code, ...(detail === null ? {} : { detail }) };
   }
+  if (Object.hasOwn(run, "completion") || Object.hasOwn(run, "completion_recovery")) {
+    const unconfirmed = unconfirmedCompletion(run);
+    if (unconfirmed === undefined) return null;
+    Object.assign(facts, unconfirmed);
+  }
   const cause = runCause(run);
   if (cause !== null) {
     if (!isLauncherTestFailureDiagnostic(cause)) return null;
@@ -136,6 +216,8 @@ export function publicRunFacts(run, { attributionCodes = new Set() } = {}) {
   const { refusal_code: refusal, detail, failure_diagnostic: cause,
     test_proof_observation: observation, ...facts } = bounded;
   if (cause !== undefined) facts.failure_diagnostic = projectSelectedTestFailureDiagnostic(cause);
+
+  if (facts.completion !== undefined) facts.ran = "unknown";
   if (refusal !== undefined) {
     facts.blocker_code = refusal;
     facts.ran = false;

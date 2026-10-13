@@ -17,8 +17,6 @@ export function buildBubblewrapArgs({
   executionScratchSource = null,
 
   repoNamespaceArgs = null,
-
-  testExecutionCheckoutWrites = null,
   tmpfsDirsResolved,
   sparseWorkerNamespace,
   repoReal,
@@ -61,13 +59,6 @@ export function buildBubblewrapArgs({
   const provisionedGitBinds = provisionedGitIsolation?.readOnlyBinds ?? [];
   if (sparseWorkerNamespace === null && repoNamespaceArgs !== null) {
     bwrapArgs.push(...repoNamespaceArgs);
-  } else if (sparseWorkerNamespace === null && testExecutionCheckoutWrites !== null) {
-
-    bwrapArgs.push("--bind", repoReal, repoReal);
-    if (testExecutionCheckoutWrites.gitAdministration !== null) {
-      bwrapArgs.push("--ro-bind", testExecutionCheckoutWrites.gitAdministration,
-        testExecutionCheckoutWrites.gitAdministration);
-    }
   } else if (sparseWorkerNamespace === null) {
     bwrapArgs.push("--ro-bind", repoReal, repoReal);
   } else {

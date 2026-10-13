@@ -8,7 +8,6 @@ import {
 } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
 import {
-  CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES,
   authenticateCurrentControlledContractGenerationStateAtW
 } from "@agent-chassis/agent-launch-cli/src/lib/controlled-carrier-attachment-primitive.mjs";
 import {
@@ -35,6 +34,7 @@ import {
   projectTerminalWkCandidateRefDisagreements,
   publishTerminalWkCandidateVersion,
   readTerminalCandidateCurrentRef,
+  readTerminalWkCandidateMetadata,
   TERMINAL_WK_CANDIDATE_CODES,
   terminalWkCandidateVerifyRefs,
   TerminalWkCandidateError,
@@ -45,8 +45,15 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate-validation.mjs";
 import {
   authenticateExistingTerminalCandidate,
+  authenticateObservedTerminalCandidateVersion,
   terminalCandidateState
 } from "./dispatch-terminal-candidate-authentication.mjs";
+import {
+  createTerminalCandidatePublicationAccount,
+  isControlledGenerationNotPersisted,
+  selectedCandidateAdmitsLaterWkTip,
+  synchronizeControlledContractGeneration
+} from "./dispatch-terminal-candidate-publication.mjs";
 import {
   canonicalCurrentTerminalReviewContract,
   canonicalRecordInitiative,
@@ -54,27 +61,38 @@ import {
 } from "./dispatch-terminal-review-contract.mjs";
 
 async function authenticateCurrentControlledGeneration({
-  mainRepo, wkId, expectedW, runGit, run
+  mainRepo, wkId, expectedW, runGit, run, synchronize = null
 }) {
-  let authenticated;
-  try {
+  const authenticate = async () => {
+    let authenticated;
     ({ authenticated } = await authenticateCurrentControlledContractGenerationStateAtW({
       repoRoot: mainRepo,
       wkId,
       ...(expectedW === null ? {} : { expectedWkTipSha: expectedW }),
+      ...(synchronize === null ? {} : { requireSavedAuthoringSources: true }),
       deps: { runGit }
     }));
-  } catch (error) {
-    const condition = error?.details?.condition ?? null;
-    if (error?.code !== CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED ||
-        condition === "exact_w_generation_unselected" || condition === "expected_w_mismatch") {
-      throw error;
-    }
+    return authenticated;
+  };
+  const refuse = (error) => {
+    if (!isControlledGenerationNotPersisted(error)) throw error;
 
     throw new TerminalWkCandidateError(
       "current controlled-contract generation is not persisted in the exact WK tip",
       { code: TERMINAL_WK_CANDIDATE_CODES.CONTROLLED_GENERATION_STALE, cause: error }
     );
+  };
+  let authenticated;
+  try {
+    authenticated = await authenticate();
+  } catch (error) {
+    if (synchronize === null || !isControlledGenerationNotPersisted(error)) refuse(error);
+    await synchronize();
+    try {
+      authenticated = await authenticate();
+    } catch (afterSynchronization) {
+      refuse(afterSynchronization);
+    }
   }
   return run(authenticated);
 }
@@ -316,7 +334,9 @@ export function createTerminalCandidateCoordinator({
   mainRepo,
   worktreeRoot,
 
-  runGit = defaultTerminalCandidateRunGit
+  runGit = defaultTerminalCandidateRunGit,
+
+  generationPersistenceDeps = {}
 } = {}) {
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
       typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot) ||
@@ -401,7 +421,7 @@ export function createTerminalCandidateCoordinator({
   };
 
   const reconstructAbsentTerminalCandidate = async ({
-    wkId, currentRef, generationAuthentication, expectedVersion
+    wkId, currentRef, generationAuthentication, expectedVersion, expectedOld = null
   }) => {
     const initiative = canonicalRecordInitiative({ mainRepo, recordId: wkId });
     if (initiative === null) {
@@ -445,14 +465,14 @@ export function createTerminalCandidateCoordinator({
 
     const publishedBinding = await publishTerminalWkCandidateVersion({
       binding: derived,
-      expectedOld: null,
+      expectedOld,
       verifyRefs: terminalWkCandidateVerifyRefs(frozen),
       runGit
     });
 
     const published = publishedBinding.current_selection_observation;
     if (published !== derived.candidate || publishedBinding.candidate_ref !== currentRef ||
-        (publishedBinding.selection.state !== "created" &&
+        (publishedBinding.selection.state !== (expectedOld === null ? "created" : "advanced") &&
           publishedBinding.selection.state !== "converged")) {
       if (!authenticatesTerminalCandidateFailures) {
         throw untrustedRecoveryVerdict("terminal_candidate_recovery_current_ref_publication_disagrees");
@@ -468,17 +488,33 @@ export function createTerminalCandidateCoordinator({
     return current.ok === true ? current.contract.review_unit : null;
   };
 
+  const supersededSelectedCandidate = async ({ wkId, observed, generationAuthentication }) => {
+    const metadata = await readTerminalWkCandidateMetadata({ mainRepo, candidate: observed, runGit });
+    if (metadata.wk_tip === generationAuthentication.wk_tip_sha) return null;
+    await authenticateObservedTerminalCandidateVersion({ mainRepo, wkId, candidate: observed, runGit });
+    return observed;
+  };
+
   const recoverTerminalCandidateWithGeneration = async ({
-    wkId, generationAuthentication, observed, expectedVersion
+    wkId, generationAuthentication, observed, expectedVersion, publication = null
   }) => {
     const currentRef = deriveTerminalCandidateCurrentRef({ canonicalWkId: wkId });
+    const superseded = observed === null || publication === null ? null
+      : await supersededSelectedCandidate({ wkId, observed, generationAuthentication });
 
     const reconstruction = observed === null
       ? await reconstructAbsentTerminalCandidate({
           wkId, currentRef, generationAuthentication, expectedVersion
         })
       : null;
-    const candidate = reconstruction?.candidate ?? observed;
+    if (superseded !== null) await publication.admitWrite();
+    const replacement = superseded === null ? null : await reconstructAbsentTerminalCandidate({
+      wkId, currentRef, generationAuthentication, expectedVersion, expectedOld: superseded
+    });
+    if (replacement !== null && replacement.candidate !== superseded) {
+      publication.recordReplacement({ previous: superseded, candidate: replacement.candidate });
+    }
+    const candidate = replacement?.candidate ?? reconstruction?.candidate ?? observed;
     const { contract, frozen, recoveredBinding } = await authenticateExistingCandidate({
       wkId, candidate, generationAuthentication
     });
@@ -582,7 +618,7 @@ export function createTerminalCandidateCoordinator({
 
   const recoverTerminalCandidateWithRunner = async ({
     wkId, runWithAuthority, withGeneration = recoverTerminalCandidateWithGeneration,
-    expectedVersion = null
+    expectedVersion = null, publication = null
   }) => {
     if (typeof wkId !== "string" || !/^WK-\d{4}$/u.test(wkId)) return null;
     try {
@@ -604,17 +640,30 @@ export function createTerminalCandidateCoordinator({
           }
           await assertDurableReconstructionAuthority(wkId);
         }
+        const initiative = publication === null || observed === null ? null
+          : canonicalRecordInitiative({ mainRepo, recordId: wkId });
+        const advances = publication === null ? null
+          : observed === null || (initiative !== null && await selectedCandidateAdmitsLaterWkTip({
+              mainRepo, wkId, initiative, candidate: observed, runGit
+            })) ? publication : null;
 
         return authenticateCurrentControlledGeneration({
           mainRepo,
           wkId,
           expectedW: null,
           runGit,
+          synchronize: advances === null ? null : async () => {
+            await advances.admitWrite();
+            advances.recordGeneration(await synchronizeControlledContractGeneration({
+              mainRepo, wkId, deps: generationPersistenceDeps
+            }));
+          },
           run: async (generationAuthentication) => withGeneration({
             wkId,
             generationAuthentication,
             observed,
-            expectedVersion
+            expectedVersion,
+            ...(advances === null ? {} : { publication: advances })
           })
         });
       });
@@ -637,15 +686,27 @@ export function createTerminalCandidateCoordinator({
   });
 
   const recoverTerminalCandidateUnderAuthority = async ({
-    wkId, authorityContext, expectedVersion = null
-  } = {}) =>
-    recoverTerminalCandidateWithRunner({
-      wkId,
-      expectedVersion,
-      runWithAuthority: async (run) => runWithControlledContractAuthorityContext({
-        repoRoot: mainRepo, wkId, authorityContext, run
-      })
-    });
+    wkId, authorityContext, expectedVersion = null, beforeFirstWrite = null
+  } = {}) => {
+    const publication = expectedVersion === null
+      ? createTerminalCandidatePublicationAccount({ beforeFirstWrite }) : null;
+    try {
+      const state = await recoverTerminalCandidateWithRunner({
+        wkId,
+        expectedVersion,
+        publication,
+        runWithAuthority: async (run) => runWithControlledContractAuthorityContext({
+          repoRoot: mainRepo, wkId, authorityContext, run
+        })
+      });
+      const synchronization = publication?.project() ?? null;
+      return state === null || synchronization === null ? state
+        : Object.freeze({ ...state, synchronization });
+    } catch (error) {
+      publication?.attach(error);
+      throw error;
+    }
+  };
 
   const observeTerminalCandidateUnderAuthority = async ({ wkId, authorityContext } = {}) =>
     recoverTerminalCandidateWithRunner({

@@ -616,7 +616,7 @@
       "intent": "controlled_contract_authoring",
       "tie_break_rank": 10,
       "use_when": [
-        "The user asks to record the mandatory proof-posture controlled-acceptance disposition or to author, inspect, or revise a controlled-contract carrier.",
+        "The user asks to author, inspect, or revise a controlled-contract carrier. A deliberate proof, grammar or whole-unit exception is never this intent: it is the separate save_record {unit, revision, exception} request, whose contract workspace_read_wiki returns for select {input_contract: {tool: save_record, operation: exception}}.",
         "The user asks to reduce scope by retiring stored contract requirements without replacement: query current identities and digest, then retire them through ordinary upsert contract_requirements.retire_claim_ids."
       ],
       "match_phrases": [
@@ -625,8 +625,6 @@
         "controlled acceptance contract",
         "controlled contract schema",
         "controlled contract carrier",
-        "controlled acceptance disposition",
-        "opt out controlled acceptance",
         "retire requirement",
         "requirement retirement",
         "remove contract requirement",

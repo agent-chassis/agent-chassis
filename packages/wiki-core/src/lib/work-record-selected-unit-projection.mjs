@@ -238,7 +238,7 @@ export function projectSelectedWorkRecordUnit(value) {
   if (readScope === INVALID) return null;
   if (readScope !== undefined) projected.read_scope = readScope;
 
-  for (const field of ["repo_paths", "write_scope", "depends_on"]) {
+  for (const field of ["repo_paths", "write_scope", "depends_on", "regression_tests"]) {
     if (!copyAuthored(projected, value, field, projectStringList)) return null;
   }
   for (const field of [

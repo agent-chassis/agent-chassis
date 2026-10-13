@@ -277,8 +277,8 @@ function mutantFixture(profile, id) {
   throw new Error(`unknown mutant ${id}`);
 }
 
-async function runProofPackAdequacyControls({ profile, profile_digest: profileDigest }) {
-  const controls = [];
+async function runProofPackAdequacyControls({ profile, profile_digest: profileDigest , negative_fixtures: negativeFixtures }) {
+  const controls = [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ...retiredRecommendationRefusals(profile)];
   for (const [controlId, consumers, attempts, effects] of [
     ["api-gateway-credential", 2, 3, 2],
     ["distributed-signing-key", 4, 5, 3],
@@ -308,3 +308,77 @@ async function runProofPackAdequacyControls({ profile, profile_digest: profileDi
 
 export { EXCLUSIONS, GUARANTEE, MUTANT_IDS, POSITIVE_IDS, REJECTION_PATTERNS,
   buildRevocationPropagationFixture, runProofPackAdequacyControls };
+
+import { evaluateStableProofPackFixtureV1 as evaluateRetiredModalityFixture }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+function retiredRecommendationRefusals(profile) {
+  const cases = [
+    [
+      "retired-recommendation-refused-no-post-revocation-attempt-mutates-protected-effects",
+      "claim-no-post-revocation-attempt-mutates-protected-effects"
+    ],
+    [
+      "retired-recommendation-refused-no-post-revocation-attempt-writes-protected-effects",
+      "claim-no-post-revocation-attempt-writes-protected-effects"
+    ]
+  ];
+  return cases.map(([controlId, claimId]) => {
+    const fixture = buildRevocationPropagationFixture({ profile });
+    const claim = fixture.contract.claims.find(row => row.claim_id === claimId);
+    if (!claim) throw new Error(`missing recommendation refusal claim: ${claimId}`);
+    claim.modality = "SHOULD_NOT";
+    return { control_id: controlId, category: "profile_rejection",
+      implementation_outcome: "not_applicable",
+      profile_satisfaction: evaluateRetiredModalityFixture({
+        contract: fixture.contract, profile,
+        evaluation_input: fixture.input ?? fixture.evaluation_input
+      }).satisfaction };
+  });
+}
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-verify-all-attempts-refused-modalities",
+      "claim_id": "claim-verify-all-attempts-refused",
+      "baseline": "isolated-claim-verify-all-attempts-refused-modalities-baseline",
+      "optional": "isolated-claim-verify-all-attempts-refused-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-consumer-applied-state-modalities",
+      "claim_id": "claim-verify-consumer-applied-state",
+      "baseline": "isolated-claim-verify-consumer-applied-state-modalities-baseline",
+      "optional": "isolated-claim-verify-consumer-applied-state-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-no-protected-mutation-modalities",
+      "claim_id": "claim-verify-no-protected-mutation",
+      "baseline": "isolated-claim-verify-no-protected-mutation-modalities-baseline",
+      "optional": "isolated-claim-verify-no-protected-mutation-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-verify-no-protected-write-modalities",
+      "claim_id": "claim-verify-no-protected-write",
+      "baseline": "isolated-claim-verify-no-protected-write-modalities-baseline",
+      "optional": "isolated-claim-verify-no-protected-write-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

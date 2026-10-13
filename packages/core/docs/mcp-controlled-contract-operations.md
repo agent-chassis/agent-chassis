@@ -327,7 +327,7 @@ strategy and source when the retained result establishes them, explains known
 incompatible shapes, and states that the result supplies no retry, waiver or
 production-code repair. It does not infer a function name the result lacks or
 runner-wide absence from a component descriptor. See
-[test-proof runtime identity](test-proof-runtime-identity.md#capability-limitations).
+[test-proof runtime identity](test-proof-results.md#capability-limitations).
 
 An ID saved in more than one source refuses and lists every authorized source
 as a ready retry call; the explicit `source` selects exactly one of them and
@@ -338,6 +338,44 @@ Ordinary verification does not require preparation, a skeleton, a plan, a
 carrier, publication, or prior validation. Missing source or capability facts
 produce a nonexecution result. Authoring and validation remain nonexecuting.
 
+## Closed grammar and declared objects
+
+The controlled grammar is closed. Within a declared subject, relation and
+applicability context, undeclared behavior and values are forbidden. Closure
+is part of the specification's meaning; authors do not add `only` or list
+every forbidden alternative to obtain it.
+
+Current authoring admits exactly `MUST`, `MUST_NOT` and `MAY`. `SHOULD` and
+`SHOULD_NOT` are refused with the accepted values; neither is converted.
+`MUST_NOT` is an explicit prohibition, with its existing positive falsifier.
+Modality determines whether declared behavior is required or permitted:
+
+- `MUST returns x` requires the declared return whenever its applicability
+  holds. With no declared alternative, the result is x: neither y nor x plus y.
+- `MAY returns x` permits that return without requiring it. It allows optional
+  occurrence; it neither requires occasional occurrence nor permits an
+  undeclared y.
+- A condition explicitly limits applicability. It does not turn `MUST` into
+  `MAY` within that condition. One conforming observation does not establish
+  that every applicable invocation conforms.
+
+The closure governs the identified subject, relation and context. An incomplete
+description does not create an open permission: retain its missing meaning as
+unresolved, rather than guessing the boundary or granting completeness.
+
+A referenced object such as `correct-result` must resolve to a described object:
+either an existing code-bound object identified through explicit code references
+(including SCIP where available), or an object defined in the specification
+through the existing grammar. The name identifies that object; it does not
+define its properties or behavior. A type-only declaration or a bare symbol
+name does not supply the missing description.
+
+Preserve the existing controlled grammar and compiler. Authors express meaning
+through that grammar; generated CEL is compiler output, not a directly authored
+replacement. A schema, generated definition or compiler mapping that admits
+undeclared alternatives is an enforcement discrepancy, not permission to weaken
+the specification or introduce another grammar. Unrepresented meaning remains explicitly incomplete.
+
 ## Internal owners
 
 Carrier compilation, requirement compilation, proof-posture disposition,
@@ -345,6 +383,328 @@ generation persistence, assessment, graph integrity, semantic projection, and
 runtime evaluation may remain internal when retained consumers use them.
 Internal module names do not create public endpoints or caller-authored
 construction steps.
+
+The canonical-specification compiler is package code in
+`@agent-chassis/controlled-contract`. Four modules own it, each published
+under its own package export. They start no subprocess and perform no I/O
+beyond the package's load-time reads of its three schema files
+(`controlled-acceptance-contract.v1.schema.json`,
+`controlled-acceptance-test-proof-definitions.v1.schema.json` and
+`controlled-acceptance-requirement-definitions.v1.schema.json`), which the
+stable contract schema is composed from when `cel-lowering` is loaded:
+
+| Export | Owns |
+| --- | --- |
+| `canonical-specification` | One constraint per complete statement or closed membership, its identity (a digest of the work unit and the constraint), its rendering, canonical collections (a closed set sorted, an ordered sequence as given), and the compiled specification. |
+| `cel-lowering` | The generated CEL predicate of each constraint, closed conformance and admissibility (`cel.recommended` remains null), the typed input bindings, and the input contract. Every lowering rule is derived from what the controlled vocabulary declares of a relation; a relation with no rule is returned as a named gap. |
+| `closed-membership` | Clause validity, required and permitted members, and the conformity expression of a closed MUST/MAY membership, in which every unlisted member is forbidden. |
+| `cel-observation-model` | The CEL language reference and the type and meaning of the population-member observation. |
+
+Their import closure is published package code only: the controlled
+vocabulary, the mandatory-modality list, the equality normalization with the
+deterministic projection primitives it canonicalizes by, and the stable
+contract schema with the test-proof provider registry and provider modules
+its composition is checked against. They import no comparison, catalog, authoring-state,
+evaluator or test code.
+
+The separate `@agent-chassis/controlled-contract/cel-definition-reference`
+export owns documentation loading. `celDefinitionIndex()` returns a compact
+catalogue; `selectCelDefinition(['operations', 'cel.in'])` reads one exact CEL
+definition, and `selectCelDefinition(['relations', 'reference:supports'])`
+reads one local application relation. Selected upstream reads return structured
+operation identifiers and signatures, literal source text, prerequisite
+selections, immutable source URLs, byte and line ranges, SHA-256 digests,
+versions, commits and license provenance. Unknown selections raise
+`cel_definition_selection_not_found` with the missing selection and the exact
+package index call for recovery. Source or section corruption fails explicitly;
+it never substitutes another reference.
+
+The unchanged bundled language definition is cel-expr/cel-spec **v0.25.2**,
+commit `cb51b4176013ad19bd00df94be273c322916a620`, `doc/langdef.md`
+(SHA-256 `46a377cde5a4b0fe1d3023bf7e663d91dfabf6c30868c6b5c2867e057a79ae5b`).
+The unchanged extension documentation is cel-expr/cel-java **v0.14.0**,
+commit `5cf3ab3c9f0a2ccb4ac449527d41689ed6aa6879`,
+`extensions/src/main/java/dev/cel/extensions/README.md`
+(SHA-256 `8172385b89c6fde06cb34b4cbf508ec64988e071209e6a33682824f86de6e254`).
+Both Apache-2.0 licenses ship with their source. The package's
+`vendor/cel-reference-sources.json` records each immutable original path,
+source digest and indexed section. Its selected ranges index equality,
+membership, comparisons, Boolean operations, conditional expressions,
+`all`/`exists` macros, list size, numeric conversion and their semantic
+prerequisites. `lists.distinct()` is a **CEL Java extension**, introduced in
+extension version 2, rather than a core CEL function.
+
+Local relations retain the exact definitions and signatures of
+`CONTROLLED_VOCABULARY`. The reader derives their generated predicates,
+observation types and input contracts from `loweringInventory()`; operation
+links are indexed from those generated examples. Selected reads distinguish
+the predicate's observations from the observations read by its input-contract
+examples, including mirrored subjects needed to illustrate cross-subject laws.
+Examples describe the compiler's sample scope; they require no observations of
+subjects a compiled specification does not read. Lowering `reference:supports`
+to list membership does not define the business meaning of supporting evidence
+in CEL. The `number:returns` relation describes a singular result, observed as a
+`list<double>` so absence and extra values remain evaluable. Applicable
+`MUST returns 5` accepts only 5; `MAY returns 5` accepts absence or 5; both
+reject undeclared values. Each mandatory return constrains the singular value
+separately, so distinct mandatory values remain contradictory and MAY cannot
+weaken MUST. Closure belongs to conformance rather than evidence admission.
+Permissions use their actual applicability, not an inactive obligation's
+vacuously true implication. Whole conformance requires known condition bindings.
+Set-valued relations, described returned collections, numeric ranges, population
+completeness and equality/algebraic laws retain their existing owners.
+`boolean:deterministic` consumes a supplied Boolean observation and establishes
+no independent proof of determinism. Observations must carry the locally
+defined meaning; this facility acquires and evaluates none.
+
+Requirement authoring exposes the same compact index as `cel_definitions`
+through `workspace_read_wiki {subject:{requirement_guidance:true}}`. Using its
+returned reference, select
+`{guidance:['cel_definitions','operations','cel.in']}` or
+`{guidance:['cel_definitions','relations','reference:supports']}`. A selected
+definition returns exact prerequisite calls. A missing key reports the missing
+path and the existing guidance-context recovery call. Ordinary discovery and
+whole guidance carry the index only; no response embeds a complete manual.
+The guidance revision includes a digest of the definition index, vocabulary
+and generated inventory, binding selected reads to that content.
+
+To update a pin, choose immutable upstream commits, copy the source and license
+bytes unchanged, update the manifest's paths, digests, section ranges and
+structured signatures, and update the compiler's pinned `CEL_REFERENCE`.
+Validate byte integrity, linked sections, attribution, response bounds and the
+offline installed-package read before landing. A reference update does not
+upgrade the CEL Java runtime or change compiler semantics. The compiler loads
+no documentation; the reader works offline from published package files,
+without a network, Java process or additional runtime dependency.
+
+`save_record` and work-item birth compile requirements through these modules.
+`changes.requirements`, and `initial.requirements` at birth, is one batch
+`{entities?, requirements?, collections?, unresolved?}`: an entity is declared
+once by id and named by id, each requirement row is one statement or one
+closed membership, a collection groups rows, and unresolved meaning is kept
+word for word. There is no array form of the member, no public compile
+operation and no member that carries an expression. The batch schema, its
+admission and its normalization have one owner each in `wiki-core`
+(`controlled-requirement-authoring-schema.mjs`,
+`contract-requirement-normalization.mjs`), which the description-coverage
+authoring prototype under
+`internal/controlled-contract/description-coverage/semantic-builder/` uses as
+well; the prototype keeps no copy of them or of the compiler, and its own
+comparison, authoring state and CEL evaluator are not production code.
+
+Behavioral relation availability has one positional policy owner:
+`RELATION_AUTHORING_AVAILABILITY` and `relationAvailableForAuthoring()` in the
+controlled-contract vocabulary module. New requirement `behavior` and
+`verification.fails_when` submissions admit 66 of the underlying 93 relations.
+The cutoff applies to every modality and claim nature, to `save_record` and
+`workspace_create_record`, and to amendments addressed by row or claim identity.
+Schema and admission refuse an unavailable relation before publication, naming
+its exact authored path and rejected relation with a callable selected-contract
+read for correction. The batch owner also enforces availability when preparing
+submitted rows. It does not reinterpret or rewrite saved contracts.
+
+The 12 excluded relations are `reference:supports`, `reference:uses`,
+`reference:targets`, `reference:has_property`, `reference:covers`,
+`reference:conforms_to`, `reference:complete_against`,
+`reference:behaviorally_equivalent`, `reference:semantically_equivalent`,
+`reference:conflicts_with`, `reference:matches` and `number:matches`.
+The 15 unavailable pending resolved definitions are
+`reference:classifies_as`, `reference:has_identity`, `reference:has_type`,
+`reference:has_state`, `reference:has_status`, `reference:has_value`,
+`reference:resolves_to`, `reference:completes`, `reference:invalidates`,
+`reference:preserves`, `reference:replaces`,
+`reference:unchanged_from_frozen_base`, `boolean:authoritative`,
+`boolean:deterministic` and `boolean:immutable`.
+
+Verification observation authoring is a separate position: `verification.observes`
+retains all 93 relations, particularly `reference:covers`. The shared batch and
+prototype schemas separate `behavior` from `observation`, sharing retained
+signature branches and operand shapes by reference. Requirement guidance's
+`vocabulary` publishes the 66 behavioral/falsification choices;
+`observation_vocabulary` publishes the 93 observation choices. Their relation
+groups, signatures and accounting derive from the same availability owner as
+admission. `required_object_shapes.observation_statement` names the observation
+vocabulary; the ordinary statement shape names the behavioral vocabulary.
+The underlying relation definitions and reference reads remain available.
+
+Relation availability and described-object completeness are separate checks.
+`contract-requirement-descriptions.mjs` indexes existing references,
+propositions, behavior claims and authored closed memberships by owning scope
+and identity. It includes every operative defining statement and its recursive
+operands and contexts. Shared dependencies appear once; cycles terminate while
+missing leaves propagate to every dependent root. Name/type, prose, aliases,
+verification assertions, coverage links and passing tests supply no missing
+behavior. The existing population and compiler owners determine completeness;
+a newly specified object need not terminate at implemented code.
+
+Resolution is specific to the reference's use and applicability. A condition
+needs a defined predicate determining whether it holds. Its generated
+`holds` observation is constrained to the conjunction of its operative predicate
+statements, with their actual relations,
+operands and comparison; an independent flag cannot override it. Missing or
+ambiguous Boolean meaning receives no conformance credit. A guarded definition
+cannot supply the truth needed to decide its own guard.
+Existing supported Boolean and numeric comparisons and range statements supply
+their existing typed observations and predicate lowering. They are usable on
+specification-defined and code-backed objects; source location alone supplies no
+runtime truth. Multiple contributing predicates form a compound definition,
+not an ambiguity. Competing identities, ambiguous scopes and independently
+authored contradictions retain their distinct outcomes.
+Predicate truth is independent of the statement's
+MUST, MUST_NOT or MAY force: a false predicate makes an `if` requirement inactive,
+and a MAY definition does not require the predicate to be true. Independently
+authored MUST/MUST_NOT statements retain their own conformance predicates,
+including when their subjects are referenced as conditions. Selected compilation
+retains these obligations and their recursive guards as definition context;
+they do not become additional assigned objectives.
+For example, MAY `range:has_range` defines the in-range predicate without
+requiring it to hold; an operation guarded by `unless` that predicate applies
+outside the range. MUST `range:has_range` remains an independent range obligation.
+Undefined predicates and unsupported bindings remain explicitly incomplete.
+
+A returned reference needs its defined value, structure, complete population,
+callable behavior or exact value source. An existence or other Boolean property
+does not define an arbitrary returned value. Reference resolution requires a
+definition; authors do not add redundant `exists` clauses. An actual requirement
+about existence keeps its existing Boolean predicate. Undefined meaning remains
+incomplete rather than becoming false.
+
+Definitions must cover the use's scope: unconditional definitions cover every
+use, and scoped definitions match the exact equality-normalized applicability
+supported by the existing owner. No entailment between different scopes is
+inferred. Each shared identity is delivered once, with separate resolution facts
+for its uses and scopes. All operative statements and qualifiers remain in
+canonical/readback data. A qualifier without a compiler mapping is explicitly
+unresolved and withholds whole conformance.
+
+`contract-requirement-description-sources.mjs` uses the existing committed-source,
+published-snapshot and symbol owners. Repository/path/symbol is the minimum
+explicit identity; `scip_symbol` is optional and used when available. Non-SCIP
+resolution parses declarations in exact committed source, retaining missing,
+ambiguous and unsupported outcomes. It is not a bare-name existence check.
+An available supplied SCIP identity must agree with the defining declaration;
+external symbol information without definition source is insufficient.
+
+A path describes its committed file, not an unstated value within it. Symbol
+resolution supplies its actual declaration source. Configuration, state and
+population types are not refused categorically: static literal value/structure
+and collection definitions can supply those respective meanings; callable
+definitions supply callable meaning. Unsupported computed value/population
+bindings still need operative specification definitions. Resolving source
+does not establish implementation conformance.
+
+Source preparation follows the same transitive description dependencies as
+compilation, save/birth and selected readback, including stored/native defining
+statements and shared definitions changed by a correction or retirement.
+Unrelated verification references do not trigger source resolution. An edit
+prepares affected roots and dependencies; selected reads prepare their selected
+roots and dependencies. Neither represents that scope as whole-contract
+completeness; unresolved descriptions remain saveable and explicit.
+
+Preparation captures one concrete committed tree and, only when SCIP is used,
+one published index snapshot. Plain files and non-SCIP names require no index.
+The description route neither requests nor joins an index build. An older
+publication retains its own provenance and can be used when the relevant
+defining source is demonstrated unchanged; a changed file is checked against
+its exact declaration rather than accepting stale line positions. Missing,
+ambiguous, unavailable and stale-source outcomes keep distinct recovery routes.
+Publication rechecks the definitions and dependencies actually used through
+`record-authoring-plan.mjs`'s prepublication `assertDefinitions` hook. Read
+composition uses that same adapter and exposes both committed-source and index
+generations beside the derived descriptions. Unrelated commits or index
+republications do not invalidate unchanged relevant resolution and source;
+changed, deleted or newly ambiguous definitions refuse publication. Strict
+current-HEAD index operations for other consumers remain unchanged.
+Source facts are ephemeral; there is no definition store
+or caller-supplied resolved flag. Filesystem/index access remains outside the
+pure compiler. Authoring executes no target code, observations, CEL or proofs.
+
+Completeness means complete authored meaning, not implementation conformance or
+proof credit. Definition changes recompute dependent descriptions; stable
+reference identity does not grant unchanged meaning or automatically rebind
+cases. Changing the vocabulary
+source also requires rebuilding its packaged proof-intent metadata with
+`npm run build:intent-metadata` in `packages/controlled-contract`; startup
+refuses stale metadata and never substitutes another catalogue.
+
+What a batch stores and what a read returns have one owner,
+`contract-requirement-projection.mjs`. Stored declarations plus additions and
+corrections minus retirements determine prospective meaning. Selection follows
+that derivation: assigned roots retain required definition/permission context,
+without assigning dependency clauses as extra objectives. The compiler derives
+permissions and equality from the owning specification before selecting the
+conformance objectives. Unrelated siblings are excluded from selected delivery;
+missing visibility, unresolved scope or delivery capacity remains explicit and
+withholds whole conformance. Restart derives the same meaning from saved inputs.
+
+The stored shape and projection preserve these rules:
+
+- Authored rows are additive over the native claim graph, under the contract's
+  optional `authored_requirements` member. A row keeps its statement as
+  written with each entity bound, its exact unfinished fields, the canonical
+  constraint identities and native claim identities it emits, and its optional
+  source link. Native operative claims without rows participate in the same whole-specification derivation.
+- A row has a durable `row_id`, kept through correction. `key` labels a new
+  row, `row_id` restates a saved row as a whole, and `id` corrects one saved
+  requirement claim as before. `remove.requirement_rows` removes whole rows or
+  collections; `remove.requirements` retires native claims as before. A claim
+  that is one of several its row emits is corrected or retired through its
+  row.
+- Restating a row keeps every claim both declarations emit, with its links. A
+  claim only the old declaration emitted retires under the existing retirement
+  rules, including their dependency refusal; a claim only the new one emits is
+  new. Nothing is rebound from an old member to a new one.
+- A complete statement emits one constraint and one native claim per object
+  where its relation is a set of pairs. A closed membership emits a constraint
+  and no native claim. An incomplete row (a missing modality, objects,
+  applicability or entity type, or a value stated as `{"pending": true}`) emits
+  neither and is saved as written. A verification or an obligation claim that
+  names a row emitting no claim is refused; a row label in an obligation's
+  claims is every claim the row emits.
+- An independently authored verification is compiled once and verifies every
+  claim its row emits. Its falsifying statement is about the requirement's
+  subject as written, also where the stored statement names its two entities
+  the other way round.
+- Canonical constraints, renderings, generated CEL, typed bindings and the
+  input contract are derived from the stored rows at save and at read by the
+  same function. A row whose recorded constraint identities are not the ones
+  its input compiles to is refused by name. A specification with an incomplete
+  row, an incomplete collection, unresolved meaning or a statement with no
+  lowering has no aggregate expression; each gap is named.
+- Identities are minted in the unit's captured `{wk_id, focus}` scope, the
+  native compiler's own.
+
+A row may name the exact passage of the work item's `sections.user_requirements`
+it represents, as `user_requirement`, with `user_requirement_occurrence` where
+the passage repeats (`contract-requirement-source-links.mjs`):
+
+- The passage is compared literally against the text the same save leaves:
+  no trimming, case folding or Unicode normalization. Occurrences are counted
+  from 1, left to right, overlapping occurrences included.
+- A passage that occurs once is occurrence 1. One that occurs more than once
+  requires the explicit occurrence. A passage that is not found, a missing
+  choice or an occurrence out of range refuses the whole save with the match
+  count, each match location and the correction.
+- The stored link is the passage, the chosen occurrence, the source
+  `{wk_id, field, digest}` and the location in UTF-16 code units. It is
+  provenance: it changes no identity and no expression, and does not establish
+  that the passage and the compiled meaning agree. A read reports it with every
+  constraint and claim of its row.
+- A link is `current` while the source text has the digest it was resolved in
+  and `stale` afterwards, as saved, until the row is restated with
+  `user_requirement`. Omitting the passage keeps a saved link and creates none.
+
+Requirement compilation and retirement (`requirements`, `remove.requirements`,
+`remove.requirement_rows`, at save and at birth) require the paid tier the
+serving host captured at startup. An absent or unknown tier is not paid, no
+request member states a tier, and every other member saves at any tier.
+
+The `{contract: "requirements"}` selection of a unit returns its native
+requirement projection and, as `authored`, the authored-row projection from
+the same stored contract. A save answer states each row's `row_id`, state and
+full `constraint_ids` and `claim_ids`, and names that selected read as the
+exact call for what it leaves out. Saving and reading evaluate no expression
+and execute no proof.
 
 Public registration, discovery, role policy, routing metadata, and active
 guidance must agree on the public population. Unknown removed names are refused

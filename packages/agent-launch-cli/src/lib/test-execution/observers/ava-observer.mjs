@@ -44,9 +44,18 @@ if (typeof send !== "function") {
   channel.emit("runtime_error", { code: "test_proof_native_runner_unsupported",
     message: "the AVA proof observer requires a forked AVA worker" });
 } else {
+
+  const unsettled = new Set();
+  let endedByTestCode = false;
+  process.once("exit", (code) => {
+    if (code === 0 && !endedByTestCode && unsettled.size === 0) channel.emit("session_end");
+  });
   process.send = function launcherObservedSend(message, ...rest) {
     const event = message?.ava;
     const title = event?.title;
+    if (event?.type === "process-exit") endedByTestCode = true;
+    if (event?.type === "selected-test" && event.skip !== true && event.todo !== true) unsettled.add(title);
+    if (event?.type === "test-passed" || event?.type === "test-failed") unsettled.delete(title);
     if (event?.type === "declared-test" && typeof title === "string") {
       channel.emit("collected", { file, test: [title] });
     } else if (title === selectedTitle && event.type === "selected-test" &&
@@ -62,8 +71,6 @@ if (typeof send !== "function") {
         Object.hasOwn(event.err, "originalError") ? event.err.originalError : undefined;
       channel.emit("test_result", { file, test: [title], outcome: "failed",
         assertion_failure: assertion, failure_diagnostic: failureDiagnostic(original, nativeFacts(event.err)) });
-    } else if (event?.type === "worker-finished") {
-      channel.emit("session_end");
     }
     return send.call(this, message, ...rest);
   };

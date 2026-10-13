@@ -34,7 +34,7 @@ function importClosure(entries) {
 
 test("the projected node:test assets are the reporter and loader import closure", () => {
   const reporter = fileURLToPath(launcherNodeTestReporterUrl());
-  const loader = fileURLToPath(launcherNodeTestFaultLoaderUrl({}));
+  const loader = fileURLToPath(launcherNodeTestFaultLoaderUrl({}, process.cwd()));
   assert.deepEqual(importClosure([reporter, loader]), [...NODE_TEST_PROOF_LAUNCHER_ASSETS].sort());
   for (const asset of NODE_TEST_PROOF_LAUNCHER_ASSETS) assert.ok(path.isAbsolute(asset), asset);
 });

@@ -1,22 +1,22 @@
 
 
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { AVA_LOAD_CONFIG_ENV, AVA_TMPDIR_ENV } from "./ava-config.mjs";
-import { RunnerIntegrationPreconditionError, npmPackageBin } from "./common.mjs";
+import { RunnerIntegrationPreconditionError, npmPackageAsset, npmPackageBin } from "./common.mjs";
 
 export const AVA_ATTEMPT_CONFIG = fileURLToPath(new URL("./ava-config.mjs", import.meta.url));
-const LOAD_CONFIG = path.join("ava", "lib", "load-config.js");
+const LOAD_CONFIG = path.join("lib", "load-config.js");
 
 function avaConfigLoader(runtime) {
-  if (!existsSync(path.join(runtime.values.node_modules_source, LOAD_CONFIG))) {
+  const loader = npmPackageAsset(runtime, "ava", LOAD_CONFIG);
+  if (loader === null) {
     throw new RunnerIntegrationPreconditionError("test_runtime_runner_package_missing",
-      `the prepared ava installation has no configuration loader at ${LOAD_CONFIG}`,
-      { package: "ava", missing: LOAD_CONFIG });
+      `the prepared ava installation has no configuration loader at ${path.join("ava", LOAD_CONFIG)}`,
+      { package: "ava", missing: path.join("ava", LOAD_CONFIG) });
   }
-  return path.join(runtime.values.node_modules, LOAD_CONFIG);
+  return loader;
 }
 
 export default Object.freeze({

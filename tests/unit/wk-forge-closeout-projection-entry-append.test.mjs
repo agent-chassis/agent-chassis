@@ -140,5 +140,5 @@ test("entries on a slice added after C are not admitted as an append", () => {
     record.slices.push({ ...structuredClone(record.slices[0]), id: "SLICE-002",
       sections: { entries: [entry(3, OUTCOME)] } });
   });
-  assert.deepEqual(authenticate(live), { ok: false, reason: "slice_cardinality" });
+  assert.deepEqual(authenticate(live), { ok: false, reason: "slice_cardinality", slice_id: "SLICE-002" });
 });

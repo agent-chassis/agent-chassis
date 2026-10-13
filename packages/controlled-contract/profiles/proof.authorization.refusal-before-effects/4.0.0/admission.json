@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "469b78bae23cf25fec3598b15b833b0d50ab4f0e91f3c3e0e5145a13d224fd7e",
+  "parameter_contract_digest": "c3a08afcf62f9efe5ca52ef48ccd39d9a28a49b2d5a72d823717ede75a506896",
   "profile_id": "proof.authorization.refusal-before-effects",
   "profile_version": "4.0.0",
-  "profile_digest": "e5cfc6aec27a79ce6e0c165bbf29ea676b9a0a5a62093c0ed43e44116c968c0b",
+  "profile_digest": "a44e97e49f63a447e7d8c45d25a1ffcc76c269aa5b21108264438490a41f23a6",
   "guarantee": "Given one declared operation attempt, one declared refusal event, one declared authority, one declared unauthorized subject, one declared reusable operation, and one complete caller-supplied protected-effect list bound to an exact declared cardinality, this pack establishes only in the declared controlled graph that: the attempt performs the operation and uses the subject; the authority does not authorize that subject for the operation; the refusal rejects that exact attempt; the attempt precedes a protected-interval witness which precedes the refusal; before that refusal the same attempt neither writes nor mutates any listed protected effect; and the verification reads the exact attempt, refusal, operation, and every listed protected effect, with a positive same-attempt, same-population, same-refusal pre-refusal write or mutation as the corresponding falsifier.",
   "guarantee_digest": "f55adcfd21e759ad9f647d8d63aaefd8d0fc0d112d9b288ca7489077c5c508b8",
   "explicit_exclusions": [
@@ -16,10 +16,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "18d698cd6348ca2d991c11781fd20db2a7a935bafde0c79235d36de2d018ba37",
-    "adequacy_result_digest": "ceee3d4797a16572be626a2f35e84dd5deb95bf2218aa395de98edd28871747a",
-    "executable_control_count": 59,
-    "negative_fixture_count": 35,
-    "coverage_witness_count": 78
+    "adequacy_declaration_digest": "98c976809df9c7292c85235d1e2ddc6782562ac7bf0f77026e1c5e4a8467265c",
+    "adequacy_result_digest": "4f82f88f2aee9f8dddceb72fe08d41f3918c1fbdbc9b8d0b1c87bc38e4334b09",
+    "executable_control_count": 66,
+    "negative_fixture_count": 33,
+    "coverage_witness_count": 76
   }
 }

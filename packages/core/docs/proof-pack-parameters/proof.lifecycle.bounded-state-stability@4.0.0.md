@@ -4,9 +4,9 @@
 
 For one subject, without asserting terminality, with one elected baseline state at a start boundary and a distinct later end boundary, the complete nonempty observation population lies strictly inside the bounded interval; every observation reads that same subject and records the baseline state, and the complete observed-state population equals the complete singleton baseline-state population.
 
-Profile digest: b4eb7cd57b344d8dec861f7231ae4b0e4b39917581078aec6ea5651378aa5cae. Parameter digest: 07485182dab6b90eb077ca3b91268e58d0552f4246db4dd3f8bced76f64bd023.
+Profile digest: 4d3c0633d235478ec0a8936feb30a00be61aadfef94588ae2aeab39db59579fc. Parameter digest: ff6e3189124a30cd378d6d5a6ef4145d8a7670e1a0423b24589fdaa457a98da4.
 
-Admission digest: 0a858ea5e4c3cbddd50337910bcd304e2d365c3f762eb7499ef6bed9e4746e2b.
+Admission digest: 356caa5b5f7532dcaadbd85cf6ad94bf49a88613df8ede82634efa52c883cb7f.
 
 Roles: 15/15 accounted; 2 owned gaps. Semantic parameters: 10; internal roles: 5.
 

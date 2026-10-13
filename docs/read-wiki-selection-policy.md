@@ -3,8 +3,11 @@
 This page describes the semantic read-selection grants of the central
 role-to-tool access policy. It is an internal contract of
 `packages/wiki-core/src/lib/tool-discovery/gating.mjs`, the owner of that
-policy's validation and resolution. No registered tool uses these grants, and
-the checked-in policy declares none.
+policy's validation and resolution. `workspace_read_wiki` consumes the
+checked-in policy's grants through `createReadWikiGrants`: registration derives
+the role's available selections, and reads check the resolved source kind and
+selection against the live policy. A compact advertised selection form grants
+no access by itself.
 
 ## The `read_selections` section
 
@@ -28,6 +31,11 @@ strict:
 - No two rows share the same `source_kind` and `selection`.
 
 When the section is present it must hold at least one row.
+
+A source kind names what a reference addresses, not a tool. `record_kind` is
+the source of a record kind before any record of it exists: its `context` and
+`input_contract` rows grant the kind's creation contract, and are held by the
+roles that hold `workspace_create_record`.
 
 ## Optional for ordinary use, required for resolution
 

@@ -4,9 +4,9 @@
 
 Every cursor and successful returned page in the complete declared traversal populations resolves to its traversal source version; after a relevant mutation the current version differs in identity and captured content from the selected stale cursor version, the exact next-page attempt using that cursor is refused, and before refusal and throughout that stale-attempt scope no page artifact or page-return event is returned, no cursor-advance event is emitted, and no complete declared protected effect is written or mutated; a non-stale control proves an unrelated-source mutation does not cause refusal.
 
-Profile digest: 9462a2b95ee74a76aaf0b0a28e72fe226bb63a2367c19e265b5c18847e18d3c1. Parameter digest: 98259723fc017d6e4b76e4c2e62c396f86553565fa104543e8062013616af6a3.
+Profile digest: 6abe6b7f1e73b35898ebeb4c76d94b1ca08a958a2bc0d34b8122c7a6137cd770. Parameter digest: 729adfd5dc366eed078a52bfe6c310e520e5596f2a4c34332ff1ce3290e2cecb.
 
-Admission digest: bd0d58b717b011a40907c4ce432042cc00a5522dae029a3f1dd94705c054173c.
+Admission digest: ad9dc912b8ae1336ba2c4fbf7aaab8c53fbd2a5131dc22ce2c8cc95035802c5d.
 
 Roles: 57/57 accounted; 9 owned gaps. Semantic parameters: 48; internal roles: 9.
 

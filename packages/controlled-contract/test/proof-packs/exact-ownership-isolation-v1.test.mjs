@@ -1,3 +1,4 @@
+import { loadProofPack } from "../support/proof-pack-adequacy.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -14,6 +15,7 @@ import { certificationDirectory, readDefinitionDocument } from "../support/certi
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const identity = { profile_id: "proof.ownership.exact-isolation", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 const readJson = (name) => readDefinitionDocument(identity, name);
 function substantive(controls) {
@@ -35,15 +37,15 @@ test("exact ownership isolation passes its exhaustive release corpus", async () 
   ]);
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
-  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 222);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 108);
+  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 220);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 110);
   const result = await runProofPackAdequacy(packDirectory, {
     variationMode: "full_census"
   });
   assert.equal(result.passed, true);
-  assert.equal(result.control_count, 38);
-  assert.equal(result.negative_fixture_count, 15);
-  assert.equal(result.coverage_witness_count, 222);
+  assert.equal(result.control_count, 48);
+  assert.equal(result.negative_fixture_count, 19);
+  assert.equal(result.coverage_witness_count, 220);
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.negative_fixture_results.every(
     ({ outcome }) => outcome === "rejected"), true);
@@ -110,7 +112,7 @@ test("relations, collections, distinctness, and falsifier bindings matter indepe
   ];
   for (const mutate of mutations) {
     const profile = structuredClone(original); mutate(profile);
-    const observations = await runProofPackAdequacyControls({ profile });
+    const observations = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile });
     assert.equal(substantive(observations.controls), false);
   }
 });

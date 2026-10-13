@@ -7,6 +7,8 @@ import {
 } from "node:fs";
 import path from "node:path";
 
+import { resolveControlledContractSavedAuthoringSources } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-tool-shared.mjs";
 import { withWorkRecordWriteLock } from "@agent-chassis/wiki-core/src/operations/work-record-write-lock.mjs";
 
 import {
@@ -648,7 +650,12 @@ export async function mergeWkHandoffIntoCheckout({ mainRepo, handoff, retained, 
         const binding = retained.generation_binding;
 
         const owned = new Set(binding === null
-          ? [`wiki/work-records/${handoff.assigned_unit}.json`]
+          ? [
+              `wiki/work-records/${handoff.assigned_unit}.json`,
+              ...((await resolveControlledContractSavedAuthoringSources({
+                repoRoot: mainRepo, wkId: handoff.assigned_unit
+              }))?.descriptors.map((descriptor) => descriptor.path) ?? [])
+            ]
           : [
               ...controlledContractGenerationPopulationPaths(binding),
               ...controlledContractRetainedGenerationPaths({

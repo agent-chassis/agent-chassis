@@ -42,8 +42,11 @@ export async function withDeliveryFinalization(result, { status, bindings, deps 
       });
     }
   }
+  const sliceCheckout = typeof deps.reapIntegratedSliceCheckout === "function"
+    ? await settleSliceCheckoutReap(deps.reapIntegratedSliceCheckout, managedIdentityRetirement) : null;
   const cleanupPending = integrationCleanup?.state === "failed" ||
-    managedIdentityRetirement.state !== "complete" || wkCheckout?.state === "pending";
+    managedIdentityRetirement.state !== "complete" || wkCheckout?.state === "pending" ||
+    sliceCheckout?.state === "pending";
   return Object.freeze({
     ...result,
     delivery_state: "delivery_finalized",
@@ -54,9 +57,33 @@ export async function withDeliveryFinalization(result, { status, bindings, deps 
         ? integrationCleanup.state
         : null,
       managed_identity_retirement: managedIdentityRetirement,
-      ...(wkCheckout === null ? {} : { wk_checkout: wkCheckout })
+      ...(wkCheckout === null ? {} : { wk_checkout: wkCheckout }),
+      ...(sliceCheckout === null ? {} : { slice_checkout: sliceCheckout })
     })
   });
+}
+
+async function settleSliceCheckoutReap(reap, retirement) {
+  if (retirement.state !== "complete") {
+    return Object.freeze({ state: "pending", reaped: false, code: "slice_checkout_reap_awaits_worker_retirement",
+      message: "the slice checkout is kept until its worker's retirement is confirmed" });
+  }
+  try {
+    const result = await reap();
+    if (result?.reaped !== true) {
+      return Object.freeze({ state: "pending", reaped: false, code: "slice_checkout_reap_unconfirmed",
+        message: "the slice checkout reaper did not report a completed removal" });
+    }
+    return Object.freeze({ state: "complete", reaped: true, code: null, reap: result });
+  } catch (error) {
+    return Object.freeze({
+      state: "pending",
+      reaped: false,
+      code: typeof error?.code === "string" ? error.code : null,
+      message: typeof error?.message === "string" ? error.message : null,
+      evidence: captureLifecycleFailureEvidence(error, { operation: "delivery_finalization:slice_checkout_reap" })
+    });
+  }
 }
 
 export async function settleCheckoutFinalization(synchronize, { operation, subject }) {

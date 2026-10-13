@@ -63,6 +63,30 @@ import {
 import { validateWorkRecordEntries, validateWorkRecordEntryPopulation } from "./work-record-entry-schema.mjs";
 import { validateWorkRecordDispositions } from "./review-disposition.mjs";
 import { validateWorkRecordMaterialRefs } from "./work-record-entry-material.mjs";
+import {
+  UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
+  parseRepositoryScopeFileSelector,
+  repositoryScopeSelectorRefusalMessage
+} from "./work-record-repository-path.mjs";
+
+export const WORK_RECORD_SLICE_REGRESSION_TESTS_FIELD = "regression_tests";
+
+export function findSliceRegressionTestsDefect(value) {
+  if (!Array.isArray(value)) return { index: null, message: "must be an array of repository-relative test files" };
+  const seen = new Set();
+  for (const [index, entry] of value.entries()) {
+    if (!isString(entry)) return { index, message: "must be a string" };
+    const parsed = parseRepositoryScopeFileSelector(entry);
+    if (!parsed.ok) {
+      return { index, message: parsed.diagnostic.code === UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR
+        ? repositoryScopeSelectorRefusalMessage(WORK_RECORD_SLICE_REGRESSION_TESTS_FIELD, entry)
+        : "must be one canonical repository-relative file path" };
+    }
+    if (seen.has(parsed.value.canonical_path)) return { index, message: `lists ${JSON.stringify(entry)} more than once` };
+    seen.add(parsed.value.canonical_path);
+  }
+  return null;
+}
 
 function validateExpectedEditTargetFacetFields(diagnostics, entry, path) {
   validateControlledStringField(
@@ -474,6 +498,13 @@ function validateSlice(diagnostics, slice, path, { recordTerminal = false } = {}
   validateStringArrayField(diagnostics, slice, "repo_paths", { path: `${path}.repo_paths` });
   validateSliceReadScope(diagnostics, slice, path);
   validateStringArrayField(diagnostics, slice, "depends_on", { path: `${path}.depends_on` });
+  if (hasOwn(slice, WORK_RECORD_SLICE_REGRESSION_TESTS_FIELD)) {
+    const defect = findSliceRegressionTestsDefect(slice.regression_tests);
+    if (defect !== null) {
+      const at = `${path}.regression_tests${defect.index === null ? "" : `[${defect.index}]`}`;
+      addDiagnostic(diagnostics, "invalid_record", `${at} ${defect.message}`, { path: at });
+    }
+  }
 
   validateAcceptance(diagnostics, slice.acceptance, `${path}.acceptance`);
   validateDispatchIntent(diagnostics, slice.dispatch_intent, `${path}.dispatch_intent`);
@@ -1090,6 +1121,11 @@ function validateCompletionPolicy(diagnostics, record) {
 
 function validateTopLevelArrays(diagnostics, record) {
   validateCompletionPolicy(diagnostics, record);
+  if (hasOwn(record, WORK_RECORD_SLICE_REGRESSION_TESTS_FIELD)) {
+    addDiagnostic(diagnostics, "invalid_record", "regression_tests is only valid on a slice", {
+      path: "regression_tests"
+    });
+  }
 
   collectFindingsSemanticDiagnostics(diagnostics, record, null);
 

@@ -8,18 +8,25 @@ import {
   WK_FORGE_HANDOFF_RESULT_KINDS,
   WK_FORGE_HANDOFF_FAILURE_CATEGORIES
 } from "./trusted-operation-contracts.mjs";
-import { oidReForObjectFormat } from "./terminal-wk-candidate.mjs";
+import {
+  deriveTerminalCandidateCurrentRef,
+  deriveTerminalCandidateDurableRefs,
+  oidReForObjectFormat
+} from "./terminal-wk-candidate.mjs";
 import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
 import {
   git,
   HANDOFF_TRANSPORTS,
   isAncestor,
+  listRecordedHandoffs,
   observeLandingBaseTip,
   observeRemoteRef,
   publishRemoteRef,
   readLocalRef,
+  resolveHandoffDestination,
   resolveRemoteUrl,
-  updateLocalRef
+  updateLocalRef,
+  wkHandoffRef
 } from "./wk-handoff-destination.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import {
@@ -40,6 +47,8 @@ import { defaultRunGit } from "./wk-forge-command.mjs";
 import {
   authenticateExactProposal,
   branchObservationFacts,
+  wkProposalDescription,
+  wkProposalTitle,
   branchPublicationFacts,
   forgeProbeDiagnostic,
   observeExactPullRequests,
@@ -61,6 +70,7 @@ import {
 } from "./wk-forge-handoff-refusal.mjs";
 import {
   authenticatedBranchHead,
+  deriveForgeBranchName,
   resolveCandidatePublicationIdentity
 } from "./wk-forge-publication-identity.mjs";
 
@@ -178,6 +188,7 @@ function mintAuthenticatedHandoffResult({ identity, authenticatedHead, pullReque
     pull_request: pullRequest,
     proposal_authority: "configured_forge_and_human_merge_actor",
     effects: Object.freeze({ ...effects }),
+    ...(identity.synchronization == null ? {} : { synchronization: identity.synchronization }),
     ...(authentication === null ? {} : { authentication }),
     ...(diagnostic === null ? {} : { diagnostic })
   });
@@ -225,6 +236,7 @@ function mintAuthenticatedGitHandoffResult({ identity, authenticatedHead,
       })
     }),
     effects: Object.freeze({ ...effects }),
+    ...(identity.synchronization == null ? {} : { synchronization: identity.synchronization }),
     ...(livePublication?.value === undefined ? {} : { live_record_published: livePublication.value }),
     ...(livePublication?.unobserved === undefined ? {}
       : { live_record_published_unobserved: Object.freeze({ ...livePublication.unobserved }) }),
@@ -238,10 +250,10 @@ function mintAuthenticatedGitHandoffResult({ identity, authenticatedHead,
   return result;
 }
 
-function observeLandedRetry({ mainRepo, wk, landed }) {
+function observeLandedRetry({ mainRepo, wk, landed, binding }) {
   const live = readLiveWkRecord(mainRepo, wk);
   if (live.ok !== true) return { refusal: closeoutPreparationRefusal(live) };
-  if (livePublishedUnchanged(live, landed)) return { unchanged: true };
+  if (landed.candidate === binding.candidate && livePublishedUnchanged(live, landed)) return { unchanged: true };
   return {
     refusal: refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
       stage: "landing", reason: "published_handoff_already_landed", landed_head: landed.head
@@ -251,12 +263,20 @@ function observeLandedRetry({ mainRepo, wk, landed }) {
 
 async function decideHandoffRefresh({ mainRepo, wk, identity, published, deps }) {
   const { binding, candidateRecord } = identity;
-  const classified = classifyLiveAgainstPublication({ mainRepo, wk, binding, candidateRecord, published });
-  if (classified.kind === "unchanged") {
-    return { kind: "unchanged", head: published.head, live: classified.live };
+  let live;
+  if (published.candidate !== binding.candidate) {
+    live = readAuthenticatedLiveCloseout({
+      mainRepo, wk, candidateRecord, binding, publishedRecord: published.closeoutRecord
+    });
+    if (live.ok !== true) return { refusal: closeoutPreparationRefusal(live) };
+  } else {
+    const classified = classifyLiveAgainstPublication({ mainRepo, wk, binding, candidateRecord, published });
+    if (classified.kind === "unchanged") {
+      return { kind: "unchanged", head: published.head, live: classified.live };
+    }
+    if (classified.kind === "refused") return { refusal: closeoutPreparationRefusal(classified.cause) };
+    ({ live } = classified);
   }
-  if (classified.kind === "refused") return { refusal: closeoutPreparationRefusal(classified.cause) };
-  const { live } = classified;
   const built = await commitWkCloseoutChain({
     mainRepo, wk, candidate: binding.candidate, binding, live, deps
   });
@@ -330,6 +350,139 @@ export async function assessWkHandoffRefresh({ mainRepo, handoff, deps = {} } = 
   }
 }
 
+function listWkCandidateVersions({ mainRepo, wk, initiative, runGit }) {
+  const prefix = `${deriveTerminalCandidateDurableRefs({ initiative, canonicalWkId: wk }).candidates_ref}/`;
+  return git(runGit, mainRepo, ["for-each-ref", "--format=%(refname) %(objectname)", prefix])
+    .split("\n").map((line) => line.trim().split(" ")).filter(([ref]) => Boolean(ref))
+    .map(([ref, candidate]) => ({ version: ref.slice(prefix.length), candidate }))
+    .filter(({ version }) => /^[0-9a-f]{64}$/u.test(version));
+}
+
+function candidateDestinationNames({ identity, wk, candidate }) {
+  const { initiative, destination } = identity;
+  return {
+    candidate,
+    branch: deriveForgeBranchName({ initiative, wk, candidate }),
+    handoffRef: destination.transport === HANDOFF_TRANSPORTS.HOSTED
+      ? null : wkHandoffRef({ initiative, wk, candidate, destination })
+  };
+}
+
+async function observeDestinationNames({ mainRepo, identity, names, runGit }) {
+  if (identity.destination.transport === HANDOFF_TRANSPORTS.HOSTED) {
+    const { forge, repository, landing } = identity;
+    const branch = await forge.observeRemoteBranch({ branch: names.branch });
+    if (branch?.kind !== "present" && branch?.kind !== "absent") {
+      return { refusal: refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE, {
+        stage: "branch", reason: "remote_candidate_state_unprovable",
+        observation: branchObservationFacts(branch)
+      }) };
+    }
+    const proposals = await observeExactPullRequests({ forge, repository, base: landing, head: names.branch });
+    if (proposals.ok !== true) return { refusal: pullRequestObservationRefusal(proposals) };
+    return { present: branch.kind === "present" || proposals.matches.length > 0 };
+  }
+  const recorded = readLocalRef({ repo: mainRepo, ref: names.handoffRef, runGit });
+  if (recorded.kind === "unobservable") {
+    return { refusal: gitTransportFailure("handoff_ref", "handoff_ref_unobservable", recorded) };
+  }
+  if (recorded.kind === "present" || identity.destination.transport !== HANDOFF_TRANSPORTS.GIT) {
+    return { present: recorded.kind === "present" };
+  }
+  const remote = observeRemoteRef({
+    repo: mainRepo, remote: identity.remoteUrl, ref: `refs/heads/${names.branch}`, runGit
+  });
+  if (remote.kind === "unobservable") {
+    return { refusal: gitTransportFailure("destination_branch", "destination_branch_unobservable", remote) };
+  }
+  return { present: remote.kind === "present" };
+}
+
+async function locateWkPublication({ mainRepo, wk, identity, synchronization = null, deps }) {
+  const runGit = deps.runGit ?? defaultRunGit;
+  const { binding, initiative } = identity;
+  const ownChainAt = (sha) => authenticatedChainAt({ mainRepo, wk, binding, sha, deps });
+  const located = (names, chainAt) => ({ ok: true, identity: Object.freeze({
+    ...identity,
+    ...(names === null ? {} : { branch: names.branch, handoffRef: names.handoffRef }),
+    candidate_destination: names?.candidate ?? null,
+    chainAt,
+    synchronization
+  }) });
+  const authenticateVersion = deps.observeHistoricalTerminalCandidatePublicationState;
+  if (typeof authenticateVersion !== "function") return located(null, ownChainAt);
+  let versions;
+  try {
+    versions = listWkCandidateVersions({ mainRepo, wk, initiative, runGit })
+      .filter(({ candidate }) => candidate !== binding.candidate);
+  } catch (error) {
+    return gitTransportFailure("candidate_versions", "candidate_versions_unobservable", {
+      evidence: captureDiagnosticEvidence(error)
+    });
+  }
+  if (versions.length === 0) return located(null, ownChainAt);
+  const own = await observeDestinationNames({
+    mainRepo, identity, names: candidateDestinationNames({ identity, wk, candidate: binding.candidate }), runGit
+  });
+  if (own.refusal !== undefined) return own.refusal;
+  if (own.present) return located(null, ownChainAt);
+  const published = [];
+  for (const { candidate } of versions) {
+    const names = candidateDestinationNames({ identity, wk, candidate });
+    const recorded = listRecordedHandoffs({ repo: mainRepo, initiative, wk, candidate, runGit });
+    if (recorded.ok !== true) {
+      return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.GIT_FAILED, {
+        stage: "handoff_ref", reason: "handoff_ref_unobservable", evidence: recorded.evidence
+      });
+    }
+
+    const elsewhere = recorded.handoffs.find((handoff) => handoff.ref !== names.handoffRef);
+    if (elsewhere !== undefined) {
+      return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
+        stage: "destination",
+        reason: "handoff_destination_changed",
+        recorded_destination: elsewhere.destination,
+        selected_destination: projectHandoffDestination(identity.destination)
+      });
+    }
+    const observed = await observeDestinationNames({ mainRepo, identity, names, runGit });
+    if (observed.refusal !== undefined) return observed.refusal;
+    if (observed.present) published.push(names);
+  }
+  if (published.length === 0) return located(null, ownChainAt);
+  if (published.length > 1) {
+    return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
+      stage: "destination",
+      reason: "wk_publication_not_unique",
+      publications: published.map((names) => ({
+        candidate: names.candidate,
+        ...(names.handoffRef === null ? { branch: names.branch } : { handoff_ref: names.handoffRef })
+      }))
+    });
+  }
+
+  const versionBeneath = (sha) => {
+    let ancestry;
+    try {
+      ancestry = git(runGit, mainRepo, ["rev-list", "--first-parent", "-n", "3", sha]).split("\n").slice(1);
+    } catch (error) {
+      throw Object.assign(new WkCloseoutObservationError("candidate_version_ancestry", error), {
+        subject: { assigned_unit: wk, head: sha }
+      });
+    }
+    return versions.find(({ candidate }) => ancestry.includes(candidate)) ?? null;
+  };
+  return located(published[0], async (sha) => {
+    const chain = await ownChainAt(sha);
+    if (chain !== null) return chain;
+    const version = versionBeneath(sha);
+    if (version === null) return null;
+    const earlier = await authenticateVersion(wk, version.version);
+    if (earlier?.binding?.candidate !== version.candidate) return null;
+    return authenticatedChainAt({ mainRepo, wk, binding: earlier.binding, sha, deps });
+  });
+}
+
 function observeGitTransportLanding({ mainRepo, identity, chains, runGit }) {
   const base = observeLandingBaseTip({
     repo: mainRepo, transport: identity.destination.transport, remote: identity.remoteUrl,
@@ -356,6 +509,67 @@ function observeGitTransportLanding({ mainRepo, identity, chains, runGit }) {
   return { landed: null };
 }
 
+async function observeLandedWkPublication({ mainRepo, wk, deps }) {
+  const runGit = deps.runGit ?? defaultRunGit;
+  const authenticateVersion = deps.observeHistoricalTerminalCandidatePublicationState;
+  if (typeof authenticateVersion !== "function") return { landed: null };
+  const unobservable = (observation, cause) => ({ unobservable: { observation, ...cause } });
+  const refused = (observation, outcome) =>
+    unobservable(observation, { cause: outcome.detail ?? { reason: outcome.reason } });
+  let observation = "live_record";
+  try {
+    const live = readLiveWkRecord(mainRepo, wk);
+    if (live.ok !== true) return refused(observation, live);
+    observation = "candidate_versions";
+    const versions = listWkCandidateVersions({ mainRepo, wk, initiative: live.record.initiative, runGit });
+    if (versions.length === 0) return { landed: null };
+    const selected = readLocalRef({
+      repo: mainRepo, ref: deriveTerminalCandidateCurrentRef({ canonicalWkId: wk }), runGit
+    });
+    const version = versions.find(({ candidate }) => candidate === selected.sha) ?? versions[0];
+    observation = "destination";
+    const destination = resolveHandoffDestination({ repo: mainRepo, runGit });
+    if (destination.ok !== true) return refused(observation, destination);
+    observation = "publication_identity";
+    const resolved = await resolveCandidatePublicationIdentity({
+      mainRepo, wk, candidateState: await authenticateVersion(wk, version.version), deps,
+      selection: { version: version.version, destination: projectHandoffDestination(destination.destination) }
+    });
+    if (resolved.ok !== true) return refused(observation, resolved);
+    if (resolved.identity === undefined) return { landed: null };
+    observation = "publication";
+    const located = await locateWkPublication({ mainRepo, wk, identity: resolved.identity, deps });
+    if (located.ok !== true) return refused(observation, located);
+    const { identity } = located;
+    if (identity.destination.transport === HANDOFF_TRANSPORTS.HOSTED) {
+      observation = "pull_request";
+      const proposals = await observeExactPullRequests({
+        forge: identity.forge, repository: identity.repository, base: identity.landing, head: identity.branch
+      });
+      if (proposals.ok !== true) {
+        const { ok: _ok, ...cause } = proposals;
+        return unobservable(observation, { cause });
+      }
+      if (proposals.matches.length !== 1 || proposals.matches[0].merged !== true) return { landed: null };
+      observation = "closeout_chain";
+      return { landed: await identity.chainAt(proposals.matches[0].head_sha) };
+    }
+    observation = "handoff_ref";
+    const recorded = readLocalRef({ repo: mainRepo, ref: identity.handoffRef, runGit });
+    if (recorded.kind === "unobservable") return unobservable(observation, { evidence: recorded.evidence });
+    if (recorded.kind !== "present") return { landed: null };
+    observation = "closeout_chain";
+    const chain = await identity.chainAt(recorded.sha);
+    if (chain === null) return { landed: null };
+    observation = "landing_base";
+    const landing = observeGitTransportLanding({ mainRepo, identity, chains: [chain], runGit });
+    if (landing.refusal !== undefined) return refused(observation, landing.refusal);
+    return { landed: landing.landed };
+  } catch (error) {
+    return unobservable(observation, { evidence: captureDiagnosticEvidence(error) });
+  }
+}
+
 async function publishGitTransportHandoff({ mainRepo, wk, identity, boundaryAuthorization, deps }) {
   const runGit = deps.runGit ?? defaultRunGit;
   const { binding, destination, remoteUrl, branch, handoffRef, guard } = identity;
@@ -366,7 +580,7 @@ async function publishGitTransportHandoff({ mainRepo, wk, identity, boundaryAuth
     handoff_ref: "existing",
     destination_branch: deliversToRemote ? "existing" : "not_applicable"
   };
-  const chainAt = (sha) => authenticatedChainAt({ mainRepo, wk, binding, sha, deps });
+  const chainAt = identity.chainAt;
   const handedOff = async (head) => ({
     ok: true,
     result: mintAuthenticatedGitHandoffResult({
@@ -432,7 +646,7 @@ async function publishGitTransportHandoff({ mainRepo, wk, identity, boundaryAuth
   const observeLanding = async () => {
     const observed = observeGitTransportLanding({ mainRepo, identity, chains: landedChains, runGit });
     if (observed.refusal !== undefined || observed.landed === null) return observed;
-    const retry = observeLandedRetry({ mainRepo, wk, landed: observed.landed });
+    const retry = observeLandedRetry({ mainRepo, wk, landed: observed.landed, binding });
     if (retry.refusal !== undefined) return { refusal: withEffects(retry.refusal, effects) };
     moved = await guard();
     return moved !== null ? { refusal: moved } : { outcome: await handedOff(observed.landed.head) };
@@ -629,7 +843,11 @@ async function publishTerminalCandidateRecordingMutations({ mainRepo, wk, candid
         diagnostic: forgeProbeDiagnostic(probe)
       }) };
     }
-    const identity = resolved.identity;
+    const located = await locateWkPublication({
+      mainRepo, wk, identity: resolved.identity, synchronization: candidateState.synchronization, deps
+    });
+    if (located.ok !== true) return located;
+    const identity = located.identity;
     const { binding, candidateRecord, repository, forge, landing, branch, guard } = identity;
     const policy = await resolveWkForgeHandoffBoundaryAuthorization({
       policy: deps.forgeHandoffCcePolicy ?? null,
@@ -647,7 +865,7 @@ async function publishTerminalCandidateRecordingMutations({ mainRepo, wk, candid
       });
     }
 
-    const chainAt = (sha) => authenticatedChainAt({ mainRepo, wk, binding, sha, deps });
+    const chainAt = identity.chainAt;
     effects = { closeout_chain: "existing", destination_branch: "existing", pull_request: "existing" };
 
     const recordAnswer = (effect, facts, evidence) => {
@@ -674,7 +892,7 @@ async function publishTerminalCandidateRecordingMutations({ mainRepo, wk, candid
           stage: "pull_request", expected: binding.candidate, observed: pullRequest.head_sha
         });
       }
-      const retry = observeLandedRetry({ mainRepo, wk, landed });
+      const retry = observeLandedRetry({ mainRepo, wk, landed, binding });
       if (retry.refusal !== undefined) return withEffects(retry.refusal, effects);
       const moved = await guard();
       return moved ?? handedOff(landed.head, pullRequest);
@@ -836,8 +1054,8 @@ async function publishTerminalCandidateRecordingMutations({ mainRepo, wk, candid
         const returned = await forge.createPullRequest({
           base: landing,
           head: branch,
-          title: `${wk}: ${String(candidateRecord.title ?? "terminal candidate").trim()}`,
-          body: `Exact validated terminal candidate ${binding.candidate} for ${wk}; reviewer and redteam evidence is advisory.\n`
+          title: wkProposalTitle({ wk, title: candidateRecord.title }),
+          body: wkProposalDescription({ wk, candidate: binding.candidate })
         });
         const kind = returned?.kind;
         createOutcome = kind === "created"
@@ -894,6 +1112,50 @@ async function publishTerminalCandidateRecordingMutations({ mainRepo, wk, candid
         ? proposal : withEffects(proposal, effects);
     }
 
+    if (effects.pull_request === "existing" && proposal.pullRequest.merged !== true) {
+      const number = proposal.pullRequest.number;
+      const undescribed = (reason, facts) => withEffects(refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE, {
+        stage: "pull_request", reason, pull_request: number, published_head: authenticatedHead, ...facts
+      }), effects);
+      let described;
+      try {
+        described = await forge.readPullRequestDescription({ number });
+      } catch (error) {
+        return undescribed("pull_request_description_unobservable", { evidence: captureDiagnosticEvidence(error) });
+      }
+      const body = wkProposalDescription({ wk, candidate: binding.candidate, body: described.body });
+      if (body !== described.body) {
+        let updateOutcome;
+        effectInFlight = "pull_request_description";
+        try {
+          const returned = await forge.updatePullRequestDescription({ number, body });
+          updateOutcome = returned?.kind === "updated"
+            ? { update_outcome: "returned", update_kind: "updated" }
+            : { update_outcome: "returned", update_kind: typeof returned?.kind === "string" ? returned.kind : null,
+              update_evidence: returnedOutcomeEvidence(returned) };
+        } catch (error) {
+          updateOutcome = { update_outcome: "threw", update_evidence: captureDiagnosticEvidence(error) };
+        }
+        effectInFlight = null;
+        recordAnswer("pull_request_description", updateOutcome, updateOutcome.update_evidence);
+        let observed;
+        try {
+          observed = await forge.readPullRequestDescription({ number });
+        } catch (error) {
+          return undescribed("pull_request_description_update_not_observed", {
+            uncertain_effect: "pull_request_description", evidence: captureDiagnosticEvidence(error)
+          });
+        }
+        if (observed.body !== body) {
+          return undescribed("pull_request_description_update_not_observed", {
+            uncertain_effect: "pull_request_description"
+          });
+        }
+        mutations.pending = null;
+        effects.pull_request_description = "updated";
+      }
+    }
+
     moved = await guard();
     if (moved !== null) return moved;
     return handedOff(authenticatedHead, proposal.pullRequest);
@@ -925,7 +1187,9 @@ async function observeExistingPublication({ mainRepo, wk, candidateState, deps }
         probe: forgeProbeDiagnostic(resolved.unauthenticatedForge)
       });
     }
-    const identity = resolved.identity;
+    const located = await locateWkPublication({ mainRepo, wk, identity: resolved.identity, deps });
+    if (located.ok !== true) return located;
+    const identity = located.identity;
     if (identity.destination.transport !== HANDOFF_TRANSPORTS.HOSTED) {
       return await observeExistingGitTransportHandoff({ mainRepo, wk, identity, deps });
     }
@@ -1011,7 +1275,9 @@ async function observeSelectedPublication({ mainRepo, wk, authorityContext, sele
         probe: forgeProbeDiagnostic(resolved.unauthenticatedForge)
       });
     }
-    const identity = resolved.identity;
+    const located = await locateWkPublication({ mainRepo, wk, identity: resolved.identity, deps });
+    if (!located.ok) return located;
+    const identity = located.identity;
     const { binding, guard, forge, repository, landing: base, branch, handoffRef } = identity;
     const moved = await guard();
     if (moved !== null) return moved;
@@ -1078,7 +1344,9 @@ async function observeSelectedPublication({ mainRepo, wk, authorityContext, sele
       }
       const pending = applicable.identity.destination.transport === HANDOFF_TRANSPORTS.HOSTED
         ? await observeExistingPublication({ mainRepo, wk, candidateState: current, deps })
-        : await observeExistingGitTransportHandoff({ mainRepo, wk, identity: applicable.identity, deps });
+        : await observeExistingGitTransportHandoff({ mainRepo, wk, identity: identity.candidate_destination === null
+            ? applicable.identity
+            : { ...applicable.identity, branch: identity.branch, handoffRef: identity.handoffRef }, deps });
       if (!pending.ok) return {
         ...refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
           ...pending.detail, category: pending.category
@@ -1131,11 +1399,32 @@ export async function defaultWkForgeHandoff({
       wkId: wk,
       run: async (authorityContext) => {
         let candidateState;
+
+        let landedBeforeWrite = null;
+        const beforeFirstWrite = async () => {
+          const observed = await observeLandedWkPublication({ mainRepo, wk, deps });
+          if (observed.unobservable === undefined && observed.landed === null) return;
+          landedBeforeWrite = { error: new Error("the WK's publication stops this preparation"), ...observed };
+          throw landedBeforeWrite.error;
+        };
         try {
           candidateState = await deps.resolveTerminalCandidatePublicationState(
-            wk, authorityContext, expectedVersion
+            wk, authorityContext, expectedVersion, { beforeFirstWrite }
           );
         } catch (error) {
+          if (landedBeforeWrite !== null && error === landedBeforeWrite.error) {
+
+            if (landedBeforeWrite.unobservable !== undefined) {
+              return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
+                stage: "landing", reason: "published_handoff_landing_unobservable",
+                subject: { assigned_unit: wk }, ...landedBeforeWrite.unobservable
+              });
+            }
+            return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
+              stage: "landing", reason: "published_handoff_already_landed",
+              landed_head: landedBeforeWrite.landed.head
+            });
+          }
           resolutionFailure = { error };
           throw error;
         }
@@ -1144,14 +1433,20 @@ export async function defaultWkForgeHandoff({
             reason: "exact_terminal_candidate_unavailable"
           });
         }
+
+        const afterSynchronization = (outcome) =>
+          outcome?.ok !== false || candidateState.synchronization == null ||
+            outcome.detail?.synchronization !== undefined ? outcome
+            : { ...outcome, detail: { ...outcome.detail, synchronization: candidateState.synchronization } };
         const generationAuthority = await authenticateForgeGenerationAuthority({
           mainRepo, wk, candidateState
         });
         if (generationAuthority.ok !== true) {
-          return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, generationAuthority.detail);
+          return afterSynchronization(
+            refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, generationAuthority.detail));
         }
         return retainGenerationBinding(
-          await publishExactTerminalCandidate({ mainRepo, wk, candidateState, deps }),
+          afterSynchronization(await publishExactTerminalCandidate({ mainRepo, wk, candidateState, deps })),
           generationAuthority
         );
       }

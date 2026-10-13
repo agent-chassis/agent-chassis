@@ -20,6 +20,7 @@ import { certificationDirectory, readDefinitionDocument } from "../support/certi
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const identity = { profile_id: "proof.lifecycle.bounded-state-stability", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 const readJson = (name) => readDefinitionDocument(identity, name);
 
@@ -54,7 +55,7 @@ test("three domains and distinctions pass while all regression mutants and P8-on
       domain: "cancellation-survivor-window", mutant
     })), false, mutant
   );
-  const controls = (await runProofPackAdequacyControls({
+  const controls = (await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
     profile: BOUNDED_STATE_STABILITY_V1_PROFILE
   })).controls;
   for (const control of controls.filter(({ category }) => category === "positive")) {
@@ -84,8 +85,8 @@ test("indexed and stored full-census certification pass with exact closure", asy
     });
     assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
     assert.deepEqual(result.diagnostics, []);
-    assert.equal(result.control_count, 36);
-    assert.equal(result.negative_fixture_count, 3);
+    assert.equal(result.control_count, 38);
+    assert.equal(result.negative_fixture_count, 4);
     assert.equal(result.coverage_witness_count, 76);
     assert.equal(result.negative_fixture_results.every(
       ({ outcome }) => outcome === "rejected"

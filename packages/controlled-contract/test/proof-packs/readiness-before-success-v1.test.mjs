@@ -1,3 +1,4 @@
+import { loadProofPack } from "../support/proof-pack-adequacy.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -32,6 +33,7 @@ const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const identity = { profile_id: "proof.readiness.before-success", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 
 const readJson = (name) => readDefinitionDocument(identity, name);
@@ -95,15 +97,15 @@ test("readiness-before-success pack passes every executable and fixed control", 
   ]);
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
-  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 123);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 67);
+  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 122);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 68);
 
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
     assert.equal(result.passed, true);
-    assert.equal(result.control_count, 58);
-    assert.equal(result.negative_fixture_count, 123);
-    assert.equal(result.coverage_witness_count, 123);
+    assert.equal(result.control_count, 63);
+    assert.equal(result.negative_fixture_count, 122);
+    assert.equal(result.coverage_witness_count, 122);
     assert.equal(result.negative_fixture_results.every(
       ({ outcome }) => outcome === "rejected"
     ), true);
@@ -210,14 +212,14 @@ test("every aggregate mechanism has executable discrimination", async () => {
     assert.deepEqual(validateProfileSemanticsV1(profile).filter(
       ({ code }) => code === "profile_pattern_stage_unreachable"
     ), []);
-    const observations = await runProofPackAdequacyControls({ profile });
+    const observations = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile });
     assert.equal(adequacySubstancePasses(observations.controls), false);
   }
 });
 
 test("adequacy controls are deterministic", async () => {
   const profile = await readJson("profile.json");
-  const first = await runProofPackAdequacyControls({ profile });
-  const second = await runProofPackAdequacyControls({ profile });
+  const first = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile });
+  const second = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile });
   assert.deepEqual(first, second);
 });

@@ -4,6 +4,8 @@ import { createRequire } from "node:module";
 import { sourceAreaBirthSchema } from "../operations/record-birth-plan.mjs";
 
 import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA } from "./controlled-contract-tools.mjs";
+import { REQUIREMENT_COLLECTION_ROW_ID_PATTERN, REQUIREMENT_ROW_ID_PATTERN, admit, buildRequirementBatchSchema } from
+  "./controlled-requirement-authoring-schema.mjs";
 import { kindRecordEditableScalarFields } from "./kind-record-edit.mjs";
 import { WORK_RECORD_EDIT_FIELD_REGISTRY, WORK_RECORD_TASK_EDIT_ACTIONS } from
   "./work-record-contract-edit-operations.mjs";
@@ -20,6 +22,8 @@ import {
   missingWorkRecordReadySliceCreationFields
 } from "./work-record-ready-slice-contract.mjs";
 import { getRecordKindSpec } from "./work-record-kind-registry.mjs";
+import { recordAuthoringDefinitionName, resolveRecordAuthoringDefinition, shareRecordAuthoringDefinitions } from
+  "./record-authoring-shared-definitions.mjs";
 import { WORK_RECORD_EXPECTED_EDIT_TARGET_SCHEMA } from "./work-record-schema-structure.mjs";
 import {
   WORK_RECORD_CLOSURE_FIELD_NAMES,
@@ -72,7 +76,7 @@ export const WORK_ITEM_ORDINARY_MEMBERS = Object.freeze([
 ].map(([member, field]) => Object.freeze({ member, field })));
 
 export const WORK_ITEM_SLICE_CONTRACT_MEMBERS = Object.freeze(["work_kind", "target_unit",
-  "agent_role", "expected_edit_targets", "expected_changed_line_budget"]);
+  "agent_role", "expected_edit_targets", "expected_changed_line_budget", "regression_tests"]);
 
 const SLICE_ROW_MEMBER = Object.freeze({ target_unit: "dispatch_intent.target_unit",
   agent_role: "dispatch_intent.intended_agent_role" });
@@ -97,11 +101,13 @@ export function sliceContractMemberPlacementDiagnostics(members, context = "exis
 
 const ordinaryEditTargets = () => ({ type: "array", items: WORK_RECORD_EXPECTED_EDIT_TARGET_SCHEMA });
 
+const regressionTests = () => ({ type: "array", items: { type: "string" } });
+
 const SLICE_BODY_MEMBERS = Object.freeze({ title: { type: "string" }, work_kind: { type: "string" },
   priority: { type: "string" }, owner: { type: "string" }, depends_on: strings, read_scope: strings,
   repo_paths: strings, write_scope: strings, dispatch_intent: open, acceptance: open, sections: open,
   expected_edit_targets: ordinaryEditTargets(), expected_changed_line_budget: { type: "integer", minimum: 0 },
-  review_purpose: { type: "string" } });
+  review_purpose: { type: "string" }, regression_tests: regressionTests() });
 
 const SLICE_ROW_IDENTITY_NOTE = "key creates a slice; id selects an existing one. The server allocates the slice " +
   "ID and returns it in bindings.slice[key]; later selected-unit operations use WK#<returned ID>.";
@@ -157,13 +163,29 @@ function registryValueSchema(field) {
   return { type: "array", items, ...(declared.max_items ? { maxItems: declared.max_items } : {}) };
 }
 
-function workItemChangeProperties() {
-  const { verification, replace_claim_id: _replace, ...requirement } = upsertRequirement.properties;
+export const WORK_ITEM_SHARED_DEFINITIONS = Object.freeze({
+  case: "obligation_case", caseComponent: "case_component", caseTarget: "case_target",
+  caseFalsification: "case_falsification", readySliceEditTargets: "ready_slice_edit_targets" });
+
+const requirementBatches = new Map();
+function requirementBatch(existing) {
+  if (!requirementBatches.has(existing)) requirementBatches.set(existing, Object.freeze(buildRequirementBatchSchema({
+    label, labelReference, claimId: retiredClaim, rebindCaseIds: upsertRequirement.properties.rebind_case_ids, existingRows: existing })));
+  return requirementBatches.get(existing);
+}
+
+export const workItemRequirementBatchSchema = (context = "existing") => requirementBatch(context !== "birth").schema;
+
+function workItemChangeComposition(context) {
   const { obligation_id: obligationId, controlled_contract_node_ids: _nodes,
     acceptance_criteria: _criteria, proof_name: proofName, parameters, clear_parameters: clearParameters,
     refresh_proof_version: refresh, case: authoredCase, ...obligation } = upsertObligation;
   const { case_id: caseId, verification_id: verificationId, ...caseBody } = authoredCase.properties;
-  return {
+
+  const obligationCase = optionallyKeyed(caseId, { verification: orLabel(verificationId), ...caseBody });
+
+  const readySliceEditTargets = { type: "array", items: WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA };
+  const properties = {
     ...Object.fromEntries(WORK_ITEM_ORDINARY_MEMBERS.map(({ member, field }) =>
       [member, registryValueSchema(field)])),
     retained_graph_evidence: closed({ ref_id: { type: "string", pattern: "^[A-Za-z0-9_-]{8}$" } }, ["ref_id"]),
@@ -173,6 +195,7 @@ function workItemChangeProperties() {
     agent_role: { type: "string", minLength: 1 },
     expected_edit_targets: ordinaryEditTargets(),
     expected_changed_line_budget: { type: "integer", minimum: 0 },
+    regression_tests: regressionTests(),
 
     tasks: { type: "array", minItems: 1, items: { type: "object", additionalProperties: false,
       required: ["action"], properties: { action: { type: "string", enum: [...WORK_RECORD_TASK_EDIT_ACTIONS] },
@@ -191,16 +214,14 @@ function workItemChangeProperties() {
       rationale: { type: "string" } }) },
     criteria: { type: "array", minItems: 1, description: WORK_ITEM_CRITERION_NOTES.criteria,
       items: keyed({ type: "string", minLength: 1 }, { text: { type: "string", minLength: 1 } }, ["text"]) },
-    requirements: { type: "array", minItems: 1, maxItems: 8, items: optionallyKeyed(retiredClaim, { ...requirement,
-      verification: { ...verification, properties: { key: label, ...verification.properties } } },
-    [...upsertRequirement.required]) },
+    requirements: requirementBatch(context !== "birth").batch,
     obligations: { type: "array", minItems: 1, items: keyed(obligationId, { ...obligation,
       criteria: { type: "array", uniqueItems: true, description: WORK_ITEM_CRITERION_NOTES.obligation_criteria,
         items: orLabel({ type: "string", minLength: 1 }) },
       claims: { type: "array", uniqueItems: true, items: orLabel(semantic.$defs.id) },
       proof: { type: "object", additionalProperties: false, properties: { name: proofName,
         parameters, clear_parameters: clearParameters, refresh } },
-      case: optionallyKeyed(caseId, { verification: orLabel(verificationId), ...caseBody }) }) },
+      case: obligationCase }) },
     controlled_acceptance: semantic.properties.controlled_acceptance,
     slices: { type: "array", minItems: 1, items: keyed({ type: "string", minLength: 1 },
       SLICE_BODY_MEMBERS) },
@@ -216,19 +237,22 @@ function workItemChangeProperties() {
           [member, { type: "string", description }])),
         ...Object.fromEntries(WORK_RECORD_READY_SLICE_DISPATCH_INTENT_CONTROL_FLAGS.map((member) =>
           [member, { type: "boolean" }])) }),
-
-      expected_edit_targets: { type: "array", items: WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA },
+      expected_edit_targets: readySliceEditTargets,
       expected_changed_line_budget: { type: "integer", minimum: 0 },
       summary: { anyOf: [{ type: "string" }, contentCarrier] },
       why_it_matters: { anyOf: [{ type: "string" }, contentCarrier] },
       agent_notes: { anyOf: [{ type: "string" }, contentCarrier] },
       review_purpose: readyClosedValue("review_purpose"),
-      material_refs: { type: "array", items: closed({ ref: { type: "string" } }, ["ref"]) } },
+      material_refs: { type: "array", items: closed({ ref: { type: "string" } }, ["ref"]) },
+      regression_tests: regressionTests() },
     [...WORK_RECORD_READY_SLICE_CREATION_REQUIREMENTS.every_shaping_mode]) },
     remove: { type: "object", additionalProperties: false, properties: {
       criteria: { type: "array", minItems: 1, uniqueItems: true,
         items: { type: "string", minLength: 1 } },
       requirements: semantic.properties.contract_requirements.properties.retire_claim_ids,
+
+      requirement_rows: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true, items: { anyOf: [
+        { type: "string", pattern: REQUIREMENT_ROW_ID_PATTERN }, { type: "string", pattern: REQUIREMENT_COLLECTION_ROW_ID_PATTERN }] } },
       obligations: { type: "array", minItems: 1, maxItems: 64, items: { type: "object",
         additionalProperties: false, required: ["id", "scope"], properties: { id: obligationId,
           scope: { type: "string", enum: ["selection", "obligation"] } } } },
@@ -239,6 +263,12 @@ function workItemChangeProperties() {
       properties: Object.fromEntries(WORK_RECORD_CLOSURE_FIELD_NAMES.map((name) =>
         [name, name === "summary" ? { type: "string" } : strings])) }
   };
+
+  const names = WORK_ITEM_SHARED_DEFINITIONS;
+  return { properties, definitions: requirementBatch(context !== "birth").$defs,
+    shared: [[names.case, obligationCase],
+      [names.caseComponent, caseBody.component], [names.caseTarget, caseBody.target],
+      [names.caseFalsification, caseBody.falsification], [names.readySliceEditTargets, readySliceEditTargets]] };
 }
 
 const KIND_SCALAR_SCHEMAS = Object.freeze({ string: { type: "string" },
@@ -258,11 +288,31 @@ function kindRecordChangeProperties(kind) {
   };
 }
 
-function birthRowSchema(schema) {
-  if (Array.isArray(schema)) return schema.map(birthRowSchema);
+function birthRowSchema(schema, copies) {
+  if (Array.isArray(schema)) return schema.map(item => birthRowSchema(item, copies));
   if (schema === null || typeof schema !== "object") return schema;
-  if (Object.hasOwn(schema, ROW)) return birthRowSchema(schema.oneOf[0]);
-  return Object.fromEntries(Object.entries(schema).map(([key, value]) => [key, birthRowSchema(value)]));
+  if (copies.has(schema)) return copies.get(schema);
+  const copy = Object.hasOwn(schema, ROW) ? birthRowSchema(schema.oneOf[0], copies)
+    : Object.fromEntries(Object.entries(schema).map(([key, value]) => [key, birthRowSchema(value, copies)]));
+  copies.set(schema, copy);
+  return copy;
+}
+
+export const WORK_ITEM_BIRTH_SHARED_DEFINITIONS = Object.freeze({
+  contentCarrier: "content_carrier", editTargetProvenance: "edit_target_provenance"
+});
+
+function birthEditTargetProvenance(properties) {
+  const facet = properties.ready_slices.items.properties.expected_edit_targets.items.properties.facet_provenance;
+  const entries = Object.entries(facet.properties);
+  const [, shared] = entries[0];
+  const body = JSON.stringify(shared);
+  for (const [name, node] of entries) {
+    if (JSON.stringify(node) !== body) throw new TypeError(
+      `record_authoring_birth_provenance_schema_mismatch: ready_slices.expected_edit_targets.facet_provenance.${name}`);
+  }
+  facet.properties = Object.fromEntries(entries.map(([name]) => [name, shared]));
+  return shared;
 }
 
 const schemas = new Map();
@@ -280,7 +330,9 @@ export function recordAuthoringChangeSchema(kind, context = "existing") {
     throw new TypeError(`record kind '${kind}' has no existing-record authoring schema`);
   }
   if (!schemas.has(cacheKey)) {
-    let properties = kind === "work_item" ? workItemChangeProperties() : kindRecordChangeProperties(kind);
+    const composed = kind === "work_item" ? workItemChangeComposition(context) : { properties: kindRecordChangeProperties(kind) };
+    let { properties } = composed;
+    let definitions = { ...semantic.$defs, ...(composed.definitions ?? {}) };
 
     if (kind !== "work_item") {
       if (context === RECORD_AUTHORING_SLICE_CONTEXT) {
@@ -296,7 +348,8 @@ export function recordAuthoringChangeSchema(kind, context = "existing") {
 
     if (kind === "work_item" && context !== "birth") properties = withSliceListNotes(properties);
     if (context === "birth") {
-      properties = birthRowSchema(properties);
+      const copies = new Map();
+      properties = birthRowSchema(properties, copies);
       for (const member of ["remove", "status", "closure"]) delete properties[member];
       if (kind === "work_item") {
         const task = properties.tasks.items.properties;
@@ -304,10 +357,17 @@ export function recordAuthoringChangeSchema(kind, context = "existing") {
           action: { ...task.action, enum: WORK_RECORD_TASK_EDIT_ACTIONS.filter(action => action === "append_todo") },
           value: task.value
         }, ["action", "value"]) };
+        ({ properties, $defs: definitions } = shareRecordAuthoringDefinitions({ properties, definitions,
+          shared: [[WORK_ITEM_BIRTH_SHARED_DEFINITIONS.contentCarrier, copies.get(contentCarrier)],
+            [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.editTargetProvenance, birthEditTargetProvenance(properties)]] }));
       }
     }
+
+    if (kind === "work_item" && context !== "birth") {
+      ({ properties, $defs: definitions } = shareRecordAuthoringDefinitions({ properties, definitions, shared: composed.shared }));
+    }
     schemas.set(cacheKey, Object.freeze({ type: "object", additionalProperties: false,
-      ...(context === "birth" ? {} : { minProperties: 1 }), $defs: semantic.$defs, properties }));
+      ...(context === "birth" ? {} : { minProperties: 1 }), $defs: definitions, properties }));
   }
   return schemas.get(cacheKey);
 }
@@ -334,10 +394,38 @@ function rowVariant(kind, row) {
   return id ? 1 : 0;
 }
 
-function classifyError(schema, changes, error) {
-  const tokens = error.schemaPath.replace(/^#\/?/u, "").split("/");
-  const at = error.instancePath.split("/").slice(1);
-  let node = schema, instance = changes, consumed = 0;
+function definitionUses(schema, changes, at) {
+  const visit = (declared, instance, consumed, occurrence) => {
+    const definition = recordAuthoringDefinitionName(declared);
+    const node = resolveRecordAuthoringDefinition(schema, declared);
+    const here = definition === null ? [] : [{ definition, node, consumed, occurrence }];
+    if (node === null || typeof node !== "object") return consumed === at.length ? here : null;
+    const kind = node[ROW];
+    if (kind !== undefined) {
+      if (instance === null || typeof instance !== "object" || Array.isArray(instance)) return consumed === at.length ? here : null;
+      const selected = rowVariant(kind, instance);
+      if (selected === null) return { row: pathOf(consumed === 0 ? "" : `/${at.slice(0, consumed).join("/")}`) };
+      const within = visit(node.oneOf[selected], instance, consumed, occurrence * node.oneOf.length + selected);
+      return within === null || within.row !== undefined ? within : [...here, ...within];
+    }
+    if (consumed === at.length) return here;
+    for (const alternative of node.anyOf ?? node.oneOf ?? []) {
+      const within = visit(alternative, instance, consumed, occurrence);
+      if (within !== null) return within.row !== undefined ? within : [...here, ...within];
+    }
+    const segment = at[consumed];
+    const next = node.properties?.[segment] ?? (node.items !== undefined && /^[0-9]+$/u.test(segment) ? node.items : undefined);
+    if (next === undefined) return null;
+    const within = visit(next, instance?.[segment], consumed + 1, occurrence);
+    return within === null || within.row !== undefined ? within : [...here, ...within];
+  };
+  const uses = visit(schema, changes, 0, 0);
+  return uses === null || uses.row !== undefined ? uses : [{ definition: null, node: schema, consumed: 0, occurrence: 0 }, ...uses];
+}
+
+function followSchemaPath(tokens, at, changes, { node, consumed }) {
+  let instance = at.slice(0, consumed).reduce((value, segment) => value?.[segment], changes);
+  const verdict = (result) => ({ result, reached: node !== undefined && node !== null && consumed === at.length });
   for (let index = 0; index < tokens.length && node !== undefined && node !== null; index += 1) {
     const token = tokens[index];
     if (token === "properties") {
@@ -352,31 +440,114 @@ function classifyError(schema, changes, error) {
       const branch = Number(tokens[index + 1]);
       if (kind !== undefined) {
 
-        if (instance === null || typeof instance !== "object" || Array.isArray(instance)) return {};
+        if (instance === null || typeof instance !== "object" || Array.isArray(instance)) return verdict({});
         const selected = rowVariant(kind, instance);
         const rowPath = pathOf(consumed === 0 ? "" : `/${at.slice(0, consumed).join("/")}`);
-        if (selected === null) return { row: rowPath };
-        if (Number.isInteger(branch) && branch !== selected) return { drop: true };
+        if (selected === null) return verdict({ row: rowPath });
+        if (Number.isInteger(branch) && branch !== selected) return verdict({ drop: true });
 
-        if (!Number.isInteger(branch)) return { drop: true };
+        if (!Number.isInteger(branch)) return verdict({ drop: true });
       }
       if (!Number.isInteger(branch)) break;
-      node = node[token][branch];
+      node = node[token]?.[branch];
       index += 1;
     } else break;
+  }
+  return verdict({});
+}
+
+function classifyError(schema, changes, error, evaluation) {
+  const tokens = error.schemaPath.replace(/^#\/?/u, "").split("/");
+  const at = error.instancePath.split("/").slice(1);
+  const uses = definitionUses(schema, changes, at);
+  if (uses === null) return {};
+  if (uses.row !== undefined) return { row: uses.row };
+  const named = tokens[0] === "$defs";
+  const candidates = named ? uses.filter(use => use.definition === tokens[1]) : uses;
+  const relative = named ? tokens.slice(2) : tokens;
+  for (const use of [...candidates].reverse()) {
+    const { result, reached } = followSchemaPath(relative, at, changes, use);
+    if (!reached) continue;
+    if (use.definition !== null && evaluation !== use.occurrence) return { drop: true };
+    return result;
   }
   return {};
 }
 
+const REQUIREMENT_ROW_SELECTORS = Object.freeze(["key", "row_id", "id"]);
+function requirementRowSelectorConflicts(changes) {
+  const batch = changes?.requirements;
+  if (batch === null || typeof batch !== "object" || Array.isArray(batch)) return [];
+  return ["requirements", "collections"].flatMap((member) => (Array.isArray(batch[member]) ? batch[member] : []).flatMap((row, index) => {
+    const selectors = REQUIREMENT_ROW_SELECTORS.filter((name) => has(row, name));
+    return selectors.length > 1 ? [[`changes.requirements.${member}[${index}]`, selectors]] : [];
+  }));
+}
+
+function requirementRowOrphanRebinds(changes) {
+  const rows = changes?.requirements?.requirements;
+  return (Array.isArray(rows) ? rows : []).flatMap((row, index) =>
+    has(row, "rebind_case_ids") && !has(row, "id") ? [`changes.requirements.requirements[${index}].rebind_case_ids`] : []);
+}
+
+const namedDefinitions = (value) => Array.isArray(value) ? value.map(namedDefinitions)
+  : value === null || typeof value !== "object" ? value
+    : recordAuthoringDefinitionName(value) !== null ? { definition: recordAuthoringDefinitionName(value) }
+      : Object.fromEntries(Object.entries(value).map(([key, member]) => [key, namedDefinitions(member)]));
+
+const REQUIREMENT_BATCH_CAUSE_WORDS = Object.freeze({
+  missing: "is required here and was not supplied",
+  not_a_member: "is not an accepted member; a requirement carries no expression, definition or new relation",
+  not_an_accepted_value: "is not one of the values accepted here",
+  not_the_accepted_value: "is not the value accepted here",
+  not_an_accepted_member_name: "is not an accepted member name",
+  content_missing: "has none of the content it needs",
+  alternative_not_identified: "is not recognizably any accepted form of this input",
+  members_of_more_than_one_alternative: "carries members of more than one form of this input; send one form",
+  fits_more_than_one_alternative: "fits more than one form of this input",
+  too_few_items: "has too few items", too_many_items: "has too many items", too_few_members: "has too few members",
+  too_many_members: "has too many members", too_short: "is too short", too_long: "is too long",
+  does_not_match_pattern: "does not match the accepted pattern", below_minimum: "is below the accepted minimum",
+  above_maximum: "is above the accepted maximum", lists_a_value_twice: "lists a value twice",
+  not_an_object: "must be an object", not_a_list: "must be a list", not_a_string: "must be a string",
+  not_an_integer: "must be an integer", not_a_number: "must be a number", not_a_boolean: "must be a boolean" });
+
 export function validateRecordAuthoringChanges(kind, context, changes) {
   const schema = recordAuthoringChangeSchema(kind, context);
   const validate = validatorFor(schema);
-  if (validate(changes)) return Object.freeze([]);
+
+  const selectorConflicts = kind === "work_item" ? requirementRowSelectorConflicts(changes) : [];
+  const orphanRebinds = kind === "work_item" ? requirementRowOrphanRebinds(changes) : [];
+  if (validate(changes) && selectorConflicts.length === 0 && orphanRebinds.length === 0) return Object.freeze([]);
 
   const byPath = new Map();
   const misplaced = kind === "work_item" && context !== RECORD_AUTHORING_SLICE_CONTEXT
     ? WORK_ITEM_SLICE_CONTRACT_MEMBERS : [];
-  for (const error of validate.errors) {
+
+  const raised = new Map();
+
+  const batchFindings = kind === "work_item" && has(changes, "requirements")
+    ? admit(workItemRequirementBatchSchema(context), changes.requirements) : [];
+  for (const finding of batchFindings) {
+    const path = `changes.requirements${finding.path.map((part) => typeof part === "number" ? `[${part}]` : `.${part}`).join("")}`;
+
+    const segments = finding.path.some((part) => typeof part === "string" && /[.[\]]|^[0-9]+$/u.test(part))
+      ? ["changes", "requirements", ...finding.path] : null;
+    if (!byPath.has(path)) byPath.set(path, { message: REQUIREMENT_BATCH_CAUSE_WORDS[finding.cause] ?? "is not accepted here",
+      constraint: { keyword: finding.cause, ...(finding.accepts === null ? {} : { accepts: namedDefinitions(finding.accepts) }) },
+      ...(segments === null ? {} : { path_segments: segments }) });
+  }
+  for (const [path, selectors] of requirementRowSelectorConflicts(changes)) {
+    byPath.set(path, { message: `carries ${selectors.join(" and ")}; a row is addressed at most one way`,
+      constraint: { keyword: "oneOf", members: selectors } });
+  }
+  for (const path of orphanRebinds) {
+    if (!byPath.has(path)) byPath.set(path, { message: "retains cases only for a row that replaces a saved requirement; " +
+      "state that requirement's claim id as id in the same row, or remove rebind_case_ids",
+    constraint: { keyword: "dependentRequired", members: ["id"] } });
+  }
+  for (const error of validate.errors ?? []) {
+    if (batchFindings.length > 0 && /^\/requirements(?:\/|$)/u.test(error.instancePath)) continue;
 
     if (error.keyword === "additionalProperties" && error.instancePath === "" &&
         misplaced.includes(error.params.additionalProperty)) {
@@ -384,7 +555,10 @@ export function validateRecordAuthoringChanges(kind, context, changes) {
       byPath.set(placement.path, placement);
       continue;
     }
-    const classified = classifyError(schema, changes, error);
+    const identity = `${error.schemaPath}\u0000${error.instancePath}\u0000${JSON.stringify(error.params)}`;
+    const evaluation = raised.get(identity) ?? 0;
+    raised.set(identity, evaluation + 1);
+    const classified = classifyError(schema, changes, error, evaluation);
     if (classified.drop) continue;
     if (classified.row !== undefined) {
       byPath.set(classified.row, { message: "must carry exactly one of key (a new row) or id (an existing row)",
@@ -417,5 +591,11 @@ export function validateRecordAuthoringChanges(kind, context, changes) {
   }
   return Object.freeze([...byPath].map(([path, entry]) => entry.code !== undefined ? entry : Object.freeze({
     code: "record_authoring_change_invalid", severity: "error", path, message: `${path} ${entry.message}`,
-    constraint: entry.constraint })));
+    constraint: entry.constraint, ...(entry.path_segments === undefined ? {} : { path_segments: Object.freeze([...entry.path_segments]) }) })));
+}
+
+export function recordAuthoringIssueByMemberPath(issue) {
+  if (issue.path_segments === undefined) return issue;
+  const { path_segments: segments, ...rest } = issue;
+  return { ...rest, path: [...segments] };
 }

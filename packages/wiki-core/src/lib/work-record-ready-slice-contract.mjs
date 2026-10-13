@@ -9,6 +9,7 @@ import {
   repositoryScopeSelectorRefusalMessage
 } from "./work-record-repository-path.mjs";
 import { canonicalizeWorkRecordReadScope } from "./work-record-schema.mjs";
+import { findSliceRegressionTestsDefect } from "./work-record-schema-structure.mjs";
 import {
   collectControlledContractPrivateScopeIntersections
 } from "./controlled-contract-private-path-policy.mjs";
@@ -62,7 +63,7 @@ const READY_SLICE_PAYLOAD_FIELDS = Object.freeze([
   "title", "status", "work_kind", "priority", "owner", "depends_on", "read_scope",
   "repo_paths", "write_scope", "dispatch_intent", "acceptance", "expected_edit_targets",
   "expected_changed_line_budget", "summary", "why_it_matters", "agent_notes",
-  "review_purpose", "material_refs"
+  "review_purpose", "material_refs", "regression_tests"
 ]);
 export const WORK_RECORD_READY_SLICE_FIELDS = Object.freeze([
   ...READY_SLICE_CONTROL_FIELDS,
@@ -344,6 +345,15 @@ function stringList(value, path, { paths = false } = {}) {
     ? repoPath(entry, `${path}[${index}]`)
     : nonemptyString(entry, `${path}[${index}]`));
 }
+
+function regressionTests(value) {
+  const defect = findSliceRegressionTestsDefect(value);
+  if (defect !== null) {
+    const path = `regression_tests${defect.index === null ? "" : `[${defect.index}]`}`;
+    readyInputError("ready_slice_invalid_regression_tests", `${path} ${defect.message}`, path);
+  }
+  return [...value];
+}
 function strictProvenance(value, allowedFields, path) {
   if (!isObject(value)) {
     readyInputError("ready_slice_invalid_field", `${path} must be an object`, path);
@@ -540,6 +550,7 @@ export function validateWorkRecordReadySliceRequest(request, { resolvedProse = f
     if (hasOwn(request, "read_scope")) stringList(request.read_scope, "read_scope");
     if (hasOwn(request, "repo_paths")) stringList(request.repo_paths, "repo_paths", { paths: true });
     if (hasOwn(request, "write_scope")) stringList(request.write_scope, "write_scope", { paths: true });
+    if (hasOwn(request, "regression_tests")) regressionTests(request.regression_tests);
     if (hasOwn(request, "acceptance")) normalizeAcceptance(request.acceptance);
 
     if (hasOwn(request, "expected_edit_targets")) {
@@ -633,6 +644,7 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
     if (hasOwn(request, "read_scope")) supplied.read_scope = stringList(request.read_scope, "read_scope");
     if (hasOwn(request, "repo_paths")) supplied.repo_paths = stringList(request.repo_paths, "repo_paths", { paths: true });
     if (hasOwn(request, "write_scope")) supplied.write_scope = stringList(request.write_scope, "write_scope", { paths: true });
+    if (hasOwn(request, "regression_tests")) supplied.regression_tests = regressionTests(request.regression_tests);
     if (hasOwn(request, "acceptance")) {
 
       supplied.acceptance = normalizeAcceptance(request.acceptance, {
@@ -701,7 +713,8 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
       dispatch_intent: null,
       acceptance: supplied.acceptance,
       expected_edit_targets: supplied.expected_edit_targets ?? [],
-      expected_changed_line_budget: supplied.expected_changed_line_budget ?? null
+      expected_changed_line_budget: supplied.expected_changed_line_budget ?? null,
+      ...(supplied.regression_tests === undefined ? {} : { regression_tests: supplied.regression_tests })
     } : { ...cloneJson(existing), ...cloneJson(supplied) };
     next.work_kind = shape.work_kind;
     if (mode === "reviewer") {

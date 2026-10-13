@@ -72,14 +72,14 @@ export function validateTestProofModuleFaultConfiguration(configuration) {
   return configuration;
 }
 
-export function buildTestProofFaultModuleUrl(configuration, worktree = process.cwd()) {
+export function buildTestProofFaultModuleUrl(configuration, worktree) {
   const value = validateTestProofModuleFaultConfiguration(configuration);
   const url = pathToFileURL(path.resolve(worktree, value.module_path));
   url.searchParams.set("launcher_module_fault", testProofFaultMutationAttestationCode(value));
   return url.href;
 }
 
-export function buildTestProofFaultExportProbeUrl(configuration, worktree = process.cwd()) {
+export function buildTestProofFaultExportProbeUrl(configuration, worktree) {
   const value = validateTestProofModuleFaultConfiguration(configuration);
   const url = pathToFileURL(path.resolve(worktree, value.module_path));
   url.searchParams.set("launcher_fault_export_probe", "1");
@@ -117,7 +117,7 @@ export function validateTestProofModuleFaultExportPopulation(exportPopulation, c
 }
 
 export function buildTestProofFaultModuleRegistrationSource(configuration, loaderUrl,
-  worktree = process.cwd()) {
+  worktree) {
   const value = validateTestProofModuleFaultConfiguration(configuration);
   if (typeof loaderUrl !== "string") {
     throw new Error("launcher module-fault loader URL is unsupported");
@@ -133,13 +133,13 @@ export function buildTestProofFaultModuleRegistrationSource(configuration, loade
   ].join("\n");
 }
 
-export function buildTestProofFaultModuleSource(configuration, exportPopulation) {
+export function buildTestProofFaultModuleSource(configuration, exportPopulation, worktree) {
   const value = validateTestProofModuleFaultConfiguration(configuration);
   const population = validateTestProofModuleFaultExportPopulation(exportPopulation, value);
   if (value.strategy === "forced_invocation") {
-    return forcedInvocationSource(value, population.map(({ name }) => name));
+    return forcedInvocationSource(value, population.map(({ name }) => name), worktree);
   }
-  return dependencyFailureSource(value, population);
+  return dependencyFailureSource(value, population, worktree);
 }
 
 const MODULE_FAULT_WITNESSES = Object.freeze({
@@ -255,9 +255,9 @@ function launcherDependencyFailureFactory(configuration) {
   };
 }
 
-function dependencyFailureSource(configuration, population) {
+function dependencyFailureSource(configuration, population, worktree) {
   const identity = testProofFaultMutationAttestationCode(configuration).split(".").at(-1);
-  const probeUrl = buildTestProofFaultExportProbeUrl(configuration);
+  const probeUrl = buildTestProofFaultExportProbeUrl(configuration, worktree);
   return [
     `const configuration = ${JSON.stringify(configuration)};`,
     suffixRecipeWitnesses(launcherDependencyFailureFactory.toString(),
@@ -394,10 +394,10 @@ function launcherForcedInvocationFactory(originals, operations, configuration, i
   };
 }
 
-function forcedInvocationSource(configuration, names) {
+function forcedInvocationSource(configuration, names, worktree) {
   const identity = testProofFaultMutationAttestationCode(configuration).split(".").at(-1);
-  const probeUrl = buildTestProofFaultExportProbeUrl(configuration);
-  const operationUrl = pathToFileURL(path.resolve(process.cwd(),
+  const probeUrl = buildTestProofFaultExportProbeUrl(configuration, worktree);
+  const operationUrl = pathToFileURL(path.resolve(worktree,
     configuration.operation.module_path)).href;
   const { code, reasons } = TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE;
   const identityFailure = { code, reasons: Object.fromEntries(Object.entries(reasons).map(

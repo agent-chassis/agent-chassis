@@ -45,8 +45,14 @@ import {
   selectedResponseRequestSchema
 } from "./selected-response-snapshot.mjs";
 import { REQUIREMENT_AUTHORING_GUIDANCE, REQUIREMENT_AUTHORING_GUIDANCE_REVISION,
-  REQUIREMENT_AUTHORING_GUIDANCE_TOPICS, REQUIREMENT_GUIDANCE_SUBJECT, resolveRequirementAuthoringGuidance } from
+  REQUIREMENT_AUTHORING_GUIDANCE_TOPICS, REQUIREMENT_GUIDANCE_SUBJECT, resolveRequirementAuthoringGuidance,
+  requirementCaseFamilySelections } from
   "./requirement-authoring-guidance.mjs";
+import { createReadWikiInputContractReader } from "./task-read-wiki-input-contract.mjs";
+import { createSaveRecordInputNavigation } from "./save-record-input-navigation.mjs";
+import { SAVE_RECORD_TOOL_NAME, saveRecordUnitVariant } from "./task-save-record-tools.mjs";
+import { createReadWikiRecordKindSource } from "./task-read-wiki-record-kind.mjs";
+import { createReadWikiSelectionForms, publishedReadWikiInputSchema } from "./task-read-wiki-selection-forms.mjs";
 import { createReadWikiInputSchema, describeReadWikiTool } from "./task-read-wiki-schema.mjs";
 import { READ_WIKI_SOURCE_KINDS as KIND, READ_WIKI_TOOL, createReadWikiGrants } from
   "./task-read-wiki-selection.mjs";
@@ -138,6 +144,26 @@ export function createReadWikiTask({
     }
   }
 
+  const selectionForms = createReadWikiSelectionForms(inputSchema._def.schema);
+  const selectionContext = (reference, name, binding) => ({ tool: READ_WIKI_TOOL, reference, binding,
+    form: selectionForms.formOf(name) });
+  const readInputContract = createReadWikiInputContractReader({ requestContracts, invalid, readTool: READ_WIKI_TOOL });
+  const recordKinds = createReadWikiRecordKindSource({ requestContracts, invalid, readTool: READ_WIKI_TOOL });
+  const inputNavigation = createSaveRecordInputNavigation({ requestContracts, saveTool: SAVE_RECORD_TOOL_NAME,
+    readTool: READ_WIKI_TOOL, variantOf: saveRecordUnitVariant });
+
+  async function withAuthoringChoices(result, resource) {
+
+    if (resource.source_kind === KIND.RECORD_KIND) {
+      if (!granted(KIND.RECORD_KIND, "input_contract")) return result;
+      const creation = await recordKinds.creationContractCall(resource.subject.record_kind, result.reference);
+      return creation === null ? result : { ...result, next_calls: [...result.next_calls, creation] };
+    }
+    if (typeof resource.unit !== "string" || !granted(resource.source_kind, "input_contract")) return result;
+    const choices = await inputNavigation.jobChoices({ unit: resource.unit, reference: result.reference });
+    return choices.length === 0 ? result : { ...result, next_calls: [...result.next_calls, ...choices] };
+  }
+
   const findingsSession = sessionRole === "reviewer" || sessionRole === "redteam";
   const launcherBound = () => [WIKI_MCP_REVIEW_MATERIALIZATION_DIR_ENV_VAR, WIKI_MCP_AGENT_SESSION_CONTRACT_ENV_VAR]
     .some((name) => String(env[name] ?? "").trim() !== "");
@@ -180,9 +206,11 @@ export function createReadWikiTask({
   }
 
   function guidanceTopicRefusal(path, resolved) {
+    const correctionSubject = resolved.code === "case_guidance_family_not_supported"
+      ? { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: ["case_authoring"] } : REQUIREMENT_GUIDANCE_SUBJECT;
     return correctable("requirement_guidance_topic_not_found", { guidance: [...path], code: resolved.code,
       segment_index: resolved.segment_index, resolved_path: resolved.resolved_path, expected: resolved.expected },
-    { subject: REQUIREMENT_GUIDANCE_SUBJECT }, "the path must name a member of the requirement-authoring guidance",
+    { subject: correctionSubject }, "the path must name a member of the requirement-authoring guidance",
     "the call returns the guidance context, whose selections are the readable topics");
   }
 
@@ -211,6 +239,11 @@ export function createReadWikiTask({
           facts: { version: manifest.version ?? null, type_count: Object.keys(manifest.types ?? {}).length } };
       }
       if (subject.requirement_guidance === true) return requirementGuidanceResource(subject);
+
+      if (Object.hasOwn(subject, "record_kind")) {
+        requireGrant(KIND.RECORD_KIND, "context");
+        return recordKinds.resource(subject.record_kind);
+      }
       requireGrant(KIND.REPOSITORY, "context");
       return { source_kind: KIND.REPOSITORY, subject: { repository: true }, unit: null,
         revision: null, value: null, facts: { repository: workspace.repo } };
@@ -262,7 +295,8 @@ export function createReadWikiTask({
     throw invalid("subject_not_canonical", { subject,
       accepted: ["WK-0000", "WK-0000#SLICE-000", "DEC-0000", "IN-0000", "docs/<path>.md", "wiki/<path>.md",
         "{repository:true}", "{contract:true}",
-        ...(granted(KIND.REQUIREMENT_GUIDANCE, "context") ? ["{requirement_guidance:true}"] : [])] });
+        ...(granted(KIND.REQUIREMENT_GUIDANCE, "context") ? ["{requirement_guidance:true}"] : []),
+        ...(granted(KIND.RECORD_KIND, "context") ? ["{record_kind:<kind>}"] : [])] });
   }
 
   function assignmentResource() {
@@ -445,8 +479,21 @@ export function createReadWikiTask({
     const resource = await boundSubject(workspace, args.subject);
     requireGrant(resource.source_kind, "context");
     const reference = await retainResource(workspace, resource);
-    return jsonContent(contextResult(workspace, resource, reference, {
-      transport_retention: { performed: true, kind: "selected_resource_descriptor" } }));
+    return jsonContent(await withAuthoringChoices(contextResult(workspace, resource, reference, {
+      transport_retention: { performed: true, kind: "selected_resource_descriptor" } }), resource));
+  }
+
+  async function acquireSavedUnitReference(unit) {
+    authenticateFrozenReviewSource();
+    const workspace = resolveWorkspaceReadRepo({});
+    const resource = await boundSubject(workspace, unit);
+    requireGrant(resource.source_kind, "context");
+    requireGrant(resource.source_kind, "input_contract");
+    if (resource.unit !== unit) throw invalid("subject_not_found", { subject: unit, repository: workspace.repo });
+    return { reference: await retainResource(workspace, resource),
+      revision: resource.authoring_revision ?? resource.revision ?? null,
+      effects: { reads: [resource.source_kind], writes: [],
+        transport_retention: { performed: true, kind: "selected_resource_descriptor" } } };
   }
 
   async function assignmentContext() {
@@ -498,7 +545,9 @@ export function createReadWikiTask({
         if (select.inventory === "fields") {
           const members = fields.map((entry) => ({ field: entry.field, kind: entry.kind,
             present: valueAt(owner, entry.canonical_address) !== undefined }));
-          return { inventory: "fields", total_count: members.length, members };
+          return { inventory: "fields", total_count: members.length, members,
+            ...(members.length > 0 && granted(KIND.RECORD, "field") ? { selection_context: selectionContext(reference, "field",
+              "Use this reference unchanged with select:{field:members[i].field}.") } : {}) };
         }
         if (select.inventory === "entries") {
           const members = (owner.sections?.entries ?? []).map((entry) => ({ entry: entry.id,
@@ -507,8 +556,8 @@ export function createReadWikiTask({
             kind: entry.versions.find((version) => version.id === entry.current_version)?.kind ?? null }));
           return { inventory: "entries", total_count: members.length, members,
             ...(members.length > 0 && granted(KIND.RECORD, "entry") ? {
-              selection_context: { tool: READ_WIKI_TOOL, reference,
-                binding: "Use this reference unchanged with select:{entry:members[i].entry}; optional version selects an exact saved version." },
+              selection_context: selectionContext(reference, "entry",
+                "Use this reference unchanged with select:{entry:members[i].entry}; optional version selects an exact saved version."),
               ...followUps([{ reference, select: { entry: members[0].entry } }]) } : { next_calls: [] }) };
         }
         if (select.inventory === "tasks") {
@@ -550,7 +599,7 @@ export function createReadWikiTask({
         return { text: select.text, total_count: choices.length, ambiguous: choices.length > 1, choices };
       }
       if (name === "entry") return selectEntry(workspace, resource, select);
-      if (name === "contract" || name === "obligation") return selectContract(workspace, resource.subject, select);
+      if (name === "contract" || name === "obligation") return selectContract(workspace, resource.subject, select, reference, resource.source_kind);
     }
     if (resource.source_kind === KIND.ASSIGNMENT) {
       if (name === "field" && select.field === "guidance") {
@@ -558,7 +607,7 @@ export function createReadWikiTask({
           scalar_length: scalars(resource.presentation.guidance) };
       }
       if (name === "text") return selectText([{ field: "guidance", text: resource.presentation.guidance }], select.text);
-      if (name === "contract" || name === "obligation") return selectContract(workspace, resource.unit, select);
+      if (name === "contract" || name === "obligation") return selectContract(workspace, resource.unit, select, reference, KIND.ASSIGNED_CONTRACT);
     }
     if (resource.source_kind === KIND.CANONICAL_RECORD) {
       if (name === "field" && select.field === "record") {
@@ -627,7 +676,8 @@ export function createReadWikiTask({
 
       const returned = JSON.stringify(select.guidance);
       return { guidance: [...select.guidance], value: resolved.value, reference,
-        selections: applicableSelections(resource).filter((offered) => JSON.stringify(offered.guidance) !== returned) };
+        selections: [...applicableSelections(resource).filter((offered) => JSON.stringify(offered.guidance) !== returned),
+          ...requirementCaseFamilySelections(select.guidance)] };
     }
     if (resource.source_kind === KIND.SEARCH && name === "inventory" && select.inventory === "matches") {
       const { inventory } = resource;
@@ -667,7 +717,7 @@ export function createReadWikiTask({
     return { entry: select.entry, ...entry, reference: material.reference };
   }
 
-  async function selectContract(workspace, unit, select) {
+  async function selectContract(workspace, unit, select, reference, grantKind) {
     const [wkId] = unit.split("#");
     let context;
 
@@ -693,7 +743,15 @@ export function createReadWikiTask({
     return { contract: select.contract, population: context.population,
       present: saved.status !== "source_absent",
       total_count: Array.isArray(value) ? value.length : value === undefined || value === null ? 0 : 1,
-      members: value ?? null };
+      members: value ?? null,
+
+      ...(select.contract === "obligations" && Array.isArray(value) && value.length > 0 && granted(grantKind, "obligation")
+        ? { selection_context: selectionContext(reference, "obligation",
+          "Use this reference unchanged with select:{obligation:members[i].obligation_id}; optional parameters:true adds its parameter detail.") }
+        : {}),
+
+      ...(select.contract === "requirements" && saved.authored_requirements !== undefined
+        ? { authored: saved.authored_requirements } : {}) };
   }
 
   function selectText(sources, literal) {
@@ -906,16 +964,23 @@ export function createReadWikiTask({
       const resource = await reopen(workspace, carrier);
       if ((carrier.revision === null || resource.revision === carrier.revision) &&
           (carrier.authoring_revision === undefined || resource.authoring_revision === carrier.authoring_revision)) {
-        return jsonContent(contextResult(workspace, resource, source));
+        return jsonContent(await withAuthoringChoices(contextResult(workspace, resource, source), resource));
       }
 
-      return jsonContent(contextResult(workspace, resource, await retainResource(workspace, resource),
+      return jsonContent(await withAuthoringChoices(contextResult(workspace, resource, await retainResource(workspace, resource),
         { transport_retention: { performed: true, kind: "selected_resource_descriptor" },
           recovered: { code: "source_moved", applied: "fresh_context_of_same_subject", attempts: 1,
           observed_revision: carrier.authoring_revision ?? carrier.revision,
-          current_revision: resource.authoring_revision ?? resource.revision, superseded_reference: source } }));
+          current_revision: resource.authoring_revision ?? resource.revision, superseded_reference: source } }), resource));
     }
     return deliver(source, workspace, expected, select, async (carrier) => {
+
+      if (name === "input_contract") {
+
+        return readInputContract({ carrier, select, requireGrant, reopen: () => reopen(workspace, carrier),
+          readSavedContract: !granted(carrier.source_kind, "contract") ? null : async (unit) =>
+            (await selectContract(workspace, unit, { contract: "coverage" }, source, carrier.source_kind)).members });
+      }
       requireGrant(grantKind(carrier), name);
       if (name === "currentness" && carrier.source_kind === KIND.SEARCH) {
         const entries = carrier.observed_records;
@@ -955,6 +1020,8 @@ export function createReadWikiTask({
     config: {
       description: describeReadWikiTool(inputSchema),
       inputSchema,
+
+      publishedInputSchemaProjection: publishedReadWikiInputSchema,
       inputValidationErrorProjector: projectInputFailure
     },
 
@@ -970,7 +1037,8 @@ export function createReadWikiTask({
         return errorContent(error);
       }
     },
-    call
+    call,
+    acquireSavedUnitReference
   };
 }
 

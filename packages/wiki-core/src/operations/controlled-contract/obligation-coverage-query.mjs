@@ -7,8 +7,9 @@ import { resolveProofAuthoringSource } from './proof-authoring-source.mjs';
 import { bindProofAuthoringRevision } from './proof-authoring-revision.mjs';
 import { obligationCoverageResolutionInput } from './proof-authoring-persistence.mjs';
 import { projectProofAuthoringCase } from './proof-authoring-case.mjs';
-import { projectProofAuthoringContractInputs } from './proof-authoring-contract-inputs.mjs';
-import { projectControlledContractReferenceClosure } from './contract-requirement-authoring.mjs';
+import { projectProofAuthoringContractInputs, prepareProofAuthoringDescriptionRead } from './proof-authoring-contract-inputs.mjs';
+import { projectAuthoredRequirements } from './contract-requirement-projection.mjs';
+import { projectControlledContractReferenceClosure, controlledContractIdentityScope } from './contract-requirement-authoring.mjs';
 import { coverageUnitArguments } from './coverage-recovery-guidance.mjs';
 import { proofAuthoringOperation } from './refusal.mjs';
 import { CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE } from '../../lib/work-record-proof-posture.mjs';
@@ -141,9 +142,6 @@ export async function queryControlledContractObligationCoverageOperation(input) 
       : assigned ? 'assigned_obligation' : 'obligation';
 
     const nodeIds = mode === 'all' ? null : selectedNodeIds(pkg, resolved, rows);
-    const contractInputs = projectProofAuthoringContractInputs(resolved, {
-      controlledContractNodeIds: nodeIds });
-    const requirements = contractInputs.requirements;
     const cases = [];
     const obligations = [];
     for (const row of rows) {
@@ -156,12 +154,20 @@ export async function queryControlledContractObligationCoverageOperation(input) 
         ...(input.parameterDetail === true ? await parameterDetail(pkg, row) : {}) });
     }
     cases.sort((left, right) => left.case_id.localeCompare(right.case_id));
+    const descriptionPreparation = await prepareProofAuthoringDescriptionRead(resolved, { controlledContractNodeIds: nodeIds,
+      additionalReferenceIds: cases.filter(definition => typeof definition.component?.reference_id === 'string')
+        .map(definition => definition.component.reference_id) });
+    const contractInputs = projectProofAuthoringContractInputs(resolved, {
+      controlledContractNodeIds: nodeIds, descriptionPreparation });
+    const requirements = contractInputs.requirements;
 
     const references = inventory ? requirements.references : mergedReferences(requirements.references,
       projectControlledContractReferenceClosure(resolved.contract?.content ?? null, cases
         .filter(definition => typeof definition.component?.reference_id === 'string')
         .map(definition => ({ reference_id: definition.component.reference_id,
-          field: `cases[${definition.case_id}].component` }))));
+          field: `cases[${definition.case_id}].component` })), {
+        descriptionOwner: controlledContractIdentityScope(resolved.wkId, resolved.focus),
+        sourceDescriptions: descriptionPreparation.descriptions }));
     const returnedCounts = { obligations: obligations.length,
       explicit_gaps: rows.filter(row => row.gap).length,
       requirements: inventory ? 0 : requirements.requirements.length,
@@ -216,6 +222,11 @@ export async function queryControlledContractObligationCoverageOperation(input) 
       requirement_status: requirements.status,
       controlled_acceptance: contractInputs.controlled_acceptance,
       requirements: requirements.requirements,
+
+      authored_requirements: projectAuthoredRequirements(resolved.contract?.content ?? null, { wkId: resolved.wkId,
+        focus: resolved.focus, sourceText: resolved.record?.sections?.user_requirements ?? null,
+        claimIds: nodeIds === null ? null : new Set(requirements.requirements.map(row => row.claim_id)),
+        sourceDescriptions: descriptionPreparation.descriptions, sourceGeneration: descriptionPreparation.source_generation }),
       references,
       obligations,
       cases,

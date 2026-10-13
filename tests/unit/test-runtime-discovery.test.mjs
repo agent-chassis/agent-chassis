@@ -9,16 +9,24 @@ import {
   EXCLUSION_REASONS,
   MANIFEST_NAMES,
   discoverRuntimeEnvironments,
+  manifestDeclaration,
   environmentsForLanguage,
   environmentsWithRunners,
-  pyprojectRequirementNames
+  pyprojectRequirements
 } from "../../packages/agent-launch-cli/src/lib/test-runtime-setup/discovery.mjs";
+import {
+  enclosingPackage,
+  npmLockFacts,
+  pnpmLockFacts,
+  pnpmWorkspacePatterns,
+  resolveNpmWorkspace,
+  runnerDeclaringPackage
+} from "../../packages/agent-launch-cli/src/lib/test-runtime-setup/npm-workspace.mjs";
 
 const RUNNERS = TEST_RUNTIME_RUNNER_CATALOG.runners;
 
 const discover = (files) => discoverRuntimeEnvironments({
-  manifests: Object.keys(files).filter((relative) =>
-    MANIFEST_NAMES.includes(relative.split("/").at(-1))),
+  manifests: Object.keys(files).filter((relative) => manifestDeclaration(relative) !== null),
   runners: RUNNERS,
   readFile: (relative) => files[relative] ?? null });
 const pkg = (body) => JSON.stringify(body);
@@ -121,12 +129,60 @@ test("a Python environment lists only the runners its requirements declare", () 
   assert.deepEqual(rows(discover({ "requirements.txt": "flask\n" })),
     [{ id: "python@.", members: [], runners: [] }], "inventoried, but no runner is invented");
 
-  const bare = discover({ "pyproject.toml": "[project]\nname = \"x\"\n" });
+  const bare = discover({ "pyproject.toml": "[tool.codespell]\nskip = \".git\"\n" });
   assert.deepEqual([bare.environments, bare.excluded],
     [[], [{ path: "pyproject.toml", reason: EXCLUSION_REASONS.NO_INPUTS }]]);
 
+  const declared = discover({ "pyproject.toml": "[project]\nname = \"x\"\n" });
+  assert.deepEqual([rows(declared), declared.excluded], [[{ id: "python@.", members: [], runners: [] }], []]);
+  assert.deepEqual(environmentsWithRunners(declared.environments), { environments: [],
+    excluded: [{ path: "pyproject.toml", reason: EXCLUSION_REASONS.NO_RUNNER }] });
+
   assert.deepEqual(rows(discover({ "pyproject.toml": "[project.optional-dependencies]\ntest = [\"pytest\"]\n" })),
     [{ id: "python@.", members: [], runners: ["pytest"] }]);
+});
+
+const SETUPTOOLS_LAYOUT = Object.freeze({
+  "pyproject.toml": "[tool.codespell]\nskip = \".git\"\n\n[tool.coverage.run]\nbranch = true\n",
+  "setup.py": "import setuptools\nsetuptools.setup(name=\"svc\", tests_require=open(\"requirements/test.txt\").read())\n",
+  "setup.cfg": "[tool:pytest]\ntestpaths = t/unit\n\n[flake8]\nmax-line-length = 117\n",
+  "requirements/test.txt": "hypothesis<7\npytest>=8\n-r extras/yaml.txt\n",
+  "requirements/extras/yaml.txt": "PyYAML>=3.10\n",
+  "requirements/docs.txt": "sphinx\n"
+});
+
+test("root packaging and a requirements directory declare the project root, never a requirements project", () => {
+  const found = discover(SETUPTOOLS_LAYOUT);
+  assert.deepEqual([rows(found), found.excluded], [[{ id: "python@.", members: [], runners: ["pytest"] }], []]);
+  assert.deepEqual(found.environments[0].evidence,
+    ["pyproject.toml", "requirements/test.txt", "setup.cfg", "setup.py"]);
+  assert.deepEqual(manifestDeclaration("svc/requirements/test.txt"),
+    { manifest: "requirements/test.txt", ecosystem: "python", language: "python", project: "svc" });
+  assert.equal(manifestDeclaration("requirements/docs.txt"), null);
+  assert.equal(manifestDeclaration("test.txt"), null);
+
+  for (const file of ["setup.py", "setup.cfg", "requirements/test.txt"]) {
+    assert.deepEqual(rows(discover({ "svc/pyproject.toml": SETUPTOOLS_LAYOUT["pyproject.toml"],
+      [`svc/${file}`]: SETUPTOOLS_LAYOUT[file] })).map(({ id }) => id), ["python@svc"], file);
+  }
+});
+
+test("a Python project is owned without runner evidence; automatic setup still sets it aside", () => {
+
+  const found = discover({ "pyproject.toml": SETUPTOOLS_LAYOUT["pyproject.toml"],
+    "setup.py": "import setuptools\nsetuptools.setup(name=\"svc\")\n",
+    "requirements/test.txt": "-r extras/runner.txt\n",
+    "docs/setup.cfg": "[build_sphinx]\nsource-dir = .\n" });
+  assert.deepEqual([rows(found), found.excluded], [[{ id: "python@.", members: [], runners: [] },
+    { id: "python@docs", members: [], runners: [] }], []]);
+  assert.deepEqual(environmentsWithRunners(found.environments), { environments: [], excluded: [
+    { path: "pyproject.toml", reason: EXCLUSION_REASONS.NO_RUNNER },
+    { path: "requirements/test.txt", reason: EXCLUSION_REASONS.NO_RUNNER },
+    { path: "setup.py", reason: EXCLUSION_REASONS.NO_RUNNER },
+    { path: "docs/setup.cfg", reason: EXCLUSION_REASONS.NO_RUNNER }] });
+
+  assert.deepEqual(discover({ "tests/fixtures/pkg/setup.py": "" }), { environments: [],
+    excluded: [{ path: "tests/fixtures/pkg/setup.py", reason: EXCLUSION_REASONS.FIXTURE }] });
 });
 
 const PYPROJECT = `# a project file in the shapes packaging tools write
@@ -155,14 +211,23 @@ django = "^5"
 `;
 
 test("a pyproject.toml requires its project dependencies and no optional or group dependency", () => {
-  assert.deepEqual(pyprojectRequirementNames(PYPROJECT), ["Typing_Extensions", "attrs", "requests"]);
-  assert.deepEqual(pyprojectRequirementNames(
-    "[project.optional-dependencies]\ndocs = [\"sphinx\"]\n[dependency-groups]\ntest = [\"pytest\"]\n"), []);
-  assert.deepEqual(pyprojectRequirementNames("project.dependencies = [\"flask\"]\n"), ["flask"]);
-  assert.deepEqual(pyprojectRequirementNames("[project]\nname = \"x\"\ndynamic = [\"dependencies\"]\n"), []);
-  assert.deepEqual(pyprojectRequirementNames(null), []);
 
-  assert.deepEqual(pyprojectRequirementNames("[project\ndependencies = [\"unterminated\n= = ]]\n{"), []);
+  assert.deepEqual(pyprojectRequirements(PYPROJECT), [
+    { name: "Typing_Extensions", requirement: "Typing_Extensions" },
+    { name: "attrs", requirement: "attrs ; python_version >= \"3.9\"" },
+    { name: "requests", requirement: "requests[socks]>=2.31" }]);
+  assert.deepEqual(pyprojectRequirements(
+    "[project.optional-dependencies]\ndocs = [\"sphinx\"]\n[dependency-groups]\ntest = [\"pytest\"]\n"), []);
+  assert.deepEqual(pyprojectRequirements("project.dependencies = [\"flask\"]\n"),
+    [{ name: "flask", requirement: "flask" }]);
+
+  assert.deepEqual(pyprojectRequirements("[project]\ndependencies = [\"numpy>=2; python_version>='3.9'\", " +
+    "\"numpy<2; python_version<'3.9'\", \"numpy<2; python_version<'3.9'\"]\n").map(({ requirement }) => requirement),
+  ["numpy<2; python_version<'3.9'", "numpy>=2; python_version>='3.9'"]);
+  assert.deepEqual(pyprojectRequirements("[project]\nname = \"x\"\ndynamic = [\"dependencies\"]\n"), []);
+  assert.deepEqual(pyprojectRequirements(null), []);
+
+  assert.deepEqual(pyprojectRequirements("[project\ndependencies = [\"unterminated\n= = ]]\n{"), []);
 });
 
 test("runner evidence in a pyproject.toml does not depend on what setup requires", () => {
@@ -237,7 +302,8 @@ test("a multilingual repository prepares every language at once; --language narr
 test("only repository project manifests are evidence", () => {
   assert.deepEqual([...MANIFEST_NAMES].sort(),
     ["Cargo.toml", "deno.json", "deno.jsonc", "go.mod", "package.json", "pyproject.toml",
-      "requirements-dev.txt", "requirements.txt", "test-requirements.txt"]);
+      "requirements-dev.txt", "requirements.txt", "requirements/test.txt", "setup.cfg", "setup.py",
+      "test-requirements.txt"]);
   assert.deepEqual(discover({ "README.md": "# x", "Makefile": "check:\n" }),
     { environments: [], excluded: [] });
 });
@@ -264,4 +330,127 @@ test("a declared workspace member below the bounded walk is found through the ro
   assert.deepEqual(rows(found), [{ id: "npm@.", members: ["packages/group/sub/pkg"],
     runners: ["node-test", "vitest"] }]);
   assert.deepEqual(found.environments[0].evidence, ["package.json", "packages/group/sub/pkg/package.json"]);
+});
+
+test("npm and pnpm workspace ownership follows declarations and existing locks", () => {
+  const PNPM_LOCK = ["lockfileVersion: '9.0'", "importers:", "  .:", "    devDependencies:",
+    "      vitest:", "        specifier: 3.0.0", "        version: 3.0.0",
+    "  packages/core:", "    dependencies:",
+    "      '@ws/util':", "        specifier: workspace:*", "        version: link:../util",
+    "      injected:", "        specifier: file:../../vendor/injected", "        version: file:vendor/injected",
+    "      archive:", "        specifier: file:../../vendor/archive.tgz", "        version: file:vendor/archive.tgz",
+    "  packages/util: {}", "  packages/group/nested/deep: {}", "  vendor/undeclared: {}", "  ../outside: {}",
+    ""].join("\n");
+  const pnpm = {
+    "package.json": pkg({ name: "root", packageManager: "pnpm@9.15.0",
+
+      workspaces: ["vendor/*"], devDependencies: { vitest: "3.0.0" } }),
+    "pnpm-workspace.yaml": "packages:\n  - 'packages/*'\n  - packages/group/nested/*\n  - '!packages/excluded'\n" +
+      "catalog:\n  left-pad: 1.3.0\n",
+    "pnpm-lock.yaml": PNPM_LOCK,
+    "packages/core/package.json": pkg({ name: "@ws/core", dependencies: { "@ws/util": "workspace:*" },
+      devDependencies: { mocha: "11" } }),
+    "packages/util/package.json": pkg({ name: "@ws/util", devDependencies: { ava: "6" } }),
+    "packages/group/nested/deep/package.json": pkg({ name: "@ws/deep", devDependencies: { jest: "30" } }),
+
+    "packages/excluded/package.json": pkg({ name: "excluded", dependencies: { ms: "2" } }),
+    "packages/excluded/package-lock.json": LOCK,
+
+    "vendor/undeclared/package.json": pkg({ name: "undeclared", dependencies: { ms: "2" } }),
+
+    "tools/standalone/package.json": pkg({ name: "standalone", dependencies: { ms: "2" } }),
+    "tools/standalone/package-lock.json": LOCK
+  };
+
+  const walked = Object.keys(pnpm).filter((relative) => relative.endsWith("package.json") &&
+    !relative.startsWith("packages/group/"));
+  const found = discoverRuntimeEnvironments({ manifests: walked, runners: RUNNERS,
+    readFile: (relative) => pnpm[relative] ?? null });
+  assert.deepEqual(rows(found), [
+    { id: "npm@.", members: ["packages/core", "packages/group/nested/deep", "packages/util"],
+      runners: ["ava", "jest", "mocha", "node-test", "vitest"] },
+    { id: "npm@packages/excluded", members: [], runners: ["node-test"] },
+    { id: "npm@tools/standalone", members: [], runners: ["node-test"] },
+    { id: "npm@vendor/undeclared", members: [], runners: ["node-test"] }]);
+  assert.ok(found.environments[0].evidence.includes("packages/group/nested/deep/package.json"));
+  const read = (files) => (relative) => files[relative] ?? null;
+  const root = resolveNpmWorkspace(".", read(pnpm));
+  assert.deepEqual([root.manager, root.lock, [...root.inputs], [...root.ambiguous], [...root.patterns]],
+    ["pnpm", "pnpm-lock.yaml", ["pnpm-lock.yaml", "pnpm-workspace.yaml"], [],
+      ["packages/*", "packages/group/nested/*", "!packages/excluded"]]);
+
+  const member = resolveNpmWorkspace("packages/core", read(pnpm));
+  assert.deepEqual([member.lock, [...member.inputs], [...member.patterns]], [null, [], []]);
+
+  assert.deepEqual([...root.localCopies],
+    [{ owner: "packages/core", package: "injected", directory: "vendor/injected" }]);
+  assert.deepEqual([...pnpmLockFacts(PNPM_LOCK).directories],
+    ["packages/core", "packages/group/nested/deep", "packages/util", "vendor/undeclared"],
+    "an importer that leaves the lock's directory is not one of its packages");
+
+  assert.deepEqual([
+    [...pnpmLockFacts("importers:\n\n  packages/a: {}\n\npackages:\n  x: [unterminated\n").directories],
+    [...pnpmLockFacts("lockfileVersion: 5.4\ndependencies:\n  a: 1.0.0\n").directories],
+    [...pnpmLockFacts("importers: { packages/a: {} }\n").directories],
+    typeof pnpmLockFacts("importers:\n  packages/a: [unterminated\n").error
+  ], [["packages/a"], [], ["packages/a"], "string"]);
+
+  const { "pnpm-lock.yaml": _lock, ...unlockedPnpm } = pnpm;
+  const npm = { ...unlockedPnpm,
+    "package.json": pkg({ name: "root", workspaces: ["packages/*"], devDependencies: { vitest: "3.0.0" } }),
+    "package-lock.json": LOCK };
+  const underNpm = resolveNpmWorkspace(".", read(npm));
+  assert.deepEqual([underNpm.manager, underNpm.lock, [...underNpm.patterns], [...underNpm.inputs]],
+    ["npm", "package-lock.json", ["packages/*"], ["package-lock.json"]]);
+  assert.deepEqual(rows(discover(npm)).find(({ id }) => id === "npm@.").members,
+    ["packages/core", "packages/excluded", "packages/util"]);
+
+  const both = { "package.json": pkg({ name: "x", dependencies: { ms: "2" } }), "package-lock.json": LOCK,
+    "pnpm-lock.yaml": "lockfileVersion: '9.0'\n" };
+  const undecided = resolveNpmWorkspace(".", read(both));
+  assert.deepEqual([undecided.lock, [...undecided.ambiguous], [...undecided.inputs]],
+    [null, ["package-lock.json", "pnpm-lock.yaml"], ["package-lock.json", "pnpm-lock.yaml"]]);
+  const decided = (extra) => resolveNpmWorkspace(".", read({ ...both, ...extra }));
+  assert.equal(decided({ "package.json": pkg({ name: "x", packageManager: "npm@11.0.0" }) }).lock,
+    "package-lock.json");
+  assert.equal(decided({ "pnpm-workspace.yaml": "packages: []\n" }).lock, "pnpm-lock.yaml");
+  assert.equal(decided({ "node_modules/.modules.yaml": "layoutVersion: 5\n" }).lock, "pnpm-lock.yaml");
+  assert.equal(decided({ "node_modules/.package-lock.json": LOCK }).lock, "package-lock.json");
+  assert.deepEqual([...decided({ "node_modules/.modules.yaml": "x: 1\n", "node_modules/.package-lock.json": LOCK })
+    .ambiguous], ["package-lock.json", "pnpm-lock.yaml"], "both managers' metadata decides nothing");
+
+  const unlocked = resolveNpmWorkspace(".", read({ "package.json": pkg({ name: "x", packageManager: "pnpm@9.0.0" }) }));
+  assert.deepEqual([unlocked.manager, unlocked.lock, unlocked.install], ["pnpm", null, "pnpm install --frozen-lockfile"]);
+
+  const covered = discover({ "package.json": pkg({ name: "root", dependencies: { ms: "2" } }),
+    "pnpm-lock.yaml": "lockfileVersion: '9.0'\n", "tools/gen/package.json": pkg({ name: "gen" }) });
+  assert.deepEqual(covered.excluded, [{ path: "tools/gen/package.json",
+    reason: EXCLUSION_REASONS.COVERED, environment: "npm@." }]);
+
+  assert.deepEqual([...pnpmWorkspacePatterns("# members\npackages: [ \"apps/*\", 'libs/**', !!str tools ]\n").patterns],
+    ["apps/*", "libs/**", "tools"]);
+  assert.deepEqual([...pnpmWorkspacePatterns("shared: &all [a/*]\npackages: *all\n").patterns], ["a/*"]);
+  assert.deepEqual([...pnpmWorkspacePatterns("onlyBuiltDependencies:\n  - esbuild\n").patterns], []);
+  const unreadable = pnpmWorkspacePatterns("packages: [unterminated\n");
+  assert.deepEqual([[...unreadable.patterns], typeof unreadable.error], [[], "string"]);
+  assert.equal(resolveNpmWorkspace(".", read({ ...pnpm, "pnpm-workspace.yaml": "packages: [unterminated\n" }))
+    .errors[0].file, "pnpm-workspace.yaml");
+
+  assert.deepEqual([...npmLockFacts(pkg({ packages: {
+    "": {}, "packages/a": {}, "node_modules/a": { resolved: "packages/a", link: true },
+    "node_modules/copied": { resolved: "file:vendor/copied" },
+    "packages/a/node_modules/copied": { resolved: "file:vendor/copied" },
+    "node_modules/x/node_modules/nested": { resolved: "file:vendor/nested" },
+    "node_modules/packed": { resolved: "file:vendor/packed-1.0.0.tgz" } } })).localCopies],
+  [{ owner: ".", package: "copied", directory: "vendor/copied" },
+    { owner: "packages/a", package: "copied", directory: "vendor/copied" }]);
+
+  const facts = new Map([[".", root.manifest], ["packages/core", member.manifest],
+    ["packages/util", resolveNpmWorkspace("packages/util", read(pnpm)).manifest]]);
+  assert.deepEqual(["vitest", "mocha", "ava", "jest", "node-test"].map((runner) =>
+    runnerDeclaringPackage(facts, runner)), [".", "packages/core", "packages/util", ".", "."]);
+  const members = ["packages/core", "packages/core/nested", "packages/util"];
+  assert.deepEqual(["packages/core/test/a.spec.js", "packages/core/nested/b.spec.js", "packages/corelib/c.js",
+    "test/root.spec.js"].map((file) => enclosingPackage(members, file)),
+  ["packages/core", "packages/core/nested", ".", "."]);
 });

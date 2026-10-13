@@ -1,3 +1,4 @@
+import { validateStableV1Family } from "../../lib/stable-v1-family-validation.mjs";
 import { CONTROLLED_VOCABULARY } from
   "../../vocabulary/controlled-contract-vocabulary.v1.mjs";
 import { TEST_PROOF_PROVIDER_CATALOG } from "../../lib/test-proof-provider-registry.mjs";
@@ -128,7 +129,42 @@ function controlledComplementV1(operator) {
     : null;
 }
 
+function assessMandatoryVerificationControlV1({ profile, fixture, verificationClaimId }) {
+  const optional = structuredClone(fixture.contract);
+  const exact = optional.claims.find(row => row.claim_id === verificationClaimId);
+  if (exact?.kind !== "verification" || exact.modality !== "MAY") {
+    throw new Error("isolated verification control needs the exact optional verification");
+  }
+  const baseline = structuredClone(optional);
+  baseline.claims.find(row => row.claim_id === verificationClaimId).modality = "MUST";
+  const narrowerOnly = structuredClone(optional);
+  narrowerOnly.claims = narrowerOnly.claims.filter(row => row.claim_id !== verificationClaimId);
+  narrowerOnly.relations = narrowerOnly.relations.filter(row => row.source_claim_id !== verificationClaimId &&
+    row.target_claim_id !== verificationClaimId);
+  for (const collection of narrowerOnly.collections) {
+    collection.member_claim_ids = collection.member_claim_ids.filter(id => id !== verificationClaimId);
+  }
+  const input = fixture.evaluation_input;
+  const assess = contract => {
+    contract.test_proofs = buildStableTestProofPopulation(contract);
+    const validity = validateStableV1Family({ contract, profile, input });
+    const evaluation = validity.valid ? evaluateVerificationProfileV1({ contract, profile,
+      evaluation_input: input }) : null;
+    return { valid: validity.valid, diagnostics: validity.diagnostic_details ?? [],
+      satisfaction: evaluation?.satisfaction ?? "invalid",
+      nonconforming_patterns: (evaluation?.pattern_results ?? []).filter(row => row.status !== "satisfied")
+        .map(({ pattern_id: patternId, status }) => ({ pattern_id: patternId, status })) };
+
+  };
+  const results = { baseline: assess(baseline), optional: assess(optional), narrower_only: assess(narrowerOnly) };
+  return { ...results, discriminated: results.baseline.valid && results.optional.valid &&
+    results.narrower_only.valid && results.baseline.satisfaction === "satisfied" &&
+    results.optional.satisfaction === "unsatisfied" &&
+    ["unsatisfied", "indeterminate"].includes(results.narrower_only.satisfaction) };
+}
+
 export {
+  assessMandatoryVerificationControlV1,
   buildStableTestProofPopulation,
   controlledComplementV1,
   evaluateStableProofPackFixtureV1

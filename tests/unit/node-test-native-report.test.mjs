@@ -139,6 +139,23 @@ test("output with no exception report is no report", () => {
   assert.equal(read(["▶ suite", "  ✔ selected (1.2ms)", "Error: a test printed this", "ℹ pass 1"]), null);
 });
 
+test("ESM loader errors retain their native cause with optional blank header padding", () => {
+  for (const padding of [[], [""], ["", ""]]) {
+    const diagnostic = read(["node:internal/modules/run_main:107", "    triggerUncaughtException(",
+      "    ^", ...padding, "Error: forced-invocation runner export is absent",
+      "    at validateTestProofModuleFaultExportPopulation (file:///launcher/contract.mjs:127:33)",
+      "    at initialize (file:///launcher/loader.mjs:43:22)", "", VERSION]);
+    assert.deepEqual(captured(diagnostic), { name: "Error",
+      message: "forced-invocation runner export is absent" });
+    assert.deepEqual(diagnostic.issues, []);
+  }
+
+  unavailable(read(["node:internal/modules/run_main:107", "    triggerUncaughtException(",
+    "    ^", "", "", "{ reason: 'object' }", "", VERSION]));
+  unavailable(read(["node:internal/modules/run_main:107", "    triggerUncaughtException(",
+    "    ^", "", "", "Error: unterminated"]));
+});
+
 test("a thrown non-error, an unrecognized report and a bare terminator are explicit limitations", () => {
 
   unavailable(read(["node:internal/modules/run_main:107", "    triggerUncaughtException(", "    ^", "abc",

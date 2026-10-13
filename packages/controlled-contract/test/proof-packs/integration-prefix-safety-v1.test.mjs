@@ -70,7 +70,7 @@ test("ordinary and full-census adequacy are release clean", async () => {
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
     assert.equal(result.passed, true);
-    assert.equal(result.control_count, 18);
+    assert.equal(result.control_count, 20);
     assert.equal(result.negative_fixture_count, 44);
     assert.equal(result.coverage_witness_count, 44);
     assert.deepEqual(result.diagnostics, []);

@@ -9,6 +9,7 @@ import { resolveProofAuthoringSource } from './proof-authoring-source.mjs';
 import { persistObligationCoverageCarrier, obligationCoverageResolutionInput } from './proof-authoring-persistence.mjs';
 import { coverageSelectorRecovery } from './coverage-recovery-guidance.mjs';
 import { CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE } from '../../lib/work-record-proof-posture.mjs';
+import { validateRecordAuthoringException } from '../../lib/record-authoring-exception.mjs';
 
 const own = (value, key) => Object.hasOwn(value, key);
 export async function refuseMalformedControlledContractObligationCoverageRequest({ operation, issueCount, issues }) {
@@ -36,7 +37,7 @@ async function mutation(input, remove, options) {
       const pkg = await loadControlledContractProofAuthoring();
       assertControlledContractOperationInput(input, ['repoRoot', 'wkId', 'focus', 'selectedUnit',
         'expectedContentDigest', ...(remove ? ['obligationId', 'removalScope'] : [
-          'obligations', 'contractRequirements', 'controlledAcceptance'])]);
+          'obligations', 'contractRequirements', 'controlledAcceptance', 'exception'])]);
       if (!own(input, 'expectedContentDigest')) throw new ControlledContractToolError(
         'obligation_coverage_request_invalid', 'A combined revision is required');
       const target = obligationCoverageResolutionInput(input);
@@ -45,9 +46,15 @@ async function mutation(input, remove, options) {
       const initial = await resolveRevision();
       assertCAS(input, initial);
 
-      if (!remove && !['obligations', 'contractRequirements', 'controlledAcceptance'].some(key => own(input, key))) {
+      if (!remove && !['obligations', 'contractRequirements', 'controlledAcceptance', 'exception'].some(key => own(input, key))) {
         throw new ControlledContractToolError('obligation_coverage_request_invalid',
           'Supply obligations, contract requirements, controlled acceptance, or a combination');
+      }
+
+      if (!remove && own(input, 'exception')) {
+        const issues = validateRecordAuthoringException(input.exception);
+        if (issues.length > 0) throw new ControlledContractToolError(issues[0].code, issues[0].message,
+          { changed: false, phase: 'request', path: issues[0].path, issues });
       }
       const { candidate, contractInputs, editsRequirements, editsPosture, requirementRetirements,
         retirement, assertDefinitions } = await prepareProofAuthoringMutation({
@@ -83,7 +90,7 @@ async function mutation(input, remove, options) {
 
       return { unit: unitAddress(initial), saved: candidate.saved, unchanged: candidate.unchanged, content_digest: final.revision,
 
-        ...(editsPosture && input.controlledAcceptance?.disposition === 'opted_out'
+        ...(editsPosture && input.exception?.kind === 'controlled_acceptance' && input.exception.action === 'apply'
           ? { controlled_acceptance: CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE } : {}),
         ...(editsRequirements ? { requirement_bindings: (contractInputs.requirementCompilation?.compiled ?? []).map((entry, index) => ({
           input_index: index, claim_id: entry.claim_id, verification_claim_id: entry.verification_claim_id,

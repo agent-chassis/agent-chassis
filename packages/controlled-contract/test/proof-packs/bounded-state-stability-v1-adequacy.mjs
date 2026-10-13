@@ -22,7 +22,7 @@ import {
 } from "./bounded-state-stability-v1-independent-negatives.mjs";
 
 const BOUNDED_STATE_STABILITY_V1_PROFILE_DIGEST =
-  "b4eb7cd57b344d8dec861f7231ae4b0e4b39917581078aec6ea5651378aa5cae";
+  "4d3c0633d235478ec0a8936feb30a00be61aadfef94588ae2aeab39db59579fc";
 const BOUNDED_STATE_STABILITY_V1_GUARANTEE_DIGEST =
   "f83f797c792540d6085598adc202a6f6fb603bc3bc7bd324245e454113d709cd";
 
@@ -231,12 +231,12 @@ function exclusionControls(profile) {
     implementation_outcome: "boundary_demonstrated", profile_satisfaction: satisfaction }));
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   return { schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id, profile_version: profile.profile_version,
     profile_digest: BOUNDED_STATE_STABILITY_V1_PROFILE_DIGEST,
     guarantee_digest: BOUNDED_STATE_STABILITY_V1_GUARANTEE_DIGEST,
-    controls: [...positiveControls(profile), ...mutantControls(profile),
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ...positiveControls(profile), ...mutantControls(profile),
       ...profileRejectionControls(profile), ...exclusionControls(profile)] };
 }
 
@@ -244,3 +244,31 @@ export { BOUNDED_STATE_STABILITY_V1_GUARANTEE_DIGEST,
   BOUNDED_STATE_STABILITY_V1_PROFILE_DIGEST, EXCLUSIONS, baselineFixture,
   evaluateFixture, mutantFixture, profileRejectionFixtures,
   runProofPackAdequacyControls };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-bounded-state-stability-verification-modalities",
+      "claim_id": "claim-bounded-state-stability-verification",
+      "baseline": "isolated-claim-bounded-state-stability-verification-modalities-baseline",
+      "optional": "isolated-claim-bounded-state-stability-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

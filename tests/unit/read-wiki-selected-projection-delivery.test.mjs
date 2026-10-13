@@ -13,6 +13,12 @@ import {
 } from "../../packages/wiki-mcp/src/lib/selected-response-snapshot.mjs";
 import { assertStructuredCarrier, deliveredAdmissionBytes } from "../helpers/mcp-journey-accounting.mjs";
 import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+import { z } from "zod";
+import { bindInputSchemaExposure } from "../../packages/wiki-mcp/src/lib/input-schema-exposure.mjs";
+import { createSaveRecordInputExposure } from "../../packages/wiki-mcp/src/lib/save-record-input-exposure.mjs";
+import { workItemRequirementBatchSchema } from "../../packages/wiki-core/src/lib/record-authoring-schema.mjs";
+import { createSaveRecordInputContract, saveRecordUnitVariant } from
+  "../../packages/wiki-mcp/src/lib/task-save-record-tools.mjs";
 
 const LIMIT = 8192;
 const ROUTE = "workspace_selected_projection_fixture";
@@ -186,4 +192,78 @@ test("RW-J03", async (t) => {
   assert.deepEqual(cold.structuredContent, { assessment: CARRIER.assessment, restarted: true });
   assert.equal(cold.content[0].text, JSON.stringify(cold.structuredContent));
   assert.deepEqual(state(), before, "a cold read retains nothing");
+});
+
+test("selected schema delivery remains complete above the inline limit", async (t) => {
+  const { env, source, producer, state } = fixture(t);
+  const before = state();
+  const { changeSchemas } = createSaveRecordInputContract(z);
+  const owner = JSON.parse(JSON.stringify(changeSchemas.work_item_slice));
+  const exposure = bindInputSchemaExposure(createSaveRecordInputExposure({ changeSchemas,
+    variants: ["WK-0001", "WK-0001#SLICE-001", "IN-0001", "DEC-0001"].map(unit => saveRecordUnitVariant(unit)) }));
+  const members = ["criteria", "requirements", "obligations", "controlled_acceptance", "slices", "ready_slices"];
+  const selected = exposure.source("work_item_slice").select({ groups: ["acceptance", "slice_shaping"] });
+  const deliver = async (contract) => guarded(env, await read(env, source, () => ({ input_contract: contract })));
+
+  const result = await deliver({ tool: "save_record", unit: "WK-0001#SLICE-001", variant: selected.source,
+    members: selected.members, owner_schema_digest: selected.digest, schema: selected.schema });
+  const delivered = assertStructuredCarrier(result).input_contract;
+  assert.deepEqual(delivered.members, members);
+
+  const referencesOf = (value, found = []) => {
+    if (Array.isArray(value)) value.forEach(item => referencesOf(item, found));
+    else if (value !== null && typeof value === "object") {
+      for (const [key, child] of Object.entries(value)) {
+        if (key === "$ref" && typeof child === "string") found.push(child);
+        else referencesOf(child, found);
+      }
+    }
+    return found;
+  };
+  const reached = new Set(), pending = referencesOf(members.map(member => owner.properties[member]));
+  while (pending.length > 0) {
+    const name = pending.pop().slice("#/$defs/".length);
+    if (!reached.has(name)) { reached.add(name); pending.push(...referencesOf(owner.$defs[name])); }
+  }
+  const definitions = Object.keys(owner.$defs).filter(name => reached.has(name));
+  assert.deepEqual(definitions, [...Object.keys(workItemRequirementBatchSchema().$defs),
+    "obligation_case", "case_component", "case_target", "case_falsification", "ready_slice_edit_targets"],
+  "the current batch owner's definitions and the definitions the selected rows share, and no other");
+  assert.ok(Object.keys(owner.$defs).length > definitions.length, "the owner declares definitions this selection does not reach");
+  assert.deepEqual(delivered.schema, { type: "object", additionalProperties: false, minProperties: 1,
+    $defs: Object.fromEntries(definitions.map(name => [name, owner.$defs[name]])),
+    properties: Object.fromEntries(members.map(member => [member, owner.properties[member]])) },
+  "every selected member, constraint and reached definition, exactly the owner's source");
+  assert.deepEqual(Object.keys(delivered.schema.$defs), definitions, "in the owner's order");
+  for (const reference of referencesOf(delivered.schema)) {
+    assert.ok(Object.hasOwn(delivered.schema.$defs, reference.slice("#/$defs/".length)), `${reference} resolves inside the delivered answer`);
+  }
+  assert.equal(delivered.owner_schema_digest,
+    `sha256:${sha256(Buffer.from(JSON.stringify(changeSchemas.work_item_slice), "utf8"))}`);
+  assert.deepEqual(result.content, [{ type: "text", text: JSON.stringify(result.structuredContent) }]);
+  assert.deepEqual(Object.keys(result).sort(), ["content", "structuredContent"]);
+
+  assert.ok(deliveredAdmissionBytes(result) > LIMIT, `${deliveredAdmissionBytes(result)} admission bytes`);
+
+  const large = { type: "object", additionalProperties: false,
+    $defs: { code: { type: "string", enum: Array.from({ length: 2400 }, (_, index) => `code-${index}-é`) },
+      row: { type: "object", additionalProperties: false, required: ["code"], properties: { code: { $ref: "#/$defs/code" } } },
+      unreached: { type: "integer" } },
+    properties: { rows: { type: "array", minItems: 1, items: { $ref: "#/$defs/row" } }, other: { type: "string" } } };
+  const withDefinitions = bindInputSchemaExposure({ digest: () => "sha256:fixture",
+    sources: { large: { schema: large, groups: [{ name: "all", members: ["rows", "other"] }] } } })
+    .source("large").select({ members: ["rows"] });
+  const second = await deliver({ members: withDefinitions.members, schema: withDefinitions.schema });
+  assert.deepEqual(assertStructuredCarrier(second).input_contract.schema, { type: "object", additionalProperties: false,
+    $defs: { code: large.$defs.code, row: large.$defs.row }, properties: { rows: large.properties.rows } });
+  assert.ok(deliveredAdmissionBytes(second) > LIMIT * 4);
+
+  for (const frame of [result, second]) {
+    for (const key of ["response_spilled", "content_reference"]) {
+      assert.equal(Object.hasOwn(frame.structuredContent, key), false, key);
+    }
+  }
+
+  assert.deepEqual(state(), before, "no content reference or page was written by delivery");
+  assert.equal(producer.calls, 1);
 });

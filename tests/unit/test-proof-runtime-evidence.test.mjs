@@ -885,6 +885,9 @@ test("stable launcher executes candidate, falsifier, and traversal with v2 evide
   const providerTestId = stableRuntimeTestId(
     "provider-target.test.mjs :: 0 :: provider target"
   );
+
+  await writeFile(path.join(worktree, "package.json"),
+    `${JSON.stringify({ name: "test-proof-provider", version: "1.0.0", private: true })}\n`);
   await writeFile(path.join(worktree, dependency),
     "export function value() { return 42; }\n");
   await writeFile(path.join(worktree, target), `

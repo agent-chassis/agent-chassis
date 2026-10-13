@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "079e9d80727cb55ae3058c76e158c849a6b20f7a7ba8a594e2285412270f9ba2",
+  "parameter_contract_digest": "80e5d253aea6098dfdcecc703a41fe1ad43d4fb24f988f850764e5f5e884974e",
   "profile_id": "proof.compatibility.behavioral-preservation",
   "profile_version": "4.0.0",
-  "profile_digest": "5dc11d57d78d5a6faee00bdfa245e932e1ba87ce48603e426f0519ce904db581",
+  "profile_digest": "9e4ab649264b11c273fcc42c0283fd438d9a4cd81fe3b2ded18092f9f9b39f99",
   "guarantee": "For one declared logical behavior source, two distinct baseline and candidate behavior-report artifacts expose equal complete populations of typed observable descriptors by mutual subset, bind one shared exact nonnegative observable count, emit count signals equal to that count, and expose one explicitly selected canonical observable-value pair that is exactly equal. One verification reads both full reports and each verified equality has its controlled complement as a separate falsifier. Exact-bound admission additionally requires two distinct caller-selected source descriptors for the full report artifacts whose complete captured bytes have the same SHA-256.",
   "guarantee_digest": "85c6d4e5fd97c4cb01ad7fc5f81d15b7519d174eb130895291118e5c69947ae8",
   "explicit_exclusions": [
@@ -23,9 +23,9 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "3a0f94e9c24b1da01b52311bd9012676df7553fd5772886e264dc345e41e57bc",
-    "adequacy_result_digest": "221e6f8fa1c57e0239eda510bf16bb98449ab3f20145d9e8f42568f738583942",
-    "executable_control_count": 41,
+    "adequacy_declaration_digest": "4ca1903d5eac9ef99dd57e8fdf24cb28b259cc8ec910b712d543311bb6f8813d",
+    "adequacy_result_digest": "27806e841731f7b87aa38e3da89dd190e81924ad786850b3e7a89247bc361224",
+    "executable_control_count": 51,
     "negative_fixture_count": 87,
     "coverage_witness_count": 87
   }

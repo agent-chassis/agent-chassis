@@ -52,6 +52,12 @@ function convertRequestSchema(z, schema, defs, context) {
   }
   else if (schema.type === 'object') {
     if (!schema.properties && schema.additionalProperties === true) result = z.record(z.unknown());
+
+    else if (!schema.properties && schema.additionalProperties !== null && typeof schema.additionalProperties === 'object') {
+      const value = convert(schema.additionalProperties);
+      result = schema.propertyNames ? z.record(convert(schema.propertyNames), value) : z.record(value);
+      if (schema.description) result = result.describe(schema.description);
+    }
     else {
       const declared = z.object(Object.fromEntries(Object.entries(schema.properties).map(([key, value]) => {
         const field = convert(value);

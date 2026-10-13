@@ -11,9 +11,15 @@ import { classifyWorktreeAtCommit, resolveAuthenticatedConfiguredWorktree, resol
   "../../../agent-launch-cli/src/lib/backend-review-target-resolver.mjs";
 import { verifyExactSliceCommitBinding } from "../../../agent-launch-cli/src/lib/exact-slice-commit-binding.mjs";
 import { captureRepositorySourceSnapshot } from "../../../agent-launch-cli/src/lib/repository-source-snapshot.mjs";
+import { verifiedNpmDependencyMappings } from
+  "../../../agent-launch-cli/src/lib/test-execution/dependency-projection.mjs";
 import { defaultTerminalCandidateRunGit } from "../../../agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 import { resolveCurrentRunnerRuntime } from
   "../../../agent-launch-cli/src/lib/test-execution/current-runtime.mjs";
+import { expandOrdinaryTargetPattern, isOrdinaryTargetPattern } from
+  "../../../agent-launch-cli/src/lib/test-execution/ordinary-test-glob.mjs";
+import { ordinaryTargetDefect } from
+  "../../../agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs";
 import { resolveProofEnvironment, resolveRunnerRuntimeInputs } from
   "../../../agent-launch-cli/src/lib/test-execution/runtime-inputs.mjs";
 import { defaultRunGit, resolveWorktreeBinding } from "../../../agent-launch-cli/src/lib/worktree-substrate.mjs";
@@ -152,10 +158,6 @@ export function preparedRuntimeExclusions({ repositoryRoot, checkoutRoot, reques
   const runtime = resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot, descriptor, project: located.project });
   if (runtime.ok !== true) return [];
   const exclusions = [];
-  for (const { src, dst } of runtime.binds) {
-    const hidden = src === dst ? null : within(checkoutRoot, dst);
-    if (hidden !== null) exclusions.push({ path: hidden, keepNames: [] });
-  }
   const populations = [...Object.values(runtime.toolchains ?? {}), runtime.preparation ?? {}];
   for (const { population = [], population_exclude: uncovered = [] } of populations) {
     for (const root of population) {
@@ -166,11 +168,23 @@ export function preparedRuntimeExclusions({ repositoryRoot, checkoutRoot, reques
   return exclusions;
 }
 
-function currentnessCheck(runGit, root, initial, exclusions = []) {
-  const snapshot = captureRepositorySourceSnapshot(root, { exclusions });
+function requestedSource({ repositoryRoot, checkoutRoot, request }) {
+  if (!isOrdinaryTargetPattern(request?.target) ||
+      ordinaryTargetDefect(request.target, { pattern: true }) !== null) {
+    return { targets: undefined, exclusions: preparedRuntimeExclusions({ repositoryRoot, checkoutRoot, request }) };
+  }
+  const targets = Object.freeze(expandOrdinaryTargetPattern(checkoutRoot, request.target));
+  const exclusions = new Map(targets.flatMap((target) => preparedRuntimeExclusions({ repositoryRoot,
+    checkoutRoot, request: { ...request, target } })).map((exclusion) => [JSON.stringify(exclusion), exclusion]));
+  return { targets, exclusions: [...exclusions.values()] };
+}
+
+function currentnessCheck(runGit, repositoryRoot, root, initial, exclusions = []) {
+  const capture = () => captureRepositorySourceSnapshot(root, { exclusions,
+    mappedDependencies: verifiedNpmDependencyMappings({ repositoryRoot, checkoutRoot: root }) });
+  const snapshot = capture();
   return { snapshotDigest: snapshot.source_snapshot_digest, current: () => {
-    if (captureRepositorySourceSnapshot(root, { exclusions }).source_snapshot_digest !==
-        snapshot.source_snapshot_digest) {
+    if (capture().source_snapshot_digest !== snapshot.source_snapshot_digest) {
       return { current: false, reason: "source_bytes_changed" };
     }
     const now = headState(runGit, root);
@@ -180,9 +194,11 @@ function currentnessCheck(runGit, root, initial, exclusions = []) {
 }
 
 function availableBaseline(runGit, { repositoryRoot, checkoutRoot, commit }, request) {
-  const { snapshotDigest, current } = currentnessCheck(runGit, checkoutRoot, headState(runGit, checkoutRoot),
-    preparedRuntimeExclusions({ repositoryRoot, checkoutRoot, request }));
-  return Object.freeze({ status: "available", repositoryRoot, checkoutRoot, commit, snapshotDigest, current });
+  const { targets, exclusions } = requestedSource({ repositoryRoot, checkoutRoot, request });
+  const { snapshotDigest, current } = currentnessCheck(runGit, repositoryRoot, checkoutRoot,
+    headState(runGit, checkoutRoot), exclusions);
+  return Object.freeze({ status: "available", repositoryRoot, checkoutRoot, commit, snapshotDigest, current,
+    ...(targets === undefined ? {} : { targets }) });
 }
 
 const unavailableBaseline = (reason, detail = undefined) => Object.freeze({ status: "unavailable", reason,
@@ -369,6 +385,8 @@ export async function resolveManagedTestSource({ state, env = {}, mainRepo, sour
   const resolved = state.role === "worker" ? await workerSource({ ...context, state })
     : state.role === "reviewer" ? await reviewerSource({ ...context, env, state })
       : await orchestratorSource({ ...context, source, terminalWorktreeRoot });
+  const { targets, exclusions } = requestedSource({ repositoryRoot, checkoutRoot: resolved.checkoutRoot,
+    request });
   return Object.freeze({
     kind: resolved.kind,
     role: state.role,
@@ -379,8 +397,8 @@ export async function resolveManagedTestSource({ state, env = {}, mainRepo, sour
     dirty: resolved.head.dirty,
     ...(resolved.facts ?? {}),
     authorityIdentity: managedTestAuthorityIdentity(state),
-    ...currentnessCheck(runGit, resolved.checkoutRoot, resolved.head,
-      preparedRuntimeExclusions({ repositoryRoot, checkoutRoot: resolved.checkoutRoot, request })),
+    ...(targets === undefined ? {} : { targets }),
+    ...currentnessCheck(runGit, repositoryRoot, resolved.checkoutRoot, resolved.head, exclusions),
     baseline: resolved.baseline
   });
 }
@@ -390,6 +408,20 @@ function sameIdentity(left, right) {
 }
 
 export async function observeRuntimeAfterRun({ repositoryRoot, checkoutRoot, request, result }) {
+  if (Array.isArray(result?.files)) {
+
+    const observed = [];
+    const seen = new Set();
+    for (const { target, result: file } of result.files) {
+      const key = JSON.stringify([file?.identity?.project, file?.identity?.environment]);
+      if (file?.identity === undefined || seen.has(key)) continue;
+      seen.add(key);
+      observed.push(await observeRuntimeAfterRun({ repositoryRoot, checkoutRoot, request: { ...request, target },
+        result: file }));
+    }
+    return observed.find(({ status }) => status === "changed") ?? observed.find(({ status }) => status === "unknown") ??
+      observed[0] ?? Object.freeze({ status: "not_applicable", cause: "the run did not reach a runtime" });
+  }
   const identity = result?.identity;
   if (identity === null || typeof identity !== "object") {
     return Object.freeze({ status: "not_applicable", cause: "the run did not reach a runtime" });

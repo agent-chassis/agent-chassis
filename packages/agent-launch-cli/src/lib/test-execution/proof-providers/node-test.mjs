@@ -15,7 +15,6 @@ import {
 } from "../../workspace-agent-test-proof-node-observation.mjs";
 import { TEST_PROOF_MODULE_FAULT_SCHEMA_VERSION, buildTestProofFaultModuleRegistrationSource,
   describeTestProofModuleFaultAttempt } from "../../workspace-agent-test-proof-module-fault-contract.mjs";
-import { ATTEMPT_SCRATCH_ROOT } from "../../test-runtime-setup/ecosystems.mjs";
 import { mintProofStage, resolveTestFileRuntime } from "../ordinary-test-runner.mjs";
 import { configuredExecutableFailure } from "../runtime-inputs.mjs";
 import { nodeTestNativeReport } from "./node-test-native-report.mjs";
@@ -109,9 +108,6 @@ async function prepare(resolved, input) {
 const NODE_TEST_ASSET_BINDS = Object.freeze(NODE_TEST_PROOF_LAUNCHER_ASSETS.map((asset) =>
   Object.freeze({ src: asset, dst: asset })));
 
-const PRIVATE_ROOT = path.join(ATTEMPT_SCRATCH_ROOT, ".launcher-test-proof");
-const REPORT_PATH = path.join(PRIVATE_ROOT, "node-test-events.json");
-
 function nodeTestSelectionArguments(selectedTest) {
   const literalName = selectedTest.name
     .replace(/[\\^$.*+?()[\]{}|/]/gu, "\\$&")
@@ -146,14 +142,10 @@ async function execute(resolved, input, selectedTest) {
     : assertPreparedRuntime(input.preparedRuntime, resolved);
   const provider = providerEvidence(resolved, resolved.capability);
 
-  const reporter = ["--test-reporter=spec", "--test-reporter-destination=stdout",
-    `--test-reporter=${launcherNodeTestRunReporterUrl(launcherWorktree)}`,
-    `--test-reporter-destination=${REPORT_PATH}`];
-
   const runStage = async (options, expectation) => {
     let provenance = null;
     let composed = false;
-    const compose = ({ runtime, project }) => {
+    const compose = ({ runtime, project, executionRoot }) => {
       composed = true;
 
       const assets = nodeTestProviderAssetDigest();
@@ -166,9 +158,14 @@ async function execute(resolved, input, selectedTest) {
       }
       provenance = prepared === null ? null
         : runtimeProvenanceSincePreparation(prepared, runtime, runtimeInputsDigest(runtime, assets));
+      const privateRoot = path.join(executionRoot.scratch, ".launcher-test-proof");
+      const reportPath = path.join(privateRoot, "node-test-events.json");
+      const reporter = ["--test-reporter=spec", "--test-reporter-destination=stdout",
+        `--test-reporter=${launcherNodeTestRunReporterUrl(launcherWorktree)}`,
+        `--test-reporter-destination=${reportPath}`];
       return {
         proof: { options: [...reporter, ...options, ...selectedArguments] },
-        additions: { directories: [PRIVATE_ROOT], channel: { kind: "file", path: REPORT_PATH },
+        additions: { directories: [privateRoot], channel: { kind: "file", path: reportPath },
           readOnlyBinds: NODE_TEST_ASSET_BINDS },
         nativeReport: () => nodeTestNativeReport({ workRoot: launcherWorktree }),
         observe: ({ channelText, exitCode, channelOverflow, nativeReport }) => observeLauncherNodeTestRun({
@@ -217,7 +214,7 @@ async function execute(resolved, input, selectedTest) {
     const configuration = attempt.configuration;
     const registrationUrl = `data:text/javascript;base64,${Buffer.from(
       buildTestProofFaultModuleRegistrationSource(configuration,
-        launcherNodeTestFaultLoaderUrl(configuration), launcherWorktree)
+        launcherNodeTestFaultLoaderUrl(configuration, launcherWorktree), launcherWorktree)
     ).toString("base64")}`;
     const expectation = { capability: "falsifier_execution",
       falsifier_id: selection.falsifier_id, strategy: configuration.strategy, configuration,

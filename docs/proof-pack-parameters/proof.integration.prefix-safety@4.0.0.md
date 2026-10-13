@@ -4,9 +4,9 @@
 
 For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.
 
-Profile digest: d5f787bf5a3db86d478030f193cac6efd2b26e903b35c98ce670b89350e7e14a. Parameter digest: 20524d8830de268ea39fb3d3eb410ce3408b368d4b44a5f79a03c8d8b3d1846f.
+Profile digest: 28d91a5f6f1e7af31d7ba606915884a58cf88a9633fa36e0a6cc2a829deaa5d2. Parameter digest: 3ba75ab1ff64d9015f02fa595641a583ebf834b5aebe3203f39ad44aa6d6ac34.
 
-Admission digest: 9d00f89f8b7c1265c06e7f8a5728deb680c30c13618650c429e25d2560c1dc85.
+Admission digest: 3414b246256f167ab02dd4ad20db52501732e11a9af5dbfd05213a40bb8ffd14.
 
 Roles: 11/11 accounted; 0 owned gaps. Semantic parameters: 0; internal roles: 11.
 

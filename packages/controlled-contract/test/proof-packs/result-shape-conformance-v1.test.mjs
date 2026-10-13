@@ -1,3 +1,4 @@
+import { loadProofPack } from "../support/proof-pack-adequacy.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -36,6 +37,7 @@ const controlledContractRoot = path.resolve(
 );
 const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
 const identity = { profile_id: "proof.result-shape.conformance", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 
 const readJson = (name) => readDefinitionDocument(identity, name);
@@ -79,8 +81,8 @@ test("result-shape 1.0 admits indexed and full-census proof corpora", async () =
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
     assert.equal(result.passed, true, variationMode);
-    assert.equal(result.control_count, 36);
-    assert.equal(result.negative_fixture_count, 3);
+    assert.equal(result.control_count, 46);
+    assert.equal(result.negative_fixture_count, 8);
     assert.equal(result.coverage_witness_count, 140);
     assert.equal(result.negative_fixture_results.every(
       ({ outcome }) => outcome === "rejected"
@@ -248,10 +250,10 @@ test("status-only verification and invented result/schema terms are rejected", (
 
 test("control and profile evaluation are deterministic and declaration-order invariant",
   async () => {
-    const first = await runProofPackAdequacyControls({
+    const first = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
       profile: RESULT_SHAPE_CONFORMANCE_V1_PROFILE
     });
-    const second = await runProofPackAdequacyControls({
+    const second = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
       profile: RESULT_SHAPE_CONFORMANCE_V1_PROFILE
     });
     assert.deepEqual(second, first);

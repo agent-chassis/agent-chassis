@@ -10,6 +10,7 @@ import test from "node:test";
 import {
   authenticateNativeEvents,
   nativeNodeId,
+  openNativeObservation,
   projectNativeObservation,
   readNativeObservation
 } from "../../packages/agent-launch-cli/src/lib/test-execution/native-observation.mjs";
@@ -79,6 +80,39 @@ test("the record stream is authenticated before anything is read", () => {
     "test_proof_structured_events_invalid", "a record without its closed fields");
   assert.equal(authenticateNativeEvents({ channelBytes: "not bytes", expectation: exp }).code,
     "test_proof_structured_events_invalid");
+});
+
+test("an incomplete inventory states the missing member and what the stream did hold", () => {
+  const read = (records, exitCode = 0, overrides = {}) => readNativeObservation({
+    channelBytes: stream(records), exitCode, expectation: expectation(overrides) });
+  const context = { provider_id: "launcher.jest", provider_version: "1.0.0", selected_node_id: NODE_ID };
+  const incomplete = (detail) => ({ valid: false, code: "test_proof_structured_test_inventory_incomplete",
+    detail: { ...context, ...detail } });
+
+  assert.deepEqual(read(passingRun().slice(0, -1)), incomplete({ missing: "session_end",
+    completion_requirement: "session_end", session_end_observed: false, selected_collected: true,
+    selected_started: true, selected_result_observed: true, discovered_count: 2, record_count: 6 }));
+
+  assert.deepEqual(read(passingRun().slice(0, 5), 0, { completion: "result" }), incomplete({
+    missing: "selected_test_result", completion_requirement: "selected_result", session_end_observed: false,
+    selected_collected: true, selected_started: true, selected_result_observed: false, discovered_count: 2,
+    record_count: 5 }));
+
+  assert.deepEqual(read(passingRun().slice(0, 4), 1, { completion: "result" }), incomplete({
+    missing: "selected_test_start", completion_requirement: "selected_result", session_end_observed: false,
+    selected_collected: true, selected_started: false, selected_result_observed: false, discovered_count: 2,
+    record_count: 4 }));
+
+  assert.equal(read(passingRun().slice(0, 4), 0, { completion: "result" }).code,
+    "test_proof_selected_identity_not_observed");
+
+  const cause = captureTestFailureDiagnostic(new Error("worker exited before its session ended"));
+  const withCause = read([...passingRun().slice(0, 5)], 1, { completion: "result" });
+  assert.equal(withCause.detail.missing, "selected_test_result");
+  const reported = readNativeObservation({ channelBytes: stream(passingRun().slice(0, 4)), exitCode: 1,
+    expectation: expectation({ completion: "result" }), nativeReport: { build_failure: cause } });
+  assert.deepEqual([reported.detail.missing, isLauncherTestFailureDiagnostic(reported.detail.failure_diagnostic)],
+    ["selected_test_start", false], "records were written, so a build-shaped report is not this run's cause");
 });
 
 test("only the exact selected test may execute and must complete", () => {
@@ -567,4 +601,169 @@ test("native report framing reads before elision, bounds lines and survives adap
     finish: () => ({ selected_failure: null }) });
   failing.push(Buffer.from("one\ntwo\n"));
   assert.deepEqual(failing.finish(), { unreadable: true }, "a failed adapter is an explicit loss, never facts");
+});
+
+const FORMER_CHANNEL_CAP_BYTES = 2 * 1024 * 1024 - 4096;
+const FORMER_RECORD_CEILING = 100000;
+const P_MUTATED = "1".repeat(32);
+const P_HELPER = "2".repeat(32);
+
+function reducerFixture(t) {
+  const worktree = mkdtempSync(path.join(tmpdir(), "native-observation-reducer-"));
+  t.after(() => rmSync(worktree, { recursive: true, force: true }));
+  const source = "export function answer() { return 42; }\n";
+  writeFileSync(path.join(worktree, "answer.mjs"), source);
+  const instrumentation = { module_path: "answer.mjs",
+    source_digest: `sha256:${createHash("sha256").update(source).digest("hex")}`, function_name: "answer",
+    original: 42, original_kind: "integer", replacement: 41, replacement_kind: "integer",
+    functions: [{ name: "answer", line: 1 }, { name: "helper", line: 2 }],
+    probes: [{ token: P_MUTATED, function_name: "answer", line: 1, mutated: true },
+      { token: P_HELPER, function_name: "helper", line: 2, mutated: false }] };
+  return { traversal: expectation({ capability: "boundary_traversal", worktree, instrumentation,
+    observation_seam: "jest_selected_test_body" }),
+  falsifier: expectation({ capability: "falsifier_execution", worktree, instrumentation,
+    mutation_id: "mutation-native", failure_reason_code: "test_proof_fault.result_inversion.v1",
+    observation_seam: "jest_selected_test_body_failure" }) };
+}
+
+const reaches = (token, count) => Array.from({ length: count }, () => ({ kind: "reach", token }));
+
+const windowedRun = ({ before, inside, after, failed = false }) => [
+  { kind: "session_start", runner: { name: "jest é漢🙂" } },
+  { kind: "collected", file: FILE, test: SELECTED },
+  ...reaches(P_MUTATED, before), ...reaches(P_HELPER, 3),
+  { kind: "test_start", file: FILE, test: SELECTED },
+  ...reaches(P_MUTATED, inside), ...reaches(P_HELPER, 5),
+  failed ? { kind: "test_result", file: FILE, test: SELECTED, outcome: "failed", assertion_failure: true,
+    failure_diagnostic: captureTestFailureDiagnostic(Object.assign(new Error("41 !== 42"),
+      { name: "AssertionError" })) }
+    : { kind: "test_result", file: FILE, test: SELECTED, outcome: "passed", assertion_failure: false },
+  ...reaches(P_MUTATED, after),
+  { kind: "session_end" }
+];
+const counted = (window, name, entries) => ({ window, function_name: name, entries });
+const counts = (list) => list.map(({ window, function_name: name, entries }) => counted(window, name, entries));
+
+function chunked(bytes, exp, size, input) {
+  const reader = openNativeObservation({ expectation: exp });
+  for (let offset = 0; offset < bytes.length; offset += size) reader.write(bytes.subarray(offset, offset + size));
+  return reader.finish(input);
+}
+
+test("a population of repeated reaches beyond both former ceilings is counted exactly per window", (t) => {
+  const { traversal, falsifier } = reducerFixture(t);
+  const bytes = stream(windowedRun({ before: 7, inside: 120000, after: 11 }));
+  assert.ok(bytes.length > FORMER_CHANNEL_CAP_BYTES && 120000 > FORMER_RECORD_CEILING, `${bytes.length} bytes`);
+  const expected = [counted("outside", "answer", 18), counted("outside", "helper", 3),
+    counted("selected", "answer", 120000), counted("selected", "helper", 5)];
+  const whole = projectNativeObservation({ channelBytes: bytes, exitCode: 0, expectation: traversal });
+  assert.equal(whole.traversal_observed, true);
+  assert.deepEqual(counts(whole.boundary_observation.reaches), expected);
+
+  for (const size of [64 * 1024, 7919]) {
+    assert.deepEqual(chunked(bytes, traversal, size, { exitCode: 0 }), whole, `chunks of ${size}`);
+  }
+
+  const candidate = projectNativeObservation({ channelBytes: bytes, exitCode: 0, expectation: expectation() });
+  assert.equal(candidate.status, "passed");
+  assert.equal(candidate.artifacts[1].payload.events_digest,
+    `sha256:${createHash("sha256").update(bytes).digest("hex")}`);
+  assert.deepEqual(chunked(bytes, expectation(), 7919, { exitCode: 0 }), candidate);
+
+  const failing = stream(windowedRun({ before: 4, inside: 110000, after: 2, failed: true }));
+  const detected = chunked(failing, falsifier, 64 * 1024, { exitCode: 1 });
+  assert.deepEqual([detected.mutation_observed, detected.mutation.mutated_entries_in_window,
+    counts(detected.mutation.reaches)], [true, 110000, [counted("outside", "answer", 6),
+    counted("outside", "helper", 3), counted("selected", "answer", 110000), counted("selected", "helper", 5)]]);
+  assert.deepEqual(detected, projectNativeObservation({ channelBytes: failing, exitCode: 1,
+    expectation: falsifier }));
+});
+
+test("every chunk boundary, split characters included, gives the same result and digest", (t) => {
+  const { traversal } = reducerFixture(t);
+  const bytes = stream(windowedRun({ before: 2, inside: 4, after: 1 }));
+  const whole = projectNativeObservation({ channelBytes: bytes, exitCode: 0, expectation: traversal });
+  assert.equal(whole.traversal_observed, true);
+  for (const size of [1, 2, 3, 5, 61]) {
+    assert.deepEqual(chunked(bytes, traversal, size, { exitCode: 0 }), whole, `chunks of ${size}`);
+    assert.deepEqual(chunked(bytes, expectation(), size, { exitCode: 0 }),
+      projectNativeObservation({ channelBytes: bytes, exitCode: 0, expectation: expectation() }));
+  }
+
+  const torn = Buffer.from(bytes);
+  torn[torn.indexOf(Buffer.from("🙂")) + 1] = 0x20;
+  for (const size of [1, torn.length]) {
+    assert.equal(chunked(torn, traversal, size, { exitCode: 0 }).code, "test_proof_structured_events_invalid");
+  }
+});
+
+test("a record refused after a large valid prefix withholds everything counted before it", (t) => {
+  const { traversal } = reducerFixture(t);
+  const valid = windowedRun({ before: 1, inside: 105000, after: 1 });
+  const line = (record, seq, nonce = NONCE) => `${JSON.stringify({ v: 1, nonce, src: "main", seq, ...record })}\n`;
+  const prefix = stream(valid.slice(0, -1));
+  const next = valid.length - 1;
+  const refusedBy = (tail, exitCode = 0) => {
+    const result = chunked(Buffer.concat([prefix, Buffer.from(tail)]), traversal, 64 * 1024, { exitCode });
+    assert.equal(result.valid, false);
+    assert.equal(Object.hasOwn(result, "boundary_observation"), false);
+    return result;
+  };
+  const end = line({ kind: "session_end" }, next);
+  assert.equal(chunked(Buffer.concat([prefix, Buffer.from(end)]), traversal, 64 * 1024, { exitCode: 0 })
+    .traversal_observed, true, "the unmodified stream is evidence");
+  assert.equal(refusedBy(line({ kind: "reach", token: "9".repeat(32) }, next) + line({ kind: "session_end" },
+    next + 1)).code, "test_proof_structured_events_reach_unauthenticated", "a late forged credential");
+  assert.equal(refusedBy(line({ kind: "session_end" }, next, "d".repeat(64))).code,
+    "test_proof_structured_events_cross_attempt", "a late foreign nonce");
+  assert.equal(refusedBy(line({ kind: "session_end" }, next + 1)).code,
+    "test_proof_structured_events_lifecycle_invalid", "a late sequence gap");
+  assert.equal(refusedBy('{"v":1,"nonce":\n').code, "test_proof_structured_events_invalid",
+    "a malformed last record");
+  assert.equal(refusedBy(end.slice(0, -1)).code, "test_proof_structured_events_invalid",
+    "a last record without its newline");
+  assert.equal(refusedBy(end.slice(0, -9)).code, "test_proof_structured_events_invalid", "a torn last record");
+  assert.equal(refusedBy("").code, "test_proof_structured_test_inventory_incomplete", "no session end");
+  const late = refusedBy(end + line({ kind: "reach", token: P_HELPER }, next + 1));
+  assert.deepEqual([late.code, late.detail.record_kind, late.detail.record_index, late.detail.record_count],
+    ["test_proof_structured_events_lifecycle_invalid", "reach", next + 1, next + 2],
+    "a record after the session end");
+
+  const early = Buffer.concat([Buffer.from(line({ kind: "session_start" }, 0, "d".repeat(64))),
+    prefix.subarray(prefix.indexOf(0x0a) + 1), Buffer.from(end)]);
+  assert.equal(chunked(early, traversal, 64 * 1024, { exitCode: 0 }).code,
+    "test_proof_structured_events_cross_attempt");
+  assert.equal(refusedBy(`${end}\n`).code, "test_proof_structured_events_invalid", "an empty record after the end");
+  assert.equal(chunked(Buffer.concat([prefix, Buffer.from(end), Buffer.from([0xff, 0x0a])]), traversal, 4096,
+    { exitCode: 0 }).code, "test_proof_structured_events_invalid", "bytes that are not UTF-8 after the end");
+});
+
+test("retained state is bounded by its own limits, each reported with what was measured", (t) => {
+  const { traversal } = reducerFixture(t);
+  const oversized = (detail) => ({ valid: false, code: "test_proof_structured_events_oversized", detail });
+
+  const run = windowedRun({ before: 0, inside: 2, after: 0 });
+  const padded = { kind: "session_start", runner: { name: "x".repeat(2 * 1024 * 1024) } };
+  const big = stream([padded, ...run.slice(1)]);
+  const recordBytes = big.indexOf(0x0a);
+  assert.deepEqual(chunked(big, traversal, 64 * 1024, { exitCode: 0 }), oversized({ limit: "record_bytes",
+    measured: recordBytes, threshold: 2 * 1024 * 1024, unit: "bytes", measured_is_lower_bound: false,
+    record_index: 0 }));
+
+  const collected = Array.from({ length: FORMER_RECORD_CEILING }, (_, index) =>
+    ({ kind: "collected", file: FILE, test: ["generated", String(index)] }));
+  const control = stream([run[0], ...collected, ...run.slice(1)]);
+  assert.deepEqual(chunked(control, traversal, 64 * 1024, { exitCode: 0 }), oversized({ limit: "control_records",
+    measured: FORMER_RECORD_CEILING + 1, threshold: FORMER_RECORD_CEILING, unit: "records",
+    measured_is_lower_bound: true, record_index: FORMER_RECORD_CEILING }));
+
+  const controls = run.filter(({ kind }) => kind !== "reach").length;
+  const within = stream([run[0], ...collected.slice(0, FORMER_RECORD_CEILING - controls), ...run.slice(1)]);
+  assert.equal(chunked(within, traversal, 64 * 1024, { exitCode: 0 }).traversal_observed, true);
+
+  const writers = stream(Array.from({ length: FORMER_RECORD_CEILING + 1 }, (_, index) =>
+    ({ kind: "reach", token: P_HELPER, src: `w${index}` })));
+  assert.deepEqual(chunked(writers, traversal, 64 * 1024, { exitCode: 0 }), oversized({ limit: "writers",
+    measured: FORMER_RECORD_CEILING + 1, threshold: FORMER_RECORD_CEILING, unit: "writers",
+    measured_is_lower_bound: true, record_index: FORMER_RECORD_CEILING }));
 });

@@ -709,8 +709,10 @@ carries no conversation text, the hook returns nothing, and it asks the model
 for nothing.
 
 After the client has ended, the launcher reads the record at exactly that path.
+The home is the one the client itself uses: `CODEX_HOME` when the launch names
+one, otherwise `.codex` under `HOME`, which is where an orchestrator runs.
 The path is used only when it is a regular file named
-`rollout-*-<session id>.jsonl` inside the launch's own `CODEX_HOME/sessions`,
+`rollout-*-<session id>.jsonl` inside that home's `sessions`,
 wherever its directories resolve, and its `session_meta` names the same
 session; a link to another record, another session's path, or another home is
 refused with `session_record_not_bound`. Nothing is chosen by recency, by
@@ -777,7 +779,10 @@ fails asynchronously was held: whether a client ran is unknown, and the launch
 stays an expected contributor.
 
 An orchestrator launch also leaves `native-usage.json` in its own runtime
-directory, naming this records directory and its `run-total.json`.
+directory, naming this records directory and its `run-total.json`. The pointer
+names the task the launch began, so it is left even when the orchestrator's own
+capture could not be prepared: what its dispatches retain is still found, and
+the total then has no orchestrator entry.
 
 | Field | Content |
 | --- | --- |
@@ -1094,6 +1099,13 @@ dispatches the runtime started are not all among the launcher's launch entries
 (`dispatch_start_unresolved`), no orchestrator entry exists
 (`orchestrator_launch_entry_missing`), or the transcripts are unavailable
 (`dispatch_membership_unverified`). With no pointer or total it prints nothing.
+
+The exporter also copies the records directory the pointer names, unchanged,
+to `runtime/native-usage/` in the bundle (`runtime-observations.mjs
+--native-usage-records` prints its path): the launch entries, settled records,
+pending checkpoints and total. Each orchestrator and worker launch therefore
+keeps its own breakdown after Pier removes the container. Without a pointer
+the manifest lists `native_usage_records` as missing.
 
 Both Pier adapters pass that line to one function, `write_agent_context` in
 `agent_chassis_pier_agent.py`. It writes into the `AgentContext` object Pier

@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/controlled-contract",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "type": "module",
   "license": "Elastic-2.0",
   "repository": {
@@ -54,7 +54,13 @@
     "lib/behavioral-preservation-verification.mjs",
     "lib/bounded-diagnostic-projection.mjs",
     "lib/caller-input-authority-confinement-projection.mjs",
+    "lib/canonical-requirements-v1.mjs",
+    "lib/canonical-specification.mjs",
     "lib/carrier-patch-v1.mjs",
+    "lib/cel-definition-reference.mjs",
+    "lib/cel-lowering.mjs",
+    "lib/cel-observation-model.mjs",
+    "lib/closed-membership.mjs",
     "lib/compiled-validator-cache.mjs",
     "lib/contract-assessment.d.mts",
     "lib/contract-assessment.mjs",
@@ -240,10 +246,10 @@
     "profiles/proof.observation.sound-negative/4.0.0/evaluation-input.template.json",
     "profiles/proof.observation.sound-negative/4.0.0/parameter-contract.json",
     "profiles/proof.observation.sound-negative/4.0.0/profile.json",
-    "profiles/proof.operation.forbidden-noninvocation/4.0.0/admission.json",
-    "profiles/proof.operation.forbidden-noninvocation/4.0.0/evaluation-input.template.json",
-    "profiles/proof.operation.forbidden-noninvocation/4.0.0/parameter-contract.json",
-    "profiles/proof.operation.forbidden-noninvocation/4.0.0/profile.json",
+    "profiles/proof.operation.forbidden-noninvocation/5.0.0/admission.json",
+    "profiles/proof.operation.forbidden-noninvocation/5.0.0/evaluation-input.template.json",
+    "profiles/proof.operation.forbidden-noninvocation/5.0.0/parameter-contract.json",
+    "profiles/proof.operation.forbidden-noninvocation/5.0.0/profile.json",
     "profiles/proof.ordering.lexicographic-conformance/4.0.0/admission.json",
     "profiles/proof.ordering.lexicographic-conformance/4.0.0/evaluation-input.template.json",
     "profiles/proof.ordering.lexicographic-conformance/4.0.0/parameter-contract.json",
@@ -306,6 +312,7 @@
     "validators/proof-intent-discovery-result/validators.cjs",
     "schema/acceptance-coverage-gap-warning.v1.schema.json",
     "schema/controlled-acceptance-contract.v1.schema.json",
+    "schema/controlled-acceptance-requirement-definitions.v1.schema.json",
     "schema/controlled-acceptance-test-proof-definitions.v1.schema.json",
     "schema/controlled-contract-admitted-proof-pack.v3.schema.json",
     "schema/controlled-contract-assessment.v1.schema.json",
@@ -350,7 +357,12 @@
     "profiles/proof.verification.test-validity/11.0.0/evaluation-input.template.json",
     "profiles/proof.verification.test-validity/11.0.0/evaluator.mjs",
     "profiles/proof.verification.test-validity/11.0.0/parameter-contract.json",
-    "profiles/proof.verification.test-validity/11.0.0/admission.json"
+    "profiles/proof.verification.test-validity/11.0.0/admission.json",
+    "vendor/cel-spec/langdef.md",
+    "vendor/cel-spec/LICENSE",
+    "vendor/cel-java/extensions.md",
+    "vendor/cel-java/LICENSE",
+    "vendor/cel-reference-sources.json"
   ],
   "exports": {
     ".": {
@@ -424,6 +436,12 @@
     "./native-contract-dag": "./lib/native-contract-dag.mjs",
     "./runtime-evidence": "./lib/test-proof-runtime-evidence-v2.mjs",
     "./bounded-diagnostics": "./lib/bounded-diagnostic-projection.mjs",
+    "./canonical-specification": "./lib/canonical-specification.mjs",
+    "./population-semantics": "./lib/population-semantics-v1.mjs",
+    "./equality-normalization": "./lib/equality-normalization-v1.mjs",
+    "./cel-lowering": "./lib/cel-lowering.mjs",
+    "./cel-observation-model": "./lib/cel-observation-model.mjs",
+    "./closed-membership": "./lib/closed-membership.mjs",
     "./vocabulary": "./vocabulary/controlled-contract-vocabulary.v1.mjs",
     "./proof-intents/catalog.json": "./proof-intents/catalog.json",
     "./proof-packs": "./lib/admitted-proof-packs.mjs",
@@ -453,7 +471,8 @@
     "./pack-parameters": {
       "types": "./lib/pack-parameter-contract.d.mts",
       "default": "./lib/pack-parameters.mjs"
-    }
+    },
+    "./cel-definition-reference": "./lib/cel-definition-reference.mjs"
   },
   "bin": {
     "controlled-contract": "bin/assess-contract.mjs",

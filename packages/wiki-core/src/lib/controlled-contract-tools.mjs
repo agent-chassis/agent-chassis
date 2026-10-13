@@ -1,3 +1,5 @@
+import { celDefinitionIndex } from "../operations/controlled-contract/contract-requirement-vocabulary.mjs";
+
 export {
   CARRIER_TARGETS,
   diffControlledContractCarrierContent,
@@ -249,6 +251,11 @@ const requirementVocabulary = publishAuthoringVocabularyForGuidance(
     deriveControlledContractAuthoringVocabulary(NATIVE_CONTRACT_SCHEMA_V1)
   )
 );
+const observationVocabulary = publishAuthoringVocabularyForGuidance(
+  projectControlledContractAuthoringVocabulary(
+    deriveControlledContractAuthoringVocabulary(NATIVE_CONTRACT_SCHEMA_V1), "verification_observes"
+  )
+);
 const exampleReferent = (typeTerm, identity) => Object.freeze({
   declare: Object.freeze({ type_term: typeTerm, identity: Object.freeze(identity) })
 });
@@ -329,6 +336,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     structural_contract: upsertDescribeRequest({ verbose: true }),
     accepted_values: upsertGuidanceRequest("vocabulary"),
     complete_relation_catalog: upsertGuidanceRequest("vocabulary", "relation_details"),
+    verification_observation_relations: upsertGuidanceRequest("observation_vocabulary", "relation_details"),
     case_authoring: upsertGuidanceRequest("case_authoring"),
     unresolved_coverage: upsertGuidanceRequest("unresolved_coverage"),
 
@@ -365,13 +373,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
         "refused request shape, an unknown provider identity or a provider version the catalog " +
         "does not list is a request defect to correct, not a gap.",
       "Implementation, execution, inspection, or review being unfinished grants no proof credit " +
-        "but does not itself make otherwise-complete authored meaning incomplete.",
-      "opted_out is the explicit controlled-acceptance exemption; its rationale is authored " +
-        "meaning that is neither inferred nor classified. Discovery misses, unread pages, " +
-        "unsupported targets and missing authoring inputs are not evidence for it.",
-      "Saving an opt-out records the caller's authored rationale and reports it as authored: no " +
-        "operation here assesses whether that rationale is true, so a saved exemption is never a " +
-        "verified conclusion that the obligation does not apply."
+        "but does not itself make otherwise-complete authored meaning incomplete."
     ]),
     next_calls: Object.freeze({
       discover: Object.freeze({ tool: "workspace_controlled_proof_intents_discover",
@@ -389,6 +391,11 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     }),
     referent: CONTROLLED_CONTRACT_REQUIREMENT_INPUT_SHAPES.referent,
     statement: CONTROLLED_CONTRACT_REQUIREMENT_INPUT_SHAPES.statement,
+    observation_statement: Object.freeze({ ...CONTROLLED_CONTRACT_REQUIREMENT_INPUT_SHAPES.statement,
+      constraint_owners: Object.freeze({ ...CONTROLLED_CONTRACT_REQUIREMENT_INPUT_SHAPES.statement.constraint_owners,
+        relation_terms: "observation_vocabulary.relations_by_object_kind",
+        operand_kinds_and_cardinalities: "observation_vocabulary.relation_details",
+        applicability: "observation_vocabulary.relation_details[].applicability_modes and observation_vocabulary.applicability_modes" }) }),
     statement_object: Object.freeze({
       one_of: Object.freeze([
         Object.freeze({ referent: "<referent>" }),
@@ -400,7 +407,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     }),
     verification: Object.freeze({
       required_fields: Object.freeze(["method", "verifier", "observes", "fails_when"]),
-      field_shapes: Object.freeze({ verifier: "referent", observes: "statement",
+      field_shapes: Object.freeze({ verifier: "referent", observes: "observation_statement",
         fails_when: "statement", runtime_test: "conditional runtime-test object" })
     }),
     requirement_rebinding: Object.freeze({
@@ -512,6 +519,8 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     "boundary requires its open boundary.module_path. Fields the proof owner binds are not " +
     "authored. Accepted kinds and strategies are in native_runtime_test_vocabulary.",
   vocabulary: requirementVocabulary,
+  observation_vocabulary: observationVocabulary,
+  cel_definitions: Object.freeze(celDefinitionIndex()),
   native_runtime_test_vocabulary: Object.freeze({
     schema_version: "controlled-contract-requirement-runtime-test-vocabulary.v1",
     required_for_verification_method:
@@ -628,13 +637,9 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_REQUEST_GUIDANCE_LOCATIONS = Object
   [["contract_requirements", "notes", "[]", "kind"], locations.note_kinds],
   [["contract_requirements", "unrepresentable_meaning", "[]", "reason"], locations.residue_reasons]
 ].map(([path, guidancePath]) => Object.freeze({ path: Object.freeze(path), guidance_path: guidancePath })));
-const controlledAcceptanceInput = { oneOf: [
-  { type: 'object', additionalProperties: false, required: ['disposition'],
-    properties: { disposition: { const: 'required' } } },
-  { type: 'object', additionalProperties: false, required: ['disposition', 'rationale'],
-    properties: { disposition: { const: 'opted_out' }, rationale: {
-      type: 'string', minLength: 1, maxLength: 8192, pattern: '^\\S(?:[\\s\\S]*\\S)?$' } } }
-] };
+
+const controlledAcceptanceInput = { type: 'object', additionalProperties: false, required: ['disposition'],
+  properties: { disposition: { const: 'required' } } };
 const queryFields = { obligation_id: obligationId,
   parameter_detail: { type: "boolean", description: "Add each returned obligation's exact saved " +
     "proof-pin parameter contract, or its factual unselected, unpinned or stale state; never refreshes a pin." },

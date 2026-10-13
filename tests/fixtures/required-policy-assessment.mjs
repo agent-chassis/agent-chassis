@@ -53,12 +53,49 @@ export const differentRejectedVerification = (referents, verifierTerm) => verifi
 export const DIFFERENT_REJECTED_VERIFICATION = differentRejectedVerification(R, "gauge.unrelated-level-check");
 
 const readOperation = identity("cc:operation", "gauge.read-level");
+const SIBLING_CHECK = identity("cc:test", "gauge.read-level-check");
 export const SIBLING_REQUIREMENT = Object.freeze({ nature: "behavior", modality: "MUST",
   subject: declare(readOperation),
   behavior: { relation: "reference:returns", objects: [{ referent: declare(R.accepted_effect) }] },
-  verification: verification(identity("cc:test", "gauge.read-level-check"), readOperation,
+  verification: verification(SIBLING_CHECK, readOperation,
     { relation: "reference:returns", objects: [{ referent: declare(R.refusal_result) }] }) });
 
+const termOf = (referent) => referent.identity.term;
+const whenRow = (relation, object, context) => ({ relation, objects: [{ referent: termOf(object) }],
+  applies: { mode: "when", context: [termOf(context)] } });
+const rowVerification = (verifier, observed, fails_when) => ({ method: "analysis", verifier: termOf(verifier),
+  observes: { relation: "reference:covers", objects: [{ referent: termOf(observed) }] }, fails_when });
+export function constrainedInputRequirementRows(referents) {
+  const I = referents;
+  return {
+    declaration: { nature: "behavior", modality: "MUST", subject: termOf(I.level),
+      behavior: { relation: "range:has_range", objects: [{ range: { minimum: 0, maximum: 100 } }] },
+      verification: rowVerification(I.range_check, I.level,
+        { relation: "range:has_range", objects: [{ range: { minimum: 101 } }] }) },
+    accepted: { nature: "behavior", modality: "MUST", subject: termOf(I.operation),
+      behavior: whenRow("reference:writes", I.accepted_effect, I.inside_range),
+      verification: rowVerification(I.accepted_check, I.operation,
+        whenRow("reference:returns", I.refusal_result, I.inside_range)) },
+    rejected: { nature: "behavior", modality: "MUST", subject: termOf(I.operation),
+      behavior: whenRow("reference:returns", I.refusal_result, I.outside_range),
+      verification: rowVerification(I.refusal_check, I.operation,
+        whenRow("reference:writes", I.accepted_effect, I.outside_range)) }
+  };
+}
+export const GAUGE_REQUIREMENT_ROWS = Object.freeze(constrainedInputRequirementRows(R));
+export const SIBLING_REQUIREMENT_ROW = Object.freeze({ nature: "behavior", modality: "MUST", subject: termOf(readOperation),
+  behavior: { relation: "reference:returns", objects: [{ referent: termOf(R.accepted_effect) }] },
+  verification: rowVerification(SIBLING_CHECK, readOperation,
+    { relation: "reference:returns", objects: [{ referent: termOf(R.refusal_result) }] }) });
+
+const GAUGE_ENTITY_TYPES = Object.freeze(Object.fromEntries([...Object.values(R), readOperation, SIBLING_CHECK]
+  .map((referent) => [termOf(referent), referent.type_term])));
+const namedBy = (statement) => [...statement.objects.flatMap((object) => object.referent === undefined ? [] : [object.referent]),
+  ...(statement.applies?.context ?? [])];
+export const gaugeRequirementBatch = (rows) => ({
+  entities: Object.fromEntries([...new Set(rows.flatMap((row) => [row.subject, ...namedBy(row.behavior), row.verification.verifier,
+    ...namedBy(row.verification.observes), ...namedBy(row.verification.fails_when)]))].map((id) => [id, GAUGE_ENTITY_TYPES[id]])),
+  requirements: rows });
 const role = (name) => ({ role: name, allowed_type_terms: [R[name].type_term], cardinality: "exactly_one" });
 const template = (subject_role, operator, operandRole, contextRole = null) => ({ subject_role, operator,
   applicability_context: contextRole === null ? { mode: "unconditional", operand_roles: [] }

@@ -36,21 +36,22 @@ export function currentProviderBinding(providerId, capability) {
 
 export function runtimeFixture(t, source, { selector = { name: "selected", nesting: 1 },
   dependencySource = "export function value() { return 42; }\n",
-  dependencyPath = "dependency.mjs", falsificationSupport = "provider",
+  projectPath = "", dependencyPath = path.join(projectPath, "dependency.mjs"), falsificationSupport = "provider",
   consumerFiles = {}, launcher = SOURCE_LAUNCHER } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "wk2516-attempt-"));
   const mainRepo = path.join(root, "main");
   const worktree = path.join(root, "worktree");
   mkdirSync(mainRepo); mkdirSync(worktree);
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const target = "nested.test.mjs";
+  const target = path.join(projectPath, "nested.test.mjs");
   const selectedId = stableRuntimeTestIdFromParts({ file: target, name: selector.name,
     nesting: selector.nesting });
+  mkdirSync(path.join(worktree, projectPath), { recursive: true });
   writeFileSync(path.join(worktree, target), source);
   mkdirSync(path.dirname(path.join(worktree, dependencyPath)), { recursive: true });
   writeFileSync(path.join(worktree, dependencyPath), dependencySource);
 
-  writeFileSync(path.join(worktree, "package.json"), '{"type":"module"}\n');
+  writeFileSync(path.join(worktree, projectPath, "package.json"), '{"type":"module"}\n');
   for (const [relative, content] of Object.entries(consumerFiles)) {
     mkdirSync(path.dirname(path.join(worktree, relative)), { recursive: true });
     writeFileSync(path.join(worktree, relative), content);

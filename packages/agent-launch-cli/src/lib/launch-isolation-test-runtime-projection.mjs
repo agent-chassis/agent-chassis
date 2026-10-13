@@ -116,24 +116,7 @@ export function prepareWorkerTestRuntimeMounts({ workerTestRuntime = null, spars
   });
 }
 
-export function planTestExecutionCheckoutWrites({ repoReal }) {
-  const administration = path.join(repoReal, ".git");
-  let stat;
-  try {
-    stat = lstatSync(administration);
-  } catch (error) {
-    if (error?.code === "ENOENT") return Object.freeze({ gitAdministration: null });
-    refuse(`the checkout's Git administration could not be inspected: ${administration}`,
-      { git_administration: administration, errno: error?.code ?? null });
-  }
-  if (!stat.isDirectory() && !stat.isFile()) {
-    refuse(`the checkout's Git administration is not a directory or a worktree pointer file, so it cannot ` +
-      `stay read-only in a writable checkout: ${administration}`, { git_administration: administration });
-  }
-  return Object.freeze({ gitAdministration: administration });
-}
-
-export function planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds = [], checkoutWrites = null }) {
+export function planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds = [] }) {
   const missing = [];
   for (const bind of readOnlyBinds) {
     const dst = bind?.dst;
@@ -184,9 +167,7 @@ export function planNamespaceOnlyMountpoints({ repoReal, readOnlyBinds = [], che
       const child = path.join(dir, entry.name);
       if (created.has(child)) continue;
       if (entry.isSymbolicLink()) args.push("--symlink", readlinkSync(child), child);
-      else if (checkoutWrites === null || child === checkoutWrites.gitAdministration) {
-        args.push("--ro-bind", child, child);
-      } else args.push("--bind", child, child);
+      else args.push("--ro-bind", child, child);
     }
   }
   for (const mountpoint of [...missing].sort()) {

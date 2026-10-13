@@ -88,6 +88,9 @@ import {
 import {
   authenticateHistoricalTerminalCandidate
 } from "./dispatch-terminal-candidate-authentication.mjs";
+import {
+  projectTerminalCandidatePublicationSynchronization
+} from "./dispatch-terminal-candidate-publication.mjs";
 import { createWorkspaceRepoResolutionError } from "./workspace-repo-resolution.mjs";
 import { integrateWorkBackendOptions } from "./task-integrate-work.mjs";
 import { createObservationOriginals } from "./task-get-run-result-delivery.mjs";
@@ -116,15 +119,25 @@ export function createWkForgeHandoffPublicationStateResolver({
       "WK forge publication-state resolver requires the trusted terminal-candidate coordinator"
     );
   }
-  return async (wkId, authorityContext, expectedVersion = null) => {
+  return async (wkId, authorityContext, expectedVersion = null, { beforeFirstWrite = null } = {}) => {
     const recovered = await terminalCandidateCoordinator.recoverTerminalCandidateUnderAuthority({
-      wkId, authorityContext, expectedVersion
+      wkId, authorityContext, expectedVersion, beforeFirstWrite
     });
     if (recovered === null) return null;
     return Object.freeze({
       binding: recovered.binding,
-      materialization: recovered.materialization
+      materialization: recovered.materialization,
+      ...(recovered.synchronization == null ? {} : { synchronization: recovered.synchronization })
     });
+  };
+}
+
+function historicalTerminalCandidatePublicationState({ mainRepo, runGit = undefined }) {
+  return async (wk, versionIdentity) => {
+    const historical = await authenticateHistoricalTerminalCandidate({
+      mainRepo, wkId: wk, versionIdentity, ...(runGit === undefined ? {} : { runGit })
+    });
+    return Object.freeze({ binding: historical.binding, historical_version: historical });
   };
 }
 
@@ -157,13 +170,8 @@ export function createWkForgeHandoffAuthenticationObserver({
         selection,
         deps: {
           ...seams, observeTerminalCandidatePublicationState,
-          observeHistoricalTerminalCandidatePublicationState: async (wk, versionIdentity) => {
-            const historical = await authenticateHistoricalTerminalCandidate({
-              mainRepo, wkId: wk, versionIdentity,
-              ...(seams.runGit === undefined ? {} : { runGit: seams.runGit })
-            });
-            return Object.freeze({ binding: historical.binding, historical_version: historical });
-          }
+          observeHistoricalTerminalCandidatePublicationState:
+            historicalTerminalCandidatePublicationState({ mainRepo, runGit: seams.runGit })
         }
       });
     } catch (error) {
@@ -771,6 +779,8 @@ export function buildDispatchRuntime(env = process.env, {
             deps: {
               resolveTerminalCandidatePublicationState:
                 createWkForgeHandoffPublicationStateResolver({ terminalCandidateCoordinator }),
+              observeHistoricalTerminalCandidatePublicationState:
+                historicalTerminalCandidatePublicationState({ mainRepo: worktreeProvisioning.mainRepo }),
 
               forgeHandoffCcePolicy: wkForgeHandoffCcePolicy,
               ...handoffSeams
@@ -778,6 +788,7 @@ export function buildDispatchRuntime(env = process.env, {
           });
         } catch (error) {
 
+          const synchronization = projectTerminalCandidatePublicationSynchronization(error);
           return {
             accepted: false,
             refusal: projectWkForgeHandoffRefusal({
@@ -788,6 +799,7 @@ export function buildDispatchRuntime(env = process.env, {
                 reason: projectTerminalCandidateRecoveryReason(error),
                 subject: { assigned_unit: assignedUnit },
                 ...authenticatedTypedCandidateFailure(error),
+                ...(synchronization === null ? {} : { synchronization }),
                 evidence: captureDiagnosticEvidence(error)
               }
             })

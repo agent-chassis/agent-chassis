@@ -11,6 +11,7 @@ import {
   validateWorkRecordEntries,
   validateWorkRecordEntryPopulation
 } from "@agent-chassis/wiki-core/src/lib/work-record-entry-schema.mjs";
+import { planWorkRecordTaskEdit } from "@agent-chassis/wiki-core/src/operations/work-records-edits.mjs";
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -50,6 +51,14 @@ function differingFields(value, other, excluded = [], prefix = "") {
     return isObject(left) && isObject(right) ? differingFields(left, right, [], `${path}.`) : [path];
   });
 }
+
+const TASK_COMPLETION = "task_completion";
+const SLICE_CLOSEOUT = "slice_closeout";
+const MOVED_DATE = "moved_date";
+const UNSUPPORTED = "unsupported";
+const memberAt = (value, path) => path.split(".").reduce((node, key) => node?.[key], value);
+const difference = (path, change, candidate, observed) =>
+  ({ path, change, candidate_value: candidate ?? null, observed_value: observed ?? null });
 
 function withoutClosure(sections) {
   const copy = { ...(isObject(sections) ? sections : {}) };
@@ -256,6 +265,121 @@ function admitNotes(candidateRecord, comparable) {
   return { changed, comparable: { ...parent.unit, slices } };
 }
 
+function markedDone(tasks, index) {
+  const planned = planWorkRecordTaskEdit({ sections: { tasks } }, { kind: "record" },
+    { action: "mark_done", index });
+  return planned.kind === "planned" ? planned.updatedRecord.sections.tasks[index] : null;
+}
+
+function taskDifferences(before, after, path) {
+  if (same(before, after)) return [];
+  if (!Array.isArray(before) || !Array.isArray(after)) return [difference(path, UNSUPPORTED, before, after)];
+  const differences = [];
+  for (let index = 0; index < Math.max(before.length, after.length); index += 1) {
+    const [was, now] = [before[index], after[index]];
+    if (same(was, now)) continue;
+    if (!isObject(was) || !isObject(now)) {
+      differences.push(difference(`${path}[${index}]`, UNSUPPORTED, was, now));
+      continue;
+    }
+    const completed = markedDone(before, index);
+    for (const field of differingFields(was, now)) {
+      const carried = field === "status" && completed !== null && same(completed.status, now.status);
+      differences.push(difference(`${path}[${index}].${field}`, carried ? TASK_COMPLETION : UNSUPPORTED,
+        memberAt(was, field), memberAt(now, field)));
+    }
+  }
+  return differences;
+}
+
+function withCandidateTasks(before, after) {
+  const prior = isObject(before?.sections) ? before.sections.tasks : undefined;
+  const next = isObject(after?.sections) ? after.sections.tasks : undefined;
+  const differences = taskDifferences(prior, next, "sections.tasks");
+  const completed = differences.filter(({ change }) => change === TASK_COMPLETION).map(({ path }) => path);
+  if (completed.length === 0 || completed.length !== differences.length) {
+    return { completed: [], differences, unit: after };
+  }
+  return { completed, differences, unit: { ...after, sections: { ...after.sections, tasks: prior } } };
+}
+
+function admitTaskCompletions(candidateRecord, comparable) {
+  const parent = withCandidateTasks(candidateRecord, comparable);
+  const completed = parent.completed.length > 0 ? [{ unit: candidateRecord.id, paths: parent.completed }] : [];
+  const sliceDifferences = new Map();
+  const slices = comparable.slices.map((after) => {
+    const before = isObject(after)
+      ? candidateRecord.slices.find((slice) => isObject(slice) && slice.id === after.id)
+      : undefined;
+    if (before === undefined) return after;
+    const tasks = withCandidateTasks(before, after);
+    sliceDifferences.set(before.id, tasks.differences);
+    if (tasks.completed.length === 0) return after;
+    completed.push({ unit: `${candidateRecord.id}#${before.id}`, paths: tasks.completed });
+    return admissibleUpdated(before.updated, tasks.unit.updated) && Object.hasOwn(before, "updated")
+      ? { ...tasks.unit, updated: before.updated }
+      : tasks.unit;
+  });
+  return {
+    completed, parentDifferences: parent.differences, sliceDifferences, comparable: { ...parent.unit, slices }
+  };
+}
+
+function sectionsDrift(candidateRecord, liveRecord, taskDrift) {
+  const [candidate, live] = [candidateRecord, liveRecord]
+    .map((record) => (isObject(record.sections) ? record.sections : {}));
+  const differences = differingFields(withoutClosure(candidate), withoutClosure(live), ["tasks"])
+    .map((field) => difference(`sections.${field}`, UNSUPPORTED, memberAt(candidate, field), memberAt(live, field)));
+  const [candidateClosure, liveClosure] = [candidate.closure ?? null, live.closure ?? null];
+  if ((candidateClosure !== null && !same(candidateClosure, liveClosure)) ||
+      (liveClosure !== null && !canonicalClosure(liveClosure))) {
+    differences.push(difference("sections.closure", UNSUPPORTED, candidateClosure, liveClosure));
+  }
+  differences.push(...taskDrift);
+  const paths = (change) => differences.filter((entry) => entry.change === change).map(({ path }) => path);
+  const permitted = paths(TASK_COMPLETION);
+  return {
+    ok: false,
+    reason: "unrelated_sections_drift",
+    unit: candidateRecord.id,
+    fields: paths(UNSUPPORTED),
+    ...(permitted.length === 0 ? {} : { permitted_task_completions: permitted }),
+    differences
+  };
+}
+
+function sliceDrift(before, after, taskDrift, { deliveryAuthenticated, closingSliceId }) {
+  const [candidate, live] = [before, after].map((unit) => (isObject(unit.sections) ? unit.sections : {}));
+  const shaped = new Map([
+    ...(before.status !== "done" && after.status === "done" ? [["status", SLICE_CLOSEOUT]] : []),
+    ...(admissibleUpdated(before.updated, after.updated) ? [["updated", MOVED_DATE]] : []),
+    ...(deliveryAuthenticated ? [["integrated_delivery_sha", SLICE_CLOSEOUT]] : []),
+    ...(candidate.closure == null && canonicalClosure(live.closure) ? [["sections.closure", SLICE_CLOSEOUT]] : [])
+  ]);
+  const differences = [
+    ...differingFields(before, after, ["sections"]).map((field) => [field, before, after]),
+    ...differingFields(candidate, live, ["tasks"]).map((field) =>
+      [`sections.${field}`, { sections: candidate }, { sections: live }])
+  ].map(([field, was, now]) => difference(field, shaped.get(field) ?? UNSUPPORTED,
+    memberAt(was, field), memberAt(now, field)));
+  differences.push(...taskDrift);
+  const paths = (change) => differences.filter((entry) => entry.change === change).map(({ path }) => path);
+  const [unsupported, permitted] = [paths(UNSUPPORTED), paths(TASK_COMPLETION)];
+  const cause = unsupported.length > 0 ? "unsupported_change"
+    : closingSliceId !== null ? "another_slice_closes" : "not_a_slice_closeout";
+  return {
+    ok: false,
+    reason: "unrelated_slice_drift",
+    slice_id: before.id,
+    cause,
+    fields: unsupported.length > 0 ? unsupported
+      : differences.filter(({ change }) => change !== TASK_COMPLETION).map(({ path }) => path),
+    ...(cause === "another_slice_closes" ? { closing_slice_id: closingSliceId } : {}),
+    ...(permitted.length === 0 ? {} : { permitted_task_completions: permitted }),
+    differences
+  };
+}
+
 const COMPLETION_POLICY = "completion_policy";
 const COMPLETION_POLICIES = new Set(WORK_RECORD_COMPLETION_POLICY_VALUES);
 
@@ -270,6 +394,15 @@ function completionPolicyDelta(candidateRecord, liveRecord) {
   }
   const { [COMPLETION_POLICY]: _introduced, ...comparable } = liveRecord;
   return { changed: true, comparable };
+}
+
+function reopenedPublishedTask(before, published, live) {
+  const [prior, kept, next] = [before, published, live].map((unit) => unit?.sections?.tasks);
+  const completed = taskDifferences(prior, kept, "sections.tasks")
+    .filter(({ change }) => change === TASK_COMPLETION);
+  const held = taskDifferences(prior, next, "sections.tasks")
+    .filter(({ change }) => change === TASK_COMPLETION).map(({ path }) => path);
+  return completed.find(({ path }) => !held.includes(path))?.path ?? null;
 }
 
 function preservesPublishedCloseout(candidateRecord, publishedRecord, liveRecord) {
@@ -288,21 +421,27 @@ function preservesPublishedCloseout(candidateRecord, publishedRecord, liveRecord
   if (publishedClosure !== null && !same(publishedClosure, liveRecord.sections?.closure ?? null)) {
     return drift({ field: "sections.closure" });
   }
+  const reopened = reopenedPublishedTask(candidateRecord, publishedRecord, liveRecord);
+  if (reopened !== null) return drift({ field: reopened });
   for (const published of publishedRecord.slices) {
     if (!isObject(published)) continue;
     const live = liveRecord.slices.find((slice) => isObject(slice) && slice.id === published.id);
     const unit = `${id}#${published.id}`;
+    const before = candidateRecord.slices.find((slice) => isObject(slice) && slice.id === published.id);
+    const closedByPublished = published.work_kind === "implementation" && published.status === "done" &&
+      before?.status !== "done";
     if (live === undefined) {
       if (Array.isArray(published.sections?.entries) && published.sections.entries.length > 0) {
         return { ok: false, reason: "entry_history_drift", unit };
       }
+
+      if (closedByPublished) return drift({ unit, field: "status" });
       continue;
     }
     const entries = entryAppend(published, live, unit);
     if (entries.refusal) return entries.refusal;
-    const before = candidateRecord.slices.find((slice) => isObject(slice) && slice.id === published.id);
-    const closedByPublished = published.work_kind === "implementation" && published.status === "done" &&
-      before?.status !== "done";
+    const reopenedTask = reopenedPublishedTask(before, published, live);
+    if (reopenedTask !== null) return drift({ unit, field: reopenedTask });
     if (!closedByPublished) continue;
     for (const field of ["status", "integrated_delivery_sha"]) {
       if (!same(published[field] ?? null, live[field] ?? null)) return drift({ unit, field });
@@ -315,7 +454,7 @@ function preservesPublishedCloseout(candidateRecord, publishedRecord, liveRecord
 }
 
 export function authenticateWkCloseoutProjection({
-  candidateRecord, liveRecord: observedRecord, integratedDelivery = null, publishedRecord = null
+  candidateRecord, liveRecord: observedRecord, integratedDeliveries = [], publishedRecord = null
 } = {}) {
   const id = candidateRecord?.id;
   if (!isObject(candidateRecord) || !isObject(observedRecord) || typeof id !== "string" ||
@@ -332,7 +471,8 @@ export function authenticateWkCloseoutProjection({
   const entries = admitEntryAppends(candidateRecord, observedRecord);
   if (entries.refusal) return entries.refusal;
   const notes = admitNotes(candidateRecord, entries.comparable);
-  const policy = completionPolicyDelta(candidateRecord, notes.comparable);
+  const tasks = admitTaskCompletions(candidateRecord, notes.comparable);
+  const policy = completionPolicyDelta(candidateRecord, tasks.comparable);
   if (policy.refusal) return policy.refusal;
   const liveRecord = policy.comparable;
 
@@ -341,7 +481,7 @@ export function authenticateWkCloseoutProjection({
   if (!same(withoutClosure(candidateRecord.sections), withoutClosure(liveRecord.sections)) ||
       (candidateClosure !== null && !same(candidateClosure, liveClosure)) ||
       (liveClosure !== null && !canonicalClosure(liveClosure))) {
-    return { ok: false, reason: "unrelated_sections_drift" };
+    return sectionsDrift(candidateRecord, liveRecord, tasks.parentDifferences);
   }
 
   const protectedDrift = differingFields(candidateRecord, liveRecord, ["status", "updated", "sections",
@@ -356,27 +496,54 @@ export function authenticateWkCloseoutProjection({
   const candidateReview = candidateRecord.slices.filter(isReviewConsumerSlice);
   const liveReview = liveRecord.slices.filter(isReviewConsumerSlice);
 
+  const expectationFor = (id) => (Array.isArray(integratedDeliveries) ? integratedDeliveries : [])
+    .find((entry) => isObject(entry) && entry.slice_id === id) ?? null;
   const candidateOrdinary = candidateRecord.slices.filter((slice) => !isReviewConsumerSlice(slice));
   const liveOrdinary = liveRecord.slices.filter((slice) => !isReviewConsumerSlice(slice));
-  if (candidateOrdinary.length !== liveOrdinary.length) return { ok: false, reason: "slice_cardinality" };
-  let closedSliceId = null;
-  let admittedDelivery = null;
+  const held = new Set(candidateOrdinary.map((slice) => slice?.id));
+  const retained = liveOrdinary.filter((slice) => isObject(slice) && held.has(slice.id));
+  if (retained.length !== candidateOrdinary.length) {
+    return { ok: false,
+      reason: liveOrdinary.length === candidateOrdinary.length ? "slice_removed" : "slice_cardinality" };
+  }
+  const closedSliceIds = [];
+  const admittedDeliveries = [];
+
+  let closedWithoutDelivery = null;
   for (const [index, before] of candidateOrdinary.entries()) {
-    const after = liveOrdinary[index];
-    if (!isObject(after) || after.id !== before?.id) return { ok: false, reason: "slice_removed" };
+    const after = retained[index];
+    if (after.id !== before?.id) return { ok: false, reason: "slice_removed" };
     if (same(before, after)) continue;
-    const delivery = integratedDeliveryDelta(before, after, integratedDelivery);
+    const expected = expectationFor(before.id);
+    const delivery = integratedDeliveryDelta(before, after, expected);
     if (delivery.changed && !delivery.authenticated) return delivery.refusal;
-    if (closedSliceId !== null ||
+    if ((!delivery.changed && closedWithoutDelivery !== null) ||
         !isSliceCloseout(before, after, { deliveryAuthenticated: delivery.changed })) {
-      return { ok: false, reason: "unrelated_slice_drift", slice_id: before.id };
+      return sliceDrift(before, after, tasks.sliceDifferences.get(before.id) ?? [],
+        { deliveryAuthenticated: delivery.changed, closingSliceId: closedWithoutDelivery });
     }
-    closedSliceId = before.id;
-    if (delivery.changed) admittedDelivery = integratedDelivery;
+    closedSliceIds.push(before.id);
+    if (delivery.changed) admittedDeliveries.push(expected);
+    else closedWithoutDelivery = before.id;
   }
 
-  const closeoutChanged = candidateRecord.status !== liveRecord.status || closedSliceId !== null ||
-    entries.appended.length > 0 || notes.changed.length > 0 || policy.changed ||
+  const addedSliceIds = [];
+  for (const after of liveOrdinary.filter((slice) => !(isObject(slice) && held.has(slice.id)))) {
+    const id = isObject(after) && typeof after.id === "string" ? after.id : null;
+    if (id === null || after.work_kind !== "implementation" || after.status !== "done" ||
+        typeof after.integrated_delivery_sha !== "string") {
+      return { ok: false, reason: "slice_cardinality", slice_id: id };
+    }
+    const expected = expectationFor(id);
+    const delivery = integratedDeliveryDelta({ id }, after, expected);
+    if (!delivery.authenticated) return delivery.refusal;
+    addedSliceIds.push(id);
+    admittedDeliveries.push(expected);
+  }
+
+  const closeoutChanged = candidateRecord.status !== liveRecord.status ||
+    closedSliceIds.length > 0 || addedSliceIds.length > 0 ||
+    entries.appended.length > 0 || notes.changed.length > 0 || tasks.completed.length > 0 || policy.changed ||
     !same(candidateRecord.sections?.closure, liveRecord.sections?.closure) ||
     !same(candidateReview, liveReview) ||
     !same(candidateRecord.review_provenance, liveRecord.review_provenance);
@@ -389,10 +556,12 @@ export function authenticateWkCloseoutProjection({
   }
   return {
     ok: true,
-    closed_slice_id: closedSliceId,
-    integrated_delivery: admittedDelivery,
+    closed_slice_ids: closedSliceIds,
+    added_slice_ids: addedSliceIds,
+    integrated_deliveries: admittedDeliveries,
     appended_entries: entries.appended,
     replaced_notes: notes.changed,
+    completed_tasks: tasks.completed,
     closeoutRecord: observedRecord
   };
 }

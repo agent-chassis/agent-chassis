@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "85c19aac685798cb71b578a29354852064a951c23106687d917133bd5a58451f",
+  "parameter_contract_digest": "a9f1df351ade8209905b10e9dab5b5234d56d6c96482b4cf38f1c32d900730e7",
   "profile_id": "proof.dormancy.nonactivation",
   "profile_version": "4.0.0",
-  "profile_digest": "1f229576477a504057b41719d0c8c49144159117d5ba871ab5a0a78896f38e26",
+  "profile_digest": "86d930b44874e6e6699cc56723b52bea6361b47e7837754fc503f2a580620342",
   "guarantee": "For one directly constructible and independently registrable declared component, one exact captured complete production reachability snapshot, one exact captured default-configuration artifact, and one exact captured activation-observation artifact, the declared complete graph and production-entrypoint populations contain the selected component and entrypoints, the default configuration declares the component inactive, the declared complete activation-event population has exactly zero members, and a separately bound no-path result covers every declared production entrypoint and that component.",
   "guarantee_digest": "195abee0ccf37eccb8b59dcb3f7e5c750cce280860015fb880aea55c3953e738",
   "explicit_exclusions": [
@@ -18,9 +18,9 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "6fba308235dfc010322c751500ca96b5d0f9c0d73d04e52c933c93820d8a5f1b",
-    "adequacy_result_digest": "c7204271b117560fb1292ef8776dc26f550cb18bc50d25245778b293938894c9",
-    "executable_control_count": 42,
+    "adequacy_declaration_digest": "1158d23420ad7388cc23ed40af5eaf023991360377e1cfb2e7a9d3d4dcfc3a95",
+    "adequacy_result_digest": "ef5c9895809639b7d5736c4227081343a768efed7377168d96ff2863d9b46297",
+    "executable_control_count": 44,
     "negative_fixture_count": 52,
     "coverage_witness_count": 52
   }

@@ -40,6 +40,7 @@ import { certificationDirectory, readDefinitionDocument } from "../support/certi
 const identity = {
   profile_id: "proof.authorization.refusal-before-effects", profile_version: "4.0.0"
 };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectoryPath = certificationDirectory(identity);
 const adequacy = await readDefinitionDocument(identity, "adequacy.json");
 
@@ -70,8 +71,8 @@ test("refusal-before-effects profile and adequacy declarations are bound and val
 test("refusal fixed negatives kill every fully rebound critical weakening", async () => {
   const result = await runProofPackAdequacy(packDirectoryPath);
   assert.equal(result.passed, true);
-  assert.equal(result.negative_fixture_count, 35);
-  assert.equal(result.coverage_witness_count, 78);
+  assert.equal(result.negative_fixture_count, 33);
+  assert.equal(result.coverage_witness_count, 76);
   const matrix = await assertFixedNegativeCorpus({
     packDirectory: packDirectoryPath,
     expectedFixtureCount: 35,
@@ -196,7 +197,7 @@ test("every independently authored attack plan remains non-satisfied", () => {
 test("the executable adequacy gate reports exact control totals", async () => {
   const result = await runProofPackAdequacy(packDirectoryPath);
   assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
-  assert.equal(result.control_count, 59);
+  assert.equal(result.control_count, 66);
   const totals = Object.create(null);
   for (const control of result.observations.controls) {
     totals[control.category] = (totals[control.category] ?? 0) + 1;
@@ -247,7 +248,7 @@ function removeBehaviorBranch(profile, branch) {
 
 async function semanticAdequacyDiagnostics(profile) {
   const digest = profileDigest(profile);
-  const observations = await runProofPackAdequacyControls({ profile });
+  const observations = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile });
   observations.profile_digest = digest;
   return assessAdequacyRun({
     profile,

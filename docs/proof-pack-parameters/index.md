@@ -27,7 +27,7 @@
 | [proof.lifecycle.bounded-state-stability@4.0.0](proof.lifecycle.bounded-state-stability@4.0.0.md) | 15 | 10 | 2 |
 | [proof.lifecycle.bounded-terminal-stability@4.0.0](proof.lifecycle.bounded-terminal-stability@4.0.0.md) | 19 | 13 | 3 |
 | [proof.observation.sound-negative@4.0.0](proof.observation.sound-negative@4.0.0.md) | 35 | 23 | 10 |
-| [proof.operation.forbidden-noninvocation@4.0.0](proof.operation.forbidden-noninvocation@4.0.0.md) | 5 | 5 | 0 |
+| [proof.operation.forbidden-noninvocation@5.0.0](proof.operation.forbidden-noninvocation@5.0.0.md) | 5 | 5 | 0 |
 | [proof.ordering.lexicographic-conformance@4.0.0](proof.ordering.lexicographic-conformance@4.0.0.md) | 24 | 19 | 3 |
 | [proof.ordering.visibility-after-durable-settlement@4.0.0](proof.ordering.visibility-after-durable-settlement@4.0.0.md) | 26 | 21 | 3 |
 | [proof.ownership.exact-isolation@4.0.0](proof.ownership.exact-isolation@4.0.0.md) | 26 | 23 | 3 |

@@ -1,11 +1,6 @@
-import path from "node:path";
 import { prepareCompiledValidatorCache } from "@agent-chassis/controlled-contract/validator-cache";
 import { consumeAdvisoryReviewInput } from "./workspace-agent-advisory-review-contract.mjs";
-import { selectImmutableFindingsDependencyProjection } from "./terminal-wk-candidate-validation.mjs";
-import {
-  standaloneValidatorCacheBinds,
-  assertNoOverlappingValidatorCacheBinds
-} from "./workspace-agent-validator-cache-binds.mjs";
+import { standaloneValidatorCacheBinds } from "./workspace-agent-validator-cache-binds.mjs";
 
 const preparations = new WeakMap();
 const prepared = new WeakMap();
@@ -23,20 +18,11 @@ export function prepareAdvisoryExecutionSubstrate(input) {
   authenticate(input);
   if (preparations.has(input)) return preparations.get(input);
   const preparation = (async () => {
-    const selection = selectImmutableFindingsDependencyProjection({
-      mainRepo: input.repository,
-      checkoutPath: input.private_checkout_root,
-      projectionRoot: path.join(path.dirname(input.private_checkout_root), "dependency-projection")
-    });
     const ensured = await prepareCompiledValidatorCache({ mode: "ensure" });
     const verified = await prepareCompiledValidatorCache({ mode: "verify" });
     const cacheBinds = standaloneValidatorCacheBinds({ ensured, verified,
       workspaceDir: input.private_checkout_root });
-    assertNoOverlappingValidatorCacheBinds(selection.evidence.frozen_read_only_binds, cacheBinds);
-    const facts = Object.freeze({
-      dependency_evidence: selection.evidence,
-      read_only_binds: Object.freeze([...selection.evidence.frozen_read_only_binds, ...cacheBinds])
-    });
+    const facts = Object.freeze({ read_only_binds: Object.freeze([...cacheBinds]) });
     prepared.set(input, { ensured, verified, facts });
     return facts;
   })();
@@ -53,13 +39,6 @@ export function consumeAdvisoryExecutionSubstrate(input) {
   }
   const { ensured, verified, facts } = preparation;
 
-  selectImmutableFindingsDependencyProjection({
-    mainRepo: input.repository,
-    checkoutPath: input.private_checkout_root,
-    retainedEvidence: facts.dependency_evidence
-  });
-  const cacheBinds = standaloneValidatorCacheBinds({ ensured, verified,
-    workspaceDir: input.private_checkout_root });
-  assertNoOverlappingValidatorCacheBinds(facts.dependency_evidence.frozen_read_only_binds, cacheBinds);
+  standaloneValidatorCacheBinds({ ensured, verified, workspaceDir: input.private_checkout_root });
   return facts;
 }

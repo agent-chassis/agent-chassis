@@ -4,6 +4,8 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
+import { NPM_RUNNER_PACKAGES, resolveNpmWorkspace, workspaceMembers } from "./npm-workspace.mjs";
+
 export const SKIPPED_DIRECTORIES = Object.freeze([
   ".git", ".agent-launch", ".agent-runs", ".cache", ".venv", "venv", "__pycache__",
   "node_modules", "vendor", "target", "dist", "build", "coverage"
@@ -32,50 +34,32 @@ const MANIFEST_EVIDENCE = Object.freeze([
   Object.freeze({ manifest: "pyproject.toml", ecosystem: "python", language: "python" }),
   Object.freeze({ manifest: "requirements.txt", ecosystem: "python", language: "python" }),
   Object.freeze({ manifest: "test-requirements.txt", ecosystem: "python", language: "python" }),
-  Object.freeze({ manifest: "requirements-dev.txt", ecosystem: "python", language: "python" })
+  Object.freeze({ manifest: "requirements-dev.txt", ecosystem: "python", language: "python" }),
+  Object.freeze({ manifest: "requirements/test.txt", ecosystem: "python", language: "python" }),
+  Object.freeze({ manifest: "setup.cfg", ecosystem: "python", language: "python" }),
+  Object.freeze({ manifest: "setup.py", ecosystem: "python", language: "python" })
 ]);
 
 export const MANIFEST_NAMES = Object.freeze([
   ...new Set(MANIFEST_EVIDENCE.map(({ manifest }) => manifest))]);
 
+export function manifestDeclaration(relative) {
+  const evidence = MANIFEST_EVIDENCE.filter(({ manifest }) => relative === manifest ||
+    relative.endsWith(`/${manifest}`)).sort((left, right) => right.manifest.length - left.manifest.length)[0];
+  if (evidence === undefined) return null;
+  return { ...evidence, project: relative === evidence.manifest ? "."
+    : relative.slice(0, -(evidence.manifest.length + 1)) };
+}
+
 export const PYTHON_REQUIREMENT_FILES = Object.freeze(
-  ["requirements.txt", "test-requirements.txt", "requirements-dev.txt"]);
+  ["requirements.txt", "test-requirements.txt", "requirements-dev.txt", "requirements/test.txt"]);
 export const PYTHON_PROJECT_FILE = "pyproject.toml";
 
-const NPM_RUNNER_PACKAGES = Object.freeze({ jest: "jest", vitest: "vitest", mocha: "mocha",
-  ava: "ava", lib0: "lib0-testing" });
+export const PYTHON_PACKAGING_FILES = Object.freeze(["setup.cfg", "setup.py"]);
+
 const PYTHON_RUNNER_PACKAGES = Object.freeze({ pytest: "pytest", stestr: "stestr" });
 const PACKAGE_SUPPLIED_RUNNERS = new Set([...Object.values(NPM_RUNNER_PACKAGES),
   ...Object.values(PYTHON_RUNNER_PACKAGES)]);
-const NPM_DEPENDENCY_FIELDS = Object.freeze(["dependencies", "devDependencies",
-  "optionalDependencies", "peerDependencies"]);
-
-function parseJson(text) {
-  try {
-    const value = JSON.parse(text);
-    return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function npmFacts(text) {
-  const manifest = text === null ? null : parseJson(text);
-
-  const optionalPeers = new Set(Object.entries(manifest?.peerDependenciesMeta ?? {})
-    .filter(([, meta]) => meta?.optional === true).map(([name]) => name));
-  const declared = new Set(NPM_DEPENDENCY_FIELDS.flatMap((field) =>
-    Object.keys(manifest?.[field] ?? {}).filter((name) =>
-      field !== "peerDependencies" || !optionalPeers.has(name))));
-  const workspaces = Array.isArray(manifest?.workspaces) ? manifest.workspaces
-    : Array.isArray(manifest?.workspaces?.packages) ? manifest.workspaces.packages : [];
-  return {
-    declaresDependencies: declared.size > 0,
-    runners: Object.entries(NPM_RUNNER_PACKAGES).filter(([name]) => declared.has(name))
-      .map(([, runner]) => runner),
-    workspaces: workspaces.filter((pattern) => typeof pattern === "string")
-  };
-}
 
 function pythonRunners(text) {
   return Object.entries(PYTHON_RUNNER_PACKAGES)
@@ -83,8 +67,19 @@ function pythonRunners(text) {
     .map(([, runner]) => runner);
 }
 
-export function requirementName(specifier) {
+function requirementName(specifier) {
   return /^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(?:$|[[<>=!~;@ ])/u.exec(specifier.trim())?.[1] ?? null;
+}
+
+export function requirementDeclaration(specifier) {
+  const requirement = specifier.trim();
+  const name = requirementName(requirement);
+  return name === null ? null : { name, requirement };
+}
+
+export function distinctRequirementDeclarations(declarations) {
+  return [...new Map(declarations.map((entry) => [`${entry.name}\n${entry.requirement}`, entry])).entries()]
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([, entry]) => entry);
 }
 
 export function splitTomlKey(text) {
@@ -175,12 +170,17 @@ function readTomlDocument(text) {
   return document;
 }
 
-export function pyprojectRequirementNames(text) {
+export function pyprojectRequirements(text) {
   const required = readTomlDocument(text ?? "").project?.dependencies;
-  const names = (Array.isArray(required) ? required : [])
-    .map((specifier) => typeof specifier === "string" ? requirementName(specifier) : null)
-    .filter((name) => name !== null);
-  return [...new Set(names)].sort();
+  return distinctRequirementDeclarations((Array.isArray(required) ? required : [])
+    .map((specifier) => typeof specifier === "string" ? requirementDeclaration(specifier) : null)
+    .filter((declaration) => declaration !== null));
+}
+
+function pyprojectDeclaresProject(text) {
+  const document = readTomlDocument(text ?? "");
+  return ["project", "build-system"].some((table) => document[table] !== null &&
+    typeof document[table] === "object");
 }
 
 function cargoWorkspaceMembers(text) {
@@ -188,43 +188,6 @@ function cargoWorkspaceMembers(text) {
   if (section === null) return null;
   const members = /^\s*members\s*=\s*\[([\s\S]*?)\]/mu.exec(section)?.[1] ?? "";
   return [...members.matchAll(/"([^"]+)"/gu)].map((match) => match[1]);
-}
-
-function workspaceMatcher(pattern) {
-  const negated = pattern.startsWith("!");
-  const segments = (negated ? pattern.slice(1) : pattern).replace(/^\.\//u, "").replace(/\/+$/u, "")
-    .split("/");
-  const source = segments.map((segment, index) => {
-    const last = index === segments.length - 1;
-    if (segment === "**") return last ? "(?:[^/]+(?:/[^/]+)*)?" : "(?:[^/]+/)*";
-    return segment.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/gu, "\\$&"))
-      .join("[^/]*") + (last ? "" : "/");
-  }).join("");
-  const expression = new RegExp(`^${source}$`, "u");
-  return { negated, test: (relative) => expression.test(relative) };
-}
-
-function membersOf(project, patterns, candidates) {
-  const matchers = patterns.map(workspaceMatcher);
-  return candidates.filter((directory) => {
-    if (directory === project) return false;
-    const relative = project === "." ? directory
-      : directory.startsWith(`${project}/`) ? directory.slice(project.length + 1) : null;
-    if (relative === null) return false;
-    let included = false;
-    for (const matcher of matchers) {
-      if (matcher.test(relative)) included = !matcher.negated;
-    }
-    return included;
-  }).map((directory) => project === "." ? directory : directory.slice(project.length + 1)).sort();
-}
-
-function lockedWorkspaceDirectories(project, readFile) {
-  const lock = parseJson(readFile(project === "." ? "package-lock.json" : `${project}/package-lock.json`) ?? "");
-  const keys = Object.keys(lock?.packages ?? {});
-  return keys.filter((key) => key !== "" && !key.split("/").includes("node_modules") &&
-    !key.split("/").some((segment) => segment === "" || segment === "." || segment === ".."))
-    .map((key) => project === "." ? key : `${project}/${key}`);
 }
 
 const segmentsOf = (directory) => directory === "." ? [] : directory.split("/");
@@ -245,6 +208,8 @@ function ignoredByRepository(root, relatives) {
 export function collectRepositoryManifests(root, { depth = MANIFEST_SEARCH_DEPTH, targets = [] } = {}) {
   const skipped = new Set(SKIPPED_DIRECTORIES);
   const names = new Set(MANIFEST_NAMES);
+
+  const nested = MANIFEST_NAMES.filter((name) => name.includes("/"));
   const found = [];
   const excluded = [];
   const walk = (directory, relative, remaining) => {
@@ -253,6 +218,11 @@ export function collectRepositoryManifests(root, { depth = MANIFEST_SEARCH_DEPTH
       entries = readdirSync(directory, { withFileTypes: true });
     } catch {
       return;
+    }
+    for (const name of nested) {
+      try {
+        if (statSync(path.join(directory, name)).isFile()) found.push(relative === "." ? name : `${relative}/${name}`);
+      } catch {   }
     }
     for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
       const child = relative === "." ? entry.name : `${relative}/${entry.name}`;
@@ -308,23 +278,27 @@ export function discoverRuntimeEnvironments({ manifests, runners, readFile }) {
 
   const byProject = new Map();
   for (const relative of [...manifests].sort()) {
-    const evidence = MANIFEST_EVIDENCE.find(({ manifest }) => manifest === path.posix.basename(relative));
-    if (evidence === undefined) continue;
-    const directory = path.posix.dirname(relative);
+    const evidence = manifestDeclaration(relative);
+    if (evidence === null) continue;
+    const directory = evidence.project;
     const key = `${evidence.ecosystem}\0${directory}`;
     const entry = byProject.get(key) ?? { ecosystem: evidence.ecosystem, language: evidence.language,
       project: directory, evidence: [], runners: [], declaresDependencies: false, workspaces: null,
-      requirementFiles: false };
+      requirementFiles: false, declaresProject: false };
     const text = readFile(relative);
     entry.evidence.push(relative);
     if (evidence.ecosystem === "npm") {
-      const facts = npmFacts(text);
-      entry.runners.push(...facts.runners);
-      entry.declaresDependencies = facts.declaresDependencies;
-      if (facts.workspaces.length > 0) entry.workspaces = facts.workspaces;
+
+      entry.npm = resolveNpmWorkspace(directory, readFile);
+      entry.runners.push(...entry.npm.manifest.runners);
+      entry.declaresDependencies = entry.npm.manifest.declaresDependencies;
+      if (entry.npm.patterns.length > 0) entry.workspaces = [...entry.npm.patterns];
     } else if (evidence.ecosystem === "python") {
       entry.runners.push(...pythonRunners(text));
       if (PYTHON_REQUIREMENT_FILES.includes(evidence.manifest)) entry.requirementFiles = true;
+      else if (PYTHON_PACKAGING_FILES.includes(evidence.manifest) || pyprojectDeclaresProject(text)) {
+        entry.declaresProject = true;
+      }
     } else if (evidence.ecosystem === "cargo") {
       entry.workspaces = cargoWorkspaceMembers(text);
     }
@@ -336,15 +310,15 @@ export function discoverRuntimeEnvironments({ manifests, runners, readFile }) {
   for (const declarer of all.filter(({ workspaces }) => workspaces !== null && workspaces.length > 0)) {
     const walked = all.filter(({ ecosystem }) => ecosystem === declarer.ecosystem)
       .map(({ project }) => project);
-    const locked = declarer.ecosystem === "npm" ? lockedWorkspaceDirectories(declarer.project, readFile) : [];
-    declarer.members = membersOf(declarer.project, declarer.workspaces,
+    const locked = declarer.ecosystem === "npm" ? declarer.npm.lockedDirectories : [];
+    declarer.members = workspaceMembers(declarer.project, declarer.workspaces,
       [...new Set([...walked, ...locked])]).filter((member) => {
       const directory = declarer.project === "." ? member : `${declarer.project}/${member}`;
       if (walked.includes(directory)) return true;
       const text = readFile(`${directory}/package.json`);
       if (text === null) return false;
 
-      const facts = npmFacts(text);
+      const facts = resolveNpmWorkspace(directory, readFile).manifest;
       declarer.evidence.push(`${directory}/package.json`);
       declarer.runners.push(...facts.runners);
       declarer.declaresDependencies ||= facts.declaresDependencies;
@@ -374,8 +348,7 @@ export function discoverRuntimeEnvironments({ manifests, runners, readFile }) {
   }
   for (const entry of units.sort((left, right) => left.project.localeCompare(right.project))) {
     if (entry.ecosystem === "npm" && entry.project !== "." && !entry.declaresDependencies &&
-        entry.workspaces === null &&
-        readFile(entry.project === "." ? "package-lock.json" : `${entry.project}/package-lock.json`) === null) {
+        entry.workspaces === null && entry.npm.lock === null && entry.npm.ambiguous.length === 0) {
 
       const enclosing = units.filter((unit) => unit.ecosystem === "npm" && unit !== entry &&
         contains(unit.project, entry.project)).sort((left, right) =>
@@ -388,7 +361,9 @@ export function discoverRuntimeEnvironments({ manifests, runners, readFile }) {
         continue;
       }
     }
-    if (entry.ecosystem === "python" && !entry.requirementFiles && entry.runners.length === 0) {
+
+    if (entry.ecosystem === "python" && !entry.requirementFiles && !entry.declaresProject &&
+        entry.runners.length === 0) {
       for (const file of entry.evidence) excluded.push({ path: file, reason: EXCLUSION_REASONS.NO_INPUTS });
       continue;
     }

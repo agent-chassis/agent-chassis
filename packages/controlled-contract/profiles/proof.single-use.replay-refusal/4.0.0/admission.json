@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "5dcb30fe04702ce8edb961fcbb7604af8af13a69532def3e8d5b453af150e025",
+  "parameter_contract_digest": "78572d5310998993a4c30102071237b1fc41d67982e2b9a42ccae35fbee1b79b",
   "profile_id": "proof.single-use.replay-refusal",
   "profile_version": "4.0.0",
-  "profile_digest": "d35e3c226ad539a7cbcaa539e6daa638878c4849680f5af468513666a697f3ef",
+  "profile_digest": "989b34bb49141dac8d2780ef5564c6d0aa512f12f9a1c967b5196aa693227673",
   "guarantee": "Given one declared single-use authority and authorized input, two distinct ordered attempts of the same operation using that authority and input, one closed one-member effect-occurrence population, one elected durable effect resource with complete observations before first use, after first success, and after replay refusal, and one expected success state: the first attempt is accepted, reaches the expected state, creates the sole declared effect occurrence, and changes the elected resource state; after that success the authority no longer authorizes the input; the replay is rejected and not accepted, creates no member of the declared effect population, and leaves the elected resource state equal to its post-first-use state.",
   "guarantee_digest": "b555f4eace29c9d9054bbacd990817451c6a260db3e83ef887ef5bc0584507d2",
   "explicit_exclusions": [
@@ -20,10 +20,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "be33eb34e150306256f6aeafcc45305dc3095cc9248986e803882ce63daee1f8",
-    "adequacy_result_digest": "adb3eb13bc9cd83c655c1e21480c237633fcb1a450cc762c6f7e2cb63e643a4f",
-    "executable_control_count": 40,
-    "negative_fixture_count": 16,
-    "coverage_witness_count": 263
+    "adequacy_declaration_digest": "b7e6119bce48c44d91bdaf8c9e0c01784758a14b713b5b6cc9d529175711c7cb",
+    "adequacy_result_digest": "38869c4bab455551c940de462cb8a27d64c28a35ed16aeb0f94b4f428297bc35",
+    "executable_control_count": 55,
+    "negative_fixture_count": 22,
+    "coverage_witness_count": 260
   }
 }

@@ -2,12 +2,36 @@
 
 import { NODE_TEST_PROOF_REPORTER_PROTOCOL_CAP_BYTES } from
   "../workspace-agent-test-proof-node-observation.mjs";
+import { processGroupExists, signalProcessGroup, terminateProcessGroup } from
+  "../../../../wiki-core/src/lib/process-group.mjs";
 
 export const DEFAULT_VALIDATION_TIMEOUT_MS = 30000;
 
 export const DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS = 300000;
 
 export const TEST_PROOF_LIVE_CLEANUP_ALLOWANCE_MS = 5000;
+export const TEST_PROOF_PROCESS_GROUP_TERM_GRACE_MS = 500;
+export const TEST_PROOF_PROCESS_GROUP_KILL_GRACE_MS = 500;
+
+export async function settleOwnedProcessGroup(pid, operations = {
+  processGroupExists, terminateProcessGroup
+}) {
+  if (process.platform === "win32") {
+    return { cleanupFailed: true, cleanupError: "process_group_unsupported",
+      cleanupScope: "owned_process_group", ownedProcessGroupSettled: false };
+  }
+  try {
+    if (operations.processGroupExists(pid)) {
+      await operations.terminateProcessGroup(pid, { termGraceMs: TEST_PROOF_PROCESS_GROUP_TERM_GRACE_MS,
+        killGraceMs: TEST_PROOF_PROCESS_GROUP_KILL_GRACE_MS });
+    }
+    return { cleanupFailed: false, cleanupError: null,
+      cleanupScope: "owned_process_group", ownedProcessGroupSettled: true };
+  } catch (error) {
+    return { cleanupFailed: true, cleanupError: error?.code ?? "process_group_settlement_failed",
+      cleanupScope: "owned_process_group", ownedProcessGroupSettled: false };
+  }
+}
 
 const EXECUTION_BUDGETS = new WeakSet();
 const MAX_EXECUTION_BUDGET_MS = 2147483000;
@@ -274,14 +298,17 @@ export function spawnAndCapture(plan, {
   signal = null,
   cleanupAllowanceMs = null,
   stdinPayload = null,
-  nativeReport = null
+  nativeReport = null,
+  ownedProcessGroup = false,
+  processGroupOperations = null
 }) {
   const stdin = stdinPayload === null ? "ignore" : "pipe";
   const child = spawnIsolated(plan, {
     stdio: reporterProtocol
       ? [stdin, "pipe", "pipe", "pipe"]
       : [stdin, "pipe", "pipe"],
-    env: parentEnv
+    env: parentEnv,
+    ...(ownedProcessGroup ? { detached: true } : {})
   });
   if (stdinPayload !== null && child.stdin) {
 
@@ -298,16 +325,48 @@ export function spawnAndCapture(plan, {
     let timedOut = false;
     let cancelled = false;
     let cleanupFailed = false;
+    let cleanupError = null;
+    let cleanupScope = ownedProcessGroup ? "owned_process_group" : "confined_process_tree";
+    let ownedProcessGroupSettled = null;
     let cleanupTimer = null;
+    let groupSettlement = null;
+
+    let terminationRequest = null;
+    let observedExit = null;
+    const observeExit = (code, exitSignal) => {
+      if (settled || observedExit !== null) return;
+      observedExit = { code: typeof code === "number" ? code : null, signal: exitSignal ?? null };
+    };
+    const settleGroup = () => {
+      if (groupSettlement === null) {
+        groupSettlement = Number.isInteger(child.pid)
+          ? settleOwnedProcessGroup(child.pid, processGroupOperations ?? undefined)
+          : Promise.resolve({ cleanupFailed: true, cleanupError: "process_group_pid_unavailable",
+            cleanupScope: "owned_process_group", ownedProcessGroupSettled: false });
+      }
+      return groupSettlement;
+    };
     const terminate = (cause) => {
       if (cause === "timeout") timedOut = true;
       else cancelled = true;
+      const groupRequest = ownedProcessGroup && Number.isInteger(child.pid);
+      let delivered = null;
+      let requestError = null;
       try {
-        child.kill("SIGKILL");
-      } catch {
-
+        delivered = (groupRequest ? signalProcessGroup(child.pid, "SIGKILL") : child.kill("SIGKILL")) === true;
+      } catch (error) {
+        requestError = error?.code ?? "process_termination_failed";
+        if (error?.code !== "ESRCH") cleanupError = requestError;
       }
-      if (cleanupAllowanceMs !== null && cleanupTimer === null) {
+      if (terminationRequest === null) {
+        terminationRequest = Object.freeze({ signal: "SIGKILL",
+          scope: groupRequest ? "owned_process_group" : "child_process", delivered, error: requestError });
+      }
+      if (ownedProcessGroup) {
+        void settleGroup().then((settlement) => finish({
+          spawnError: null, code: null, signal: "SIGKILL", ...settlement
+        }));
+      } else if (cleanupAllowanceMs !== null && cleanupTimer === null) {
         cleanupTimer = setTimeout(() => {
           cleanupFailed = true;
           finish({ spawnError: null, code: null, signal: "SIGKILL" });
@@ -320,17 +379,31 @@ export function spawnAndCapture(plan, {
     if (typeof timer.unref === "function") timer.unref();
     const onAbort = () => terminate("cancel");
 
-    const finish = (payload) => {
+    const finish = async (payload) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       if (cleanupTimer !== null) clearTimeout(cleanupTimer);
       signal?.removeEventListener("abort", onAbort);
+      if (ownedProcessGroup && Number.isInteger(child.pid)) {
+        const settlement = payload.cleanupScope === "owned_process_group"
+          ? payload : await settleGroup();
+        cleanupFailed = cleanupFailed || settlement.cleanupFailed;
+        cleanupError = cleanupError ?? settlement.cleanupError;
+        cleanupScope = settlement.cleanupScope;
+        ownedProcessGroupSettled = settlement.ownedProcessGroupSettled;
+      }
       resolve({
         ...payload,
+        termination: terminationRequest === null ? null : Object.freeze({ requested: terminationRequest,
+          process: Object.freeze(observedExit === null ? { exited: false, exit_code: null, signal: null }
+            : { exited: true, exit_code: observedExit.code, signal: observedExit.signal }) }),
         timedOut,
         cancelled,
         cleanupFailed,
+        cleanupError,
+        cleanupScope,
+        ownedProcessGroupSettled,
         endedAtMs: clock(),
         stdout: stdoutSink.result(),
         stderr: stderrSink.result(),
@@ -353,14 +426,19 @@ export function spawnAndCapture(plan, {
     });
     if (child.stdio?.[3]) child.stdio[3].on("data", (chunk) => reporterSink.push(chunk));
     child.on("error", (err) => finish({ spawnError: err?.code ?? err?.message ?? String(err), code: null, signal: null }));
-    child.on("close", (code, signal) => finish({ spawnError: null, code, signal }));
+    child.on("exit", observeExit);
+    child.on("close", (code, signal) => {
+      observeExit(code, signal);
+      return finish({ spawnError: null, code, signal });
+    });
   });
 }
 
 export const WORKSPACE_AGENT_VALIDATION_DISPOSITIONS = Object.freeze({
   PASSED: "passed",
   FAILED: "failed",
-  NOT_RUN: "not_run"
+  NOT_RUN: "not_run",
+  UNCONFIRMED: "unconfirmed"
 });
 
 export function interruptedBeforeSpawn(baseEvidence, interruption, startedAtMs, endedAtMs) {
@@ -382,6 +460,9 @@ export function interruptedBeforeSpawn(baseEvidence, interruption, startedAtMs, 
     duration_ms: endedAtMs - startedAtMs
   });
 }
+
+const isTerminationCapture = (termination) => termination !== null && typeof termination === "object" &&
+  typeof termination.requested?.signal === "string" && typeof termination.process?.exited === "boolean";
 
 export function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outputBounds,
   executionBudget = null, proofObservation = null }) {
@@ -425,6 +506,17 @@ export function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outp
     ...(executionBudget === null ? {} : { cancelled }),
 
     cleanup_failed: capture.cleanupFailed === true,
+    cleanup_scope: capture.cleanupScope ?? null,
+    cleanup_error: capture.cleanupError ?? null,
+    ...(capture.ownedProcessGroupSettled === null || capture.ownedProcessGroupSettled === undefined
+      ? {} : { owned_process_group_settled: capture.ownedProcessGroupSettled }),
+
+    ...(interrupted && isTerminationCapture(capture.termination) ? { termination: Object.freeze({
+      cause: cancelled ? "cancelled" : "timed_out",
+      requested: capture.termination.requested,
+      process: capture.termination.process,
+      ...(capture.runnerOutcome === undefined ? {} : { runner_outcome: capture.runnerOutcome })
+    }) } : {}),
     spawn_error: capture.spawnError,
     ...(proofObservation !== null ? {
       test_proof_observation: testProofObservation,

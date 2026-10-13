@@ -56,7 +56,7 @@ export async function resolvePublishedSidecarSnapshot({
     artifactRelativePath: artifactPaths.artifactRelativePath });
   const store = readSidecarStoreStatus({ repoRoot: gitState.repoRoot, cacheDir: artifactPaths.cacheDir });
   const usability = await publishedUsability(store);
-  const refreshState = refresh.request({ repoRoot: gitState.repoRoot, cacheDir: artifactPaths.cacheDir,
+  const refreshState = refresh === false ? null : refresh.request({ repoRoot: gitState.repoRoot, cacheDir: artifactPaths.cacheDir,
     currentHead: gitState.index_head,
     publication: usability.usable ? publicationIdentity(store.publication) : null });
   if (!usability.usable) {

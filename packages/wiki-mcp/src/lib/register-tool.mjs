@@ -287,7 +287,7 @@ function taskValidatorIssue(issue, depth = 0) {
 }
 
 export async function projectToolInputValidationFailure({ tool, args, validationError, requestContract,
-  ownerDiagnostics = null }) {
+  ownerDiagnostics = null, ownerGuidance = null }) {
   const issues = ownerDiagnostics ?? validationError.issues;
   const nextCalls = [];
 
@@ -303,6 +303,8 @@ export async function projectToolInputValidationFailure({ tool, args, validation
     }
   }
   const missing = issues.filter(issue => issue.code === "invalid_type" && issue.received === "undefined");
+  const { calls: guidanceCalls = [], ...guidance } = ownerGuidance ?? {};
+  const guidanceFacts = Object.keys(guidance).length > 0 ? guidance : null;
   return { code: TOOL_INPUT_VALIDATION_FAILED, accepted: false, tool,
     ...(typeof (args?.unit ?? args?.subject) === "string" && (args.unit ?? args.subject).length <= 128
       ? { subject: args.unit ?? args.subject } : {}),
@@ -311,9 +313,15 @@ export async function projectToolInputValidationFailure({ tool, args, validation
     ...(missing.length === 0 ? {} : { required_inputs: missing.slice(0, 8).map(issue => ({
       path: issue.path, expected: issue.expected, choice: "caller_supplied_value_required"
     })) }),
-    correction: nextCalls.length > 0 ? "Call the corrected request with the unsupported fields removed."
-      : "Supply the missing caller choices or correct the reported field constraints before calling this tool again.",
-    next_calls: nextCalls };
+    correction: (nextCalls.length > 0 ? "Call the corrected request with the unsupported fields removed."
+      : "Supply the missing caller choices or correct the reported field constraints before calling this tool again.") +
+      (guidanceCalls.length === 0 ? "" : " The read-only calls return guidance for that correction; they write nothing and are not a corrected request."),
+    ...(guidanceFacts === null ? {} : { owner_guidance: guidanceFacts }),
+    next_calls: [...nextCalls, ...guidanceCalls.map((call) => {
+
+      const { recommended: _recommended, ...alongside } = call;
+      return nextCalls.length === 0 ? call : alongside;
+    })] };
 }
 
 function createEffectsEnforcingHandler(
@@ -454,6 +462,8 @@ export function createRegisterTool({
       inputContractRequestGuidanceLocations,
       inputValidationErrorProjector,
       publishedInputSchemaProjection,
+
+      inputSchemaExposure,
       ...declaredConfig
     } = config ?? {};
     const publishedConfig = writeSemantics === undefined
@@ -547,8 +557,9 @@ export function createRegisterTool({
           inputValidationErrorProjector ?? null
         )
       : auditedHandler;
-    const declaredRequestContract = { inputSchema: authoritativeInputSchema, advertisedInputSchema };
+    const declaredRequestContract = { inputSchema: authoritativeInputSchema, advertisedInputSchema, inputSchemaExposure };
     requestContracts.assertRetainable(name, declaredRequestContract);
+    const boundInputSchemaExposure = requestContracts.bindExposure(inputSchemaExposure);
     server.registerTool(
       name,
       effectiveConfig,
@@ -563,7 +574,8 @@ export function createRegisterTool({
     requestContracts.retain(name, {
       ...declaredRequestContract,
       publishedInputSchema: effectiveConfig?.inputSchema,
-      publishedInputSchemaProjection
+      publishedInputSchemaProjection,
+      boundInputSchemaExposure
     });
     if (publishedInputSchemaProjection !== undefined && listedSchemaProjection !== null) {
       if (!listedSchemaProjection.installed) {

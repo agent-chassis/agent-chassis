@@ -73,6 +73,10 @@ async function registration(t, { state = { role: "orchestrator", sessionContract
 test("the published description states the hard response limit verbatim", async (t) => {
   const { config } = await registration(t);
   assert.ok(config.description.includes(LIMIT_SENTENCE), config.description);
+
+  assert.match(config.description, /or one glob \(for example tests\/\*\*\/\*\.test\.mjs\)/u);
+  assert.match(config.description, /never a file list/u);
+  assert.doesNotMatch(config.description, /\bcontinue\b|\boffset\b/u);
   assert.equal(RUN_TEST_RESPONSE_MAX_BYTES, 1024);
   assert.equal(typeof config.inputValidationErrorProjector, "function",
     "pre-handler validation failures are projected by the route itself");
@@ -88,6 +92,14 @@ test("run_test closed public request", async (t) => {
   assert.equal(parse({ ...execute, timeout: { seconds: 2147483 } }).success, true);
   assert.equal(parse({ ...execute, source: { kind: "current_main" } }).success, true);
   assert.equal(parse({ ...execute, source: { kind: "exact_sha", value: "c".repeat(40) } }).success, true);
+
+  for (const file of ["tests/unit/*.test.mjs", "tests/**/*.test.mjs", "tests/{unit,integration}/a?.test.[mc]js"]) {
+    assert.equal(parse({ ...execute, file }).success, true, file);
+  }
+  for (const extra of [{ file: ["tests/a.test.mjs", "tests/b.test.mjs"] }, { files: ["tests/a.test.mjs"] },
+    { glob: "tests/*.test.mjs" }, { pattern: "tests/*.test.mjs" }, { suite: "unit" }, { matched: ["a"] }]) {
+    assert.equal(parse({ ...execute, ...extra }).success, false, JSON.stringify(extra));
+  }
 
   for (const extra of [{ repo: "fixture" }, { repo: "foreign" }, { command: "sh" }, { args: ["-c", "true"] }, { argv: ["node"] }, { env: { A: "1" } },
     { environment_variables: { A: "1" } }, { cwd: "/" }, { checkout: "/tmp" }, { checkout_root: "/tmp" },
@@ -117,28 +129,38 @@ test("run_test closed public request", async (t) => {
 
   const locator = { ref_id: "aB3_dE9x" };
   const read = { result: locator, view: "outcome" };
-  const continuation = { source: locator, collection: "members", selector: { id: "candidate_stdout" },
-    field_path: ["value"], offset: 0, length: 512 };
   const retry = { request: locator, changes: { selector: "other" }, clear: ["source"] };
   for (const view of RUN_TEST_VIEWS) assert.equal(parse({ read: { result: locator, view } }).success, true, view);
+
+  assert.equal(parse({ read: { result: locator, view: "failure", failure: 2 } }).success, true);
+  for (const failure of [0, -1, 1.5, "2", null]) {
+    assert.equal(parse({ read: { result: locator, view: "failure", failure } }).success, false, String(failure));
+  }
+  assert.equal(parse({ read: { result: locator, view: "candidate_stdout", failure: 2 } }).success, false);
   assert.equal(parse({ repo: "fixture", read }).success, false);
-  assert.equal(parse({ continue: continuation }).success, true);
   assert.equal(parse({ retry }).success, true);
   assert.equal(parse({ retry: { request: locator } }).success, true, "a retry may change nothing");
 
   assert.equal(parse({ detail: { source: locator, collection: "members" } }).success, false, "no detail alias");
+  for (const gone of [{ continue: { source: locator, collection: "members", selector: { id: "candidate_stdout" },
+    field_path: ["value"], offset: 0, length: 512 } }, { continue: { source: locator, collection: "members" } },
+  { read: { ...read, offset: 0 } }, { read: { ...read, length: 512 } }, { read: { ...read, offset: 0, length: 512 } },
+  { read: { ...read, field_path: ["value"] } }, { read: { ...read, cursor: "c" } }, { read: { ...read, unit: 2 } },
+  { read: { ...read, snapshot_identity: "s".repeat(43) } }, { read: { result: locator, view: "matched" } },
+  { read: { result: locator, view: "units" } }]) {
+    assert.equal(parse(gone).success, false, JSON.stringify(gone));
+  }
   for (const invalid of [{ read: { result: locator } }, { read: { result: locator, view: "members" } },
     { read: { result: locator, view: "request" } }, { read: { ...read, collection: "members" } },
     { read: { ...read, authority_identity: {} } }, { read: { result: { ...locator, sha256: "d".repeat(64) }, view: "outcome" } },
     { read: { result: { ref_id: "resp-1" }, view: "outcome" } }, { retry: { request: { ...locator, sha256: "d".repeat(64) } } },
-    { continue: { ...continuation, authority_identity: {} } }, { continue: { collection: "members" } },
     { retry: { changes: {} } }, { retry: { request: locator, old_tool: "workspace_run_test" } },
     { retry: { request: locator, args: execute } }, { retry: { request: locator, changes: { command: "sh" } } },
     { retry: { request: locator, changes: { role: "orchestrator" } } }]) {
     assert.equal(parse(invalid).success, false, JSON.stringify(invalid));
   }
 
-  const modes = { read, continue: continuation, retry };
+  const modes = { read, retry };
   for (const [first, value] of Object.entries(modes)) {
     for (const mixed of [{ ...execute }, { file: execute.file }, { timeout: "short" }, { compare_parent: true },
       { source: { kind: "current_main" } }, { selector: "x" },
@@ -176,12 +198,18 @@ test("the advertised request shape is the enforced schema's own", async (t) => {
   const { config } = await registration(t);
   assert.equal(Object.hasOwn(config, "advertisedInputSchema"), false, "no separate advertised schema");
   const inner = config.inputSchema.innerType();
-  assert.deepEqual(Object.keys(inner.shape).sort(), ["compare_parent", "continue", "environment", "file", "read",
+  assert.deepEqual(Object.keys(inner.shape).sort(), ["compare_parent", "environment", "file", "read",
     "retry", "runner", "selector", "source", "timeout"]);
+
+  const fileDescription = inner.shape.file.description;
+  for (const stated of ["* ? [ ] { }", "tests/unit/*.test.mjs", "tests/**/*.test.mjs"]) {
+    assert.ok(fileDescription.includes(stated), `${stated}: ${fileDescription}`);
+  }
+  assert.deepEqual(Object.keys(inner.shape.read.unwrap().shape).sort(), ["failure", "result", "view"]);
   for (const field of ["file", "runner"]) {
     assert.match(inner.shape[field].description, /^Required for an execution\./u, field);
   }
-  for (const mode of ["read", "continue", "retry"]) {
+  for (const mode of ["read", "retry"]) {
     assert.match(inner.shape[mode].description, /exactly one mode/u, mode);
   }
 
@@ -212,7 +240,6 @@ test("the advertised request shape is the enforced schema's own", async (t) => {
   const locator = { ref_id: "aB3_dE9x" };
   for (const [mode, valid, invalid] of [
     ["read", { result: locator, view: "failure" }, { result: locator, view: "failure", extra: 1 }],
-    ["continue", { source: locator, collection: "members" }, { source: locator, collection: "members", extra: 1 }],
     ["retry", { request: locator, clear: ["selector"] }, { request: locator, clear: ["file"] }]]) {
     const published = inner.shape[mode];
     assert.equal(published.safeParse(valid).success, true, mode);
@@ -314,14 +341,20 @@ test("an orchestrator names its source explicitly; an omitted source refuses bef
   assert.equal(calls.source, 0);
 });
 
-test("glob, directory, escaping and symlink-escaping targets are the runner's own refusals", async (t) => {
+test("directory, escaping, symlink-escaping and unmatched targets are the runner's own refusals", async (t) => {
   const { handler, checkout } = await registration(t);
   mkdirSync(path.join(checkout, "tests"), { recursive: true });
   writeFileSync(path.join(checkout, "tests/a.test.mjs"), "export {};\n");
   symlinkSync("/etc/hostname", path.join(checkout, "tests/escape.test.mjs"));
   for (const [file, code] of [
-    ["tests/*.test.mjs", "ordinary_test_target_invalid"],
-    ["tests/a.test.[mc]js", "ordinary_test_target_invalid"],
+
+    ["tests/*.spec.mjs", "ordinary_test_target_no_match"],
+    ["tests/escape.test.[mc]js", "ordinary_test_target_no_match"],
+    ["../*.test.mjs", "ordinary_test_target_invalid"],
+    ["tests/./*.test.mjs", "ordinary_test_target_invalid"],
+    ["tests/*.test.mjs", "test_runtime_runner_not_prepared"],
+    ["tests/a.test.[mc]js", "test_runtime_runner_not_prepared"],
+    ["tests/a.test.mjs", "test_runtime_runner_not_prepared"],
     ["../outside.test.mjs", "ordinary_test_target_invalid"],
     ["/etc/hostname", "ordinary_test_target_invalid"],
     ["tests/./a.test.mjs", "ordinary_test_target_invalid"],

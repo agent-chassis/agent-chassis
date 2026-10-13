@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "e905347cb7fe1a7aac46e9a28197b8429c18fe7aa05fe89a54c85e3ac581560b",
+  "parameter_contract_digest": "767be1bbb517dd18337396cb2adb57195bbbddda9ea2a1927172203bfd60fef8",
   "profile_id": "proof.result-shape.conformance",
   "profile_version": "4.0.0",
-  "profile_digest": "735fc66c518c193972648f0c9d4021803a3e923b241513e47487240da3ed452f",
+  "profile_digest": "444fe70ed5b2cee6c4ed5d2ed53ebf75ccd0ed7073eeb193408b7fab40986341",
   "guarantee": "When one declared operation returns one grounded result governed by one grounded schema, the declared observed-result, required-member, optional-member, allowed-member, forbidden-member, allowed-shape, and forbidden-shape populations are complete; every declared required typed member descriptor is present in the observed result population, every observed typed member descriptor belongs to the exact allowed population, every declared forbidden member descriptor is absent, the observed result shape belongs to the exact allowed-shape population and not to the exact forbidden-shape population, and the emitted result count equals the exact observed-member population cardinality.",
   "guarantee_digest": "77dd35821e275dadeb0b82724b51343668e1b595860742aea18e6c3570f85e46",
   "explicit_exclusions": [
@@ -19,10 +19,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "0c07b48667cbbaa2c124b456df2e58dcd34ac370f9291adcb057b71e49870e45",
-    "adequacy_result_digest": "774488a7cc70314727444e47c8976d7a4f426e832b978e3401bbdcdea217c360",
-    "executable_control_count": 36,
-    "negative_fixture_count": 3,
+    "adequacy_declaration_digest": "a51e7d3bc85d1a16538097333d368611ec6994ad97a84ace00a0134a31913961",
+    "adequacy_result_digest": "79b6a3133c0d86525390b351eebef0b999877bd367f312047153289f68502dca",
+    "executable_control_count": 46,
+    "negative_fixture_count": 8,
     "coverage_witness_count": 140
   }
 }

@@ -4,9 +4,9 @@
 
 For exact captured input, complete result, ordering policy, and item-key/comparator evidence artifacts, the package-owned deterministic-lexicographic-conformance.v1 transformer validates complete mutually inclusive item populations and exact counts, at least two typed keys with explicit precedence and direction, first-unequal-key ordering, equal-key fallthrough to one stable item-identity tie-breaker, non-equality for every distinguishable pair, the complete captured result, and observed input, declaration, and equivalent-serialization permutation invariance; it emits one exact digest-bound conformance report containing the complete typed fact set and derived declared-item, result-item, and policy-key populations, and the profile retains its own population, count, claim, falsifier, and verifies spine.
 
-Profile digest: 310c34d26afb0b6ad757ec7a55dfea1305f3cead32034ecbc51b67ec841af22b. Parameter digest: b03d280a180dcd40d1e184660b70e59979cee7c1c605b361abd7a64061c31db0.
+Profile digest: dae2d1e16dd572ca09d64759e113dbc18b7d627f0932790902ca234268652103. Parameter digest: e79deee0586edf1e30b2dd12c49853f0ff4d00f6f5f2116c95fd0220442dcb4a.
 
-Admission digest: c0c749c3f6cc9e23308e24f34c3af16f6d5f43cc4cbb268291e2b40186c934b1.
+Admission digest: 99f3d4ea9702f2d840e114b786cb72029f0986904009f3254393e4eb08ac5ee3.
 
 Roles: 24/24 accounted; 3 owned gaps. Semantic parameters: 19; internal roles: 5.
 

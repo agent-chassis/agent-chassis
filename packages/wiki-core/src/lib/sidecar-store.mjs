@@ -37,6 +37,7 @@ import {
   selectedDataError,
   selectStoreAdjacency,
   selectStoreDirectoryMembership,
+  selectStoreDocumentSymbolEdges,
   selectStoreFiles,
   selectStoreGraphImpact,
   selectStoreNodes,
@@ -47,6 +48,7 @@ import {
   selectStoreSymbolEdgesByDocument,
   selectStoreSymbolOccurrences,
   selectStoreSymbols,
+  selectStoreSymbolsReferencedElsewhere,
   storeContributionKey
 } from "./sidecar-store-queries.mjs";
 
@@ -509,31 +511,68 @@ export function readSidecarGraphSelection({ repoRoot, cacheDir, paths = [], dire
     (graph) => selectSidecarGraphSelection(graph, { paths, directories }));
 }
 
-export function selectSidecarSymbolSelection(graph, { symbol = null, documentPath = null } = {}) {
+function uniqueSymbolEdges(edges) {
+  return [...new Map(edges.map((edge) => [`${edge.provider_id}\0${edge.edge_id}`, edge])).values()];
+}
+
+function selectWholeSymbolFacts(graph, symbol, documentPath) {
+  const documentEdges = documentPath
+    ? selectStoreSymbolEdgesByDocument(graph, [documentPath])
+    : [];
+  const positionOccurrences = documentPath
+    ? selectStoreOccurrencesByDocument(graph, [documentPath])
+    : [];
+
+  const requestedSymbols = new Set(symbol ? [symbol] : []);
+  for (const edge of documentEdges) {
+    if (edge.from_symbol) requestedSymbols.add(edge.from_symbol);
+    if (edge.to_symbol) requestedSymbols.add(edge.to_symbol);
+  }
+  for (const row of positionOccurrences) requestedSymbols.add(row.symbol_id);
+  const rawSymbols = [...requestedSymbols];
+  const symbols = selectStoreSymbols(graph, rawSymbols);
+  return {
+    symbols,
+    occurrences: selectStoreSymbolOccurrences(graph, symbols),
+    positionOccurrences,
+    symbolEdges: uniqueSymbolEdges([...documentEdges, ...selectStoreSymbolEdges(graph, rawSymbols)]),
+    partialSymbols: []
+  };
+}
+
+function selectPositionSymbolFacts(graph, documentPath, positionSymbols) {
+  const key = ({ provider_id: providerId, symbol_id: symbolId }) => `${providerId}\0${symbolId}`;
+  const documentOccurrences = selectStoreOccurrencesByDocument(graph, [documentPath]);
+  const named = positionSymbols(documentOccurrences);
+  const namedKeys = new Set(named.map(key));
+  const locals = named.filter((entry) => entry.document_local === true);
+  const localKeys = new Set(locals.map(key));
+  const localIds = new Set(locals.map(({ symbol_id: symbolId }) => symbolId));
+  const globalIds = [...new Set(named.map(({ symbol_id: symbolId }) => symbolId))]
+    .filter((symbolId) => !localIds.has(symbolId));
+  const symbols = selectStoreSymbols(graph, [...globalIds, ...localIds])
+    .filter((row) => !localIds.has(row.raw_symbol) || localKeys.has(key(row)));
+  return {
+    symbols,
+    occurrences: selectStoreSymbolOccurrences(graph,
+      symbols.filter((row) => !localIds.has(row.raw_symbol))),
+    positionOccurrences: documentOccurrences.filter((row) => namedKeys.has(key(row))),
+    symbolEdges: uniqueSymbolEdges([...selectStoreSymbolEdges(graph, globalIds),
+      ...selectStoreDocumentSymbolEdges(graph, documentPath, locals)]),
+    partialSymbols: selectStoreSymbolsReferencedElsewhere(graph, documentPath, locals)
+      .map(({ provider_id: providerId, symbol_id: symbolId }) =>
+        ({ provider_id: providerId, symbol_id: symbolId }))
+  };
+}
+
+export function selectSidecarSymbolSelection(graph, { symbol = null, documentPath = null,
+  positionSymbols = null } = {}) {
   return readSnapshot(graph, () => {
     const publication = readStorePublication(graph);
-    const documentEdges = documentPath
-      ? selectStoreSymbolEdgesByDocument(graph, [documentPath])
-      : [];
-    const positionOccurrences = documentPath
-      ? selectStoreOccurrencesByDocument(graph, [documentPath])
-      : [];
-
-    const requestedSymbols = new Set(symbol ? [symbol] : []);
-    for (const edge of documentEdges) {
-      if (edge.from_symbol) requestedSymbols.add(edge.from_symbol);
-      if (edge.to_symbol) requestedSymbols.add(edge.to_symbol);
-    }
-    for (const row of positionOccurrences) requestedSymbols.add(row.symbol_id);
-    const rawSymbols = [...requestedSymbols];
-    const symbols = selectStoreSymbols(graph, rawSymbols);
-    const occurrences = selectStoreSymbolOccurrences(graph, symbols);
-    const symbolEdges = [
-      ...new Map([
-        ...documentEdges,
-        ...selectStoreSymbolEdges(graph, rawSymbols)
-      ].map((edge) => [`${edge.provider_id}\0${edge.edge_id}`, edge])).values()
-    ];
+    const { symbols, occurrences, positionOccurrences, symbolEdges, partialSymbols } =
+      documentPath && !symbol && typeof positionSymbols === "function"
+        ? selectPositionSymbolFacts(graph, documentPath, positionSymbols)
+        : selectWholeSymbolFacts(graph, symbol, documentPath);
 
     const sourcePaths = [...new Set([documentPath,
       ...[symbols, occurrences, positionOccurrences, symbolEdges].flat()
@@ -547,6 +586,7 @@ export function selectSidecarSymbolSelection(graph, { symbol = null, documentPat
       symbols,
       occurrences,
       position_occurrences: positionOccurrences,
+      partial_symbols: partialSymbols,
       symbol_edges: symbolEdges,
       source_files: selectStoreFiles(graph, sourcePaths),
       source_definition_occurrences: selectStoreOccurrencesByDocument(graph, sourcePaths)
@@ -559,9 +599,10 @@ export function readSidecarSymbolSelection({
   repoRoot,
   cacheDir,
   symbol = null,
-  documentPath = null
+  documentPath = null,
+  positionSymbols = null
 } = {}) {
   const storePaths = resolveSidecarStorePaths({ repoRoot, cacheDir });
   return withPublishedGraph(storePaths, (graph) =>
-    selectSidecarSymbolSelection(graph, { symbol, documentPath }));
+    selectSidecarSymbolSelection(graph, { symbol, documentPath, positionSymbols }));
 }

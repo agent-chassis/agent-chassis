@@ -4,9 +4,9 @@
 
 Given one grounded owned resource, legitimate owner, distinct foreign subject, legitimate authority, reusable operation, refused foreign attempt, protected interval, complete authority-state observations before the foreign attempt and after refusal, and a distinct later valid attempt and expected successful result: the resource is assigned to the legitimate owner; the authority authorizes that owner but not the foreign subject for the operation; the foreign attempt targets the exact resource and is refused before writing or mutating it; the authority state after refusal equals its state before the attempt; and the later attempt uses the same authority, owner, operation, and resource and reaches the expected result state.
 
-Profile digest: 9446d388315a4c607f7b3fd4b0b28c066f866d34215b129eb7ac8c9295f777cd. Parameter digest: 1dce9d21d4fe40221981092258ff72cf3f7349a26c6214ad2bd7f71988d4793e.
+Profile digest: 2e82c0b44ea889ff2a4b5ec2babcf74cc8c4d49dcfbb5c01d57b8bd164d386b6. Parameter digest: 3316c1dc5f1d6af4097930a14e9f7cc40c9af9aea7585bff02ecf91d64d9ca70.
 
-Admission digest: ec05c1f1166b4d8a8324e0ced1b71bacf69f0d18d2e1b619c7842feaebb9d83b.
+Admission digest: 14b08dfdf696d0fde28f540f30c2afead96b5c23adc221e000c15c29b8e91c86.
 
 Roles: 26/26 accounted; 3 owned gaps. Semantic parameters: 23; internal roles: 3.
 

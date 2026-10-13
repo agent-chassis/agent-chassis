@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.observation.sound-negative",
   "profile_version": "4.0.0",
-  "profile_digest": "4c143f826dd0d3209fd994c6362b7b9d4b47f766da7dbbe14f469815bdd92c0c",
+  "profile_digest": "d1ac5b9d2adb68e2752b03be3230b46a7c54f872cc55de7d00eb75d4c09ac015",
   "description": "For one exact captured target, observation attempt, complete declared source and raw-observation populations, and interval, every valid observation is authenticated and directly grounded to its exact target, source of record, attempt, observation position, and raw observation; declared and observed source coverage is complete; every source outcome has one stable endpoint pair; every valid observation fails to match the target; the invalidating-condition population is exactly empty; and the same exact projection derives the sole absent conclusion.",
   "parameters": [
     {

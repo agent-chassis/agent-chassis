@@ -48,12 +48,13 @@ test("WK-2586 status accepts only the closed subject observation request", () =>
     include_final_result: true,
     detail: { kind: "failure_history", limit: 100 }
   });
+  assert.equal(schema.parse({ subject: "WK-2586", timeout_ms: 1200000 }).timeout_ms, 1200000);
   for (const rejected of [
     { subject: "WK-2586", monitor_handle: "retired" },
     { subject: "WK-2586", poll_interval_ms: 1 },
     { subject: "WK-2586", verbose: true },
     { subject: "WK-2586", timeout_ms: 0 },
-    { subject: "WK-2586", timeout_ms: 300001 },
+    { subject: "WK-2586", timeout_ms: 1200001 },
     { subject: "WK-2586", detail: { kind: "attempts", limit: 101 } }
   ]) assert.throws(() => schema.parse(rejected));
 });

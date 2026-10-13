@@ -92,7 +92,13 @@ function correctionFor(component, { configPath }) {
   return null;
 }
 
-function explicitEnvironments(setup, runners, inventory) {
+export function explicitRunnerEnvironments(setup, runners, inventory) {
+  const catalog = setup.testRuntimeRunners();
+  const unknown = runners.filter(({ runner }) => !catalog.some(({ name }) => name === runner));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown runner: ${unknown.map(({ runner }) => runner).join(", ")} ` +
+      `(known: ${catalog.map(({ name }) => name).join(", ")})`);
+  }
   return setup.environmentsFromRunnerSelection(runners).map((environment) => {
     const known = inventory.find((entry) => entry.ecosystem === environment.ecosystem &&
       entry.project === environment.project);
@@ -138,17 +144,10 @@ export async function prepareRepositoryTestRuntimes({
   let excluded = [];
   const named = runners.length > 0 ? runners
     : saved.present && saved.runners.length > 0 && language === null ? saved.runners : [];
-  const unknown = named.filter(({ runner }) => !catalog.some(({ name }) => name === runner));
-  if (unknown.length > 0) {
-    throw new Error(`Unknown runner: ${unknown.map(({ runner }) => runner).join(", ")} ` +
-      `(known: ${catalog.map(({ name }) => name).join(", ")})`);
-  }
-  if (runners.length > 0) {
-    environments = explicitEnvironments(setup, runners, inventory.environments);
-    source = "command line";
-  } else if (named.length > 0) {
-    environments = explicitEnvironments(setup, named, inventory.environments);
-    source = runtimeConfig === null ? "saved repository configuration" : "--runtime-config";
+  if (named.length > 0) {
+    environments = explicitRunnerEnvironments(setup, named, inventory.environments);
+    source = runners.length > 0 ? "command line"
+      : runtimeConfig === null ? "saved repository configuration" : "--runtime-config";
   } else {
     const testable = environmentsWithRunners(
       environmentsForLanguage(inventory.environments, language, catalog));

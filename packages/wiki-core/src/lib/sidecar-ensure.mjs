@@ -6,7 +6,7 @@ import {
   updateSidecarIndex
 } from "./sidecar-build.mjs";
 import { classifySidecarPreparation } from "./sidecar-incremental.mjs";
-import { sidecarProviderInputsChangedAtCommit } from "./sidecar-scip-projects.mjs";
+import { sidecarDependencyLimitations, sidecarProviderInputsChangedAtCommit } from "./sidecar-scip-projects.mjs";
 import {
   resolveCommittedHead,
   resolveSidecarRepositoryIdentity
@@ -137,9 +137,11 @@ function joinPreparation(entry, signal) {
   });
 }
 
-async function reusablePublication(repoRoot, paths, head) {
+async function reusablePublication(repoRoot, paths, head, retryDependencyLimited) {
   const observed = readSidecarStoreStatus({ repoRoot, cacheDir: paths.cache_dir });
   if (observed.state !== "available" || observed.publication?.repository_commit !== head) return null;
+  if (retryDependencyLimited &&
+      sidecarDependencyLimitations(observed.publication.provider_coverage).length > 0) return null;
   const decision = await classifySidecarPreparation({
     publication: observed.publication, requestedCommit: head,
     providerInputsChanged: async () => sidecarProviderInputsChangedAtCommit(observed.publication, process.env)
@@ -148,11 +150,11 @@ async function reusablePublication(repoRoot, paths, head) {
 }
 
 async function prepareCommitted({ repoRoot, paths, artifactPaths, head, mode, buildHooks,
-  providerDeadlineMs, lockTimeoutMs, signal }) {
+  providerDeadlineMs, lockTimeoutMs, signal, retryDependencyLimited }) {
 
   if (await resolveCommittedHead(repoRoot) !== head) return { head_moved: true };
   if (mode === "update") {
-    const reused = await reusablePublication(repoRoot, paths, head);
+    const reused = await reusablePublication(repoRoot, paths, head, retryDependencyLimited);
     if (reused) return reused;
   }
   if (!(await isSidecarCachePathIgnored({ repoRoot, cacheDir: artifactPaths.cacheDir,
@@ -170,7 +172,7 @@ async function prepareCommitted({ repoRoot, paths, artifactPaths, head, mode, bu
       ? observed.publication.repository_tree
       : await runSidecarGit(repoRoot, ["--no-replace-objects", "rev-parse", `${head}^{tree}`]);
     const update = await updateSidecarIndex({ repoRoot, paths, head, tree, mode, observed, lock,
-      signal, buildHooks, providerDeadlineMs });
+      signal, buildHooks, providerDeadlineMs, retryDependencyLimited });
     return { action: update.action, publication: update.publication, metrics: update.metrics,
       updated: update.action !== "coalesced" };
   }, { signal, timeoutMs: lockTimeoutMs });
@@ -213,6 +215,7 @@ export async function ensureSidecarIndex({
   dirtyState = false,
   buildHooks = null,
   providerDeadlineMs = undefined,
+  retryDependencyLimited = false,
   lockTimeoutMs = SIDECAR_UPDATER_LOCK_WAIT_MS
 } = {}) {
   if (mode !== "update" && mode !== "rebuild") {
@@ -240,12 +243,12 @@ export async function ensureSidecarIndex({
     }
 
     if (mode === "update") {
-      const reused = await reusablePublication(repoRoot, paths, head);
+      const reused = await reusablePublication(repoRoot, paths, head, retryDependencyLimited);
       if (reused) {
         return finishEnsure({ repoRoot, artifactPaths, head, result: reused, joined: false, dirtyState });
       }
     }
-    const key = JSON.stringify([repoRoot, paths.cache_dir, head, mode]);
+    const key = JSON.stringify([repoRoot, paths.cache_dir, head, mode, retryDependencyLimited === true]);
     const usable = (candidate) => candidate && !candidate.controller.signal.aborted ? candidate : undefined;
     let entry = usable(activePreparations.get(key));
     let joined = entry !== undefined;
@@ -254,7 +257,7 @@ export async function ensureSidecarIndex({
       entry = usable(activePreparations.get(key));
       joined = entry !== undefined;
       entry ??= startPreparation(key, (ownedSignal) => prepareCommitted({ repoRoot, paths,
-        artifactPaths, head, mode, buildHooks, providerDeadlineMs, lockTimeoutMs,
+        artifactPaths, head, mode, buildHooks, providerDeadlineMs, lockTimeoutMs, retryDependencyLimited,
         signal: ownedSignal }).catch((error) => {
         throw prepublicationFailure(error);
       }));

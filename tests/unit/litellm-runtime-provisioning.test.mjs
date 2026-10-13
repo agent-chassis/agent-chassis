@@ -8,9 +8,12 @@ import test from "node:test";
 
 import {
   LITELLM_LAUNCH_ERROR_CODES,
-  ensureAgentLaunchLiteLlmGateway,
-  provisionLiteLlmRuntime
+  ensureAgentLaunchLiteLlmGateway
 } from "../../packages/agent-launch-cli/src/lib/litellm-gateway-launch.mjs";
+import {
+  LITELLM_RUNTIME_ERROR_CODES,
+  provisionLiteLlmRuntime
+} from "../../packages/agent-launch-cli/src/lib/litellm-runtime-provisioning.mjs";
 import {
   LITELLM_PINNED_VERSION,
   LITELLM_RUNTIME_LOCK_PATH
@@ -122,15 +125,15 @@ test("missing or unsupported host Python refuses with an actionable correction a
   const root = stateRoot(t);
   await assert.rejects(
     provisionLiteLlmRuntime({ stateRoot: root, runProcess: fakeRunner().run, findExecutable: () => null }),
-    (error) => error.code === LITELLM_LAUNCH_ERROR_CODES.PYTHON_MISSING && /install CPython 3\.12/.test(error.correction));
+    (error) => error.code === LITELLM_RUNTIME_ERROR_CODES.PYTHON_MISSING && /install CPython 3\.12/.test(error.correction));
   const older = fakeRunner({ version: "3.10.12" });
   await assert.rejects(
     provisionLiteLlmRuntime({ stateRoot: root, runProcess: older.run, findExecutable: () => PYTHON }),
-    (error) => error.code === LITELLM_LAUNCH_ERROR_CODES.PYTHON_UNSUPPORTED && error.detail.python_version === "3.10.12");
+    (error) => error.code === LITELLM_RUNTIME_ERROR_CODES.PYTHON_UNSUPPORTED && error.detail.python_version === "3.10.12");
   const noPip = fakeRunner({ pip: false });
   await assert.rejects(
     provisionLiteLlmRuntime({ stateRoot: root, runProcess: noPip.run, findExecutable: () => PYTHON }),
-    (error) => error.code === LITELLM_LAUNCH_ERROR_CODES.PIP_MISSING);
+    (error) => error.code === LITELLM_RUNTIME_ERROR_CODES.PIP_MISSING);
   for (const runner of [older, noPip]) {
     assert.equal(runner.calls.some((call) => call.args.includes("install")), false);
   }
@@ -143,7 +146,7 @@ test("a failed install removes only its own generation and reports a distilled c
   await assert.rejects(
     provisionLiteLlmRuntime({ stateRoot: root, runProcess: runner.run, findExecutable: () => PYTHON }),
     (error) => {
-      assert.equal(error.code, LITELLM_LAUNCH_ERROR_CODES.INSTALL_FAILED);
+      assert.equal(error.code, LITELLM_RUNTIME_ERROR_CODES.INSTALL_FAILED);
       assert.equal(error.detail.step, "install_locked_packages");
       assert.equal(error.detail.tool_error, "ERROR: Could not find a version that satisfies the requirement litellm");
       assert.equal(JSON.stringify(error.detail).includes("Collecting"), false, "no raw output");
@@ -163,7 +166,7 @@ test("an unpublished generation left on disk is refused, not adopted", async (t)
   rmSync(path.join(root, "runtimes", `${first.generation}.ready.json`));
   await assert.rejects(
     provisionLiteLlmRuntime({ stateRoot: root, runProcess: runner.run, findExecutable: () => PYTHON }),
-    (error) => error.code === LITELLM_LAUNCH_ERROR_CODES.GENERATION_INCOMPLETE &&
+    (error) => error.code === LITELLM_RUNTIME_ERROR_CODES.GENERATION_INCOMPLETE &&
       error.correction.includes(first.generation));
   assert.ok(existsSync(path.join(root, "runtimes", first.generation)));
 });

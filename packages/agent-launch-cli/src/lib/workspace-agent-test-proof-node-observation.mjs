@@ -45,10 +45,11 @@ export function launcherNodeTestRunReporterUrl(repositoryRoot) {
   return url.href;
 }
 
-export function launcherNodeTestFaultLoaderUrl(configuration) {
+export function launcherNodeTestFaultLoaderUrl(configuration, repositoryRoot) {
   const url = new URL(NODE_TEST_PROOF_FAULT_LOADER_URL);
   url.searchParams.set("configuration", Buffer.from(JSON.stringify(configuration))
     .toString("base64url"));
+  url.searchParams.set("launcher_repository_root", repositoryRoot);
   return url.href;
 }
 

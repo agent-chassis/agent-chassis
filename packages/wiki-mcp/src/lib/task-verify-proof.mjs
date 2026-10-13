@@ -68,7 +68,7 @@ export function createVerifyProofTask({ workspace, sessionEnv, responseEnv,
 export function registerVerifyProofTask({ registerTool, ...host }) {
   registerTool(VERIFY_PROOF_TASK, {
     writeSemantics: MCP_WRITE_SEMANTICS.NONE,
-    description: "Execute selected saved proofs in the authenticated source. Returns bounded outcomes and common-reader requests for settled originals. Advisory results.",
+    description: "Execute selected saved proofs in the authenticated source. A slice source also runs each file of its regression_tests once and reports those native outcomes beside the proofs, with no proof credit. Returns bounded outcomes and common-reader requests for settled originals. Advisory results.",
     inputSchema: VERIFY_PROOF_EXECUTION_INPUT_SCHEMA
   }, createVerifyProofTask({ ...host, requestContracts: registeredToolRequestContracts(registerTool) }));
 }

@@ -11,7 +11,7 @@ import {
   executeDormancy
 } from "./dormancy-nonactivation-v1-harness.mjs";
 
-const PROFILE_DIGEST = "1f229576477a504057b41719d0c8c49144159117d5ba871ab5a0a78896f38e26";
+const PROFILE_DIGEST = "86d930b44874e6e6699cc56723b52bea6361b47e7837754fc503f2a580620342";
 const GUARANTEE_DIGEST = "195abee0ccf37eccb8b59dcb3f7e5c750cce280860015fb880aea55c3953e738";
 const EXCLUSIONS = Object.freeze([
   "activation-after-the-captured-observation-boundary",
@@ -108,7 +108,7 @@ const CASES = Object.freeze({
     role_id_overrides: { activation_events: ["ref-activation-event"] } })
 });
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   const positives = DOMAINS.map(({ id }) => ({ control_id: id, category: "positive",
     implementation_outcome: dormancyGuaranteeSatisfied(executeDormancy({ domain: id }))
       ? "passed" : "killed", profile_satisfaction: evaluate(
@@ -130,7 +130,35 @@ async function runProofPackAdequacyControls({ profile }) {
   return { schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION,
     profile_id: profile.profile_id, profile_version: profile.profile_version,
     profile_digest: PROFILE_DIGEST, guarantee_digest: GUARANTEE_DIGEST,
-    controls: [...positives, ...mutants, ...rejections, ...exclusions] };
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ...positives, ...mutants, ...rejections, ...exclusions] };
 }
 
 export { CASES, EXCLUSIONS, runProofPackAdequacyControls };
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-dormancy-verification-modalities",
+      "claim_id": "claim-dormancy-verification",
+      "baseline": "isolated-claim-dormancy-verification-modalities-baseline",
+      "optional": "isolated-claim-dormancy-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

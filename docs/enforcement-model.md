@@ -248,25 +248,26 @@ topology but projects none of it into the namespace. Validation, delivery, and r
 mutation remain trusted host/runtime operations. Read-only Git inspection belongs to
 advisory reviewer/redteam launches and terminal candidate validation, whose required
 projection is described in
-[Agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md).
+[Agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md#git-metadata-and-source-selection).
 
-#### No public worker declared-test route
+#### Worker tests use a separate host route
 
 A managed worker's namespace is exactly `R union W` over a tmpfs skeleton and
-carries no dependency tree, so it cannot execute a test whose system under test
-imports a workspace package by bare specifier. Dependencies are not projected
-into the worker's namespace to change that: an unconditional dependency
-precondition on the launch path took managed dispatch down repository-wide.
+carries no dependency tree. The worker's own confined command therefore does
+not gain project dependencies through its namespace. Test execution is a
+separate authenticated host capability described below; it uses selected
+project runtimes and dependencies without widening the worker's namespace.
 
 The wiki-MCP server registers no worker declared-test route
 (`workspace_worker_run_declared_test`) and no coordinator node_test route
 (`workspace_run_validation`). Neither name has a discovery descriptor or a role
 grant, and a call to either is refused as an unknown tool before any handler
-runs. The launcher-bound `verify_proof` registration is the worker's
-retained verification route; its registration is not evidence that a particular
-unit has an executable proof. Launcher-internal candidate validation is not a
-public route, and no validation result carries admission, review, or closure
-authority.
+runs. The launcher-bound `verify_proof` registration is the worker's retained
+proof route; its registration is not evidence that a particular unit has an
+executable proof. `workspace_run_test` is the worker's bounded ordinary-test
+route. Neither route runs test code inside the worker's agent-session
+namespace. Launcher-internal candidate validation is not a public route, and no
+validation result carries admission, review, or closure authority.
 
 Every family/backend path claimed as supported must enact this same binding.
 Unsupported families, backends, scope shapes, or confinement capabilities fail
@@ -533,8 +534,11 @@ amending the earlier "open set" posture): the **sandbox mechanic** — bubblewra
 kernel binds plus secret masking, the Claude native tool-use permission gate, and
 the launcher-side post-run `changed-files ⊆ write_scope` verifier (all one
 launcher-owned containment family) — and **CLI command-line parameters** (the
-command-surface / permission posture). Adding any *other* local enactment
-mechanism to the free tier requires an explicit operator decision, recorded as a
+command-surface / permission posture). The authenticated host test-execution
+capability authorized by `decision` is a separate, explicit capability in this
+model; it is not a sandbox or confinement mechanism and does not add enforcement
+to the invoking agent session. Adding any *other* local enactment mechanism to
+the free tier requires an explicit operator decision, recorded as a
 `decision` amendment, not a silent addition. Deciding (authorization / admission /
 minting / attestation) is never part of this local set — it is CCE or remote
 (`decision`). The dimensions:
@@ -1179,35 +1183,43 @@ kernel exact-file bind for Codex, the native tool-use permission gate for
 Claude). Per Principles (3) and (4), an advisory dimension is recorded as such and
 never presented as the guarantee.
 
-**An allowed code-runner is contained by where it spawns.**
-Managed implementation workers receive closed-input commit delivery and the
-launcher-bound `verify_proof`; they receive no declared-test or
-node_test public route and no general wiki-MCP surface. Test availability
-and success are not worker admission or commit prerequisites. Findings-only
-review owns declared validation against the exact committed target, in a read-only
-reviewer namespace with isolated writable scratch and bounded structured output.
-Passing and failing results are advisory evidence; coordinator/CCE policy decides
-their effect on integration.
+**Test execution uses an authenticated host capability.** `workspace_run_test`
+and `verify_proof` retain their source, assignment, runtime, selection, result,
+currentness, comparison, and proof checks, then run test processes through the
+shared host runner, driver, and bounded capture. They do not use bubblewrap or a
+replacement sandbox. The ordinary run executes the exact authenticated checkout;
+normal host filesystem, Git/configuration, dependency, and network permissions
+apply, and test-created checkout changes are left in place. `HOME` and the
+temporary-directory variables point to owned scratch paths; literal `/tmp` is
+not a private namespace. The curated environment puts selected executable
+directories first in `PATH`, followed by absolute host `PATH` entries in their
+original order, and refuses an invalid selected executable. These capabilities
+are explicit exceptions to the invoking agent's session confinement: they do
+not change that session's namespace, write scope, or tool grants, but the test
+processes they start are not confined by that namespace. Setup probes remain
+confined and separate. Proof stages that deliberately transform source use the
+existing temporary-copy path with equivalent source and runtime inputs and the
+original provenance; the launcher does not instrument the real source.
 
-**Project-test execution is an optional capability; mechanical candidate and
-confinement enforcement is not.** The same "test availability and success are not
-prerequisites" rule holds at the terminal whole-WK boundary. Ordinary project
-dependencies and declared project tests are exposed to a findings-only reviewer when
-the launcher can expose them, and their absence changes only what evidence exists.
-Concretely, none of the following is enforcement: whether the candidate's
-`package.json`, lockfile, or workspace manifest matches the landing checkout's
-installed dependency root; whether an install marker is present or fresh; whether a
-dependency projection can be built at all; whether a declared project-test command
-exists in the candidate. Treating any of them as a refusal would be exactly the
-local admissibility judgment `decision` and `decision` place outside this layer, and
-`decision` already settles that review is not a required floor. What remains
-mechanically enforced is repository identity, the exact `C/B/W` binding,
-`tree(C) === tree(W)`, `C`'s sole parent `B`, candidate-ref and checkout identity,
-rejection of caller-supplied candidate authority, reviewer write confinement, and —
-only when a dependency mount is actually selected — that mount's exact source
-identity, read-only mode, absence of writable overlap, and freedom from an identity
-swap between verification and spawn. Current-landing mergeability is owned by
-git/forge, never by a local check.
+The shared host capability also preserves bounded output, timeout and
+cancellation handling, and honest cleanup reporting. It settles the owned
+process group and removes its temporary root when confirmed. If settlement or
+removal cannot be confirmed, the result reports `cleanup_failed`, the
+uncertainty, and an operator action; detached descendants are not claimed to be gone. A
+killed launcher cannot run JavaScript cleanup. npm dependency projections may
+be created in the ordinary checkout: incumbents are preserved, workspace
+members map to that checkout, publication is atomic, and the reusable
+projection survives per-run cleanup. This does not install dependencies or add
+garbage collection. See [local test runtime setup](local-test-runtime-setup.md)
+and [test-proof execution](test-proof-execution.md#host-execution).
+
+Test availability and success are evidence, not worker admission, commit,
+candidate, review, or closure authority. Passing and failing results do not
+themselves decide integration; coordinator/CCE policy owns that effect.
+Terminal candidate validation remains a distinct launcher-owned validation
+composition with its own exact-candidate binding and read-only reviewer
+confinement. Current-landing mergeability remains owned by git/forge, never by
+a local check.
 
 **Controlled-generation authentication has one semantic owner.**
 `packages/wiki-core/src/lib/controlled-contract-carrier-set-manifest.mjs` first

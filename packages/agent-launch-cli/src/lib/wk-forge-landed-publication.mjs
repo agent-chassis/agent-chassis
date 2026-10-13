@@ -180,7 +180,7 @@ function normalizeObservation(pr) {
 
 function validRequest({ forge, repository, base, wk, candidate, completion, branch, pullRequestNumber }) {
   const expectedBranch = typeof wk === "string" && typeof candidate === "string"
-    ? new RegExp(`^handoff/wk/IN-\\d{4}/${wk}/${candidate}$`, "u")
+    ? new RegExp(`^handoff/wk/IN-\\d{4}/${wk}/(?:[0-9a-f]{40}|[0-9a-f]{64})$`, "u")
     : null;
   return forge && typeof forge === "object" && validRepository(repository) &&
     typeof base === "string" && base.length > 0 && WK_RE.test(wk ?? "") &&

@@ -7,7 +7,7 @@ import { DOMAINS, MUTATIONS, executeVisibilityAfterDurableSettlement,
   from "./visibility-after-durable-settlement-v1-harness.mjs";
 
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE_DIGEST =
-  "ff03e0a4dce59b8ecdf7b811f5f383b3fbe3380509c8e3aa7e46df823c750cbd";
+  "f5e3a5de0ae1f1bfdd30bcccf4b4969026389947715fea0e84efd509a3f89edf";
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_GUARANTEE_DIGEST =
   "04ce2d798103d1c8c32829cffd34c148c3ca710c0c0f4a016ee1d1945863351c";
 
@@ -140,12 +140,12 @@ function exclusionControls(profile) {
     }));
 }
 
-async function runProofPackAdequacyControls({ profile }) {
+async function runProofPackAdequacyControls({ profile , negative_fixtures: negativeFixtures }) {
   return { schema_version: PROOF_PACK_ADEQUACY_RUN_VERSION, profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE_DIGEST,
     guarantee_digest: VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_GUARANTEE_DIGEST,
-    controls: [...positiveControls(profile), ...mutantControls(profile),
+    controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures), ...retiredRecommendationRefusals(profile), ...positiveControls(profile), ...mutantControls(profile),
       ...profileRejectionControls(profile), ...exclusionControls(profile)] };
 }
 
@@ -153,3 +153,95 @@ export { VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_GUARANTEE_DIGEST,
   VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE_DIGEST, baselineFixture,
   evaluateFixture, fixtureForExecution, profileRejectionFixtures,
   runProofPackAdequacyControls };
+
+import { evaluateStableProofPackFixtureV1 as evaluateRetiredModalityFixture }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+function retiredRecommendationRefusals(profile) {
+  const cases = [
+    [
+      "retired-recommendation-refused-post-observation-does-not-precede-visibility",
+      "claim-post-observation-does-not-precede-visibility"
+    ],
+    [
+      "retired-recommendation-refused-visibility-does-not-precede-settlement",
+      "claim-visibility-does-not-precede-settlement"
+    ]
+  ];
+  return cases.map(([controlId, claimId]) => {
+    const fixture = buildVisibilityAfterDurableSettlementFixture({ profile });
+    const claim = fixture.contract.claims.find(row => row.claim_id === claimId);
+    if (!claim) throw new Error(`missing recommendation refusal claim: ${claimId}`);
+    claim.modality = "SHOULD_NOT";
+    return { control_id: controlId, category: "profile_rejection",
+      implementation_outcome: "not_applicable",
+      profile_satisfaction: evaluateRetiredModalityFixture({
+        contract: fixture.contract, profile,
+        evaluation_input: fixture.input ?? fixture.evaluation_input
+      }).satisfaction };
+  });
+}
+
+import { assessMandatoryVerificationControlV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
+
+async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
+  const cases = [
+    {
+      "fixture_id": "isolated-claim-durable-settlement-completeness-verification-modalities",
+      "claim_id": "claim-durable-settlement-completeness-verification",
+      "baseline": "isolated-claim-durable-settlement-completeness-verification-modalities-baseline",
+      "optional": "isolated-claim-durable-settlement-completeness-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-failure-visibility-verification-modalities",
+      "claim_id": "claim-failure-visibility-verification",
+      "baseline": "isolated-claim-failure-visibility-verification-modalities-baseline",
+      "optional": "isolated-claim-failure-visibility-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-post-visibility-state-verification-modalities",
+      "claim_id": "claim-post-visibility-state-verification",
+      "baseline": "isolated-claim-post-visibility-state-verification-modalities-baseline",
+      "optional": "isolated-claim-post-visibility-state-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-settlement-population-exactness-verification-modalities",
+      "claim_id": "claim-settlement-population-exactness-verification",
+      "baseline": "isolated-claim-settlement-population-exactness-verification-modalities-baseline",
+      "optional": "isolated-claim-settlement-population-exactness-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-observation-order-verification-modalities",
+      "claim_id": "claim-observation-order-verification",
+      "baseline": "isolated-claim-observation-order-verification-modalities-baseline",
+      "optional": "isolated-claim-observation-order-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-settled-state-verification-modalities",
+      "claim_id": "claim-settled-state-verification",
+      "baseline": "isolated-claim-settled-state-verification-modalities-baseline",
+      "optional": "isolated-claim-settled-state-verification-modalities-optional"
+    },
+    {
+      "fixture_id": "isolated-claim-visibility-order-verification-modalities",
+      "claim_id": "claim-visibility-order-verification",
+      "baseline": "isolated-claim-visibility-order-verification-modalities-baseline",
+      "optional": "isolated-claim-visibility-order-verification-modalities-optional"
+    }
+  ];
+  const controls = [];
+  for (const row of cases) {
+    if (!Array.isArray(negativeFixtures)) throw new Error("isolated verification controls require captured negative fixtures");
+    const fixture = negativeFixtures.find(fixture => fixture.fixture_id === row.fixture_id);
+    if (!fixture) throw new Error(`captured verification fixture is missing: ${row.fixture_id}`);
+    const result = assessMandatoryVerificationControlV1({ profile, fixture,
+      verificationClaimId: row.claim_id });
+    if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    controls.push({ control_id: row.baseline, category: "positive",
+      implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
+    { control_id: row.optional, category: "profile_rejection",
+      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+  }
+  return controls;
+}

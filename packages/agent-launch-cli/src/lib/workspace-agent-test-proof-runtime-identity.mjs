@@ -1,10 +1,6 @@
 import { assertGenerationBoundToSnapshot, authenticateSavedProofSource } from "./workspace-agent-test-proof-source-binding.mjs";
 import { createHash } from "node:crypto";
-import {
-  lstatSync,
-  readFileSync,
-  realpathSync
-} from "node:fs";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import { REPOSITORY_SOURCE_SNAPSHOT_REFUSALS, collectRepositorySourceEntries } from
@@ -30,13 +26,7 @@ import {
 } from "./terminal-candidate-checkout.mjs";
 import { defaultTerminalCandidateRunGit } from "./terminal-wk-candidate.mjs";
 import { assertOpaqueId } from "./worktree-substrate-primitives.mjs";
-import {
-  DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS,
-  assertSelectedDependencyMountIntegrity,
-  selectOptionalReviewerDependencyProjection,
-  verifyTerminalCandidateDependencies
-} from "./terminal-wk-candidate-validation.mjs";
-import { DEPENDENCY_ECOSYSTEMS } from "./test-runtime-setup/ecosystems.mjs";
+import { verifiedNpmDependencyMappings } from "./test-execution/dependency-projection.mjs";
 import { TEST_RUNTIME_ENVIRONMENT_ID_RE } from "@agent-chassis/controlled-contract/test-proof";
 
 export const TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION =
@@ -110,92 +100,7 @@ function mintAuthority(value) {
   return authority;
 }
 
-function dependencyProjectionRoot(worktreePath, projectionKind) {
-  return path.join(path.dirname(worktreePath), projectionKind, path.basename(worktreePath));
-}
-
-function optionalDependencyProof({ mainRepo, worktreePath, projectionKind }) {
-  const selection = selectOptionalReviewerDependencyProjection({
-    mainRepo,
-    checkoutPath: worktreePath,
-    projectionRoot: dependencyProjectionRoot(worktreePath, projectionKind)
-  });
-  const projection = selection.projection;
-  return deepFreeze({
-    schema_version: "managed-worker-test-proof-dependency.v1",
-    projection_selected: selection.selected === true,
-    projection_unavailable_reason: selection.reason_code,
-    projection_root: projection?.projection_root ?? null,
-    projection_identity: projection?.projection_identity ?? null,
-    dependency_installation_digest: projection?.installation_digest ?? null,
-    reviewer_read_only_bind: projection?.read_only_bind ?? null,
-    reviewer_read_only_binds: projection === null ? [] : projection.read_only_binds,
-    workspace_links_resolve_against_reviewed_checkout:
-      projection?.workspace_links_resolve_against_reviewed_checkout ?? false
-  });
-}
-
-function rootInstallationAbsent(mainRepo) {
-  try {
-    lstatSync(path.join(mainRepo, "node_modules"));
-    return false;
-  } catch (error) {
-    return error?.code === "ENOENT";
-  }
-}
-
-function candidateDeclaresNoNpmInstallation(worktreePath) {
-  const manifests = DEPENDENCY_ECOSYSTEMS.npm.manifests(worktreePath);
-  if (manifests.status !== "none") return false;
-  const manifestFile = manifests.files["package.json"];
-  if (manifestFile === undefined) return true;
-  return !Object.hasOwn(JSON.parse(readFileSync(manifestFile, "utf8")), "workspaces");
-}
-
-function requiredExactCandidateDependencyProof({
-  mainRepo,
-  worktreePath,
-  validatorCacheReadOnlyBinds
-}) {
-  let proof;
-  try {
-    proof = optionalDependencyProof({
-      mainRepo,
-      worktreePath,
-      projectionKind: ".immutable-candidate-dependency"
-    });
-  } catch (error) {
-    fail("test_proof_exact_candidate_dependency_projection_unavailable",
-      "exact-commit proof execution requires one authenticated dependency projection", {
-        reason_code: typeof error?.code === "string"
-          ? error.code
-          : "dependency_projection_authentication_failed"
-      });
-  }
-
-  let dependencyFree = false;
-  if (proof.projection_selected !== true &&
-      proof.projection_unavailable_reason ===
-        DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_ROOT_UNAVAILABLE &&
-      rootInstallationAbsent(mainRepo)) {
-    try {
-      dependencyFree = candidateDeclaresNoNpmInstallation(worktreePath);
-    } catch (error) {
-      fail("test_proof_exact_candidate_dependency_projection_unavailable",
-        "exact-commit proof execution requires one authenticated dependency projection", {
-          reason_code: proof.projection_unavailable_reason,
-          manifest_failure_code: typeof error?.code === "string" ? error.code : null
-        }, error);
-    }
-  }
-  if (!dependencyFree && (proof.projection_selected !== true ||
-      proof.workspace_links_resolve_against_reviewed_checkout !== true)) {
-    fail("test_proof_exact_candidate_dependency_projection_unavailable",
-      "exact-commit proof execution requires one authenticated dependency projection", {
-        reason_code: proof.projection_unavailable_reason ??
-          "dependency_projection_unavailable"
-      });
-  }
+function exactCandidateValidatorCacheBinds({ worktreePath, validatorCacheReadOnlyBinds }) {
   const expectedValidatorCacheSource = path.resolve(compiledValidatorCacheRoot());
   const expectedValidatorCacheDestination = path.join(
     worktreePath, ...CACHE_ROOT_SUFFIX
@@ -205,33 +110,12 @@ function requiredExactCandidateDependencyProof({
       !Object.isFrozen(validatorCacheReadOnlyBinds[0]) ||
       validatorCacheReadOnlyBinds[0]?.src !== expectedValidatorCacheSource ||
       validatorCacheReadOnlyBinds[0]?.dst !== expectedValidatorCacheDestination) {
-    fail("test_proof_exact_candidate_dependency_projection_unavailable",
+    fail("test_proof_exact_candidate_validator_cache_bind_invalid",
       "exact-commit proof execution requires the authenticated validator cache bind", {
         reason_code: "validator_cache_bind_plan_invalid"
       });
   }
-
-  return deepFreeze({
-    ...proof,
-    reviewer_read_only_binds: proof.projection_selected === true
-      ? [...proof.reviewer_read_only_binds, ...validatorCacheReadOnlyBinds]
-      : [],
-    validator_cache_read_only_binds: [...validatorCacheReadOnlyBinds]
-  });
-}
-
-function noDependencyProof() {
-  return deepFreeze({
-    schema_version: "managed-worker-test-proof-dependency.v1",
-    projection_selected: false,
-    projection_unavailable_reason: "orchestrator_existing_worktree",
-    projection_root: null,
-    projection_identity: null,
-    dependency_installation_digest: null,
-    reviewer_read_only_bind: null,
-    reviewer_read_only_binds: [],
-    workspace_links_resolve_against_reviewed_checkout: false
-  });
+  return deepFreeze([...validatorCacheReadOnlyBinds]);
 }
 
 function assertOrchestratorSourceInput({ mainRepo, repository, selectedUnit }) {
@@ -315,13 +199,9 @@ export function mintOrchestratorProofAuthority({
     "test_proof_orchestrator_git_identity_invalid",
     "orchestrator existing worktree requires resolved commit and tree identities"
   );
-  const dependencyProof = candidateKind === "immutable_exact_commit"
-    ? requiredExactCandidateDependencyProof({
-      mainRepo,
-      worktreePath,
-      validatorCacheReadOnlyBinds
-    })
-    : noDependencyProof();
+  const validatorCacheBinds = candidateKind === "immutable_exact_commit"
+    ? exactCandidateValidatorCacheBinds({ worktreePath, validatorCacheReadOnlyBinds })
+    : deepFreeze([]);
   const definitions = capturedDefinitionsIdentity(capturedDefinitions, {
     candidateKind, selectedUnit
   });
@@ -339,10 +219,6 @@ export function mintOrchestratorProofAuthority({
     schema_version: TEST_PROOF_SOURCE_SNAPSHOT_SCHEMA_VERSION,
     algorithm: `sha256-authenticated-${candidateKind}-v1`,
     exclusions: [],
-    runtime_dependency: {
-      projection_selected: dependencyProof.projection_selected,
-      dependency_installation_digest: dependencyProof.dependency_installation_digest
-    },
     selected_source: {
       authenticated_candidate_identity: authenticatedCandidateIdentity,
       commit,
@@ -395,7 +271,7 @@ export function mintOrchestratorProofAuthority({
     source_snapshot_digest: sourceSnapshot.source_snapshot_digest,
     candidate_identity: candidateIdentity,
     captured_definitions: definitions,
-    dependency_proof: dependencyProof
+    validator_cache_read_only_binds: validatorCacheBinds
   });
 }
 
@@ -414,11 +290,6 @@ export function mintManagedWorkerTestProofRuntimeAuthority({ authority } = {}) {
     fail("test_proof_run_identity_invalid",
       "managed proof execution requires the launcher-authenticated run identity");
   }
-  const dependencyProof = optionalDependencyProof({
-    mainRepo: managed.main_repo,
-    worktreePath: managed.worktree_path,
-    projectionKind: ".worker-declared-test-dependency"
-  });
   return mintAuthority({
     schema_version: TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION,
     kind: "managed_worker",
@@ -428,7 +299,6 @@ export function mintManagedWorkerTestProofRuntimeAuthority({ authority } = {}) {
     main_repo: managed.main_repo,
     worktree_path: managed.worktree_path,
     attempt: 1,
-    dependency_proof: dependencyProof,
     managed_authority: managed
   });
 }
@@ -448,7 +318,6 @@ export async function mintTerminalCandidateTestProofRuntimeAuthority({
     candidateRoot: materialization.candidate_root,
     runGit
   });
-  const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
   if (!/^WK-[0-9]{4}$/u.test(binding.canonical_wk_id ?? "") ||
       !/^[a-f0-9]{40,64}$/u.test(binding.candidate ?? "")) fail(
     "test_proof_terminal_authority_invalid",
@@ -463,7 +332,6 @@ export async function mintTerminalCandidateTestProofRuntimeAuthority({
     main_repo: binding.main_repo,
     worktree_path: materialization.checkout_path,
     attempt: 1,
-    dependency_proof: dependencyProof,
     terminal_candidate: binding.candidate,
     terminal_base: binding.base,
     terminal_wk_tip: binding.wk_tip
@@ -522,11 +390,6 @@ export async function mintManagedReviewerTestProofRuntimeAuthority({
     fail("test_proof_reviewer_authority_invalid",
       "managed reviewer proof authority requires launcher-resolved exact-candidate facts");
   }
-  const dependencyProof = optionalDependencyProof({
-    mainRepo,
-    worktreePath,
-    projectionKind: ".reviewer-verify-proof-dependency"
-  });
   const authority = mintAuthority({
     schema_version: TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION,
     kind: "managed_reviewer",
@@ -536,7 +399,6 @@ export async function mintManagedReviewerTestProofRuntimeAuthority({
     main_repo: mainRepo,
     worktree_path: worktreePath,
     attempt: 1,
-    dependency_proof: dependencyProof,
     candidate_identity: reviewedSha,
     reviewer_candidate: reviewedSha,
     reviewer_tree: reviewedTree,
@@ -585,11 +447,6 @@ export function mintIntegratedSliceTestProofRuntimeAuthority({
       typeof checkout?.checkout_path !== "string") fail(
     "test_proof_integrated_checkout_invalid",
     "integrated proof authority requires one verified private checkout at the exact tip");
-  const dependencyProof = optionalDependencyProof({
-    mainRepo,
-    worktreePath: checkout.checkout_path,
-    projectionKind: ".integrated-test-proof-dependency"
-  });
   return mintAuthority({
     schema_version: TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION,
     kind: "integrated_slice",
@@ -599,7 +456,6 @@ export function mintIntegratedSliceTestProofRuntimeAuthority({
     main_repo: mainRepo,
     worktree_path: checkout.checkout_path,
     attempt: 1,
-    dependency_proof: dependencyProof,
     initiative: integratedState.initiative,
     lifecycle_state: integratedState.lifecycle_state,
     integrated_wk_ref: wkRef,
@@ -625,10 +481,11 @@ function assertRuntimeAuthorityBrand(authority) {
   return authority;
 }
 
-const SNAPSHOT_EXCLUDED_NAMES = new Set([".agent-launch", ".git", "node_modules"]);
+export const SNAPSHOT_EXCLUDED_NAMES = new Set([".agent-launch", ".git", "node_modules"]);
 
-function snapshotEntries(root) {
+function snapshotEntries(root, mainRepo) {
   return collectRepositorySourceEntries(root, { excludedTopLevelNames: [...SNAPSHOT_EXCLUDED_NAMES],
+    mappedDependencies: verifiedNpmDependencyMappings({ repositoryRoot: mainRepo, checkoutRoot: root }),
     symlinks: "refuse", refuse: (kind, detail) => fail(REPOSITORY_SOURCE_SNAPSHOT_REFUSALS[kind].code,
       REPOSITORY_SOURCE_SNAPSHOT_REFUSALS[kind].message, detail) });
 }
@@ -636,9 +493,6 @@ function snapshotEntries(root) {
 export function captureLauncherTestProofSourceSnapshot(authority) {
   const trusted = assertRuntimeAuthorityBrand(authority);
   if (trusted.kind === "orchestrator_git_commit") return trusted.source_snapshot;
-  if (trusted.dependency_proof?.projection_selected === true) {
-    assertSelectedDependencyMountIntegrity(trusted.dependency_proof);
-  }
   const root = realpathSync(trusted.worktree_path);
   if (root !== trusted.worktree_path) fail("test_proof_source_snapshot_root_mismatch",
     "launcher proof execution root is not canonical");
@@ -646,13 +500,7 @@ export function captureLauncherTestProofSourceSnapshot(authority) {
     schema_version: TEST_PROOF_SOURCE_SNAPSHOT_SCHEMA_VERSION,
     algorithm: "sha256-canonical-json-repository-source-v1",
     exclusions: [...SNAPSHOT_EXCLUDED_NAMES].sort(),
-
-    runtime_dependency: {
-      projection_selected: trusted.dependency_proof?.projection_selected === true,
-      dependency_installation_digest:
-        trusted.dependency_proof?.dependency_installation_digest ?? null
-    },
-    entries: snapshotEntries(root)
+    entries: snapshotEntries(root, trusted.main_repo)
   };
   return deepFreeze({
     ...body,

@@ -25,8 +25,8 @@ test("direct-source authentication/provenance pack passes indexed and full-censu
     const result = await runProofPackAdequacy(certificationDirectory, { variationMode });
     assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
     assert.deepEqual(result.diagnostics, []);
-    assert.equal(result.control_count, 75);
-    assert.equal(result.negative_fixture_count, 1);
+    assert.equal(result.control_count, 83);
+    assert.equal(result.negative_fixture_count, 5);
     assert.equal(result.coverage_witness_count, 74);
   }
 });

@@ -239,11 +239,7 @@ export const TOOL_PAYLOAD_DEFAULT_BYTE_BUDGET = 4096;
 
 export const TOOL_PAYLOAD_BYTE_BUDGET_OVERRIDES = Object.freeze({
 
-  workspace_work_record_ready_slice: 10240,
-
-  workspace_controlled_contract_obligation_coverage_upsert: 32768,
-
-  save_record: 57344
+  save_record: 6144
 });
 
 export function measureToolPayloadBytes(tool) {

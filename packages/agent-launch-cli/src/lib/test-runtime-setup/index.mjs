@@ -7,7 +7,9 @@ import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/
 import { fingerprintPopulation, measurePopulationContent } from
   "@agent-chassis/wiki-core/src/lib/runtime-inputs/population-identity.mjs";
 
+import { discoverRepositoryEnvironments } from "./discovery.mjs";
 import { DEPENDENCY_ECOSYSTEMS } from "./ecosystems.mjs";
+import { npmPreparationFields } from "./npm-installation.mjs";
 import {
   TEST_RUNTIME_READINESS_RELATIVE_PATH,
   beginPreparation,
@@ -88,6 +90,14 @@ function publishedEnvironments(repositoryRoot) {
       .find(({ runner_id: runnerId }) => runnerId === id)?.name ?? id) }));
 }
 
+function npmInstallationOwner(repositoryRoot, { project, members }) {
+  if (project === ".") return { project, members };
+  const owner = discoverRepositoryEnvironments(repositoryRoot, TEST_RUNTIME_RUNNER_CATALOG.runners,
+    { targets: [`${project}/package.json`] }).find((entry) => entry.ecosystem === "npm" &&
+    entry.members.some((member) => (entry.project === "." ? member : `${entry.project}/${member}`) === project));
+  return owner === undefined ? { project, members } : { project: owner.project, members: [...owner.members] };
+}
+
 function resolveEnvironments({ repositoryRoot, environments }) {
   const names = testRuntimeRunnerNames();
   let requested = environments;
@@ -112,18 +122,22 @@ function resolveEnvironments({ repositoryRoot, environments }) {
         : setupFailure("test_runtime_runner_unknown", `unknown runner ${unknownRunner}`,
           { runner: unknownRunner, available_runners: names }) };
     }
-    const project = normalizedProject(entry.project);
-    if (project === null) {
+    const requested = normalizedProject(entry.project);
+    if (requested === null) {
       return { ok: false, failure: setupFailure("test_runtime_project_invalid",
         `project ${entry.project} must be a normalized repository-relative directory`,
         { project: entry.project }) };
     }
+    const owned = ecosystemName === "npm"
+      ? npmInstallationOwner(repositoryRoot, { project: requested, members: entry.members ?? [] })
+      : { project: requested, members: entry.members ?? [] };
+    const { project } = owned;
     const projectDir = project === "." ? repositoryRoot : path.join(repositoryRoot, project);
     if (!existsSync(projectDir) || !statSync(projectDir).isDirectory()) {
       return { ok: false, failure: setupFailure("test_runtime_project_invalid",
         `project ${project} is not a directory`, { project }) };
     }
-    const members = [...new Set(entry.members ?? [])].sort();
+    const members = [...new Set(owned.members)].sort();
     for (const member of members) {
       if (normalizedProject(member) === null || member === "." ||
           !existsSync(path.join(projectDir, member)) || !statSync(path.join(projectDir, member)).isDirectory()) {
@@ -170,7 +184,7 @@ async function detectDependencies({ root, ecosystemName, project, projectDir, me
     environment: testRuntimeEnvironmentId({ ecosystem: ecosystemName, project }) };
   let inputs;
   try {
-    inputs = measureProjectInputs(ecosystemName, projectDir, { members });
+    inputs = measureProjectInputs(ecosystemName, projectDir, { members, checkoutRoot: root });
   } catch (error) {
     return componentFromError(base, error);
   }
@@ -178,7 +192,12 @@ async function detectDependencies({ root, ecosystemName, project, projectDir, me
   if (inputs.status === "lock_missing" && complete) {
     return { ...base, status: "failed", code: "test_runtime_dependency_lock_missing",
       message: `project ${project} requires ${inputs.required} for ${ecosystemName} dependencies`,
-      detail: { required: inputs.required } };
+      detail: { required: inputs.required, condition: "the installation root has no dependency lock",
+        input: projectDir, cause: `${inputs.required} does not exist in ${projectDir}`,
+        effects: "setup published no usable runtime; nothing was installed, created or changed",
+        uncertainty: "which dependency versions the installation was made from",
+        action: { actor: "operator", statement: `create ${inputs.required} with the project's own package ` +
+          "manager, then rerun setup; setup never creates a lock" } } };
   }
   const inputFiles = Object.keys(inputs.files ?? {}).sort();
   const without = (status) => ({ ...base, status: "ready", source: status, record: { ecosystem: ecosystemName,
@@ -203,7 +222,8 @@ async function detectDependencies({ root, ecosystemName, project, projectDir, me
     record: { ecosystem: ecosystemName, project, members, status: "present", source: detected.source,
       inputs: inputFiles, inputs_digest: inputs.inputs_digest, dir: detected.dir,
       population: detected.population, population_exclude: exclude,
-      workspace_links: detected.workspace_links ?? [],
+      ...(ecosystemName === "npm" ? npmPreparationFields(detected)
+        : { workspace_links: detected.workspace_links ?? [] }),
       ...(detected.stores === undefined ? {} : { stores: detected.stores }),
       ...(detected.cargo_config === undefined ? {} : { cargo_config: detected.cargo_config }), ...identity } };
 }

@@ -12,6 +12,8 @@ export const READ_WIKI_SOURCE_KINDS = Object.freeze({
   MANIFEST: "manifest",
   REPOSITORY: "repository",
   REQUIREMENT_GUIDANCE: "requirement_guidance",
+
+  RECORD_KIND: "record_kind",
   SEARCH: "search",
   ASSIGNMENT: "assignment",
   ASSIGNED_CONTRACT: "assigned_contract",
@@ -22,7 +24,7 @@ export const READ_WIKI_SOURCE_KINDS = Object.freeze({
 
 export const READ_WIKI_SELECTIONS = Object.freeze([
   "context", "field", "inventory", "entry", "text", "integrity", "currentness",
-  "membership", "action", "contract", "obligation", "finding", "guidance"
+  "membership", "action", "contract", "obligation", "finding", "guidance", "input_contract"
 ]);
 
 export function createReadWikiGrants(policy, role) {

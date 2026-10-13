@@ -4,9 +4,9 @@
 
 When one declared structured tool exposes one compact mode and one distinct documented complete mode, the declared compact result omits at least one declared heavy member; every declared omission is absent from the compact population, present in the complete-result population, represented in an omission population whose computed union with the compact population equals the complete source population, and represented in a disclosed population equal to the omission population; the complete-result population equals the source population; the compact result names the complete mode and carries the disclosure, complete total, and omission total; both totals equal the corresponding exact bound population cardinalities; and the selected omission reason is a member of a closed declared reason catalog.
 
-Profile digest: 99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2. Parameter digest: bca24756b82cd0ccf95ff302b1cc540a87f4dd39f22d6df6be2d7c4b1bc28800.
+Profile digest: 198e7b2599fb7cbde6b703179e3572d4f2987bb04f0368ce500ea23c1d1169da. Parameter digest: b229ee1b092f77e82832a53119eac5ee965f6f14fb2028b918360df32f145619.
 
-Admission digest: b9456eca01120c489700a260829db5a4668b9160e11333a9bb836fb92403d54d.
+Admission digest: c0e5a2f79e2d6f4f1b2b833a0bccf7a3c8d6751f4b834c93efabca9d5133491a.
 
 Roles: 36/36 accounted; 3 owned gaps. Semantic parameters: 30; internal roles: 6.
 

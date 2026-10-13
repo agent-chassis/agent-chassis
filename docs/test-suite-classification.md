@@ -731,6 +731,12 @@ It ships **no** `tests/integration/**` file, and carries no second walk and no
 category mapping of its own. Post-copy verification walks the copied tree with the
 shared enumerator and re-checks category by location.
 
+Path mentions inside code comments are not runtime dependencies and do not
+exclude a portable test or its helpers. The tooling-path check uses the shared
+comment tokenizer; real imports and resolved path literals remain checked. The
+classification regression test ships with the classifier's exact unit-safe
+exception so the public runner can audit its own corpus.
+
 Two source-repo-only exclusions remain path-pinned:
 `PORTABILITY_TEST_REL` and the `PUBLIC_EXCLUDED_TESTS` entries.
 

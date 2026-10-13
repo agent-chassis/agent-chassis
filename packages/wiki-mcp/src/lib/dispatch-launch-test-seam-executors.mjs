@@ -33,6 +33,7 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit-channel.mjs";
 import {
   FIXED_PROBE_CONNECTED_DIRECTIVES_SOURCE,
+  FIXED_PROBE_CONNECTED_ROW_DIRECTIVES_SOURCE,
   FIXED_PROBE_PHYSICAL_ACCESS_SOURCE,
   FIXED_PROBE_PROMPT_SECTION_SOURCE,
   substituteFixedProbeCommand
@@ -513,9 +514,6 @@ function followReturnedCorrection(refusal) {
       recovery.retained_reads.push(read ? { call: read, result: summary(await callTool(read.tool, read.arguments)) }
         : null);
     }
-  } else if (scenario === "unselected") {
-    writeFileSync("dependency.mjs", "export function value() { return 42; }\n", "utf8");
-    invocations.push(summary(await callTool("verify_proof", { subject: selectedUnit })));
   } else if (scenario === "timeout") {
     writeFileSync("dependency.mjs", "export function value() { return 42; }\n", "utf8");
     invocations.push(summary(await callTool("verify_proof",
@@ -618,7 +616,8 @@ export const CONNECTED_EXECUTABLE_MATRIX = Object.freeze([
       { role: "rustc", cwd: "rust", kind: "self", argv: ["rustc", "--print", "sysroot"] }] }
 ].map((row) => Object.freeze({
   ...row,
-  obligationId: `OBL-MATRIX-${row.family.toUpperCase()}`,
+
+  key: row.family,
   commands: Object.freeze(row.commands.map((command) => Object.freeze({
     ...command, argv: Object.freeze([...command.argv]) }))),
   identities: Object.freeze(row.identities.map((probe) => Object.freeze({
@@ -630,7 +629,8 @@ export const CONNECTED_EXECUTABLE_RECOVERY_PROBES = Object.freeze([
   Object.freeze({ command: "deno", cwd: "go", argv: Object.freeze(["deno", "eval", "console.log('ran')"]) })
 ]);
 
-const CONNECTED_EXECUTABLE_MATRIX_SOURCE = String.raw`
+const CONNECTED_EXECUTABLE_MATRIX_SOURCE = FIXED_PROBE_PROMPT_SECTION_SOURCE +
+  FIXED_PROBE_CONNECTED_ROW_DIRECTIVES_SOURCE + String.raw`
 const { createHash } = require("node:crypto");
 const { accessSync, chmodSync, constants, mkdtempSync, readFileSync, readlinkSync, realpathSync,
   writeFileSync } = require("node:fs");
@@ -749,8 +749,15 @@ function mutated(text) {
 (async () => {
   mcp = await connectFixedProbeMcp({ clientName: "connected-executable-matrix",
     requestTimeoutMs: 30000 });
-  const selectedUnit = (prompt.match(/WK-\d{4,}#SLICE-\d{3}/u) || [null])[0];
+  const selectedUnit = (prompt.match(/^Role: implementation worker for (WK-\d{4,}#SLICE-\d{3})\.$/mu) ||
+    [null, null])[1];
   if (!selectedUnit) throw new Error("assignment carries no selected slice");
+  // The saved identity of each row's slice use, decoded from the delivered
+  // assignment before any command, verification or delivery. An incomplete or
+  // ambiguous mapping stops the program here.
+  const delivered = fixedProbeDeliveredText(prompt, await readFixedProbeAssignment(mcp));
+  const instruction = decodeConnectedRowDirectives(delivered, matrix.map(row => row.key));
+  const subjectOf = key => instruction.subjects[key];
   const environment = { cwd: process.cwd(),
     uid: typeof process.getuid === "function" ? process.getuid() : null,
     variables: Object.fromEntries(["PATH", "HOME", "TMPDIR", "XDG_CACHE_HOME", "GOMODCACHE", "GOPROXY",
@@ -790,17 +797,15 @@ function mutated(text) {
   // while every module holds its original bytes.
   const refusals = [];
   for (const call of refusalCalls) {
-    const args = { ...call.arguments };
-    if (args.subject === "<selected-unit>") args.subject = selectedUnit;
-    else args.source = { unit: selectedUnit };
+    const args = { subject: call.row === null ? selectedUnit : subjectOf(call.row), ...call.arguments };
     let result;
     try {
-      result = summary(await mcp.callTool("workspace_verify_proof", { ...args, timeout: "long" },
+      result = summary(await mcp.callTool("verify_proof", { ...args, timeout: "long" },
         { timeoutMs: 600000 }));
     } catch (error) {
       result = { is_error: true, transport_error: error && error.message || String(error) };
     }
-    refusals.push({ label: call.label, arguments: args, result });
+    refusals.push({ label: call.label, row: call.row, arguments: args, result });
   }
   const verifications = [];
   for (const row of matrix) {
@@ -810,26 +815,26 @@ function mutated(text) {
       writeFileSync(row.module, text, "utf8");
       let result;
       try {
-        result = summary(await mcp.callTool("workspace_verify_proof",
-          { subject: row.obligationId, source: { unit: selectedUnit }, timeout: "long",
-            ...(row.verifyArguments || {}) },
+        result = summary(await mcp.callTool("verify_proof",
+          { subject: subjectOf(row.key), timeout: "long", ...(row.verifyArguments || {}) },
           { timeoutMs: 1900000 }));
       } catch (error) {
         result = { is_error: true, transport_error: error && error.message || String(error) };
       }
-      verifications.push({ family: row.family, step, obligation_id: row.obligationId,
+      verifications.push({ row: row.key, family: row.family, step, obligation_id: subjectOf(row.key),
         module: row.module, module_sha256: sha256(Buffer.from(text, "utf8")), result });
     }
   }
   const finalSources = Object.fromEntries(matrix.map(row =>
     [row.module, sha256(readFileSync(row.module))]));
-  const commit = summary(await mcp.callTool("commit", {}, { timeoutMs: 600000 }));
+  const delivery = summary(await mcp.callTool("workspace_deliver_work", {}, { timeoutMs: 600000 }));
   finish({
     schema_version: schema,
     ok: true,
     scenario,
     selected_unit: selectedUnit,
     assignment_sha256: sha256(prompt),
+    instruction_observation: instruction,
     environment,
     commands,
     identities,
@@ -838,7 +843,7 @@ function mutated(text) {
     refusals,
     verifications,
     final_sources: finalSources,
-    commit
+    delivery
   });
 })().catch(error => finish({ schema_version: schema, ok: false,
   scenario, stage: "worker", error: error && error.stack || String(error) }, 1));
@@ -848,11 +853,11 @@ export const CONNECTED_MULTILINGUAL_JOURNEY = Object.freeze({
   rows: Object.freeze([
 
     { family: "node-test", toolchain: "node", module: "web/src/answer.mjs",
-      obligationId: "OBL-ML-NODE-WORKSPACE", verifyArguments: { environment: "npm@web" },
+      key: "node-workspace", verifyArguments: { environment: "npm@web" },
       commands: [{ role: "node", cwd: "web", argv: ["node", "--test", "--test-name-pattern=^selected$",
         "node/answer.test.mjs"] }],
       identities: [{ role: "node", cwd: "web", kind: "self", argv: ["node", "-p", "process.execPath"] }] },
-    { family: "ava", toolchain: "node", module: "web/src/answer.mjs", obligationId: "OBL-ML-AVA-WORKSPACE",
+    { family: "ava", toolchain: "node", module: "web/src/answer.mjs", key: "ava-workspace",
 
       initialSource: "// verified through the prepared npm@web environment\nimport ms from 'ms';\n\n" +
         "export function answer() {\n  return 42;\n}\n\nexport function seconds(text) {\n" +
@@ -863,23 +868,23 @@ export const CONNECTED_MULTILINGUAL_JOURNEY = Object.freeze({
         { role: "node", cwd: "web", argv: ["node", "node_modules/ava/entrypoints/cli.js",
           "ava/workspace.spec.mjs"] }],
       identities: [{ role: "node", cwd: "web", kind: "self", argv: ["node", "-p", "process.execPath"] }] },
-    { family: "pytest", toolchain: "python", module: "app/answer.py", obligationId: "OBL-ML-PYTEST",
+    { family: "pytest", toolchain: "python", module: "app/answer.py", key: "pytest",
       commands: [{ role: "python", cwd: ".", argv: ["python3", "-m", "pytest", "-q",
         "tests/test_answer.py::test_returns_42"] }],
       identities: [{ role: "python", cwd: ".", kind: "python", argv: ["python3", "-c", PYTHON_IDENTITY] }] },
-    { family: "stestr", toolchain: "python", module: "python-stestr/unit/answer.py", obligationId: "OBL-ML-STESTR",
+    { family: "stestr", toolchain: "python", module: "python-stestr/unit/answer.py", key: "stestr",
       commands: [{ role: "python", cwd: "python-stestr", argv: ["python3", "-m", "stestr",
         "--repo-url", "/tmp", "run", "--serial", "unit.test_answer.AnswerTests.test_returns_42"] }],
       identities: [{ role: "python", cwd: "python-stestr", kind: "python",
         argv: ["python3", "-c", PYTHON_IDENTITY] }] },
-    { family: "go-test", toolchain: "go", module: "go/calc/answer.go", obligationId: "OBL-ML-GO",
+    { family: "go-test", toolchain: "go", module: "go/calc/answer.go", key: "go",
       commands: [
         { role: "go", cwd: "go", argv: ["go", "test", "-count=1", "-run", "^TestAnswer$", "./calc"] },
         { role: "gofmt", cwd: "go", argv: ["gofmt", "-l", "calc/answer.go"] }],
       identities: [
         { role: "go", cwd: "go", kind: "self", argv: ["go", "env", "GOROOT"] },
         { role: "gofmt", cwd: "go", kind: "proc_exe", argv: ["gofmt"] }] },
-    { family: "go-test", toolchain: "go", module: "billing/calc/answer.go", obligationId: "OBL-ML-BILLING",
+    { family: "go-test", toolchain: "go", module: "billing/calc/answer.go", key: "billing",
       verifyArguments: { environment: "go_modules@billing" },
       commands: [
         { role: "go", cwd: "billing", argv: ["go", "test", "-count=1", "-run", "^TestAnswer$", "./calc"] }],
@@ -897,11 +902,11 @@ export const CONNECTED_MULTILINGUAL_JOURNEY = Object.freeze({
   projections: Object.freeze(["web/node_modules"]),
   refusals: Object.freeze([
     Object.freeze({ label: "billing_in_other_go_module",
-      arguments: Object.freeze({ subject: "OBL-ML-BILLING", environment: "go_modules@go" }) }),
+      row: "billing", arguments: Object.freeze({ environment: "go_modules@go" }) }),
     Object.freeze({ label: "slice_population_in_one_npm_environment",
-      arguments: Object.freeze({ subject: "<selected-unit>", environment: "npm@web" }) }),
+      row: null, arguments: Object.freeze({ environment: "npm@web" }) }),
     Object.freeze({ label: "unknown_environment",
-      arguments: Object.freeze({ subject: "OBL-ML-GO", environment: "npm@nowhere" }) })
+      row: "go", arguments: Object.freeze({ environment: "npm@nowhere" }) })
   ])
 });
 
@@ -919,12 +924,12 @@ const FIXED_PROGRAM_PLANS = Object.freeze({
     schema: "connected-runtime-preparation-receipt.v1" })
 });
 
-const CONNECTED_DELIVERY_WITNESS_SCENARIOS = new Set(["selected", "recovery", "unselected", "timeout", "matrix",
+const CONNECTED_DELIVERY_WITNESS_SCENARIOS = new Set(["selected", "recovery", "timeout", "matrix",
   "multilingual", "observation_delivery", "observation_delivery_pair"]);
 
 export function buildConnectedDeliveryWitnessCodexExecutorTestSeams({ scenario }) {
   if (!CONNECTED_DELIVERY_WITNESS_SCENARIOS.has(scenario) && !Object.hasOwn(FIXED_PROGRAM_PLANS, scenario)) {
-    throw new TypeError("connected delivery witness scenario must be selected, recovery, unselected, " +
+    throw new TypeError("connected delivery witness scenario must be selected, recovery, " +
       "timeout, matrix, multilingual, observation_delivery or observation_delivery_pair");
   }
   const seams = Object.freeze({

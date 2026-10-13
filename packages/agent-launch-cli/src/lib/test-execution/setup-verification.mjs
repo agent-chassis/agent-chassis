@@ -1,6 +1,10 @@
 
 
+import path from "node:path";
+
 import { ATTEMPT_SCRATCH_ROOT, DEPENDENCY_ECOSYSTEMS } from "../test-runtime-setup/ecosystems.mjs";
+import { NPM_MANIFEST, directoryReader, npmManifestFacts, runnerDeclaringPackage } from
+  "../test-runtime-setup/npm-workspace.mjs";
 import { TOOLCHAIN_RECIPES } from "../test-runtime-setup/recipes.mjs";
 import { runConfinedInvocation } from "./confined-invocation.mjs";
 import { resolveInstalledRunnerIntegration } from "./runner-integrations.mjs";
@@ -38,6 +42,12 @@ export async function planEnvironmentProbes({ repositoryRoot, candidateRecord, e
     ecosystem, project, candidateRecord, workProjectDir: workingCopy });
   if (!runtime.ok) return { ok: false, code: runtime.code, diagnostic: runtime.message };
   const projectDir = workingCopy ?? runtime.projectDir;
+
+  const read = directoryReader(runtime.projectDir);
+  const packages = new Map(ecosystem !== "npm" ? [] : [".", ...runtime.environment.members].map((owner) =>
+    [owner, npmManifestFacts(read(owner === "." ? NPM_MANIFEST : `${owner}/${NPM_MANIFEST}`))]));
+  const trees = (runtime.values.node_modules_trees ?? []).map(({ owner }) =>
+    owner === "." ? "node_modules" : `${owner}/node_modules`);
   let selection = null;
   const inProject = async (invocation) => {
     if (workingCopy === null || !within(workingCopy, invocation.cwd)) return { invocation };
@@ -45,9 +55,11 @@ export async function planEnvironmentProbes({ repositoryRoot, candidateRecord, e
     if (!selection.ok) {
       return { failure: { code: selection.code, diagnostic: `${selection.message}\n${selection.recovery}` } };
     }
+
+    const entries = selection.entries.filter((entry) => !trees.some((tree) => entry.startsWith(`${tree}/`)));
     return { invocation: { ...invocation,
       directories: [...(invocation.directories ?? []), ...runtime.directories],
-      copies: [{ from: runtime.projectDir, to: workingCopy, entries: selection.entries }],
+      copies: [{ from: runtime.projectDir, to: workingCopy, entries }],
       links: runtime.links } };
   };
   const probes = [];
@@ -62,12 +74,17 @@ export async function planEnvironmentProbes({ repositoryRoot, candidateRecord, e
   }
   for (const descriptor of descriptors) {
     const integration = resolveInstalledRunnerIntegration(descriptor);
+    const declaring = runnerDeclaringPackage(packages, descriptor.name);
     let invocation;
     try {
-      invocation = integration.setupProbe({ runtime, projectDir });
+      invocation = integration.setupProbe({
+        runtime: Object.freeze({ ...runtime, values: Object.freeze({ ...runtime.values,
+          package_context: declaring }) }),
+        projectDir: declaring === "." ? projectDir : path.join(projectDir, declaring) });
     } catch (error) {
       probes.push({ provider_id: descriptor.runner_id, check: "runner", failure: {
-        code: error?.code ?? "test_runtime_runner_probe_failed", diagnostic: error?.message ?? null } });
+        code: error?.code ?? "test_runtime_runner_probe_failed", diagnostic: error?.message ?? null,
+        ...(error?.detail === undefined ? {} : { detail: error.detail }) } });
       continue;
     }
     probes.push({ provider_id: descriptor.runner_id, check: "runner", ...await inProject(invocation) });

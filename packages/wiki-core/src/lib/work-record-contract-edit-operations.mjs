@@ -35,6 +35,7 @@ import {
   findUnsupportedRepositoryScopeSelector,
   repositoryScopeSelectorRefusalMessage
 } from "./work-record-repository-path.mjs";
+import { findSliceRegressionTestsDefect } from "./work-record-schema-structure.mjs";
 
 const STRING_SCHEMA = Object.freeze({ type: "string" });
 const CONTENT_STRING_SCHEMA = Object.freeze({ type: "string", entry_content: true });
@@ -226,6 +227,13 @@ export function upsertSlice(record, { slice } = {}) {
     const unsupportedScope = unsupportedScopeSelectorRefusal(field, slice[field],
       (index) => `slice.${field}[${index}]`);
     if (unsupportedScope !== null) return unsupportedScope;
+  }
+  if (hasOwn(slice, "regression_tests")) {
+    const defect = findSliceRegressionTestsDefect(slice.regression_tests);
+    if (defect !== null) {
+      const path = `slice.regression_tests${defect.index === null ? "" : `[${defect.index}]`}`;
+      return refusal(createDiagnostic("invalid_slice_regression_tests", `${path} ${defect.message}`, { path }));
+    }
   }
   if (isObject(slice.sections)) {
     for (const entry of workRecordProseRegistryEntries("slice")) {

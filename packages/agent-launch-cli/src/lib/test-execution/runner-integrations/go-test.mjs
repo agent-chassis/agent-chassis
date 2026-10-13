@@ -13,7 +13,7 @@ function unsupported(message, detail) {
 export default Object.freeze({
   runner_id: "runner.go-test",
   setupProbe: ({ runtime, projectDir }) => ({ command: runtime.executables.go,
-    args: ["list", "-deps", "-test", "./..."], cwd: projectDir }),
+    args: ["list", "-m", "all"], cwd: projectDir }),
   ordinaryInvocation: async ({ runtime, projectDir, file, selector, metadata, proof = null }) => {
     const directory = path.posix.dirname(file);
     const packagePath = directory === "." ? "." : `./${directory}`;

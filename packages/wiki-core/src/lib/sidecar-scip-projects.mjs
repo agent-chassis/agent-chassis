@@ -53,6 +53,14 @@ function toolchainPopulation(name) {
   };
 }
 
+function goToolRoles(toolchainRoot) {
+  const indexer = { role: "indexer", command: "scip-go", population: executableFile };
+  const pathGo = { command: "go", population: toolchainPopulation("go") };
+  if (typeof toolchainRoot !== "string") return [indexer, { role: "go", ...pathGo }];
+  return [indexer, { role: "go_selector", ...pathGo },
+    { role: "go", executable: path.join(toolchainRoot, "bin", "go"), population: toolchainPopulation("go") }];
+}
+
 const NODE_RUNTIME = Object.freeze({ role: "node", command: "node", population: toolchainPopulation("node") });
 
 const executableFile = (resolved) => [resolved];
@@ -66,9 +74,13 @@ const ADAPTERS = Object.freeze({
     tools: Object.freeze([{ role: "indexer", command: "scip-typescript", population: providerPackage }, NODE_RUNTIME]),
     runtime: "node",
     commitSensitive: false,
+
+    plannedDependencies: true,
     inputs: ruleInputs("scip-typescript"),
     settings: () => ({}),
     environmentSettings: () => ({}),
+
+    directory: (project) => path.posix.dirname(project) || ".",
 
     args: (project) => ["index", "--cwd", SIDECAR_SCIP_SNAPSHOT_TOKEN, "--output", SIDECAR_SCIP_OUTPUT_TOKEN,
       path.posix.dirname(project.project) || "."]
@@ -83,14 +95,16 @@ const ADAPTERS = Object.freeze({
     args: () => ["index", "--cwd", SIDECAR_SCIP_SNAPSHOT_TOKEN, "--output", SIDECAR_SCIP_OUTPUT_TOKEN, "--quiet",
       "--project-version", SIDECAR_SCIP_COMMIT_TOKEN]
   }),
+
   "scip-go": Object.freeze({
-    tools: Object.freeze([{ role: "indexer", command: "scip-go", population: executableFile },
-      { role: "go", command: "go", population: toolchainPopulation("go") }]),
+    tools: (project) => goToolRoles(project.toolchain_root),
+    recordTools: (record) => goToolRoles(record.settings?.GOROOT),
     commitSensitive: true,
     dependencies: true,
     inputs: (project, entries) => entries.filter(({ path: value }) =>
       project.input_roots.some((root) => withinRoot(root, value))),
-    settings: (project) => ({ ...GO_OFFLINE_MODULE_ENV, GONOPROXY: "none", GOWORK: project.workspace ?? "off" }),
+    settings: (project) => ({ ...GO_OFFLINE_MODULE_ENV, GONOPROXY: "none", GOWORK: project.workspace ?? "off",
+      ...(typeof project.toolchain_root === "string" ? { GOROOT: project.toolchain_root } : {}) }),
     environmentSettings: (env) => ({ GOMODCACHE: goModuleCacheFromEnvironment(env) }),
     args: (project) => ["index", "--module-root=.", `--repository-remote=${project.module}`,
       `--module-version=${SIDECAR_SCIP_COMMIT_TOKEN}`, `--output=${SIDECAR_SCIP_OUTPUT_TOKEN}`]
@@ -212,10 +226,15 @@ function goProject(goModPath, trackedPaths, goFiles) {
   return Object.freeze({ ...project, input_roots: Object.freeze(project.input_roots) });
 }
 
-export function discoverSidecarGoProjects(trackedPaths, goFiles) {
+export function discoverSidecarGoProjects(trackedPaths, goFiles, goToolchains = new Map()) {
   const tracked = new Set(trackedPaths);
   return trackedPaths.filter((value) => path.posix.basename(value) === "go.mod" && !ignoredGoDirectory(value))
-    .sort().map((goModPath) => goProject(goModPath, tracked, goFiles));
+    .sort().map((goModPath) => goProject(goModPath, tracked, goFiles)).map((project) => {
+      const selection = goToolchains.get(project.key);
+      if (selection === undefined) return project;
+      return Object.freeze({ ...project, ...(selection.root ? { toolchain_root: selection.root } : {}),
+        refusal: project.refusal ?? selection.refusal ?? null });
+    });
 }
 
 export function isSidecarGoProjectFile(relativePath) {
@@ -287,6 +306,27 @@ export function sidecarProviderInputsChangedAtCommit(publication, env) {
     if (current === null || !compareSidecarProviderInputRecords(prior, current).current) return true;
   }
   return false;
+}
+
+export const SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE = "dependencies_unavailable";
+
+function projectDirectory({ indexer, project }) {
+  return ADAPTERS[indexer]?.directory?.(project) ?? project;
+}
+
+export function sidecarDependencyLimitations(coverage, relativePath = null) {
+  const list = (value) => Array.isArray(value) ? value : [];
+  const entry = (project, kind) => ({ key: project.key, indexer: project.indexer, project: project.project,
+    coverage: kind, code: project.dependency_limitation.code, message: project.dependency_limitation.message,
+    ...(typeof project.provider_failure === "string" ? { provider_failure: project.provider_failure } : {}) });
+  return [
+    ...list(coverage?.projects).filter((project) => project?.dependency_limitation)
+      .map((project) => entry(project, "partial")),
+    ...list(coverage?.inactive_projects)
+      .filter((project) => project?.reason === SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE)
+      .map((project) => entry(project, "unavailable"))
+  ].filter((entry) => typeof relativePath !== "string" || withinRoot(projectDirectory(entry), relativePath))
+    .sort((left, right) => left.key < right.key ? -1 : left.key > right.key ? 1 : 0);
 }
 
 export function materializeSidecarProviderArgs(args, { snapshotRoot, outputPath, committedHead }) {

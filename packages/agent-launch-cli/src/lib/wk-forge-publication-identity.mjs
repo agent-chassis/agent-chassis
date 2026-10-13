@@ -42,7 +42,7 @@ import {
   refuse
 } from "./wk-forge-handoff-refusal.mjs";
 
-function deriveForgeBranchName({ initiative, wk, candidate }) {
+export function deriveForgeBranchName({ initiative, wk, candidate }) {
   return `handoff/wk/${initiative}/${wk}/${candidate}`;
 }
 

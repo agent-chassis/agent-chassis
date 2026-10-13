@@ -16,6 +16,7 @@ import { certificationDirectory, readDefinitionDocument } from "../support/certi
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const identity = { profile_id: "proof.failure.retry-convergence", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 const readJson = (name) => readDefinitionDocument(identity, name);
 
@@ -28,8 +29,8 @@ test("retry-convergence profile is valid, pre-dispatch, digest-bound, and explic
   assert.equal(Object.hasOwn(RETRY_CONVERGENCE_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(adequacy.profile_digest, profileDigest(RETRY_CONVERGENCE_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
-  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 198);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 166);
+  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 195);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 169);
   assert.deepEqual(adequacy.explicit_exclusions, [...EXCLUSIONS].sort());
 });
 
@@ -38,7 +39,7 @@ test("three bounded domain histories pass and all seven mutants are killed", asy
     retryConvergenceGuaranteeSatisfied(executeRetryConvergence({ domain })), true, domain);
   for (const mutant of Object.keys(MUTATIONS)) assert.equal(
     retryConvergenceGuaranteeSatisfied(executeRetryConvergence({ mutant })), false, mutant);
-  const controls = (await runProofPackAdequacyControls({ profile: RETRY_CONVERGENCE_V1_PROFILE })).controls;
+  const controls = (await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures, profile: RETRY_CONVERGENCE_V1_PROFILE })).controls;
   for (const control of controls.filter(({ category }) => category === "positive")) {
     assert.equal(control.implementation_outcome, "passed", control.control_id);
     assert.equal(control.profile_satisfaction, "satisfied", control.control_id);
@@ -59,9 +60,9 @@ test("full-census certification passes with exact closure and stored result", as
     repositoryRoot, variationMode: "full_census" });
   assert.equal(fullCensus.passed, true, JSON.stringify(fullCensus.diagnostics));
   assert.deepEqual(fullCensus.diagnostics, []);
-  assert.equal(fullCensus.control_count, 31);
-  assert.equal(fullCensus.negative_fixture_count, 3);
-  assert.equal(fullCensus.coverage_witness_count, 198);
+  assert.equal(fullCensus.control_count, 46);
+  assert.equal(fullCensus.negative_fixture_count, 9);
+  assert.equal(fullCensus.coverage_witness_count, 195);
   assert.equal(fullCensus.negative_fixture_results.every(({ outcome }) => outcome === "rejected"), true);
   assert.equal(fullCensus.coverage_witness_results.every(({ outcome }) => outcome === "survived"), true);
   const [stored, admission] = await Promise.all([

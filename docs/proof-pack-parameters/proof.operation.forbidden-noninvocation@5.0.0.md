@@ -1,18 +1,18 @@
-# proof.operation.forbidden-noninvocation@4.0.0
+# proof.operation.forbidden-noninvocation@5.0.0
 
 <!-- Generated from validated package metadata. -->
 
-For one caller-declared subject operation, one declared execution context, and one complete exact nonempty forbidden-operation population, the subject does not use any forbidden member in that context; one verification reads the exact subject, context, population, and every forbidden member, verifies that prohibition, and carries same-subject, same-context positive use of the same complete population as its falsifier.
+For one caller-declared subject operation, one declared execution context, and one complete exact nonempty forbidden-operation population, the subject must not call any forbidden member while that context applies. A call to even one member violates the prohibition. One verification reads the exact subject, context, population and every forbidden member, verifies that prohibition, and carries positive calls over the same complete population, subject and context as its falsifier. This certifies the declared proof model, not arbitrary implementation execution or broad dependency use.
 
-Profile digest: d33c7c3eb034b334d4bcda5705c3334a98e408ecf91663b03bab81b60058956d. Parameter digest: 155ade16dc80fb3a012eaafe94dcfa930ab9ac985630e3f23833a6cb6c312007.
+Profile digest: 99d76e278eacfec4bd5b70eca510af04fd7f39788af1082c74885238696b5702. Parameter digest: e117b5acaea479e88daa4757be755df1e684a809f0105276e51c89f293e5f554.
 
-Admission digest: 1c0abadcda9da3e652730a7d4058dbd3d7c7f43acfec34104fd85c91352b9f34.
+Admission digest: 03efc1adbd69728dda31e5510c211b0d8572613a871d1b599d6df516e0772ec7.
 
 Roles: 5/5 accounted; 0 owned gaps. Semantic parameters: 5; internal roles: 0.
 
 ## Guarantee and exclusions
 
-For one caller-declared subject operation, one declared execution context, and one complete exact nonempty forbidden-operation population, the subject does not use any forbidden member in that context; one verification reads the exact subject, context, population, and every forbidden member, verifies that prohibition, and carries same-subject, same-context positive use of the same complete population as its falsifier.
+For one caller-declared subject operation, one declared execution context, and one complete exact nonempty forbidden-operation population, the subject must not call any forbidden member while that context applies. A call to even one member violates the prohibition. One verification reads the exact subject, context, population and every forbidden member, verifies that prohibition, and carries positive calls over the same complete population, subject and context as its falsifier. This certifies the declared proof model, not arbitrary implementation execution or broad dependency use.
 
 - actual-execution-or-mutation-test-outcome
 - dishonest-reference-context-population-or-verification-grounding
@@ -60,14 +60,14 @@ Kind: typed_referent.
     {
       "ref": "/claim_patterns/0",
       "value": {
-        "pattern_id": "subject-does-not-use-forbidden-operations",
+        "pattern_id": "subject-does-not-call-forbidden-operations",
         "claim_kind": "behavior",
         "allowed_modalities": [
           "MUST_NOT"
         ],
         "proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -157,7 +157,7 @@ Kind: typed_referent.
         ],
         "falsifying_proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -227,14 +227,14 @@ Kind: typed_referent.
     {
       "ref": "/claim_patterns/0",
       "value": {
-        "pattern_id": "subject-does-not-use-forbidden-operations",
+        "pattern_id": "subject-does-not-call-forbidden-operations",
         "claim_kind": "behavior",
         "allowed_modalities": [
           "MUST_NOT"
         ],
         "proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -324,7 +324,7 @@ Kind: typed_referent.
         ],
         "falsifying_proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -490,7 +490,7 @@ Kind: complete_population.
         ],
         "falsifying_proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -575,14 +575,14 @@ Kind: complete_population.
     {
       "ref": "/claim_patterns/0",
       "value": {
-        "pattern_id": "subject-does-not-use-forbidden-operations",
+        "pattern_id": "subject-does-not-call-forbidden-operations",
         "claim_kind": "behavior",
         "allowed_modalities": [
           "MUST_NOT"
         ],
         "proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -672,7 +672,7 @@ Kind: complete_population.
         ],
         "falsifying_proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -815,7 +815,7 @@ Kind: typed_referent.
         ],
         "falsifying_proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -1036,14 +1036,14 @@ Kind: typed_referent.
     {
       "ref": "/claim_patterns/0",
       "constraint": {
-        "pattern_id": "subject-does-not-use-forbidden-operations",
+        "pattern_id": "subject-does-not-call-forbidden-operations",
         "claim_kind": "behavior",
         "allowed_modalities": [
           "MUST_NOT"
         ],
         "proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -1133,7 +1133,7 @@ Kind: typed_referent.
         ],
         "falsifying_proposition_template": {
           "subject_role": "subject_operation",
-          "operator": "reference:uses",
+          "operator": "reference:calls",
           "applicability_context": {
             "mode": "when",
             "operand_roles": [
@@ -1155,7 +1155,7 @@ Kind: typed_referent.
         "pattern_id": "verification-targets-forbidden-operation-noninvocation",
         "role": "verifies",
         "source_claim_pattern_id": "verify-forbidden-operation-noninvocation",
-        "target_claim_pattern_id": "subject-does-not-use-forbidden-operations"
+        "target_claim_pattern_id": "subject-does-not-call-forbidden-operations"
       }
     },
     {
@@ -1178,7 +1178,7 @@ Kind: typed_referent.
             "pattern": "complete-forbidden-operation-population"
           },
           {
-            "pattern": "subject-does-not-use-forbidden-operations"
+            "pattern": "subject-does-not-call-forbidden-operations"
           },
           {
             "pattern": "verification-observes-exact-noninvocation-subjects"

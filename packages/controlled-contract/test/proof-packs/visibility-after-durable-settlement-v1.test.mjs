@@ -32,6 +32,7 @@ import { certificationDirectory, readDefinitionDocument } from "../support/certi
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const identity = { profile_id: "proof.ordering.visibility-after-durable-settlement", profile_version: "4.0.0" };
+const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 const readJson = (name) => readDefinitionDocument(identity, name);
 
@@ -44,8 +45,8 @@ test("visibility-after-durable-settlement profile is current, pre-dispatch, and 
   assert.equal(Object.hasOwn(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(adequacy.profile_digest, profileDigest(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
-  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 132);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 128);
+  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 130);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 130);
   assert.deepEqual(adequacy.explicit_exclusions, [
     "dishonest-grounding-or-self-authored-evidence",
     "eventual-visibility-liveness",
@@ -70,7 +71,7 @@ test("three domain oracles pass and every named mutant is killed", async () => {
     false,
     mutant
   );
-  const controls = (await runProofPackAdequacyControls({
+  const controls = (await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
     profile: VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE
   })).controls;
   for (const control of controls.filter(({ category }) => category === "positive")) {
@@ -102,9 +103,9 @@ test("indexed and full-census certification pass with exact dependency closure",
     });
     assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
     assert.deepEqual(result.diagnostics, []);
-    assert.equal(result.control_count, 32);
-    assert.equal(result.negative_fixture_count, 3);
-    assert.equal(result.coverage_witness_count, 132);
+    assert.equal(result.control_count, 48);
+    assert.equal(result.negative_fixture_count, 10);
+    assert.equal(result.coverage_witness_count, 130);
     assert.equal(result.negative_fixture_results.every(
       ({ outcome }) => outcome === "rejected"
     ), true);

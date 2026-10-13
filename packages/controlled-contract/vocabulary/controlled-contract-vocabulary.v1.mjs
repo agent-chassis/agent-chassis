@@ -475,7 +475,7 @@ const numberOperators = [
   ["has_value", "The subject carries the stated numeric value."],
   ["matches", "The subject's numeric measurement matches the stated number under the declared comparison."],
   ["not_equals", "The subject's numeric value does not equal the stated number."],
-  ["returns", "The subject returns the stated numeric value."]
+  ["returns", "The subject returns only the stated numeric value on its singular return slot."]
 ].map(([predicate, definition]) => ({
   term: `number:${predicate}`,
   definition,
@@ -488,7 +488,7 @@ const numberOperators = [
       : { kind: "unrestricted" }
   },
   operand_semantics: { ordering: "insignificant", duplicates: "forbidden" },
-  multiplicity: ["equals", "has_cardinality"].includes(predicate)
+  multiplicity: ["equals", "has_cardinality", "returns"].includes(predicate)
     ? "single_value_per_subject_scope"
     : predicate === "not_equals" ? "conjunctive_constraint" : "relation_set",
   controlled_complement: predicate === "equals"
@@ -687,6 +687,30 @@ function vocabularyDigests(vocabulary) {
 }
 
 const VOCABULARY_DIGESTS = deepFreeze(vocabularyDigests(CONTROLLED_VOCABULARY));
+
+export const RELATION_AUTHORING_AVAILABILITY = deepFreeze({
+  schema_version: "controlled-relation-authoring-availability.v1",
+  excluded: ["reference:supports", "reference:uses", "reference:targets", "reference:has_property",
+    "reference:covers", "reference:conforms_to", "reference:complete_against", "reference:behaviorally_equivalent",
+    "reference:semantically_equivalent", "reference:conflicts_with", "reference:matches", "number:matches"],
+  pending_definition: ["reference:classifies_as", "reference:has_identity", "reference:has_type", "reference:has_state",
+    "reference:has_status", "reference:has_value", "reference:resolves_to", "reference:completes", "reference:invalidates",
+    "reference:preserves", "reference:replaces", "reference:unchanged_from_frozen_base", "boolean:authoritative",
+    "boolean:deterministic", "boolean:immutable"],
+  positions: { requirement_behavior: "behavioral", verification_fails_when: "behavioral", verification_observes: "observation" }
+});
+const unavailableBehavioralRelations = new Set([
+  ...RELATION_AUTHORING_AVAILABILITY.excluded, ...RELATION_AUTHORING_AVAILABILITY.pending_definition]);
+if (unavailableBehavioralRelations.size !== 27 || [...unavailableBehavioralRelations].some(term => !OPERATORS.some(row => row.term === term))) {
+  throw new TypeError("relation authoring availability must identify exactly 27 existing relations");
+}
+export function relationAvailableForAuthoring(term, position) {
+  if (!Object.hasOwn(RELATION_AUTHORING_AVAILABILITY.positions, position)) {
+    throw new TypeError(`unknown relation authoring position ${JSON.stringify(position)}`);
+  }
+  return OPERATORS.some(row => row.term === term) &&
+    (RELATION_AUTHORING_AVAILABILITY.positions[position] === "observation" || !unavailableBehavioralRelations.has(term));
+}
 
 export {
   APPLICABILITY_MODES,

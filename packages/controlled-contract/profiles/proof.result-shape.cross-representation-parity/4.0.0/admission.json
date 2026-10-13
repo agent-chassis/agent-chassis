@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "9f014d9621e0ebae975ac8b2cae72aba1cebbe5313984b5174b53b0f1d0245a2",
+  "parameter_contract_digest": "789727809ac529b4b794d1d6113ca96ea88be49fa1acce79f24ae9a8567973f4",
   "profile_id": "proof.result-shape.cross-representation-parity",
   "profile_version": "4.0.0",
-  "profile_digest": "abbc6e30664d821b34adddc0a02c54b40f6bb3e0e91302e14b402eba2a389162",
+  "profile_digest": "aa232efe89be438425ee777e20f97657a3a14251ef6b289e8b547df182521b4d",
   "guarantee": "For one declared logical source, two distinct result surfaces expose equal complete populations of typed member descriptors by mutual subset, bind one shared exact nonnegative member count, emit count signals equal to that count, and expose one explicitly selected canonical value pair that is exactly equal. One verification reads both full representations and each verified behavior has its controlled complement as a separate falsifier.",
   "guarantee_digest": "dbdd109fc9962e1d632ad0dde104123ccbf2a37d79c402d77f7eb5f1f0b0635e",
   "explicit_exclusions": [
@@ -22,9 +22,9 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "d3786ed4730a6d02e6add5e52d0b3f44609d77990f67dd9d9339bac4ebe3cb69",
-    "adequacy_result_digest": "a0e53ceba27748081a0b0c4b58d61040102d39f42d63ed6ce2b9bb71e15cc42d",
-    "executable_control_count": 40,
+    "adequacy_declaration_digest": "891a7d668c2198bc0568829ee772154d6a5a6fb2256b2fc77e9810af4b5c809e",
+    "adequacy_result_digest": "2d34896b1e256bd0368f1ccc0da26c17b8ca111330067d19c385c990706082e6",
+    "executable_control_count": 50,
     "negative_fixture_count": 87,
     "coverage_witness_count": 87
   }

@@ -14,6 +14,7 @@ import { bindTestProofExecutionTimings, notStartedTestProofTiming, testProofExec
   "../../../agent-launch-core/src/lib/test-proof-timing.mjs";
 import { VERIFY_PROOF_TOOL_NAME, projectProofAuthoringRecoveryCall, projectObservedEvidence,
   projectVerifyProofFailure, verifyProofFailureContinuationFacts } from "./verify-proof-public-result.mjs";
+import { executeVerifyProofRegressions } from "./verify-proof-regressions.mjs";
 
 const VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION = "workspace-verify-proof-aggregate.v1";
 const DIGEST_RE = /^sha256:[a-f0-9]{64}$/u;
@@ -78,10 +79,17 @@ function aggregateStatus(statuses) {
   return "satisfied";
 }
 
+function statusWithRegressions(status, regressions) {
+  if (regressions === null || status !== "satisfied") return status;
+  if (regressions.counts.failed > 0) return "unsatisfied";
+  return regressions.counts.passed === regressions.counts.declared ? "satisfied" : "not_executable";
+}
+
 function aggregateResult({ resolution, runtime, proofResults, reasonCode = null,
-  diagnostics = [], requestedEnvironment = null, executionTimings = null }) {
+  diagnostics = [], requestedEnvironment = null, executionTimings = null, regressions = null }) {
   const statuses = proofResults.map(({ status }) => status);
-  const status = reasonCode === null ? aggregateStatus(statuses) : "not_executable";
+  const status = reasonCode === null ? statusWithRegressions(aggregateStatus(statuses), regressions)
+    : "not_executable";
   const counts = {
     proofs: proofResults.length,
     relationships: proofResults.reduce((total, proof) =>
@@ -118,6 +126,7 @@ function aggregateResult({ resolution, runtime, proofResults, reasonCode = null,
     ...(resolution.proof_opt_outs === undefined ? {} : { proof_opt_outs: {
       obligation_ids: [...resolution.proof_opt_outs], accounting: "opted_out",
       proofs_executed: 0, credit_granted: 0 } }),
+    ...(regressions === null ? {} : { regression_results: structuredClone(regressions) }),
     downstream_authority: Object.freeze({ review: false, admission: false,
       closure: false, merge: false, lifecycle: false })
   };
@@ -220,7 +229,7 @@ export function buildUnavailableProofResult({ resolution, runtime, proof, blocke
     };
 }
 
-function preflightFailureResult(resolution, runtime, requestedEnvironment) {
+function preflightFailureResult(resolution, runtime, requestedEnvironment, regressions = null) {
   const diagnostics = resolution.diagnostics ?? [];
   const proofResults = (resolution.proofs ?? []).map((proof) => {
     const blockers = proof.failure ? [proof.failure] : diagnostics.filter((diagnostic) =>
@@ -232,7 +241,12 @@ function preflightFailureResult(resolution, runtime, requestedEnvironment) {
   });
 
   return aggregateResult({ resolution, runtime, proofResults,
-    reasonCode: resolution.reason_code, diagnostics, requestedEnvironment, executionTimings: [] });
+    reasonCode: resolution.reason_code, diagnostics, requestedEnvironment, executionTimings: [], regressions });
+}
+
+function declaredRegressions(binding) {
+  return Array.isArray(binding?.regression_tests) && binding.regression_tests.length > 0
+    ? { unit: `${binding.wk_id}#${binding.selected_unit}`, files: [...binding.regression_tests] } : null;
 }
 
 function individualResolution(population, proof, relationship) {
@@ -419,7 +433,8 @@ export async function executeVerifyProofForContext({
   resolutionContext,
   runtime,
   deps = {},
-  signal = null
+  signal = null,
+  regressionHost = null
 } = {}) {
   const resolveOperation = deps.resolveVerifyProofOperation ?? resolveVerifyProofOperation;
   if (typeof runtime?.assertCurrentIdentity !== "function") throw new VerifyProofOperationError(
@@ -429,23 +444,37 @@ export async function executeVerifyProofForContext({
   const budget = mintTestProofExecutionBudget({ timeoutMs: timeout.milliseconds, signal });
   try {
     return await executeBudgetedVerifyProof({ args, resolutionContext, runtime, deps, resolveOperation,
-      timeout, budget });
+      timeout, budget, regressionHost });
   } finally {
     budget.dispose();
   }
 }
 
 async function executeBudgetedVerifyProof({ args, resolutionContext, runtime, deps, resolveOperation, timeout,
-  budget }) {
+  budget, regressionHost }) {
+
+  if (declaredRegressions(resolutionContext?.executionSourceBinding) !== null && regressionHost === null) {
+    throw new VerifyProofOperationError("verify_proof.regression_host_unavailable.v1",
+      "The execution source declares regression tests and this execution has no host to run and retain them as");
+  }
   await runtime.assertCurrentIdentity();
   const resolution = resolveOperation({ args, context: resolutionContext });
   const eligible = resolution.eligible ?? (resolution.status === "executable" ? resolution.proofs : []);
   const ineligible = resolution.ineligible ?? (resolution.status === "not_executable" ? resolution.proofs : []);
+  const requestedEnvironment = args?.environment ?? null;
+
+  const binding = resolutionContext?.executionSourceBinding ?? null;
+  const runRegressions = () => executeVerifyProofRegressions({
+    declared: declaredRegressions(binding), runtime, budget, environment: requestedEnvironment,
+    source: { kind: "verify_proof_candidate", role: runtime.role,
+      commit: /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(binding?.candidate ?? "") ? binding.candidate : null,
+      snapshotDigest: binding?.source_snapshot_digest ?? null },
+    host: regressionHost,
+    interruptions: EXECUTION_INTERRUPTIONS, deps });
   if (!eligible.length) {
     await runtime.assertCurrentIdentity();
-    return preflightFailureResult(resolution, runtime, args?.environment ?? null);
+    return preflightFailureResult(resolution, runtime, requestedEnvironment, await runRegressions());
   }
-  const requestedEnvironment = args?.environment ?? null;
   if (requestedEnvironment !== null) {
 
     const unique = [...new Map(eligible.map((proof) => [proof.execution_key, proof])).values()];
@@ -493,11 +522,11 @@ async function executeBudgetedVerifyProof({ args, resolutionContext, runtime, de
   }
   assertCompleteRuntimeSelection(completeSelection, verificationIds, resolution);
   return executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
-    completeSelection, budget, timeout, requestedEnvironment });
+    completeSelection, budget, timeout, requestedEnvironment, runRegressions });
 }
 
 async function executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
-  completeSelection, budget, timeout, requestedEnvironment }) {
+  completeSelection, budget, timeout, requestedEnvironment, runRegressions }) {
   const evidenceByExecution = new Map();
   const attemptObservationByExecution = new Map();
   const mintAttemptContext = deps.mintAttemptContext ?? mintLauncherTestProofAttemptContext;
@@ -713,7 +742,8 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
     }])];
   return aggregateResult({ resolution, runtime, proofResults,
     diagnostics: aggregateDiagnostics, requestedEnvironment,
-    executionTimings: [...executionIndex.keys()].map((key) => executionTiming.get(key) ?? null) });
+    executionTimings: [...executionIndex.keys()].map((key) => executionTiming.get(key) ?? null),
+    regressions: await runRegressions() });
 }
 
 export { aggregateResult, VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION };

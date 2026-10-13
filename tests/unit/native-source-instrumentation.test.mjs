@@ -82,6 +82,49 @@ test("JavaScript and TypeScript modules gain line-preserving probes and one exac
     refusedWith("source_language_unsupported"));
 });
 
+test("anonymous block-bodied JavaScript and TypeScript functions gain their own probes", async () => {
+  const source = [
+    "import { forwardRef, type PropsWithChildren } from 'react';",
+    "export type Props = { readonly label: string };",
+    "const Box = forwardRef<HTMLDivElement, PropsWithChildren<Props>>((props, ref) => {",
+    "  const label = props.label;",
+    "  return <div ref={ref}>{label}</div>;",
+    "});",
+    "export const pair = [function () { \"use strict\"; return 1; }, () => { return 2; }];",
+    "export const short = forwardRef((props) => <span>{props.label}</span>);",
+    "export function named() { return [3].map((value) => { return value; }); }",
+    "export default Box;",
+    ""
+  ].join("\n");
+  const expected = [["<anonymous:3:66>", 3, false], ["<anonymous:7:22>", 7, false],
+    ["<anonymous:7:63>", 7, false], ["named", 9, false], ["<anonymous:9:42>", 9, false]];
+  const first = await instrumentJavaScriptModule({ source, modulePath: "src/components/Box.tsx" });
+  const jsProbe = (token) => `Symbol.for("launcher.test-proof.reach"))?.("${token}");`;
+  assertProbes(first.probes, expected, first.source, jsProbe);
+  assert.deepEqual(first.functions, expected.map(([name, line]) => ({ name, line })));
+  assert.equal(lines(first.source), lines(source));
+
+  for (const [name, line] of expected.filter(([name]) => name.startsWith("<"))) {
+    const column = Number(name.slice(1, -1).split(":")[2]);
+    assert.match(source.split("\n")[line - 1].slice(column - 1), /^(?:\(|function \()/u, name);
+  }
+
+  assert.match(first.source, /\(\(props, ref\) => \{ Reflect\.get\(globalThis[^\n]*\n {2}const label = props\.label;/u);
+  assert.match(first.source, /function \(\) \{ "use strict"; Reflect\.get\(globalThis/u);
+  assert.ok(first.source.includes("forwardRef((props) => <span>{props.label}</span>);"));
+
+  const second = await instrumentJavaScriptModule({ source, modulePath: "src/components/Box.tsx" });
+  assert.deepEqual(second.functions, first.functions);
+  assert.equal(new Set([...first.probes, ...second.probes].map(({ token }) => token)).size, 2 * expected.length);
+
+  const mutable = "export function answer() {\n  return 42;\n}\nexport const run = wrap(() => {\n  return answer();\n});\n";
+  const mutated = await instrumentJavaScriptModule({ source: mutable, modulePath: "src/answer.mjs",
+    mutation: { function_name: "answer", replacement: 41 } });
+  assertProbes(mutated.probes, [["answer", 1, true], ["<anonymous:4:25>", 4, false]], mutated.source, jsProbe);
+  await assert.rejects(instrumentJavaScriptModule({ source: mutable, modulePath: "src/answer.mjs",
+    mutation: { function_name: "<anonymous:4:25>", replacement: 41 } }), refusedWith("function_absent"));
+});
+
 test("Go modules and test files are instrumented without changing lines", async () => {
   const source = "package calc\n\n// Answer is 42.\nfunc Answer() int {\n\treturn 42\n}\n\nfunc (c Calc) Name() string {\n\treturn \"calc\"\n}\n";
   const module = await instrumentGoModule({ source, modulePath: "go/calc/answer.go",
@@ -127,8 +170,8 @@ test("Go modules and test files are instrumented without changing lines", async 
   assert.doesNotMatch(deferred, /window_end|test_result/u, "function return closes nothing");
   assert.match(deferred, /panic\(recovered\)/u, "a recorded panic is re-raised");
 
-  assert.match(cleanup, /"errors": \[\]any\{map\[string\]any\{"id": "error-0", "name": "panic", "message": panicMessage\}\}/u);
-  assert.match(cleanup, /"status": "unavailable"[^\n]*\n[^\n]*"issues": \[\]any\{map\[string\]any\{"path": "\/error", "reason": "error_not_supplied"\}\}/u);
+  assert.match(cleanup, /"errors": \[\]interface\{\}\{map\[string\]interface\{\}\{"id": "error-0", "name": "panic", "message": panicMessage\}\}/u);
+  assert.match(cleanup, /"status": "unavailable"[^\n]*\n[^\n]*"issues": \[\]interface\{\}\{map\[string\]interface\{\}\{"path": "\/error", "reason": "error_not_supplied"\}\}/u);
   assert.match(cleanup, /"assertion_failure": failed && !panicked/u, "assertion attribution is unchanged");
   assert.doesNotMatch(observer, /"error":/u, "the removed lossy error record is gone");
 });

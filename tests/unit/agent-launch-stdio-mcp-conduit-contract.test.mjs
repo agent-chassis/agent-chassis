@@ -912,3 +912,50 @@ test("the conduit host is started with the launcher's native usage task carriers
     }
   }
 });
+
+test("the conduit host is started with the launcher's dependency locations and toolchain selection exactly as supplied, and nothing else new", async () => {
+  const { DEPENDENCY_LOCATION_ENVIRONMENT, TOOLCHAIN_SELECTION_ENVIRONMENT,
+    HOST_SERVER_RUNTIME_ENVIRONMENT_NAMES: DEPENDENCY_LOCATION_ENVIRONMENT_NAMES } = await import(
+    "../../packages/agent-launch-cli/src/lib/test-runtime-setup/location-environment.mjs");
+  assert.deepEqual(DEPENDENCY_LOCATION_ENVIRONMENT, { deno: ["DENO_DIR", "XDG_CACHE_HOME"],
+    go_modules: ["GOPATH", "GOMODCACHE", "GOENV", "XDG_CONFIG_HOME"], cargo: ["CARGO_HOME"] });
+  assert.deepEqual(TOOLCHAIN_SELECTION_ENVIRONMENT, { rust: ["RUSTUP_HOME", "RUSTUP_TOOLCHAIN"],
+    go: ["GOTOOLCHAIN"] });
+  assert.deepEqual([...DEPENDENCY_LOCATION_ENVIRONMENT_NAMES].sort(), ["CARGO_HOME", "DENO_DIR", "GOENV",
+    "GOMODCACHE", "GOPATH", "GOTOOLCHAIN", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "XDG_CACHE_HOME", "XDG_CONFIG_HOME"]);
+
+  const UNRELATED = ["GOFLAGS", "GOPROXY", "GOCACHE", "GOROOT", "GOSUMDB", "GOPRIVATE", "CARGO_TARGET_DIR",
+    "RUSTUP_DIST_SERVER", "RUSTUP_UPDATE_ROOT", "RUSTC", "RUSTC_WRAPPER", "RUSTFLAGS", "CARGO_REGISTRY_TOKEN", "DENO_AUTH_TOKENS", "DENO_CERT", "NODE_PATH", "NODE_OPTIONS",
+    "npm_config_cache", "NPM_TOKEN", "PYTHONPATH", "VIRTUAL_ENV", "PIP_INDEX_URL", "XDG_DATA_HOME",
+    "XDG_STATE_HOME", "WK2734_AMBIENT"];
+  const KEYS = [...DEPENDENCY_LOCATION_ENVIRONMENT_NAMES, ...UNRELATED];
+  const saved = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
+
+  const input = { assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO, DENO_DIR: "/forged/deno",
+    env: { CARGO_HOME: "/forged/cargo" } };
+  try {
+    for (const key of KEYS) delete process.env[key];
+    const without = __testing.buildServerEnv(input, "worker");
+    assert.deepEqual(KEYS.filter((key) => key in without), [], "an absent variable stays absent");
+    for (const key of UNRELATED) process.env[key] = `/ambient/${key}`;
+    const supplied = { DENO_DIR: "/deno-cache", XDG_CACHE_HOME: "/operator/cache", GOPATH: "/operator/go:/second",
+      GOMODCACHE: "/operator/modcache", GOENV: "off", XDG_CONFIG_HOME: "", CARGO_HOME: "relative/cargo",
+      RUSTUP_HOME: "/operator/rustup", RUSTUP_TOOLCHAIN: "1.98.1-x86_64-unknown-linux-gnu", GOTOOLCHAIN: "local" };
+    Object.assign(process.env, supplied);
+    for (const role of ["orchestrator", "worker", "reviewer"]) {
+      const carried = __testing.buildServerEnv(input, role);
+      assert.deepEqual(Object.fromEntries(DEPENDENCY_LOCATION_ENVIRONMENT_NAMES.map((key) => [key, carried[key]])),
+        supplied, "each value is the launcher's own string, unresolved, for every role");
+      assert.deepEqual(UNRELATED.filter((key) => key in carried), []);
+      assert.deepEqual(Object.keys(carried).filter((key) => !(key in without)).sort(),
+        [...DEPENDENCY_LOCATION_ENVIRONMENT_NAMES].sort(), "these names are the only keys their presence adds");
+    }
+    delete process.env.DENO_DIR;
+    assert.equal("DENO_DIR" in __testing.buildServerEnv(input, "worker"), false);
+  } finally {
+    for (const key of KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+});
