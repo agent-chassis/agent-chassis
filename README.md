@@ -7,7 +7,7 @@
 AgentChassis is a local orchestration system for building and maintaining
 complex software with coding agents. It coordinates planning, parallel
 implementation, verification and delivery while enforcing each agent’s
-permissions. Mix Codex, Claude Code, OpenCode and agy, with shared work records
+permissions. Mix Codex, Claude Code, OpenCode and Antigravity, with shared work records
 that preserve decisions, results and progress across sessions.
 
 ## Install
