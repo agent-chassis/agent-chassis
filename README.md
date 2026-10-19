@@ -39,7 +39,7 @@ Describe what you want to build or change.
 
 ## What you get
 
-- **Your choice of agent, anytime:** Use Codex, Claude Code, OpenCode or agy—or
+- **Your choice of agent, anytime:** Use Codex, Claude Code, OpenCode or Antigravity—or
   mix them. Committed work records capture what was done, why it was done and
   what’s in progress. New agents can pick up existing work or reconstruct
   months-old work with a search.
