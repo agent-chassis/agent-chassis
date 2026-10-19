@@ -129,6 +129,9 @@ async function assertObligationCoverageSourcePathIntegrity(input, {
         {
           changed: false,
           cause: error?.code ?? null,
+          source_failure: { code: error.code ?? null, message: error.message,
+            path: error.path ?? file, operation: error.syscall ?? null,
+            ...(error.errno === undefined ? {} : { errno: error.errno }) },
 
           definition_source: {
             unit: selectedUnit === null ? input.wkId : `${input.wkId}#${selectedUnit}`,
@@ -136,7 +139,7 @@ async function assertObligationCoverageSourcePathIntegrity(input, {
             path: path.relative(repository.repository, file).split(path.sep).join("/"),
             cause: error?.code ?? null
           }
-        }
+        }, error
       );
     }
   }

@@ -9,13 +9,26 @@ function connectFixedProbeMcp({ clientName, requestTimeoutMs = 15000,
   const pending = new Map();
   let buffer = "";
   let nextId = 1;
+  let failure = null;
+  function fail(error) {
+    if (failure !== null) return;
+    failure = error;
+    for (const waiter of pending.values()) {
+      clearTimeout(waiter.timer);
+      waiter.reject(error);
+    }
+    pending.clear();
+    socket.off("data", receive);
+    socket.destroy();
+  }
+  socket.on("error", fail);
   if (onSocketError !== null) socket.once("error", onSocketError);
   function request(method, params, { timeoutMs = requestTimeoutMs } = {}) {
+    if (failure !== null) return Promise.reject(failure);
     const id = nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        pending.delete(id);
-        reject(new Error("MCP probe timeout: " + method));
+        fail(new Error("MCP probe timeout: " + method));
       }, timeoutMs);
       pending.set(id, { resolve, reject, timer });
       socket.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
@@ -30,7 +43,12 @@ function connectFixedProbeMcp({ clientName, requestTimeoutMs = 15000,
       buffer = buffer.slice(end + 1);
       if (!line) continue;
       let message;
-      try { message = JSON.parse(line); } catch { continue; }
+      try { message = JSON.parse(line); }
+      catch { fail(new Error("MCP probe response is not JSON")); return; }
+      if (message === null || typeof message !== "object" || Array.isArray(message)) {
+        fail(new Error("MCP probe response is not an object"));
+        return;
+      }
       const waiter = pending.get(message.id);
       if (!waiter) continue;
       pending.delete(message.id);
@@ -41,32 +59,47 @@ function connectFixedProbeMcp({ clientName, requestTimeoutMs = 15000,
   }
   return (async () => {
     await new Promise((resolve, reject) => {
-      socket.once("connect", resolve);
-      socket.once("error", reject);
+      const connected = () => { socket.off("error", rejected); resolve(); };
+      const rejected = error => { socket.off("connect", connected); reject(error); };
+      socket.once("connect", connected);
+      socket.once("error", rejected);
     });
     socket.setEncoding("utf8");
     const token = readFileSync("/run/agent-launch/mcp.token");
     socket.write(Buffer.concat([Buffer.from("agent-chassis-v1 ", "ascii"), token]));
     await new Promise((resolve, reject) => {
       let acknowledgement = "";
-      const timeout = setTimeout(() => reject(new Error("MCP acknowledgement timeout")),
-        acknowledgementTimeoutMs);
+      const cleanup = () => {
+        clearTimeout(timeout);
+        socket.off("data", onAcknowledgement);
+        socket.off("end", onEnd);
+        socket.off("close", onClose);
+        socket.off("error", rejected);
+      };
+      const rejected = error => { cleanup(); fail(error); reject(error); };
+      const onEnd = () => rejected(new Error("MCP connection ended before acknowledgement"));
+      const onClose = () => rejected(new Error("MCP connection closed before acknowledgement"));
+      const timeout = setTimeout(() => rejected(new Error("MCP acknowledgement timeout")), acknowledgementTimeoutMs);
       const onAcknowledgement = chunk => {
         acknowledgement += chunk;
         const end = acknowledgement.indexOf("\n");
         if (end < 0) return;
-        socket.off("data", onAcknowledgement);
-        clearTimeout(timeout);
+        cleanup();
         if (acknowledgement.slice(0, end + 1) !== "agent-chassis-v1 OK\n") {
-          reject(new Error("MCP acknowledgement invalid"));
+          rejected(new Error("MCP acknowledgement invalid"));
           return;
         }
         socket.on("data", receive);
+        socket.once("end", () => fail(new Error("MCP connection ended before response")));
+        socket.once("close", () => fail(new Error("MCP connection closed before response")));
         const remainder = acknowledgement.slice(end + 1);
         if (remainder) receive(remainder);
         resolve();
       };
       socket.on("data", onAcknowledgement);
+      socket.once("end", onEnd);
+      socket.once("close", onClose);
+      socket.once("error", rejected);
     });
     const initialized = await request("initialize", { protocolVersion: "2024-11-05",
       capabilities: {}, clientInfo: { name: clientName, version: "1.0.0" } });
@@ -99,15 +132,16 @@ async function readFixedProbeAssignment(mcp) {
   };
   const first = page(await mcp.callTool("workspace_read_wiki", { assignment: true }));
   const next = first.next_calls?.find(call => call.arguments?.select?.field === "guidance");
-  if (!next || typeof next.tool !== "string") {
+  if (!next || typeof next.tool !== "string" || typeof first.reference?.ref_id !== "string" ||
+      JSON.stringify(next.arguments.reference) !== JSON.stringify(first.reference)) {
     throw new Error("assignment_read_missing_guidance_selection:" + JSON.stringify(first));
   }
   const selected = page(await mcp.callTool(next.tool, next.arguments));
   if (selected.complete !== true || selected.field !== "guidance" ||
-      typeof selected.value !== "string" || !selected.identity || typeof first.revision !== "string") {
+      typeof selected.value !== "string") {
     throw new Error("assignment_read_invalid_guidance_selection:" + JSON.stringify(selected));
   }
-  return { guidance: selected.value, reads: 2, source_digest: first.revision, identity: selected.identity };
+  return { guidance: selected.value, reads: 2, reference: first.reference };
 }
 
 function fixedProbeDeliveredText(prompt, assignment) {

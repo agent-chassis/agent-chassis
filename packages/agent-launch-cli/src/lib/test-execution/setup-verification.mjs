@@ -60,7 +60,7 @@ export async function planEnvironmentProbes({ repositoryRoot, candidateRecord, e
     return { invocation: { ...invocation,
       directories: [...(invocation.directories ?? []), ...runtime.directories],
       copies: [{ from: runtime.projectDir, to: workingCopy, entries }],
-      links: runtime.links } };
+      links: runtime.links, writes: [...(invocation.writes ?? []), ...runtime.writes] } };
   };
   const probes = [];
   for (const name of Object.keys(runtime.toolchains).sort()) {

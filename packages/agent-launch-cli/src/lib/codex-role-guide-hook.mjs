@@ -7,8 +7,6 @@ import {
 } from "@agent-chassis/agent-launch-core/src/lib/codex-session-hook-config.mjs";
 import { buildCodexUsageHookIdentity } from "@agent-chassis/agent-launch-core/src/lib/native-usage-codex-session.mjs";
 
-import { resolveRoleGuideCompactionHook } from "./role-guide-compaction-hook.mjs";
-
 export const CODEX_ROLE_GUIDE_HOOK_STATE_KEY = codexSessionFlagsHookStateKey(0);
 
 export function buildCodexRoleGuideHookIdentity(hook) {
@@ -25,11 +23,11 @@ export function buildCodexRoleGuideHookIdentity(hook) {
   };
 }
 
-export function buildCodexRoleGuideHookConfigOverrides(launchRole, {
-  resolveHook = resolveRoleGuideCompactionHook,
-  usageHook = null
+export function buildCodexRoleGuideHookConfigOverrides(delivery, {
+  usageHook = null,
+  confined = true
 } = {}) {
-  const hook = resolveHook(launchRole);
+  const hook = delivery != null && (confined || delivery.highPriority) ? delivery.hook : null;
   return buildCodexSessionStartHookOverrides([
     ...(hook === null ? [] : [buildCodexRoleGuideHookIdentity(hook)]),
     ...(usageHook === null ? [] : [buildCodexUsageHookIdentity(usageHook)])

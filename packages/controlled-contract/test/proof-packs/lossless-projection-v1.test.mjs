@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  assessControlOutcomes,
   canonicalDigest,
   claimNestedSemanticDescriptors,
   guaranteeDigest,
@@ -41,7 +42,7 @@ const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
-const identity = { profile_id: "proof.completeness.lossless-projection", profile_version: "4.0.0" };
+const identity = { profile_id: "proof.completeness.lossless-projection", profile_version: "5.0.0" };
 const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
 const packDirectory = certificationDirectory(identity);
 
@@ -173,6 +174,12 @@ function coupledOperatorCandidate(profile, descriptor, expanded) {
 
 function aggregateCandidate(profile, fixtureId) {
   const candidate = structuredClone(profile);
+  if (fixtureId === "reject-hidden-source-member") {
+    candidate.reference_binding_patterns.find(
+      ({ pattern_id: id }) => id === "source-accounted-by-compact-and-omissions"
+    ).roles = ["accounted_population", "accounted_members"];
+    return candidate;
+  }
   if (fixtureId === "reject-three-mode-count") {
     candidate.number_roles.find(({ role }) => role === "mode_count").maximum = 3;
   } else if (fixtureId === "reject-collapsed-mode-identities") {
@@ -232,21 +239,21 @@ function aggregateCandidate(profile, fixtureId) {
   return candidate;
 }
 
-test("lossless projection 1.0 binds and admits its complete proof corpus", async () => {
+test("lossless projection 5.0 binds and admits its complete proof corpus", async () => {
   const [profile, adequacy] = await Promise.all([
     readJson("profile.json"),
     readJson("adequacy.json")
   ]);
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
-  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 179);
+  assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 180);
   assert.equal(adequacy.noncritical_profile_surfaces.length, 160);
 
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
     assert.equal(result.passed, true, variationMode);
-    assert.equal(result.control_count, 47);
-    assert.equal(result.negative_fixture_count, 16);
+    assert.equal(result.control_count, 48);
+    assert.equal(result.negative_fixture_count, 17);
     assert.equal(result.negative_fixture_results.every(
       ({ outcome }) => outcome === "rejected"
     ), true);
@@ -321,7 +328,7 @@ test("every claimed coverage binding rejects canonical and rebounds under its we
         }
       }
     }
-    assert.equal(checked, 179);
+    assert.equal(checked, 180);
 
     const semantic = fixtures.get("semantic-claim-variations-base");
     const reviewerExample = expandedCoverageFixture(semantic,
@@ -354,13 +361,39 @@ test("executable controls span distinct projections and kill every implementatio
       ...counts,
       [category]: (counts[category] ?? 0) + 1
     }), {});
+    assert.equal(observations.passed, true, "all additional applicability checks pass");
+    const adequacy = await readJson("adequacy.json");
+    assert.deepEqual(assessControlOutcomes(adequacy, observations.controls), []);
     assert.deepEqual(categories, {
-      positive: 4,
-      mutant: 8,
-      profile_rejection: 14,
+      positive: 10,
+      mutant: 26,
+      profile_rejection: 3,
       exclusion: 9
     });
   });
+
+test("negative controls require the intended executed checker and authored reason", async () => {
+  const adequacy = await readJson("adequacy.json");
+  const observations = await runProofPackAdequacyControls({
+    profile: LOSSLESS_PROJECTION_V1_PROFILE, negative_fixtures: currentControlFixtures
+  });
+  const f2 = observations.controls.find(row => row.control_id === "compact-loss-falsely-accounted");
+  assert.equal(f2.profile_satisfaction, "unsatisfied");
+  assert.deepEqual(f2.rejection, {
+    checker: "proof_evaluator", subject: "evaluation_input",
+    expected_reason: "pattern:source-accounted-by-compact-and-omissions:unsatisfied",
+    actual_reason: "pattern:source-accounted-by-compact-and-omissions:unsatisfied"
+  });
+  for (const mutate of [
+    row => { row.profile_satisfaction = "indeterminate"; },
+    row => { row.rejection.actual_reason = "unrelated_failure"; },
+    row => { row.rejection.checker = "transformer"; row.rejection.subject = "transformer_input"; }
+  ]) {
+    const controls = structuredClone(observations.controls);
+    mutate(controls.find(row => row.control_id === f2.control_id));
+    assert.notDeepEqual(assessControlOutcomes(adequacy, controls), []);
+  }
+});
 
 test("status-only and covers-symbol smoke proofs cannot satisfy the guarantee", () => {
   const rejections = profileRejectionFixtures(LOSSLESS_PROJECTION_V1_PROFILE);

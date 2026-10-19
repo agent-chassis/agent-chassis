@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "228dce91f4fafcae617c3eaf5d1b008d168e066d5e86a99eef352ae59ddc9175",
+  "parameter_contract_digest": "3b3d36e087eaaea28b8508b21eb3d96c44e204bf0104d7c0614b76e92d595dcc",
   "profile_id": "proof.ordering.visibility-after-durable-settlement",
   "profile_version": "4.0.0",
-  "profile_digest": "f5e3a5de0ae1f1bfdd30bcccf4b4969026389947715fea0e84efd509a3f89edf",
+  "profile_digest": "ee24b6d72157cc8ab09b58aceef905a52156e72508c73d473a4bfe551317b4ea",
   "guarantee": "For one caller-declared effect population, declared success or visibility cannot precede durable settlement of every declared effect; failure visibility is empty, and a selected post-visibility observation of that declared population equals the caller-declared expected durable state.",
   "guarantee_digest": "04ce2d798103d1c8c32829cffd34c148c3ca710c0c0f4a016ee1d1945863351c",
   "explicit_exclusions": [
@@ -16,8 +16,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "567823c7f3a1f3e5d38b2a62798f11960a81f12d4c7137640493ae0efa16587c",
-    "adequacy_result_digest": "d7fb9230828298ef5e946c7400a1bcc277fb9f8be8e82fbe698a804beb6abec7",
+    "adequacy_declaration_digest": "99d4e5583da38bd7b4f643cfa5e015fc372e4af7e8adb35bca9137c483072d16",
+    "adequacy_result_digest": "93d91b235b8ee2fa5db38b3b06bad5ae4160d3629099e8270dd342c2cc08784b",
     "executable_control_count": 48,
     "negative_fixture_count": 10,
     "coverage_witness_count": 130

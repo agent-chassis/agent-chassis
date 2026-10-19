@@ -5,9 +5,10 @@ import test from "node:test";
 
 import { TEST_RUNTIME_RUNNER_CATALOG } from
   "../../packages/controlled-contract/lib/test-proof-provider-registry.mjs";
+import { selectAutomaticTestEnvironments } from
+  "../../packages/agent-launch-cli/src/lib/test-runtime-setup/automatic-selection.mjs";
 import {
   EXCLUSION_REASONS,
-  MANIFEST_NAMES,
   discoverRuntimeEnvironments,
   manifestDeclaration,
   environmentsForLanguage,
@@ -32,6 +33,126 @@ const discover = (files) => discoverRuntimeEnvironments({
 const pkg = (body) => JSON.stringify(body);
 const rows = ({ environments }) => environments.map(({ id, members, runners }) => ({ id, members, runners }));
 const LOCK = pkg({ lockfileVersion: 3 });
+const automatic = (files) => selectAutomaticTestEnvironments({ inventory: discover(files),
+  testSources: Object.keys(files).filter((file) => /\.[cm]?[jt]sx?$/u.test(file)),
+  readFile: (file) => files[file] ?? null });
+
+test("automatic preparation selects independent test applications without changing ownership", () => {
+  const files = {
+    "package.json": pkg({ name: "packaging", scripts: { build: "bundle" } }),
+    "engines/alpha/package.json": pkg({ name: "alpha", devDependencies: { vitest: "3" } }),
+    "engines/alpha/deno.jsonc": '{ // development only\n "tasks": { "dev": "deno task build", "build": { "command": "deno check main.ts" }, }, }',
+    "clients/omega/package.json": pkg({ name: "omega", devDependencies: { vitest: "3" } }),
+    "clients/omega/deno.json": pkg({ tasks: { dev: { command: "deno run --watch app.ts" } } }),
+    "engines/alpha/example.test.ts": 'import { test } from "vitest"; test("x", () => {});'
+  };
+  const inventory = discover(files);
+  const before = structuredClone(inventory);
+  const selected = selectAutomaticTestEnvironments({ inventory,
+    testSources: ["engines/alpha/example.test.ts"], readFile: (file) => files[file] ?? null });
+  assert.deepEqual(selected.environments.map(({ id }) => id), ["npm@clients/omega", "npm@engines/alpha"]);
+  assert.deepEqual(inventory, before);
+  assert.equal(inventory.environments.length, 5);
+  assert.equal(selected.decisions.find(({ environment }) => environment === "deno@engines/alpha").reason,
+    "colocated_deno_without_test_evidence");
+  assert.equal(selected.decisions.find(({ environment }) => environment === "npm@.").reason, "no_test_evidence");
+});
+
+test("workspace test evidence selects its complete installation and ignores dependency-only packages anywhere", () => {
+  for (const directory of ["docs/getting-started/site", "products/catalog/site"]) {
+    const files = {
+      "package.json": pkg({ private: true, workspaces: ["packages/*"] }),
+      "packages/core/package.json": pkg({ devDependencies: { vitest: "3" } }),
+      "packages/react/package.json": pkg({ scripts: { "test:ui": "vitest --environment=jsdom" } }),
+      [`${directory}/package.json`]: pkg({ dependencies: { react: "19" } })
+    };
+    const selected = automatic(files);
+    assert.deepEqual(rows(selected), [{ id: "npm@.", members: ["packages/core", "packages/react"],
+      runners: ["node-test", "vitest"] }]);
+    assert.equal(discover(files).environments.length, 2);
+    files[`${directory}/package.json`] = pkg({ dependencies: { react: "19" }, scripts: { "test-contract": "make check" } });
+    assert.deepEqual(automatic(files).environments.map(({ id }) => id).sort(), ["npm@.", `npm@${directory}`].sort());
+    assert.equal(Object.keys(files).some((file) => file.includes("lock")), false, "selection does not need locks");
+  }
+});
+
+test("colocated Deno tests include tasks, object declarations, aliases, configuration and native APIs", () => {
+  const cases = [
+    { tasks: { "test:unit": "deno run suite.ts" } },
+    { tasks: { "test-unit": { command: "deno run suite.ts" } } },
+    { tasks: { verify: "deno task native", native: { command: "deno test" } } },
+    { tasks: { verify: { dependencies: ["native"] }, native: "deno test" } },
+    { test: { include: ["checks/"] } }
+  ];
+  for (const config of cases) {
+    const files = { "package.json": pkg({ scripts: { test: "node scripts/check.mjs" } }),
+      "deno.json": pkg(config) };
+    assert.deepEqual(automatic(files).environments.map(({ id }) => id), ["deno@.", "npm@."], pkg(config));
+  }
+  for (const source of ['Deno.test("native", () => {});',
+    'import { describe, it } from "jsr:@std/testing/bdd"; describe("x", () => {});']) {
+    assert.deepEqual(automatic({ "package.json": pkg({ scripts: { test: "node check.js" } }),
+      "deno.json": "{}", "checks/native_test.ts": source }).environments.map(({ id }) => id),
+    ["deno@.", "npm@."]);
+  }
+  assert.deepEqual(automatic({ "deno.json": "{}", "native_test.ts": 'Deno.test("native", () => {});' })
+    .environments.map(({ id }) => id), ["deno@."]);
+  assert.deepEqual(automatic({ "deno.json": "{}" }).environments.map(({ id }) => id), ["deno@."],
+    "standalone Deno discovery is preserved");
+});
+
+test("scriptless native Node evidence is code, not filenames, comments, fixtures or quoted examples", () => {
+  for (const code of ['import test from "node:test"; test("x", () => {});',
+    'const { test } = require("node:test"); test("x", () => {});',
+    'const { test } = await import("node:test");']) {
+    const selected = automatic({ "package.json": "{}", "checks/native.js": code });
+    assert.deepEqual(selected.environments.map(({ id }) => id), ["npm@."]);
+    assert.equal(selected.decisions[0].evidence[0].kind, "native_node_test");
+  }
+  const selected = automatic({ "package.json": pkg({ scripts: { "test:empty": "  " } }),
+    "vitest.test.ts": 'import { test } from "vitest";',
+    "comments.js": '// require("node:test"); Deno.test("x", () => {});\n' +
+      'const example = `import test from "node:test"; Deno.test("x", () => {});`;',
+    "tests/fixtures/native.js": 'require("node:test");' });
+  assert.deepEqual(selected.environments, []);
+  assert.deepEqual(automatic({ "package.json": pkg({ scripts: { test: "node check.js" } }),
+    "deno.json": pkg({ tasks: { build: 'echo "example; deno test"' } }),
+    "example.test.ts": 'import { test } from "vitest"; const sample = /Deno.test()/;' })
+    .environments.map(({ id }) => id), ["npm@."]);
+});
+
+test("selection refuses malformed or unreadable evidence and bounds reported evidence", () => {
+  for (const files of [
+    { "package.json": "{broken" },
+    { "deno.json": "{broken" },
+    { "package.json": pkg({ scripts: { test: null } }) },
+    { "package.json": pkg({ dependencies: null }) },
+    { "package.json": "{}", "deno.json": pkg({ tasks: null }) },
+    { "package.json": "{}", "deno.json": pkg({ tasks: { build: { command: null } } }) },
+    { "package.json": "{}", "deno.json": pkg({ tasks: { build: { dependencies: null } } }) },
+    { "package.json": "{}", "deno.json": pkg({ tasks: { build: { command: 7 } } }) },
+    { "package.json": "{}", "deno.json": pkg({ tasks: { a: "deno task b", b: "deno task a" } }) }
+  ]) assert.throws(() => automatic(files), { code: "test_runtime_manifest_invalid" });
+  assert.throws(() => selectAutomaticTestEnvironments({ inventory: discover({ "package.json": "{}" }),
+    readFile: () => null }), /repository evidence could not be read/u);
+  const unreadable = Object.assign(new Error("EACCES: native.js"), { code: "EACCES" });
+  assert.throws(() => selectAutomaticTestEnvironments({ inventory: discover({ "package.json": "{}" }),
+    testSources: ["native.js"], readFile: (file) => {
+      if (file === "native.js") throw unreadable;
+      return "{}";
+    } }), (error) => error === unreadable);
+  const files = { "package.json": pkg({ scripts: Object.fromEntries(Array.from({ length: 30 }, (_, i) =>
+    [`test:${i}`, "make check"])) }) };
+  const decision = automatic(files).decisions[0];
+  assert.equal(decision.evidence.length, 8);
+  assert.equal(decision.evidence_count, 30);
+});
+
+test("automatic selection preserves Go, Rust and Python behavior", () => {
+  assert.deepEqual(automatic({ "go.mod": "module x", "crates/Cargo.toml": "[package]",
+    "py/requirements.txt": "pytest", "docs/requirements.txt": "sphinx" }).environments.map(({ id }) => id),
+  ["cargo@crates", "go_modules@.", "python@py"]);
+});
 
 test("a toolchain-provided runner is identified by its manifest alone", () => {
   assert.deepEqual(rows(discover({ "go.mod": "module example.com/x\n\ngo 1.26\n" })),
@@ -248,7 +369,7 @@ test("a requirement-file project keeps the runner evidence of its pyproject.toml
   [{ id: "python@.", members: [], runners: ["pytest"] }]);
 });
 
-test("automatic setup prepares only the environments that have a runner", () => {
+test("capability filtering preserves ownership separately from automatic test requirements", () => {
   const found = discover({
     "requirements.txt": "pytest==8.0.0\n",
     "docs/requirements.txt": "sphinx==7.4.7\n",
@@ -271,6 +392,7 @@ test("automatic setup prepares only the environments that have a runner", () => 
     { path: "docs/requirements-dev.txt", reason: EXCLUSION_REASONS.NO_RUNNER },
     { path: "docs/requirements.txt", reason: EXCLUSION_REASONS.NO_RUNNER }
   ]);
+  assert.deepEqual(automatic({ "site/package.json": pkg({ dependencies: { marked: "12" } }) }).environments, []);
 
   assert.deepEqual(rows(environmentsWithRunners(discover({ "docs/requirements.txt": "sphinx\npytest\n" })
     .environments)), [{ id: "python@docs", members: [], runners: ["pytest"] }]);
@@ -300,10 +422,6 @@ test("a multilingual repository prepares every language at once; --language narr
 });
 
 test("only repository project manifests are evidence", () => {
-  assert.deepEqual([...MANIFEST_NAMES].sort(),
-    ["Cargo.toml", "deno.json", "deno.jsonc", "go.mod", "package.json", "pyproject.toml",
-      "requirements-dev.txt", "requirements.txt", "requirements/test.txt", "setup.cfg", "setup.py",
-      "test-requirements.txt"]);
   assert.deepEqual(discover({ "README.md": "# x", "Makefile": "check:\n" }),
     { environments: [], excluded: [] });
 });

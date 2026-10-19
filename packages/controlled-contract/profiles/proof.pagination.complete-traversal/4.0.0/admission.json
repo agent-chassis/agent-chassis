@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "9de8e258b538eb785d41ab612fd1c57bb2b79faf67975bcba580647d93588e46",
+  "parameter_contract_digest": "0bdb55709efe1d264475fa91601c0f5c0a71cd8617c8e1101f2735fc732bebc3",
   "profile_id": "proof.pagination.complete-traversal",
   "profile_version": "4.0.0",
-  "profile_digest": "1f6523c535285a6ad5ac65b84a2460284644493696281deb3be6326b4489af2f",
+  "profile_digest": "cf565c21027246ec10c325539d943df4ba54e9373efb5a1f4ecf747c382b50db",
   "guarantee": "For one exact package-authenticated authoritative ordered-occurrence population and exact captured finite pagination trace, every occurrence is returned exactly once in authoritative order through one canonical initial state, one linear opaque cursor chain, one snapshot/version identity, and one terminal page, with equality-normalized completeness and fail-closed resource accounting.",
   "guarantee_digest": "c5ad980aa18bc912f1364789e814675e45343e85f3ebf56702f932b357323414",
   "explicit_exclusions": [
@@ -18,8 +18,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "0640bd5883f50a9812dd422d7e7d838b0e29de31053059674079a5309bcfe452",
-    "adequacy_result_digest": "634b481972e040a89a3c0ad63e105a15c4788df8d9a1a34ca2e3db4cd5b92b12",
+    "adequacy_declaration_digest": "4c46b67b329ac2877bcb117a5d8c91e1473da52057d924087eede8c1939bb11f",
+    "adequacy_result_digest": "2fa02cba19ebd9410f80677687626f80169b958a74a15cdc983bff595be0ae07",
     "executable_control_count": 49,
     "negative_fixture_count": 0,
     "coverage_witness_count": 33

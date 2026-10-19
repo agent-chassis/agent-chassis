@@ -101,9 +101,10 @@ the separate `work-unit-feature-vector.v1` schema.
 A `WK-*` begins as an allocator-backed inbox record created through `workspace_create_record`. Allocation owns identity and the canonical template only. It does not accept or infer raw controlled-contract carriers, proofs, slices, proof posture, readiness, or lifecycle state.
 
 After identity allocation, every WK authors its controlled-acceptance
-disposition through `workspace_controlled_contract_obligation_coverage_upsert`
-before it is used as an executable implementation contract. Call ordinary query
-first to obtain the combined revision. Canonical `proof_posture` is the sole
+disposition through `save_record` before it is used as an executable
+implementation contract. Read the unit’s current authoring context and follow
+its input-contract call for `controlled_acceptance`; use its current `revision`.
+Canonical `proof_posture` is the sole
 persistent carrier and the controlled-contract semantic-operation family is its
 sole writer. `controlled_acceptance_state` is derived as `absent`,
 `incomplete`, `complete`, or `opted_out` from that posture and the current

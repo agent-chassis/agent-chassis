@@ -285,8 +285,11 @@ test("native records become one graph, and every capture loss is explicit", () =
   assert.deepEqual(dropped.issues.map(({ path, reason }) => [path, reason]),
     [["/errors/0/expected", "capture_budget_exceeded"], ["/errors/0/actual", "capture_budget_exceeded"]]);
   const oversized = captureTestFailureDiagnostic(new Error(huge));
-  assert.deepEqual([oversized.status, oversized.issues], ["unavailable",
-    [{ path: "/error", reason: "capture_budget_exceeded" }]]);
+  assert.equal(oversized.status, "captured");
+  assert.equal(isLauncherTestFailureDiagnostic(oversized), true);
+  assert.equal(oversized.errors[0].message, huge.slice(0, 1024));
+  assert.ok(oversized.issues.some(({ path, reason }) => path === "/errors/0/message" && reason === "capture_budget_exceeded"));
+  assert.ok(Buffer.byteLength(JSON.stringify(oversized)) <= 256 * 1024);
 });
 
 test("the selected projection presents native location, details and origin, deferring large details", () => {

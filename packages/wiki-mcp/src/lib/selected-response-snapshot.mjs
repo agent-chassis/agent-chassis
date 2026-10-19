@@ -12,11 +12,9 @@ import {
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { buildPublicMechanicalRefusal } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
 import { isRuntimeBlockerCode } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
-import { WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES } from
-  "@agent-chassis/wiki-core/src/lib/work-record-entry-schema.mjs";
 
 import {
-  activeMcpInlineByteLimit,
+  selectedResponseDeliveryBound,
   getResponseSpillConfig,
   isReservedControlledContractAssessmentEnvelope,
   jsonContent,
@@ -60,9 +58,7 @@ const SCALAR_RANGE_FRAME_RESERVE_BYTES = 1536;
 const MEASURED_OBSERVATION_STATE = "unavailable";
 const OBSERVATION_IDENTITY_INLINE_MAX_CHARS = 128;
 
-export function selectedResponseDeliveryBound(env = process.env) {
-  return Math.min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES, activeMcpInlineByteLimit(env));
-}
+export { selectedResponseDeliveryBound };
 
 export function selectedResponseMaximumScalarRangeBytes(env = process.env) {
   return scalarRangeBytesWithinDeliveryBound(selectedResponseDeliveryBound(env));

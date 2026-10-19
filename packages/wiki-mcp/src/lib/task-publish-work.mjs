@@ -7,7 +7,7 @@ import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
 import { resolveObligationCoverageQueryContext } from "./controlled-contract-query-context.mjs";
 import { guardToolHandler, jsonContent } from "./mcp-response.mjs";
 import { createToolInputValidationError } from "./register-tool.mjs";
-import { DISPATCH_BLOCKER_CODES, WK_FORGE_HANDOFF_TOOL_NAME } from "./dispatch-tool-constants.mjs";
+import { DISPATCH_BLOCKER_CODES } from "./dispatch-tool-constants.mjs";
 import { buildDispatchContinuation, dispatchRepoResolutionRefusal,
   recordOwnerRegisteredRequestSchema, registrarGuidanceAuthority,
   requestSchemaAuthorityForRegistration } from "./dispatch-tool-helpers.mjs";
@@ -34,7 +34,7 @@ export function buildPublishWorkRequest(subject, { requestSchemaAuthority = null
   const call = !isCanonicalNextCallTool(PUBLISH_WORK_TOOL_NAME) ||
       serving?.registeredTools?.has(PUBLISH_WORK_TOOL_NAME) !== true ? null
     : buildDispatchContinuation({ tool: PUBLISH_WORK_TOOL_NAME, arguments: args,
-    successPredicate: { fact: "forge_handoff.live_record_published", operator: "is_true" },
+    successPredicate: { fact: "publication.confirmed", operator: "is_true" },
     requestSchemaAuthority });
   return call === null ? Object.freeze({ kind: "intended_tool_request", tool: PUBLISH_WORK_TOOL_NAME,
     arguments: Object.freeze(args), callable: false }) : call;
@@ -61,8 +61,8 @@ export function createPublishWorkTask({ workspaceRepos, wkForgeHandoffAdapter,
     if (typeof wkForgeHandoffAdapter !== "function") return jsonContent({
       accepted: false, code: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
       reason: "wk_forge_handoff_executor_unavailable", subject,
-      missing_component: "wk_forge_handoff_adapter", effects: { published: false },
-      correction: "Start this server through the launcher with its canonical repository and configured handoff adapter.",
+      effects: { publication: "not_attempted" },
+      stopping_condition: "Publication cannot be executed through this session. This call attempted no publication; stop this dependent step.",
       next_calls: [] }, { env: responseEnv });
     let binding;
     try {
@@ -73,13 +73,14 @@ export function createPublishWorkTask({ workspaceRepos, wkForgeHandoffAdapter,
         { env: responseEnv });
       throw error;
     }
-    let carrier;
+    let outcome;
     try {
-      const outcome = await wkForgeHandoffAdapter({ assigned_unit: subject });
-      carrier = publicationCarrier(subject, outcome, responseEnv, requestSchemaAuthority);
+      outcome = await wkForgeHandoffAdapter({ assigned_unit: subject });
     } catch (error) {
-      carrier = publicationException(subject, error, responseEnv);
+      return deliverPublication({ carrier: publicationException(subject, error, responseEnv),
+        binding, env: responseEnv, ownerCall, ownerRequestSchema });
     }
+    const carrier = publicationCarrier(subject, outcome, responseEnv, requestSchemaAuthority);
     return deliverPublication({ carrier, binding, env: responseEnv, ownerCall, ownerRequestSchema });
   }
 
@@ -91,7 +92,10 @@ export function createPublishWorkTask({ workspaceRepos, wkForgeHandoffAdapter,
   }
 
   const config = Object.freeze({ description:
-    "Publish the session repository's current exact WK candidate through the existing publication owner.",
+    "Publish the session repository's current WK to its configured destination: " +
+    "a hosted pull request or local/Git handoff. Publication requires preserving reviewed work; " +
+    "the current request does not fence an earlier inspected version. Availability grants no publication permission. " +
+    "The direct-to-main lifecycle excludes this call. Publication neither merges nor completes work.",
   inputSchema: PUBLISH_WORK_INPUT_SCHEMA });
   return Object.freeze({ name: PUBLISH_WORK_TOOL_NAME, config, inputSchema: PUBLISH_WORK_INPUT_SCHEMA,
     handler, call: guardToolHandler(handler, { name: PUBLISH_WORK_TOOL_NAME, env: responseEnv }),

@@ -1161,8 +1161,8 @@
   },
   "contract_schema_version": "controlled-acceptance-contract.v1",
   "vocabulary_version": "controlled-contract-vocabulary.v1",
-  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
-  "vocabulary_algebra_digest": "2d0858d7e27c673d28d7c84a3f5568573311b14cb6173412ed3688df8a855c41",
-  "vocabulary_definitions_digest": "feb1945d0554c40997be536b8f56d01db2769bd4f1d7941f1f7ae63488851655",
-  "vocabulary_complete_digest": "ac76824133e6b0716f5c81aae2e0c4fa9e7bf8ac041072a3c5b2b4e33b8ce516"
+  "vocabulary_signature_digest": "611641e41afa46ea0bace9e8a98e31596a59f9109c32c354d2cdf5656790e571",
+  "vocabulary_algebra_digest": "47f6cca501c1784760333daf235ae1dc7c512971f7ed54ae0a923f404b9b7d1b",
+  "vocabulary_definitions_digest": "10a7964948bfc8323ac7636047034c17db75af05168f6f242afb12e2f6bf4d38",
+  "vocabulary_complete_digest": "e7b23dee357a5893f14e931905c736d42442b47debbf713aaef88afeb16184af"
 }

@@ -6,7 +6,6 @@ import {
 } from "./commands/codex-role.mjs";
 import { runInitConfig } from "./commands/init-config.mjs";
 import { runInitiative } from "./commands/initiative.mjs";
-import { runInstallDriftCheck } from "./commands/install-drift-check.mjs";
 import { runLaunch } from "./commands/launch.mjs";
 import { runOrchestrator } from "./commands/orchestrator.mjs";
 import { runProvenance } from "./commands/provenance.mjs";
@@ -59,10 +58,6 @@ Maintenance and supporting commands:
                                              in the base-branch checkout (never pushes)
   init-config [--force]                      Write a default local launcher registry
   initiative <status|start|redteam> <IN-ID>  Plan initiative workflows; dispatch is internal/deferred
-  install-drift-check [--target-dir <path>] [--json]
-                                             Read-only drift report comparing the
-                                             package bin map against an operator
-                                             PATH directory (exits non-zero on drift)
   review <instruction_path> --agent <name>   DEACTIVATED: reviewed blackboard review fails closed
       --reviewed-and-accept-risks            Flag retained for compatibility; does not re-enable review
       --allow-legacy-implementation-mode-handoff-review
@@ -126,9 +121,6 @@ export async function run(argv, { cwd = process.cwd(), env = process.env, io = {
       return;
     case "initiative":
       await runInitiative(rest);
-      return;
-    case "install-drift-check":
-      await runInstallDriftCheck(rest);
       return;
     case "launch":
       await runLaunch(rest);

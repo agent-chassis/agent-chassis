@@ -1,4 +1,4 @@
-
+import { codexCompactionOverrides as buildCodexRoleGuideHookConfigOverrides } from "../helpers/role-guide-delivery.mjs";
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 
 import {
   CODEX_ROLE_GUIDE_HOOK_STATE_KEY,
-  buildCodexRoleGuideHookConfigOverrides,
+
   buildCodexRoleGuideHookIdentity
 } from "../../packages/agent-launch-cli/src/lib/codex-role-guide-hook.mjs";
 import { hashCodexHookIdentity } from "../../packages/agent-launch-core/src/lib/codex-session-hook-config.mjs";
@@ -172,8 +172,8 @@ test("Codex compact hook trust is scoped to its normalized definition", async (t
   await t.test("each confined role trusts its own guide command and other roles get nothing", () => {
     const seen = new Map();
     for (const role of ["worker", "review", "reviewer", "redteam", "orch", "orch-resume"]) {
-      const hook = resolveRoleGuideCompactionHook(role);
-      const [events, state] = buildCodexRoleGuideHookConfigOverrides(role).map(splitOverride);
+      const hook = resolveRoleGuideCompactionHook(role, { registeredTier: "free_local" });
+      const [events, state] = buildCodexRoleGuideHookConfigOverrides(role, { registeredTier: "free_local" }).map(splitOverride);
       assert.equal(events.value[0].hooks[0].command, hook.command, role);
       assert.deepEqual(Object.keys(state.value), [CODEX_ROLE_GUIDE_HOOK_STATE_KEY], role);
       assert.equal(state.value[CODEX_ROLE_GUIDE_HOOK_STATE_KEY].trusted_hash,
@@ -183,7 +183,7 @@ test("Codex compact hook trust is scoped to its normalized definition", async (t
     assert.equal(seen.size, 3, "three guides");
     assert.equal(new Set(seen.values()).size, 3, "a hash per guide command");
     for (const role of [null, undefined, "", "orchestrator", "operator", "__proto__"]) {
-      assert.deepEqual(buildCodexRoleGuideHookConfigOverrides(role), [], String(role));
+      assert.deepEqual(buildCodexRoleGuideHookConfigOverrides(role, { registeredTier: "free_local" }), [], String(role));
     }
   });
 

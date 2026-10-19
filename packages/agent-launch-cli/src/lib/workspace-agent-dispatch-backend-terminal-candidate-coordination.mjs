@@ -286,13 +286,16 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     terminalReviewAttemptContractBySubject
   } = ctx;
 
-  function terminalCandidateExclusionRefusal(reason) {
+  function terminalCandidateExclusionRefusal(reason, observation = null) {
     const error = new Error(`terminal candidate exclusion refused: ${reason}`);
     error.code = TERMINAL_CANDIDATE_EXCLUSION_REFUSED_CODE;
     error.reason = reason;
     terminalCandidateExclusionRefusals.set(error, Object.freeze({
       reason,
-      ...TERMINAL_CANDIDATE_EXCLUSION_REFUSALS[reason]
+      ...TERMINAL_CANDIDATE_EXCLUSION_REFUSALS[reason],
+      ...(observation === null ? {} : { observation: Object.freeze({
+        state: observation.state ?? null, cause: observation.cause ?? null
+      }) })
     }));
     return error;
   }
@@ -411,7 +414,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     }
     const before = await evaluateTerminalReviewCandidateStatus();
     if (before?.state !== "candidate_stale_w") {
-      throw terminalCandidateExclusionRefusal("candidate_not_stale_w");
+      throw terminalCandidateExclusionRefusal("candidate_not_stale_w", before);
     }
 
     const repoRoot = worktreeProvisioningConfig?.mainRepo;
@@ -425,7 +428,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
       run: async () => {
         const inside = await evaluateTerminalReviewCandidateStatus();
         if (inside?.state !== "candidate_stale_w") {
-          throw terminalCandidateExclusionRefusal("candidate_not_stale_w_inside_exclusion");
+          throw terminalCandidateExclusionRefusal("candidate_not_stale_w_inside_exclusion", inside);
         }
         return run(inside);
       }

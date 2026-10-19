@@ -127,18 +127,18 @@ const NODE_ENGINE_ADMISSIBILITY_NEXT_ACTIONS = Object.freeze({
   node_engine_admit_unratified:
     "Ratify/enable the Chassis Control Engine worker-admission authority binding, then retry (non-launchable until ratified)",
   node_engine_unavailable:
-    "The paid Chassis Control Engine backend transport/auth/entitlement failed (degrades closed); check service reachability, API key/auth, and entitlement, then retry",
+    "Operator: repair the failed Chassis Control Engine transport/auth/entitlement binding, then retry the affected admission action; no admission or launch is authorized",
   node_engine_config_unavailable:
-    "Configure the missing NODE_ENGINE_* (service url / key / route / request-contract digest), or confirm the intended free/local-only path",
+    "Operator: configure the missing NODE_ENGINE_* binding (service url / key / route / request-contract digest), then retry the affected admission action; no authority posture is changed",
   node_engine_route_unratified:
-    "Configure the missing NODE_ENGINE_* (service url / key / route / request-contract digest), or confirm the intended free/local-only path",
+    "Operator: configure the missing NODE_ENGINE_* binding (service url / key / route / request-contract digest), then retry the affected admission action; no authority posture is changed",
   node_engine_request_contract_unbound:
-    "Configure the missing NODE_ENGINE_* (service url / key / route / request-contract digest), or confirm the intended free/local-only path",
+    "Operator: configure the missing NODE_ENGINE_* binding (service url / key / route / request-contract digest), then retry the affected admission action; no authority posture is changed",
 
   node_engine_auth_rejected:
-    "The Chassis Control Engine API key was rejected (authentication failed); rebind a valid NODE_ENGINE_API_KEY from current Chassis Control Engine authority, then retry",
+    "Operator: repair the rejected NODE_ENGINE_API_KEY authentication binding, then retry admission; no launch is authorized",
   node_engine_entitlement_rejected:
-    "The Chassis Control Engine API key lacks worker-admission entitlement; check the plan/entitlement, then retry once entitled",
+    "Operator: repair the configured worker-admission authorization binding, then retry admission; no launch is authorized",
 
   node_engine_needs_review:
     "This needs-review worker-admission result is non-launchable: prefer reducing, splitting, or narrowing the unit and write_scope first. Otherwise the coordinator invokes workspace_agent_dispatch once for the canonical attestation-required review contract; that call returns the advisory text and settles any formal attestation. Refresh admission evidence and re-validate; only a ratified pack-backed admit authorizes launch. See dispatch-and-validation.md 'Review-required (needs_review) remediation contract'."
@@ -356,14 +356,14 @@ export function createCompactValidateDispatchResponse(
 
 const CONTROLLED_ACCEPTANCE_FIELDS = Object.freeze([
   "schema_version", "wk_id", "state", "generation", "mechanically_complete", "disposition",
-  "population", "definition_readiness", "recovery"
+  "population", "definition_readiness", "recovery", "parent_source_accounting"
 ]);
 const CONTROLLED_ACCEPTANCE_SEMANTIC_FIELDS = Object.freeze([
   "schema_version", "wk_id", "state", "source_current", "source_currentness",
   "posture_valid", "posture_disposition", "generation", "manifest_content_digest", "record_source_digest",
   "mechanically_complete", "dimension_count", "dimensions", "incomplete_row_count", "actionable_row_count",
   "non_actionable_row_count", "terminal_gaps", "repair", "execution_evidence_owner", "saved_applications",
-  "ordinary_authoring_readiness", "proof_authoring_diagnostics", "assessment", "admission"
+  "ordinary_authoring_readiness", "proof_authoring_diagnostics", "assessment", "admission", "parent_source_accounting"
 ]);
 function selectFields(value, fields) {
   if (!value || typeof value !== "object") return value ?? null;

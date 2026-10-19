@@ -77,11 +77,7 @@ test("public final result stores each exact captured string once", () => {
     reason: "duplicate_text"
   });
   assert.equal(countExactStringValues(projected, repeated), 1);
-  assert.deepEqual(projected.text_projection, {
-    source_text_count: 4,
-    distinct_text_count: 2,
-    omitted_text_count: 2
-  });
+  assert.equal(projected.text_projection, undefined, "no projection inventory");
 });
 
 test("public text references reconstruct every original captured member", () => {
@@ -123,12 +119,8 @@ test("public projection preserves metadata and internal evidence", () => {
 test("public schema identifies lossless source projection", () => {
   const projected = projectPublicFinalResult(sourceWithTexts(["a", "b", "c", "d"]));
   assert.equal(projected.schema_version, "workspace-agent-public-final-result.v1");
-  assert.equal(projected.source_schema_version, "workspace-agent-dispatch-final-result.v1");
-  assert.deepEqual(projected.text_projection, {
-    source_text_count: 4,
-    distinct_text_count: 4,
-    omitted_text_count: 0
-  });
+  assert.equal(projected.source_schema_version, undefined);
+  assert.equal(projected.text_projection, undefined, "no projection inventory");
 
   const withoutSourceSchema = projectPublicFinalResult({ kind: "failed" });
   assert.equal(Object.hasOwn(withoutSourceSchema, "source_schema_version"), false);
@@ -156,11 +148,7 @@ test("public projection preserves missing and non-string text states", () => {
   assert.equal(projected.findings.text, null);
   assert.equal(projected.findings.nested.text, "must not move");
   assert.equal(projected.no_findings.text, 17);
-  assert.deepEqual(projected.text_projection, {
-    source_text_count: 2,
-    distinct_text_count: 1,
-    omitted_text_count: 1
-  });
+  assert.equal(projected.text_projection, undefined, "no projection inventory");
   assert.equal(getPublicFinalResultTextMember(source, MEMBERS[2]), null);
   assert.equal(getPublicFinalResultTextMember(source, MEMBERS[3]), null);
   assert.throws(
@@ -216,8 +204,7 @@ test("public projection withholds a missing result's process tail and keeps its 
 
   assert.equal(JSON.stringify(projected).includes("RAW-PROCESS-TAIL"), false);
   assert.equal(projected.full_response, null);
-  assert.deepEqual(projected.text_projection,
-    { source_text_count: 0, distinct_text_count: 0, omitted_text_count: 0 });
+  assert.equal(projected.text_projection, undefined, "no projection inventory");
 
   assert.deepEqual(source, original);
   assert.equal(source.missing_result.detail.stderr_tail, PROCESS_TAIL);

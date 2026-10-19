@@ -1,6 +1,6 @@
 
 import { NATIVE_USAGE_ADAPTERS } from "./native-usage-adapters.mjs";
-import { AGENT_RUN_USAGE_TOKEN_QUANTITIES, reconcileInvocationUsage } from "./agent-run-usage.mjs";
+import { AGENT_RUN_USAGE_TOKEN_QUANTITIES, reconcileInvocationUsage, sumNativeUsageValues } from "./agent-run-usage.mjs";
 import { createNativeUsageJsonlDecoder } from "./native-usage-jsonl.mjs";
 
 export const AGENT_RUN_USAGE_RECORD_SCHEMA_VERSION = "agent-run-usage-record.v1";
@@ -39,7 +39,8 @@ function mergeCounterSets(sets) {
   for (const slot of COUNTER_SLOTS) {
     let total = null;
     for (const set of sets) {
-      const value = set?.[slot];
+      const raw = set?.[slot];
+      const value = Array.isArray(raw) ? sumNativeUsageValues(raw) : raw;
       if (!Number.isSafeInteger(value) || value < 0) {
         total = value ?? null;
         break;
@@ -71,18 +72,23 @@ export function buildNativeUsageRecord({ family, source, identity: bound, resume
     return { kind: "snapshot", session_id: facts.session_id, source_id: source.id, population_id: facts.session_id,
       interval_id: bound.invocation_id, counters: end.counters, cost: end.cost ?? null };
   };
+  const boundBaseline = facts.session_id === null ? null : buildBaseline();
   const snapshots = facts.snapshots.map((snapshot) => ({ sequence: snapshot.sequence, session_id: facts.session_id,
-    source_id: source.id, population_id: facts.session_id, counters: mergeCounterSets(snapshot.counter_sets),
+    source_id: source.id, population_id: facts.session_id, counters: mergeCounterSets(facts.interval_only && boundBaseline?.kind === "snapshot"
+      ? [baseline.end_snapshot.counters, ...snapshot.counter_sets] : snapshot.counter_sets),
     cost: snapshot.cost }));
   const usage = reconcileInvocationUsage({
     identity: { invocation_id: bound.invocation_id, session_id: facts.session_id, source_id: source.id,
       population_id: facts.session_id, interval_id: bound.invocation_id },
     source: { input_semantics: source.input_semantics, counter_kind: source.counter_kind,
       descendant_coverage: facts.descendant_coverage },
-    baseline: facts.session_id === null ? null : buildBaseline(),
+    baseline: boundBaseline,
     snapshots,
+    events: (facts.events ?? []).map(event => ({ ...event, session_id: facts.session_id,
+      source_id: source.id, population_id: facts.session_id, counters: mergeCounterSets([event.counters]) })),
+    interval_complete: facts.terminal_event && stream.complete === true,
 
-    requests: { coverage_complete: false, observations: facts.requests }
+    requests: { coverage_complete: false, observations: facts.requests.map(request => ({ ...request, counters: mergeCounterSets([request.counters]) })) }
   });
   for (const cause of usage.causes) note(cause.code, cause.quantity, cause.detail);
 
@@ -116,7 +122,7 @@ export function buildNativeUsageRecord({ family, source, identity: bound, resume
     cost,
     peak_context: usage.peak_context,
 
-    end_snapshot: last === null || stream.complete !== true ? null
+    end_snapshot: source.counter_kind === "incremental" || last === null || stream.complete !== true ? null
       : { sequence: last.sequence, counters: last.counters, cost: last.cost },
     stream: { complete: stream.complete === true, records: stream.records, diagnostics: stream.diagnostics,
       drained, terminal_event: facts.terminal_event, error_event: facts.error_event },
@@ -206,14 +212,21 @@ export function createNativeUsageCapture({ family, identity, resumed, baseline =
 
   function provisional(observation = {}) {
     const facts = extractor.facts();
-    if (record !== null || facts.snapshots.length === 0) return null;
+    if (record !== null || (facts.snapshots.length === 0 && (facts.events?.length ?? 0) === 0)) return null;
     const read = decoder.getState();
     return buildNativeUsageRecord({ family, source: adapter.source, identity: bound, resumed, facts,
       stream: { complete: false, records: read.records, diagnostics: read.diagnostics }, drained: false,
       baseline: observation.baseline === undefined ? baseline : observation.baseline, causes: [], startedAt, now });
   }
 
-  return Object.freeze({ push, end, settle, finalText: () => extractor.facts().final_text,
+  function bindSession(sessionId, options) {
+    if (typeof extractor.bindSession !== "function") throw invalid("native_usage_session_binding_unsupported", "This source has no explicit session binding");
+    if (record !== null || drained !== null) throw invalid("native_usage_session_binding_after_end", "Bind the native session before ending capture");
+    try { extractor.bindSession(sessionId, options); }
+    catch { extractorFailures += 1; }
+  }
+
+  return Object.freeze({ push, end, settle, bindSession, finalText: () => extractor.facts().final_text,
     sessionId: () => extractor.facts().session_id, events: () => extractor.facts().protocol_events,
-    observations: () => extractor.facts().snapshots.length, provisional });
+    observations: () => extractor.facts().observation_count ?? extractor.facts().snapshots.length, provisional });
 }

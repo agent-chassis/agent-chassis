@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
+import { fixture as testValidityFixture } from './support/test-validity-definition-controls.mjs';
 
 import {
   AUTHORED_EXECUTION_OBSERVATION_POINTER,
@@ -18,8 +19,10 @@ import {
 const packageRoot = path.resolve(import.meta.dirname, "..");
 
 async function witnessBearingInput() {
-  return JSON.parse(await readFile(path.join(packageRoot,
-    "profiles/proof.verification.test-validity/11.0.0/evaluation-input.template.json"), "utf8"));
+  return { input_version: 'controlled-contract-verification-profile-input.v2',
+    reference_bindings: [], number_bindings: [], claim_pattern_bindings: [],
+    resolver_facts: [], delivered_evidence: [],
+    stable_evaluation: { test_validity: [testValidityFixture().evaluation_input] } };
 }
 
 function declarativeInput() {

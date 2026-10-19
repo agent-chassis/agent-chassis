@@ -371,7 +371,7 @@ export function isUnindexedSidecarSourcePath(relativePath) {
 
 const SIDECAR_SCIP_PROVIDER_INPUTS = Object.freeze({
   "scip-typescript": Object.freeze({
-    extensions: Object.freeze([...sidecarLanguageExtensions(["typescript", "tsx", "javascript"]), ".json"]),
+    extensions: Object.freeze([...sidecarLanguageExtensions(["typescript", "tsx", "javascript"]), ".json", ".jsonc"]),
     basenames: Object.freeze(["yarn.lock", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc",
       ".nvmrc", ".node-version"]),
     pattern: null

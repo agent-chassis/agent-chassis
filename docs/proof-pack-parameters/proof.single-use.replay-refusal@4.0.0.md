@@ -4,9 +4,9 @@
 
 Given one declared single-use authority and authorized input, two distinct ordered attempts of the same operation using that authority and input, one closed one-member effect-occurrence population, one elected durable effect resource with complete observations before first use, after first success, and after replay refusal, and one expected success state: the first attempt is accepted, reaches the expected state, creates the sole declared effect occurrence, and changes the elected resource state; after that success the authority no longer authorizes the input; the replay is rejected and not accepted, creates no member of the declared effect population, and leaves the elected resource state equal to its post-first-use state.
 
-Profile digest: 989b34bb49141dac8d2780ef5564c6d0aa512f12f9a1c967b5196aa693227673. Parameter digest: 78572d5310998993a4c30102071237b1fc41d67982e2b9a42ccae35fbee1b79b.
+Profile digest: 5de9a07bd035523b70c5c72c14dee106f991035916277893d176d496c9806d90. Parameter digest: 0f179eccf8fe33b6aeff9444f2f9dc4874eba692a14240aaa4290629437b4819.
 
-Admission digest: dd68324178547875bfbf65a915afd06457d6a5f68d53b5574cef7f93841c2a77.
+Admission digest: 769a60a0b2d08ddd398c945538ffb141c8aa17920252f3779eb2e5b21d3df5d0.
 
 Roles: 31/31 accounted; 3 owned gaps. Semantic parameters: 27; internal roles: 4.
 

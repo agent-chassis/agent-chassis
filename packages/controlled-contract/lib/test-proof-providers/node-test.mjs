@@ -2,6 +2,19 @@
 
 import { deepFreeze, falsifierTargetConstraint } from "./shared.mjs";
 
+export const CLOSED_NODE_TEST_TARGET_SCHEMA = Object.freeze({
+  type: "string",
+  maxLength: 4096,
+  pattern: "^(?!-)(?!\\.{1,2}/)[A-Za-z0-9_.-]+(?:/(?!\\.{1,2}/)[A-Za-z0-9_.-]+)*\\.mjs$"
+});
+export const CLOSED_NODE_TEST_TARGET_STATEMENT =
+  "one canonical repository-relative .mjs node:test module path";
+const closedNodeTestTargetPattern = new RegExp(CLOSED_NODE_TEST_TARGET_SCHEMA.pattern, "u");
+export function isClosedNodeTestTarget(value) {
+  return typeof value === CLOSED_NODE_TEST_TARGET_SCHEMA.type &&
+    value.length <= CLOSED_NODE_TEST_TARGET_SCHEMA.maxLength && closedNodeTestTargetPattern.test(value);
+}
+
 function nodeModuleSubstitutionWitness(payload, testId, mutation) {
   return payload?.mechanism === "module_substitution" &&
     payload.strategy === mutation.strategy && payload.mutation_id === mutation.mutation_id &&

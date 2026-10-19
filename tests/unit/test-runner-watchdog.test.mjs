@@ -12,6 +12,19 @@ const root = "/example";
 const selectedFiles = ["tests/unit/one.test.mjs"];
 const parse = (tokens) => parseTestRunnerOptions(tokens, { repoRoot: root, selectedFiles });
 
+test("artifact preservation is an explicit wrapper flag with no implicit directory opt-in", () => {
+  assert.equal(parse([]).preserveArtifacts, false);
+  assert.equal(parse(["--test-artifacts-dir=/tmp/diagnostics"]).preserveArtifacts, false);
+  const requested = parse(["--preserve-test-artifacts", "tests/unit/one.test.mjs"]);
+  assert.equal(requested.preserveArtifacts, true);
+  assert.deepEqual(requested.native, []);
+  assert.deepEqual(requested.flags, ["--preserve-test-artifacts"]);
+  for (const tokens of [["--preserve-test-artifacts=true"],
+    ["--preserve-test-artifacts", "--preserve-test-artifacts"]]) {
+    assert.throws(() => parse(tokens), { code: "test_runner.invalid_option.v1" });
+  }
+});
+
 test("runner binds native option values before selecting files and refuses ambiguous inputs", () => {
   const selected = parse([
     "--test-name-pattern", "other.test.mjs", "--import", "./setup.test.mjs",

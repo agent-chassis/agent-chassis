@@ -86,6 +86,8 @@ export const TERMINAL_CANDIDATE_RUNTIME_CODES = Object.freeze({
     "agent_launch.terminal_candidate.canonical_root_invalid.v1",
   CANONICAL_RECORD_UNREADABLE:
     "agent_launch.terminal_candidate.canonical_record_unreadable.v1",
+  CANONICAL_RECORD_ABSENT: "agent_launch.terminal_candidate.canonical_record_absent.v1",
+  CANONICAL_RECORD_MALFORMED: "agent_launch.terminal_candidate.canonical_record_malformed.v1",
   TRANSPORT_FAILURE: "agent_launch.terminal_candidate.transport_failure.v1",
   CONTINUATION_INVALID: "agent_launch.terminal_candidate.continuation_invalid.v1",
   CONTINUATION_STALE: "agent_launch.terminal_candidate.continuation_stale.v1",
@@ -526,13 +528,19 @@ export async function observeTerminalCandidateFacts({
   if (identity.ok !== true) {
     if (identity.cause.code === CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL) {
       runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CANONICAL_ROOT_INVALID,
-        "canonical repository root is not readable under its exact identity");
+        "canonical repository root is not readable under its exact identity", identity.cause);
     }
     if (identity.cause.code === CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_UNREADABLE) {
       runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CANONICAL_RECORD_UNREADABLE,
-        "canonical WK record is unreadable");
+        "canonical WK record is unreadable", identity.cause);
     }
-    return invalid(identity.cause.code);
+    for (const kind of ["RECORD_ABSENT", "RECORD_MALFORMED"]) {
+      if (identity.cause.code === CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES[kind]) {
+        runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES[`CANONICAL_${kind}`],
+          identity.cause.failure.message, identity.cause);
+      }
+    }
+    return invalid(identity.cause.code, { failure: identity.cause });
   }
   const initiative = identity.initiative;
   let generationAuthentication;

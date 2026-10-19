@@ -1,5 +1,6 @@
-import { readCommittedBlobBytes } from "./sidecar-committed-blobs.mjs";
-import { isUnindexedSidecarSourcePath, validateVirtualSidecarPath } from "./sidecar-paths.mjs";
+import { readFile } from "node:fs/promises";
+import { checkoutContentIdentity } from "./sidecar-checkout-inputs.mjs";
+import { isUnindexedSidecarSourcePath, validateExistingSidecarPath, validateVirtualSidecarPath } from "./sidecar-paths.mjs";
 import { decodeCommittedSource, selectCommittedSourceRegion } from "./sidecar-source-regions.mjs";
 
 const REGULAR_FILE_MODES = new Set(["100644", "100755"]);
@@ -88,21 +89,23 @@ export async function readCompleteFiles(repoRoot, paths, descriptors) {
     } else if (!REGULAR_FILE_MODES.has(descriptor.mode)) {
       files.set(filePath, unavailableFile(facts, "non_regular_file"));
     } else {
+      if (!/^[0-9a-f]{64}$/iu.test(facts.blob_oid)) throw Object.assign(
+        new TypeError(`invalid checkout source identity for ${filePath}: ${facts.blob_oid}`),
+        { code: "sidecar_source_identity_invalid" });
       eligible.push(facts);
     }
   }
-  const objectIds = [...new Set(eligible.map(objectId))];
-  const blobs = objectIds.length === 0
-    ? new Map()
-    : await readCommittedBlobBytes({ repoRoot, objectIds });
-  const decoded = new Map();
   for (const facts of eligible) {
-    const oid = objectId(facts);
-    if (!decoded.has(oid)) {
-      const blob = blobs.get(oid);
-      decoded.set(oid, blob.state === "available" ? decodeCommittedSource(blob.bytes) : blob);
+    let source;
+    try {
+      const target = await validateExistingSidecarPath({ dir: repoRoot, inputPath: facts.path });
+      const bytes = await readFile(target.absolutePath);
+      source = checkoutContentIdentity(bytes) === objectId(facts)
+        ? decodeCommittedSource(bytes) : { state: "unavailable", reason: "checkout_source_changed" };
+    } catch (error) {
+      if (error?.code !== "ENOENT" && error?.code !== "missing_path" && error?.code !== "outside_repo") throw error;
+      source = { state: "unavailable", reason: "checkout_source_unavailable" };
     }
-    const source = decoded.get(oid);
     if (source.state !== "available") {
       files.set(facts.path, unavailableFile(facts, source.reason));
       continue;

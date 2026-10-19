@@ -542,6 +542,126 @@
       "summary": "An unexpected internal exception crossed a controlled-contract public boundary; the operation, stage, owning boundary, and correlation identity are reported and no recovery is claimed.",
       "detail": "An unexpected internal exception at a public boundary is a programming defect, not a caller-correctable refusal. This identity carries the exact operation, stage, owning boundary, and a deterministic correlation identity, and declares no retry or recovery because no named prerequisite is known to be false.",
       "consumer_notes": "Operator-owned and never caller-correctable. The complete ordinary diagnostic names the exception class and preserves its text; only structured genuine-sensitive components are removed and signalled. Report the correlation identity when escalating."
+    },
+    {
+      "code": "feedback_input_invalid",
+      "category": "validation",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A closed feedback request or report is malformed.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_report_too_large",
+      "category": "validation",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The normalized report exceeds the v1 input carrier.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_stdin_too_large",
+      "category": "validation",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Raw feedback stdin exceeds the CLI transport capacity.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_repository_invalid",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The selected path has no usable non-bare repository primary checkout.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_repository_ambiguous",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Git metadata does not identify exactly one primary checkout.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_storage_unsafe",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The fixed runtime feedback path targets tracked or shared content.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_permission_denied",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The feedback storage location cannot be accessed with current permissions.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_busy",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "SQLite feedback lock acquisition is busy.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_corrupt",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The feedback SQLite database is corrupt or is not a database.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_storage_failed",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A feedback storage operation failed with the disclosed cause.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_schema_unsupported",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The feedback database has an unsupported schema.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_session_unknown",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The requested feedback session does not exist in this repository.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_reference_unknown",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Related feedback does not exist in this repository.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_commit_failed",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Feedback commit failed; the returned effect classification governs resubmission.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
+    },
+    {
+      "code": "feedback_provenance_invalid",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Executing package provenance is missing or invalid.",
+      "consumer_notes": "Local advisory feedback only. Report specific cause, effect and supported correction; no lifecycle authority."
     }
   ]
 }

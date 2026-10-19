@@ -15,7 +15,7 @@ import {
   forbiddenOperationNoninvocationGuaranteeSatisfied
 } from "./forbidden-operation-noninvocation-v1-harness.mjs";
 
-const PROFILE_DIGEST = "99d76e278eacfec4bd5b70eca510af04fd7f39788af1082c74885238696b5702";
+const PROFILE_DIGEST = "15117ae61d90926813b6c1dbf0500269771f245ed41759adba2c6832d8a370be";
 const GUARANTEE_DIGEST = "ceb829c30d301a48cf89646f0c159e35b03e4b867e8428c0eff96b81e16a9f21";
 const EXCLUSIONS = Object.freeze([
   "actual-execution-or-mutation-test-outcome",

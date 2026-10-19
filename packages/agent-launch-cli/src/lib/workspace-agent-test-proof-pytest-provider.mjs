@@ -10,6 +10,7 @@ import { isLauncherTestFailureDiagnostic } from "./workspace-agent-test-proof-er
 import { TEST_PROOF_SELECTED_TEST_SKIPPED_CODE, launcherArtifact } from
   "./workspace-agent-test-proof-node-observation.mjs";
 import { nativeRuntimeTestId } from "./workspace-agent-test-proof-runtime-identity.mjs";
+import { PYTHON_SOURCE_BINDING_ASSET } from './test-execution/python-source-binding.mjs';
 
 export const PYTEST_PROOF_PLUGIN_PATH = fileURLToPath(
   new URL("./workspace_agent_test_proof_pytest.py", import.meta.url));
@@ -17,7 +18,8 @@ export const PYTEST_PROOF_PLUGIN_PATH = fileURLToPath(
 export const PYTHON_DIAGNOSTIC_GRAPH_ASSET = fileURLToPath(
   new URL("./workspace_agent_test_proof_diagnostic_graph.py", import.meta.url));
 
-export const PYTEST_PROOF_ASSETS = Object.freeze([PYTEST_PROOF_PLUGIN_PATH, PYTHON_DIAGNOSTIC_GRAPH_ASSET]);
+export const PYTEST_PROOF_ASSETS = Object.freeze([PYTEST_PROOF_PLUGIN_PATH, PYTHON_DIAGNOSTIC_GRAPH_ASSET,
+  PYTHON_SOURCE_BINDING_ASSET]);
 export const PYTEST_PROOF_PROTOCOL_SCHEMA_VERSION = "workspace-agent-test-proof-pytest-events.v1";
 export const PYTEST_PROOF_CONFIGURATION_SCHEMA_VERSION =
   "workspace-agent-test-proof-pytest-configuration.v1";
@@ -170,7 +172,7 @@ function locateInstalledRuntime(interpreter, budget) {
   if (pending !== null) return Promise.reject(pending);
   const remainingMs = budget?.remainingMs?.() ?? 30000;
   return new Promise((resolve, reject) => {
-    const child = execFile(interpreter, ["-E", "-P", "-c", HOST_LOCATE_PROGRAM], {
+    const child = execFile(interpreter, ["-E", "-P", "-B", "-c", HOST_LOCATE_PROGRAM], {
       cwd: path.dirname(PYTEST_PROOF_PLUGIN_PATH),
       env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" },
       timeout: Math.max(1, remainingMs),
@@ -384,11 +386,16 @@ function collectionFailures(expectation, errors) {
 }
 
 function selectedIdentityNotObserved(expectation, collected, collectionErrors = []) {
+  if (!Array.isArray(collectionErrors)) return refusal("test_proof_structured_events_invalid");
   const candidates = collected.map((nodeId) => observedIdentity(expectation, nodeId,
-    { status: "skipped", error_codes: [] }));
+    {}));
   const failures = collectionFailures(expectation, collectionErrors);
   return refusal("test_proof_selected_identity_not_observed", {
     expected_test_id: expectation.target_test_id,
+    selected_node_id: expectation.node_id,
+    provider: { provider_id: expectation.provider_id, provider_version: expectation.provider_version },
+    selection_status: collectionErrors.length > 0 ? "collection_incomplete"
+      : collected.includes(expectation.node_id) ? "collected_not_observed" : "not_collected",
     target: expectation.target,
     observed_count: candidates.length,
     returned_count: candidates.length,
@@ -504,11 +511,11 @@ export function authenticateLauncherPytestEnvelope({
   if (new Set(collected).size !== collected.length) {
     return refusal("test_proof_structured_test_identity_duplicate");
   }
-  if (!collected.includes(expectation.node_id)) {
-    return selectedIdentityNotObserved(expectation, collected, payload.collection?.errors);
-  }
   if (phases.some((phase) => phase?.nodeid !== expectation.node_id)) {
     return refusal("test_proof_structured_events_unselected_execution");
+  }
+  if (!collected.includes(expectation.node_id)) {
+    return selectedIdentityNotObserved(expectation, collected, payload.collection?.errors);
   }
   const order = phases.map((phase) => PHASE_ORDER.indexOf(phase.when));
   if (phases.some((phase) => !PHASE_OUTCOMES.has(phase.outcome)) || order.includes(-1)) {
@@ -521,6 +528,7 @@ export function authenticateLauncherPytestEnvelope({
     return refusal("test_proof_structured_events_lifecycle_invalid");
   }
   const byPhase = Object.fromEntries(phases.map((phase) => [phase.when, phase]));
+  if (phases.length === 0) return selectedIdentityNotObserved(expectation, collected, payload.collection?.errors);
   const setupPassed = byPhase.setup?.outcome === "passed";
   if (byPhase.setup === undefined || byPhase.teardown === undefined ||
       (setupPassed && byPhase.call === undefined) || (!setupPassed && byPhase.call !== undefined)) {

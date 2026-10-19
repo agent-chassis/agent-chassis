@@ -1,8 +1,9 @@
 # Run inference through Vertex AI
 
 AgentChassis can route a registered Codex model through a local LiteLLM gateway
-to Vertex AI. The supported mappings are `vertex-claude-opus-5-5`,
-`vertex-claude-sonnet-5-5`, and `vertex-gemini-3.8-flash`. Codex is the client;
+to Vertex AI. The registered mappings are `vertex-claude-opus-5-5`,
+`vertex-claude-sonnet-5-5`, `vertex-gemini-3.8-flash`, and
+`vertex-gemini-4-argon`. Codex is the client;
 Vertex AI serves the selected Anthropic or Gemini model. This route works for
 an operator-launched orchestrator and for managed roles that select the same model.
 
@@ -62,3 +63,57 @@ model = "vertex-gemini-3.8-flash"
 Managed dispatch then follows the same model route. For the exact configuration,
 validation, gateway lifecycle, and recovery rules, see the
 [environment reference](env-reference.md#per-model-litellm-routing-modelsid-vertexai).
+
+## Gemini 4 Argon runtime boundary
+
+`vertex-gemini-4-argon` is a Codex-client registry entry with upstream
+`vertex_ai/gemini-4-argon` and default effort `high`. Its Vertex location is
+`global`. A `[models."vertex-gemini-4-argon"]` table with `use_litellm = true`
+enables the route; the table does not register a model.
+
+The repository's `agent-launch.argon.vertex.toml` selects Argon at `high` for
+the orchestrator and `medium` for reviewer/redteam, and Gemini 3.8 Flash at
+`medium` for workers. The packaged LiteLLM runtime is pinned to `1.105.1`.
+Streaming `/v1/responses` requests with `reasoning.effort = medium` or `high`
+produce `generationConfig.thinkingConfig.thinkingLevel` with the corresponding
+value and no `thinkingBudget`, as required by the
+[official Argon reference](https://docs.litellm.ai/blog/gemini-4-argon).
+
+The hash lock and its regeneration input live in
+`@agent-chassis/agent-launch-core/data/litellm-gateway/`. The repository
+provisioner installs the exact hash-locked runtime into a private generation;
+changing the lock selects a new generation. Keep the runtime pin and lock
+together. Do not drop effort or change retries or fallbacks to make a model fit.
+
+`tests/integration/argon-vertex-runtime.test.mjs` qualifies the pinned runtime
+using the repository gateway config generator, fake ADC and a loopback-only
+fake Vertex server. It exercises text streaming and function-call/result round
+trips for Argon `medium` and `high`, and Flash `medium`, while inspecting each
+upstream model, location and thinking level. Requests use the ordinary Responses
+effort field without forced parameter admission. The fake upstream rejects
+budgets. Stream-start 429s produce `response.failed` with
+`rate_limit_exceeded` after exactly one upstream attempt; a later client request
+can recover. Gateway retries remain zero, fallbacks remain empty, and the Codex
+provider still sets five stream retries. Native Codex retry execution is a
+separate transport boundary and is not exercised by this no-agent test.
+
+These tests establish neither Google project access nor live model success.
+Set `AGENTCHASSIS_LITELLM_PYTHON` to the pinned venv's Python, then run through
+the repository runner:
+
+```sh
+node tests/run-tests.mjs integration tests/integration/argon-vertex-runtime.test.mjs --test-reporter=spec
+```
+
+Existing prepared images retain their installed package contents. They need a
+fresh package selection containing the updated `@agent-chassis/agent-launch-cli`
+registry and `@agent-chassis/agent-launch-core` runtime pin and lock, through the
+supported preparation path; a TOML edit alone cannot refresh these assets.
+Local development preparation uses the complete freshly packed AgentChassis
+package set and a new package-selection record. The provisioning stage's cache
+identity includes the packaged lock and gateway module. Existing shared gateways
+retain their running runtime; a launch against a differing configuration digest
+refuses with `litellm_gateway_config_conflict` and offers a separate `[vertexai]`
+port. Replacing a running gateway requires its operator to stop it explicitly.
+Runtime qualification does not itself refresh images or restart gateways.
+Core packaging regenerates the bundled documentation.

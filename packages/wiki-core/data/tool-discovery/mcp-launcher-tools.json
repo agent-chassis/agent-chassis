@@ -45,7 +45,7 @@
         "Operator needs readiness diagnostics for a proposed record before it is persisted."
       ],
       "do_not_use_when": [
-        "The record is canonical; use workspace_validate_dispatch with its durable unit identifier."
+        "The record is canonical; assess it with start_agent({subject,preview:true}) using its exact durable unit address."
       ],
       "authoritative_for": [
         "structural preflight of caller-supplied proposed record content"

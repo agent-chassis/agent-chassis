@@ -1,4 +1,4 @@
-
+import { freezeSelectedUnitRepositoryTestBinding } from "./worker-assignment-authority.mjs";
 
 import {
   computeWorkRecordSourceDigest
@@ -50,7 +50,9 @@ import {
 } from "./worktree-provisioning-dispatch.mjs";
 import {
   authenticateManagedWkTipAtDispatch,
-  provisionManagedWkLifecycleAtDispatch
+  provisionManagedWkLifecycleAtDispatch,
+  settleFailedManagedPreparation,
+  inspectManagedWorkerPreparationInputs
 } from
   "./worktree-provisioning-dispatch-managed.mjs";
 import { preflightManagedControlledAcceptance as runControlledAcceptancePreflight } from
@@ -87,6 +89,9 @@ export function mapExactSliceResolutionFailure(result) {
   if (failure === undefined || !reasons?.includes(result.reason)) {
     throw new TypeError("exact slice dependency refusal has no closed failure_class");
   }
+  if (result.failure_class === 'dependency' && (result.reason === 'dependency_not_present_on_wk_branch' ||
+      result.dependency_diagnostics?.length > 0 && result.dependency_diagnostics.every(row =>
+        row.reason === 'dependency_not_present_on_wk_branch'))) return LAUNCHER_TRANSITION_FAILURES.DEPENDENCY_UNAVAILABLE;
   return failure;
 }
 
@@ -365,10 +370,20 @@ export function createBackendScope(ctx) {
   }
 
   function transitionBootstrapRefusal(failure, detail) {
+    const correction = detail.identity_correction === undefined ? detail.assignment_correction : {
+      unit: detail.identity_correction.parent,
+      instruction: 'Discover the saved slice identities and their titles. Choose the intended dependency, then read the original assignment current revision and save its corrected depends_on. Preserve the assignment intent.' };
     return bootstrapRefusal(managedRefusal(failure.code, {
       ...detail,
       authority_limb: failure.authority_limb,
-      next_action: failure.next_action
+      next_action: failure.next_action,
+      ...(correction === undefined ? {} : { recovery: {
+        state: 'guidance', route: 'workspace_read_wiki', args: { subject: correction.unit },
+        information: correction.instruction,
+        prerequisite: detail.identity_correction === undefined
+          ? `Correct ${correction.authored_field} on ${correction.unit}.`
+          : 'The authored dependency identity must resolve to the intended saved unit.',
+        responsible_actor: 'coordinator' } })
     }));
   }
 
@@ -377,7 +392,7 @@ export function createBackendScope(ctx) {
   }
 
   async function bootstrapManagedWkLifecycle({
-    input = {}, app, role, subject, run_id: runId, monitor_handle: monitorHandle
+    input = {}, app, role, subject, run_id: runId, monitor_handle: monitorHandle, validatedInputs = null
   } = {}) {
     if (worktreeProvisioningConfig === null) {
       return requireManagedProvisioning === true
@@ -472,6 +487,14 @@ export function createBackendScope(ctx) {
       }
     }
 
+    let workerProvisioning = null;
+    const refusePrepared = async result => {
+      if (workerProvisioning === null) return result;
+      const settlement = await settleFailedManagedPreparation({ provisioning: workerProvisioning });
+      const refusal = result.refusal ?? result;
+      return { ok: false, refusal: { ...refusal,
+        detail: { ...refusal.detail, preparation_settlement: settlement } } };
+    };
     try {
       if (role !== "worker") {
         const wkLifecycle = await provisionManagedWkLifecycleAtDispatch({
@@ -524,6 +547,16 @@ export function createBackendScope(ctx) {
         runId,
         retryId,
         worktreeRoot: worktreeProvisioningConfig.worktreeRoot,
+        validateExistingInputs: validatedInputs === null ? null : async base => {
+          const validation = validateWorkerScopeSnapshot({ snapshot: validatedInputs, consumer: "preparation" });
+          if (!validation.ok) throw Object.assign(new Error("validated worker inputs changed before preparation"), {
+            code: "worker_preparation_inputs_changed", detail: validation.refusal });
+          const expected = validatedInputs.scope_existence.base;
+          if (base.base_ref !== expected.base_ref || base.base_sha !== expected.base_sha) {
+            throw Object.assign(new Error("the selected worker source moved between validation and preparation"), {
+              code: "worker_preparation_source_changed", detail: { expected, observed: base } });
+          }
+        },
         observeManagedWkLifecycle: (result) => {
           if (wkLifecycle !== null) {
             throw new Error("managed WK lifecycle result was observed more than once");
@@ -541,6 +574,7 @@ export function createBackendScope(ctx) {
           })
         }
       });
+      workerProvisioning = provisioning;
       if (wkLifecycle === null) {
         throw new Error("managed WK lifecycle result was not observed before slice authority");
       }
@@ -552,10 +586,10 @@ export function createBackendScope(ctx) {
         settlement: provisioning, plannedBase
       });
       if (!settlementValidation.ok) {
-        return transitionBootstrapRefusal(
+        return refusePrepared(transitionBootstrapRefusal(
           LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED,
           { reason: settlementValidation.reason, planned_base: plannedBase }
-        );
+        ));
       }
       const dependencyResolution = resolveExactSliceDependencies(
         worktreeProvisioningConfig.mainRepo,
@@ -568,7 +602,7 @@ export function createBackendScope(ctx) {
         : dependencyResolution;
       if (!dependencies.ok) {
         const failure = mapExactSliceResolutionFailure(dependencies);
-        return transitionBootstrapRefusal(failure, dependencies);
+        return refusePrepared(transitionBootstrapRefusal(failure, dependencies));
       }
       assertCompleteManagedProvisioningResult({
         provisioning,
@@ -602,7 +636,7 @@ export function createBackendScope(ctx) {
           provisioning
         })
       });
-      if (admitted?.ok !== true) return admitted;
+      if (admitted?.ok !== true) return refusePrepared(admitted);
       const readinessAllocation = createManagedWkAllocationReadiness({
         allocation: wkLifecycle,
         repository: input.workspace_alias ?? null,
@@ -618,9 +652,9 @@ export function createBackendScope(ctx) {
         readiness_allocation: readinessAllocation
       });
     } catch (error) {
-      return bootstrapRefusal(provisioningRefusal(error, {
+      return refusePrepared(bootstrapRefusal(provisioningRefusal(error, {
         requestedRepositoryAlias: input.workspace_alias ?? null
-      }));
+      })));
     }
   }
 
@@ -691,6 +725,7 @@ export function createBackendScope(ctx) {
     run_id: runId,
     monitor_handle: monitorHandle,
     managed_wk_lifecycle_ticket: managedWkLifecycleTicket = null,
+    prospective = false,
     corrective_integration_chain: correctiveIntegrationChain = null,
     corrective_remaining_scope_transition: correctiveRemainingScopeTransition = null
   }) {
@@ -732,24 +767,18 @@ export function createBackendScope(ctx) {
       );
     }
     const managedProvisioningTicket = managedWkLifecycleTicket;
-    const preparedState = managedWorktreeProvisioningAuthority.resolve({
+    const preparedState = prospective ? null : managedWorktreeProvisioningAuthority.resolve({
       ticket: managedProvisioningTicket,
-      input: {
-        ...input,
-        role,
-        subject,
-        run_id: runId,
-        monitor_handle: monitorHandle
-      },
-      app
+      input: { ...input, role, subject, run_id: runId, monitor_handle: monitorHandle }, app
     });
-    if (preparedState === null || preparedState.subject !== subject || preparedState.app !== app) {
+    if (!prospective && (preparedState === null || preparedState.subject !== subject || preparedState.app !== app)) {
       return workerScopeSnapshotRefusal("launcher_private_provisioning_unavailable", null);
     }
-    const { dependencies, provisioning } = preparedState;
-    if (!dependencies?.ok) {
-      return { ok: false, refusal: managedRefusal(MANAGED_LIFECYCLE_REQUIRED, dependencies).refusal };
-    }
+    const dependencies = prospective
+      ? await resolveExactSliceDependencies(worktreeProvisioningConfig.mainRepo, subject, worktreeProvisioningConfig.deps ?? {})
+      : preparedState.dependencies;
+    const provisioning = preparedState?.provisioning ?? null;
+    if (!dependencies?.ok) return transitionBootstrapRefusal(mapExactSliceResolutionFailure(dependencies), dependencies);
     try {
       const record = deepFreezeCanonicalSnapshot(dependencies.record);
       const selectedUnitContract = record.slices.find(
@@ -760,7 +789,7 @@ export function createBackendScope(ctx) {
         throw new Error("canonical corrective scope changed after preflight");
       }
 
-      const scopeExistenceBase = Object.freeze({
+      const scopeExistenceBase = prospective ? dependencies.scope_existence_base : Object.freeze({
         base_ref: provisioning.slice_binding.base_ref,
         base_sha: provisioning.slice_binding.base_sha
       });
@@ -772,10 +801,10 @@ export function createBackendScope(ctx) {
         scopeBase: scopeExistenceBase,
         deps: worktreeProvisioningConfig.deps ?? {}
       });
-      assertProvisionedScopeAuthority(provisioning.slice_binding, authority);
-      if (provisioning.unit_address !== authority.unit_address ||
+      if (!prospective) assertProvisionedScopeAuthority(provisioning.slice_binding, authority);
+      if (!prospective && (provisioning.unit_address !== authority.unit_address ||
           provisioning.record_id !== authority.selected_unit.record_id ||
-          provisioning.slice_id !== authority.selected_unit.slice_id) {
+          provisioning.slice_id !== authority.selected_unit.slice_id)) {
         throw new Error("managed provisioning identity does not match the frozen exact selected unit");
       }
 
@@ -802,6 +831,16 @@ export function createBackendScope(ctx) {
           authority_limb: assignmentCapture.diagnostic.authority_limb ?? "mechanical"
         });
       }
+
+      freezeSelectedUnitRepositoryTestBinding({ selectedUnit: selectedUnitContract,
+        root: worktreeProvisioningConfig.mainRepo, launchBaseSha: scopeExistenceBase.base_sha });
+      if (prospective) {
+        try {
+          await inspectManagedWorkerPreparationInputs({ mainRepo: worktreeProvisioningConfig.mainRepo,
+            initiative: record.initiative, subject, worktreeRoot: worktreeProvisioningConfig.worktreeRoot,
+            deps: worktreeProvisioningConfig.deps ?? {} });
+        } catch (error) { return provisioningRefusal(error); }
+      }
       const snapshot = Object.freeze({
         authority,
         record,
@@ -824,6 +863,9 @@ export function createBackendScope(ctx) {
       registeredWorkerScopeSnapshots.add(snapshot);
       return { ok: true, snapshot };
     } catch (error) {
+      if (error?.name === "WorkerAssignmentError") return { ok: false, refusal: {
+        code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, reason: error.code,
+        detail: { role, subject, authority_limb: "mechanical_failure", message: error.message, diagnostic: error.detail ?? null } } };
       return workerScopeSnapshotRefusal(
         "canonical_scope_resolution_failed",
         scopeResolutionFailureDetail(error, { role, subject })
@@ -995,6 +1037,12 @@ export function createBackendScope(ctx) {
     return createRetainedReviewerLaunchIdentity(context);
   }
 
+  Object.defineProperty(freezeWorkerScopeSnapshot, "preflight", {
+    value: args => freezeWorkerScopeSnapshot({ ...args, prospective: true })
+  });
+  Object.defineProperty(freezeWorkerScopeSnapshot, "settleFailedPreparation", {
+    value: ticket => managedWorktreeProvisioningAuthority.settleFailed({ ticket })
+  });
   Object.defineProperty(freezeWorkerScopeSnapshot, "bootstrapManagedWkLifecycle", {
     value: bootstrapManagedWkLifecycle,
     enumerable: false,

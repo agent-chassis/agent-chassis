@@ -1,28 +1,18 @@
 
 
-import { runCodexRole } from "../commands/codex-role.mjs";
-import {
-  runClaudeOrchestrator,
-  runClaudeOrchestratorResume
-} from "./claude-orchestrator-plan.mjs";
+import { ORCHESTRATOR_FAMILY_REGISTRATIONS } from "./orchestrator-family-registrations.mjs";
 import {
   deriveLauncherOwnedDispatchWorktreeRoot,
   ORCHESTRATOR_ISOLATION_MODES
 } from "./orchestrator-launch-isolation.mjs";
 import { HEADLESS_REQUIRES_BUBBLEWRAP_REASON } from "./orchestrator-launch-runtime.mjs";
 
-export const ORCHESTRATOR_AGY_UNSUPPORTED_REASON = "agy_orchestrator_unsupported";
+export const ORCHESTRATOR_APP_UNREGISTERED_REASON = "orchestrator_app_unregistered";
 
 export const ORCHESTRATOR_HEADLESS_NOT_ENABLED_REASON = "headless_not_yet_enabled";
 
 export const ORCHESTRATOR_HEADLESS_DIRECT_MODE_UNSUPPORTED_REASON =
   HEADLESS_REQUIRES_BUBBLEWRAP_REASON;
-
-export const DEFAULT_ORCHESTRATOR_FAMILY_RUNNERS = Object.freeze({
-  runClaudeOrchestrator,
-  runClaudeOrchestratorResume,
-  runCodexRole
-});
 
 export { deriveLauncherOwnedDispatchWorktreeRoot };
 
@@ -37,7 +27,7 @@ export async function routeOrchestratorLaunch({
   env = process.env,
   cwd = process.cwd(),
   io = {},
-  runners = DEFAULT_ORCHESTRATOR_FAMILY_RUNNERS
+  registrations = ORCHESTRATOR_FAMILY_REGISTRATIONS
 } = {}) {
 
   const dispatchWorktreeRoot = deriveLauncherOwnedDispatchWorktreeRoot(cwd);
@@ -51,51 +41,17 @@ export async function routeOrchestratorLaunch({
     return undefined;
   }
 
-  if (resolved.app === "claude") {
-    const claudeRunner = role === "orch-resume"
-      ? runners.runClaudeOrchestratorResume
-      : runners.runClaudeOrchestrator;
-    return claudeRunner({
-      role,
-      initiative,
-      promptArgs: focusArgs,
-      env,
-      cwd,
-      resolvedProfile: resolved,
-      io,
-      dryRunJson,
-      headless,
-      logFile,
-      dispatchWorktreeRoot
-    });
-  }
-
-  if (resolved.app !== "codex") {
-    writeRaw(
-      io.stderr,
-      `agent-launch orchestrator: app=${resolved.app} is not supported for orchestrator/resume (${ORCHESTRATOR_AGY_UNSUPPORTED_REASON})\n`
-    );
+  const registration = Object.hasOwn(registrations, resolved.app)
+    ? registrations[resolved.app] : null;
+  if (!registration) {
+    writeRaw(io.stderr,
+      `agent-launch orchestrator: app=${resolved.app} is not registered for orchestrator/resume (${ORCHESTRATOR_APP_UNREGISTERED_REASON})\n`);
     process.exitCode = 2;
     return undefined;
   }
-
-  const codexArgv = [role];
-  if (typeof initiative === "string") {
-    codexArgv.push(initiative);
-  }
-  if (dryRunJson) {
-    codexArgv.push("--dry-run-json");
-  }
-
-  for (const focusArg of focusArgs) {
-    codexArgv.push(focusArg);
-  }
-  return runners.runCodexRole(codexArgv, io, {
-    resolvedProfile: resolved,
-    headless,
-    logFile,
-    dispatchWorktreeRoot
-  });
+  const invoke = role === "orch-resume" ? registration.resume : registration.launch;
+  return invoke({ role, resolved, initiative, focusArgs, dryRunJson, headless,
+    logFile, env, cwd, io, dispatchWorktreeRoot });
 }
 
 function writeRaw(stream, value) {

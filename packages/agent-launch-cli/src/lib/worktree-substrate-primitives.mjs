@@ -200,11 +200,12 @@ export function perWkWorktreePath(worktreeRoot, initiative, wkId) {
   return path.join(root, `wk-${initiative}-${wkId}`);
 }
 
-export function defaultRunGit({ repo, args }) {
+export function defaultRunGit({ repo, args, timeoutMs = undefined }) {
   let res;
   try {
     res = spawnSync("git", ["-C", repo, "-c", "core.quotePath=false", ...args], {
       encoding: "utf8",
+      timeout: timeoutMs,
       maxBuffer: 64 * 1024 * 1024
     });
   } catch (err) {

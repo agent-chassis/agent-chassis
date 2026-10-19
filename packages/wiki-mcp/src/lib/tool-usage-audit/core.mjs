@@ -8,8 +8,8 @@ export const SOURCE_KINDS = Object.freeze([
   "historical_codex_stderr_shell",
   "historical_apply_patch_text",
   "historical_review_context_bundle",
-  "historical_deepswe_trajectory",
-  "historical_deepswe_session_jsonl",
+  "historical_codex_trajectory",
+  "historical_codex_session_jsonl",
   "live_mcp_tool_event",
   "launcher_owned_command",
   "operator_shell_command",
@@ -24,8 +24,8 @@ export const TRANSPORT_KINDS = Object.freeze([
   "agent_raw_shell_command",
   "historical_apply_patch_text",
   "historical_review_context_bundle",
-  "historical_deepswe_trajectory",
-  "historical_deepswe_session_jsonl",
+  "historical_codex_trajectory",
+  "historical_codex_session_jsonl",
   "unsupported_gap"
 ]);
 

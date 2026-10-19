@@ -10,6 +10,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeSync
 } from "node:fs";
@@ -36,7 +37,7 @@ import {
 import { PROXY_ENVIRONMENT_NAMES, projectProxyEnvironment } from "./proxy-environment.mjs";
 
 export const LITELLM_GATEWAY_STATE_SCHEMA_VERSION = "agent-launch-litellm-gateway-state.v2";
-export const LITELLM_PINNED_VERSION = "1.103.0";
+export const LITELLM_PINNED_VERSION = "1.105.1";
 export const LITELLM_RUNTIME_PYTHON_SERIES = "3.12";
 export const LITELLM_RUNTIME_LOCK_PATH = fileURLToPath(
   new URL("../../data/litellm-gateway/runtime-requirements.lock", import.meta.url)
@@ -221,6 +222,10 @@ export function renderLiteLlmGatewayConfig({ routes, vertexProject, vertexLocati
       `      vertex_project: ${yamlString(vertexProject)}`,
       `      vertex_location: ${yamlString(vertexLocation)}`
     );
+
+    if (upstream.startsWith("vertex_ai/gemini-")) {
+      lines.push("    model_info:", "      supports_system_messages: true");
+    }
   }
   lines.push(
     "general_settings:",
@@ -286,6 +291,69 @@ function readKey(paths) {
     }
   }
   return null;
+}
+
+export async function maintainLiteLlmGateways({ stateRoot = defaultLiteLlmStateRoot() } = {}) {
+  const root = path.join(stateRoot, "gateways");
+  if (!existsSync(root)) return { active_pids: [], retired_ports: [] };
+  ensurePrivateDirectory(stateRoot);
+  ensurePrivateDirectory(root);
+  const result = { active_pids: [], retired_ports: [] };
+  for (const name of readdirSync(root).filter((entry) => /^[1-9][0-9]*$/.test(entry))) {
+    const port = Number(name);
+    const paths = gatewayPaths(stateRoot, port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      fail(LITELLM_GATEWAY_ERROR_CODES.STATE_INVALID, `gateway directory ${paths.dir} names an invalid port`, {
+        stage: "maintenance", correction: `inspect ${paths.dir}; retain it until its gateway owner has confirmed it is unused`,
+        detail: { state_path: paths.state }
+      });
+    }
+    ensurePrivateDirectory(paths.dir);
+    await withExclusiveStateLock(paths.lock, async () => {
+      const record = readState(paths);
+      if (record === null) return;
+      const refuse = (reason) => fail(LITELLM_GATEWAY_ERROR_CODES.STATE_STALE,
+        `cannot maintain gateway ${paths.state}: ${reason}`, {
+          stage: "maintenance", correction: `inspect the gateway at ${record.base_url}; preserve its state until its owner has stopped it`,
+          detail: { state_path: paths.state, recorded_pid: record.pid ?? null }
+        });
+      let endpoint;
+      try { endpoint = new URL(record.base_url); } catch {
+        refuse("the recorded endpoint is invalid");
+      }
+      if (endpoint.hostname !== "127.0.0.1" || endpoint.protocol !== "http:" || Number(endpoint.port) !== port ||
+          endpoint.pathname !== "/v1" || endpoint.search || endpoint.hash || endpoint.username || endpoint.password) {
+        refuse("the recorded endpoint is not this loopback port");
+      }
+      if (!Number.isInteger(record.pid) || record.pid <= 0) refuse("the recorded PID is invalid");
+      let processArgs = null;
+      try {
+        const proc = `/proc/${record.pid}`;
+        if (lstatSync(proc).uid !== process.getuid()) refuse("the recorded process belongs to another user");
+        const stat = readFileSync(`${proc}/stat`, "utf8");
+        if (stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z ")) processArgs = null;
+        else processArgs = readFileSync(`${proc}/cmdline`, "utf8").split("\0");
+      } catch (error) {
+        if (error?.code !== "ENOENT" && error?.code !== "ESRCH") throw error;
+      }
+      const listening = await probePortListener({ host: endpoint.hostname, port });
+      if (!listening && processArgs === null) {
+        rmSync(paths.state);
+        result.retired_ports.push(port);
+        return;
+      }
+      const configIndex = processArgs?.indexOf("--config") ?? -1;
+      if (!listening || configIndex < 0 || processArgs[configIndex + 1] !== paths.config) {
+        refuse("a live process or listener cannot be identified as this gateway");
+      }
+      const key = readKey(paths);
+      if (key === null || (await probeLiteLlmGateway({ baseUrl: record.base_url, key, models: [] })).status !== "ready") {
+        refuse("the live listener does not authenticate as this gateway");
+      }
+      result.active_pids.push(record.pid);
+    }, { deadline: Date.now() + 20_000, label: "gateway maintenance lock" });
+  }
+  return result;
 }
 
 export function probeLiteLlmGateway({ baseUrl, key, models, timeoutMs = PROBE_TIMEOUT_MS }) {
@@ -484,6 +552,9 @@ export async function ensureLiteLlmGateway({
     vertex_location: settings.vertex_location,
     routes: sortedRoutes,
     policy: LITELLM_GATEWAY_POLICY,
+
+    rendered_config: renderLiteLlmGatewayConfig({ routes: sortedRoutes,
+      vertexProject: settings.vertex_project, vertexLocation: settings.vertex_location }),
     runtime_lock_digest: runtimeLockDigest
   }));
   ensurePrivateDirectory(stateRoot);

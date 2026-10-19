@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "e79deee0586edf1e30b2dd12c49853f0ff4d00f6f5f2116c95fd0220442dcb4a",
+  "parameter_contract_digest": "083952c3edcd6aa7e984edf8db8211ca62dc165673b3930326e77dacf01db109",
   "profile_id": "proof.ordering.lexicographic-conformance",
   "profile_version": "4.0.0",
-  "profile_digest": "dae2d1e16dd572ca09d64759e113dbc18b7d627f0932790902ca234268652103",
+  "profile_digest": "523a42609448c77a0a28a8ba13938f11dd76aa94507e78b86ec5b8ea06bfbf1e",
   "guarantee": "For exact captured input, complete result, ordering policy, and item-key/comparator evidence artifacts, the package-owned deterministic-lexicographic-conformance.v1 transformer validates complete mutually inclusive item populations and exact counts, at least two typed keys with explicit precedence and direction, first-unequal-key ordering, equal-key fallthrough to one stable item-identity tie-breaker, non-equality for every distinguishable pair, the complete captured result, and observed input, declaration, and equivalent-serialization permutation invariance; it emits one exact digest-bound conformance report containing the complete typed fact set and derived declared-item, result-item, and policy-key populations, and the profile retains its own population, count, claim, falsifier, and verifies spine.",
   "guarantee_digest": "93cd1b6fdab1f2173ab1d256c99f7b56f3ddf568dc9554596cee2dabf9e6a62c",
   "explicit_exclusions": [
@@ -18,8 +18,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "84f9ac19b2c7677967138dcc3aa61e909e88bc78d59727c2c9862deb26e1b078",
-    "adequacy_result_digest": "5387b2da303c4ba67d849a1dc4baa48dbcfa97b00fb02881711c28f549ce9193",
+    "adequacy_declaration_digest": "8daedb1054d7f978a08e2484b1ff3d1dcd357f5595afff8ca0358e8a42533d87",
+    "adequacy_result_digest": "bd4b7e1da01e854e90348341aae94504cc8ac66b09ac4e81bacc8d6344755b4d",
     "executable_control_count": 103,
     "negative_fixture_count": 136,
     "coverage_witness_count": 136

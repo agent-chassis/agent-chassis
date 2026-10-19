@@ -246,7 +246,17 @@ test run (see [Shared test execution](test-proof-execution.md#shared-test-execut
 the same resolved root as its checkout and runs from the target's project
 directory inside it; the reporter and the declared-module coverage scope are
 addressed by that root, so every reported file and covered module is named
-relative to it whatever directory the tests run from. A supported symlink
+relative to it whatever directory the tests run from. The Node source-binding
+owner also authenticates the exact installed counterpart selected by an
+installation journey: package identity and raw candidate-module digest at
+selection, the incumbent publication filter's expected published digest, then
+independently measured loaded bytes before cleanup. Its loader and the
+reporter share this stage's bounded capture. The reporter normalizes only that
+installed module to the declared candidate path and explicitly refuses an
+unbound or mismatched installation. Native coverage and its identity source map
+preserve genuine function counts after the installed fixture is deleted; an
+imported, uncalled function still supplies no traversal credit.
+A supported symlink
 spelling of the launcher-minted worktree therefore cannot make recorded fault
 identity diverge from the module URL actually loaded; no caller or environment
 supplies an alternate root.

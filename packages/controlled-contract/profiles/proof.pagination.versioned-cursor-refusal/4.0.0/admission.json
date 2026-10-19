@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "729adfd5dc366eed078a52bfe6c310e520e5596f2a4c34332ff1ce3290e2cecb",
+  "parameter_contract_digest": "1cf2314e4b80622e808b37a9d0716b9eb21718796fa8c881c5928a11230fe36b",
   "profile_id": "proof.pagination.versioned-cursor-refusal",
   "profile_version": "4.0.0",
-  "profile_digest": "6abe6b7f1e73b35898ebeb4c76d94b1ca08a958a2bc0d34b8122c7a6137cd770",
+  "profile_digest": "519c2f9e5a73b026667333279df255785b33248c36aa92a4524dc802d6a0188b",
   "guarantee": "Every cursor and successful returned page in the complete declared traversal populations resolves to its traversal source version; after a relevant mutation the current version differs in identity and captured content from the selected stale cursor version, the exact next-page attempt using that cursor is refused, and before refusal and throughout that stale-attempt scope no page artifact or page-return event is returned, no cursor-advance event is emitted, and no complete declared protected effect is written or mutated; a non-stale control proves an unrelated-source mutation does not cause refusal.",
   "guarantee_digest": "54fb6ac12173078ba025706e0c3a6d2626ee32d98c6e072256fbd0244af52081",
   "explicit_exclusions": [
@@ -17,8 +17,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "3f6f15ed2d7b15fd0be1420c58456f9eccf789c9b6f715df15033135e01211d7",
-    "adequacy_result_digest": "9d1718991f94ab471d3c69ae187481ab7a125395876c25b3c42047acc6ed14a3",
+    "adequacy_declaration_digest": "8ff2c6ecdd06350545b5e98537373c50908855e04cee2031d0463d55c34ef11f",
+    "adequacy_result_digest": "3062c058d6aaf90ddf5c3c6a32ddf8c48a5f84d22f043dd6e94d8ad576b701cf",
     "executable_control_count": 51,
     "negative_fixture_count": 226,
     "coverage_witness_count": 226

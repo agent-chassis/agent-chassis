@@ -1,5 +1,6 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { evaluateStableProofPackFixtureV1, profileDigest,
+  validateProfileSchemaV1, validateProfileSemanticsV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   LOSSLESS_PROJECTION_V1_PROFILE,
   buildLosslessProjectionFixture,
@@ -14,7 +15,7 @@ import {
 } from "./lossless-projection-v1-harness.mjs";
 
 const LOSSLESS_PROJECTION_V1_PROFILE_DIGEST =
-  "198e7b2599fb7cbde6b703179e3572d4f2987bb04f0368ce500ea23c1d1169da";
+  profileDigest(LOSSLESS_PROJECTION_V1_PROFILE);
 const LOSSLESS_PROJECTION_V1_GUARANTEE_DIGEST =
   "e999fd999699e6b4f0ce98b59622c11ee30a74f0f6ce150c18a7bb0a9c887a80";
 
@@ -22,12 +23,36 @@ const memberReferenceId = ({ key }) =>
   `ref-member-${key.replaceAll(/[^a-zA-Z0-9-]/gu, "-")}`;
 const reasonReferenceId = (reason) => `ref-reason-${reason}`;
 
-function evaluateFixture({ contract, input, profile }) {
+function evaluateFixtureResult({ contract, input, profile }) {
   return evaluateStableProofPackFixtureV1({
     contract,
     profile,
     evaluation_input: input
-  }).satisfaction;
+  });
+}
+
+function evaluateFixture(fixture) {
+  return evaluateFixtureResult(fixture).satisfaction;
+}
+
+function evaluatorNegative(controlId, fixture, expected, killed = true) {
+  const result = evaluateFixtureResult(fixture);
+  const actualReason = expected.pattern
+    ? `pattern:${expected.pattern}:${result.pattern_results?.find(
+      ({ pattern_id: id }) => id === expected.pattern)?.status ?? "missing"}`
+    : result.diagnostics.find(({ code }) => code !== "for_each_evaluation")?.code ?? null;
+  return {
+    control_id: controlId,
+    category: "mutant",
+    implementation_outcome: killed ? "killed" : "survived",
+    profile_satisfaction: result.satisfaction,
+    rejection: {
+      checker: "proof_evaluator", subject: "evaluation_input",
+      expected_reason: expected.pattern
+        ? `pattern:${expected.pattern}:unsatisfied` : expected.code,
+      actual_reason: actualReason
+    }
+  };
 }
 
 function fixtureForExecution(profile, execution, options = {}) {
@@ -128,25 +153,20 @@ function positiveControls(profile) {
 
 function mutantControls(profile) {
   const cases = [
-    ["complete-path-drops-member", "drop-from-complete"],
-    ["compact-loss-unaccounted", "silent-compact-loss"],
-    ["omission-undisclosed", "drop-disclosure"],
-    ["complete-total-undercounted", "undercount-total"],
-    ["omission-total-undercounted", "undercount-omissions"],
-    ["recovery-route-broken", "break-recovery-route"],
-    ["reason-outside-closed-catalog", "reason-outside-catalog"],
-    ["compact-omits-no-heavy-member", "omit-no-heavy-member"]
+    ["complete-path-drops-member", "drop-from-complete", { code: "direct_proposition_contradiction" }],
+    ["compact-loss-unaccounted", "silent-compact-loss", { code: "reference_role_count_binding_mismatch" }],
+    ["compact-loss-falsely-accounted", "false-accounting", { pattern: "source-accounted-by-compact-and-omissions" }],
+    ["omission-undisclosed", "drop-disclosure", { code: "reference_role_cardinality_invalid" }],
+    ["complete-total-undercounted", "undercount-total", { pattern: "total-count-complete" }],
+    ["omission-total-undercounted", "undercount-omissions", { pattern: "omission-count-complete" }],
+    ["recovery-route-broken", "break-recovery-route", { pattern: "compact-result-names-complete-path" }],
+    ["reason-outside-closed-catalog", "reason-outside-catalog", { pattern: "reason-selected-from-closed-catalog" }],
+    ["compact-omits-no-heavy-member", "omit-no-heavy-member", { code: "reference_role_cardinality_invalid" }]
   ];
-  return cases.map(([controlId, mutant]) => {
+  return cases.map(([controlId, mutant, expected]) => {
     const execution = executeProjection({ domain: "record", mutant });
-    return {
-      control_id: controlId,
-      category: "mutant",
-      implementation_outcome: projectionGuaranteeSatisfied(execution)
-        ? "survived"
-        : "killed",
-      profile_satisfaction: evaluateFixture(fixtureForExecution(profile, execution))
-    };
+    return evaluatorNegative(controlId, fixtureForExecution(profile, execution),
+      expected, !projectionGuaranteeSatisfied(execution));
   });
 }
 
@@ -285,15 +305,71 @@ function profileRejectionFixtures(profile) {
   };
 }
 
+const INPUT_REJECTIONS = {
+  "status-only-verification": { pattern: "lossless-recovery-verification" },
+  "suite-covers-symbol-negation-only": { pattern: "lossless-recovery-verification" },
+  "missing-compact-result-stimulus": { pattern: "compact-mode-returns-result" },
+  "missing-complete-result-stimulus": { pattern: "complete-mode-returns-result" },
+  "missing-projection-accounting-comparison": { code: "mandatory_verification_unattached" },
+  "missing-projection-accounting-spine": { pattern: "verification-builds-accounted-population" },
+  "missing-disclosure-signal": { pattern: "compact-result-emits-disclosure" },
+  "wrong-recovery-falsifier": { pattern: "lossless-recovery-verification" },
+  "mistyped-complete-mode": { code: "reference_role_binding_type_mismatch" },
+  "ungrounded-tool-profile-term": { code: "reference_role_binding_identity_kind_mismatch" },
+  "collapsed-compact-complete-modes": { code: "distinct_reference_roles_collapsed" }
+};
+
+const INDETERMINATE_INPUTS = {
+  "ambiguous-duplicate-proof-claim": "claim_pattern_match_ambiguous",
+  "missing-required-role-binding": "required_reference_role_unbound",
+  "unbound-source-count": "required_number_role_unbound"
+};
+
+function inputRejectionControls(profile) {
+  const fixtures = profileRejectionFixtures(profile);
+  return Object.entries(INPUT_REJECTIONS).map(([id, expected]) =>
+    evaluatorNegative(id, fixtures[id](), expected));
+}
+
+function requiredApplicabilityChecks(profile) {
+  const fixtures = profileRejectionFixtures(profile);
+  return Object.entries(INDETERMINATE_INPUTS).every(([id, expectedCode]) => {
+    const result = evaluateFixtureResult(fixtures[id]());
+    return result.satisfaction === "indeterminate" && result.diagnostics.some(
+      ({ code }) => code === expectedCode);
+  });
+}
+
 function profileRejectionControls(profile) {
-  return Object.entries(profileRejectionFixtures(profile)).map(
-    ([controlId, createFixture]) => ({
-      control_id: controlId,
-      category: "profile_rejection",
+  const cases = [
+    ["undefined-accounting-member-role", candidate => {
+      candidate.reference_binding_patterns.at(-1).roles[1] = "undefined_member";
+    }, "profile_pattern_role_undefined"],
+    ["nonpopulation-accounting-subject", candidate => {
+      candidate.reference_binding_patterns.at(-1).roles[0] = "tool";
+    }, "profile_population_binding_role_type_invalid"],
+    ["nonbinary-identity-comparison", candidate => {
+      const binding = candidate.reference_binding_patterns.at(-1);
+      binding.comparison = "same_reference";
+      delete binding.applicability_context;
+    }, "profile_schema_invalid"]
+  ];
+  return cases.map(([id, mutate, expectedReason]) => {
+    const candidate = structuredClone(profile);
+    mutate(candidate);
+    const schemaValid = validateProfileSchemaV1(candidate);
+    const diagnostics = schemaValid ? validateProfileSemanticsV1(candidate) : [];
+    const reason = schemaValid ? diagnostics[0]?.code ?? null : "profile_schema_invalid";
+    return {
+      control_id: id, category: "profile_rejection",
       implementation_outcome: "not_applicable",
-      profile_satisfaction: evaluateFixture(createFixture())
-    })
-  );
+      profile_satisfaction: schemaValid && diagnostics.length === 0 ? "satisfied" : "invalid",
+      rejection: {
+        checker: "profile_conformance", subject: "profile",
+        expected_reason: expectedReason, actual_reason: reason
+      }
+    };
+  });
 }
 
 function exclusionControls(profile) {
@@ -376,9 +452,13 @@ async function runProofPackAdequacyControls({ profile , negative_fixtures: negat
     profile_version: profile.profile_version,
     profile_digest: LOSSLESS_PROJECTION_V1_PROFILE_DIGEST,
     guarantee_digest: LOSSLESS_PROJECTION_V1_GUARANTEE_DIGEST,
+    passed: evaluateFixture(baselineFixture(profile)) === "satisfied" &&
+      validateProfileSchemaV1(profile) && validateProfileSemanticsV1(profile).length === 0 &&
+      requiredApplicabilityChecks(profile),
     controls: [...await isolatedMandatoryVerificationControls(profile, negativeFixtures),
       ...positiveControls(profile),
       ...mutantControls(profile),
+      ...inputRejectionControls(profile),
       ...profileRejectionControls(profile),
       ...exclusionControls(profile)
     ]
@@ -444,10 +524,10 @@ async function isolatedMandatoryVerificationControls(profile, negativeFixtures) 
     const result = assessMandatoryVerificationControlV1({ profile, fixture,
       verificationClaimId: row.claim_id });
     if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
+    const optionalFixture = { profile, contract: fixture.contract, input: fixture.evaluation_input };
     controls.push({ control_id: row.baseline, category: "positive",
       implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
-    { control_id: row.optional, category: "profile_rejection",
-      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+    evaluatorNegative(row.optional, optionalFixture, { pattern: row.claim_id.slice("claim-".length) }));
   }
   return controls;
 }

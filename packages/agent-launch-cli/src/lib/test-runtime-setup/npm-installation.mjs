@@ -6,6 +6,7 @@ import path from "node:path";
 import { NPM_LOCK, NPM_MANIFEST, PNPM_LOCK, directoryReader, npmManifestFacts, resolveNpmWorkspace } from
   "./npm-workspace.mjs";
 import { TestRuntimeSetupError } from "./toolchains.mjs";
+import { npmExecutableEntries } from "./npm-executable-entries.mjs";
 
 export const DEPENDENCIES_MISSING = "test_runtime_dependencies_missing";
 export const DEPENDENCY_INPUT_INACCESSIBLE = "test_runtime_dependency_input_inaccessible";
@@ -188,13 +189,25 @@ export function workingCopyTree(tree, workProjectDir) {
   const scopes = [...new Set(entries.map(({ name }) => name.includes("/") ? name.split("/")[0] : null)
     .filter(Boolean))];
   const rebase = (directory) => treeDirectory(workProjectDir, directory);
+  const sources = [...source].map(([name, directory]) => ({ package: name, directory, path: rebase(directory) }));
+  const executables = npmExecutableEntries(tree, modules, sources);
+
+  const store = path.join(tree.dir, ".pnpm");
+  const storeLinks = [];
+  try {
+    lstatSync(store);
+    storeLinks.push({ path: path.join(modules, ".pnpm"), target: store });
+  } catch (error) {
+    if (!NOT_THERE.has(error?.code)) throw error;
+  }
   return {
     owner: tree.owner, modules, installed: tree.dir, rebased: true,
-    directories: [modules, ...scopes.map((scope) => path.join(modules, scope))],
+    directories: [modules, ...scopes.map((scope) => path.join(modules, scope)), ...executables.directories],
     links: entries.map(({ name, absolute }) => ({ path: path.join(modules, name),
-      target: source.has(name) ? rebase(source.get(name)) : absolute })),
+      target: source.has(name) ? rebase(source.get(name)) : absolute })).concat(storeLinks, executables.links),
+    writes: executables.writes,
 
-    sources: [...source].map(([name, directory]) => ({ package: name, directory, path: rebase(directory) }))
+    sources
   };
 }
 
@@ -347,6 +360,7 @@ export const NPM_ECOSYSTEM = Object.freeze({
       directories: copies.flatMap(({ owner, modules, directories }) =>
         [...(owner === "." ? [] : [path.dirname(modules)]), ...directories]),
       links: copies.flatMap(({ links }) => links),
+      writes: copies.flatMap(({ writes = [] }) => writes),
       env: {},
       values: { node_modules_trees: Object.freeze(copies.map(({ owner, installed, modules }) =>
         Object.freeze({ owner, source: installed, path: modules }))) }

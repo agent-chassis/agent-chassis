@@ -2,25 +2,30 @@
 
 import { realpathSync } from "node:fs";
 import path from "node:path";
+import { deriveLauncherOwnedDispatchWorktreeRoot } from
+  "../../../agent-launch-core/src/lib/launcher-owned-worktree-root.mjs";
+import { materializeImmutableCandidate } from
+  "../../../agent-launch-cli/src/lib/backend-immutable-candidate.mjs";
 
 import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/test-proof";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 
 import { classifyWorktreeAtCommit, resolveAuthenticatedConfiguredWorktree, resolveCanonicalUnitBranch,
-  resolveExactCommitIdentity, resolveImmediateParentCommit, resolveOwnedExactCommitWorktree } from
+  resolveExactCommitIdentity, resolveImmediateParentCommit, resolveOwnedExactCommitWorktree,
+  resolveOwnedOrdinaryComparisonWorktree } from
   "../../../agent-launch-cli/src/lib/backend-review-target-resolver.mjs";
 import { verifyExactSliceCommitBinding } from "../../../agent-launch-cli/src/lib/exact-slice-commit-binding.mjs";
 import { captureRepositorySourceSnapshot } from "../../../agent-launch-cli/src/lib/repository-source-snapshot.mjs";
 import { verifiedNpmDependencyMappings } from
   "../../../agent-launch-cli/src/lib/test-execution/dependency-projection.mjs";
 import { defaultTerminalCandidateRunGit } from "../../../agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
-import { resolveCurrentRunnerRuntime } from
+import { resolveCurrentHarnessRuntime, resolveCurrentRunnerRuntime } from
   "../../../agent-launch-cli/src/lib/test-execution/current-runtime.mjs";
 import { expandOrdinaryTargetPattern, isOrdinaryTargetPattern } from
   "../../../agent-launch-cli/src/lib/test-execution/ordinary-test-glob.mjs";
 import { ordinaryTargetDefect } from
   "../../../agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs";
-import { resolveProofEnvironment, resolveRunnerRuntimeInputs } from
+import { resolveEnvironmentRuntimeInputs, resolveProofEnvironment, resolveRunnerRuntimeInputs } from
   "../../../agent-launch-cli/src/lib/test-execution/runtime-inputs.mjs";
 import { defaultRunGit, resolveWorktreeBinding } from "../../../agent-launch-cli/src/lib/worktree-substrate.mjs";
 import { resolveUniqueManagedLifecycleBindingPairForRecovery } from
@@ -151,11 +156,14 @@ function within(checkoutRoot, absolute) {
 export function preparedRuntimeExclusions({ repositoryRoot, checkoutRoot, request }) {
   if (request === null || request === undefined) return [];
   const descriptor = TEST_RUNTIME_RUNNER_CATALOG.runners.find(({ name }) => name === request.runner) ?? null;
-  if (descriptor === null) return [];
-  const located = resolveProofEnvironment({ repositoryRoot, checkoutRoot, target: request.target,
+  if (descriptor === null && request.harness === undefined) return [];
+  const located = resolveProofEnvironment({ repositoryRoot, checkoutRoot, target: request.harness?.cwd ?? request.target,
     runner: descriptor, environment: request.environment ?? null });
   if (located?.configured !== true || located.ok !== true) return [];
-  const runtime = resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot, descriptor, project: located.project });
+  const runtime = request.harness === undefined
+    ? resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot, descriptor, project: located.project })
+    : resolveEnvironmentRuntimeInputs({ repositoryRoot, checkoutRoot, ecosystem: located.environment.ecosystem,
+      project: located.project });
   if (runtime.ok !== true) return [];
   const exclusions = [];
   const populations = [...Object.values(runtime.toolchains ?? {}), runtime.preparation ?? {}];
@@ -195,14 +203,30 @@ function currentnessCheck(runGit, repositoryRoot, root, initial, exclusions = []
 
 function availableBaseline(runGit, { repositoryRoot, checkoutRoot, commit }, request) {
   const { targets, exclusions } = requestedSource({ repositoryRoot, checkoutRoot, request });
+  const head = headState(runGit, checkoutRoot);
   const { snapshotDigest, current } = currentnessCheck(runGit, repositoryRoot, checkoutRoot,
-    headState(runGit, checkoutRoot), exclusions);
-  return Object.freeze({ status: "available", repositoryRoot, checkoutRoot, commit, snapshotDigest, current,
+    head, exclusions);
+  return Object.freeze({ status: "available", repositoryRoot, checkoutRoot, commit, dirty: head.dirty,
+    snapshotDigest, current,
     ...(targets === undefined ? {} : { targets }) });
 }
 
 const unavailableBaseline = (reason, detail = undefined) => Object.freeze({ status: "unavailable", reason,
   ...(detail === undefined ? {} : { detail }) });
+
+function materializedBaseline(runGit, mainRepo, commit, request, worktreeRoot, budget) {
+  const identity = resolveExactCommitIdentity({ mainRepo, gitSha: commit, runGit });
+  if (identity === null) return unavailableBaseline("baseline_commit_unavailable");
+  const materialized = materializeImmutableCandidate({ candidate: identity, runGit, budget,
+    worktreeRoot: worktreeRoot ?? deriveLauncherOwnedDispatchWorktreeRoot(mainRepo) });
+  try {
+    return Object.freeze({ ...availableBaseline(runGit, { repositoryRoot: mainRepo,
+      checkoutRoot: materialized.checkout.worktree_path, commit }, request), cleanup: materialized.cleanup });
+  } catch (error) {
+    materialized.cleanup({ primaryErrorCode: error?.code ?? null });
+    throw error;
+  }
+}
 
 function baselineCommit(runGit, mainRepo, { commit, dirty }) {
   if (dirty) return { ok: true, commit };
@@ -210,19 +234,20 @@ function baselineCommit(runGit, mainRepo, { commit, dirty }) {
   return parent.ok ? { ok: true, commit: parent.parent } : { ok: false, reason: parent.reason };
 }
 
-function ownedBaseline(runGit, mainRepo, candidate, request) {
-  return () => {
+function ownedBaseline(runGit, mainRepo, candidate, request, worktreeRoot) {
+  return ({ budget = null } = {}) => {
     const wanted = baselineCommit(runGit, mainRepo, candidate);
     if (!wanted.ok) return unavailableBaseline(wanted.reason);
-    const owned = resolveOwnedExactCommitWorktree({ mainRepo, gitSha: wanted.commit,
+    const owned = resolveOwnedOrdinaryComparisonWorktree({ mainRepo, gitSha: wanted.commit,
       exclude: [candidate.checkoutRoot], runGit });
-    if (!owned.ok) return unavailableBaseline(`baseline_${owned.reason}`, owned.detail);
+    if (!owned.ok) return candidate.dirty ? unavailableBaseline(`baseline_${owned.reason}`, owned.detail)
+      : materializedBaseline(runGit, mainRepo, wanted.commit, request, worktreeRoot, budget);
     return availableBaseline(runGit, { repositoryRoot: mainRepo, checkoutRoot: owned.worktree_path,
       commit: wanted.commit }, request);
   };
 }
 
-async function workerSource({ state, mainRepo, runGit, request }) {
+async function workerSource({ state, mainRepo, runGit, request, comparisonWorktreeRoot }) {
   const wkId = typeof state.assignedUnit === "string" ? state.assignedUnit.split("#")[0] : null;
   const unauthenticated = (message, cause = null) => refusal(MANAGED_TEST_SOURCE_CODES.WORKER_UNAUTHENTICATED,
     message, { assigned_unit: state.assignedUnit ?? null, ...SOURCE_OWNERS.worker }, cause);
@@ -248,20 +273,17 @@ async function workerSource({ state, mainRepo, runGit, request }) {
 
   const start = pair.slice_binding.base_sha;
   const wkWorktree = pair.wk_binding.worktree_path;
-  const baseline = () => {
-    let wanted;
-    if (head.commit === start) wanted = start;
-    else {
-      const chosen = baselineCommit(runGit, mainRepo, head);
-      if (!chosen.ok) return unavailableBaseline(chosen.reason);
-      wanted = chosen.commit;
-    }
+  const baseline = ({ budget = null } = {}) => {
+    const chosen = baselineCommit(runGit, mainRepo, head);
+    if (!chosen.ok) return unavailableBaseline(chosen.reason);
+    const wanted = chosen.commit;
 
     const state = classifyWorktreeAtCommit({ mainRepo, worktreePath: wkWorktree, commit: wanted, runGit });
-    if (state === "clean") {
+    if (state === "clean" || state === "dirty") {
       return availableBaseline(runGit, { repositoryRoot: mainRepo, checkoutRoot: wkWorktree, commit: wanted },
         request);
     }
+    if (!head.dirty) return materializedBaseline(runGit, mainRepo, wanted, request, comparisonWorktreeRoot, budget);
     if (state === "moved") return unavailableBaseline(wanted === start ? "baseline_moved" : "baseline_not_materialized");
     return unavailableBaseline(`baseline_${state}`);
   };
@@ -269,7 +291,7 @@ async function workerSource({ state, mainRepo, runGit, request }) {
     facts: { slice_start: start } };
 }
 
-async function reviewerSource({ env, state, mainRepo, runGit, request }) {
+async function reviewerSource({ env, state, mainRepo, runGit, request, comparisonWorktreeRoot }) {
   const unauthenticated = (message, cause = null) => refusal(MANAGED_TEST_SOURCE_CODES.REVIEWER_UNAUTHENTICATED,
     message, { assigned_unit: state.assignedUnit ?? null, ...SOURCE_OWNERS.reviewer }, cause);
   let materialization;
@@ -287,7 +309,7 @@ async function reviewerSource({ env, state, mainRepo, runGit, request }) {
     throw unauthenticated("the managed reviewer's materialization has no exact Git candidate identity");
   }
   return { kind: "reviewer_materialization", checkoutRoot, head,
-    baseline: ownedBaseline(runGit, mainRepo, { ...head, checkoutRoot }, request) };
+    baseline: ownedBaseline(runGit, mainRepo, { ...head, checkoutRoot }, request, comparisonWorktreeRoot) };
 }
 
 function owningSliceInspection(owned, branch) {
@@ -301,7 +323,7 @@ function owningSliceInspection(owned, branch) {
 
 const TERMINAL_OWNER_EXPLAINS = Object.freeze(["unowned", "not_materialized"]);
 
-async function orchestratorSource({ mainRepo, source, runGit, request, terminalWorktreeRoot }) {
+async function orchestratorSource({ mainRepo, source, runGit, request, terminalWorktreeRoot, comparisonWorktreeRoot }) {
   if (!["current_main", "exact_sha", "branch"].includes(source?.kind)) {
     throw refusal(MANAGED_TEST_SOURCE_CODES.SOURCE_REQUIRED,
       "an orchestrator names its execution source: {kind:\"current_main\"}, {kind:\"exact_sha\",value} or " +
@@ -319,7 +341,8 @@ async function orchestratorSource({ mainRepo, source, runGit, request, terminalW
     }
     const head = { commit: configured.commit, tree: configured.tree, dirty: !configured.clean };
     return { kind: "current_main", checkoutRoot: configured.worktree_path, head,
-      baseline: ownedBaseline(runGit, mainRepo, { ...head, checkoutRoot: configured.worktree_path }, request) };
+      baseline: ownedBaseline(runGit, mainRepo, { ...head, checkoutRoot: configured.worktree_path }, request,
+        comparisonWorktreeRoot) };
   }
 
   let branch = null;
@@ -370,18 +393,19 @@ async function orchestratorSource({ mainRepo, source, runGit, request, terminalW
   const head = { commit: owned.commit, tree: owned.tree, dirty: false };
   return { kind: branch === null ? "exact_sha" : "branch", checkoutRoot: owned.worktree_path, head,
     ...(branch === null ? {} : { facts: { branch: branch.branch } }),
-    baseline: ownedBaseline(runGit, mainRepo, { ...head, checkoutRoot: owned.worktree_path }, request) };
+    baseline: ownedBaseline(runGit, mainRepo, { ...head, checkoutRoot: owned.worktree_path }, request,
+      comparisonWorktreeRoot) };
 }
 
 export async function resolveManagedTestSource({ state, env = {}, mainRepo, source = null, request = null,
-  runGit = defaultRunGit, terminalWorktreeRoot = null }) {
+  runGit = defaultRunGit, terminalWorktreeRoot = null, comparisonWorktreeRoot = null }) {
   if (!EXECUTION_ROLES.includes(state?.role)) {
     throw refusal(MANAGED_TEST_SOURCE_CODES.ROLE_INELIGIBLE,
       "ordinary test runs are available only to authenticated orchestrator, worker and reviewer sessions",
       { role: state?.role ?? null });
   }
   const repositoryRoot = realpathSync(mainRepo);
-  const context = { mainRepo: repositoryRoot, runGit, request };
+  const context = { mainRepo: repositoryRoot, runGit, request, comparisonWorktreeRoot };
   const resolved = state.role === "worker" ? await workerSource({ ...context, state })
     : state.role === "reviewer" ? await reviewerSource({ ...context, env, state })
       : await orchestratorSource({ ...context, source, terminalWorktreeRoot });
@@ -428,11 +452,14 @@ export async function observeRuntimeAfterRun({ repositoryRoot, checkoutRoot, req
   }
   const unknown = (cause, detail = {}) => Object.freeze({ status: "unknown", cause, ...detail });
   const descriptor = TEST_RUNTIME_RUNNER_CATALOG.runners.find(({ name }) => name === request.runner) ?? null;
-  if (descriptor === null) return unknown("the runner is not a runtime runner");
+  if (descriptor === null && request.harness === undefined) return unknown("the runner is not a runtime runner");
   let resolved;
   try {
-    resolved = await resolveCurrentRunnerRuntime({ repositoryRoot, checkoutRoot, target: request.target,
-      runner: descriptor, environment: request.environment ?? null });
+    resolved = request.harness === undefined
+      ? await resolveCurrentRunnerRuntime({ repositoryRoot, checkoutRoot, target: request.target,
+        runner: descriptor, environment: request.environment ?? null })
+      : await resolveCurrentHarnessRuntime({ repositoryRoot, checkoutRoot, harness: request.harness,
+        environment: request.environment ?? null });
   } catch (error) {
     return unknown("the runtime could not be resolved again", { code: error?.code ?? null,
       message: error?.message ?? String(error) });

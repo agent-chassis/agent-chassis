@@ -22,8 +22,7 @@ export default Object.freeze({
     }
 
     const listed = await metadata({ command: runtime.executables.node,
-      args: [cli, "list", "--filesOnly", absoluteFile, "--json"], cwd: projectDir,
-      ...commandEnvironment(runtime) });
+      args: [cli, "list", "--filesOnly", absoluteFile, "--json"], cwd: projectDir });
     let files;
     try {
       files = JSON.parse(listed.stdout).map(({ file }) => file);
@@ -36,7 +35,7 @@ export default Object.freeze({
       selection: Object.freeze({ file_filter: absoluteFile, listed_files: Object.freeze(files) }),
       invocation: { command: runtime.executables.node,
         args: [cli, "run", ...(selector === null ? [] : [`--testNamePattern=${selector}`]), absoluteFile],
-        cwd: projectDir, ...commandEnvironment(runtime) }
+        cwd: projectDir }
     };
   },
   compilerCache: "vitest-module-cache"

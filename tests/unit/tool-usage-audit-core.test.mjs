@@ -106,8 +106,8 @@ test("normalized audit facts validate source and transport vocabularies", () => 
   const event = normalizeAuditFact(
     {
       fact_kind: "event",
-      source_kind: "historical_deepswe_session_jsonl",
-      transport_kind: "historical_deepswe_session_jsonl",
+      source_kind: "historical_codex_session_jsonl",
+      transport_kind: "historical_codex_session_jsonl",
       event: {
         event_type: "tool_call",
         tool_name: "workspace_read_page"
@@ -115,7 +115,7 @@ test("normalized audit facts validate source and transport vocabularies", () => 
     },
     confidenceEnvelope({
       confidence: "high",
-      evidence_basis: "structured_deepswe_or_codex_tool_event",
+      evidence_basis: "structured_codex_tool_event",
       sourceArtifact: SOURCE_ARTIFACT
     })
   );

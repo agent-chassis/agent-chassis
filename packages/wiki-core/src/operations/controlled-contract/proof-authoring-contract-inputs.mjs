@@ -1,3 +1,4 @@
+import { accountParentRequirementSource, compactRequirementSourceAccounting } from './contract-requirement-source-links.mjs';
 import { controlledContractContentDigest } from "../../lib/controlled-contract-tools.mjs";
 import { today } from "../../lib/wiki-shared.mjs";
 import {
@@ -71,6 +72,7 @@ export function compileProofAuthoringContractInputs({
       wkId: initial.wkId,
       disposition: controlledAcceptance.disposition,
       rationale: controlledAcceptance.rationale ?? null,
+      sourcePassages: controlledAcceptance.sourcePassages,
       allowCorrection: true,
       now,
       sourceDigest: initial.recordSourceDigest
@@ -110,6 +112,8 @@ export function projectProofAuthoringContractInputs(resolved, {
       controlled_acceptance_unit: resolved.wkId
     }),
     revision: resolved.revision,
+    parent_source_accounting: compactRequirementSourceAccounting(
+      accountParentRequirementSource(resolved.contract?.content ?? null, resolved.record)),
     contract_content_digest: resolved.contract?.content_digest ?? null,
     requirements,
     controlled_acceptance: Object.freeze({

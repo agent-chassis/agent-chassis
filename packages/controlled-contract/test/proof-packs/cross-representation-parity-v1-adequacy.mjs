@@ -1,13 +1,17 @@
 import { createHash } from "node:crypto";
 
-import { evaluateStableProofPackFixtureV1
+import { validateProfileSemanticsV1, evaluateStableProofPackFixtureV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import { PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "../support/proof-pack-adequacy-constants.mjs";
 
-const GUARANTEE = "For one declared logical source, two distinct result surfaces expose equal complete populations of typed member descriptors by mutual subset, bind one shared exact nonnegative member count, emit count signals equal to that count, and expose one explicitly selected canonical value pair that is exactly equal. One verification reads both full representations and each verified behavior has its controlled complement as a separate falsifier.";
+const GUARANTEE = "For a supplied controlled graph, match declarations of two distinct result surfaces from one declared logical source, equal complete declared typed-descriptor populations by mutual subset, shared exact nonnegative member count and count signals, and one explicitly selected equal canonical value pair, with read and controlled-complement verification declarations. This is declaration matching only: no report data, captured bytes or implementation behavior is compared. Actual supplied-report comparison requires a separate call to verifyBehavioralPreservationReports and is bounded to its checked inputs; neither result establishes full-report equality or behavioral preservation.";
 
 const EXCLUSIONS = Object.freeze([
+  "unselected-canonical-value-equality",
+  "actual-report-data-comparison",
+  "implementation-behavioral-preservation",
+  "captured-full-report-byte-equality",
   "applicability-selection",
   "automatic-or-arbitrary-multi-value-pairing",
   "business-semantics-referential-integrity-and-cross-member-invariants",
@@ -252,9 +256,50 @@ function buildCrossRepresentationParityFixture({
   return { contract, input, profile };
 }
 
-function satisfaction(fixture) {
+function evaluateFixture(fixture) {
   return evaluateStableProofPackFixtureV1({ contract: fixture.contract,
-    profile: fixture.profile, evaluation_input: fixture.input }).satisfaction;
+    profile: fixture.profile, evaluation_input: fixture.input });
+}
+
+function satisfaction(fixture) { return evaluateFixture(fixture).satisfaction; }
+
+const NEGATIVE_REASONS = Object.freeze({
+  "collapsed-result-surfaces": "distinct_reference_roles_collapsed",
+  "count-only-proof": "pattern:left-population-parity-verification:unsatisfied",
+  "left-member-missing": "population_membership_incomplete",
+  "right-member-extra": "population_membership_incomplete",
+  "same-count-different-population": "population_relation_false",
+  "same-count-member-substitution": "population_relation_false",
+  "wrong-type-member": "population_relation_false",
+  "one-sided-inspection": "pattern:verification-reads-both-representations:unsatisfied",
+  "permissive-independent-schemas": "pattern:left-population-parity-verification:unsatisfied",
+  "selected-canonical-value-mismatch": "pattern:canonical-value-verification:unsatisfied",
+  "wrong-logical-source": "pattern:source-emits-both-results:unsatisfied",
+  "missing-source-to-results-link": "pattern:source-emits-both-results:unsatisfied",
+  "missing-left-result-inputs": "pattern:left-result-exposes-parity-inputs:unsatisfied",
+  "missing-right-result-inputs": "pattern:right-result-exposes-parity-inputs:unsatisfied",
+  "missing-read-spine": "pattern:verification-reads-both-representations:unsatisfied",
+  "missing-left-subset-right": "mandatory_verification_unattached",
+  "missing-right-subset-left": "mandatory_verification_unattached",
+  "missing-left-count": "mandatory_verification_unattached",
+  "missing-right-count": "mandatory_verification_unattached",
+  "missing-selected-value-equality": "mandatory_verification_unattached",
+  "missing-left-population-verification": "mandatory_behavior_unverified",
+  "missing-right-population-verification": "mandatory_behavior_unverified",
+  "missing-left-count-verification": "mandatory_behavior_unverified",
+  "missing-right-count-verification": "mandatory_behavior_unverified",
+  "missing-canonical-value-verification": "mandatory_behavior_unverified"
+});
+
+function evaluatorNegative(controlId, fixture) {
+  const result = evaluateFixture(fixture);
+  const actualReason = result.diagnostics.find(({ code }) => code !== "for_each_evaluation")?.code ??
+    result.pattern_results?.filter(({ status }) => status !== "satisfied")
+      .map(({ pattern_id, status }) => `pattern:${pattern_id}:${status}`).sort()[0] ?? null;
+  return { control_id: controlId, category: "mutant", implementation_outcome: "killed",
+    profile_satisfaction: result.satisfaction,
+    rejection: { checker: "proof_evaluator", subject: "evaluation_input",
+      expected_reason: NEGATIVE_REASONS[controlId], actual_reason: actualReason } };
 }
 
 function proposition(contract, patternId) {
@@ -361,16 +406,21 @@ async function runProofPackAdequacyControls({ profile, profile_digest: profileDi
     leftMembers: ["ref-member-name-string", "ref-member-state-enum"],
     rightMembers: ["ref-member-name-string", "ref-member-state-enum"]
   }));
-  for (const controlId of MUTANT_IDS) controls.push({ control_id: controlId,
-    category: "mutant", implementation_outcome: "killed",
-    profile_satisfaction: satisfaction(mutantFixture(profile, controlId)) });
-  for (const [controlId, patternId] of REJECTION_PATTERNS) controls.push({
-    control_id: controlId, category: "profile_rejection",
-    implementation_outcome: "not_applicable",
-    profile_satisfaction: satisfaction(buildCrossRepresentationParityFixture({
-      profile, omitPatternIds: [patternId]
-    }))
-  });
+  for (const controlId of MUTANT_IDS) controls.push(evaluatorNegative(controlId,
+    mutantFixture(profile, controlId)));
+  for (const [controlId, patternId] of REJECTION_PATTERNS) controls.push(evaluatorNegative(controlId,
+    buildCrossRepresentationParityFixture({ profile, omitPatternIds: [patternId] })));
+  const weakened = structuredClone(profile);
+  weakened.claim_patterns = weakened.claim_patterns.filter(({ pattern_id: id }) =>
+    id !== "canonical-value-verification");
+  const conformanceDiagnostics = validateProfileSemanticsV1(weakened);
+  controls.push({ control_id: "profile-missing-canonical-verification-pattern",
+    category: "profile_rejection", implementation_outcome: "not_applicable",
+    profile_satisfaction: conformanceDiagnostics.length > 0 ? "invalid" : "satisfied",
+    rejection: { checker: "profile_conformance", subject: "profile",
+      expected_reason: "profile_relation_endpoint_undefined",
+      actual_reason: conformanceDiagnostics.find(({ pattern_id: id, field }) =>
+        id === "verification-targets-canonical-value" && field === "source_claim_pattern_id")?.code ?? null } });
   for (const controlId of EXCLUSIONS) controls.push({ control_id: controlId,
     category: "exclusion", implementation_outcome: "boundary_demonstrated",
     profile_satisfaction: "not_evaluated" });
@@ -397,6 +447,8 @@ export {
 
 import { assessMandatoryVerificationControlV1 }
   from "../support/stable-v1-proof-pack-runtime.mjs";
+
+function verificationPattern(claimId) { return claimId.slice("claim-".length); }
 
 async function isolatedMandatoryVerificationControls(profile, negativeFixtures) {
   const cases = [
@@ -441,8 +493,13 @@ async function isolatedMandatoryVerificationControls(profile, negativeFixtures) 
     if (!result.discriminated) throw new Error(`isolated verification control failed: ${row.optional}: ${JSON.stringify(result)}`);
     controls.push({ control_id: row.baseline, category: "positive",
       implementation_outcome: "passed", profile_satisfaction: result.baseline.satisfaction },
-    { control_id: row.optional, category: "profile_rejection",
-      implementation_outcome: "not_applicable", profile_satisfaction: result.optional.satisfaction });
+    { control_id: row.optional, category: "mutant",
+      implementation_outcome: "killed", profile_satisfaction: result.optional.satisfaction,
+      rejection: { checker: "proof_evaluator", subject: "evaluation_input",
+        expected_reason: "mandatory_verification_pattern_not_satisfied",
+        actual_reason: result.optional.nonconforming_patterns.some(({ pattern_id, status }) =>
+          pattern_id === verificationPattern(row.claim_id) && status === "unsatisfied")
+          ? "mandatory_verification_pattern_not_satisfied" : null } });
   }
   return controls;
 }

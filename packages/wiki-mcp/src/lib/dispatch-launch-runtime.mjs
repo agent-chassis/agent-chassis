@@ -1,6 +1,8 @@
 
 
 import { randomBytes } from "node:crypto";
+import { createOpenCodeWorkspaceAgentLaunchExecutor, OPENCODE_FAMILY_SOURCE_READ_MODE,
+  OPENCODE_FAMILY_NATIVE_READ_CAPABILITY } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-opencode-executor.mjs";
 import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import {
@@ -28,6 +30,8 @@ import {
   CLAUDE_FAMILY_SOURCE_READ_MODE,
   CLAUDE_FAMILY_NATIVE_READ_CAPABILITY
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-claude-executor.mjs";
+import { createAgyWorkspaceAgentLaunchExecutor, AGY_FAMILY_SOURCE_READ_MODE,
+  AGY_FAMILY_NATIVE_READ_CAPABILITY } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-agy-executor.mjs";
 
 import {
   buildFamilyExecutorRegistryEntry
@@ -44,6 +48,7 @@ import { defaultRunGitAsync } from
   "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate.mjs";
 import {
   defaultWkForgeHandoff,
+  projectAuthenticatedWkPublicationSelection,
   observeAuthenticatedWkForgeHandoff
 } from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
 import {
@@ -388,6 +393,10 @@ export function buildDispatchLaunchExecutors(env = process.env, {
     : selectTestCompositionCodexExecutor(env, codexExecutorTestSeams, managedCreateMcpConduit);
 
   return {
+    agy: buildFamilyExecutorRegistryEntry({ executor: createAgyWorkspaceAgentLaunchExecutor({ env, createMcpConduit: managedCreateMcpConduit }),
+      sourceReadMode: AGY_FAMILY_SOURCE_READ_MODE, nativeReadCapability: AGY_FAMILY_NATIVE_READ_CAPABILITY }),
+    opencode: buildFamilyExecutorRegistryEntry({ executor: createOpenCodeWorkspaceAgentLaunchExecutor({ env, createMcpConduit: managedCreateMcpConduit }),
+      sourceReadMode: OPENCODE_FAMILY_SOURCE_READ_MODE, nativeReadCapability: OPENCODE_FAMILY_NATIVE_READ_CAPABILITY }),
     codex: buildFamilyExecutorRegistryEntry({
       executor: codexExecutor,
       sourceReadMode: CODEX_FAMILY_SOURCE_READ_MODE,
@@ -757,7 +766,8 @@ export function buildDispatchRuntime(env = process.env, {
             ? integrateWorkBackendOptions({
                 workspace: trustedWorkspace, sessionEnv: env, responseEnv: env,
                 backendOptions: { worktreeProvisioning: worktreeProvisioningConfig,
-                  requireManagedProvisioning: true }
+                  requireManagedProvisioning: true,
+                  prepareTerminalCandidate: terminalCandidateCoordinator?.prepareTerminalCandidate ?? null }
               }) : {}),
           captureRunOriginal: trustedWorkspace === null ? null : observation => createObservationOriginals({
             workspace: trustedWorkspace, sessionEnv: env, responseEnv: env }).capture(observation),
@@ -806,7 +816,9 @@ export function buildDispatchRuntime(env = process.env, {
           };
         }
         return outcome?.ok === true
-          ? { accepted: true, forge_handoff: outcome.result }
+          ? { accepted: true, forge_handoff: outcome.result,
+            ...(outcome.result.kind === "handed_off" ? {
+              publication_selection: projectAuthenticatedWkPublicationSelection(outcome.result) } : {}) }
           : { accepted: false, refusal: projectWkForgeHandoffRefusal(outcome) };
       };
 

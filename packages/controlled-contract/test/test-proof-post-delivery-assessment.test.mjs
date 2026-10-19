@@ -15,7 +15,7 @@ import {
 const DIGEST = (character) => `sha256:${character.repeat(64)}`;
 const executionPack = await loadExactAdmittedProofPack({
   profileId: "proof.verification.test-validity",
-  profileVersion: "11.0.0",
+  profileVersion: "12.0.0",
 
 });
 const SELECTED_TEST_ID = "test-component";
@@ -65,7 +65,7 @@ test("the exact evaluator alone distinguishes satisfied from valid-negative unsa
     implementation_version: executionPack.test_validity_evaluator.implementation_version
   }, {
     profile_id: "proof.verification.test-validity",
-    profile_version: "11.0.0",
+    profile_version: "12.0.0",
     implementation_id: "proof.verification.test-validity.execution-evaluator",
     implementation_version: "9.0.0"
   });
@@ -89,7 +89,7 @@ test("the exact evaluator alone distinguishes satisfied from valid-negative unsa
     "test_validity_execution_prohibited_shortcut");
 });
 
-test("11.0.0 profile judges only the one declaratively selected test", () => {
+test("12.0.0 profile judges only the one declaratively selected test", () => {
   const evaluate = (inventory) => executionPack.test_validity_evaluator.evaluate({
     semantic_facts: facts({ inventory: { ...facts().facts.inventory, ...inventory } })
   });
@@ -112,8 +112,8 @@ test("11.0.0 profile judges only the one declaratively selected test", () => {
   assert.deepEqual(siblings.diagnostics, []);
 });
 
-test("11.0.0 certification authenticates and executes its complete negative corpus", async () => {
-  const identity = { profile_id: "proof.verification.test-validity", profile_version: "11.0.0" };
+test("12.0.0 certification authenticates and executes its complete negative corpus", async () => {
+  const identity = { profile_id: "proof.verification.test-validity", profile_version: "12.0.0" };
   const readJson = (name) => readDefinitionDocument(identity, name);
   const [profile, admission, corpus, adequacy, result] = await Promise.all([
     readJson("profile.json"), readJson("admission.json"), readJson("corpus.json"),
@@ -169,8 +169,11 @@ test("complete deterministic results bind every proof-instance identity", () => 
   const result = buildProofVerificationResult({
     resolution: resolution(), semanticFacts, evaluation
   });
-  assert.equal(result.status, "satisfied");
-  assert.equal(result.proof_instance.profile.profile_version, "11.0.0");
+  assert.equal(result.status, "unsatisfied");
+  assert.deepEqual(result.execution_evaluation, evaluation);
+  assert.equal(result.requirement_satisfaction.status, "not_established");
+  assert.equal(result.requirement_satisfaction.credit_granted, 0);
+  assert.equal(result.proof_instance.profile.profile_version, "12.0.0");
   assert.equal(result.proof_instance.evaluator.implementation_id,
     "proof.verification.test-validity.execution-evaluator");
   assert.equal(result.proof_instance.evaluator.implementation_version, "9.0.0");
@@ -179,6 +182,8 @@ test("complete deterministic results bind every proof-instance identity", () => 
 
   assert.deepEqual(result.proof_instance.selected_definition, resolution().selected_definition);
   assert.equal(validateResult(result), true, JSON.stringify(validateResult.errors));
+  assert.equal(validateResult({ ...result, status: "satisfied" }), false,
+    "the result schema cannot grant behavioral credit for this execution-only evaluation");
   const unbound = resolution();
   delete unbound.selected_definition;
   assert.throws(() => buildProofVerificationResult({

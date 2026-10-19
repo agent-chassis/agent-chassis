@@ -13,6 +13,10 @@ import { editKindRecord } from "./kind-record-edit.mjs";
 import { inspectRecordAuthoringInitiative, planKindRecordAuthoringChange, prepareRecordAuthoringChange,
   prepareRecordAuthoringException } from "./record-authoring-plan.mjs";
 import { RECORD_AUTHORING_EXCEPTION_CODES } from "../lib/record-authoring-exception.mjs";
+import { validateRecordAuthoringChanges } from '../lib/record-authoring-schema.mjs';
+import { PROOF_REFRESH_CORRECTION } from './controlled-contract/proof-authoring-refresh.mjs';
+import { proofRefreshRecovery } from '../lib/proof-refresh-guidance.mjs';
+import { authoredSaveRecordScopes } from '../lib/work-record-save-scope.mjs';
 
 export const SAVE_RECORD_RESULT_SCHEMA_VERSION = "save-record-result.v1";
 const KIND_RECORD_UNIT = /^(?:IN|DEC)-[0-9]{4}$/u;
@@ -22,8 +26,8 @@ const NOT_CAUSED = Object.freeze({ proofs_executed: false, agent_started: false,
   delivery_integrated: false, landing_established: false });
 
 const result = (fields) => ({ schema_version: SAVE_RECORD_RESULT_SCHEMA_VERSION, ...fields });
-const refused = ({ unit, revision = null, diagnostics }) => result({ outcome: "refused", unit,
-  revision, diagnostics, effects: { published: false, ...NOT_CAUSED } });
+const refused = ({ unit, revision = null, diagnostics, effects = { published: false } }) => result({ outcome: "refused", unit,
+  revision, diagnostics, effects: { ...effects, ...NOT_CAUSED } });
 const diagnostic = (code, path, message, extra = {}) => ({ code, severity: "error", path, message, ...extra });
 
 const publishedOwnerDetails = (value, guidanceCall) => Array.isArray(value)
@@ -91,15 +95,35 @@ async function saveWorkItem({ repoRoot, unit, revision, changes, exception }, op
   } catch (error) {
 
     if (typeof error?.code !== "string" || error.details?.changed !== false) throw error;
+    if (error.code === 'obligation_coverage_prospective_incompatible' && changes?.refresh_proofs !== true &&
+        error.details.causes?.some(cause => cause.code === 'obligation_coverage_definition_integrity_mismatch')) {
+      error.details = { ...error.details, refresh_recovery: {
+        condition: 'Exact selected definitions must be available and unchanged authored inputs compatible across the whole WK.',
+        ...proofRefreshRecovery(wkId) } };
+    }
     const root = exception !== undefined ? "exception" : "changes";
     return refused({ unit, revision, diagnostics: [diagnostic(error.code,
       typeof error.details.path === "string" && error.details.path.startsWith(root) ? error.details.path : root, error.message,
       { details: publishedOwnerDetails(error.details, options.requirementGuidanceCall),
         correction: exception !== undefined
           ? "Nothing was saved. Correct the addressed exception using the owner details and request it against the current revision."
-          : "Correct the addressed changes using the owner details and save against the current revision." })] });
+          : changes.refresh_proofs === true ? PROOF_REFRESH_CORRECTION
+            : "Correct the addressed changes using the owner details and save against the current revision." })] });
   }
   if (!plan.ok) return refused({ unit, revision, diagnostics: plan.diagnostics });
+
+  if (changes !== undefined) {
+    const targets = authoredSaveRecordScopes({ record: plan.record, previousRecord: initial.record,
+      selectedUnit, changes, bindings: plan.bindings });
+    if (targets.length) {
+      const diagnostics = typeof options.validateScopes === 'function'
+        ? await options.validateScopes({ repoRoot: initial.repoRoot, record: plan.record, targets })
+        : [diagnostic('save_record_scope_not_evaluated', targets[0].inputPath,
+          'Scope paths were not checked: the host did not compose the worker scope validation owner',
+          { correction: 'Nothing was saved. Use a save_record host with the repository/base scope validator composed, then retry.' })];
+      if (diagnostics.length) return refused({ unit, revision, diagnostics });
+    }
+  }
 
   const assessCommitted = snapshot => observeRecordAuthoringAssessment({ ...target, repoRoot: initial.repoRoot }, snapshot, options);
   let settled;
@@ -107,11 +131,21 @@ async function saveWorkItem({ repoRoot, unit, revision, changes, exception }, op
     settled = await settlePreparedRecordAuthoring({ input: { ...target, repoRoot: initial.repoRoot }, initial,
       preparation: plan.preparation, options: { ...options, observeCommitted: assessCommitted } });
   } catch (error) {
-    if (error?.code === "obligation_coverage_final_compare_stale") {
-      return refused({ unit, diagnostics: [diagnostic("save_record_revision_stale", "revision",
-        "the unit changed after this save was prepared; nothing was published")] });
+    const effects = failureEffects(error);
+    if (error?.code === "obligation_coverage_final_compare_stale" && effects.published === false) {
+      return refused({ unit, effects, diagnostics: [diagnostic(error.details?.movement === 'revision'
+        ? 'save_record_revision_stale' : error.code, error.details?.movement === 'revision' ? 'revision' : 'changes',
+        error.message, { details: publishedOwnerDetails({ ...error.details,
+          next_calls: [{ tool: 'workspace_read_wiki', arguments: { subject: unit } }] }, options.requirementGuidanceCall),
+          effects, correction: 'Read the unit again to inspect current state; do not reuse the failed request revision.' })] });
     }
-    error.save_record = { unit, prior_revision: revision, effects: { ...failureEffects(error), ...NOT_CAUSED } };
+    error.save_record = { unit, prior_revision: revision, effects: { ...effects, ...NOT_CAUSED },
+      ...(effects.published === true ? { kind: 'work_item', bindings: plan.bindings, requirement_rows: plan.requirement_rows, entries: plan.entries,
+        criterion_identity_changes: plan.criterion_identity_changes } : {}),
+      failure: publishedOwnerDetails(error.details ?? {}, options.requirementGuidanceCall),
+      ...(effects.published === 'unknown' ? { recovery: {
+        responsible_owner: 'controlled_contract_authoring_settlement',
+        missing_capability: 'Outcome reconciliation is unavailable through save_record; inspect the failure and current root state without replaying the mutation.' } } : {}) };
     throw error;
   }
   const { assessment_carrier: carrier, ...assessed } = settled.observed;
@@ -122,10 +156,12 @@ async function saveWorkItem({ repoRoot, unit, revision, changes, exception }, op
     ...(plan.requirement_rows === null || plan.requirement_rows === undefined ? {} : { requirement_rows: plan.requirement_rows }),
     entries: plan.entries,
     ready_slices: plan.ready_slices,
+    ...(plan.preparation.refresh === undefined ? {} : { refresh: plan.preparation.refresh }),
     ...(plan.exception === undefined ? {} : { exception: plan.exception }),
     changed_fields: settled.no_op ? [] : plan.changed_fields,
     ...(settled.receipt?.terminal_receipt?.ok === false ? { persistence: settled.receipt.terminal_receipt } : {}),
-    effects: { ...(settled.no_op ? { published: false } : publishedEffects(initial, settled.snapshot)),
+    effects: { ...(settled.no_op ? { published: false, ...(plan.preparation.refresh === undefined ? {} : {
+      record_written: false, contract_written: false, semantic_sources_written: [] }) } : publishedEffects(initial, settled.snapshot)),
       ...NOT_CAUSED }, ...assessed });
   if (carrier !== undefined) Object.defineProperty(saved, "assessment_carrier", { value: carrier, enumerable: false });
   return saved;
@@ -188,6 +224,13 @@ export async function saveRecord({ repoRoot, unit, revision, changes, exception 
   if (exception !== undefined && changes !== undefined) {
     return refused({ unit, diagnostics: [diagnostic("save_record_request_invalid", "exception",
       "a save carries changes or one exception, never both")] });
+  }
+  if (changes !== null && typeof changes === 'object' && Object.hasOwn(changes, 'refresh_proofs')) {
+    const root = /^WK-[0-9]{4,}$/u.test(unit);
+    const diagnostics = validateRecordAuthoringChanges(root ? 'work_item'
+      : KIND_RECORD_UNIT.test(unit) ? (unit.startsWith('IN-') ? 'initiative' : 'decision') : 'work_item',
+    root || KIND_RECORD_UNIT.test(unit) ? 'existing' : 'existing_slice', changes);
+    if (diagnostics.length) return refused({ unit, diagnostics });
   }
   if (exception !== undefined && !WORK_ITEM_UNIT.test(unit)) {
     return refused({ unit, diagnostics: [diagnostic(RECORD_AUTHORING_EXCEPTION_CODES.UNIT_UNSUPPORTED, "unit",

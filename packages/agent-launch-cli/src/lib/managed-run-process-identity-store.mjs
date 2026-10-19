@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+import { activeCompletion, arbitrateCompletion, completionObservations, COMPLETION_OBSERVATION_KIND } from "./managed-run-completion-observation.mjs";
 import {
   CRASH_DURABLE_RESULTS,
   createSyncEffects,
@@ -182,6 +183,8 @@ export function readManagedRunObservation({ mainRepo, subject, attemptId = null,
   sliceBinding = null, includeVerifiedSource = false, includeProofSummary = false }) {
   const read = readValidatedAttemptJournal(mainRepo, subject, includeVerifiedSource);
   if (!read.ok) return sliceBinding === null ? read : { ok: false, refusal: read.refusal };
+  const withSource = result => includeVerifiedSource
+    ? { ...result, verified_source: read.verified_source } : result;
 
   if (sliceBinding !== null) {
     if (attemptId !== null || detail !== null) return { ok: false, code: "attempt_detail_request_invalid" };
@@ -192,9 +195,14 @@ export function readManagedRunObservation({ mainRepo, subject, attemptId = null,
     const selected = selectManagedAttempt({ repository: read.repository, subject,
       events: read.events, attemptId: binding.retained.run_id });
     const assigned = selected.ok ? { ...selected.selected } : null;
-    if (assigned !== null) delete assigned.original_result;
-    return selected.ok ? { ok: true, selected: assigned }
-      : { ok: false, code: selected.code, ...(selected.refusal ? { refusal: selected.refusal } : {}) };
+    if (assigned !== null) {
+      delete assigned.original_result;
+      const request = completionObservations(read.events, assigned.dispatch_tuple)
+        .find(item => item.alternative === "assignment_change_requested");
+      if (request !== undefined) assigned.assignment_change = request;
+    }
+    return withSource(selected.ok ? { ok: true, selected: assigned }
+      : { ok: false, code: selected.code, ...(selected.refusal ? { refusal: selected.refusal } : {}) });
   }
   if (detail !== null) {
     const page = pageManagedAttemptDetail({
@@ -210,14 +218,18 @@ export function readManagedRunObservation({ mainRepo, subject, attemptId = null,
     });
     return page.ok && includeVerifiedSource ? { ...page, verified_source: read.verified_source } : page;
   }
-  const selected = selectManagedAttempt({ repository: read.repository, subject, events: read.events, attemptId });
-  if (!selected.ok || !includeProofSummary) return selected;
+  let selected = selectManagedAttempt({ repository: read.repository, subject, events: read.events, attemptId });
+  if (selected.ok) {
+    const request = completionObservations(read.events, selected.selected.dispatch_tuple).find(item => item.alternative === "assignment_change_requested");
+    if (request !== undefined) selected = { ...selected, selected: { ...selected.selected, assignment_change: request } };
+  }
+  if (!selected.ok || !includeProofSummary) return withSource(selected);
   const proof_detail = pageManagedAttemptDetail({ repository: read.repository, subject, events: read.events,
     attemptId: selected.selected.dispatch_tuple.run_id, kind: "proof_verification", limit: 1 });
-  return { ...selected, proof_detail };
+  return withSource({ ...selected, proof_detail });
 }
 
-function appendManagedRunObservation({ mainRepo, subject, runId, kind, payload }) {
+function appendManagedRunObservation({ mainRepo, subject, runId, kind, payload, predicate = null }) {
   const repository = mainRepo;
   const locked = withAttemptPartitionLock({ mainRepo, repository, subject }, () => {
     const read = readAttemptJournalEvents({ mainRepo, repository, subject });
@@ -239,6 +251,10 @@ function appendManagedRunObservation({ mainRepo, subject, runId, kind, payload }
       ? payload(selection.selected.dispatch_tuple, selection.selected)
       : payload;
     if (resolvedPayload === null) return { ok: false, code: "attempt_binding_mismatch" };
+    if (predicate !== null) {
+      const verdict = predicate({ events: read.events, selected: selection.selected });
+      if (!verdict.ok || !verdict.appended) return verdict;
+    }
     const admitted = admitAttemptCommand({
       repository,
       subject,
@@ -387,7 +403,7 @@ export function recordManagedProofVerification({
     kind: ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED, field: "verification", value: verification });
 }
 
-function recordManagedInvocationObservation({ mainRepo, subject, sliceBinding, invocationId, kind, field, value }) {
+function recordManagedInvocationObservation({ mainRepo, subject, sliceBinding, invocationId, kind, field, value, predicate = null }) {
   const repository = mainRepo;
   const read = readAttemptJournalEvents({ mainRepo, repository, subject });
   if (read.refusal !== null) return { ok: false, refusal: read.refusal };
@@ -399,6 +415,7 @@ function recordManagedInvocationObservation({ mainRepo, subject, sliceBinding, i
     subject,
     runId: retained.run_id,
     kind,
+    predicate,
     payload: (current) => (sameTuple(current, derived)
       ? { dispatch_tuple: current, invocation_id: invocationId, [field]: value }
       : null)
@@ -411,7 +428,38 @@ export function recordManagedDeliveryReceipt({ mainRepo, subject, sliceBinding, 
     field: "receipt", value: receipt });
 }
 
-export function findManagedDeliveryReceipt({ mainRepo, refId, subject = null }) {
+export function recordManagedCompletion({ mainRepo, subject, sliceBinding, completion }) {
+  let recorded;
+  try {
+    recorded = recordManagedInvocationObservation({ mainRepo, subject, sliceBinding,
+      invocationId: completion.intent_id, kind: COMPLETION_OBSERVATION_KIND, field: "completion", value: completion,
+      predicate: ({ events, selected }) => ({ ...arbitrateCompletion({ events, selected, completion }),
+        pending_termination: selected.result === null }) });
+  } catch (error) {
+    error.retained_completion = completion;
+    throw error;
+  }
+  return recorded.ok && recorded.event !== undefined
+    ? { ...recorded, completion: recorded.event.payload.completion } : recorded;
+}
+
+export function readManagedCompletion({ mainRepo, subject, attemptId = null, sliceBinding = null }) {
+  const read = readValidatedAttemptJournal(mainRepo, subject);
+  if (!read.ok) return read;
+  if (read.events.length === 0 && sliceBinding === null) return { ok: true, dispatch_tuple: null, completion: null };
+  if (sliceBinding !== null) {
+    const binding = selectProofVerificationAttempt({ repository: mainRepo, subject, events: read.events, sliceBinding });
+    if (!binding.ok) return binding;
+    if (!sameTuple(binding.retained, binding.derived)) return { ok: false, code: "attempt_binding_mismatch" };
+    attemptId = binding.retained.run_id;
+  }
+  const selected = selectManagedAttempt({ repository: mainRepo, subject, events: read.events, attemptId });
+  if (!selected.ok) return selected;
+  return { ok: true, dispatch_tuple: selected.selected.dispatch_tuple,
+    completion: activeCompletion(completionObservations(read.events, selected.selected.dispatch_tuple)) };
+}
+
+export function findManagedDeliveryReceipt({ mainRepo, refId, subject = null, assignmentChange = false }) {
   const root = attemptJournalRootDir(mainRepo);
   let files;
   if (subject !== null) files = [attemptJournalFilePath(mainRepo, mainRepo, subject)];
@@ -432,6 +480,14 @@ export function findManagedDeliveryReceipt({ mainRepo, refId, subject = null }) 
         file !== attemptJournalFilePath(mainRepo, mainRepo, selectedSubject) ||
         (subject !== null && selectedSubject !== subject)) {
       throw Object.assign(new Error("delivery receipt is in a foreign attempt partition"), { code: "attempt_binding_mismatch" });
+    }
+    if (assignmentChange) {
+      const validated = validateAttemptJournal({ repository: mainRepo, subject: selectedSubject, events: parsed.events });
+      if (!validated.valid) throw Object.assign(new Error(validated.refusal.reason), { code: validated.refusal.code });
+      for (const event of parsed.events) if (event.kind === COMPLETION_OBSERVATION_KIND &&
+          event.payload.completion.alternative === "assignment_change_requested" &&
+          event.payload.completion.original.ref_id === refId) matches.push({ completion: event.payload.completion, dispatchTuple: event.payload.dispatch_tuple });
+      continue;
     }
     const projected = projectManagedAttemptObservations({ repository: mainRepo, subject: selectedSubject, events: parsed.events });
     if (!projected.ok) throw Object.assign(new Error(projected.refusal.reason), { code: projected.refusal.code, refusal: projected.refusal });

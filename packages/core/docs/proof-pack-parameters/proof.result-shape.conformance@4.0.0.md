@@ -4,9 +4,9 @@
 
 When one declared operation returns one grounded result governed by one grounded schema, the declared observed-result, required-member, optional-member, allowed-member, forbidden-member, allowed-shape, and forbidden-shape populations are complete; every declared required typed member descriptor is present in the observed result population, every observed typed member descriptor belongs to the exact allowed population, every declared forbidden member descriptor is absent, the observed result shape belongs to the exact allowed-shape population and not to the exact forbidden-shape population, and the emitted result count equals the exact observed-member population cardinality.
 
-Profile digest: 444fe70ed5b2cee6c4ed5d2ed53ebf75ccd0ed7073eeb193408b7fab40986341. Parameter digest: 767be1bbb517dd18337396cb2adb57195bbbddda9ea2a1927172203bfd60fef8.
+Profile digest: 756bbde28162efdc869a3486309c64517027e5c811e27f1c95771f93df25786e. Parameter digest: d9ae10b41bf849820b5c1f1f94d85bd0308d011969b90e7073b6437023a7f85c.
 
-Admission digest: 4d24688eb856d0243f54e77ccd51611613dcd2c73ab8a94107bcbb3341d46a0f.
+Admission digest: de5d5b2ec8a3402242d0408f22d0de4f65837d7ec49d79f673df1c9d0af10073.
 
 Roles: 32/32 accounted; 1 owned gaps. Semantic parameters: 24; internal roles: 8.
 

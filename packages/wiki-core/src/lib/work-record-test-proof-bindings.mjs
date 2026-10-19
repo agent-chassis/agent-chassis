@@ -1,14 +1,79 @@
-import { resolveNativeTestSelector } from
+import { CLOSED_NODE_TEST_TARGET_STATEMENT, isClosedNodeTestTarget, resolveNativeTestSelector,
+  TEST_RUNTIME_ENVIRONMENT_ID_RE } from
   "@agent-chassis/controlled-contract/test-proof";
+import { parseRepositoryScopePath, parseRepositoryScopeFileSelector } from "./work-record-repository-path.mjs";
+
+export { CLOSED_NODE_TEST_TARGET_STATEMENT, isClosedNodeTestTarget };
 
 const PACKAGE_SPECIFIER = "@agent-chassis/controlled-contract";
 const STABLE_V1 = "controlled-acceptance-contract.v1";
-const CLOSED_NODE_TEST_TARGET_RE =
-  /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.mjs$/u;
 const EXECUTABLE_VALIDATION_FIELDS = Object.freeze([
   "operation", "target", "verification_ids"
 ]);
 const NOTE_VALIDATION_FIELDS = Object.freeze(["note", "verification_ids"]);
+
+const COMMAND_ID = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/u;
+const COMMIT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
+const textSchema = { type: "string", minLength: 1 };
+const closedSchema = (properties, required) => ({ type: "object", additionalProperties: false, properties, required });
+
+export const REPOSITORY_TEST_DECLARATION_SCHEMA = deepFreeze(closedSchema({
+  operation: { type: "string", const: "repository_test" }, id: textSchema, purpose: textSchema,
+  default_selection: textSchema,
+  selections: { type: "array", minItems: 1, items: closedSchema({
+    id: textSchema,
+    harness: closedSchema({ cwd: textSchema, argv: { type: "array", minItems: 1,
+      items: { type: "string" } } }, ["cwd", "argv"]),
+    definition_paths: { type: "array", minItems: 1, items: textSchema },
+    environment: textSchema,
+    additional_baseline_commits: { type: "array", items: textSchema }
+  }, ["id", "harness", "definition_paths"]) }
+}, ["operation", "id", "purpose", "selections"]));
+const repositoryDirectory = value => value === "." ||
+  (parseRepositoryScopePath(value).ok && !value.endsWith("/"));
+
+function validateRepositoryTest(entry, entryPath, issues) {
+  const start = issues.length;
+  const check = (ok, suffix, cause) => {
+    if (!ok) issues.push(validationIssue(`repository_test_${cause}`, `${entryPath}${suffix}`,
+      `${entryPath}${suffix}: ${cause.replaceAll("_", " ")}`));
+  };
+  const fields = (value, required, optional = []) => value !== null && typeof value === "object" &&
+    !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype &&
+    required.every(key => Object.hasOwn(value, key)) &&
+    Object.getOwnPropertyNames(value).every(key => [...required, ...optional].includes(key));
+  check(fields(entry, ["operation", "id", "purpose", "selections"], ["default_selection"]), "", "fields_invalid");
+  check(typeof entry.id === "string" && COMMAND_ID.test(entry.id), ".id", "id_invalid");
+  check(typeof entry.purpose === "string" && entry.purpose.trim().length > 0, ".purpose", "purpose_invalid");
+  check(Array.isArray(entry.selections) && entry.selections.length > 0, ".selections", "selections_invalid");
+  const seen = new Set();
+  for (const [index, selection] of (Array.isArray(entry.selections) ? entry.selections : []).entries()) {
+    const at = `.selections[${index}]`;
+    if (!fields(selection, ["id", "harness", "definition_paths"], ["environment", "additional_baseline_commits"])) {
+      check(false, at, "selection_fields_invalid"); continue;
+    }
+    check(typeof selection.id === "string" && COMMAND_ID.test(selection.id), `${at}.id`, "selection_id_invalid");
+    check(!seen.has(selection.id), `${at}.id`, "selection_id_duplicate"); seen.add(selection.id);
+    check(fields(selection.harness, ["cwd", "argv"]), `${at}.harness`, "harness_fields_invalid");
+    check(repositoryDirectory(selection.harness?.cwd), `${at}.harness.cwd`, "cwd_invalid");
+    const argv = selection.harness?.argv;
+    check(Array.isArray(argv) && argv.length > 0 && typeof argv[0] === "string" && argv[0].length > 0 &&
+      argv.every(value => typeof value === "string" && !value.includes("\0")), `${at}.harness.argv`, "argv_invalid");
+    const paths = selection.definition_paths;
+    check(Array.isArray(paths) && paths.length > 0 && paths.every(value => parseRepositoryScopeFileSelector(value).ok) &&
+      new Set(paths).size === paths.length, `${at}.definition_paths`, "definition_paths_invalid");
+    if (Object.hasOwn(selection, "environment")) check(typeof selection.environment === "string" &&
+      TEST_RUNTIME_ENVIRONMENT_ID_RE.test(selection.environment), `${at}.environment`, "environment_invalid");
+    if (Object.hasOwn(selection, "additional_baseline_commits")) {
+      const commits = selection.additional_baseline_commits;
+      check(Array.isArray(commits) && commits.every(value => typeof value === "string" && COMMIT_ID.test(value)) &&
+        new Set(commits).size === commits.length, `${at}.additional_baseline_commits`, "baseline_commits_invalid");
+    }
+  }
+  if (Object.hasOwn(entry, "default_selection")) check(typeof entry.default_selection === "string" &&
+    seen.has(entry.default_selection), ".default_selection", "default_selection_invalid");
+  return issues.length === start;
+}
 
 function deepFreeze(value) {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -32,20 +97,6 @@ function diagnostic(code, field, details = {}) {
 function canonicalWorkRecordUnits(workRecord) {
   return [workRecord, ...(Array.isArray(workRecord?.slices) ? workRecord.slices : [])]
     .filter((unit) => unit && typeof unit === "object");
-}
-
-function isClosedRelativeTarget(value) {
-  return typeof value === "string" && value.length > 0 && value.length <= 4096 &&
-    !value.startsWith("/") && !value.includes("\\") && !value.includes("\0") &&
-    value.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
-}
-
-export const CLOSED_NODE_TEST_TARGET_STATEMENT =
-  "one canonical repository-relative .mjs node:test module path";
-
-export function isClosedNodeTestTarget(value) {
-  return typeof value === "string" && !value.startsWith("-") &&
-    CLOSED_NODE_TEST_TARGET_RE.test(value) && isClosedRelativeTarget(value);
 }
 
 function validationIssue(code, path, message, details = {}) {
@@ -91,6 +142,8 @@ export function projectWorkRecordTestProofValidation({
   const validation = selectedUnit?.acceptance?.validation;
   const issues = [];
   const declarations = [];
+  const repositoryTests = [];
+  const commandIds = new Set();
   const notes = [];
   const validationEntries = [];
 
@@ -128,6 +181,17 @@ export function projectWorkRecordTestProofValidation({
         return;
       }
       if (Object.hasOwn(entry, "operation")) {
+        if (entry.operation === "repository_test") {
+          const valid = validateRepositoryTest(entry, entryPath, issues);
+          if (commandIds.has(entry.id)) issues.push(validationIssue("repository_test_id_duplicate", `${entryPath}.id`,
+            `${entryPath}.id duplicates repository command '${entry.id}'`));
+          commandIds.add(entry.id);
+          if (valid) {
+            const command = deepFreeze(structuredClone(entry));
+            repositoryTests.push(command); validationEntries.push(command); entryKinds[index] = "repository_test";
+          }
+          return;
+        }
         if (!sameFields(entry, EXECUTABLE_VALIDATION_FIELDS)) {
           issues.push(validationIssue("validation_executable_fields_invalid", entryPath,
             `${entryPath} must contain exactly operation, target, and verification_ids`));
@@ -217,6 +281,7 @@ export function projectWorkRecordTestProofValidation({
     validation_entries: validationEntries,
     entry_kinds: entryKinds,
     executable_declarations: declarations,
+    repository_tests: repositoryTests,
     notes,
     targets: [...new Set(projected.map(([target]) => target))].sort(),
     validation_bindings: Object.fromEntries(projected)
@@ -290,6 +355,7 @@ export function projectCaseOwnedTestProofValidation({ workRecord, selectedUnit, 
 
 export function renderWorkRecordValidationEntry(entry) {
   if (typeof entry === "string") return entry.trim();
+  if (entry?.operation === "repository_test") return JSON.stringify(entry);
   if (entry && typeof entry === "object" && entry.operation === "node_test") {
     return JSON.stringify({
       operation: entry.operation,

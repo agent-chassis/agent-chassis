@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { reviewHandoff } from "@agent-chassis/agent-launch-core";
-import { parseArgs } from "../lib/cli.mjs";
+import { parseWorkRecordUnitAddress } from "@agent-chassis/agent-launch-core";
 import {
   FAMILY_DEPRECATED_DIAGNOSTIC,
   resolveLauncherProfile
@@ -42,17 +41,12 @@ Options:
 Supported review apps are codex and claude. AGY remains roadmap/WIP in the
 public enforcement model; do not present it as hardened review support.
 
-The deactivated reviewed-blackboard review path remains reachable via an
-instruction_path positional; it fails closed via reviewHandoff and creates no
-artifacts.
 `;
 
 const AGY_REVIEW_LIVE_REFUSAL_REASON = "agy_review_live_dispatch_planning_only";
 const AGY_REVIEW_LIVE_REFUSAL_MESSAGE =
   "app agy is roadmap/WIP for this release; use --dry-run-json for planning only. " +
   "Live review dispatch is supported for codex and claude.";
-
-const UNIT_ADDRESS_PATTERN = /^WK-[0-9]+(#[a-z0-9][a-z0-9-]*)?$/;
 
 export async function runReview(argv, io = {}, { backend: injectedBackend } = {}) {
   if (argv.includes("-h") || argv.includes("--help")) {
@@ -73,29 +67,15 @@ export async function runReview(argv, io = {}, { backend: injectedBackend } = {}
     return;
   }
 
-  if (typeof firstPositional === "string" && UNIT_ADDRESS_PATTERN.test(firstPositional)) {
-    await dispatchRoleReview(argv, io, { backend: injectedBackend });
+  const address = parseWorkRecordUnitAddress(firstPositional);
+  if (!address.ok) {
+    for (const diagnostic of address.diagnostics) {
+      writeRaw(io.stderr, `agent-launch review: ${diagnostic.message}\n`);
+    }
+    process.exitCode = 2;
     return;
   }
-
-  const { positionals, options } = parseArgs(argv);
-  const [instructionPath] = positionals;
-  const agent = options.agent ? String(options.agent) : null;
-  const result = await reviewHandoff({
-    instructionPath,
-    agent,
-    reviewedAndAcceptRisks: booleanFlag(options, "reviewed-and-accept-risks"),
-    allowLegacyImplementationModeHandoffReview: booleanFlag(
-      options,
-      "allow-legacy-implementation-mode-handoff-review"
-    ),
-    allowMissingGraphImpactCheckpoint: booleanFlag(
-      options,
-      "allow-missing-graph-impact-checkpoint"
-    )
-  });
-  console.log(`Created review ${result.reviewId}`);
-  console.log(`Token: ${result.tokenPath}`);
+  await dispatchRoleReview(argv, io, { backend: injectedBackend });
 }
 
 async function dispatchRoleReview(argv, io, { backend: injectedBackend } = {}) {
@@ -416,21 +396,6 @@ function consumeOption(argv, index, name) {
     return { value: equals, consumed: 1, missing: false };
   }
   return null;
-}
-
-function booleanFlag(options, name) {
-  const value = options[name];
-  if (value === undefined) {
-    return false;
-  }
-  if (value === true) {
-    return true;
-  }
-  const normalized = String(value).trim().toLowerCase();
-  if (["false", "0", "no", "off"].includes(normalized)) {
-    return false;
-  }
-  return true;
 }
 
 function writeLine(stream, value) {

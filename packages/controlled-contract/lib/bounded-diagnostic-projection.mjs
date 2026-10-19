@@ -540,9 +540,12 @@ function selectCausalSchemaDiagnostics({ errors, branch_families: branchFamilies
   return selected.map(({ source }) => source);
 }
 
-function projectBoundedDiagnostics(diagnostics) {
+function projectBoundedDiagnostics(diagnostics, { priorityCodes = [] } = {}) {
   if (!Array.isArray(diagnostics)) throw new TypeError("diagnostics must be an array");
-  const sorted = diagnostics.map(normalizeDiagnostic).sort(compareDiagnostics);
+  const priority = new Set(priorityCodes);
+  const sorted = diagnostics.map(normalizeDiagnostic).sort((left, right) =>
+    Number(priority.has(right.diagnostic.code)) - Number(priority.has(left.diagnostic.code)) ||
+    compareDiagnostics(left, right));
   const states = [];
   for (const normalized of sorted.slice(0, MAX_DIAGNOSTIC_COUNT)) {
     const state = {

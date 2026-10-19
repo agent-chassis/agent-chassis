@@ -1,6 +1,5 @@
 
 
-import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
@@ -32,7 +31,7 @@ export function resolveLauncherRuntimeStateDirForWorkspace({ workspaceBasis, env
     root = trimmed;
     source = "env";
   } else {
-    root = path.join(os.tmpdir(), LAUNCHER_RUNTIME_STATE_DIRNAME);
+    root = path.join("/tmp", LAUNCHER_RUNTIME_STATE_DIRNAME);
     source = "tmpdir_default";
   }
   return {

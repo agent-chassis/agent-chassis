@@ -4,9 +4,9 @@
 
 For one caller-declared history containing exactly one failed attempt and one later retry of the same operation and input, failure is followed by cleanup and settlement with zero declared residue before the retry; the retry succeeds, creates exactly one declared final effect that the failed attempt does not create, and the selected final durable state equals the expected state.
 
-Profile digest: 99c33b5a58719aeaf269595f11b21ae1ac553e1ba42aadda9c216adc0ea81d99. Parameter digest: 82afa9bcc4e60fa19e23df9a6f3060fe0a3a8212010c5bb556607244456b0c56.
+Profile digest: 07011af76cdd324530692e5ec0793a1b77a000219f6fe7ad4282853dcb10688e. Parameter digest: 3a2ec4e6976633826840295dabd09757e2038a8575e971255e9570c9b3bdfa39.
 
-Admission digest: ab9c6af256e247df0e49ad3084ac6e6d1d0092e478085d1dc8c14a89dc51713d.
+Admission digest: ab3308069a0aebd2b0d3b51b988c53a8307288b0faa9133ce86b1ff75a93ae98.
 
 Roles: 32/32 accounted; 4 owned gaps. Semantic parameters: 25; internal roles: 7.
 

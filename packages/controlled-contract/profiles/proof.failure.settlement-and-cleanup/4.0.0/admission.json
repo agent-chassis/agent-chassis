@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "2292571650a8082bdc44fb6e30c35f01eead7840583e1b4085df97347cc17d4c",
+  "parameter_contract_digest": "1b88737bb361ecaf23d658bc048491179afb7f8abe7b092fe726b6f2bcfdcac9",
   "profile_id": "proof.failure.settlement-and-cleanup",
   "profile_version": "4.0.0",
-  "profile_digest": "b9c8a19c88c743ccfc5404835e4d20947ef58a93c0fc53f75842497a6d4ef3d7",
+  "profile_digest": "c61ac23bbf8e94fa75498f7132ec149a0e5ff3d7b70becc302768aeed668046b",
   "guarantee": "Given one grounded operation attempt, one declared failure injection and injected failure carrying one grounded original cause, one cleanup event, one settlement event after both failure and cleanup, one complete declared residue population whose integer cardinality may be zero or greater, complete cause-state observations at failure and after settlement, and a settled failure record: satisfaction establishes that the injected failure targets the operation during the attempt, cleanup targets the residue population after failure, settlement follows cleanup and failure, the complete residue population has cardinality zero after settlement, the settled failure record retains the same cause, and the cause state after settlement equals its state at failure.",
   "guarantee_digest": "a29c4f79b079c6dbf4b8b35bc31e426c08a56a114376f79565566124499eccbc",
   "explicit_exclusions": [
@@ -19,8 +19,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "2ed2d2645a187d5397ee6405fd1d212a9ea221390e193904134b72eb6f4ebdc6",
-    "adequacy_result_digest": "5e99ba3d6d75afff6b3b7f99447e1188b75fa556ff9838e0ae16b76bc685d32f",
+    "adequacy_declaration_digest": "85f9df19b3f9ecd15d19d79f3b49419f861162acc16f8b41d0485a06246895d6",
+    "adequacy_result_digest": "31722c6989f886157db6a91364c5cdacdbdc944af7b6e3724adc9c6cb4f047dd",
     "executable_control_count": 44,
     "negative_fixture_count": 17,
     "coverage_witness_count": 150

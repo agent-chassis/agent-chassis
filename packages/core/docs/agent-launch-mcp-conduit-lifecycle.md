@@ -7,6 +7,25 @@ teardown and failure reporting. Confinement and the session contract are in
 what the conduit is authorized to carry is in
 [Conduit authority and review sources](agent-launch-conduit-authority-and-review-sources.md).
 
+## Opt-out publication configuration
+
+The launcher captures
+`AGENT_CHASSIS_PUBLISH_CONTROLLED_ACCEPTANCE_OPT_OUT=true|false` at host profile
+resolution and forwards its resolved value in `configurationEnv` to each MCP
+server generation. Unset resolves to `true`; malformed values refuse with
+`controlled_acceptance_publication_config_invalid`. Codex, Claude and OpenCode
+orchestrator launch/resume and managed-role conduits use this same carrier.
+Changing the environment requires restarting the session/server.
+
+This is presentation configuration, independent of tier, authorization and
+acceptance policy. The receiving MCP host captures one publication filter before
+registering tools. The same selection chooses the generated orchestrator guide
+and vignette, their existing exact-file read grants and compaction hooks, and
+the registered package-document routes. Disabled publication never changes the
+authoritative exception schema or save operation: a valid directly supplied
+request behaves identically. See [environment reference](env-reference.md) and
+[exception publication](acceptance-coverage-mcp.md#deliberate-exceptions).
+
 ## Transport and admission
 
 The wiki tool surface is not a filesystem backend and does not widen repository
@@ -14,7 +33,7 @@ visibility. For confined Claude and Codex roles, the launcher establishes a
 private Unix-domain socket admission service. Each authenticated MCP command
 invocation receives its own connection and host wiki-MCP process, as specified
 by `decision` (repository-only: `wiki/decisions/decision.md`) and
-[MCP integration](mcp-integration.md#transport). The sandbox receives the pinned
+[MCP integration](mcp-integration.md#standalone-client-configuration). The sandbox receives the pinned
 connector and its Node executable, socket endpoint, and credential file; the
 wiki-MCP server package, dependency tree, and server runtime state stay on the host.
 
@@ -42,7 +61,7 @@ relays are not supported.
 ## Lifecycle protocol generation
 
 The spawned host server's first launcher-only event is
-`wiki-mcp-launcher-readiness.v2`. It carries `ready: true`, the registered tool
+`wiki-mcp-launcher-readiness.v3`. It carries `ready: true`, the registered tool
 surface, and `lifecycle_protocol_generation` loaded by that server process from
 the conduit contract. The long-lived launcher compares the announcement with
 its own loaded generation after connection authentication. Only an equal,
@@ -96,9 +115,11 @@ it does not become the public code, and neither outcome is published as
 `wiki-mcp` forwarding bin before the agent-launch-cli composition root is
 initialized. The handoff is process-local and first-bind-only, and accepts no
 environment, argv, prompt, request, workspace, ancestor-search, or hoisting
-input. A standalone `@agent-chassis/agent-launch-cli` launch makes no such bind
-and retains wiki-mcp's operation-level `package_docs_carrier_unavailable` result
-rather than searching for core. The forwarding launcher binds only for commands
+input. Install `@agent-chassis/core` for supported consumer operations; it is
+the sole npm owner of `agent-launch`. The internal launcher engine exports no
+standalone bin. Direct wiki-mcp embedding without a core carrier retains the
+operation-level `package_docs_carrier_unavailable` result and does not search
+for core. The forwarding launcher binds only for commands
 that construct a managed wiki-MCP conduit: help and maintenance commands do not
 read the package carrier and remain usable if package documentation is damaged,
 and a composing command reports the closed package-carrier diagnostic and exits
@@ -119,8 +140,8 @@ synchronously revalidates the identical entrypoint, carrier module, package
 metadata, and manifest bytes immediately before the actual server spawn. Every
 production codex-role, Claude worker/reviewer/redteam, and Codex in-process
 worker/reviewer/redteam constructor reaches that gate through a launcher-minted
-managed-composition authority; standalone agent-launch-cli uses the same
-authority with an intentionally unbound core carrier.
+managed-composition authority. Internal embedding uses the same authority with
+an intentionally unbound core carrier when no core composition was supplied.
 
 For a core-bound spawn, the proven immutable generation crosses the process
 boundary as one bounded record in the parent-to-child direction of the existing
@@ -184,6 +205,33 @@ pre-initialize one, fails closed under its own reasons
 (`malformed_client_discovery_probe_close_evidence`,
 `unexpected_client_discovery_probe_close`) rather than being folded into the
 ordinary close reasons.
+
+## Generation readiness and stream failures
+
+Until the first successful client readiness, all authenticated generations share
+one original confined-child readiness deadline. Discovery probes and successor
+candidates cannot extend it. A generation born after that first success gets the
+full trusted client-readiness timeout (180 seconds by default), fixed at birth
+and armed once through its existing activation path. Success never resets an
+older generation's budget; rejection never authorizes a fresh initial budget.
+
+The lifecycle observes child stdin (FD 0), stdout (FD 1), stderr (FD 2), and the
+readiness/composition channel (FD 3) synchronously after spawn and through
+teardown. A live stream error records `stdio_mcp_conduit_stream_error`, retaining
+its native cause, generation, stream, errno and observed phase. A stream error
+is not evidence of process exit. The first failure stays primary; the first
+stream error remains separate bounded context when it follows a timeout or
+another failure. After an expected terminal state or this child's launcher-owned
+reap, a stream error retains context without creating a new primary failure.
+
+Admission routes an established generation's failure to the same memoized
+connection disposal that owns socket closure, bounded reaping and resource
+release. A failed extra generation closes only its own connection and child.
+Failed startup candidates are removed before discovery-probe promotion. Failure
+of the required active generation still triggers deliberate bounded session
+shutdown, with no automatic failover. Actual reap and release failures remain
+separate cleanup failures and reach the conduit's cleanup settlement; an ordinary
+extra-generation rejection does not become a shared cleanup failure.
 
 ## Private root and teardown
 
@@ -388,3 +436,32 @@ bubblewrap namespace. It never resolves connector Node from `PATH`, the task
 repository, task `node_modules`, caller arguments, prompts, `HOME`, or environment
 overrides. Consequently neither a confined task nor an operator's consuming task
 environment needs a global `/usr/bin/node` or any task-level Node toolchain.
+
+The current readiness registration requires `registered_tier` to name a known profile equal to the launcher’s captured host selection. Missing, unknown or mismatched profiles refuse that connection generation before readiness; the operator restarts the affected connection with coherent host configuration. Registration establishes no CCE admission or audit assurance.
+
+## Assignment-change terminal event
+
+The closed `wiki-mcp-launcher-assignment-change.v1` event carries exactly
+`schema_version`, `assigned_unit`, `launch_ref`, `run_id`, `retry_id` and
+`request_id`. Producer and consumer negotiate lifecycle vocabulary generation
+`stdio-mcp-conduit-lifecycle-vocabulary.v4`. Only the authenticated host for the exact launcher-bound worker attempt may
+issue this event, after its
+request and frozen assignment originals have won durable completion arbitration.
+Each authenticated connection generation forwards it to the same attempt owner,
+including a generation other than the active readiness generation. A previous
+readiness failure cannot suppress this trusted terminal event; its first cause
+remains recorded independently.
+
+This is a normal semantic termination request, separate from server failure,
+cancellation and MCP EOF. The shared isolated-launch owner immediately sends
+SIGKILL to its live confined child, retaining the semantic initiating cause and
+the actual signal return or thrown signalling error. A false kill return is not
+successful signal delivery. The managed launch probe exposes the owner's read-only
+`exit.launcher_termination` evidence during a live failed stop and after death;
+terminal assignment-change settlement also retains it in the final result.
+The accepted RPC remains pending; no final model
+turn or report is requested. Only actual child termination authorizes the existing
+transport cleanup. A failed stop leaves acceptance pending and completion
+consumed, without a false death or release. Ordinary MCP close keeps its current
+healthy-client behavior. No request field, model prose or worker environment
+selects the process to stop.

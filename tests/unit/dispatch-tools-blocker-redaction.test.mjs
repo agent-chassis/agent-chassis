@@ -426,3 +426,18 @@ test("a typed test-failure call trace is published exactly while server stacks s
     await scope.dispose();
   }
 });
+
+test("captured process causes retain distinct reasons and later corrections without embedded streams", () => {
+  const reasons = Array.from({ length: 12 }, (_, index) => `repair source-${index}: ` + '界'.repeat(700));
+  const raw = ['RAW_STREAM_SENTINEL', ...reasons.map(reason => `fatal: ${reason}`)].join('\n');
+  const childMessage = `Command failed\n${raw}`;
+  const evidence = { schema_version: 'agent_launch.diagnostic_evidence.v1', segments: [], capture_failures: [],
+    value: { $type: 'Error', name: 'Error', message: `Delivery failed: ${childMessage}`, properties: {},
+      cause: { $type: 'Error', name: 'Error', message: childMessage,
+        properties: { status: 17, code: 'ECHILD', stderr: raw, stdout: 'RAW_OUTPUT_SENTINEL' } } } };
+  const result = distillDispatchFailureDetail({ evidence }, { nested: true }).detail.evidence.cause_chain;
+  assert.equal(result[1].status, 17);
+  assert.deepEqual(result[1].process_failure.errors, reasons.map(reason => ({ severity: 'fatal', reason })));
+  assert.match(result[0].message, /Delivery failed/u);
+  assert.doesNotMatch(JSON.stringify(result), /RAW_STREAM_SENTINEL|RAW_OUTPUT_SENTINEL|Command failed/u);
+});

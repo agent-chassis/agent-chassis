@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import { compiledValidators } from "./compiled-validator-cache.mjs";
-import { validateProfileSchemaV1 } from "./verification-profile-schema-v1.mjs";
+import { validateCurrentProofDefinition } from "./test-validity-execution-definition.mjs";
 import { canonicalDigest as parameterDigest } from "./deterministic-projection-primitives.mjs";
 import { validatePackParameterContract } from "./pack-parameter-contract.mjs";
 import { profileDigest } from "./profile-digest.mjs";
@@ -51,9 +51,9 @@ class AdmittedProofPackError extends Error {
 }
 
 function assertCurrentDefinition(profile) {
-  if (!validateProfileSchemaV1(profile)) throw new AdmittedProofPackError(
+  if (!validateCurrentProofDefinition(profile)) throw new AdmittedProofPackError(
     "proof_pack_profile_invalid", "the exact definition does not use the current profile schema",
-    { diagnostics: structuredClone(validateProfileSchemaV1.errors) }
+    { diagnostics: structuredClone(validateCurrentProofDefinition.errors) }
   );
 }
 

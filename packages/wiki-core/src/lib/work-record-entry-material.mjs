@@ -144,9 +144,12 @@ export async function resolveWorkRecordEntryMaterial({
     const loaded = await guardedLoad({ dir, id: decoded.w });
     if (!loaded?.valid || !loaded.record) {
       const denied = loaded?.diagnostics?.some((entry) => entry?.code === "work_record_material_source_denied");
-      return { ok: false, diagnostic: denied ? loaded.diagnostics[0] : diagnostic(
+      return { ok: false, diagnostic: denied ? loaded.diagnostics[0] : { ...diagnostic(
         "work_record_material_source_unavailable", `material source ${decoded.w} is unavailable`,
-        `sections.material_refs[${index}].ref`) };
+        `sections.material_refs[${index}].ref`), source_failure: { subject: decoded.w,
+          diagnostics: loaded?.diagnostics ?? [],
+          effects: { material_loaded: false },
+          correction: "Restore the named source through its owner, then resolve the same immutable reference; no source was substituted." } } };
     }
     const version = selectVersion(loaded, decoded);
     if (!version) {

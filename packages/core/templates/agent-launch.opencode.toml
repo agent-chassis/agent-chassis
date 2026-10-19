@@ -1,0 +1,27 @@
+# Requires opencode and rg (ripgrep) on PATH, plus direct Vertex authentication.
+# Set GOOGLE_APPLICATION_CREDENTIALS in the launch environment to an existing
+# service-account JSON file with project_id; TOML credentials_file alone does
+# not configure ordinary OpenCode launcher authentication.
+# Schema-constrained workers refuse with opencode_native_schema_unavailable.
+# Setup support does not enable complete paid-CCE worker support.
+# Copy to agent-launch.toml to activate.
+
+[roles.orchestrator]
+model = "google-vertex/gemini-3.8-flash"
+effort = "medium"
+high_priority_role_guide = true
+
+[roles.worker]
+model = "google-vertex/gemini-3.8-flash"
+effort = "medium"
+high_priority_role_guide = true
+
+[roles.reviewer]
+model = "google-vertex/gemini-3.8-flash"
+effort = "medium"
+high_priority_role_guide = true
+
+[roles.redteam]
+model = "google-vertex/gemini-3.8-flash"
+effort = "medium"
+high_priority_role_guide = true

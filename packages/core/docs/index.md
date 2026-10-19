@@ -84,6 +84,20 @@ order and repo map.
 - [agent-launch-run-provenance.md](agent-launch-run-provenance.md) — the
   `agent-run-provenance.v1` envelope and run inspection.
 
+## Specification and authoring
+
+- The launcher supplies the session’s generated guide and authoring vignette, from a user request to an authored worker assignment.
+- [mcp-controlled-contract-operations.md](mcp-controlled-contract-operations.md) —
+  typed requirements, compilation, unresolved meaning and the observation boundary.
+- [acceptance-coverage-mcp.md](acceptance-coverage-mcp.md) — obligations, criterion
+  associations, proof selection and explicit exceptions.
+
+Compilation checks supplied meaning, not omitted requirements, truthful
+observations or delivered correctness. Design assessment, executed test evidence,
+assertion adequacy, integration and landing are separate facts. Source-repository
+decisions and roadmaps are not public package prerequisites; use these public
+contracts and the consumer repository's own accepted policy.
+
 ## Records and coordination reference
 
 - [work-record-ontology.md](work-record-ontology.md) — work-record schema and

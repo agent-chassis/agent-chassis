@@ -3,6 +3,7 @@
 export { celDefinitionIndex, selectCelDefinition } from
   "@agent-chassis/controlled-contract/cel-definition-reference";
 import { relationAvailableForAuthoring } from "@agent-chassis/controlled-contract/vocabulary";
+import { CONTROLLED_VOCABULARY } from "@agent-chassis/controlled-contract/vocabulary";
 
 export const CONTROLLED_CONTRACT_REQUIREMENT_LIMITS = Object.freeze({
   requirements_per_answer: 8,
@@ -63,7 +64,16 @@ function deriveOperatorSignatures(schema) {
       applicability_modes: Object.freeze([
         ...(branch.properties?.applicability_context?.properties?.mode?.enum ?? [])])
     });
-    for (const term of terms) signatures.set(term, signature);
+    for (const term of terms) {
+      const declaration = CONTROLLED_VOCABULARY.operators.find(row => row.term === term);
+      signatures.set(term, Object.freeze({ ...signature,
+        definition: declaration.definition,
+        ...(Object.hasOwn(declaration, "semantic_reference")
+          ? { semantic_reference: declaration.semantic_reference } : {}),
+        ...(declaration.signature.positional_payloads ? { positional_payloads: declaration.signature.positional_payloads,
+          type_rule: declaration.signature.type_rule, authoring_roles: declaration.authoring_roles,
+          definition_capability: declaration.definition_capability } : {}) }));
+    }
   }
   return signatures;
 }
@@ -119,16 +129,17 @@ export const RELATION_APPLICABILITY_RESTRICTED = "restricted_modes";
 
 export function publishAuthoringVocabularyForGuidance(projection) {
   const declaredModes = new Set(projection.applicability_modes.map(({ mode }) => mode));
+  const { single_object_relations_by_object_kind: _single, restricted_applicability: _restricted, ...compact } = projection;
   return Object.freeze({
-    ...projection,
+    ...compact,
 
     relation_applicability_statement:
       `A relation row carries applicability: "${RELATION_APPLICABILITY_ALL_DECLARED_MODES}" when it ` +
       "admits every mode in this object's applicability_modes, and " +
       `applicability: "${RELATION_APPLICABILITY_RESTRICTED}" with its own exact applicability_modes ` +
-      "when it admits fewer. restricted_applicability lists the same narrowing rows by term.",
+      "when it admits fewer. Derive groups from operand_kind and single-object membership from maximum_operands.",
     relation_details: Object.freeze(projection.relation_details.map((detail) => {
-      const { applicability_modes: modes, ...rest } = detail;
+      const { applicability_modes: modes, definition: _definition, semantic_reference: _reference, ...rest } = detail;
       const admitsEveryMode = modes.length === declaredModes.size &&
         modes.every((mode) => declaredModes.has(mode));
       return Object.freeze(admitsEveryMode
@@ -148,9 +159,14 @@ export function projectControlledContractAuthoringVocabulary(vocabulary, positio
   const relationDetails = Object.freeze(signatures
     .map(([term, signature]) => Object.freeze({
       term,
+      definition: signature.definition,
+      ...(Object.hasOwn(signature, "semantic_reference")
+        ? { semantic_reference: signature.semantic_reference } : {}),
       operand_kind: signature.operand_kind,
       minimum_operands: signature.minimum_operands,
       maximum_operands: signature.maximum_operands,
+      ...(signature.positional_payloads ? { positional_payloads: signature.positional_payloads,
+        type_rule: signature.type_rule, authoring_roles: signature.authoring_roles, definition_capability: signature.definition_capability } : {}),
       applicability_modes: signature.applicability_modes
     }))
     .sort((left, right) => left.term.localeCompare(right.term)));

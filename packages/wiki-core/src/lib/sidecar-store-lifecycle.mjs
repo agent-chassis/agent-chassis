@@ -1,11 +1,16 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { configureReadableSqlite, classifySqliteFailure } from "./sqlite-runtime.mjs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, lstatSync } from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
 
+import { captureProcessIdentity, assessProcessLiveness } from "./process-identity.mjs";
+import { terminateProcessGroup } from "./process-group.mjs";
+
 import {
   assertLifecycleSchema,
-  configureReadableSqlite,
   initializeLifecycleSchema
 } from "./sidecar-store-schema.mjs";
 
@@ -19,34 +24,6 @@ export class SidecarStoreLifecycleError extends Error {
     this.name = "SidecarStoreLifecycleError";
     this.code = code;
   }
-}
-
-function sqliteCode(error) {
-  return typeof error?.code === "string" ? error.code : null;
-}
-
-export function classifyLifecycleFailure(error) {
-  const code = sqliteCode(error);
-  if (["missing", "contention", "recovery_pending", "coordination_unusable", "failure"]
-    .includes(code)) return code;
-  if (code === "ERR_SQLITE_ERROR" && /SQLITE_(?:BUSY|LOCKED)/.test(error?.message ?? "")) {
-    return "contention";
-  }
-  if (
-    code === "SQLITE_BUSY" ||
-    code === "SQLITE_LOCKED" ||
-    /database is locked|database table is locked/i.test(error?.message ?? "")
-  ) return "contention";
-  if (
-    code === "SQLITE_READONLY_ROLLBACK" ||
-    /readonly.*rollback|hot journal|recovery.*pending/i.test(error?.message ?? "")
-  ) return "recovery_pending";
-  if (
-    code === "SQLITE_CORRUPT" ||
-    code === "SQLITE_NOTADB" ||
-    /not a database|database disk image is malformed/i.test(error?.message ?? "")
-  ) return "coordination_unusable";
-  return "failure";
 }
 
 export function sidecarPreparationCancelledError(signal = null) {
@@ -72,7 +49,7 @@ export function initializeSidecarLifecycle(lifecyclePath) {
     initializeLifecycleSchema(db);
   } catch (cause) {
     throw new SidecarStoreLifecycleError("sidecar lifecycle initialization failed", {
-      code: classifyLifecycleFailure(cause),
+      code: classifySqliteFailure(cause),
       cause
     });
   } finally {
@@ -83,14 +60,15 @@ export function initializeSidecarLifecycle(lifecyclePath) {
 function acquisitionError(cause) {
   return cause instanceof SidecarStoreLifecycleError ? cause :
     new SidecarStoreLifecycleError("sidecar updater lock acquisition failed", {
-      code: classifyLifecycleFailure(cause),
+      code: classifySqliteFailure(cause),
       cause
     });
 }
 
 export async function withSidecarUpdaterLock(lifecyclePath, operation, {
   signal = null,
-  timeoutMs = SIDECAR_UPDATER_LOCK_WAIT_MS
+  timeoutMs = SIDECAR_UPDATER_LOCK_WAIT_MS,
+  indexing = false
 } = {}) {
   if (typeof operation !== "function") {
     throw new TypeError("sidecar updater operation must be a function");
@@ -121,7 +99,7 @@ export async function withSidecarUpdaterLock(lifecyclePath, operation, {
             { code: "contention", cause }
           );
         }
-        await delay(LOCK_POLL_MS, undefined, signal ? { signal } : undefined).catch(() => {});
+        await delay(indexing ? 10_000 : LOCK_POLL_MS, undefined, signal ? { signal } : undefined).catch(() => {});
       }
     }
     try {
@@ -132,14 +110,69 @@ export async function withSidecarUpdaterLock(lifecyclePath, operation, {
         cause
       });
     }
+
+    for (const name of readdirSync(path.dirname(lifecyclePath))) {
+      if (!/^\.graph-candidate-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.sqlite(?:-journal|-wal|-shm)?$/u.test(name)) continue;
+      const artifact = path.join(path.dirname(lifecyclePath), name);
+      if (lstatSync(artifact).isFile()) rmSync(artifact);
+    }
+    let workspacePath = null;
+    const ownerPath = path.join(path.dirname(lifecyclePath), ".index-owner.json");
+    if (indexing) {
+
+      if (existsSync(ownerPath)) {
+        let prior;
+        try { prior = JSON.parse(readFileSync(ownerPath, "utf8")); }
+        catch (cause) { throw new SidecarStoreLifecycleError(`indexing ownership is unreadable: ${ownerPath}: ${cause.message}`,
+          { code: "sidecar_index_owner_invalid", cause }); }
+        const abandoned = prior.workspace;
+        if (typeof abandoned !== "string" || !path.isAbsolute(abandoned) ||
+            !/^sidecar-scip-job-[a-zA-Z0-9-]+$/u.test(path.basename(abandoned)) ||
+            (existsSync(abandoned) && !lstatSync(abandoned).isDirectory())) {
+          throw new SidecarStoreLifecycleError(`invalid indexing workspace ownership: ${abandoned}`,
+            { code: "sidecar_index_workspace_invalid" });
+        }
+        const verdict = assessProcessLiveness(prior.identity);
+        if (verdict.state === "indeterminate") {
+          throw new SidecarStoreLifecycleError(`indexing owner cannot be reclaimed: ${verdict.reason}`,
+            { code: "sidecar_index_owner_indeterminate" });
+        }
+
+        if (existsSync(abandoned)) {
+          for (const name of readdirSync(abandoned).filter((name) => /^process-\d+\.json$/u.test(name))) {
+            const identity = JSON.parse(readFileSync(path.join(abandoned, name), "utf8"));
+            const child = assessProcessLiveness(identity);
+            if (child.state === "indeterminate") throw new SidecarStoreLifecycleError(child.reason,
+              { code: "sidecar_index_process_indeterminate" });
+            if (child.state === "alive") await terminateProcessGroup(identity.pid, { termGraceMs: 500, killGraceMs: 500 });
+          }
+          rmSync(abandoned, { recursive: true, force: true });
+        }
+        rmSync(ownerPath);
+      }
+      workspacePath = path.join(os.tmpdir(), `sidecar-scip-job-${randomUUID()}`);
+
+      writeFileSync(ownerPath, JSON.stringify({ identity: captureProcessIdentity(process.pid), workspace: workspacePath }),
+        { flag: "wx", mode: 0o600 });
+      try { mkdirSync(workspacePath, { mode: 0o700 }); }
+      catch (cause) { rmSync(ownerPath); throw cause; }
+    }
     held = true;
     const lock = Object.freeze({
       lifecycle_path: path.resolve(lifecyclePath),
+      workspace_path: indexing ? workspacePath : null,
       get held() {
         return held;
       }
     });
-    return await operation(lock);
+    try {
+      return await operation(lock);
+    } finally {
+      if (indexing) {
+        rmSync(workspacePath, { recursive: true, force: true });
+        rmSync(ownerPath);
+      }
+    }
   } finally {
     held = false;
     closeConnection(db);

@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.idempotency.effect-nonduplication",
   "profile_version": "5.0.0",
-  "profile_digest": "5829f7a995e07b827e2810623b0e593eb3d4ea3e64154ae8c9ae0d61fa179a23",
+  "profile_digest": "8adaa11f02d03e2707d42300ad80671b52c8e5bf7c46d87e15b9bfcadbacc38c",
   "description": "Two completed sequential invocations using the same input leave the elected durable effect resource observed in the same complete controlled state after the first invocation, immediately before the second invocation, and after the second invocation.",
   "parameters": [
     {

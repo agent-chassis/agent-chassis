@@ -1,3 +1,5 @@
+import { orchestratorGuidanceGrant, orchestratorGuidanceMasks } from "./orchestrator-guidance-access.mjs";
+import { resolveOrchestratorGuidancePair } from "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   BUBBLEWRAP_LAUNCH_PLAN_SCHEMA_VERSION,
@@ -23,7 +25,8 @@ import {
 import { buildBubblewrapArgs } from "./launch-isolation-bwrap-args.mjs";
 import {
   resolveAgentRoleGuideDirectory,
-  resolveAgentRoleGuidePath
+  resolveAgentRoleGuidePath,
+  renderAgentRoleGuideReadReference
 } from "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
 import {
   prepareGitStatusWrapperProjection
@@ -55,20 +58,28 @@ const LAUNCH_ROLE_GUIDES = Object.freeze({
   "orch-resume": "orchestrator"
 });
 
-export function resolveLaunchRoleGuideDirectory(launchRole) {
-  return Object.hasOwn(LAUNCH_ROLE_GUIDES, launchRole) ? resolveAgentRoleGuideDirectory() : null;
+export function resolveLaunchRoleGuideDirectory(launchRole, registeredTier, publishControlledAcceptanceOptOut = true) {
+  return LAUNCH_ROLE_GUIDES[launchRole] === "orchestrator" ? resolveOrchestratorGuidancePair(registeredTier, publishControlledAcceptanceOptOut).directory
+    : Object.hasOwn(LAUNCH_ROLE_GUIDES, launchRole) ? resolveAgentRoleGuideDirectory() : null;
 }
 
-export function resolveLaunchRoleGuidePath(launchRole) {
+export function resolveLaunchRoleGuidePath(launchRole, registeredTier, publishControlledAcceptanceOptOut = true) {
   return Object.hasOwn(LAUNCH_ROLE_GUIDES, launchRole)
-    ? resolveAgentRoleGuidePath(LAUNCH_ROLE_GUIDES[launchRole])
+    ? resolveAgentRoleGuidePath(LAUNCH_ROLE_GUIDES[launchRole], registeredTier, publishControlledAcceptanceOptOut)
     : null;
 }
 
-function resolveLaunchRoleGuideGrant(launchRole) {
-  const guideDir = resolveLaunchRoleGuideDirectory(launchRole);
+export function resolveLaunchRoleGuideReadReference(launchRole, registeredTier, options) {
+  return Object.hasOwn(LAUNCH_ROLE_GUIDES, launchRole)
+    ? renderAgentRoleGuideReadReference(LAUNCH_ROLE_GUIDES[launchRole], registeredTier, options)
+    : "";
+}
+
+export function resolveLaunchRoleGuideGrant(launchRole, registeredTier, publishControlledAcceptanceOptOut = true) {
+  if (LAUNCH_ROLE_GUIDES[launchRole] === "orchestrator") return orchestratorGuidanceGrant(registeredTier, publishControlledAcceptanceOptOut);
+  const guideDir = resolveLaunchRoleGuideDirectory(launchRole, registeredTier, publishControlledAcceptanceOptOut);
   if (guideDir === null) return { requiredFiles: [], binds: [] };
-  const guidePath = resolveLaunchRoleGuidePath(launchRole);
+  const guidePath = resolveLaunchRoleGuidePath(launchRole, registeredTier, publishControlledAcceptanceOptOut);
   return {
     requiredFiles: [guidePath],
     binds: [
@@ -130,7 +141,9 @@ function composeBubblewrapLaunchPlan({
   workerTestRuntime = null,
   stdioMcpConduit = null,
 
-  launchRole = null
+  launchRole = null,
+  registeredTier,
+  publishControlledAcceptanceOptOut = true
 } = {}, preparation = { release: null }) {
   if (
     gitMetadataProjection !== null
@@ -264,7 +277,7 @@ function composeBubblewrapLaunchPlan({
     runtime
   });
 
-  const roleGuideGrant = resolveLaunchRoleGuideGrant(launchRole);
+  const roleGuideGrant = resolveLaunchRoleGuideGrant(launchRole, registeredTier, publishControlledAcceptanceOptOut);
   const roleGuideReadOnlyBinds = roleGuideGrant.binds;
   const requiredReadOnlyFileEntries = prepareRequiredReadOnlyFiles(
     [...requiredReadOnlyFiles, ...roleGuideGrant.requiredFiles],
@@ -339,6 +352,11 @@ function composeBubblewrapLaunchPlan({
     runtime
   });
 
+  const roleGuideMasks = LAUNCH_ROLE_GUIDES[launchRole] === "orchestrator"
+    ? orchestratorGuidanceMasks(registeredTier, [
+      { src: repoReal, dst: repoReal }, ...readOnly, ...homeReads, ...familySystemReadOnly, ...familyRuntime,
+      ...familyRuntimeWritable, ...writable.map(dir => ({ src: dir, dst: dir })),
+      ...runtime.map(dir => ({ src: dir, dst: dir }))], publishControlledAcceptanceOptOut) : [];
   const bwrapArgs = buildBubblewrapArgs({
     systemRoots,
     shareNet,
@@ -368,6 +386,7 @@ function composeBubblewrapLaunchPlan({
     testRuntimeSkeletonDirs: testRuntime?.skeletonDirs ?? [],
     testRuntimeDependencyBinds: testRuntime?.dependencyBinds ?? [],
     roleGuideReadOnlyBinds,
+    roleGuideMasks,
     policedEnv,
     cwdNormalized,
     resolvedCommand: childCommandResolution,

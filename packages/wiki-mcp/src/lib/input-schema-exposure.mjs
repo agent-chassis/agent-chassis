@@ -165,16 +165,22 @@ function prepareGuidance(name, prepared, guidance = {}) {
 
 function boundSource(name, declared, digestOf) {
   const prepared = prepareSource(name, declared.schema);
+  const branches = declared.branches ?? {};
+  if (!isObject(branches) || Object.entries(branches).some(([member, branch]) =>
+      !prepared.members.includes(member) || !isObject(branch) || !isObject(branch.metadata) || typeof branch.select !== 'function' || typeof branch.validate !== 'function')) {
+    refuse(INPUT_SCHEMA_EXPOSURE_CODES.DECLARATION_INVALID, { source: name, path: '/branches', cause: 'each branch binds a source member, metadata, owner validation and selection functions' });
+  }
+  for (const branch of Object.values(branches)) branch.validate(declared.schema);
   const groups = Object.freeze(prepareGroups(name, prepared, declared.groups));
   const guidance = prepareGuidance(name, prepared, declared.guidance);
   const groupMembers = new Map(groups.map(group => [group.name, group.members]));
 
   let digest = null;
-  const sourceDigest = () => (digest ??= digestOf(prepared.schema));
+  const sourceDigest = () => (digest ??= digestOf(Object.keys(branches).length ? { schema: prepared.schema, branches: Object.fromEntries(Object.entries(branches).map(([member, branch]) => [member, branch.metadata])), guidance: declared.guidance ?? {} } : prepared.schema));
 
   function select(selection) {
     const invalid = cause => refuse(INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_INVALID, { source: name, path: "/select", cause });
-    if (!isObject(selection) || Object.keys(selection).some(key => key !== "members" && key !== "groups")) {
+    if (!isObject(selection) || Object.keys(selection).some(key => key !== "members" && key !== "groups" && key !== "branches")) {
       invalid("a selection is { members, groups } with at least one of them");
     }
     const { members = [], groups: selectedGroups = [] } = selection;
@@ -201,9 +207,25 @@ function boundSource(name, declared, digestOf) {
       chosen.add(member);
     }
     const selected = prepared.members.filter(member => chosen.has(member));
-    const definitions = reachableDefinitions(prepared, selected);
-    const { schema } = prepared;
+    let scoped = prepared;
+    const scopes = {}, scopedGuidance = new Map();
+    if (selection.branches !== undefined) {
+      if (!isObject(selection.branches) || !Object.keys(selection.branches).length) invalid("branches names selected members with published capabilities");
+      for (const [member, requested] of Object.entries(selection.branches)) {
+        if (!selected.includes(member) || !Object.hasOwn(branches, member)) invalid(`no selected capability owner for ${member}`);
+        const result = branches[member].select(scoped.schema, requested);
+        scoped = prepareSource(name, result.schema);
+
+        if (result.scope !== null) {
+          scopes[member] = result.scope;
+          scopedGuidance.set(member, result.guidance);
+        }
+      }
+    }
+    const definitions = reachableDefinitions(scoped, selected);
+    const { schema } = scoped;
     return Object.freeze({ source: name, digest: sourceDigest(), members: Object.freeze(selected),
+      ...(Object.keys(scopes).length ? { branches: scopes } : {}),
       schema: Object.freeze({
 
         ...Object.fromEntries(Object.entries(schema).filter(([keyword]) => !MEMBER_CARRIERS.has(keyword))),
@@ -212,10 +234,10 @@ function boundSource(name, declared, digestOf) {
         properties: Object.freeze(Object.fromEntries(selected.map(member => [member, schema.properties[member]])))
       }),
       guidance: Object.freeze(selected.filter(member => guidance.has(member)).map(member =>
-        Object.freeze({ member, topics: guidance.get(member) }))) });
+        Object.freeze({ member, topics: scopedGuidance.has(member) ? scopedGuidance.get(member)(guidance.get(member)) : guidance.get(member) }))) });
   }
 
-  return Object.freeze({ name, members: Object.freeze([...prepared.members]), groups, select,
+  return Object.freeze({ name, members: Object.freeze([...prepared.members]), groups, select, branches: Object.fromEntries(Object.entries(branches).map(([member, branch]) => [member, branch.metadata])),
     get digest() { return sourceDigest(); } });
 }
 
@@ -247,6 +269,6 @@ export function sameInputSchemaExposure(left, right) {
   const names = Object.keys(left.sources);
   return JSON.stringify(names) === JSON.stringify(Object.keys(right.sources)) && names.every(name =>
     left.sources[name]?.schema === right.sources[name]?.schema &&
-    JSON.stringify([left.sources[name]?.groups, left.sources[name]?.guidance ?? {}]) ===
-      JSON.stringify([right.sources[name]?.groups, right.sources[name]?.guidance ?? {}]));
+    JSON.stringify([left.sources[name]?.groups, left.sources[name]?.guidance ?? {}, left.sources[name]?.branches ?? {}]) ===
+      JSON.stringify([right.sources[name]?.groups, right.sources[name]?.guidance ?? {}, right.sources[name]?.branches ?? {}]));
 }

@@ -48,8 +48,7 @@ export async function runAgentFaq(argv) {
   if (options.help) {
     console.log(
       "Usage: wiki agent-faq [--id <entry-id>] [--related-code <code>] [--json]\n" +
-        "Serve the read-only agent-faq.v1 known-issues corpus (parity with the\n" +
-        "workspace_agent_faq MCP tool). Each entry pairs a recurring symptom with the\n" +
+        "Serve the read-only agent-faq.v1 known-issues corpus. Each entry pairs a recurring symptom with the\n" +
         "exact structured route(s) to resolve it and the responsible actor."
     );
     return;

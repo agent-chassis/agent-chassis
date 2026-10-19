@@ -19,7 +19,7 @@ import {
   assertAdmittedProofPackSnapshot,
   loadAdmittedProofPack
 } from "./admitted-proof-packs.mjs";
-import { evaluateVerificationProfileV1 } from "./verification-profile-v1.mjs";
+import { evaluateAdmittedPack } from "./selected-pack-claim-participation.mjs";
 import {
   PROOF_INTENT_ARTIFACT,
   PROOF_INTENT_DIGESTS,
@@ -278,10 +278,10 @@ async function assessPackEntry(entry, {
     return missingPackProjection(entry, pack, ["evaluation_input"]);
   }
   assertDigestBindings(entry, expectedPackSourceDigests(pack, evaluation.value));
-  const selectorAssessment = evaluateVerificationProfileV1({
+  const selectorAssessment = evaluateAdmittedPack({
     contract: clone(contract),
-    profile: clone(pack.profile),
-    evaluation_input: clone(evaluation.value)
+    proofPack: pack,
+    evaluationInput: clone(evaluation.value)
   });
   return {
     entry,

@@ -1,17 +1,21 @@
-
+import { resolveValueDefinitions } from '@agent-chassis/controlled-contract/controlled-value-definitions-v1';
 
 import { CANONICAL_VERSION, identityOf, statementConstraint } from '@agent-chassis/controlled-contract/canonical-specification';
 import { LOWERING_VERSION, definitionMeaning, lowerConstraint } from '@agent-chassis/controlled-contract/cel-lowering';
 import { canonicalValue, CONTROLLED_VOCABULARY } from '@agent-chassis/controlled-contract/vocabulary';
 import { resolveClosedPopulationV1 } from '@agent-chassis/controlled-contract/population-semantics';
 import { buildEqualityNormalizationV1 } from '@agent-chassis/controlled-contract/equality-normalization';
+import { mapValueReferences, valueReferences } from '@agent-chassis/controlled-contract/controlled-values-v1';
+import { valueRowMetadata } from './contract-requirement-native-values.mjs';
 
 const canonical = value => JSON.stringify(canonicalValue(value));
 const ordered = values => [...new Set(values)].sort();
 const entityOf = ({ type_term, identity }) => ({ type_term, identity });
 export const descriptionKey = (owner, entity) => canonical([owner, entity.identity]);
 const usesOf = constraint => [constraint.subject, ...(constraint.operands ?? []).flatMap(row => row.reference ? [row.reference] : []),
-  ...(constraint.clauses ?? []).map(row => row.member), ...(constraint.applies?.context ?? [])];
+  ...(constraint.clauses ?? []).flatMap(row => row.member ? [row.member] : []), ...(constraint.applies?.context ?? []),
+  ...valueReferences([...(constraint.operands ?? []).filter(row => row.value || row.observation || row.binding),
+    ...(constraint.clauses ?? []).flatMap(row => row.domain ? [row.domain] : []), ...(constraint.for_each ?? []).map(row => row.domain)])];
 
 export function nativeSpecificationConstraints(contract, unit) {
   const references = new Map((contract?.references ?? []).map(row => [row.reference_id, row]));
@@ -21,7 +25,7 @@ export function nativeSpecificationConstraints(contract, unit) {
   for (const claim of contract?.claims ?? []) {
     if (!['behavior', 'evidence'].includes(claim.kind)) continue;
     const proposition = propositions.get(claim.proposition_id);
-    const ids = proposition ? [proposition.subject_reference_id, ...proposition.operands.flatMap(row => row.kind === 'reference' ? [row.reference_id] : []),
+    const ids = proposition ? [proposition.subject_reference_id, ...proposition.operands.flatMap(row => row.kind === 'reference' ? [row.reference_id] : row.kind === 'value' ? valueReferences(row) : []),
       ...proposition.applicability_context.operand_reference_ids] : [];
     if (!proposition || ids.some(id => !references.has(id))) {
       missing.push({ code: 'description_native_node_missing', claim_id: claim.claim_id,
@@ -30,14 +34,16 @@ export function nativeSpecificationConstraints(contract, unit) {
     }
     const declare = id => ({ declare: entityOf(references.get(id)) });
     const { proposition_id: _proposition, subject_reference_id: _subject, operator: _operator, operands: _operands,
-      applicability_context: _context, ...qualifiers } = proposition;
+      applicability_context: _context, for_each: _forEach, within: _within, ...qualifiers } = proposition;
     const { claim_id: _claim, proposition_id: _claimProposition, kind: _kind, modality: _modality, ...claimQualifiers } = claim;
     const { operand_reference_ids: _references, ...scopeQualifiers } = proposition.applicability_context;
     const constraint = statementConstraint({ subject: declare(proposition.subject_reference_id), modality: claim.modality,
+      ...valueRowMetadata(proposition, id => entityOf(references.get(id))),
       nature: claim.kind, behavior: { ...(Object.keys(qualifiers).length || Object.keys(claimQualifiers).length
         ? { unmapped_fields: { proposition: qualifiers, claim: claimQualifiers } } : {}), relation: proposition.operator,
         objects: proposition.operands.map(row => {
           const { kind, reference_id: referenceId, value, ...extra } = row;
+          if (kind === 'value') return mapValueReferences({ ...extra, ...(value === undefined ? {} : { value }) }, id => entityOf(references.get(id)));
           return kind === 'reference' ? { ...extra, referent: declare(referenceId) }
             : kind === 'range' ? { range: { ...extra, ...(value === undefined ? {} : { value }) } } : { ...extra, [kind]: value };
         }),
@@ -84,7 +90,7 @@ export function describeRequirementObjects({ specifications, roots = null, addit
     for (const row of rows.values()) {
       const constraint = row.constraint;
       for (const entity of usesOf(constraint)) obtain(owner, entity);
-      if (constraint.form !== 'closed_membership' && constraint.nature !== 'behavior') continue;
+      if (constraint.form !== 'closed_membership' && constraint.nature !== 'behavior' && !constraint.definition) continue;
       operativeRoots.push({ owner, entity: constraint.subject, meaning: 'subject', applies: constraint.applies });
       const subject = obtain(owner, constraint.subject);
       subject.definitions.set(row.identity, row);
@@ -126,7 +132,7 @@ export function describeRequirementObjects({ specifications, roots = null, addit
     const capabilities = definitionMeaning(row.constraint);
     const population = ['cc:population', 'cc:scope'].includes(entity.type_term);
     if (meaning === 'subject') return capabilities.length > 0;
-    if (meaning === 'condition') return capabilities.includes('condition');
+    if (meaning === 'condition') return row.constraint.definition ? typedDefinitionTypes.get(row.identity) === 'bool' : capabilities.includes('condition');
     if (meaning === 'population') return population && capabilities.includes('population');
     if (meaning === 'value') return capabilities.some(kind => ['value', 'structure'].includes(kind)) || (population && capabilities.includes('population')) ||
       (capabilities.includes('condition') && ['cc:criterion', 'cc:invariant'].includes(entity.type_term)) ||
@@ -134,13 +140,24 @@ export function describeRequirementObjects({ specifications, roots = null, addit
     return capabilities.some(kind => ['value', 'structure', 'behavior'].includes(kind)) || (population && capabilities.includes('population')) ||
       (capabilities.includes('condition') && ['cc:criterion', 'cc:invariant'].includes(entity.type_term));
   };
+  const typedDiagnostics = new Map(), typedDefinitionTypes = new Map();
+  for (const specification of specifications) {
+    const rows = [...nodes.values()].filter(node => node.owner === specification.owner).flatMap(node => [...node.definitions.values()]);
+    const resolved = resolveValueDefinitions(rows);
+    for (const definition of resolved.definitions.values()) typedDefinitionTypes.set(definition.identity, definition.type);
+    for (const diagnostic of resolved.diagnostics) typedDiagnostics.set(descriptionKey(specification.owner, diagnostic.subject), diagnostic);
+  }
   const neededBy = (constraint, state) => {
     const operands = (constraint.operands ?? []).flatMap(operand => operand.reference ? [{ entity: operand.reference,
       meaning: constraint.relation === 'reference:equals' ? state.meaning
         : ['reference:returns', 'reference:has_value', 'reference:has_property', 'reference:has_state', 'reference:has_status', 'reference:resolves_to'].includes(constraint.relation) ? 'value'
         : constraint.relation === 'reference:subset_of' || constraint.relation === 'reference:not_subset_of' ? 'population' : 'object',
       applies: constraint.applies }] : []);
-    return [...operands, ...(constraint.clauses ?? []).map(clause => ({ entity: clause.member, meaning: 'value', applies: constraint.applies })),
+    const typed = (constraint.operands ?? []).flatMap(operand => operand.value ? valueReferences(operand.value).map(entity => ({ entity, meaning: 'value', applies: constraint.applies }))
+      : operand.observation ? valueReferences(operand.observation).map(entity => ({ entity, meaning: 'identity', applies: unconditional })) : []);
+    const domains = [...(constraint.clauses ?? []).flatMap(clause => clause.domain ? valueReferences(clause.domain) : []),
+      ...(constraint.for_each ?? []).flatMap(row => valueReferences(row.domain))].map(entity => ({ entity, meaning: 'value', applies: constraint.applies }));
+    return [...operands, ...typed, ...domains, ...(constraint.clauses ?? []).flatMap(clause => clause.member ? [{ entity: clause.member, meaning: 'value', applies: constraint.applies }] : []),
       ...constraint.applies.context.map(entity => ({ entity, meaning: ['if', 'unless'].includes(constraint.applies.mode) ? 'condition' : 'object',
 
         applies: unconditional }))];
@@ -148,6 +165,7 @@ export function describeRequirementObjects({ specifications, roots = null, addit
   while (requests.length) {
     const state = states.get(requests.shift()), { node } = state;
     reachable.add(node.key);
+    if (typedDiagnostics.has(node.key)) { const diagnostic = typedDiagnostics.get(node.key); state.missing.set('typed_definition', { code: diagnostic.reason, ...diagnostic, key: node.key }); continue; }
     if (reachable.size > nodeLimit || states.size > nodeLimit) return { state: 'incomplete', roots: [], nodes: [],
       missing: [{ code: 'description_delivery_capacity_exceeded', maximum_nodes: nodeLimit,
         required_nodes_at_least: Math.max(reachable.size, states.size) }] };
@@ -161,6 +179,7 @@ export function describeRequirementObjects({ specifications, roots = null, addit
     if (state.meaning === 'population' && !['cc:population', 'cc:scope'].includes(node.entity.type_term)) state.missing.set('use_type',
       { code: 'description_use_type_incomplete', key: node.key, required_meaning: 'population', type_term: node.entity.type_term });
     const codeBound = ['code_symbol', 'repository_path'].includes(node.entity.identity.kind);
+    if (state.meaning === 'identity' && !codeBound && node.references.size > 0) state.established = true;
     if (codeBound) {
       const source = sourceDescriptions.get(node.key);
       if (source?.state !== 'complete') state.missing.set('source', { key: node.key, code: source?.code ?? 'description_source_unavailable',

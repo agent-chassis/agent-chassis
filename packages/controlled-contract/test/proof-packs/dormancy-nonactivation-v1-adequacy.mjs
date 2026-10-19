@@ -11,7 +11,7 @@ import {
   executeDormancy
 } from "./dormancy-nonactivation-v1-harness.mjs";
 
-const PROFILE_DIGEST = "86d930b44874e6e6699cc56723b52bea6361b47e7837754fc503f2a580620342";
+const PROFILE_DIGEST = "a7f04f1f9841880a22e4b94be8c97ff13e103b6d666c83a668eefdd057e7e69a";
 const GUARANTEE_DIGEST = "195abee0ccf37eccb8b59dcb3f7e5c750cce280860015fb880aea55c3953e738";
 const EXCLUSIONS = Object.freeze([
   "activation-after-the-captured-observation-boundary",

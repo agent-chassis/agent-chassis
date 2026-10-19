@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.policy.declared-limit-propagation",
   "profile_version": "4.0.0",
-  "profile_digest": "faf875026c614c47bc3a6cc8199364eb9178c1c5dccf150511125b351f3e8f4e",
+  "profile_digest": "a6f5c27d290bab66daaf33ff66ef14206871027b4ae230c4f1292a395b5025e6",
   "description": "For one exact closed declared policy and one exact raw UTF-8 guidance artifact, the package-owned transformer associates every required policy key with exactly one plain decimal value and exact unit token, refuses missing, duplicate, stale, conflicting, substituted, wrong-unit, and unrelated-number guidance, and emits complete policy-key and association populations, exact counts, associations, and one canonical report bound to the exact source-set digest.",
   "parameters": [
     {

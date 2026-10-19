@@ -9,8 +9,8 @@ operators carrying old per-family wrapper scripts.
 These are operator-shell commands for local debug and direct role smokes. **They
 are not agent dispatch transport.** An agent session that needs to dispatch a
 worker, reviewer, or redteam role uses structured MCP dispatch
-(`workspace_agent_dispatch`) and reports the structured-transport blocker
-(`missing_structured_transport`) if that route is unavailable.
+(`start_agent`) from a managed orchestrator session. An absent capability is
+a blocker, not permission to substitute operator shell commands.
 
 For the short operator overview, see
 [agent-launch-quickstart.md](./agent-launch-quickstart.md).
@@ -18,7 +18,8 @@ For the short operator overview, see
 ## Supported operator dispatch surface
 
 The supported operator path for worker, reviewer, and redteam launches is the
-`agent-launch` subcommand with an explicit `--app` flag:
+`agent-launch` subcommand. Defaults come from `agent-launch.toml`; `--app` and `--model` are
+optional explicit overrides:
 
 ```bash
 agent-launch worker   --app <app> <unit>   # dispatch a worker
@@ -70,10 +71,12 @@ replace each with the supported `agent-launch` command below.
 
 ## Package bin entries (operator install state)
 
-The only command declared in `packages/agent-launch-cli/package.json` `bin`
-that resolves on the operator `PATH` after install is the launcher entrypoint
-below. No backend endpoint, per-family worker/reviewer/redteam role wrapper, or
-family-named orchestrator wrapper is declared in `bin`.
+Install `@agent-chassis/core` for supported consumer operations. Core is the
+sole npm owner of `agent-launch` (`bin/agent-launch`); its forwarding bin binds
+core's documentation composition for managed commands before importing the
+internal `@agent-chassis/agent-launch-cli` engine. The internal package has no
+`bin` map or standalone launcher. No backend endpoint, per-family role wrapper,
+or family-named orchestrator wrapper is installed.
 
 Installed operator commands:
 
@@ -82,7 +85,7 @@ Installed operator commands:
   commands, and the model-driven `orchestrator`/`resume` operator commands).
 
 No per-family worker/reviewer/redteam role wrapper, family-named orchestrator
-wrapper, or other historical script is installed outside that `bin` map.
+wrapper, or other historical launcher script is installed.
 
 ## Operator setup and cleanup
 
@@ -129,6 +132,6 @@ structured MCP dispatch.
 
 The operator commands on this page are for local debugging. They are not agent
 dispatch authority: WK-first implementation, review, and redteam work goes
-through `workspace_agent_dispatch`, and an agent reports the
+through `start_agent`, and an agent reports the
 structured-transport blocker if that route is unavailable. Operator-shell use of
 a command for local debugging does not establish agent-facing dispatch posture.

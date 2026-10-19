@@ -1,8 +1,12 @@
 
 # MCP dispatch runtime contract
 
-`workspace_agent_dispatch` and its monitor routes are backed by one
-launcher-owned in-process runtime. The runtime freezes the selected family,
+The agent calls `start_agent` to request a launch, `get_run_result` to read
+the returned run, and `integrate_work` for explicit integration when offered.
+Follow each response’s returned call with its exact arguments; do not construct
+a result identity from a run id. These tasks use one launcher-owned in-process runtime.
+Internal producer names such as `workspace_agent_dispatch` below identify runtime
+components and stored events, not callable agent tools. The runtime freezes the selected family,
 role, work record or slice, managed worktree binding, read and write authority,
 model registration adapter, host wiki-MCP server factory, private local socket
 admission, and lifecycle owner before spawning the role. Each authenticated MCP
@@ -25,19 +29,20 @@ Its `failure` is null or one tuple from this closed population:
 
 | Stable code | decision limb | Executable next action |
 | --- | --- | --- |
-| `launcher_transition.prospective_lifecycle_unavailable.v1` | `mechanical_failure` | Retry `workspace_agent_dispatch` after lifecycle preflight succeeds. |
-| `launcher_transition.lifecycle_allocation_failed.v1` | `mechanical_failure` | Complete launcher allocation recovery, then retry `workspace_agent_dispatch`. |
-| `launcher_transition.dependency_identity_unresolved.v1` | `mechanical_failure` | Publish or integrate the exact dependency, then retry `workspace_agent_dispatch`. |
-| `launcher_transition.dependency_observation_indeterminate.v1` | `mechanical_failure` | Restore the named failed dependency observation read, then retry the identical `workspace_agent_dispatch`; integrating again is not the recovery. |
-| `launcher_transition.publication_identity_unresolved.v1` | `mechanical_failure` | Obtain the carrier returned by work record's landed-publication observer, then retry `workspace_agent_dispatch`. |
-| `launcher_transition.cce_policy_refused.v1` | `exact_returned_policy` | Perform the exact recovery returned by CCE, then retry `workspace_agent_dispatch`. |
-| `launcher_transition.findings_route_authentication_failed.v1` | `mechanical_failure` | Dispatch the exact canonical findings unit through `workspace_agent_dispatch`. |
-| `launcher_transition.runtime_backend_unavailable.v1` | `mechanical_failure` | Restore the registered launcher backend, then retry `workspace_agent_dispatch`. |
+| `launcher_transition.prospective_lifecycle_unavailable.v1` | `mechanical_failure` | Retry `start_agent` after lifecycle preflight succeeds. |
+| `launcher_transition.lifecycle_allocation_failed.v1` | `mechanical_failure` | Complete launcher allocation recovery, then retry `start_agent`. |
+| `launcher_transition.dependency_identity_unresolved.v1` | `mechanical_failure` | Discover canonical dependency identities, explicitly correct the authored dependency, then retry the original assignment. |
+| `launcher_transition.dependency_unavailable.v1` | `mechanical_failure` | Satisfy the identified valid dependency's publication or integration prerequisite, then retry `start_agent`. |
+| `launcher_transition.dependency_observation_indeterminate.v1` | `mechanical_failure` | Restore the named failed dependency observation read, then retry the identical `start_agent`; integrating again is not the recovery. |
+| `launcher_transition.publication_identity_unresolved.v1` | `mechanical_failure` | Obtain the carrier returned by work record's landed-publication observer, then retry `start_agent`. |
+| `launcher_transition.cce_policy_refused.v1` | `exact_returned_policy` | Perform the exact recovery returned by CCE, then retry `start_agent`. |
+| `launcher_transition.findings_route_authentication_failed.v1` | `mechanical_failure` | Dispatch the exact canonical findings unit through `start_agent`. |
+| `launcher_transition.runtime_backend_unavailable.v1` | `mechanical_failure` | Restore the registered launcher backend, then retry `start_agent`. |
 
 The tuple always carries one stable code, its exact decision authority limb, and
 that executable action. `managed_lifecycle_required` cannot replace a more
 specific transition failure. Its registered recovery is a
-[capability inspection](tool-discovery-dispatch-runtime.md#registered-recovery-correction-versus-inspection):
+[capability inspection](tool-discovery-dispatch-runtime.md#runtime-blocker-taxonomy-and-coordination-preflight):
 it reads the package document the `start_agent` tool advertises and is neither
 a retry nor a repair. Review findings, status, prose, messages, and local
 inference are not refusal limbs. CCE decisions are forwarded exactly and are
@@ -83,7 +88,7 @@ a default code.
 
 Producers keep their own fact detection and dynamic detail; they do not repeat
 the state table. The full producer-to-code table lives in
-[Tool Discovery Dispatch Runtime Contract](tool-discovery-dispatch-runtime.md#producer-to-code-state-table).
+[Tool Discovery Dispatch Runtime Contract](tool-discovery-dispatch-runtime.md#runtime-blocker-taxonomy-and-coordination-preflight).
 
 **No-decision states stay distinguishable.** A missing launcher declaration is
 `launcher_declaration_missing`; a configured but unreachable CCE or absent
@@ -327,6 +332,11 @@ defaulted; it writes nothing. A detached `HEAD` proposes nothing and is reported
 `scope_existence_base_selection_missing`. Preflight never substitutes `main`,
 `master`, or any branch inventory candidate, and never replaces a saved
 `base_branch` that fails to resolve.
+An absent selected base retains the base resolver's original cause with a null
+base value. It does not fabricate a branch ref, choose a base or replace the
+refusal with a diagnostic serialization failure. The public start refusal states
+the selected subject, cause and known no-child effect without allocation bookkeeping.
+
 An already-provisioned WK instead uses its authenticated captured base and
 moving WK tip even when the historical record omits `base_branch`; the checkout
 branch is never consulted for it.
@@ -628,8 +638,9 @@ nested `candidate_refusal` diagnosis and recovery, and `effects_started` cross
 unchanged. A missing or invalid backend answer publishes no invented blocker or
 refusal.
 
-An oversized refusal still spills losslessly. Ranged
-`workspace_read_mcp_content_reference` retrieval reconstructs the same bytes.
+The agent receives the bounded refusal and its supported correction calls.
+Follow those calls to inspect selected details. Operator-retained raw evidence
+is not an agent byte-reconstruction route.
 
 ### Accepted dispatch receipt
 
@@ -654,15 +665,12 @@ prospective plan, and a managed-WK allocation must project through
 divergence keeps its `launcher_transition.lifecycle_allocation_failed.v1`
 refusal.
 
-Under full registration, `next_calls` holds exactly one
-`workspace_agent_run_status({ repo, subject, attempt_id: run_id })` call with
-the server-resolved repository, checked against that tool's registered request
-contract. It is returned even when the run is already terminal, because status
-is where the run's result and any completed findings are read. Following it
-observes the same run and does not dispatch again; status keeps its documented
-lifecycle behavior, including post-worker lifecycle advancement. When the status
-route is not registered, or its contract refuses the arguments, the receipt
-omits `next_calls`; the launch stays accepted and no call is fabricated.
+The public `start_agent` receipt offers `get_run_result` with an authenticated
+`result` locator. Follow that exact returned call, including when the launch
+is already terminal. It reads the same run without dispatching again. A read
+neither retries nor integrates work. When explicit integration is available,
+follow the returned `integrate_work` call. If no continuation is offered,
+retain the reported cause; do not invent a locator or call a retired status tool.
 
 ### Producer-originated envelopes and the public response field list
 
@@ -738,13 +746,11 @@ directly. When the launcher has no supported recovery, it publishes
 `no_supported_route` alongside the complete explanation rather than producing
 that state by discarding diagnostic or recovery-like content.
 
-An oversized public response uses the existing lossless MCP content reference
-with `total_bytes` and operative `workspace_read_mcp_content_reference` ranged
-retrieval, so the exact diagnostic JSON bytes remain reconstructable. If spill
-persistence fails, the response reports
-`mcp_response.spill_persistence_failed.v1` and the complete serializable spill
-failure diagnostic; it does not claim that the underlying operation failed or
-advertise an unreadable reference.
+Public task responses provide bounded summaries and selected semantic details
+through their returned calls. Use those selections with their returned identities.
+Do not use internal spill descriptors to reconstruct bytes. If retaining a detail
+fails, the response reports that failure; it does not establish that the
+underlying operation failed or advertise a successful unreadable result.
 
 The plan consumes authenticated results without transferring their authority.
 work record remains settlement/recovery owner, work record role/runtime owner,
@@ -1441,13 +1447,23 @@ labels do not create additional findings lifecycle subtypes. Reviewer and
 redteam are both read-only findings identities, so the material target's own
 declared scope is not a role restriction: a selected implementation slice with
 nonempty effective write scope is an ordinary current target whose scope selects
-the exact implementation-slice material, while the findings action's own
+the exact implementation-slice material for reviewer actions. A subject-only
+redteam action targets the saved slice design with a separate immutable supporting
+checkout; writable scope requires no implementation ref. The findings action's own
 authenticated mutation authority stays empty. A valid `work_kind: "review"` unit
 is a current target for the same reason. Target grants never become action
 grants, and no caller-selectable reviewer mode, CCE substitution, or mutable
 review action follows from either kind.
 
 ## Immutable advisory-review target
+
+Worker input preflight preserves its existing prerequisite order: establish the
+exact implementation slice before resolving its initiative namespace. Each
+authored selection failure offers the parent read needed to select or author the
+intended assignment, then exposes the next remaining prerequisite after correction.
+Invalid dependencies offer identity discovery and an explicit `depends_on`
+correction; valid unavailable dependencies and indeterminate observations retain
+their distinct causes. These reads do not prepare, integrate or launch work.
 
 Findings-only review is one read-only advisory operation. The coordination
 `subject` remains a canonical WK or `work record`. A canonical slice, a
@@ -1486,7 +1502,7 @@ places a commit-shaped value in `subject`, the mechanical refusal preserves it
 only as a non-authoritative observed caller value and carries a bounded
 `same_tool_correction`: keep the canonical WK or review slice in `subject`, and
 add complete `diff_base_sha` and `reviewed_sha` fields to that same
-`workspace_agent_dispatch` request. The server cannot derive a missing canonical
+`start_agent` request. The server cannot derive a missing canonical
 subject from the SHA, so it publishes no guessed executable continuation. The
 review route itself remains supported by the same registered dispatcher; no
 external reviewer, shell command, wrapper, alternate transport, terminal
@@ -1494,7 +1510,7 @@ candidate, ref creation, attestation append, or provenance repair is required.
 
 For an operator-authorized direct-to-main review, the exact scoped implementation
 candidate must be committed first. The coordinator then supplies its canonical
-subject and complete landed SHA pair to `workspace_agent_dispatch`. Terminal
+subject and complete landed `diff_base_sha` / `reviewed_sha` pair to `start_agent`. Terminal
 candidate status/advance and forge handoff are not part of that route, and the
 reviewer remains read-only and creates no Git objects.
 
@@ -1614,12 +1630,14 @@ families](mcp-dispatch-launch-and-admission.md#supported-families).
 
 ## Assignment first read
 
-Managed workers, reviewers, and redteams start with bounded startup text and
-first read their assignment through `workspace_read_page`: a worker with
-`{"assignment":true}` against its launcher-published assignment, a reviewer or
-redteam with the assigned unit's root (and, for a slice, its parent's root) from
-its existing review source. The worker route's access guard, pagination, and
-refusal codes are specified in
+Managed workers, reviewers, and redteams start with bounded startup text.
+A worker calls `workspace_read_wiki` with `{assignment:true}` to read
+its launcher-published assignment. A reviewer or redteam calls
+`workspace_read_wiki` with `{subject:<assigned unit>}` against its frozen review
+source; for a slice, also read the parent unit named in that context. Angle-bracket
+values are incomplete templates: use the assigned or returned unit identity.
+Follow the returned selected-detail calls. If a read refuses, use its stated
+correction; do not switch to a different source to bypass the refusal. See
 [MCP dispatch launch and admission](mcp-dispatch-launch-and-admission.md#assignment-retrieval).
 
 ## Reviewer and standalone redteam transport matrix
@@ -1632,8 +1650,8 @@ separate Codex/Claude/Agy list anywhere in the reviewer lifecycle.
 
 | Transport | Frozen before spawn | Supported continuation |
 | --- | --- | --- |
-| `managed_terminal_result` | authenticated repository, role, purpose, subject, reviewed and base identity, selected controlled generation | `workspace_agent_run_status` |
-| `standalone_submit_for_review` | authenticated repository, role, purpose, subject | `workspace_submit_for_review` |
+| `managed_terminal_result` | authenticated repository, role, purpose, subject, reviewed and base identity, selected controlled generation | `get_run_result` with the receipt’s returned `result` locator |
+| `standalone_submit_for_review` | authenticated repository, role, purpose, subject | Runtime-owned submission; follow the assigned completion protocol, not a tool named by this internal transport |
 
 Every registry member reaches the same typed decision for a given transport: a
 model's app, backend, profile, or default effort changes nothing in the closure
@@ -2051,6 +2069,13 @@ invariants escape; the launcher classifies the resulting termination exactly as
 it already did, and that module is unmodified.
 
 ## Already-integrated restart finalization and cross-backend integration continuation
+
+A saved integrated-delivery identity remains an integration fact when a slice is
+reopened to `todo`. Worker preview and start return the supported parent authoring
+route for a same-WK follow-up slice, preserving existing review, disposition,
+outstanding remediation and validation. Reopening does not recreate resources or
+authorize replay. Resource ownership, checkout and topology guards remain enforced
+for every assignment that reaches preparation.
 
 This section owns how a committed exact-slice delivery either crosses the trusted
 integration boundary for the first time or is proven to have already crossed it.
@@ -2605,7 +2630,7 @@ canonical WK bytes plus exactly the controlled-contract/proof carriers selected 
 the canonical carrier-set resolver and projects only those captured files over their
 canonical paths in the action-private checkout. The projection is immutable for the
 action and does not require those design files to be committed. Direct filesystem
-reads, the frozen acceptance contract, and `workspace_read_page` therefore observe
+reads, the frozen acceptance contract, and `workspace_read_wiki` therefore observe
 the same captured generation; the prompt points both Codex and Claude at that frozen
 read route. A later host edit cannot move an active action, while a fresh dispatch
 captures the later bytes. Missing, malformed, or capture-time-moved selected input
@@ -2710,6 +2735,11 @@ completion, acceptance, or veto authority. The receipt-store functionality still
 owned by implementation and integration consumers remains unchanged.
 
 ### Deterministic worker-start witness support
+
+The fixed assignment consumer follows the returned guidance call with its source
+binding unchanged. A complete guidance read needs no public identity or revision
+bookkeeping. Test observers independently bind the consumed guidance bytes to the
+launcher-published worker/unit/attempt and retain the physical confinement checks.
 
 Registered integration tests may pass a closed, branded direct-code composition
 to the in-process dispatch runtime. Its fixed worker probe is selected only by

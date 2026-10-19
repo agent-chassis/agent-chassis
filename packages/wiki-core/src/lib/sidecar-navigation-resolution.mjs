@@ -30,6 +30,9 @@ export function compareNativeRows(left, right) {
   return compareText(left.document_path, right.document_path) ||
     Number(validRange(rightRange)) - Number(validRange(leftRange)) ||
     (leftRange?.start_line ?? 0) - (rightRange?.start_line ?? 0) ||
+    (leftRange?.start_character ?? 0) - (rightRange?.start_character ?? 0) ||
+    (leftRange?.end_line ?? 0) - (rightRange?.end_line ?? 0) ||
+    (leftRange?.end_character ?? 0) - (rightRange?.end_character ?? 0) ||
     compareText(nativeOccurrenceIdentity(left), nativeOccurrenceIdentity(right));
 }
 
@@ -155,4 +158,45 @@ export function resolveNativeNavigation({ input, selection }) {
     candidates,
     symbol_facts: facts
   };
+}
+
+export function nativeMultiplicityRows(rows) {
+  const signature = (row) => JSON.stringify([row.payload.symbol_key, row.document_path, row.payload.range,
+    row.payload.symbol_roles, row.payload.enclosing_range]);
+  const populations = new Map();
+  for (const row of rows) {
+    if (row.payload.indexer !== "scip-typescript") continue;
+    const key = signature(row);
+    if (!populations.has(key)) populations.set(key, new Map());
+    const projects = populations.get(key);
+    projects.set(row.provider_id, (projects.get(row.provider_id) ?? 0) + 1);
+  }
+
+  const projectOf = new Map();
+  for (const [key, projects] of populations) {
+    projectOf.set(key, [...projects].sort(([left, a], [right, b]) => b - a || compareText(left, right))[0][0]);
+  }
+  const admit = (row) => {
+    if (row.payload.indexer !== "scip-typescript") return true;
+    return projectOf.get(signature(row)) === row.provider_id;
+  };
+  return rows.filter(admit);
+}
+
+export function nativeSelectionCandidates(selection) {
+  const rows = selectedNativeRows(selection);
+  const facts = symbolFacts(selection, rows);
+  const keys = new Set([...rows.map(row => row.payload.symbol_key),
+    ...facts.map(fact => fact.symbol_key).filter(key => key !== null)]);
+  return { candidates: [...keys].sort(compareText).map(key => candidateFor(key,
+    { rows, facts, anchors: [] })), symbol_facts: facts };
+}
+
+export function nativeDefinitionSymbols(rows) {
+  const named = new Map();
+  for (const row of rows.filter(isNativeDefinition)) {
+    named.set(`${row.provider_id}\0${row.symbol_id}`, { provider_id: row.provider_id,
+      symbol_id: row.symbol_id, document_local: parseScipSymbol(row.payload.symbol).local });
+  }
+  return [...named.values()];
 }

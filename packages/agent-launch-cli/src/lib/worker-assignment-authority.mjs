@@ -1,6 +1,62 @@
 
 
 import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
+import { projectWorkRecordTestProofValidation } from "@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs";
+import { captureRepositoryDefinitionSnapshot, repositorySnapshotDigest } from "./repository-source-snapshot.mjs";
+import { resolveImmediateParentCommit } from "./backend-review-target-resolver.mjs";
+
+function freezeValue(value) {
+  if (value !== null && typeof value === "object") {
+    Object.values(value).forEach(freezeValue); Object.freeze(value);
+  }
+  return value;
+}
+
+export function freezeWorkerRepositoryTestBinding({ presentation, root, launchBaseSha, runGit }) {
+  return freezeSelectedUnitRepositoryTestBinding({ selectedUnit: {
+    acceptance: { validation: presentation.canonical_summary.validation_commands }
+  }, root, launchBaseSha, runGit });
+}
+
+export function freezeSelectedUnitRepositoryTestBinding({ selectedUnit, root, launchBaseSha, runGit }) {
+  const projection = projectWorkRecordTestProofValidation({ selectedUnit });
+  if (projection.status !== "valid") throw new WorkerAssignmentError(
+    WORKER_ASSIGNMENT_DIAGNOSTICS.PROJECTION_INVALID, "repository test declarations are invalid", projection.diagnostics);
+  if (projection.repository_tests.length === 0) return null;
+  const parent = resolveImmediateParentCommit({ mainRepo: root, commit: launchBaseSha,
+    ...(runGit === undefined ? {} : { runGit }) });
+  const captureParent = paths => {
+    if (!parent.ok) return { status: "unavailable", reason: parent.reason };
+    try {
+      return { status: "available", commit: parent.parent,
+        identity: captureRepositoryDefinitionSnapshot({ root, paths, commit: parent.parent,
+          ...(runGit === undefined ? {} : { runGit }) }) };
+    } catch (error) {
+      if (typeof error.code !== "string") throw error;
+      return { status: "unavailable", commit: parent.parent, reason: error.code,
+        message: error.message, detail: error.detail ?? null };
+    }
+  };
+  const capture = options => {
+    try { return captureRepositoryDefinitionSnapshot(options); }
+    catch (error) {
+      if (typeof error.code !== "string") throw error;
+      throw new WorkerAssignmentError(error.code, error.message, error.detail ?? null);
+    }
+  };
+  const commands = projection.repository_tests.map(command => ({ ...command,
+    selections: command.selections.map(selection => ({ ...selection,
+      definition_identity: capture({ root, paths: selection.definition_paths,
+        commit: launchBaseSha, ...(runGit === undefined ? {} : { runGit }) }),
+
+      parent_definition_identity: captureParent(selection.definition_paths),
+      additional_baseline_definitions: (selection.additional_baseline_commits ?? []).map(commit => ({ commit,
+        identity: capture({ root, paths: selection.definition_paths, commit,
+          ...(runGit === undefined ? {} : { runGit }) }) }))
+    })) }));
+  const body = { launch_base_sha: launchBaseSha, commands };
+  return freezeValue({ ...body, digest: repositorySnapshotDigest(body) });
+}
 
 export const WORKER_ASSIGNMENT_SCHEMA_VERSION = "managed-worker-assignment.v1";
 
@@ -38,7 +94,10 @@ export function mintManagedWorkerAssignment({
   runId,
   monitorHandle,
   worktreePath,
-  terminalResultMode
+  terminalResultMode,
+  retryId = null,
+  bindingRunId = null,
+  repositoryTestBinding = null
 } = {}) {
   if (presentation?.ok !== true || !isNonEmptyString(presentation.prompt) ||
       !isNonEmptyString(presentation.assignment_guidance)) {
@@ -71,10 +130,16 @@ export function mintManagedWorkerAssignment({
     monitor_handle: monitorHandle ?? null,
     worktree_path: worktreePath,
     terminal_result_mode: terminalResultMode ?? null,
+    retry_id: retryId === null ? null : String(retryId),
+    binding_run_id: bindingRunId,
+    repository_test_binding: repositoryTestBinding,
 
     prompt: presentation.prompt,
     assignment_delivery: presentation.assignment_delivery,
-    assignment_guidance: presentation.assignment_guidance,
+    assignment_guidance: presentation.assignment_guidance + (repositoryTestBinding === null ? "" :
+      "\n\nRepository command calls (frozen selected-unit grant):\n" +
+      repositoryTestBinding.commands.flatMap(command => command.selections.map(selection =>
+        JSON.stringify({ tool: "workspace_run_test", arguments: { entrypoint: command.id, selection: selection.id } }))).join("\n")),
     canonical_summary: presentation.canonical_summary,
     agent_brief: presentation.agent_brief,
     launch_packet: presentation.launch_packet

@@ -1,3 +1,4 @@
+import { ExactBindingError } from "../../lib/deterministic-projection-primitives.mjs";
 import {
   buildStableTestProofPopulation,
   evaluateStableProofPackFixtureV1
@@ -46,22 +47,33 @@ function invalidCapture(profile, id, mutate) {
   const base = captured({ domain: `mutant-${id}` });
   const evidence = structuredClone(base.evidence);
   mutate(evidence);
+  let transformed;
   try {
+    transformed = resign(evidence, id);
+  } catch (error) {
+
+    const expectedCode = "sound_negative_projection_result_invalid";
+    if (id !== "incomplete-source-coverage" || !(error instanceof ExactBindingError) ||
+        error.code !== expectedCode || !error.details.diagnostics?.some(({ code, constraint_id: constraint }) =>
+          code === "direct_proposition_contradiction" &&
+          constraint === "exact-cardinality-not-below-declared-membership")) throw error;
     return {
       control_id: id,
       category: "mutant",
       implementation_outcome: "killed",
-      profile_satisfaction: evaluate(profile, resign(evidence, id))
-    };
-  } catch (error) {
-    return {
-      control_id: id,
-      category: "mutant",
-      implementation_outcome: error?.code?.startsWith("sound_negative_")
-        ? "killed" : "survived",
-      profile_satisfaction: "invalid"
+      profile_satisfaction: "not_evaluated",
+      rejection: {
+        checker: "transformer", subject: "transformer_input",
+        expected_reason: expectedCode, actual_reason: error.code
+      }
     };
   }
+  return {
+    control_id: id,
+    category: "mutant",
+    implementation_outcome: "killed",
+    profile_satisfaction: evaluate(profile, transformed)
+  };
 }
 
 function positiveControls(profile) {

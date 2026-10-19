@@ -232,6 +232,17 @@ export function resolveOwnedExactCommitWorktree({
   unitAddress = null,
   runGit = defaultRunGit
 } = {}) {
+  return resolveOwnedWorktreeAtCommit({ mainRepo, gitSha, exclude, authenticatedOwners, unitAddress, runGit });
+}
+
+export function resolveOwnedOrdinaryComparisonWorktree({ mainRepo, gitSha, exclude = [],
+  runGit = defaultRunGit } = {}) {
+  return resolveOwnedWorktreeAtCommit({ mainRepo, gitSha, exclude, authenticatedOwners: [], unitAddress: null,
+    runGit, comparison: true });
+}
+
+function resolveOwnedWorktreeAtCommit({ mainRepo, gitSha, exclude, authenticatedOwners, unitAddress, runGit,
+  comparison = false }) {
   const unavailable = (reason, detail = {}, soleUnit = null) => Object.freeze({ ok: false, reason,
     detail: Object.freeze({ commit: typeof gitSha === "string" ? gitSha : null, ...detail }), sole_unit: soleUnit });
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo)) fail("repository_invalid");
@@ -265,7 +276,7 @@ export function resolveOwnedExactCommitWorktree({
   const excluded = new Set(exclude);
   const registrations = parseRegisteredWorktrees(git(runGit, repositoryPath,
     ["worktree", "list", "--porcelain", "-z"], "worktree_registry_unreadable"));
-  const clean = new Map();
+  const matches = new Map();
   const seen = new Map();
   for (const registration of registrations) {
     if (registration.bare === true || registration.HEAD !== gitSha) continue;
@@ -274,22 +285,22 @@ export function resolveOwnedExactCommitWorktree({
     const owner = owners.get(worktreePath) ?? null;
     const state = owner === null ? "unowned" : registration.prunable !== undefined ? "moved"
       : physicalWorktreeState(runGit, { worktreePath, commonDirectory, commit: gitSha, tree });
-    if (state !== "clean") {
+    if (state !== "clean" && !(comparison && state === "dirty")) {
       seen.set(state, [...(seen.get(state) ?? []), worktreePath]);
       continue;
     }
     const physical = physicalCheckoutIdentity(worktreePath);
-    const selected = clean.get(physical);
+    const selected = matches.get(physical);
     if (selected === undefined ||
         Buffer.compare(Buffer.from(worktreePath, "utf8"), Buffer.from(selected.worktree_path, "utf8")) < 0) {
-      clean.set(physical, { worktree_path: worktreePath, owner });
+      matches.set(physical, { worktree_path: worktreePath, owner });
     }
   }
-  if (clean.size > 0) {
-    const [selected] = [...clean.values()].sort((left, right) =>
+  if (matches.size > 0) {
+    const [selected] = [...matches.values()].sort((left, right) =>
       Buffer.compare(Buffer.from(left.worktree_path, "utf8"), Buffer.from(right.worktree_path, "utf8")));
     return Object.freeze({ ok: true, worktree_path: selected.worktree_path, commit: gitSha, tree,
-      owner: selected.owner, match_count: clean.size });
+      owner: selected.owner, match_count: matches.size });
   }
   const reason = EXACT_COMMIT_UNAVAILABLE_ORDER.find((candidate) => seen.has(candidate)) ?? "not_materialized";
   const only = seen.size === 1 && seen.get(reason).length === 1 ? seen.get(reason)[0] : null;

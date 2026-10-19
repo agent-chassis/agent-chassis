@@ -18,6 +18,8 @@ import { TEST_PROOF_MODULE_FAULT_SCHEMA_VERSION, buildTestProofFaultModuleRegist
 import { mintProofStage, resolveTestFileRuntime } from "../ordinary-test-runner.mjs";
 import { configuredExecutableFailure } from "../runtime-inputs.mjs";
 import { nodeTestNativeReport } from "./node-test-native-report.mjs";
+import { describeNodeTestInstalledSource, nodeTestInstalledSourceImport } from
+  "../../workspace-agent-test-proof-source-binding.mjs";
 import {
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES,
   assertClosedInput,
@@ -124,11 +126,15 @@ function nodeTestSelectionArguments(selectedTest) {
   return selectedArguments;
 }
 
-function nodeDeclaredCoverageArguments(worktree, modulePaths) {
+function nodeDeclaredCoverageArguments(worktree, modulePaths, sourceBinding = null) {
   return ["--experimental-test-coverage",
     ...[...new Set(modulePaths)].sort().map((modulePath) => `--test-coverage-include=${
       path.join(worktree, modulePath).replace(/[*?[\]{}()!+@]/gu, (character) => `[${character}]`)}`),
-    "--test-coverage-exclude=**/node_modules/**"];
+    ...(sourceBinding === null ? ["--test-coverage-exclude=**/node_modules/**"] : [
+      `--test-coverage-include=**/node_modules/${`${sourceBinding.package_name}/${sourceBinding.package_relative_path}`
+        .replace(/[*?[\]{}()!+@]/gu, (character) => `[${character}]`)}`,
+      "--test-coverage-exclude=__launcher_no_default_exclusions__"
+    ])];
 }
 
 async function execute(resolved, input, selectedTest) {
@@ -160,16 +166,23 @@ async function execute(resolved, input, selectedTest) {
         : runtimeProvenanceSincePreparation(prepared, runtime, runtimeInputsDigest(runtime, assets));
       const privateRoot = path.join(executionRoot.scratch, ".launcher-test-proof");
       const reportPath = path.join(privateRoot, "node-test-events.json");
+      const sourceBinding = expectation.capability !== "boundary_traversal" ? null
+        : describeNodeTestInstalledSource({ worktree: launcherWorktree, modulePath: expectation.module_path,
+          recordPath: path.join(privateRoot, "node-installed-source.jsonl") });
       const reporter = ["--test-reporter=spec", "--test-reporter-destination=stdout",
-        `--test-reporter=${launcherNodeTestRunReporterUrl(launcherWorktree)}`,
+        `--test-reporter=${launcherNodeTestRunReporterUrl(launcherWorktree, sourceBinding)}`,
         `--test-reporter-destination=${reportPath}`];
       return {
-        proof: { options: [...reporter, ...options, ...selectedArguments] },
+        proof: { options: [...reporter, ...options,
+          ...(expectation.capability !== "boundary_traversal" ? [] : [
+            ...(sourceBinding === null ? [] : ["--enable-source-maps", `--import=${nodeTestInstalledSourceImport(sourceBinding)}`]),
+            ...nodeDeclaredCoverageArguments(launcherWorktree, [expectation.module_path], sourceBinding)
+          ]), ...selectedArguments] },
         additions: { directories: [privateRoot], channel: { kind: "file", path: reportPath },
           readOnlyBinds: NODE_TEST_ASSET_BINDS },
         nativeReport: () => nodeTestNativeReport({ workRoot: launcherWorktree }),
         observe: ({ channelText, exitCode, channelOverflow, nativeReport }) => observeLauncherNodeTestRun({
-          stdout: channelText, exitCode, expectation, reporterProtocolOverflow: channelOverflow,
+          stdout: channelText, exitCode, expectation: { ...expectation, source_binding: sourceBinding }, reporterProtocolOverflow: channelOverflow,
           nativeReport })
       };
     };
@@ -231,7 +244,7 @@ async function execute(resolved, input, selectedTest) {
       artifacts: Object.freeze(observation?.artifacts ?? []) });
   }
   const selection = resolved.selection;
-  const run = await runStage(nodeDeclaredCoverageArguments(launcherWorktree, [selection.module_path]),
+  const run = await runStage([],
     { capability: "boundary_traversal", boundary_kind: selection.boundary_kind,
       module_path: selection.module_path, observation_seam: selection.observation_seam,
       target: input.target,

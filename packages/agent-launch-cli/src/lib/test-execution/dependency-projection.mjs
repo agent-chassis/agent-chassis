@@ -2,7 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { appendFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync,
-  statSync, symlinkSync, readdirSync } from "node:fs";
+  statSync, symlinkSync, readdirSync, writeFileSync, chmodSync } from "node:fs";
 import path from "node:path";
 
 import { inspectDependencyMountpoint } from "../dependency-mountpoint-occupant.mjs";
@@ -43,6 +43,7 @@ function occupantDescription(destination) {
 function expectedLayout(copy) {
   return {
     directories: copy.directories.map((directory) => path.relative(copy.modules, directory)).sort(),
+    files: (copy.writes ?? []).map((file) => ({ ...file, name: path.relative(copy.modules, file.path) })),
     links: copy.links.map(({ path: linkPath, target }) => ({
       name: path.relative(copy.modules, linkPath), target
     })).sort((a, b) => a.name.localeCompare(b.name))
@@ -60,7 +61,7 @@ function matchesPublishedWorkspace(copy) {
   }
   const modules = generation;
   const expected = expectedLayout(copy);
-  const expectedNames = new Set(expected.links.map(({ name }) => name));
+  const expectedNames = new Set([...expected.links, ...expected.files].map(({ name }) => name));
   const scopes = new Set(expected.directories.filter((name) => name !== "")
     .map((name) => name.split(path.sep)[0]));
   try {
@@ -92,6 +93,14 @@ function matchesPublishedWorkspace(copy) {
       const actualTarget = readlinkSync(path.join(modules, entry.name));
       if (actualTarget !== entry.target) return { matches: false,
         actual: { generation, mismatch: entry.name, target: actualTarget } };
+    }
+    for (const entry of expected.files) {
+      const file = path.join(modules, entry.name);
+      const stat = lstatSync(file);
+      if (!stat.isFile() || (stat.mode & 0o777) !== entry.mode ||
+          !readFileSync(file).equals(entry.content)) {
+        return { matches: false, actual: { generation, mismatch: entry.name } };
+      }
     }
     return { matches: true, generation, installation };
   } catch (error) {
@@ -270,6 +279,11 @@ function publishTree(copy) {
       const projectedPath = path.join(temporary, path.relative(destination, link.path));
       mkdirSync(path.dirname(projectedPath), { recursive: true });
       symlinkSync(link.target, projectedPath);
+    }
+    for (const file of copy.writes ?? []) {
+      const projectedPath = path.join(temporary, path.relative(destination, file.path));
+      writeFileSync(projectedPath, file.content, { mode: file.mode });
+      chmodSync(projectedPath, file.mode);
     }
     try {
       symlinkSync(temporary, destination, "dir");

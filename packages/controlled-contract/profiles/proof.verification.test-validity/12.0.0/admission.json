@@ -1,0 +1,26 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "a8fcc0255ed5941ef47a02b670942cd24d46b1508ad5d30b36ad17308323e9a7",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "12.0.0",
+  "profile_digest": "c78f901ccce27e8e72732078dd0c268d76efdf41ca7292fc8f2062fb32f449e3",
+  "guarantee": "For one exact test_execution proof instance, complete launcher-authenticated runtime evidence bound to the exact candidate or source snapshot, controlled-contract generation, obligation, proof-plan entry, declared target, test-proof binding, admitted profile, certification, guarantee, and evaluator satisfies the guarantee only when the candidate passes, the one test the binding's declarative test selector names is discovered, executed, and not skipped, every declared falsifier is present, every falsifier the provider could apply is detected, every required traversal is present and proven, and no prohibited shortcut is observed. A falsifier the provider could not apply is an authenticated capability limitation: it earns no detection credit, is not counterevidence, and never excuses a surviving sibling. A supported, isolated, actually observed mutation that leaves the selected test passing falsifies the guarantee; for a passing candidate, an incomplete falsifier population or a supported falsifier that is neither detected nor such a survivor is not executable, and a failed candidate gains no mutation counterevidence from its falsifier rows. No authored baseline inventory participates, and sibling tests observed in the same run neither earn nor withhold credit. Complete valid negative inventory or execution facts falsify the guarantee; missing evidence or an unavailable exact evaluator is not executable; malformed, unauthenticated, stale, ambiguous, cross-bound, contradictory, or digest-mismatched evidence is refused. This is a bounded execution-validity guarantee. It preserves the caller's requirement, verification and falsification meanings unchanged; it does not establish that assertions faithfully test those meanings. Passing execution, detected dependency mutations and module traversal grant no requirement-satisfaction credit. Assertion-to-requirement behavioral adequacy is not established by this mechanism.",
+  "guarantee_digest": "7eaa0de57fe10e7e9297b08c60e845f9af8018362ed280ac351d5e44e6e98a83",
+  "explicit_exclusions": [
+    "assertion-to-requirement-behavioral-adequacy",
+    "authority-grant",
+    "coordinator-semantic-judgment",
+    "durable-receipt-retention",
+    "lifecycle-admission",
+    "provider-support-invention",
+    "requirement-satisfaction-credit"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "64504fc713bb51dae41820e5cd8b956d7c0f641cb6126447aa267efc1e001905",
+    "adequacy_result_digest": "fd7ec5251b4622346b7c9914c2caa0c041110d39eac400a0033382e027ebec96",
+    "executable_control_count": 14,
+    "negative_fixture_count": 9,
+    "coverage_witness_count": 9
+  }
+}

@@ -252,6 +252,9 @@ function requiredTrustedSourceBindings(authority) {
       id: authority.schemaVersion,
       digest: digestPlainObject(authorityDigestProjection(authority))
     }),
+    ...(authority.workerAssignmentDigest === null ? [] : [Object.freeze({
+      kind: "worker_assignment", id: authority.assignedUnit, digest: authority.workerAssignmentDigest
+    })]),
     ...(source === null ? [] : [Object.freeze({
       kind: ADVISORY_REVIEW_SOURCE_BINDING_KIND,
       id: source.runId,
@@ -268,6 +271,7 @@ function requiredTrustedSourceBindings(authority) {
 
 function assertRequiredTrustedSourceBindings(sources, required) {
   for (const kind of [STDIO_MCP_CONDUIT_AUTHORITY_SOURCE_BINDING_KIND,
+    "worker_assignment",
     ADVISORY_REVIEW_SOURCE_BINDING_KIND]) {
     const expected = required.filter((entry) => entry.kind === kind);
     const actual = sources.filter((entry) => entry.kind === kind);
@@ -804,7 +808,8 @@ function requireAdvisoryReviewSource(advisoryReviewInput, { assignedUnit, condui
   });
 }
 
-function requireWorkerAssignmentBinding(workerAssignment, { assignedUnit, conduitRole, sourceDigest }) {
+function requireWorkerAssignmentBinding(workerAssignment, { assignedUnit, conduitRole, sourceDigest,
+  crossRunIdentity = null, worktreeIdentity = null }) {
   if (workerAssignment === null || workerAssignment === undefined) return null;
   if (conduitRole !== "worker") {
     refuse("only a worker conduit may carry a managed worker assignment", { role: conduitRole });
@@ -824,6 +829,18 @@ function requireWorkerAssignmentBinding(workerAssignment, { assignedUnit, condui
     refuse("managed worker assignment and frozen scope authority disagree on the canonical source", {
       canonical: sourceDigest,
       requested: workerAssignment.source_digest ?? null
+    });
+  }
+  if (crossRunIdentity !== null && [
+    [workerAssignment.binding_run_id, crossRunIdentity.run_id],
+    [workerAssignment.retry_id, crossRunIdentity.retry_id],
+    [workerAssignment.monitor_handle, crossRunIdentity.launch_ref],
+    [workerAssignment.worktree_path, worktreeIdentity?.worktree_path]
+  ].some(([actual, expected]) => actual !== expected)) {
+    refuse("managed worker assignment disagrees with the authenticated launch identity", {
+      assignment: { run_id: workerAssignment.binding_run_id, retry_id: workerAssignment.retry_id,
+        launch_ref: workerAssignment.monitor_handle, worktree_path: workerAssignment.worktree_path },
+      expected: { ...crossRunIdentity, worktree_path: worktreeIdentity?.worktree_path }
     });
   }
   return createManagedAssignmentReadSnapshot(workerAssignment);
@@ -981,7 +998,7 @@ export function mintTrustedStdioMcpConduitAuthority({
   const frozenReviewContract = requireFrozenReviewBinding(
     frozenReviewContractBinding, { assignedUnit, conduitRole, crossRunIdentity });
   const workerAssignmentSnapshot = requireWorkerAssignmentBinding(workerAssignment, {
-    assignedUnit, conduitRole, sourceDigest
+    assignedUnit, conduitRole, sourceDigest, crossRunIdentity, worktreeIdentity
   });
   const advisoryReviewSource = requireAdvisoryReviewSource(advisoryReviewInput, {
     assignedUnit, conduitRole, workspace
@@ -1060,7 +1077,9 @@ export function assertTrustedStdioMcpConduitAuthority(authority, expected = {}) 
     const expectedSnapshot = requireWorkerAssignmentBinding(expected.workerAssignment, {
       assignedUnit: authority.assignedUnit,
       conduitRole: authority.role,
-      sourceDigest: authority.sourceDigest
+      sourceDigest: authority.sourceDigest,
+      crossRunIdentity: authority.crossRunIdentity,
+      worktreeIdentity: authority.worktreeIdentity
     });
     if ((expectedSnapshot?.digest ?? null) !== authority.workerAssignmentDigest) {
       refuse("stdio MCP conduit worker assignment authority was minted for a different launch");

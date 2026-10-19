@@ -21,7 +21,7 @@ import {
   measureMcpInlineResultBytes,
   measureMcpSerializedResultBytes,
   normalizeMcpToolResult,
-  readSpilledMcpContentReference,
+  readRetainedArtifact,
   structuredToolResult
 } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 
@@ -79,18 +79,9 @@ function spillEnv(stateDir, overrides = {}) {
   };
 }
 
-function readReferenceToEnd(reference, env) {
-  const chunks = [];
-  let offset = 0;
-  for (;;) {
-    const chunk = readSpilledMcpContentReference(
-      { ref_id: reference.ref_id, offset, length: reference.range.max_length },
-      { env }
-    );
-    chunks.push(Buffer.from(chunk.data_base64, "base64"));
-    if (chunk.eof) return Buffer.concat(chunks);
-    offset = chunk.next_offset;
-  }
+function retainedBytes(reference, env) {
+  assert.equal(reference.range, undefined);
+  return readRetainedArtifact({ ref_id: reference.ref_id }, { stateDir: getResponseSpillConfig(env).stateDir }).bytes;
 }
 
 function payloadWithAdmissionBytes(targetBytes) {
@@ -207,7 +198,7 @@ test("inline admission is exact at the larger-representation boundary with escap
       assert.match(envelope.measurement.meaning, /serialized_result_bytes .* was not compared/u);
       assertAdmittedWithinLimit(spilled);
       assert.deepEqual(
-        JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8")),
+        JSON.parse(retainedBytes(envelope.content_reference, env).toString("utf8")),
         overLimit
       );
     }
@@ -277,7 +268,7 @@ test("handler-added fields after the helper are admitted exactly at the boundary
       assert.equal(envelope.response_spilled, true);
       assert.equal(over.isError, isError ? true : undefined);
       assert.equal(envelope.measurement.admission_bytes, INLINE_BYTE_LIMIT + 1);
-      const original = JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8"));
+      const original = JSON.parse(retainedBytes(envelope.content_reference, env).toString("utf8"));
       assert.equal(original.added, `é${"y".repeat(padding - 1)}`);
     }
   });
@@ -320,7 +311,7 @@ test("preserved protocol metadata and nonmirrored content are bounded in additio
         physicalBytes(attach(handFrame(overflowing))), label);
       assertAdmittedWithinLimit(spilled);
       assert.deepEqual(
-        JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8")),
+        JSON.parse(retainedBytes(envelope.content_reference, env).toString("utf8")),
         overflowing, label
       );
     }
@@ -337,11 +328,11 @@ test("forced retention states that no admission comparison occurred", async () =
     assert.equal(measurement.admission_bytes, null);
     assert.equal(measurement.serialized_result_bytes, null);
     assert.match(measurement.meaning, /no inline admission comparison occurred/u);
-    assert.equal(isLosslessMcpSpillDelivery(result), true);
+    assert.equal(isLosslessMcpSpillDelivery(result), false, "internal retention without a callable semantic owner is incomplete");
   });
 });
 
-test("a spilled response carries the reference once and reconstructs the original value", async () => {
+test("an unowned oversized response states incomplete delivery while storage keeps the original", async () => {
   await withSpillDirectory(async (stateDir) => {
     const payload = {
       schema_version: "spilled-response-source.v1",
@@ -360,20 +351,18 @@ test("a spilled response carries the reference once and reconstructs the origina
     assert.equal(spilled.content_reference.kind, "wiki_mcp_response_content_reference");
     assertAdmittedWithinLimit(result);
 
-    const firstRange = readSpilledMcpContentReference(
-      { ref_id: spilled.content_reference.ref_id, offset: 0, length: 512 },
-      { env }
-    );
+    assert.equal(spilled.complete, false);
+    assert.equal(spilled.no_supported_route, true);
+    assert.equal(spilled.content_reference.read_tool, undefined);
+    assert.deepEqual(spilled.next_calls, []);
     const sourceText = JSON.stringify(payload, null, 2);
-    assert.equal(firstRange.next_offset, 512);
-    assert.equal(Buffer.from(firstRange.data_base64, "base64").toString("utf8"), sourceText.slice(0, 512));
-    const whole = readReferenceToEnd(spilled.content_reference, env);
+    const whole = retainedBytes(spilled.content_reference, env);
     assert.equal(whole.toString("utf8"), sourceText);
     assert.deepEqual(JSON.parse(whole.toString("utf8")), payload);
   });
 });
 
-test("an oversized structured error keeps isError and continues to the original envelope", async () => {
+test("an oversized structured error keeps isError and states its missing semantic delivery route", async () => {
   await withSpillDirectory(async (stateDir) => {
     const envelope = {
       schema_version: "oversized-error.v1",
@@ -389,7 +378,7 @@ test("an oversized structured error keeps isError and continues to the original 
     assert.equal(spilled.response_spilled, true);
     assertAdmittedWithinLimit(result);
     assert.deepEqual(
-      JSON.parse(readReferenceToEnd(spilled.content_reference, env).toString("utf8")),
+      JSON.parse(retainedBytes(spilled.content_reference, env).toString("utf8")),
       envelope
     );
   });
@@ -552,11 +541,11 @@ test("inline admission is exact at both the production default and the supported
   });
 });
 
-test("the lossless spill recognizer admits exactly one generated text agreeing with the minted envelope", async () => {
+test("the spill recognizer refuses envelopes without a callable semantic owner and malformed copies", async () => {
   await withSpillDirectory(async (stateDir) => {
     const env = spillEnv(stateDir);
     const spilled = jsonContent({ value: "s".repeat(INLINE_BYTE_LIMIT * 2) }, { env });
-    assert.equal(isLosslessMcpSpillDelivery(spilled), true);
+    assert.equal(isLosslessMcpSpillDelivery(spilled), false, "an unserved byte reader cannot establish lossless public delivery");
     const envelope = spilled.structuredContent;
     const variants = {
       no_text: { content: [], structuredContent: envelope },
@@ -630,7 +619,7 @@ test("the installed SDK client receives every structured shape with its one gene
       const spilled = readCarrier(await call("spilled"));
       assert.equal(spilled.response_spilled, true);
       assert.deepEqual(
-        JSON.parse(readReferenceToEnd(spilled.content_reference, env).toString("utf8")),
+        JSON.parse(retainedBytes(spilled.content_reference, env).toString("utf8")),
         { value: "s".repeat(INLINE_BYTE_LIMIT * 2) }
       );
       assert.deepEqual(readCarrier(await call("handler_text")), { ok: true, marker: "m" });

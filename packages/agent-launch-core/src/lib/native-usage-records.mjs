@@ -195,12 +195,19 @@ export async function writeNativeUsagePointer(runtimeDir, recordsDir) {
   }
 }
 
-export function createNativeUsageLaunchTap({ family, identity, resumed, recordsDir, recordsRoot = null, now } = {}) {
+export function createNativeUsageLaunchTap({ family, identity, resumed, recordsDir, recordsRoot = null, now,
+  usageTransport = "stdout" } = {}) {
+  if (usageTransport !== "stdout" && !(family === "opencode" && usageTransport === "opencode_api")) {
+    throw new TypeError("native_usage_transport_unsupported");
+  }
   let sink = null;
   const capture = createNativeUsageCapture({ family, identity, resumed, ...(now ? { now } : {}),
     onText: (text) => { if (sink !== null) sink(text); } });
   const source = NATIVE_USAGE_ADAPTERS[family].source;
   let settlement = null;
+  let sourceComplete = false;
+  let sourceSessionBound = false;
+  const api = usageTransport === "opencode_api";
   const checkpoints = createNativeUsageCheckpointWriter({ recordsDir, invocationId: identity?.invocation_id,
     onWritten: () => writeRunUsageTotal(recordsDir), ...(now ? { now } : {}) });
   let checkpointed = 0;
@@ -227,6 +234,7 @@ export function createNativeUsageLaunchTap({ family, identity, resumed, recordsD
   async function settleOnce(observation, registration) {
     try {
       await registration;
+      if (api) capture.end({ drained: sourceComplete });
       await checkpoints.close();
       const baseline = await resolveBaseline();
       const record = capture.settle({ exit: observation?.exit ?? null,
@@ -243,6 +251,7 @@ export function createNativeUsageLaunchTap({ family, identity, resumed, recordsD
   let registration = null;
   return Object.freeze({
     family,
+    preserveProtocol: NATIVE_USAGE_ADAPTERS[family].preserveProtocol === true,
 
     recordsDir,
     started: () => {
@@ -253,14 +262,34 @@ export function createNativeUsageLaunchTap({ family, identity, resumed, recordsD
     outputArgs: (args) => NATIVE_USAGE_ADAPTERS[family].outputArgs(args),
     bind: (next) => { sink = typeof next === "function" ? next : null; },
     push: (chunk) => {
+      if (api) return;
       try {
         capture.push(chunk);
       } finally {
         checkpoint();
       }
     },
-    events: () => capture.events(),
-    end: (observation) => capture.end(observation),
+    events: () => api ? 0 : capture.events(),
+    end: (observation) => { if (!api) capture.end(observation); },
+    ...(api ? {
+      bindNativeSession: (sessionId, options) => {
+        capture.bindSession(sessionId, options);
+        sourceSessionBound = true;
+      },
+      observeNativePart: (part) => {
+        if (!sourceSessionBound) throw new Error("native_usage_api_session_unbound");
+        if (sourceComplete || settlement !== null) throw new Error("native_usage_api_source_finished");
+        const type = { "step-start": "step_start", "step-finish": "step_finish" }[part?.type];
+        if (type === undefined) return;
+        try { capture.push(Buffer.from(`${JSON.stringify({ type, sessionID: part.sessionID, part })}\n`)); }
+        finally { checkpoint(); }
+      },
+      endNativeUsage: ({ complete }) => {
+        if (settlement !== null) throw new Error("native_usage_api_source_finished");
+        if (typeof complete !== "boolean") throw new TypeError("native_usage_api_completion_invalid");
+        sourceComplete = complete;
+      }
+    } : {}),
     settle: (observation) => (settlement ??= settleOnce(observation, registration))
   });
 }
@@ -367,12 +396,15 @@ export function resolveNativeUsageRecordsDir({ workspaceDir, env = process.env }
 }
 
 export function prepareNativeUsageLaunch({ family, args, workspaceDir, env = process.env, identity = {}, resumed,
-  begun = null } = {}) {
+  begun = null, usageTransport = "stdout" } = {}) {
   const invocationId = begun?.invocation_id ?? `INV-${randomUUID()}`;
   const unprepared = (code, recordsDir = null) =>
     ({ args, tap: null, invocation_id: invocationId, records_dir: recordsDir, cause: { code } });
   if (!Object.hasOwn(NATIVE_USAGE_ADAPTERS, family) || !Array.isArray(args)) return unprepared("usage_family_unsupported");
-  const switched = NATIVE_USAGE_ADAPTERS[family].outputArgs(args);
+  if (usageTransport !== "stdout" && !(family === "opencode" && usageTransport === "opencode_api")) {
+    return unprepared("usage_transport_unsupported");
+  }
+  const switched = usageTransport === "opencode_api" ? args : NATIVE_USAGE_ADAPTERS[family].outputArgs(args);
   if (switched === null) return unprepared("usage_output_mode_unsupported");
 
   const records = begun?.task ?? resolveNativeUsageTask({ workspaceDir, env, invocationId });
@@ -381,7 +413,7 @@ export function prepareNativeUsageLaunch({ family, args, workspaceDir, env = pro
     const bound = Object.fromEntries(Object.entries(identity ?? {})
       .map(([key, value]) => [key, typeof value === "string" && value !== "" ? value : null]));
 
-    const tap = createNativeUsageLaunchTap({ family, resumed, recordsDir, recordsRoot: records.ok ? records.records_root : null,
+    const tap = createNativeUsageLaunchTap({ family, resumed, recordsDir, usageTransport, recordsRoot: records.ok ? records.records_root : null,
       identity: { ...bound, invocation_id: invocationId, parent_invocation_id: records.ok ? records.parent_invocation_id : null } });
     return { args: switched, tap, invocation_id: invocationId, records_dir: recordsDir,
       task_id: records.ok ? records.task_id : null,

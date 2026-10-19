@@ -1,27 +1,26 @@
-
 # Quickstart
 
-This is the canonical setup path for standing up AgentChassis in a new repo. It
-walks through the same install steps as the [README](../README.md), with a
-little more explanation of what each step does.
-
-This path assumes there is no existing root agent guidance or AgentChassis
-adoption state. Existing-repository adoption is deferred.
-
-By the end you will have: the `@agent-chassis/core` package installed, your wiki
-contract surfaces seeded, a built code index, an MCP client able to launch the
-`wiki-mcp` server, role-launch defaults in committed config, and the ability to
-drive orchestrators.
+Start with the [README installation steps](../README.md#install). They cover
+installation through the first interactive session. This guide explains setup,
+model selection, and the execution prerequisites in more detail. It applies to
+new and existing repositories; see [adoption and reruns](adoption.md) for
+preserved state and migration limits.
 
 ## Prerequisites
 
-- A normal Git repository.
-- Node.js and npm.
-- For scope-enforced agent dispatch: a supported isolation backend. On Linux,
-  the recommended enforced backend is a usable `bwrap` (bubblewrap) binary on
-  your `PATH`. This is needed only once you start dispatching role work (step
-  7), not for install or bootstrap. See
-  [Sandbox prerequisite](#sandbox-prerequisite-bubblewrap) below.
+- **Installation:** Node.js 24.20.0 or newer and npm. Run setup from a Git
+  repository root. See [package installation](package-install.md).
+- **Agent sessions:** an installed, authenticated Claude, Codex, OpenCode or Agy CLI with access
+  to the models selected in `agent-launch.toml`.
+- **Managed execution and setup's test-runtime probes:** a supported Linux
+  isolation environment with usable `bwrap` (bubblewrap). Installing npm
+  packages and running static bootstrap do not need it. See
+  [sandbox prerequisites](#sandbox-prerequisite-bubblewrap).
+- **Managed integration:** the Git executable used by the serving `wiki-mcp`
+  process must support `git merge-tree --write-tree --merge-base` (Git 2.40 or
+  newer). npm does not install or upgrade Git. See
+  [the serving Git prerequisite](package-install.md#runtime-prerequisite) for
+  executable selection and recovery.
 
 ## 1. Package access
 
@@ -44,29 +43,32 @@ underlying surfaces and installs all the binaries you need:
 - the `wiki` binary (bootstrap, validation, lint, generated views, code index,
   search), from `@agent-chassis/wiki-cli`.
 - the `wiki-mcp` stdio MCP server that agents call for structured wiki,
-  work-record, dispatch-readiness, code-index, and tool-discovery operations,
+  work-record, assessment and selected input-contract operations,
   from `@agent-chassis/wiki-mcp`.
 - the `agent-launch` operator entrypoint for worker/review/redteam dispatch and
-  orchestrator launch/resume (orchestrators are human/operator-launched), from
-  `@agent-chassis/agent-launch-cli`.
+  orchestrator launch/resume (orchestrators are human/operator-launched), through the core-owned wrapper over
+  `@agent-chassis/agent-launch-cli`. Core alone exports the `agent-launch` npm
+  bin; the internal engine has no competing bin. The installed command enters
+  `@agent-chassis/core/bin/agent-launch` and preserves its package-document
+  composition for managed commands.
 
 Wiki-core also installs the public, independently versioned
 `@agent-chassis/controlled-contract` runtime transitively. If your code imports
 that package or its exported schemas directly, declare it explicitly with
 `npm install --save-dev @agent-chassis/controlled-contract`.
 
-If you prefer to pin the underlying packages individually, you can install
-`@agent-chassis/wiki-cli`, `@agent-chassis/wiki-mcp`, and
-`@agent-chassis/agent-launch-cli` directly instead; see
-[docs/package-install.md](package-install.md).
+Individual surface packages are internal dependencies. Install core for supported
+consumer operations; the separate controlled-contract library API remains
+available to direct importers.
 
 ### Postinstall first-run guidance
 
-During install, `@agent-chassis/core` runs a postinstall guidance hook that
+When npm permits install hooks, `@agent-chassis/core` runs a postinstall guidance hook that
 points at the explicit first-run setup command. It does not create files, run
 bootstrap, write `agent-launch.toml`, run `agent-launch init-config`, build the
 code index, launch an orchestrator, mutate MCP/client configuration, or fail the
-install when detection cannot complete.
+install when detection cannot complete. An npm install-script policy may skip
+this guidance hook; explicit setup below remains the first-run action.
 
 After install, run the setup command from your consumer repo root:
 
@@ -75,16 +77,47 @@ npx agent-chassis setup
 ```
 
 The setup command runs bootstrap, prompts or selects the launcher template for a
-detected Claude or Codex CLI, copies `agent-launch.toml` only when it is absent,
-runs `npx agent-launch init-config`, and prints the remaining commands. Setup
+detected Claude, Codex, OpenCode or Agy CLI, copies `agent-launch.toml` only when it is absent,
+initializes the launcher registry, detects local test runtimes as its last step,
+and prints the remaining commands. Setup
 never creates, reads, modifies, or deletes root `AGENTS.md` or `CLAUDE.md`.
 
-Run the two operator-owned commands printed by setup:
+Supported explicit choices are `--agent claude`, `--agent codex`,
+`--agent opencode` and `--agent agy`. An explicit choice skips harness detection;
+a single detected CLI is selected automatically. Several detected CLIs prompt
+interactively; without a TTY, ambiguous or absent detection prints the explicit
+choices and skips the TOML copy. `--dry-run` creates no TOML. Existing TOML,
+including mixed-family roles, is preserved byte-for-byte.
 
-```sh
-cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md
-printf '@AGENTS.md\n' > CLAUDE.md
-```
+OpenCode requires `rg` on `PATH` and direct Vertex authentication. Set
+`GOOGLE_APPLICATION_CREDENTIALS` in the launch environment to an existing
+service-account JSON file with `project_id`; OpenCode preflight consumes it.
+TOML `[vertexai] credentials_file` alone does not configure this authentication
+route. Agy requires its installed, authenticated native `agy` CLI.
+
+Setup support does not change runtime qualification: OpenCode refuses
+schema-constrained workers with `opencode_native_schema_unavailable`, so this
+is not complete paid-CCE worker support. See [family runtime state](agent-launch-family-runtime-state.md).
+
+Ordinary setup always calls `init-config`, whose owner refuses an existing
+registry. Keep that configuration; setup does not force, reset or merge it.
+Use `npx agent-chassis setup --test-runtimes` to finish or repeat the runtime step.
+A preserved TOML does not establish full rerun success.
+
+Complete root guidance manually before committing:
+
+- Open `wiki/templates/AGENTS.md.boilerplate.md`. If root `AGENTS.md` is absent,
+  create it from the template. Otherwise, add only missing AgentChassis guidance,
+  keep existing content, and reconcile conflicting rules. Do not append the
+  whole template again on reruns.
+- For Claude, add `@AGENTS.md` on its own line in root `CLAUDE.md` only if that
+  include is missing. Create the file if needed and keep all existing instructions.
+
+Setup checks installed dependencies; it does not install them. Exit status `3`
+means the earlier steps succeeded but test runtimes are unavailable or unresolved.
+Follow the reported correction and rerun `npx agent-chassis setup --test-runtimes`.
+A zero exit status also covers repositories with no test project; it does not
+by itself prove runtime readiness. See [local runtime setup](local-test-runtime-setup.md).
 
 ## 3. Bootstrap the repo
 
@@ -92,7 +125,8 @@ printf '@AGENTS.md\n' > CLAUDE.md
 npx wiki bootstrap --profile standard
 ```
 
-Bootstrap is run once, from your repo root, after installing the packages. It is
+Ordinary setup already runs bootstrap. Run this command separately only for
+standalone bootstrap or an intentional rerun. It is
 static seeding only — it writes local files and never calls a model, dispatches
 an agent, or reaches an external service.
 
@@ -116,52 +150,58 @@ an agent, or reaches an external service.
 Fresh bootstrap creates no `WK-0001` and leaves that identifier allocator-
 eligible for the first real work record. It does **not** create root guidance
 files, write global MCP client config, build the code index, or run an adoption
-gate. The legacy adoption-verification command remains available for
-compatibility but is not part of fresh installation.
+gate. See [adoption and reruns](adoption.md) for existing-state behavior.
 
 Bootstrap reruns preserve valid operator-authored canonical state in
 `IN-0001.json` and regenerate `IN-0001.md` from it. A projection-only legacy
 initiative is refused with structured migration guidance rather than accepted
 as canonical input.
 
-## 4. Build the code index
+## 4. Review and commit setup
+
+After completing root guidance, review the resulting files:
 
 ```bash
-npx wiki code-index build --json
-```
-
-The code index is **required for normal operation**, not optional. Normal
-readiness, dispatch review, graph-impact queries, and review tooling depend on
-it. Until it is built, `code-index status` reports `staleness: missing` and
-dispatch/graph-impact routes degrade.
-
-Run this after bootstrap, launcher config initialization, and the
-review/commit checkpoint — for example:
-
-```bash
-npx agent-launch init-config
-cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md
-printf '@AGENTS.md\n' > CLAUDE.md
 git status --short
-git add AGENTS.md CLAUDE.md wiki .gitignore agent-launch.toml
-git commit -m "bootstrap AgentChassis wiki adoption"
+git diff
+```
+
+Stage only the setup files you intend to track, including your package manifest
+and lockfile, wiki surfaces, root guidance, `.gitignore`, and `agent-launch.toml`.
+Then commit:
+
+```bash
+git commit -m "set up AgentChassis"
+```
+
+Local runtime configuration, readiness history, and caches remain ignored. See
+[local runtime setup](local-test-runtime-setup.md) for the exact rules.
+
+A code index is not a free-tier authoring prerequisite. The agent-facing
+`query_code_index` operation is paid-only. An operator may explicitly prepare the
+committed-source index for index-dependent use:
+
+```bash
 npx wiki code-index build --json
 ```
 
-Also commit the install-step changes you intend to track, such as
-`package.json` and `package-lock.json`.
+Commit the intended source first: the index describes a captured committed tree,
+not uncommitted edits. Index availability, coverage and freshness are separate
+facts; building it grants no paid tool access or dispatch authority.
 
 ## 5. Wire an MCP client
 
-`wiki-mcp` is a stdio MCP server. You do **not** run it by hand: an MCP-capable
-client launches it per session, speaks JSON-RPC over stdin/stdout, and
-terminates it when the session ends. It binds no port and runs no daemon.
-Because it waits on stdin, do not try to "health check" it by running it
-directly in a shell — it will simply block.
+For a standalone client, configure the installed core-owned `wiki-mcp` binary.
+The client starts the stdio server and exchanges JSON-RPC over stdin/stdout;
+starting it in a shell is not a health check. A standalone operator server does
+not provide an orchestrator's managed dispatch backend.
 
-Point your MCP client at the installed binary inside your repo. See
-[docs/mcp-integration.md](mcp-integration.md) for the full client configuration
-shape, workspace-alias precedence, and the agent-facing tool surface.
+Managed Codex and Claude sessions receive their wiki client registration from the
+launcher. Their stdio connector reaches a launcher-owned host server through a
+private Unix-domain socket; server code and dependencies remain on the host.
+This is local transport, not HTTP/SSE or a shared daemon. See
+[MCP integration](mcp-integration.md) and
+[conduit lifecycle](agent-launch-mcp-conduit-lifecycle.md).
 
 ## 6. Configure role launch defaults
 
@@ -192,39 +232,45 @@ safe to commit. Keep `.env` only for secrets such as
 `NODE_ENGINE_API_KEY`; role app, model, and effort defaults no longer belong
 there.
 
-Two preset files ship as committed reasonable defaults:
-`agent-launch.claude.toml` and `agent-launch.codex.toml`. They are examples to
-copy from, not active secondary config files. To use one, copy it to
-`agent-launch.toml`; alternatively, edit `agent-launch.toml` directly. The
-launcher reads `agent-launch.toml` and does not auto-read the preset files or
-choose a privileged family.
+Four templates ship under `@agent-chassis/core/templates/`:
+`agent-launch.claude.toml`, `agent-launch.codex.toml`,
+`agent-launch.opencode.toml` and `agent-launch.agy.toml`. Setup copies the chosen
+package-local template to `agent-launch.toml` only when absent. The launcher
+reads that active file, without auto-reading the templates.
 
-Legacy `.env` role keys are deprecation probes only. If `<ROLE>_APP`,
-`<ROLE>_MODEL`, or `<ROLE>_EFFORT` is present, the launcher uses the value for a
-diagnostic consistency check rather than as the source of truth. A legacy value
-that disagrees with `agent-launch.toml` refuses before spawn with an actionable
-error naming the stale key.
+| Family | Registered model example | Template effort |
+| --- | --- | --- |
+| Claude | `opus` | `medium` worker; `high` other roles |
+| Codex | `gpt-5.6-sol` | `medium` worker (`gpt-5.6-luna`); `high` other roles |
+| OpenCode | `google-vertex/gemini-3.8-flash` | `medium` all roles |
+| Agy | `gemini-3.8-flash-low` | `low` all roles |
 
-The resolver is mechanical and shared by role dispatch, MCP dispatch, and
-orchestrator launch. With no override, the role uses its default model from
-`agent-launch.toml`. An override token that is an app name selects that app's
-registry-declared default model, so "run with claude" means the Claude app
-default. An override token that is a model name selects that model and derives
-the app, so "run with opus" derives Claude. Unknown apps or models refuse before
-spawn and list the known app and model tokens.
+The OpenCode and Agy templates set `high_priority_role_guide = true` for every
+role. Keep that setting for roles using those families, including mixed-family
+configurations.
+
+With no override, a role uses its default model from `agent-launch.toml`.
+`--model` requires a registered model name: `gpt-5.6-sol` selects Codex, `opus`
+selects Claude, `google-vertex/gemini-3.8-flash` selects OpenCode, and
+`gemini-3.8-flash-low` selects Agy. App names such as `claude` are not model names, and the registry
+supplies no app-default model. Unknown models refuse before spawn and list the
+registered names. See the [operator reference](agent-launch-operator-entrypoints.md)
+for advanced configuration and diagnostics.
 
 Reasoning effort is role-neutral and resolved with this precedence:
 `--effort`, then the role's `agent-launch.toml` value, then the registry default
 for the selected model. The resolved value is recorded as launch configuration;
-it is not yet applied to model thinking output.
+family-specific application is described in the
+[operator reference](agent-launch-operator-entrypoints.md). In particular Codex
+receives its reasoning-effort config override; this is not a guarantee about
+the model's actual reasoning.
 
 ## 7. Drive orchestrators (operator step)
 
 Orchestrator launch and resume are human/operator entrypoints — agents do not
-launch them. With the packages installed, the repo bootstrapped, both root
-guidance files created by the operator, launcher config initialized, and the code
-index built, you (the operator) drive work through orchestrators from your repo
-root:
+launch them. With the packages installed, the repo bootstrapped, root
+guidance completed and launcher config initialized, you (the operator) drive
+work through orchestrators from your repo root:
 
 ```bash
 # Start the first real work from committed first-run setup.
@@ -233,7 +279,6 @@ npx agent-launch orchestrator IN-0001
 # Optional overrides still resolve through launcher model selection.
 npx agent-launch orchestrator IN-0001 --model gpt-5.5
 npx agent-launch orchestrator IN-0001 --model opus
-npx agent-launch orchestrator IN-0001 --model claude
 npx agent-launch orchestrator IN-0001 --model gpt-5.5 --effort xhigh
 
 # Resume an existing orchestrator session.
@@ -243,18 +288,6 @@ npx agent-launch resume IN-0001 --model opus
 # List orchestrator runtime records.
 npx agent-launch orchestrator list --json
 ```
-
-The family-named orchestrator forms (`codex-orch`, `claude-orch`, their resume
-variants, and the old `codex-orch-list`/`codex-orch-xhigh` forms) are removed
-from the installed public/operator command surface: they are not `PATH` commands
-and are not package `bin` entries. They are also removed from package source:
-the family-named orchestrator forms are no longer kept as source or reference
-files. Use the consolidated `agent-launch orchestrator`, `agent-launch resume`,
-and `agent-launch orchestrator list` entrypoints with `--model` and `--effort`;
-app selection is derived from the model registry instead of the command name.
-`--model` accepts the same mechanical override token as dispatch: an app name
-uses that app's registry default model, and a model name selects that exact
-model.
 
 Orchestrator commands are **interactive**. They stay attached to your terminal
 and remain running for the duration of the session; they are not fire-and-forget
@@ -267,50 +300,32 @@ record may then be `WK-0001`.
 
 ### Sandbox prerequisite (bubblewrap)
 
-Structured worker, reviewer, and redteam dispatch is admitted from
-launcher-owned backend selection and enforcement facts. When a supported and
-enabled isolation backend is active for the launch, the run is recorded as
-enforced with that backend. On Linux, the recommended enforced backend is
-bubblewrap (`bwrap`); install a usable `bwrap` on your `PATH` for real
-scope-enforced dispatch.
+Managed Codex and Claude sessions require a usable isolation backend and the
+launcher-owned host MCP conduit. On supported Linux hosts, install bubblewrap
+and ensure the launcher can create its required namespaces and mounts. A binary
+on `PATH` alone does not establish usability; a missing required namespace or
+conduit refuses launch. See [launcher setup](agent-launch-quickstart.md) and
+[conduit diagnostics](agent-launch-conduit-diagnostics.md) for recovery.
 
-If no supported or enabled isolation backend is available for a structured role
-launch, what happens depends on whether a Chassis Control Engine (CCE) key is
-configured — this is the "can enforce" vs. "must enforce" split described in
-[Enforcement posture](../README.md#enforcement-posture):
+An operator orchestrator can start without `bwrap` in direct mode, with a warning
+that isolation is off. That does not make managed dispatch available. Local use
+does not require a CCE key; removing a key or requesting an unenforced launch
+does not provide missing execution capabilities. See the
+[enforcement model](enforcement-model.md).
 
-- **No CCE key:** dispatch may run **unenforced** as best-effort local
-  execution. It is not silently degraded — the run is recorded honestly as
-  `enforced: false` with `isolation_backend: none` and a loud warning, and
-  admission gates that require enforcement can refuse it.
-- **CCE key configured:** enforcement is required, so dispatch **refuses** unless
-  the operator sets the explicit unsandboxed opt-out for that launch or launcher
-  configuration. An opt-out run is still recorded as `enforced: false` with
-  `isolation_backend: none`, tagged as an operator opt-out rather than a no-key
-  fallback.
+## 8. Prepare local test runtimes before execution
 
-Either way, an unenforced run gives no containment guarantee; install a
-supported backend such as Linux `bwrap` for real scope enforcement.
+`verify_proof` runs saved native proofs for Node's test runner, Jest, Vitest,
+Mocha, AVA, Deno, lib0/testing, pytest, stestr, go test and cargo test.
+`workspace_run_test` runs selected ordinary tests. Both use an authenticated
+host test capability with the host user's permissions, without bubblewrap.
+Agent-session containment does not confine test side effects or network access.
+Proof stages that transform source use temporary copies; ordinary tests use the
+selected checkout and preserve its existing changes. This explicit host-test
+exception does not apply to agent sessions or setup probes. See
+[test execution](test-proof-execution.md).
 
-You do not need a CCE key for local AgentChassis use. A CCE key enables the
-governed posture for private-beta users. Request access:
-https://forms.gle/YBJc1TnxoEPea3kx6
-
-The orchestrator process itself can still start when `bwrap` is unavailable, but
-only in an unsandboxed **direct mode** that prints a loud warning that OS-level
-isolation is off (the decision operator exception). Direct mode is not equivalent
-to sandboxed scope enforcement; install `bwrap` for real isolation.
-
-For the `bwrap` install recipe and the full isolation contract, see
-[docs/agent-launch-quickstart.md](agent-launch-quickstart.md).
-
-## 8. Prepare local test runtimes (optional operator step)
-
-`workspace_verify_proof` runs saved native proofs for Jest, Vitest, Mocha, AVA,
-Deno, lib0/testing, pytest, stestr, go test and cargo test inside the launcher
-sandbox. It uses only runtimes that an explicit setup prepared.
-
-Ordinary `agent-chassis setup` (step 1) already does this as its last step: it
+Ordinary `agent-chassis setup` (step 2) already does this as its last step: it
 inventories every test environment this repository's own manifests declare
 (npm packages with their workspace members, Python projects, Go modules, Cargo
 and Deno projects, in every language at once), locates each needed toolchain on
@@ -342,7 +357,8 @@ option and failure code.
 
 ## Where to go next
 
-- [docs/package-install.md](package-install.md) — package and auth detail.
+- Read the host-selected guide and authoring vignette named in the orchestrator startup instructions.
+- [docs/package-install.md](package-install.md) — package and runtime detail.
 - [docs/mcp-integration.md](mcp-integration.md) — MCP client wiring (reference).
 - [docs/tool-discovery.md](tool-discovery.md) — which tools agents can call.
 - [docs/work-record-ontology.md](work-record-ontology.md) — work-record schema

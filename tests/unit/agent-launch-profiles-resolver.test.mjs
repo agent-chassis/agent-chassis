@@ -50,7 +50,7 @@ test("neutral role effort declarations and family maps cover the five-level enum
 
   assert.equal(roleEffortEnvKey("worker"), "WORKER_EFFORT");
   assert.equal(roleEffortEnvKey("reviewer"), "REVIEWER_EFFORT");
-  assert.equal(roleEffortEnvKey("review"), "REVIEWER_EFFORT");
+  assert.equal(roleEffortEnvKey("review"), null);
   assert.equal(roleEffortEnvKey("redteam"), "REDTEAM_EFFORT");
   assert.equal(roleEffortEnvKey("orchestrator"), "ORCHESTRATOR_EFFORT");
   assert.equal(roleEffortEnvKey("resume"), "ORCHESTRATOR_EFFORT");
@@ -77,7 +77,8 @@ test("neutral effort maps codex max to xhigh and keeps claude native max", () =>
     const claude = neutralEffortMapping({ family: "claude", effort: level });
     assert.equal(claude.output_config.effort, level);
   }
-  assert.equal(neutralEffortMapping({ family: "agy", effort: "high" }), null);
+  assert.deepEqual(neutralEffortMapping({ family: "agy", effort: "high" }), { effort: "high" });
+  assert.equal(neutralEffortMapping({ family: "agy", effort: "xhigh" }), null);
   assert.equal(neutralEffortMapping({ family: "codex", effort: "default" }), null);
 });
 
@@ -134,7 +135,7 @@ test("override token resolver does not turn app names into model selection", () 
   const unknown = resolveLauncherOverrideToken("not-a-model-or-app");
   assert.equal(unknown.ok, false);
   assert.equal(unknown.reason, "unknown_launcher_app_or_model");
-  assert.deepEqual(unknown.detail.known_apps, ["codex", "claude", "agy"]);
+  assert.deepEqual(unknown.detail.known_apps, ["codex", "claude", "agy", "opencode"]);
   assert.ok(unknown.detail.known_models.includes("opus"));
 });
 
@@ -201,7 +202,7 @@ test("effort precedence is operator override then role config then registry defa
     reviewer: { model: "gpt-5.4" }
   });
   const registryDefault = resolveLauncherProfile({
-    role: "review",
+    role: "reviewer",
     env: {},
     dir: defaultDir,
     readWorkspaceEnvValue: () => null
@@ -209,6 +210,9 @@ test("effort precedence is operator override then role config then registry defa
   assert.equal(registryDefault.ok, true, JSON.stringify(registryDefault));
   assert.equal(registryDefault.value.effort, "medium");
   assert.equal(registryDefault.value.effort_source, "model_registry_default");
+  const obsolete = resolveLauncherProfile({ role: "review", env: {}, dir: defaultDir });
+  assert.equal(obsolete.ok, false);
+  assert.equal(obsolete.error.code, "unknown_role");
 });
 
 test("unknown reviewer role default refuses through resolveFamilyRoleModelGate", async (t) => {

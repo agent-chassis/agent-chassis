@@ -1,3 +1,6 @@
+import { collectSidecarCheckoutInputs } from "./sidecar-checkout-inputs.mjs";
+import { sidecarProviderInputsChangedAtCommit } from "./sidecar-scip-projects.mjs";
+import { sidecarRefreshCoordinator } from "./sidecar-refresh.mjs";
 import { execFile, spawn } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -5,7 +8,6 @@ import { promisify } from "node:util";
 import { computeSidecarGeneratorIdentity } from "./sidecar-generator-identity.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
 import { classifySidecarPreparation, isSidecarProviderCoverageSettled } from "./sidecar-incremental.mjs";
-import { sidecarProviderInputsChangedAtCommit } from "./sidecar-scip-projects.mjs";
 import { normalizeSidecarRepoPath } from "./sidecar-paths.mjs";
 import { resolveSidecarRepositoryIdentity } from "./sidecar-repository-identity.mjs";
 import { createSidecarDirtyDetails, createSidecarResultEnvelope } from "./sidecar-schema.mjs";
@@ -219,7 +221,7 @@ function projectClassification(store, classification) {
   if (store.state !== "available" || !store.publication?.repository_commit) {
     const missing = store.state === "missing" || store.state === "available";
     return { staleness: missing ? "missing" : "rebuild_required", action: "rebuild",
-      reason: missing ? "artifact_missing" : `artifact_${store.state}`,
+      reason: store.state === "available" ? "index_unpublished" : missing ? "artifact_missing" : `artifact_${store.state}`,
       available: false, graphAvailable: false };
   }
   if (classification === null) {
@@ -233,7 +235,7 @@ function projectClassification(store, classification) {
     return { staleness: "fresh", action: "use", reason: "source_identity_match",
       available: true, graphAvailable: true };
   }
-  if (action === "incremental" || action === "advance_tag") {
+  if (action === "incremental") {
     return { staleness: "stale", action: "rebuild", reason: "source_identity_mismatch",
       available: true, graphAvailable: false };
   }
@@ -288,33 +290,37 @@ export function createSidecarIndexStatusEnvelope({ gitState, artifactPaths, stor
     status_reason: classified.graphAvailable ? "graph_store_available" : classified.reason };
   const snapshot = graphSnapshot(publication);
   const evidence = { kind: "sidecar_index_status", cache_path: artifactPaths.cacheDir,
-    artifact_path: artifactPaths.artifactRelativePath, artifact_exists: classified.available,
-    artifact_schema_version: classified.available ? SIDECAR_STORE_SCHEMA_VERSION : null,
+    artifact_path: artifactPaths.artifactRelativePath, artifact_exists: store.artifact_exists ?? store.state !== "missing",
+    artifact_usable: store.state === "available" && publication?.repository_commit != null && classification !== null && classification.action !== "clean",
+    artifact_schema_version: store.observed_store_schema_version ?? (store.state === "available" ? SIDECAR_STORE_SCHEMA_VERSION : null),
     expected_artifact_schema_version: SIDECAR_STORE_SCHEMA_VERSION,
     artifact_index_head: publication?.repository_commit ?? null,
     artifact_index_tree: publication?.repository_tree ?? null,
     status_reason: classified.reason, index_action: classified.action,
     graph_state: graphState, scip_state: scipState, graph_snapshot: snapshot,
-    ...(store.error_message ? { read_error: store.error_message } : {}),
+    ...(store.error_message ? { read_error: store.error_message, read_error_code: store.error_code } : {}),
     ...(generatorIdentityError ? { generator_identity_error: generatorIdentityError } : {}),
     provenance: { source_kind: "code_index", canonicality: "derived",
-      evidence_basis: gitState.index_tree ? "git_tree" : "unknown" } };
+      evidence_basis: gitState.index_tree ? "working_checkout" : "unknown" } };
   return createSidecarResultEnvelope({ source_kind: "code_index", canonicality: "derived",
-    evidence_basis: gitState.index_tree ? "git_tree" : "unknown",
+    evidence_basis: gitState.index_tree ? "working_checkout" : "unknown",
     index_head: gitState.index_head, index_tree: gitState.index_tree,
     dirty_state: gitState.dirty_state, dirty_details: gitState.dirty_details,
     staleness: classified.staleness, canonical_refs: [], derived_evidence: [evidence],
     repo_root: gitState.repoRoot, cache_path: artifactPaths.cacheDir,
-    artifact_path: artifactPaths.artifactRelativePath, artifact_exists: classified.available,
-    artifact_schema_version: classified.available ? SIDECAR_STORE_SCHEMA_VERSION : null,
+    artifact_path: artifactPaths.artifactRelativePath, artifact_exists: store.artifact_exists ?? store.state !== "missing",
+    artifact_usable: store.state === "available" && publication?.repository_commit != null && classification !== null && classification.action !== "clean",
+    artifact_schema_version: store.observed_store_schema_version ?? (store.state === "available" ? SIDECAR_STORE_SCHEMA_VERSION : null),
     expected_artifact_schema_version: SIDECAR_STORE_SCHEMA_VERSION,
     graph_state: graphState, scip_state: scipState, graph_snapshot: snapshot,
-    status_reason: classified.reason, index_action: classified.action });
+    status_reason: classified.reason, index_action: classified.action,
+    ...(store.error_message ? { read_error: store.error_message, read_error_code: store.error_code } : {}) });
 }
 
 export async function getSidecarIndexStatus({
   dir = ".", cacheDir = SIDECAR_DEFAULT_CACHE_DIR,
-  artifactFile = SIDECAR_DEFAULT_ARTIFACT_FILE, verifyCacheIgnored = true, dirtyState = true
+  artifactFile = SIDECAR_DEFAULT_ARTIFACT_FILE, verifyCacheIgnored = true, dirtyState = true,
+  verifyCheckout = true
 } = {}) {
   const gitState = await discoverSidecarGitState(path.resolve(dir), { dirtyState });
   const artifactPaths = resolveSidecarArtifactPath({ repoRoot: gitState.repoRoot,
@@ -331,16 +337,33 @@ export async function getSidecarIndexStatus({
     try {
       classification = await classifySidecarPreparation({
         publication: store.publication,
-        requestedCommit: gitState.index_head,
-        generatorIdentity: async () =>
-          (await resolveSidecarGeneratorIdentity(gitState)).generator_identity,
-        providerInputsChanged: async () =>
+        requestedCommit: verifyCheckout ? gitState.index_head : store.publication.repository_commit,
+        requestedInputIdentity: verifyCheckout ? (await collectSidecarCheckoutInputs(gitState.repoRoot)).identity
+          : store.publication.base_coverage?.checkout_identity,
+        ...(verifyCheckout ? { generatorIdentity: async () =>
+          (await resolveSidecarGeneratorIdentity(gitState)).generator_identity } : {}),
+        providerInputsChanged: async () => verifyCheckout &&
           sidecarProviderInputsChangedAtCommit(store.publication, process.env)
       });
     } catch (error) {
       generatorIdentityError = error instanceof Error ? error.message : String(error);
     }
   }
-  return createSidecarIndexStatusEnvelope({ gitState, artifactPaths, store,
+  const described = createSidecarIndexStatusEnvelope({ gitState, artifactPaths, store,
     classification, generatorIdentityError });
+  const refresh = sidecarRefreshCoordinator().observe({ repoRoot: gitState.repoRoot, cacheDir: artifactPaths.cacheDir });
+  const status = verifyCheckout ? described : qualifyPublishedSidecarFreshness(described, store.publication, gitState.index_head);
+  return { ...status, refresh, recovery: status.artifact_usable ? null
+    : refresh.state === "idle" ? { state: "unavailable", reason: "refresh_not_requested_in_this_process" } : refresh };
+}
+
+export function qualifyPublishedSidecarFreshness(status, publication, currentHead) {
+  if (!publication?.repository_commit || status.artifact_usable !== true) return status;
+  const stale = publication.repository_commit !== currentHead || publication.base_coverage?.inputs_moved === true;
+  const staleness = stale ? "stale" : "unknown";
+  const reason = stale ? "published_checkout_inputs_changed" : "checkout_freshness_unverified";
+  const scip = { ...status.scip_state, staleness };
+  return { ...status, staleness, status_reason: reason, scip_state: scip,
+    derived_evidence: status.derived_evidence.map(entry => entry.kind === "sidecar_index_status"
+      ? { ...entry, status_reason: reason, scip_state: scip } : entry) };
 }

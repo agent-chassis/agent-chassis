@@ -33,6 +33,7 @@ Preserved as repo-owned local contract settings:
 
 - `vocab`
 - `inference`
+- `artifactLint` (optional additive artifact scope)
 
 Shared tooling should preserve the repo-owned sections during `sync-contract` and `bootstrap`, not overwrite them.
 
@@ -106,6 +107,37 @@ Anything else — ssh, plain https, another host, embedded credentials, a deeper
 Resolution is strict and fails closed. An unreadable or unparseable package manifest, a missing `repository` object, a missing or empty `repository.url`, and an unsupported `repository.url` each raise an error naming the exact package manifest path and offending field. `wiki bootstrap` and `wiki sync-contract` build the expected metadata before touching `wiki/.wiki-contract.json`, so an unresolvable package leaves existing metadata untouched rather than writing a guess. There is no fallback value.
 
 Stale metadata is corrected by syncing, not by tolerance. `wiki sync-contract --check` and `wiki lint` compare the recorded `sourceRepo` strictly against the current package coordinate and report a `contract_metadata_mismatch` naming both values; re-running `wiki sync-contract` writes the current coordinate and both pass again. No alias or compatibility mapping exists for a previously recorded coordinate.
+
+## `artifactLint`
+
+`artifactLint` is an optional closed object with exactly one required member,
+`additionalRoots`, an array of canonical repository-relative directory strings:
+
+```json
+{ "artifactLint": { "additionalRoots": ["docs/", "wiki/"] } }
+```
+
+Omission adds no local scope. Bootstrap and sync preserve valid settings and
+never insert this repository's declaration into a consumer. The declaration
+above is this repository's explicit local policy. See the
+[ownership boundary](consumer-owned-docs.md#artifact-policy-and-byte-ownership)
+for the mandatory shared scope and the distinction from structural validation.
+
+Every entry must end in `/`. Globs, absolute paths, empty or repository-root
+selectors, dot segments, backslashes and file selectors are rejected. A selected
+directory that is actually a file is an explicit `artifact-path-kind-invalid`
+finding. Unknown members, exclusions, disable switches, suffix overrides and
+framework profiles are unsupported. Roots only add coverage; overlap is
+deduplicated and containment respects slash boundaries.
+
+Malformed declarations produce `artifact-scope-invalid` without a guessed
+scope; structural checks continue. Bootstrap and sync reject malformed settings
+before overwriting metadata. This does not promise rollback of other scaffold
+writes. Selected traversal, stat or read failures produce `artifact-read-failed`;
+selected symlinks produce `artifact-path-symlink` and are not followed. Findings
+identify the affected path, cause, known effects, unverified scope and maintainer
+correction. Repair the declaration or affected filesystem input and rerun lint.
+The setting changes reported artifact findings only; CCE retains policy authority.
 
 ## `vocab`
 
@@ -234,4 +266,4 @@ Shared core templates should assume path-based defaults and expose only the like
 The intended split is:
 
 - contract docs define the shared semantics
-- `wiki/.wiki-contract.json` declares narrow local vocabulary and inference defaults
+- `wiki/.wiki-contract.json` declares narrow local vocabulary, inference defaults and additive artifact scope

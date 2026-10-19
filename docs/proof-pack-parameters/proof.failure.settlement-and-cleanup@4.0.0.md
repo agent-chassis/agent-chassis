@@ -4,9 +4,9 @@
 
 Given one grounded operation attempt, one declared failure injection and injected failure carrying one grounded original cause, one cleanup event, one settlement event after both failure and cleanup, one complete declared residue population whose integer cardinality may be zero or greater, complete cause-state observations at failure and after settlement, and a settled failure record: satisfaction establishes that the injected failure targets the operation during the attempt, cleanup targets the residue population after failure, settlement follows cleanup and failure, the complete residue population has cardinality zero after settlement, the settled failure record retains the same cause, and the cause state after settlement equals its state at failure.
 
-Profile digest: b9c8a19c88c743ccfc5404835e4d20947ef58a93c0fc53f75842497a6d4ef3d7. Parameter digest: 2292571650a8082bdc44fb6e30c35f01eead7840583e1b4085df97347cc17d4c.
+Profile digest: c61ac23bbf8e94fa75498f7132ec149a0e5ff3d7b70becc302768aeed668046b. Parameter digest: 1b88737bb361ecaf23d658bc048491179afb7f8abe7b092fe726b6f2bcfdcac9.
 
-Admission digest: 66267a1d0c2226d9af61bc735ca93bcfddc29d45856ee793a91c8255051221b9.
+Admission digest: 122b79c8c0313f8513418746b8fe52173c0eed1e5a4a38d503d85ff4c4475713.
 
 Roles: 19/19 accounted; 5 owned gaps. Semantic parameters: 14; internal roles: 5.
 

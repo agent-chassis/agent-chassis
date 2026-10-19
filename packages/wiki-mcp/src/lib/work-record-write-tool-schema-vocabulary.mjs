@@ -2,6 +2,9 @@
 
 import { isRepositoryRelativePath } from
   "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
+import { REPOSITORY_TEST_DECLARATION_SCHEMA } from
+  "@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs";
+import { requestSchema } from "./proof-request-schema.mjs";
 import {
   SLICE_ID_PATTERN,
   WORK_RECORD_STATUS_VALUES,
@@ -130,6 +133,18 @@ export function readyValidationEntry(z) {
   ]);
 }
 
+export function repositoryTestReplacement(z) {
+  return z.object({
+    repository_tests: z.array(requestSchema(z, REPOSITORY_TEST_DECLARATION_SCHEMA)),
+    notes: z.array(readyValidationEntry(z)).optional()
+  }).strict();
+}
+
+export function readyValidationInput(z, { nonempty = false } = {}) {
+  const notes = z.array(readyValidationEntry(z));
+  return z.union([nonempty ? notes.min(1) : notes, repositoryTestReplacement(z)]);
+}
+
 export function readyStructuredAcceptanceCriterion(z) {
   return z
     .object({
@@ -162,7 +177,7 @@ export function readyAcceptance(z, { structuredCriteria = false } = {}) {
   return z
     .object({
       criteria: z.array(criterion).min(1),
-      validation: z.array(readyValidationEntry(z)).min(1)
+      validation: readyValidationInput(z, { nonempty: true })
     })
     .strict();
 }
@@ -189,7 +204,7 @@ export function canonicalSliceAcceptance(z) {
   return z
     .object({
       criteria: z.array(z.union([z.string(), structuredCriterion])),
-      validation: z.array(readyValidationEntry(z))
+      validation: readyValidationInput(z)
     })
     .passthrough();
 }

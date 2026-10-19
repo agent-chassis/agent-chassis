@@ -4,9 +4,9 @@
 
 Given one declared operation attempt, one declared refusal event, one declared authority, one declared unauthorized subject, one declared reusable operation, and one complete caller-supplied protected-effect list bound to an exact declared cardinality, this pack establishes only in the declared controlled graph that: the attempt performs the operation and uses the subject; the authority does not authorize that subject for the operation; the refusal rejects that exact attempt; the attempt precedes a protected-interval witness which precedes the refusal; before that refusal the same attempt neither writes nor mutates any listed protected effect; and the verification reads the exact attempt, refusal, operation, and every listed protected effect, with a positive same-attempt, same-population, same-refusal pre-refusal write or mutation as the corresponding falsifier.
 
-Profile digest: a44e97e49f63a447e7d8c45d25a1ffcc76c269aa5b21108264438490a41f23a6. Parameter digest: c3a08afcf62f9efe5ca52ef48ccd39d9a28a49b2d5a72d823717ede75a506896.
+Profile digest: 8d43a1ff837dd6e0f925e51bf36d21152cb7344e772c79d70abfd4c0a6de7909. Parameter digest: f1720ed6b6e2178a5e2b1fcf2f6dbf97a616a8813aeccf4238e673de0ac4bc2b.
 
-Admission digest: 1a7edae541b8f5757de889be1c10b4469a3993acdda90a8ba57c13fb404d6e22.
+Admission digest: 104dd27c4a9cc75489aa3b19eef9529691321c7e7847bbe6e6c31b595b1a6ebf.
 
 Roles: 10/10 accounted; 0 owned gaps. Semantic parameters: 9; internal roles: 1.
 

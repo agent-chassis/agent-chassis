@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
-import { canonicalDigest } from "./proof-pack-adequacy.mjs";
+import { canonicalDigest } from "../../lib/deterministic-projection-primitives.mjs";
 import { facts, mutate, notEvaluable, positive } from "./test-validity-execution-controls.mjs";
 import { evaluateExecutionTestValidity } from
-  "../../profiles/proof.verification.test-validity/11.0.0/evaluator.mjs";
+  "../../profiles/proof.verification.test-validity/12.0.0/evaluator.mjs";
+import { validateCurrentProofDefinition, TEST_EXECUTION_PROFILE_SCHEMA } from
+  "../../lib/test-validity-execution-definition.mjs";
 
 const caseIds = (cases) => cases.map((entry) => entry.case_id ?? entry).sort();
 
 export function runTestValidityCertification(profile, adequacy, corpus) {
   assert.equal(profile.profile_id, "proof.verification.test-validity");
-  assert.equal(profile.profile_version, "11.0.0");
+  assert.equal(profile.profile_version, "12.0.0");
+  assert.equal(profile.schema_version, TEST_EXECUTION_PROFILE_SCHEMA);
+  assert.equal(validateCurrentProofDefinition(profile), true);
   assert.deepEqual(Object.keys(positive).sort(), caseIds(corpus.positive_cases));
   assert.deepEqual(Object.keys(mutate).sort(), caseIds(corpus.single_axis_weakenings));
   assert.deepEqual(Object.keys(notEvaluable).sort(), caseIds(corpus.not_evaluable_cases));

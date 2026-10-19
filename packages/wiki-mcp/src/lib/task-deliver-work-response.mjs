@@ -3,6 +3,7 @@
 import { DELIVERY_ORIGINAL_PRODUCER } from "./task-deliver-work-result.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { measureMcpInlineResultBytes } from "./mcp-response.mjs";
+import { distillDispatchFailureDetail } from "./dispatch-tool-helpers.mjs";
 import { selectedResponseDeliveryBound, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
 import { renderTerminalStructuredRoleResultContract, TERMINAL_STRUCTURED_ROLE_RESULT_MODES } from
   "../../../agent-launch-core/src/lib/work-record-launch-prompt.mjs";
@@ -96,6 +97,7 @@ export function prepareDeliverWorkResponse({ workspace, outcome = {}, observatio
   const state = classify(effects, selected);
   const original = { availability: outcome.original?.available === true ? "retained" : admitted ? "unavailable" : "not_captured",
     locator: outcome.original?.available === true ? outcome.original.locator : null, operator_only: true,
+    reader_scope: "operator_only applies to generic retained-evidence access. When worker_read_available is true, the worker may follow the returned get_run_result call for the delivery original.",
     worker_read_available: publicDelivery && outcome.original?.available === true };
   const continuations = {};
   if (original.locator !== null) continuations.original = { availability: "pending_delivery_reader",
@@ -120,24 +122,22 @@ export function prepareDeliverWorkResponse({ workspace, outcome = {}, observatio
   if (Array.isArray(paths)) omitted.add("changed_paths");
   if (settled.scope || observation?.phases?.scope_verification?.result) omitted.add("scope_detail");
   if (settled.receipts !== undefined) omitted.add("receipts");
-  if (diagnosticSources.some(([, source]) => source.cause !== undefined)) omitted.add("nested_causes");
-  function scalar(value, member, maxBytes) {
+  function scalar(value) {
     if (typeof value !== "string") return null;
-    if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
-    omitted.add(member);
-    return null;
+    return value;
   }
   const diagnostics = diagnosticSources.map(([at, source]) => ({ stage: at,
-    code: scalar(source.code ?? source.decision_code ?? source.refusal_code ?? source.cause_code ?? source.cause?.code, `${at}.code`, 256),
-    authority_limb: scalar(source.authority_limb ?? source.envelope?.authority_limb, `${at}.authority_limb`, 128),
-    state: scalar(source.state, `${at}.state`, 128),
+    code: scalar(source.code ?? source.decision_code ?? source.refusal_code ?? source.cause_code ?? source.cause?.code),
+    authority_limb: scalar(source.authority_limb ?? source.envelope?.authority_limb),
+    state: scalar(source.state),
     message: scalar(source.message ?? source.cause?.message ?? source.reason ??
-      (Array.isArray(source.reasons) ? source.reasons.join("; ") : null), `${at}.message`, 512),
-    cause_detail_omitted: source.cause !== undefined || source.detail !== undefined
+      (Array.isArray(source.reasons) ? source.reasons.join("; ") : null)),
+    ...(source.cause === undefined && source.detail === undefined ? {} : { detail:
+      distillDispatchFailureDetail({ cause: source.cause, detail: source.detail }, { nested: true }).detail })
   }));
 
   const phaseFacts = (source, members) => Object.fromEntries(members.map(member =>
-    [member, scalar(source?.[member], `transaction.${member}`, 256) ??
+    [member, scalar(source?.[member]) ??
       (typeof source?.[member] === "boolean" ? source[member] : null)]));
   const reconciliation = {
     candidate_commit: transaction.candidate_commit ?? null,
@@ -198,18 +198,14 @@ export function prepareDeliverWorkResponse({ workspace, outcome = {}, observatio
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const bytes = measureMcpInlineResultBytes(frame, { isError });
-    if (bytes > bound && diagnostics.some(diagnostic => diagnostic.message !== null)) {
-
-      for (const diagnostic of diagnostics) {
-        if (diagnostic.message !== null) omitted.add(`${diagnostic.stage}.message`);
-        diagnostic.message = null;
-      }
-      body.omitted_detail = [...omitted];
+    const fits = bytes <= bound;
+    if (frame.delivery.fits !== fits || frame.delivery.complete_transport_required !== !fits) {
+      frame.delivery.fits = fits;
+      frame.delivery.complete_transport_required = !fits;
       frame.delivery.measured_bytes = 0;
       continue;
     }
     if (bytes === frame.delivery.measured_bytes) {
-      if (bytes > bound) throw new RangeError("essential delivery response facts exceed the complete-frame bound");
       return frame;
     }
     frame.delivery.measured_bytes = bytes;

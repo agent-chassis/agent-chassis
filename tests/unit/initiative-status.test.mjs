@@ -214,7 +214,7 @@ test('ready worker dispatch suggests optional readiness assessment, not a launch
 
   assert.ok(dispatchAction, 'expected an action for the ready-to-dispatch record');
   assert.equal(kindOf(dispatchAction), 'validate_dispatch');
-  assert.equal(dispatchAction.suggested_tool, 'workspace_validate_dispatch');
+  assert.equal(dispatchAction.suggested_tool, 'start_agent');
   assert.equal(reasonCodeOf(dispatchAction), 'record_needs_validation');
 
   assert.equal(dispatchAction.blocking, false);
@@ -353,7 +353,7 @@ test('missing or stale admission hints rank read-only validation without recover
     assert.ok(action, `expected an admission-hint action for ${targetUnit}`);
     assert.equal(reasonCodeOf(action), 'admission_metrics_stale_or_missing');
     assert.equal(kindOf(action), 'validate_dispatch');
-    assert.equal(action.suggested_tool, 'workspace_validate_dispatch');
+    assert.equal(action.suggested_tool, 'start_agent');
     assert.equal(action.target_unit, targetUnit);
     assert.equal(action.blocking, true);
     assert.equal('recovery' in action, false);

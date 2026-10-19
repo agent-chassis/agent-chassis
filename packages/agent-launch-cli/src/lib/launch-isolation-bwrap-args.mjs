@@ -39,6 +39,7 @@ export function buildBubblewrapArgs({
   testRuntimeSkeletonDirs = [],
   testRuntimeDependencyBinds = [],
   roleGuideReadOnlyBinds = [],
+  roleGuideMasks = [],
   policedEnv,
   cwdNormalized,
   resolvedCommand,
@@ -137,6 +138,7 @@ export function buildBubblewrapArgs({
     bwrapArgs.push("--ro-bind", src, dst);
   }
 
+  for (const directory of roleGuideMasks) bwrapArgs.push("--tmpfs", directory, "--remount-ro", directory);
   for (const { src, dst } of roleGuideReadOnlyBinds) {
     bwrapArgs.push("--ro-bind", src, dst);
   }

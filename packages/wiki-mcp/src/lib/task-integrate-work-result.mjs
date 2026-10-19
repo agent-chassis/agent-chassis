@@ -1,11 +1,15 @@
 
 
 import { projectPublishedIntegrationReceipt } from "./dispatch-run-status-integration-receipt-projection.mjs";
-import { describeRetainedArtifactFile, describeRetentionFailure, jsonContent, measureMcpInlineResultBytes }
+import { describeRetainedArtifactFile, describeRetentionFailure, jsonContent }
   from "./mcp-response.mjs";
-import { readSelectedResponseSource, retainSelectedResponseSource, selectedResponseDeliveryBound,
+import { readSelectedResponseSource, retainSelectedResponseSource,
   selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
 import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
+import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { distillCapturedCauses } from "./dispatch-tool-helpers.mjs";
+import { COMMITTED_SLICE_REVIEW_ADMISSION_CODES }
+  from "@agent-chassis/agent-launch-cli/src/lib/committed-slice-review-admission.mjs";
 
 export const INTEGRATION_ORIGINAL_PRODUCER = "workspace_integrate_committed_slice";
 export const INTEGRATION_ORIGINAL_SUMMARY_SCHEMA_VERSION = "integration-original-summary.v1";
@@ -21,20 +25,36 @@ const OUTCOME_FACTS = Object.freeze(["accepted", "integrated", "reason", "code",
   "wk_ref", "integration_effects_unconfirmed"]);
 const SUMMARY_STRING_MAX_CHARS = 256;
 
-const MINIMAL_FACT_MAX_BYTES = 128;
-
 const COMMIT_RE = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const isShortFact = (value) => typeof value === "boolean" || typeof value === "number" ||
-  (typeof value === "string" && value.length <= SUMMARY_STRING_MAX_CHARS);
-const isMinimalFact = (value) => isShortFact(value) &&
-  (typeof value !== "string" || Buffer.byteLength(value, "utf8") <= MINIMAL_FACT_MAX_BYTES);
+
+function projectSourceInspection(result) {
+  const finalization = result?.cleanup?.wk_checkout;
+  const checkout = finalization?.checkout;
+  if (finalization?.state === "superseded" || checkout?.state === "superseded") return { state: "superseded" };
+  if (finalization?.state === "pending") return { state: "pending" };
+  if (result?.integrated !== true || result.integration_effects_unconfirmed === true ||
+      finalization?.state !== "complete" || !isRecord(checkout) ||
+      !["synchronized", "current"].includes(checkout.state) || checkout.clean !== true ||
+      typeof checkout.worktree_path !== "string" || checkout.worktree_path.length === 0 ||
+      typeof checkout.branch_ref !== "string" || checkout.branch_ref.length === 0 ||
+      typeof checkout.target_sha !== "string" || !COMMIT_RE.test(checkout.target_sha) ||
+      checkout.target_sha !== result.wk_sha || typeof checkout.target_tree !== "string" ||
+      !COMMIT_RE.test(checkout.target_tree)) return { state: "unavailable" };
+  return { state: "synchronized", worktree_path: checkout.worktree_path, integrated_sha: checkout.target_sha,
+    guidance: "Integration observed a clean exact checkout. Inspect source at this path through this session's " +
+      "permitted file-reading tools; confirm it still matches integrated_sha. This is a historical observation, " +
+      "not a guarantee of current contents, cleanliness or access." };
+}
+
+const isScalarFact = (value) => typeof value === "boolean" || typeof value === "number" ||
+  typeof value === "string";
 const refuse = (reason, details = {}) => {
   throw selectedResponseQueryInvalidError(INTEGRATION_ORIGINAL_PRODUCER, reason, details);
 };
 
-function outcomeOf(original, admits = isShortFact) {
+function outcomeOf(original, admits = isScalarFact) {
   const { result } = original;
 
   if (!isRecord(result)) {
@@ -69,17 +89,10 @@ function factsOf(result, admits) {
       checkout_code: result.cleanup.wk_checkout.code ?? null } : {}),
     ...(isRecord(result.cleanup.slice_checkout) ? { slice_checkout_state: result.cleanup.slice_checkout.state,
       slice_checkout_code: result.cleanup.slice_checkout.code ?? null } : {}) };
-  if (admits !== isShortFact) return outcome;
+  if (admits !== isScalarFact) return outcome;
   const written = projectPublishedIntegrationReceipt({ integration: result }).integration.transition;
   if (isRecord(written?.written_record)) outcome.written_record = written.written_record.omitted;
   return outcome;
-}
-
-function minimalOutcomeOf(original) {
-  const full = outcomeOf(original);
-  const minimal = outcomeOf(original, isMinimalFact);
-  return { ...minimal, summarized: "minimal", reason: "outcome_summary_exceeds_response_bound",
-    omitted_facts: Object.keys(full).filter((fact) => JSON.stringify(full[fact]) !== JSON.stringify(minimal[fact])) };
 }
 
 export function createIntegrationOriginals({ workspace, sessionEnv = process.env, responseEnv = process.env }) {
@@ -95,19 +108,10 @@ export function createIntegrationOriginals({ workspace, sessionEnv = process.env
   }
 
   function summarize(subject, carrier, original) {
-    const bound = selectedResponseDeliveryBound(responseEnv);
     const frame = (outcome, state) => ({ schema_version: INTEGRATION_ORIGINAL_SUMMARY_SCHEMA_VERSION,
-      producer: INTEGRATION_ORIGINAL_PRODUCER, repository: workspace.repo, subject, outcome, original: state });
-    const minimal = minimalOutcomeOf(carrier);
-    const candidates = [frame(outcomeOf(carrier), original), frame(minimal, original)];
-    if (isRecord(original.retention_failure)) {
-      const { cause: _cause, cause_serialization_failure: _failure, ...known } = original.retention_failure;
-      candidates.push(frame(minimal, { ...original, retention_failure: { ...known, cause_omitted: true } }));
-    }
-    for (const candidate of candidates) {
-      if (measureMcpInlineResultBytes(candidate) <= bound) return Object.freeze(candidate);
-    }
-    return refuse("projection_exceeds_delivery_bound", { bound });
+      producer: INTEGRATION_ORIGINAL_PRODUCER, repository: workspace.repo, subject, outcome,
+      source_inspection: projectSourceInspection(carrier.result), original: state });
+    return Object.freeze(frame(outcomeOf(carrier), original));
   }
 
   const retained = (locator) => ({ available: true, locator,
@@ -152,67 +156,149 @@ export function createIntegrationOriginals({ workspace, sessionEnv = process.env
   return Object.freeze({ retain, read });
 }
 
-export function prepareIntegrateWorkResponse({ result, original, request, responseEnv }) {
+function failureMeaning(value) {
+  if (value?.code === COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED &&
+      value.detail?.reason === "committed_slice_delta_not_applicable") return {
+    code: value.code, reason: value.detail.reason,
+    message: "The selected immutable delivery conflicts with the current WK tip." };
+
+  const evidence = value?.evidence ?? value?.cause;
+  const [origin] = distillCapturedCauses(evidence?.schema_version ===
+    "agent_launch.post_worker_lifecycle_failure_evidence.v1" ? evidence.thrown : evidence);
+  return { code: value?.code ?? origin?.code ?? null,
+    message: value?.message ?? origin?.message ?? value?.reason ?? null };
+}
+
+export async function prepareIntegrateWorkResponse({ result, original, request,
+  receivingRole, requestContracts, selection = null }) {
   const retained = original?.captured === true ? original.retained : null;
   const locator = retained?.original?.locator ?? null;
-  const saved = result.saved_dispositions;
-  const body = {
-    schema_version: "integrate-work.v1",
-    outcome: result.integrated !== true ? result.integration_effects_unconfirmed === true ? "unresolved" : "refused"
-      : result.cleanup?.state === "complete" && result.cleanup.wk_checkout?.state !== "superseded" &&
-      result.record_reconciliation?.state !== "pending" && result.record_reconciliation?.state !== "blocked" &&
-      result.recovery_failure === undefined ? "integrated" : "partial",
-    effects: { integrated: result.integration_effects_unconfirmed === true ? null : result.integrated === true,
-      record: result.record_reconciliation?.state ?? (result.transition?.written === true ? "written"
-        : result.integrated === true ? "unconfirmed" : "not_attempted"),
-      retirement: result.cleanup?.managed_identity_retirement?.state ?? "not_attempted",
+  const integrated = result.integration_effects_unconfirmed === true ? null : result.integrated === true;
+  const effects = { integrated,
+    record: result.record_reconciliation?.state ?? (result.transition?.written === true ? "written"
+      : integrated === true ? "unconfirmed" : "not_attempted"),
+    retirement: result.cleanup?.managed_identity_retirement?.state ?? "not_attempted",
+    checkout: result.cleanup?.wk_checkout?.state ?? "not_attempted",
+    slice_checkout: result.cleanup?.slice_checkout?.state ?? "not_attempted" };
+  const complete = integrated === true && result.cleanup?.state === "complete" &&
+    effects.checkout !== "superseded" && !["pending", "blocked"].includes(effects.record) &&
+    result.recovery_failure === undefined;
+  const outcome = integrated !== true ? integrated === null ? "unresolved" : "refused"
+    : complete && locator !== null ? "integrated" : "partial";
+  const subject = selection?.subject ?? retained?.subject ?? null;
+  const statedEffects = Object.fromEntries(Object.entries({ record: result.record_reconciliation?.state ??
+    (result.transition?.written === true ? "written" : undefined),
+    retirement: result.cleanup?.managed_identity_retirement?.state, checkout: result.cleanup?.wk_checkout?.state,
+    slice_checkout: result.cleanup?.slice_checkout?.state }).filter(([, value]) => value !== undefined));
+  const body = { schema_version: "integrate-work.v1", outcome,
+    ...(subject === null ? {} : { subject }),
+    effects: outcome === "integrated" ? { integrated: true }
+      : integrated === true ? effects : { integrated, ...statedEffects },
+    ...(result.delivery_sha == null && result.wk_sha == null ? {} : {
+      delivery: { commit: result.delivery_sha ?? null, integrated_sha: result.wk_sha ?? null } }),
 
-      checkout: result.cleanup?.wk_checkout?.state ?? "not_attempted",
+    ...(locator === null ? { original: { available: false } } : {}),
+    next_calls: locator === null ? [] : [{ tool: "get_run_result", arguments: { result: locator },
+      recommended: false, condition: "if further integration outcome detail is needed" }] };
+  if (outcome !== "integrated") {
+    if (request?.delivery !== undefined) body.selection = request.delivery;
 
-      slice_checkout: result.cleanup?.slice_checkout?.state ?? "not_attempted" },
-    delivery: { commit: result.delivery_sha ?? null, integrated_sha: result.wk_sha ?? null },
-    saved_dispositions: saved === null || saved === undefined ? { state: "unconsumed" } : {
-      state: saved.state, source: saved.source ?? null, row_count: saved.rows?.length ?? 0,
-      cause_code: saved.cause?.code ?? null },
-    policy: result.boundary_authorization?.policy_posture ?? result.policy_posture ?? "not_evaluated",
-    cause: result.refusal === undefined ? { code: result.code ?? result.recovery_failure?.value?.properties?.code ?? result.record_reconciliation?.code ??
-      result.cleanup?.wk_checkout?.code ?? result.cleanup?.managed_identity_retirement?.code ??
-      result.cleanup?.slice_checkout?.code ?? retained?.original?.retention_failure?.cause_code ??
-      original?.evidence?.value?.properties?.code ?? null,
-    message: result.reason ?? result.recovery_failure?.value?.message ?? result.record_reconciliation?.reason ??
-      result.cleanup?.wk_checkout?.message ?? result.cleanup?.slice_checkout?.message ??
-      original?.evidence?.value?.message ?? null }
-      : { code: result.refusal.code ?? null, message: result.refusal.reason ?? null },
-    original: retained?.original ?? { available: false, locator: null,
-      cause: original?.evidence?.code ?? "integration_original_unavailable" },
-    next_calls: locator === null ? [] : [{ tool: "get_run_result", arguments: { result: locator }, recommended: true }]
-  };
-  if (body.outcome === "integrated" && body.original.available !== true) body.outcome = "partial";
-  if (body.outcome === "partial" && result.approval_refusal === undefined && request?.delivery !== undefined &&
-      (result.cleanup?.state !== "complete" || result.record_reconciliation?.state === "pending" ||
-        result.record_reconciliation?.state === "blocked" || result.recovery_failure !== undefined)) body.next_calls.push({
-    tool: "integrate_work", arguments: request, recommended: false,
+    const retentionFailure = retained?.original?.retention_failure;
+    const failures = [result.refusal,
+      integrated !== true || result.code != null ? result : undefined,
+      { evidence: result.recovery_failure },
+      ...[result.record_reconciliation, result.cleanup?.wk_checkout,
+        result.cleanup?.managed_identity_retirement, result.cleanup?.slice_checkout].filter(isOutstandingEffect),
+      { code: retentionFailure?.cause_code, message: retentionFailure?.message },
+      { code: original?.evidence?.code, evidence: original?.evidence }].map(failureMeaning);
+    body.cause = failures.find(value => value.code !== null || value.message !== null) ?? { code: null, message: null };
 
-    condition: result.cleanup?.wk_checkout?.state === "superseded"
-      ? "after the reported record, retirement or slice cleanup cause is corrected; explicit recovery only"
-      : "after the reported record, retirement, checkout or slice cleanup cause is corrected; explicit recovery only" });
-
-  const integratedSubject = retained?.subject;
-  if (result.integrated === true && result.integration_effects_unconfirmed !== true &&
-      typeof result.wk_sha === "string" && COMMIT_RE.test(result.wk_sha) &&
-      typeof integratedSubject === "string" && integratedSubject.length > 0) body.next_calls.push({
-    tool: "verify_proof", arguments: { subject: integratedSubject, git_sha: result.wk_sha }, recommended: false,
-    condition: "optional: verifies saved proofs on the integrated WK commit, not the worker's delivery commit" });
-  const bound = selectedResponseDeliveryBound(responseEnv);
-  if (measureMcpInlineResultBytes(body) > bound) {
-    body.cause = { code: body.cause.code, message_omitted: true };
-    const { file: _file, ...originalState } = body.original;
-    body.original = originalState;
-    if (body.original.retention_failure !== undefined) {
-      const { cause: _cause, cause_serialization_failure: _serialization, ...failure } = body.original.retention_failure;
-      body.original = { ...body.original, retention_failure: { ...failure, cause_detail_omitted: true } };
-    }
+    body.remaining = Object.entries({
+      record: result.record_reconciliation,
+      retirement: result.cleanup?.managed_identity_retirement,
+      checkout: result.cleanup?.wk_checkout, slice_checkout: result.cleanup?.slice_checkout
+    }).filter(([, value]) => isOutstandingEffect(value))
+      .map(([effect, value]) => {
+        const { code, message } = failureMeaning(value);
+        return { effect, state: value.state, owner: INTEGRATION_REMAINDER_OWNERS[effect],
+          ...(code == null || code === body.cause.code ? {} : { code }),
+          ...(message == null || message === body.cause.message ? {} : { message }) };
+      });
+    if (body.remaining.length === 0) delete body.remaining;
+    if (result.recovery !== undefined) body.recovery = result.recovery;
   }
-  if (measureMcpInlineResultBytes(body) > bound) refuse("projection_exceeds_delivery_bound", { bound });
-  return Object.freeze({ registered: false, body, approval: request });
+  let correction = result.correction;
+  const stale = result.code === "agent_launch.slice_integration.approved_delivery_mismatch.v1";
+  if (stale && typeof selection?.attempt_id === "string") correction = {
+    reason: "approved_delivery_changed",
+    message: "This approval no longer identifies the current delivery. Observe the same attempt before choosing again; " +
+      "if it returns this same delivery, stop. Do not substitute a current commit or retry this approval unchanged.",
+    call: buildNextCall({ tool: "get_run_result", recommended: true,
+      arguments: { subject: selection.subject, attempt_id: selection.attempt_id } }) };
+  if (correction !== undefined) {
+    body.correction = { reason: correction.reason, message: correction.message };
+    body.next_calls.unshift(correction.call);
+  }
+  if (stale && selection?.observation_unavailable !== undefined) {
+    body.observation_unavailable = selection.observation_unavailable;
+  }
+  const repairable = integrated === true && outcome === "partial" && result.approval_refusal === undefined &&
+    (body.remaining?.some(item => item.state !== "superseded") ||
+      result.recovery_failure !== undefined && result.cleanup?.state !== "complete" ||
+      result.cleanup?.state === "pending");
+  if (repairable && request?.delivery !== undefined) {
+    body.recovery = { state: "after_correction", message: "Integration stands. This result supplies no correction call for the reported " +
+      "remaining cause. Stop while it persists; after that condition changes, the exact-selection call recovers only unfinished effects." };
+    body.next_calls.push({ tool: "integrate_work", arguments: request, recommended: false,
+      condition: result.cleanup?.wk_checkout?.state === "superseded"
+        ? "after the reported record, retirement or slice cleanup cause is corrected; explicit recovery only"
+        : "after the reported record, retirement, checkout or slice cleanup cause is corrected; explicit recovery only" });
+  }
+
+  if (integrated === true && typeof result.wk_sha === "string" && COMMIT_RE.test(result.wk_sha) &&
+      typeof subject === "string" && subject.length > 0 && receivingRole === "orchestrator") {
+    body.next_calls.push({ ...buildNextCall({ tool: "verify_proof", arguments: { subject, git_sha: result.wk_sha },
+      condition: "if required verification of this integrated commit is still outstanding" }),
+      recommended: false });
+  }
+  if (outcome !== "integrated" && body.recovery === undefined) body.recovery = correction !== undefined
+    ? { state: "observe_before_selection" } : {
+    state: "no_supported_route",
+    message: complete
+      ? "Integration is complete, but its historical result is unavailable. Do not repeat integration to recreate evidence."
+      : effects.checkout === "superseded"
+        ? "Integration stands; a newer integration owns the checkout. Repeating this delivery cannot restore it."
+        : "Stop this integration request at the reported cause. No supported in-session correction is available; " +
+          "do not retry unchanged or replace the selected source." };
+  const permitted = [], limitations = [];
+  for (const call of body.next_calls) {
+    const contract = requestContracts?.contractFor(call.tool);
+    const reason = !shouldExposeTool(receivingRole, call.tool) ||
+      call.tool === "integrate_work" && receivingRole !== "orchestrator" ? "operation_not_permitted"
+      : contract == null ? "operation_not_registered"
+        : await contract.acceptsArguments(call.arguments) ? null : "arguments_not_supported";
+    if (reason === null) permitted.push(call);
+    else if (call.tool === "integrate_work" || call === correction?.call) limitations.push({ tool: call.tool, reason,
+      message: "This continuation is unavailable in this session. Stop this dependent step; no call was made." });
+  }
+  body.next_calls = permitted;
+  if (limitations.length > 0) body.continuation_limitations = limitations;
+  if (repairable && !permitted.some(call => call.tool === "integrate_work")) body.recovery = {
+    state: "no_supported_route", message: "Integration stands, but this session cannot finalize the reported remaining effects. " +
+      "Stop this recovery; do not reapply work or replace the selected source." };
+  if (correction !== undefined && !permitted.includes(correction.call)) body.recovery = {
+    state: "no_supported_route", message: "The required source observation is unavailable in this session. " +
+      "Stop this selection correction; do not retry the rejected approval or choose a replacement source." };
+  return Object.freeze({ registered: false, body, approval: request, source: locator });
+}
+
+const INTEGRATION_REMAINDER_OWNERS = Object.freeze({
+  record: "canonical work-record persistence owner",
+  retirement: "managed worker identity owner",
+  checkout: "owned WK checkout synchronization owner",
+  slice_checkout: "exact-slice checkout reaper"
+});
+
+function isOutstandingEffect(value) {
+  return ["pending", "blocked", "superseded", "failed"].includes(value?.state);
 }

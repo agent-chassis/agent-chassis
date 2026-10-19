@@ -5,9 +5,8 @@ import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
 import { terminalCandidateVerifyProofCall } from "./verify-proof-candidate-call.mjs";
 import { projectAuthenticatedTerminalCandidateFailure } from "./dispatch-terminal-candidate-coordinator.mjs";
 
-const CAUSE_MAX_CHARS = 256;
 const shortFact = (value) => typeof value === "string" && value.length > 0
-  ? value.slice(0, CAUSE_MAX_CHARS) : null;
+  ? value : null;
 
 function unavailableCause(error) {
   const candidate = projectAuthenticatedTerminalCandidateFailure(error);

@@ -113,7 +113,7 @@ function facts(evidence) {
 
 test("saved proof requirements and exact evaluator determine satisfaction", async () => {
   const resolved = await resolveExactProofEvaluator({ proofPack: { profile: {
-    profile_id: "proof.verification.test-validity", profile_version: "11.0.0" } } });
+    profile_id: "proof.verification.test-validity", profile_version: "12.0.0" } } });
   assert.equal(resolved.status, "resolved");
   const evaluate = (evidence) => resolved.evaluate({ semantic_facts: facts(evidence) });
   assert.equal(evaluate(receipt()).satisfaction, "satisfied");
@@ -141,6 +141,6 @@ test("saved proof requirements and exact evaluator determine satisfaction", asyn
     assert.equal(other.status, "not_executable", retired);
   }
   await assert.rejects(resolveExactProofEvaluator({ proofPack: { profile: {
-    profile_id: "proof.verification.test-validity", profile_version: "11.0.0" } },
+    profile_id: "proof.verification.test-validity", profile_version: "12.0.0" } },
   expectedImplementationDigest: sha("0") }), { code: "verify_proof.evaluator_digest_mismatch.v1" });
 });

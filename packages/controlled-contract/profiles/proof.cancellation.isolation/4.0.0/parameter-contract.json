@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.cancellation.isolation",
   "profile_version": "4.0.0",
-  "profile_digest": "1d804848df3b18b1ff1f8f1c3740a957d3e78765483b1796fc7b70277eef13b9",
+  "profile_digest": "32db67d4f97e768160a26883823c5c325271dba3050cbe8d0eed06a638d8e925",
   "description": "Two distinct grounded generations are exercised by two distinct grounded attempts of one grounded operation before a grounded cancellation operation targets one generation; after its cancellation result establishes that generation's criterion-conforming cancelled state, the other generation's selected resource state and authority remain preserved and that other attempt later produces a successful result equal to its criterion-conforming expected state.",
   "parameters": [
     {

@@ -103,7 +103,7 @@ descriptor — and therefore its digest — is reproducible across machines and
 checkouts. Manifest order fixes assembly and digest determinism; it does not
 change query ranking, which remains governed by the
 `priority`/`tool_name`/`entrypoint` rules in [Ranking And Query
-Behavior](tool-discovery.md#ranking-and-query-behavior).
+Behavior](tool-discovery.md#registration-and-metadata-owners).
 
 ### Duplicate `tool_name` Handling
 

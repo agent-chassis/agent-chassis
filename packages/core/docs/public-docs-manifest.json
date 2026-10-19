@@ -2,10 +2,10 @@
   "schema_version": "public-docs-manifest.v1",
   "package": {
     "name": "@agent-chassis/core",
-    "version": "0.11.0"
+    "version": "0.12.0"
   },
-  "entry_count": 116,
-  "available_count": 108,
+  "entry_count": 124,
+  "available_count": 116,
   "entries": [
     {
       "logical_path": "docs/acceptance-coverage-mcp.md",
@@ -13,8 +13,8 @@
       "bundle_path": "docs/acceptance-coverage-mcp.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "2f8172040e41837855da7898b42e4e28088f85d426a00e28b6b87b4bbeed45d1",
-      "bytes": 152059
+      "sha256": "da26e303ef9c1cc7ced3e051bc7e952ff45f71267fa94c69cef965fdb79a6324",
+      "bytes": 153943
     },
     {
       "logical_path": "docs/adoption.md",
@@ -22,8 +22,8 @@
       "bundle_path": "docs/adoption.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "e81c5ca55ee1e7a7b76ad3ba1b909c052e2225d87881e2fd9252b78ab3960b8d",
-      "bytes": 2764
+      "sha256": "ae62ba309db689616ecf8b5d3951ef37f39e266db739b2468c08747ba542a6d1",
+      "bytes": 4629
     },
     {
       "logical_path": "docs/agent-faq.md",
@@ -31,8 +31,17 @@
       "bundle_path": "docs/agent-faq.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "ac54bdeb06525e1c8bcf59e4bd76d8e3abe898c52abee7c85fd354eea3f0031e",
-      "bytes": 8251
+      "sha256": "ad380c1c383a9c95e9c3438b1b5807f186718f7e060a7db14bbd4eff27c974d3",
+      "bytes": 8654
+    },
+    {
+      "logical_path": "docs/agent-feedback.md",
+      "source_path": "docs/agent-feedback.md",
+      "bundle_path": "docs/agent-feedback.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "1553ca36b7f89aaed7b066a73e3a0616894a8171495f2203108e004233b159bd",
+      "bytes": 4289
     },
     {
       "logical_path": "docs/agent-launch-conduit-authority-and-review-sources.md",
@@ -58,8 +67,8 @@
       "bundle_path": "docs/agent-launch-conduit-diagnostics.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "3cda78a7b99baebb7d139a992301df30d405771558e14feec5301bc54029eff8",
-      "bytes": 9729
+      "sha256": "77ddd2365389d921fe556eab701507e69d24526e4ae99e1196b21180d68b10d6",
+      "bytes": 11965
     },
     {
       "logical_path": "docs/agent-launch-confinement-mcp-conduit.md",
@@ -67,8 +76,8 @@
       "bundle_path": "docs/agent-launch-confinement-mcp-conduit.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8ea32578309934ad4f6e11828b76719079b65f1da451dc0f92406de85d925516",
-      "bytes": 29248
+      "sha256": "008c6ae56dbdae8062a572299833c0dcd2d2779563daf17da2608f1e17e3912c",
+      "bytes": 43943
     },
     {
       "logical_path": "docs/agent-launch-family-runtime-state.md",
@@ -76,8 +85,8 @@
       "bundle_path": "docs/agent-launch-family-runtime-state.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "2a2e4cc1bbafeae426060b28f60c6cccfecf17b283368c015b546d4985a05c95",
-      "bytes": 16273
+      "sha256": "1acca1d2c53e424b4368e9a19dbd86a5ca365ded608bbe5eea389ff6318c953d",
+      "bytes": 38439
     },
     {
       "logical_path": "docs/agent-launch-git-status-interception.md",
@@ -94,8 +103,8 @@
       "bundle_path": "docs/agent-launch-local-config.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "7cd214aec0461a49d70ede5f972a2de325136a1483f21cfaead7248a6940d8a5",
-      "bytes": 8553
+      "sha256": "5073c689196a049fa06ee9cfe708d08a0ba708b820946e2eb5dc8fce9740b381",
+      "bytes": 8689
     },
     {
       "logical_path": "docs/agent-launch-mcp-conduit-lifecycle.md",
@@ -103,8 +112,8 @@
       "bundle_path": "docs/agent-launch-mcp-conduit-lifecycle.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "9227d2aaf72e9ffa62ef263d97157ae2bde8ad67f1e497bb0a675e7316ae14fa",
-      "bytes": 25587
+      "sha256": "7ff2f30932fd221faf208bdd541ac19501e54ea5ede178d164a990acdea8ee84",
+      "bytes": 30743
     },
     {
       "logical_path": "docs/agent-launch-operator-entrypoints.md",
@@ -112,8 +121,8 @@
       "bundle_path": "docs/agent-launch-operator-entrypoints.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "cd33455ee5b61416ab19f54b78140650d9d4a84d928e366a069bcb9dd7cddd4c",
-      "bytes": 7028
+      "sha256": "ed40517b9c8e09ef5b0d82e31207a66fb367248d821c786b604f5255cd77fb73",
+      "bytes": 7223
     },
     {
       "logical_path": "docs/agent-launch-policy-profiles.md",
@@ -130,8 +139,8 @@
       "bundle_path": "docs/agent-launch-quickstart.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "6ab9ab1810c8468f6245fd3456b92287fcc2efa8fac8827eada7b778b95e3afc",
-      "bytes": 44033
+      "sha256": "964a982c79d099aa2ef42193e22e245c3f5e15ac5620a8253c5849e8929b2cd0",
+      "bytes": 12269
     },
     {
       "logical_path": "docs/agent-launch-run-provenance.md",
@@ -139,8 +148,8 @@
       "bundle_path": "docs/agent-launch-run-provenance.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "15cef756c30def9619bcf163e96a95e81a990a153cec48c2b3be53cc1f2f8624",
-      "bytes": 67739
+      "sha256": "a7dc40d1daccd9c27ffc6feb0363b2e532b24bd9e8adf81cf10ded70cd9a4879",
+      "bytes": 72061
     },
     {
       "logical_path": "docs/agent-launch-worker-test-runtimes.md",
@@ -157,8 +166,8 @@
       "bundle_path": "docs/agent-launch-write-scope-preparation.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "9aae76d8a269fe2882ea71f22557b95763d7de6a4400391f7d5d271a68a85b40",
-      "bytes": 12734
+      "sha256": "180619dfe81f9a47a3608735c40527d13e7d3a94c7dc78f5a5f3a5287104b32a",
+      "bytes": 11873
     },
     {
       "logical_path": "docs/agent-tool-compliance-and-surface-rationalization.md",
@@ -193,8 +202,8 @@
       "bundle_path": "docs/consumer-owned-docs.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "28482259f8d56efeadf1f87c0706183b8cd22d1003586785ea1f8d0c4864cb24",
-      "bytes": 6219
+      "sha256": "67fe4dceb25f1cd4628fd6e38665cc6fe035018cc3bd84975983f1c77797c61d",
+      "bytes": 8535
     },
     {
       "logical_path": "docs/enforcement-model.md",
@@ -202,8 +211,8 @@
       "bundle_path": "docs/enforcement-model.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "bbaaf036e305b8f54e04decde0d41cb8b243d397e7c77857ecd6a76568b78a75",
-      "bytes": 87738
+      "sha256": "398ef1b44499f97138c9f4b363929e2125f959767b882f3dfd968dcb0fbd5682",
+      "bytes": 86903
     },
     {
       "logical_path": "docs/env-reference.md",
@@ -211,8 +220,8 @@
       "bundle_path": "docs/env-reference.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "ef9be660838e4660382cb26f4f2694db4c92d53b7fbd80dd9f065ae2f28768ed",
-      "bytes": 20244
+      "sha256": "6e0e0afc695b037a0ea6adf74eb35f1e5c437da42e1b22d34ddcbc148f63884d",
+      "bytes": 22733
     },
     {
       "logical_path": "docs/index.md",
@@ -220,8 +229,8 @@
       "bundle_path": "docs/index.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "586a4cf6a07ea9a4df4fd219b9442d7553157bf1e74b3143336df2ffcf9b2c88",
-      "bytes": 5312
+      "sha256": "1ca9590e5157dc9a175a7a390db43b2be737d185dc4ead1fd53fb362f7acfb98",
+      "bytes": 6167
     },
     {
       "logical_path": "docs/initiative-status.md",
@@ -229,8 +238,8 @@
       "bundle_path": "docs/initiative-status.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "4bcd6b0dc428799e7297b14473f6a85962612f2784005efe3cd740aa0a5b5911",
-      "bytes": 14091
+      "sha256": "45d718f686afdfea298e4287d4e92e0f434d0d037814572e1acfe22074a3e3d0",
+      "bytes": 10864
     },
     {
       "logical_path": "docs/junit-test-result-parser.md",
@@ -247,8 +256,8 @@
       "bundle_path": "docs/local-package-install.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "4e1684f57c73cfd61591df38b58c87415b39affcc60f80c86ea74b16b417e118",
-      "bytes": 10957
+      "sha256": "8f9f2570a6732dddbb16736b221f68782fd89395d71cd9b010334dc0c0e6bbcd",
+      "bytes": 14458
     },
     {
       "logical_path": "docs/local-test-runtime-setup.md",
@@ -256,8 +265,8 @@
       "bundle_path": "docs/local-test-runtime-setup.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "da2887e524a3030b815b54a61b39b0a1281bf59dd261fa17c62c836e85ac7b79",
-      "bytes": 98449
+      "sha256": "9812e8273796b4f7dd00e37f5dbb15f74713aa039574955a4cc3812bd1b11636",
+      "bytes": 115249
     },
     {
       "logical_path": "docs/mcp-controlled-contract-operations.md",
@@ -265,8 +274,8 @@
       "bundle_path": "docs/mcp-controlled-contract-operations.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "af65429f0870bff28ef9d1aa5dc70891a61989b66cc495428f958a56cfb51c9c",
-      "bytes": 65157
+      "sha256": "18f1a35056881c34c9c88f667d84d49ea38a9a950f455ca439f42d98e70121cd",
+      "bytes": 118274
     },
     {
       "logical_path": "docs/mcp-dispatch-launch-and-admission.md",
@@ -274,8 +283,8 @@
       "bundle_path": "docs/mcp-dispatch-launch-and-admission.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "60619452b3a7f50cd5e14f80eb33cf4863dd77288a465e500500e69b68a065a6",
-      "bytes": 110818
+      "sha256": "6b682d0f2d71f620032a18a201f73ed1b77bd0358a82559fe664ac3e9df2a1e6",
+      "bytes": 111952
     },
     {
       "logical_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
@@ -283,8 +292,8 @@
       "bundle_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "53b28a12759fe079a86a0a42a342db5299b9a7648a73a5ed2a499f8ef187c9eb",
-      "bytes": 79542
+      "sha256": "4cbdb3fcd496ce31e72c0d94c2a81d17e22e843314aa6c29c28cad84b9ee319c",
+      "bytes": 84669
     },
     {
       "logical_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
@@ -292,8 +301,8 @@
       "bundle_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "ccc0323479fa5b2d2f2d4dfc1675d89552777f796e6694ef4353dcb8714ea1f9",
-      "bytes": 15096
+      "sha256": "c47e5b57cf2dd97b0a08b3000d6b748cf35b870213a569cd5416eb92a2080fb2",
+      "bytes": 19512
     },
     {
       "logical_path": "docs/mcp-dispatch-runtime-contract.md",
@@ -301,8 +310,8 @@
       "bundle_path": "docs/mcp-dispatch-runtime-contract.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "b0ffa632811cb50453ab79732246e7094554ff6d10e7846592cd2d3385aad814",
-      "bytes": 172340
+      "sha256": "b6a3355db6de6102ba481c189999b85e430e182da05e667ce1adca55bd00169c",
+      "bytes": 174768
     },
     {
       "logical_path": "docs/mcp-dispatch-slice-integration.md",
@@ -310,8 +319,8 @@
       "bundle_path": "docs/mcp-dispatch-slice-integration.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "94b6d5c339e512f22b532ada2d6cdafcca1feb8c7fd241d4813deaae2d184c44",
-      "bytes": 110267
+      "sha256": "747920d9a17d9b222603d479a9c42234ce7b2b58d45cc411deda40ac8f788b9c",
+      "bytes": 114981
     },
     {
       "logical_path": "docs/mcp-dispatch-terminal-review.md",
@@ -319,8 +328,8 @@
       "bundle_path": "docs/mcp-dispatch-terminal-review.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "fe6c892bdb0dd1c79b2d4ed1906b7476c766b4f82305ce891ecd17c39e4ec81a",
-      "bytes": 166587
+      "sha256": "26aadb38ae33aa57359649455f74943cec15c78fb8fa56347c1657fe2456efa7",
+      "bytes": 159550
     },
     {
       "logical_path": "docs/mcp-editor-response-projections.md",
@@ -337,8 +346,8 @@
       "bundle_path": "docs/mcp-integration.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "72831e9060d5de3812d0cc86cbe4499a8da468232e18f88152d271909ed581ac",
-      "bytes": 29359
+      "sha256": "13b327fd84b6bcaad9e04b0908b618cd46be8edb9c8bc1c037f7fa4cd0aeb72d",
+      "bytes": 39574
     },
     {
       "logical_path": "docs/mcp-operation-reference.md",
@@ -346,8 +355,8 @@
       "bundle_path": "docs/mcp-operation-reference.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "6c7e91e6d6e88c4214d9e2c46cd50d521501559a51fbb3d72c22a6be2ca466a8",
-      "bytes": 15575
+      "sha256": "1548fe057479c987aa2ba42548ac04ae1998ddaa68722804e0206cac2955ccd0",
+      "bytes": 24786
     },
     {
       "logical_path": "docs/mcp-repository-model.md",
@@ -355,8 +364,8 @@
       "bundle_path": "docs/mcp-repository-model.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "b2d1c23939118f7c60f776244d51d5a121c5347584d3ff65ec5cc9da3e5db6ac",
-      "bytes": 34109
+      "sha256": "97c3c49451ea3bb69c478fbd8f250389b4b70f892d4f7f0b0637465df0a967d6",
+      "bytes": 39741
     },
     {
       "logical_path": "docs/mcp-selected-response-details.md",
@@ -364,8 +373,8 @@
       "bundle_path": "docs/mcp-selected-response-details.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "241868f65bc44e990de09ab5405d186e540fb47221d68dbdd60f6665ce1e7c4d",
-      "bytes": 48742
+      "sha256": "041e63ae3db405b17eabc45e5f4b50569046b2879da9521f3f50e4816ec1c3a3",
+      "bytes": 84715
     },
     {
       "logical_path": "docs/mcp-telemetry.md",
@@ -382,8 +391,8 @@
       "bundle_path": "docs/mcp-tool-registry-reference.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "0137f03804b5bb04822f54b8213beb429d70be9e73623c3aaa4e46199d765d91",
-      "bytes": 4281
+      "sha256": "70d49110ba17618e670fb0b89937aa254312467f9cdc4d2d82414e8039117198",
+      "bytes": 2748
     },
     {
       "logical_path": "docs/npm-test-runtime-layouts.md",
@@ -391,8 +400,8 @@
       "bundle_path": "docs/npm-test-runtime-layouts.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "565df87ec1a34427a79013ccb21b21bf9be854313563ee5db808faac9cd0aaf0",
-      "bytes": 17327
+      "sha256": "19a71ddd95bc9af2e94dac022d8d4147fcb4dab726c5074eec752eb5c0d0b468",
+      "bytes": 18967
     },
     {
       "logical_path": "docs/operating-model.md",
@@ -400,17 +409,8 @@
       "bundle_path": "docs/operating-model.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "4f34bf7e979b007422a7edc1cd4f8806e225e84746bee5c5d039bd10c3302d39",
-      "bytes": 27687
-    },
-    {
-      "logical_path": "docs/orchestrator-authoring-vignette.md",
-      "source_path": "docs/orchestrator-authoring-vignette.md",
-      "bundle_path": "docs/orchestrator-authoring-vignette.md",
-      "advertised_by_built_in_descriptor": true,
-      "available": true,
-      "sha256": "3262c3b5fe3949a34a3b0ff28d080708bb27522578d47a82029fb5f80eadeb05",
-      "bytes": 48361
+      "sha256": "ce706d31f3e8a92989ea36a6f79555433df01225071ca027957a8d5ecaf06912",
+      "bytes": 28946
     },
     {
       "logical_path": "docs/package-install.md",
@@ -418,8 +418,8 @@
       "bundle_path": "docs/package-install.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "c46fa7ff3f0dc15c52bc746021cd4b1f50a8ddc26331eb5aac871c1d2f8627e0",
-      "bytes": 5662
+      "sha256": "a9886ac06c56e859d4b6f9ce8e9f4e023141eff33a4915a1ff298f1a183f2ae8",
+      "bytes": 5139
     },
     {
       "logical_path": "docs/proof-pack-parameters.md",
@@ -427,8 +427,8 @@
       "bundle_path": "docs/proof-pack-parameters.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "84ac18aab478fbe21ec8482af14aeb9d22d93cd6fbc124e709112354c5c79fe8",
-      "bytes": 13699
+      "sha256": "ad85b0a7aca27980d22af14700b5021122de9a5c1d082563ce229501180ba67a",
+      "bytes": 32163
     },
     {
       "logical_path": "docs/proof-pack-parameters/index.md",
@@ -436,7 +436,7 @@
       "bundle_path": "docs/proof-pack-parameters/index.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "174c01b4749a7565cc8a608598f769d6188dad30f5f511f186247cea7a6468b3",
+      "sha256": "409d6dfa48d3a462806be404f6cf2f0f3f5add946288add48b6a21385206376f",
       "bytes": 4408
     },
     {
@@ -445,7 +445,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.atomicity.failure-boundary@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "64f11fc2444afaeb5117bbee895aca927f56be7e0fd37005dc0640902a5085cb",
+      "sha256": "0b349aabd6dca1c498c393e574757054a6191ad1ffa6aeeba612377fa23b0905",
       "bytes": 122513
     },
     {
@@ -454,7 +454,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.authentication.direct-source-provenance@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "b13f8127b5f71af1b42892de21ad9e0d8022e4417e256e1f796f416860c2b767",
+      "sha256": "2466f417a0c9a5e121af590365d0fb87d9cc2611e63338826847b6430be50a0b",
       "bytes": 74732
     },
     {
@@ -463,7 +463,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.authorization.failed-attempt-nonconsumption@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "c78800752903442bc4834df7512c0828a77644d9c930c9593069cc593f62b6db",
+      "sha256": "6f0e61ab93c89351959830151a9fc908e72a7ad37aeb9aa5c706828d628423e3",
       "bytes": 106635
     },
     {
@@ -472,7 +472,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.authorization.refusal-before-effects@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "f400749c5abc47d23a2f5af8fcac442ede52fe1246e97e686f6caddb6a055231",
+      "sha256": "94e63cfcc36217d390ac266e75f3158443bd0a9af88dfac6b119830b8f88799f",
       "bytes": 61741
     },
     {
@@ -481,7 +481,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.authorization.revocation-propagation@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "dd1cd2e340d269e3fe2348304fdee37a82ba5bf4ddc91c04e8579385cff1983b",
+      "sha256": "1731387080a1d943fd0cb27d8845c5c12ad2c879db227c032072497a2da31651",
       "bytes": 133394
     },
     {
@@ -490,7 +490,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.cancellation.isolation@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "6afa9867f5fe24fd3c6cc8a960ade9ec41a454d25546d89c4d6356ae2a0c8fa8",
+      "sha256": "b407566bb0f33ffc07940d45ed03cf110ab791dbfa0142a1570334f15f3ed712",
       "bytes": 187964
     },
     {
@@ -499,17 +499,17 @@
       "bundle_path": "docs/proof-pack-parameters/proof.compatibility.behavioral-preservation@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "c8d797f4e677e0e83b9b89b726f9b5d5ce6a6e609479af2784a49f8c66279162",
+      "sha256": "769914a51567cd8f27d24e3f0c50a3407a35fb541b4a2687919b402c62a194bf",
       "bytes": 102423
     },
     {
-      "logical_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@4.0.0.md",
-      "source_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@4.0.0.md",
-      "bundle_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@4.0.0.md",
+      "logical_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@5.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@5.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.completeness.lossless-projection@5.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "3425915bdf20ddd2edea2641da1092f38ed83f78d8794227e9879b4c9a5a4cbf",
-      "bytes": 173003
+      "sha256": "a9824bbe0a20e6fa16acbf8a2a45f1044b5b84eae4845b6ea1a0b79fed5bd1b9",
+      "bytes": 174919
     },
     {
       "logical_path": "docs/proof-pack-parameters/proof.concurrency.single-winner-effect@4.0.0.md",
@@ -517,7 +517,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.concurrency.single-winner-effect@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "6d441c84283f4ddc653352374762f6d93edd959841271fd82b44fa1b0ee031e7",
+      "sha256": "837924a20aa159956c2615929ac94a468a6eb4c4e0d0ea5e5a782a857f8ecfb9",
       "bytes": 130607
     },
     {
@@ -526,7 +526,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.design.implementation-readiness@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "519f8e4f830c258d307b61fe357cbbeb04512cde7198d71e889023f72af91075",
+      "sha256": "27caeebf77d58a23529ea79ae4cdd18282b869dd4384f69b6bfe83b8cfbd68e8",
       "bytes": 96975
     },
     {
@@ -535,7 +535,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.dormancy.nonactivation@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "0a4eeb30ea5f96460024da2801c7ec816cdebaaed67eb73dfcf8d1f2e9e7bedc",
+      "sha256": "abac2c0712c9da5112dd7dcc9c46f50b0acccc96c8c4e3b4e64816ffd11fd7fb",
       "bytes": 65264
     },
     {
@@ -544,7 +544,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.failure.cleanup-noninterference@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8a649fa58907a650727035989757fb441eb18016a5175231c032f0a7b57ecdb0",
+      "sha256": "671a568a4f9212b05fbca04d39ecb5f8c9bb61c05f17c9551ccc06d55b46520f",
       "bytes": 162193
     },
     {
@@ -553,7 +553,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.failure.retry-convergence@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "68259937d831280adb479459a5c41335d024380ba520902a3076c8f765959004",
+      "sha256": "8d7b7fc903ba5037fb3fe637c6fd579c719bb60ee6efbb46a3b97345a0a07c9e",
       "bytes": 156301
     },
     {
@@ -562,7 +562,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.failure.settlement-and-cleanup@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "ca9f221e93dee8635b4dd03f907a4f96115f64169ae3f0e31fc81832cd8ce85d",
+      "sha256": "2e733f5658940b348073bfe38b14b64d9345ac3b25b64c89cbaf8ca6835b7920",
       "bytes": 100811
     },
     {
@@ -571,7 +571,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.failure.supplementary-isolation@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8c905323815f91b46899ccecb882902509995177b749a783a0f33811232eb39f",
+      "sha256": "8270e9c72f7ce0fb90ec3ff4e1bc1a1a08eb7bed5d9ad5b3138d2dc1d6935b67",
       "bytes": 229876
     },
     {
@@ -580,7 +580,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.idempotency.effect-nonduplication@5.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "f41c78afdcb51bc80b71f46622825832737f866653922d0250ba534ab4f708bb",
+      "sha256": "afa87e090fa321eb254ed6a25d8de27256722ba9d8ea0d2a3dec407617c44384",
       "bytes": 79956
     },
     {
@@ -589,7 +589,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.input.caller-authority-confinement@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "fa60973931dca9942d962c60b6f9d7d3cc2a58189bcda96a3afee88b505fcbaf",
+      "sha256": "ddd4019ecfc7d5b7001e83dc680151af5100d4ddc2fcd47c359b8ea408c127ff",
       "bytes": 280303
     },
     {
@@ -598,7 +598,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.integration.prefix-safety@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "a78c20454855ec80522b6acdd998ef1bc31e08e6224070cdb8105e48adebd40a",
+      "sha256": "56d7f761db6cf32595b7c0981cc3eac403faa59465e643e49cd1dbdb973987cc",
       "bytes": 19903
     },
     {
@@ -607,7 +607,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.lifecycle.bounded-state-stability@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "9bf75f319efb4c30188661d4f65c2b4f95750215d68146ae95fcf73b3b157187",
+      "sha256": "ee82f0ab7b229bbcf80e7dfe6be5d3b41df6495c62d4ef0b65812596c0c2828d",
       "bytes": 62648
     },
     {
@@ -616,7 +616,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.lifecycle.bounded-terminal-stability@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "245d869ca8d001f01fdd1b6655c07b11ccddf7e1b2dafd765c71337740f95e73",
+      "sha256": "6455749b4464ae5a3d0e827cd6874cd83897313703ea4e6105a2f42309f0ac9f",
       "bytes": 74492
     },
     {
@@ -625,7 +625,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.observation.sound-negative@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "a662a61b882e6465409c367b1014cce384d84848a1b4be55ac14169d37ef0cf9",
+      "sha256": "76b6efbcd6eb1fdd77c87e0fc1639c4757c84d786f9805cfd5e6fbd896f8c47f",
       "bytes": 250643
     },
     {
@@ -634,7 +634,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.operation.forbidden-noninvocation@5.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "075600b6ae54b40c21bf316929f92e8d1e80b3c5a4df2d733be1cc1bff41bcbc",
+      "sha256": "9a85639af809c4aad29f49b99579408df5e11cf1e3f484a7c0b7c95be00b437b",
       "bytes": 35172
     },
     {
@@ -643,7 +643,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.ordering.lexicographic-conformance@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "bdaeb8c0fe2b3f8d61b440658da140ec8ddeae9042fdfc53a8f0dd50afcb07c2",
+      "sha256": "309078542ef8c6af65f78244b5423f1dbce23cf957979e23cb6c4bd084c73d28",
       "bytes": 120542
     },
     {
@@ -652,7 +652,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.ordering.visibility-after-durable-settlement@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "53e3923bf23063b13f7ca9a0ceb77972be9877aa7352f2896b34d57ab9ceec64",
+      "sha256": "a66cb824193190533f9c53a7a00c2e77d4fc8fe4f2950220afc326b61670d002",
       "bytes": 150839
     },
     {
@@ -661,7 +661,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.ownership.exact-isolation@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "e9dbb0e7a90fda17de2c6cd5bcd38e0716ee59295e860e9a455d8809286f02e8",
+      "sha256": "5e591eb24b2e2aa51fc840e034d05b83266d48d5870d13559bd99ea37f4acef8",
       "bytes": 162073
     },
     {
@@ -670,7 +670,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.ownership.fenced-handoff@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "578beb97d5bdf9c602a9da6cbcd9a7f805f286a680bdfc50dc082f5972db9597",
+      "sha256": "1006abff986114fe48e3d86539de0135467411fd33f8e9285cf5144041f1bbf0",
       "bytes": 231755
     },
     {
@@ -679,7 +679,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.pagination.complete-traversal@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "d50d8803631eaee7760fda26fcfd4f64eb6f26f234b7cc269aa61e284c7be0de",
+      "sha256": "0500cecc032b23f2d1d99042523684276a97b448f55eb355157b13eb2b191a9f",
       "bytes": 123097
     },
     {
@@ -688,7 +688,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.pagination.snapshot-consistency@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8130449e4ff6e1625fb5f8c296a08d66bca9522de844b57c8ddd78b971180fc2",
+      "sha256": "3e9b533ccbf81c7712982a142d788d4dcc5d88764393fa4ee00e3e62368d8d3e",
       "bytes": 117088
     },
     {
@@ -697,7 +697,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.pagination.versioned-cursor-refusal@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "d65470fc84c4ad06bb00cb6251844103a436749e03c35cfbbaef5f7167bcedf2",
+      "sha256": "8c66f9b997e42cc45fb3d9fe7a54dca830a86cae8c61ad4d7f4c75157f511304",
       "bytes": 246320
     },
     {
@@ -706,7 +706,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.policy.declared-boundary-record-consistency@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "a4ada77a28bf29a515fec9e03bc2ba821700ae0186338090f243563bb112d4c0",
+      "sha256": "5e4e4aa1aebda674223d5f9d0747a7def2a75863e513014ba8ad86c4c6205e2c",
       "bytes": 63136
     },
     {
@@ -715,7 +715,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.policy.declared-limit-propagation@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "2b7a8d7397140e32cda14aea2b671a5182f54e614e5848c943c1405c9532b2aa",
+      "sha256": "87bad5a6d22dcfe6e90f33ac4829c6a4275dc2b2d23d470bf03956903785000d",
       "bytes": 67727
     },
     {
@@ -724,7 +724,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.readiness.before-success@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "e52d33d35b9a03f2a0fbb9cbf5156cd7f43c09ab58e1e50caf6802d01200e540",
+      "sha256": "7f3cb4ffa55079369069860585afd6119b77a3f66f3dd9f7fdf1d0acd643027f",
       "bytes": 88399
     },
     {
@@ -733,17 +733,17 @@
       "bundle_path": "docs/proof-pack-parameters/proof.result-shape.conformance@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "66e06272f5d68f9905dacfe72de2df2e5ba4c123b5a0258b5acb2cc89413cd90",
+      "sha256": "f57ea93d57a2cb7b994927f2d3336963da02c8790ac56a84eeba4b120916ebf4",
       "bytes": 145618
     },
     {
-      "logical_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@4.0.0.md",
-      "source_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@4.0.0.md",
-      "bundle_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@4.0.0.md",
+      "logical_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@5.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@5.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.result-shape.cross-representation-parity@5.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "15f456ee3dc83654e292e9803aae74114018d7e8818bf85dd47d85af79d218d2",
-      "bytes": 101910
+      "sha256": "eeb8238b8a6be14ee7c9914de552ea159b3772c5b138337524369d4741f0c791",
+      "bytes": 102529
     },
     {
       "logical_path": "docs/proof-pack-parameters/proof.single-use.replay-refusal@4.0.0.md",
@@ -751,7 +751,7 @@
       "bundle_path": "docs/proof-pack-parameters/proof.single-use.replay-refusal@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8aa5eb5ffce2c1ad23987305f6276a75b26785f31408349ea66b07e0ae38af42",
+      "sha256": "c42e0d6b827facc6a380b3eee54d649200ca1c2bca07535782d81a54b252849e",
       "bytes": 198319
     },
     {
@@ -760,17 +760,17 @@
       "bundle_path": "docs/proof-pack-parameters/proof.state.bounded-interval-nonmutation@4.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "e6c01c60e67cea93225903bf363b3f5af6f73278a0b5405904aeb61b12226b3f",
+      "sha256": "b63bdbecca5056476df1e8035cf64538bebf89644ded3e2f2de1969c64364a81",
       "bytes": 53637
     },
     {
-      "logical_path": "docs/proof-pack-parameters/proof.verification.test-validity@11.0.0.md",
-      "source_path": "docs/proof-pack-parameters/proof.verification.test-validity@11.0.0.md",
-      "bundle_path": "docs/proof-pack-parameters/proof.verification.test-validity@11.0.0.md",
+      "logical_path": "docs/proof-pack-parameters/proof.verification.test-validity@12.0.0.md",
+      "source_path": "docs/proof-pack-parameters/proof.verification.test-validity@12.0.0.md",
+      "bundle_path": "docs/proof-pack-parameters/proof.verification.test-validity@12.0.0.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "2dd2e98dd63d0b9585cb462760c87697c66ee9c845bd0acd6e3e8c19d8640aee",
-      "bytes": 15199
+      "sha256": "565cdd1efe5857a0a8e13a310999802174f2bd7dc520a0ef414121f2281a4ab8",
+      "bytes": 7748
     },
     {
       "logical_path": "docs/quickstart.md",
@@ -778,8 +778,8 @@
       "bundle_path": "docs/quickstart.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "eebb3324d85fbce4ca122a8c7e4813203c29b1aa04e8300335c9a07e9fccdcf0",
-      "bytes": 16018
+      "sha256": "dd1f734ccddaf51c3f572655c27a5fefa1e8ffae0222aa7936660b6954f9bf68",
+      "bytes": 17725
     },
     {
       "logical_path": "docs/README-agents.md",
@@ -787,8 +787,8 @@
       "bundle_path": "docs/README-agents.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "ab95721c0e47fea59a6028541bccbbe26f3d56c6e551c1971ce338eb1421ae64",
-      "bytes": 5915
+      "sha256": "89b8476aa44c063fb7905664089c3d3bf8591e9bd13afb3818e24270478aff09",
+      "bytes": 6394
     },
     {
       "logical_path": "docs/test-proof-diagnostics.md",
@@ -796,8 +796,8 @@
       "bundle_path": "docs/test-proof-diagnostics.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "23431e5b90cc04a01ecdac41ac31a14feb039c4e4f8a481e88f7aa01806d2596",
-      "bytes": 15637
+      "sha256": "8ca7f3d77305e7a4f6959b4ba0797f4808b8894a92b2d22e708b14014f321eff",
+      "bytes": 18259
     },
     {
       "logical_path": "docs/test-proof-execution.md",
@@ -805,8 +805,8 @@
       "bundle_path": "docs/test-proof-execution.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "0063802816f2c2c8be3d3ed963e00cdc121cb00a264ca4bc9777ae7ab783258f",
-      "bytes": 37774
+      "sha256": "5af8ce0d59d665c93691209d652fb832f8c327798caadb170102f904f6e22940",
+      "bytes": 40635
     },
     {
       "logical_path": "docs/test-proof-observation.md",
@@ -814,8 +814,8 @@
       "bundle_path": "docs/test-proof-observation.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "001f2a70125e4dfb62591dad7d9de48bebb6328a98948db323a4ce36a308ca3d",
-      "bytes": 26439
+      "sha256": "4d1b1c26880a2ff3e34ffc1977d0634845e658d0acf696a3a176cbfd0ed816f8",
+      "bytes": 27131
     },
     {
       "logical_path": "docs/test-proof-results.md",
@@ -823,8 +823,8 @@
       "bundle_path": "docs/test-proof-results.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "3d283e86c966b2a69fdf7eb6542122e568e4fc6c5b229ae5f46b03e7a4e9fcb3",
-      "bytes": 23963
+      "sha256": "f139d0cfc9ec064d04b938f9eaa9fd83ea582880c2f0227cea3430b0e63f4d47",
+      "bytes": 34216
     },
     {
       "logical_path": "docs/test-proof-runtime-environments.md",
@@ -832,8 +832,8 @@
       "bundle_path": "docs/test-proof-runtime-environments.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "181d026a63a1eb8a7870e3a1a9df276d6be9bd6ec3000565a257c28284aa9249",
-      "bytes": 13988
+      "sha256": "12d1a227a01bea5d8be8526ae3a9d8f7a22eb1bdac3944670c8f9fa889e601ac",
+      "bytes": 16159
     },
     {
       "logical_path": "docs/test-proof-runtime-identity.md",
@@ -841,8 +841,8 @@
       "bundle_path": "docs/test-proof-runtime-identity.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "dc28c7f59c8bc848f88ff9561df877749f85a336e4638048fafa8a1213a89874",
-      "bytes": 33750
+      "sha256": "4fe6da6d3f10633b368a0b80951f6348739877178fc1a8a66fd085e79f8d113a",
+      "bytes": 39452
     },
     {
       "logical_path": "docs/tool-discovery-dispatch-runtime.md",
@@ -850,8 +850,8 @@
       "bundle_path": "docs/tool-discovery-dispatch-runtime.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "ab7ae05316909b36caf68250e189a844ccc8290c0b71a14c0cccb9caf1b38513",
-      "bytes": 27102
+      "sha256": "979a8570557507dcc73974d60a6d7a38fa2529422ec2e874e4825283b7d4d72f",
+      "bytes": 3749
     },
     {
       "logical_path": "docs/tool-discovery-fragment-registry.md",
@@ -859,8 +859,8 @@
       "bundle_path": "docs/tool-discovery-fragment-registry.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "4fff98f8692ff0388ba70710bfaab2257e45e4954174c976ef692ccd6de1eceb",
-      "bytes": 8475
+      "sha256": "1bff87bdeea2537cc27d5e1b889145c88c629968fb79b521799cb6342b2163ca",
+      "bytes": 8481
     },
     {
       "logical_path": "docs/tool-discovery-schema.md",
@@ -868,8 +868,8 @@
       "bundle_path": "docs/tool-discovery-schema.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "572741172225c2b460474631967db99ebdc35d908caf06912e458a017b9ad5aa",
-      "bytes": 28682
+      "sha256": "7a9ca43fcb8b254af115e94d60f9e3ca7b7ad2770c5a283693fbd34af1463c26",
+      "bytes": 28500
     },
     {
       "logical_path": "docs/tool-discovery-surfaces.md",
@@ -877,8 +877,8 @@
       "bundle_path": "docs/tool-discovery-surfaces.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "1bc7f846af39aa1df3de3fd6690026cee8fcee0a424689393a7140e6480a90d0",
-      "bytes": 50538
+      "sha256": "95b6aa94f9c8c95873591f88488cfc62772be67d2d91a894f62c9dc382047eb1",
+      "bytes": 6158
     },
     {
       "logical_path": "docs/tool-discovery-tiers.md",
@@ -886,8 +886,8 @@
       "bundle_path": "docs/tool-discovery-tiers.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "8f28739451cd79e07a50f7fb8d8ee33382c700b9e9215f47a5602a2155b6bcc8",
-      "bytes": 7241
+      "sha256": "1ea6f40890bba09ee224d4d29a81634465c602db3c27910bb5461cd703a89c09",
+      "bytes": 6279
     },
     {
       "logical_path": "docs/tool-discovery.md",
@@ -895,8 +895,8 @@
       "bundle_path": "docs/tool-discovery.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "6debc196ae797a6d72a10d19dc8e61e90fd140f40435c66cc1a7c5a2b47ca471",
-      "bytes": 51483
+      "sha256": "9b9c34bb2d9ad26a06f48a8f3415d663e6981ee467be2ba66dd771e854e0bc95",
+      "bytes": 4835
     },
     {
       "logical_path": "docs/versioning.md",
@@ -904,8 +904,8 @@
       "bundle_path": "docs/versioning.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "6a26e15909cc860accecbb63d8939ae5bf0eeecea4a82e5f798b32dcab8ccd71",
-      "bytes": 22861
+      "sha256": "f7cd87c9af327d1391bee79313d283eb2df42b1ad7a2676a486126b21fa4e697",
+      "bytes": 26158
     },
     {
       "logical_path": "docs/vertex-ai-inference.md",
@@ -913,8 +913,8 @@
       "bundle_path": "docs/vertex-ai-inference.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "20ea69a91e97012fb0171b61d563642b1ecca9bf3891f08d38bea5148a079810",
-      "bytes": 2567
+      "sha256": "04ee1a06bdb12018e4d8cd056e0ace65608944f7106df6aebe6fd3131bc5b6ae",
+      "bytes": 5834
     },
     {
       "logical_path": "docs/wiki-contract-metadata.md",
@@ -922,8 +922,8 @@
       "bundle_path": "docs/wiki-contract-metadata.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "2ddf72953417b07aaa3904caf70cc8879d814fa26378f454457fd43b470dc082",
-      "bytes": 8596
+      "sha256": "8e8e38e7afc4f3f601314a24a282f5a8f6956d7c45404095a6b2979ed8bf52eb",
+      "bytes": 10380
     },
     {
       "logical_path": "docs/work-record-ontology.md",
@@ -931,8 +931,8 @@
       "bundle_path": "docs/work-record-ontology.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "93bb657acd9290ed42ab1a1b78fa5f6dece9845cd8ca7ef0773b72c14f089592",
-      "bytes": 10057
+      "sha256": "a3fb6a7bfff9f314c8056e81bb60d05485d304fb8b365a4326d6a81ccec87851",
+      "bytes": 10089
     },
     {
       "logical_path": "docs/work-record-persistence.md",
@@ -940,8 +940,8 @@
       "bundle_path": "docs/work-record-persistence.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "9cd94656a9e433e764b82015caac256ae3df4c78ccc4c1b2cd57f05443705c1b",
-      "bytes": 51417
+      "sha256": "80c246115cb581e1fe87a7cd25f6836c727cfb6cf631fc5aed41e2c9412e778a",
+      "bytes": 54745
     },
     {
       "logical_path": "docs/work-record-schema.md",
@@ -949,8 +949,8 @@
       "bundle_path": "docs/work-record-schema.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "bc97fff6646db50bae8ad22d2c24e1fd60e56e3d1c082d6fa84ab76821f1766a",
-      "bytes": 27596
+      "sha256": "83cbd63d129cbe2979332489ada46fda68f9177e6ca4c8c13621eaf15d7f7ca8",
+      "bytes": 28751
     },
     {
       "logical_path": "internal/docs/branch-worktree-dispatch.md",
@@ -973,13 +973,85 @@
       "unavailable_reason": "repository_local_not_packaged"
     },
     {
+      "logical_path": "packages/agent-launch-core/data/role-guides/orchestrator/01/authoring-vignette.md",
+      "source_path": "packages/agent-launch-core/data/role-guides/orchestrator/01/authoring-vignette.md",
+      "bundle_path": "docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/01/authoring-vignette.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "6f73cca5d01bcb97716e4c1980484821c2455c437519c4ea8589e1f3c2564366",
+      "bytes": 25297
+    },
+    {
+      "logical_path": "packages/agent-launch-core/data/role-guides/orchestrator/01/guide.md",
+      "source_path": "packages/agent-launch-core/data/role-guides/orchestrator/01/guide.md",
+      "bundle_path": "docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/01/guide.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "e387ad1ad357b6aab9d261a6ad5b2ca1c92466d7697c1b9d1555c8665f3bf167",
+      "bytes": 11791
+    },
+    {
+      "logical_path": "packages/agent-launch-core/data/role-guides/orchestrator/02/authoring-vignette.md",
+      "source_path": "packages/agent-launch-core/data/role-guides/orchestrator/02/authoring-vignette.md",
+      "bundle_path": "docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/02/authoring-vignette.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "a67d223fda8243764f4c16d54b5068b31f00ac6f59f1101c84a626fd64aef493",
+      "bytes": 53476
+    },
+    {
+      "logical_path": "packages/agent-launch-core/data/role-guides/orchestrator/02/guide.md",
+      "source_path": "packages/agent-launch-core/data/role-guides/orchestrator/02/guide.md",
+      "bundle_path": "docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/02/guide.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "b47e461e3eba9c90befe4a84e8c0fd11972d4e8c8a5573ff7364bfd94e0c4331",
+      "bytes": 12522
+    },
+    {
+      "logical_path": "packages/agent-launch-core/data/role-guides/orchestrator/03/authoring-vignette.md",
+      "source_path": "packages/agent-launch-core/data/role-guides/orchestrator/03/authoring-vignette.md",
+      "bundle_path": "docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/03/authoring-vignette.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "48d282972df6b53b7d9e9e94bcb5ff9aec1c5cec4edeeb2ab350cb78f745dcc4",
+      "bytes": 11956
+    },
+    {
+      "logical_path": "packages/agent-launch-core/data/role-guides/orchestrator/03/guide.md",
+      "source_path": "packages/agent-launch-core/data/role-guides/orchestrator/03/guide.md",
+      "bundle_path": "docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/03/guide.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "e56fbce60a38d42948b50acf6ecf2adeaf758726d2fb65d1e6b62b20204d84bb",
+      "bytes": 11791
+    },
+    {
+      "logical_path": "packages/agent-launch-core/data/role-guides/orchestrator/04/authoring-vignette.md",
+      "source_path": "packages/agent-launch-core/data/role-guides/orchestrator/04/authoring-vignette.md",
+      "bundle_path": "docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/04/authoring-vignette.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "a67d223fda8243764f4c16d54b5068b31f00ac6f59f1101c84a626fd64aef493",
+      "bytes": 53476
+    },
+    {
+      "logical_path": "packages/agent-launch-core/data/role-guides/orchestrator/04/guide.md",
+      "source_path": "packages/agent-launch-core/data/role-guides/orchestrator/04/guide.md",
+      "bundle_path": "docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/04/guide.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "897970eb47d14361476cd1a8d1a7fc75e6a9d6b7c03ce98095b4f0da8bdf783c",
+      "bytes": 12522
+    },
+    {
       "logical_path": "packages/wiki-core/contract/manifest.json",
       "source_path": "packages/wiki-core/contract/manifest.json",
       "bundle_path": "docs/_refs/packages/wiki-core/contract/manifest.json",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "597fc69ae81a285499968f6b95ddde372a6f3bedb8f501566263ef7663a30f20",
-      "bytes": 11931
+      "sha256": "706013c37fe35175d7e2451cb992991739c08e23bd23b06bd328860e57fe1391",
+      "bytes": 12430
     },
     {
       "logical_path": "packages/wiki-core/contract/schema.md",
@@ -987,8 +1059,8 @@
       "bundle_path": "docs/_refs/packages/wiki-core/contract/schema.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "e92737071a9bc559e5596abcfbca6e33242b22740c30877890008bc0e2213486",
-      "bytes": 8159
+      "sha256": "fa7fe07af1050f4304cb7c9c0898e89f8b76edc140b911af15efe4cbe998569e",
+      "bytes": 9210
     },
     {
       "logical_path": "packages/wiki-core/templates/AGENTS.md.boilerplate.md",
@@ -996,8 +1068,8 @@
       "bundle_path": "docs/_refs/packages/wiki-core/templates/AGENTS.md.boilerplate.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "b41622c13343b2c22da9a6c1ee8d07f3d4d2770e68b3932427a32fd01292d33f",
-      "bytes": 2006
+      "sha256": "c2f08c319278f4acbf373bfc602c8e0bcb35b7e884231fea72235e5671be388d",
+      "bytes": 2527
     },
     {
       "logical_path": "wiki/decisions/DEC-0134.md",

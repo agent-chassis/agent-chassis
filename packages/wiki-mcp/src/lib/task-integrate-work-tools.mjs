@@ -1,15 +1,17 @@
 import { guardToolHandler, jsonContent } from "./mcp-response.mjs";
 import { createIntegrateWorkTask } from "./task-integrate-work.mjs";
 import { INTEGRATE_WORK_TOOL_NAME } from "./task-integrate-work-schema.mjs";
+import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
 
 export function registerIntegrateWorkTools({ registerTool, ...configuration }) {
-  const task = createIntegrateWorkTask(configuration);
+  const task = createIntegrateWorkTask({ ...configuration, requestContracts: registeredToolRequestContracts(registerTool) });
   registerTool(INTEGRATE_WORK_TOOL_NAME, {
-    description: "Approve one immutable delivered result and integrate it. Repeating the selection repairs only missing completion effects. Saved judgments are advisory; no terminal candidate is constructed.",
+    description: "Integrate one delivery acquired through supported observation. Requires an authenticated orchestrator session. " +
+      "After a reported remaining condition is corrected, repeat the exact selection to finish only its unfinished effects.",
     inputSchema: task.inputContract.advertisedInputSchema, writeSemantics: "none"
   }, guardToolHandler(async request => {
     const frame = await task.prepare(request);
-    return jsonContent(frame.body, { env: configuration.responseEnv ?? configuration.sessionEnv ?? process.env });
+    return task.deliver(frame);
   }, { env: configuration.responseEnv ?? configuration.sessionEnv ?? process.env }));
   return task;
 }

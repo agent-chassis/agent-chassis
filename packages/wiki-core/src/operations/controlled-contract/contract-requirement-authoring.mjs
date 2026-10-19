@@ -2,6 +2,8 @@
 
 import { createHash } from "node:crypto";
 import { projectRequirementDescriptions } from './contract-requirement-projection.mjs';
+import { nativeValueOperand, publicNativeValueOperand, valueRowMetadata } from './contract-requirement-native-values.mjs';
+import { mapValueReferences, valueReferences } from '@agent-chassis/controlled-contract/controlled-values-v1';
 
 import {
   CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
@@ -161,6 +163,7 @@ function statementInput(proposition, context) {
         ? Object.freeze({ referent: referentInput(operand.reference_id, {
           ...context, field: `${context.field}.objects[${index}].referent`
         }) })
+        : operand.kind === 'value' ? Object.freeze(publicNativeValueOperand(operand, id => referentInput(id, context)))
         : operand.kind === "range"
           ? Object.freeze({ range: Object.freeze({
             ...(operand.minimum === undefined ? {} : { minimum: operand.minimum }),
@@ -219,6 +222,7 @@ export function projectControlledContractRequirements(contract, {
       for (const operand of proposition.operands ?? []) {
         if (operand.kind === "reference") closureIds.add(operand.reference_id);
       }
+      for (const id of valueReferences([...(proposition.operands ?? []).filter(operand => operand.kind === "value"), proposition.for_each ?? [], proposition.within ?? null])) closureIds.add(id);
     };
     addPropositionClosure(claim.proposition_id);
     for (const { relation, claim: verificationClaim } of linked) {
@@ -280,6 +284,7 @@ export function projectControlledContractRequirements(contract, {
       nature: claim.kind,
       modality: claim.modality,
       subject,
+      ...valueRowMetadata(behaviorProposition, id => referentInput(id, { references, usedReferences, field: "meaning.lexical_scope", claimId: claim.claim_id })),
       behavior,
       verifications: Object.freeze(verificationMeanings)
     });
@@ -457,6 +462,7 @@ class RequirementCompilation {
         `${field} is not one controlled object`, { field });
     }
     const kind = signature.operand_kind;
+    if (kind === 'value') return nativeValueOperand(value, (reference, at) => this.referent(reference, at), field);
     if (kind === "reference") {
       if (value.referent === undefined) fail(
         "controlled_contract_requirement_operand_kind_mismatch",
@@ -483,7 +489,7 @@ class RequirementCompilation {
     return { kind, value: value[kind] };
   }
 
-  proposition(subjectId, statement, field) {
+  proposition(subjectId, statement, field, metadata = {}) {
     if (statement === null || typeof statement !== "object") {
       fail("controlled_contract_requirement_invalid", `${field} is missing`, { field });
     }
@@ -525,6 +531,7 @@ class RequirementCompilation {
           maximum: signature.maximum_operands, guidance_path: guidanceLocation("relations") });
     }
     const body = {
+      ...valueRowMetadata(metadata, entity => this.referent({ declare: entity }, field)),
       subject_reference_id: subjectId,
       operator: statement.relation,
       applicability_context: { mode: applies.mode,
@@ -547,6 +554,14 @@ class RequirementCompilation {
     if (value === null || typeof value !== "object") {
       fail("controlled_contract_requirement_invalid", `${field} is missing`, { field });
     }
+    if (value.definition === true) {
+      if (value.modality !== undefined || value.nature !== undefined || value.verification !== undefined || value.behavior.applies !== undefined) {
+        fail('controlled_contract_definition_normative_fields', 'A defining row has no normative fields', { field });
+      }
+      this.referent(value.subject, `${field}.subject`);
+      for (const reference of valueReferences(value.behavior.objects)) this.referent({ declare: reference }, field);
+      return { claim_id: null, verification_claim_id: null, test_proof_id: null };
+    }
     const nature = value.nature ?? "behavior";
     if (!this.vocabulary.claim_natures.includes(nature)) {
       fail("controlled_contract_requirement_invalid",
@@ -562,7 +577,7 @@ class RequirementCompilation {
     }
     const subjectId = this.referent(value.subject, `${field}.subject`);
     const behaviourId = this.proposition(subjectId, value.behavior,
-      `${field}.behavior`);
+      `${field}.behavior`, value);
     const claimBody = { kind: nature, modality: value.modality,
       proposition_id: behaviourId };
     const claimId = mint("claim", this.subject, claimBody);

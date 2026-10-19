@@ -1,5 +1,8 @@
 
 
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import diagnosticGraph from "./workspace-agent-test-proof-diagnostic-graph.cjs";
 
 export const {
@@ -9,6 +12,38 @@ export const {
   nativeRecordFailureDiagnostic,
   unavailableTestFailureDiagnostic
 } = diagnosticGraph;
+
+const FRAME_LOCATION_RE = /(?:^ {4}at (?:async )?|\()((?:file:\/\/)?\/[^()]*):(\d+):(\d+)\)?(?: \{)?$/u;
+const CONTEXT_RE = /^(.+):(\d+)$/u;
+
+function checkoutFile(specifier, workRoot) {
+  let file = specifier;
+  if (specifier.startsWith("file://")) {
+    try { file = fileURLToPath(specifier); } catch { return undefined; }
+  }
+  if (!path.isAbsolute(file)) return undefined;
+
+  if (workRoot === undefined) return file;
+  const relative = path.relative(workRoot, file);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
+  return relative.split(path.sep).join("/");
+}
+
+export function reportedTestFailureLocation(context, frames, workRoot) {
+  const sites = frames.filter((frame) => frame.startsWith("    at "))
+    .map((frame) => FRAME_LOCATION_RE.exec(frame)).filter((site) => site !== null);
+  const site = CONTEXT_RE.exec(context ?? "");
+  const file = site === null ? undefined : checkoutFile(site[1], workRoot);
+  if (file !== undefined) {
+    const frame = sites.find(([, specifier, line]) => specifier === site[1] && line === site[2]);
+    return { file, line: Number(site[2]), ...(frame === undefined ? {} : { column: Number(frame[3]) }) };
+  }
+  for (const [, specifier, line, column] of sites) {
+    const frameFile = checkoutFile(specifier, workRoot);
+    if (frameFile !== undefined) return { file: frameFile, line: Number(line), column: Number(column) };
+  }
+  return undefined;
+}
 
 export const SELECTED_TEST_FAILURE_DIAGNOSTIC_SCHEMA_VERSION =
   "launcher-test-failure-diagnostic-selection.v1";

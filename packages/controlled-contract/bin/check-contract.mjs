@@ -14,9 +14,7 @@ import {
 import {
   anonymousPlanningInputFromDecomposition
 } from "../lib/anonymous-structural-partitioner.mjs";
-import {
-  evaluateVerificationProfileV1
-} from "../lib/verification-profile-v1.mjs";
+import { evaluateAdmittedPack } from "../lib/selected-pack-claim-participation.mjs";
 import {
   AdmittedProofPackError,
   loadAdmittedProofPack
@@ -449,10 +447,10 @@ async function checkContractWithProofPack({
     loadAdmittedProofPack(profileId)
   ]);
   const structural = await checkContractSource(contractSource);
-  const evaluation = evaluateVerificationProfileV1({
+  const evaluation = evaluateAdmittedPack({
     contract: contractSource.contract,
-    profile: pack.profile,
-    evaluation_input: evaluationInputSource.value
+    proofPack: pack,
+    evaluationInput: evaluationInputSource.value
   });
   const evaluationResultSha256 = sha256(canonical(evaluation));
   const evaluationInputSha256 = sha256(evaluationInputSource.text);
@@ -464,7 +462,9 @@ async function checkContractWithProofPack({
     mode: "proof_pack",
     verification_scope: {
       graph_edge_coverage: "assessed",
-      proof_plan_discrimination: "assessed_by_admitted_profile"
+      proof_plan_discrimination: evaluation.diagnostics.some(({ code }) =>
+        code === "test_validity_authenticated_execution_required")
+        ? "not_assessed" : "assessed_by_admitted_profile"
     },
     structural_outcome: structural.outcome,
     outcome: proofOutcome(structural.outcome, evaluation.satisfaction),

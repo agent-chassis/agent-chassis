@@ -22,8 +22,8 @@ function prepare(outcome, options = {}) {
   assert.equal(JSON.stringify(outcome), before, "projection leaves the complete owner result unchanged");
   assert.equal(frame.registered, false);
   assert.equal(frame.delivery.measured_bytes, measureMcpInlineResultBytes(frame, { isError: frame.isError }));
-  assert.ok(frame.delivery.measured_bytes <= selectedResponseDeliveryBound(options.responseEnv));
-  assert.equal(frame.delivery.fits, true);
+  assert.equal(frame.delivery.fits, frame.delivery.measured_bytes <= selectedResponseDeliveryBound(options.responseEnv));
+  assert.equal(frame.delivery.complete_transport_required, !frame.delivery.fits);
   assert.equal(frame.delivery.delivered, false);
   assert.equal(JSON.stringify(frame).includes("next_calls"), false);
   assert.equal(JSON.stringify(frame).includes("workspace_integrate"), false);
@@ -127,13 +127,13 @@ test("missing launcher tuple projects the transaction owner's reasons without ca
   assert.equal(frame.continuations.original, undefined);
 });
 
-test("multibyte refusal reasons use the existing scalar omission and complete-frame measurement", () => {
+test("multibyte refusal reasons retain their complete deciding meaning", () => {
   for (const [reason, omitted] of [["原因🧪".repeat(51), false], ["原因🧪".repeat(52), true]]) {
     const frame = prepare({ decision_code: "commit.missing_launcher_binding.v1", reasons: [reason] },
       { observation: null, responseEnv: { WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: "512" } });
     assert.equal(frame.delivery.bound_bytes, 8192);
-    assert.equal(frame.body.diagnostics[0].message, omitted ? null : reason);
-    assert.equal(frame.body.omitted_detail.includes("binding_resolution.message"), omitted);
+    assert.equal(frame.body.diagnostics[0].message, reason);
+    assert.equal(frame.body.omitted_detail.includes("binding_resolution.message"), false);
     assert.equal(frame.body.original.availability, "not_captured");
     assert.equal(frame.body.original.locator, null);
     assert.equal(frame.continuations.original, undefined);
@@ -161,8 +161,8 @@ test("large multibyte causes and scope/receipt collections stay in the unchanged
   const frame = prepare(outcome);
   assert.equal(frame.body.outcome, "uncertain");
   assert.deepEqual(frame.body.diagnostics.slice(1).map(d => d.code), ["TRANSITION", "COMPENSATION"]);
-  assert.equal(JSON.stringify(frame).includes(huge), false);
-  assert.ok(frame.body.omitted_detail.includes("canonical_review.message"));
+  assert.equal(JSON.stringify(frame).includes(huge), true);
+  assert.equal(frame.body.omitted_detail.includes("canonical_review.message"), false);
   assert.ok(frame.body.omitted_detail.includes("receipts"));
   assert.deepEqual(frame.body.resource, { subject, ref });
 });
@@ -184,8 +184,8 @@ test("whole-frame admission accounts for escaped diagnostic strings alongside es
   const frame = prepare(outcome, { isError: true });
   assert.deepEqual(frame.body.diagnostics.map(diagnostic => diagnostic.code),
     ["TOP", "TOP_CAUSE", "SCOPE", "TRANSITION", "COMPENSATION"]);
-  assert.ok(frame.body.diagnostics.every(diagnostic => diagnostic.message === null));
-  assert.ok(frame.body.omitted_detail.includes("canonical_review.message"));
+  assert.ok(frame.body.diagnostics.every(diagnostic => diagnostic.message === message));
+  assert.equal(frame.body.omitted_detail.includes("canonical_review.message"), false);
   assert.equal(frame.body.effects.submitted_for_review, null);
 });
 
@@ -207,4 +207,14 @@ test("selected replay with proven failed submission is incomplete delivery", () 
   assert.equal(frame.body.outcome, "partial");
   assert.deepEqual(frame.body.selected_delivery, { commit: selected, base });
   assert.equal(frame.body.effects.submitted_for_review, false);
+});
+
+test('public delivery flags name the permitted semantic reader without changing either flag', () => {
+  const outcome = settled();
+  const frame = prepareDeliverWorkResponse({ workspace: { repo: "fixture/repo" }, outcome,
+    observation: observe(outcome), publicDelivery: true });
+  assert.equal(frame.body.original.operator_only, true);
+  assert.equal(frame.body.original.worker_read_available, true);
+  assert.match(frame.body.original.reader_scope, /operator_only applies to generic retained-evidence access/u);
+  assert.match(frame.body.original.reader_scope, /worker may follow the returned get_run_result call/u);
 });

@@ -1,28 +1,21 @@
-import { randomUUID } from "node:crypto";
-import { constants as fsConstants, existsSync } from "node:fs";
-import { copyFile, mkdir, open, rm, stat } from "node:fs/promises";
+import { configureReadableSqlite, classifySqliteFailure } from "./sqlite-runtime.mjs";
+import { existsSync } from "node:fs";
+import { lstat, mkdir, truncate, rm } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import {
-  CRASH_DURABLE_EFFECTS,
-  createAsyncEffects,
-  planPreparedReplacement,
-  runCrashDurablePlanAsync
-} from "./crash-durable-state.mjs";
 import { sidecarGraphEdgeId, sidecarGraphNodeId } from "./sidecar-graph-contributions.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
 import { normalizeSidecarRepoPath } from "./sidecar-paths.mjs";
 import { decodeSidecarStorePayload } from "./sidecar-store-codec.mjs";
 import {
   assertGraphSchema,
-  configureReadableSqlite,
   initializeGraphSchema,
+  SIDECAR_STORE_SCHEMA_VERSION,
   SIDECAR_STORE_GRAPH_FILE,
   SIDECAR_STORE_LIFECYCLE_FILE
 } from "./sidecar-store-schema.mjs";
 import {
-  classifyLifecycleFailure,
   throwIfSidecarPreparationCancelled,
   withSidecarUpdaterLock
 } from "./sidecar-store-lifecycle.mjs";
@@ -39,6 +32,7 @@ import {
   selectStoreDirectoryMembership,
   selectStoreDocumentSymbolEdges,
   selectStoreFiles,
+  selectStoreExistingPrefixes,
   selectStoreGraphImpact,
   selectStoreNodes,
   selectStoreOccurrences,
@@ -47,13 +41,13 @@ import {
   selectStoreSymbolEdges,
   selectStoreSymbolEdgesByDocument,
   selectStoreSymbolOccurrences,
+  selectStoreSymbolDefinitionOccurrences,
   selectStoreSymbols,
   selectStoreSymbolsReferencedElsewhere,
   storeContributionKey
 } from "./sidecar-store-queries.mjs";
 
 export const SIDECAR_DEFAULT_STORE_CACHE_DIR = ".cache/repo-code-index";
-export const SIDECAR_GRAPH_CANDIDATE_PREFIX = ".graph-candidate-";
 
 const SIDECAR_RUNTIME_FLOOR = Object.freeze({ node: "24.20.0", sqlite: "3.53.4" });
 
@@ -103,12 +97,15 @@ export function openSidecarGraphDatabase(graphPath, { readOnly = false } = {}) {
     error.code = "missing";
     throw error;
   }
-  const db = new DatabaseSync(graphPath, { readOnly, timeout: 0 });
+  const db = new DatabaseSync(graphPath, { readOnly, timeout: 5000 });
   try {
-    configureReadableSqlite(db);
+    configureReadableSqlite(db, { journalMode: null });
+    db.exec("PRAGMA busy_timeout = 5000");
     db.exec(`PRAGMA cache_size = -${readOnly ? READER_PAGE_CACHE_KIB : WRITER_PAGE_CACHE_KIB}`);
     if (!readOnly) db.exec("PRAGMA synchronous = FULL");
+    db.exec("BEGIN");
     assertGraphSchema(db, { graphSchemaVersion: SIDECAR_GRAPH_SCHEMA_VERSION });
+    db.exec("COMMIT");
     return db;
   } catch (error) {
     if (db.isOpen) db.close();
@@ -155,161 +152,93 @@ function readSnapshot(db, operation) {
 
 export function readSidecarStoreStatus(options = {}) {
   const paths = resolveSidecarStorePaths(options);
-  if (!existsSync(paths.graph_path)) return { state: "missing", paths };
+  if (!existsSync(paths.graph_path)) return { state: "missing", artifact_exists: false, paths,
+    required_store_schema_version: SIDECAR_STORE_SCHEMA_VERSION };
   try {
-    return { state: "available", paths, publication: withPublishedGraph(paths, readStorePublication) };
+    return { state: "available", artifact_exists: true, paths,
+      observed_store_schema_version: SIDECAR_STORE_SCHEMA_VERSION,
+      required_store_schema_version: SIDECAR_STORE_SCHEMA_VERSION, publication: withPublishedGraph(paths, readStorePublication) };
   } catch (error) {
     return {
       state: error?.code === "sidecar_graph_structural_unusable"
         ? "structural_unusable"
-        : classifyLifecycleFailure(error),
+        : classifySqliteFailure(error),
       paths,
+      artifact_exists: true,
+      observed_store_schema_version: error?.observed_store_schema_version ?? null,
+      required_store_schema_version: SIDECAR_STORE_SCHEMA_VERSION,
+      observed_graph_schema_version: error?.observed_graph_schema_version ?? null,
       error_code: error?.code ?? null,
       error_message: error instanceof Error ? error.message : String(error)
     };
   }
 }
 
-export class SidecarGraphPublicationError extends Error {
-  constructor(message, { code, publicationOutcome, cause = null, trace = null } = {}) {
-    super(message, cause ? { cause } : undefined);
-    this.name = "SidecarGraphPublicationError";
-    this.code = code;
-    this.publication_outcome = publicationOutcome;
-    this.trace = trace;
-  }
-}
-
-const PUBLICATION_FAILURE_CODES = Object.freeze({
-  prior_preserved: "sidecar_publication_failed",
-  published_with_error: "sidecar_publication_incomplete",
-  unknown: "sidecar_publication_unknown"
-});
-
-function priorPreserved(error) {
-  if (error && typeof error === "object" && error.publication_outcome === undefined) {
-    error.publication_outcome = "prior_preserved";
-  }
-  return error;
-}
-
-async function observeGraphPath(graphPath) {
-  try {
-    const info = await stat(graphPath, { bigint: true });
-    return { exists: true, dev: info.dev.toString(), ino: info.ino.toString(),
-      size: info.size.toString(), mtime_ns: info.mtimeNs.toString(), ctime_ns: info.ctimeNs.toString() };
-  } catch (error) {
-    if (error?.code === "ENOENT") return { exists: false };
-    throw error;
-  }
-}
-
-function sameObservation(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
-async function publicationRunOutcome(run, { graphPath, candidate, predecessor }) {
-  if (run.failed_fault === null) return "published";
-  const rename = run.trace.find(({ effect }) => effect === CRASH_DURABLE_EFFECTS.PUBLISH_RENAME);
-  if (rename?.outcome === "ok") return "published_with_error";
-  if (rename?.outcome !== "failed") return "prior_preserved";
-  const destination = await observeGraphPath(graphPath).catch(() => null);
-  if (destination?.exists && destination.dev === candidate.dev && destination.ino === candidate.ino) {
-    return "published_with_error";
-  }
-  return destination && sameObservation(destination, predecessor) ? "prior_preserved" : "unknown";
-}
-
-export async function publishSidecarGraphCandidate({
-  paths,
-  lock,
-  basis,
-  apply,
-  signal = null,
-  faultInjector = null
-} = {}) {
+export async function updateSidecarGraph({ paths, lock, basis, apply, signal = null } = {}) {
   assertSidecarRuntimeSupported();
   if (!lock?.held || lock.lifecycle_path !== path.resolve(String(paths?.lifecycle_path ?? ""))) {
-    throw new TypeError("sidecar graph publication requires the held updater lock for its store");
+    throw new TypeError("sidecar graph update requires the held updater lock for its store");
   }
-  if (basis !== "published" && basis !== "empty") {
-    throw new TypeError("sidecar graph candidate basis must be 'published' or 'empty'");
-  }
-  if (typeof apply !== "function") throw new TypeError("sidecar graph candidate apply must be a function");
-  const predecessor = await observeGraphPath(paths.graph_path);
-  if (existsSync(`${paths.graph_path}-journal`)) {
-    throw new SidecarGraphPublicationError(
-      "the published graph has a rollback journal; candidate publication does not own its recovery",
-      { code: "recovery_pending", publicationOutcome: "prior_preserved" }
-    );
-  }
-  if (basis === "published" && !predecessor.exists) {
-    throw new SidecarGraphPublicationError("sidecar graph database is missing",
-      { code: "missing", publicationOutcome: "prior_preserved" });
-  }
-  const candidatePath = path.join(paths.store_dir,
-    `${SIDECAR_GRAPH_CANDIDATE_PREFIX}${randomUUID()}.sqlite`);
-  let graph = null;
-  let renamed = false;
+  if (basis !== "published" && basis !== "empty") throw new TypeError("sidecar graph basis must be 'published' or 'empty'");
+  if (typeof apply !== "function") throw new TypeError("sidecar graph apply must be a function");
+  throwIfSidecarPreparationCancelled(signal);
   try {
-    if (basis === "published") {
-      await copyFile(paths.graph_path, candidatePath, fsConstants.COPYFILE_EXCL);
+    const info = await lstat(paths.graph_path);
+    if (!info.isFile()) {
+      const error = new Error(`sidecar graph path is ${info.isSymbolicLink() ? "a symlink" : info.isDirectory() ? "a directory" : "not a regular file"}: ${paths.graph_path}`);
+      error.code = "sidecar_graph_path_not_file";
+      throw error;
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  let graph = null;
+  let before = null;
+  let reset = false;
+  try {
+    if (basis === "empty") {
+      graph = new DatabaseSync(paths.graph_path, { timeout: 5000 });
+      try {
+
+        graph.prepare("SELECT count(*) FROM sqlite_schema").get();
+      } catch (error) {
+        if (classifySqliteFailure(error) !== "coordination_unusable") throw error;
+        graph.close();
+        graph = null;
+
+        await truncate(paths.graph_path, 0);
+        for (const suffix of ["-journal", "-wal", "-shm"]) await rm(`${paths.graph_path}${suffix}`, { force: true });
+        graph = new DatabaseSync(paths.graph_path, { timeout: 5000 });
+      }
+      initializeGraphSchema(graph, { graphSchemaVersion: SIDECAR_GRAPH_SCHEMA_VERSION, reset: true });
+      reset = true;
     } else {
-      await (await open(candidatePath, "wx", 0o600)).close();
-      createSidecarGraphDatabase(candidatePath);
+      graph = openSidecarGraphDatabase(paths.graph_path);
     }
-    graph = openSidecarGraphDatabase(candidatePath);
+    before = readStorePublication(graph);
     const publication = await apply(graph);
-    graph.close();
-    graph = null;
-    throwIfSidecarPreparationCancelled(signal);
-    if (existsSync(`${candidatePath}-journal`)) {
-      throw new SidecarGraphPublicationError(
-        "sidecar graph candidate retained a rollback journal after its transaction",
-        { code: "sidecar_publication_candidate_journal_retained", publicationOutcome: "prior_preserved" }
-      );
-    }
-    if (!sameObservation(await observeGraphPath(paths.graph_path), predecessor)) {
-      throw new SidecarGraphPublicationError(
-        "the published graph changed while its candidate was prepared",
-        { code: "sidecar_publication_destination_moved", publicationOutcome: "prior_preserved" }
-      );
-    }
-    const candidate = await observeGraphPath(candidatePath);
-    const run = await runCrashDurablePlanAsync(
-      planPreparedReplacement({ targetPath: paths.graph_path, privatePath: candidatePath }),
-      createAsyncEffects({ faultInjector })
-    );
-    const outcome = await publicationRunOutcome(run,
-      { graphPath: paths.graph_path, candidate, predecessor });
-    renamed = outcome !== "prior_preserved";
-    if (outcome !== "published") {
-      throw new SidecarGraphPublicationError(
-        `sidecar graph publication ${outcome.replaceAll("_", " ")}: ${run.error?.message ?? "unknown failure"}`,
-        { code: PUBLICATION_FAILURE_CODES[outcome], publicationOutcome: outcome,
-          cause: run.error, trace: run.trace }
-      );
-    }
-    try {
-      await rm(`${candidatePath}-journal`, { force: true });
-    } catch (cause) {
-      throw new SidecarGraphPublicationError("sidecar graph was published but candidate cleanup failed",
-        { code: PUBLICATION_FAILURE_CODES.published_with_error,
-          publicationOutcome: "published_with_error", cause, trace: run.trace });
-    }
+    if (graph.isTransaction) throw new Error("sidecar graph apply left an uncommitted transaction");
     return publication;
   } catch (error) {
-
-    if (!(error instanceof SidecarGraphPublicationError)) priorPreserved(error);
+    try {
+      if (graph?.isOpen && graph.isTransaction) graph.exec("ROLLBACK");
+      if (error && typeof error === "object" && error.publication_outcome === undefined) {
+        const after = graph?.isOpen && before ? readStorePublication(graph) : null;
+        error.publication_outcome = before && !after ? "unknown"
+          : after && after.sequence !== before.sequence ? "published_with_error"
+          : reset ? "unpublished" : "prior_preserved";
+      }
+    } catch (cause) {
+      const failure = new AggregateError([error, cause],
+        `sidecar update failed: ${error instanceof Error ? error.message : String(error)}; rollback or outcome observation failed: ${cause.message}`,
+        { cause: error });
+      failure.code = error.code ?? "sidecar_graph_update_failed";
+      failure.publication_outcome = "unknown";
+      throw failure;
+    }
     throw error;
   } finally {
-    if (graph?.isOpen && graph.isTransaction) graph.exec("ROLLBACK");
     if (graph?.isOpen) graph.close();
-
-    if (!renamed) {
-      await rm(`${candidatePath}-journal`, { force: true }).catch(() => {});
-      await rm(candidatePath, { force: true }).catch(() => {});
-    }
   }
 }
 
@@ -322,18 +251,16 @@ export async function initializeSidecarStore(options = {}) {
       openSidecarGraphDatabase(paths.graph_path, { readOnly: true }).close();
       return;
     }
-    await publishSidecarGraphCandidate({ paths, lock, basis: "empty",
-      apply: (graph) => readStorePublication(graph) });
+    await updateSidecarGraph({ paths, lock, basis: "empty", apply: readStorePublication });
   }, { signal: options.signal ?? null });
   return paths;
 }
 
-export async function publishPreparedDelta({ repoRoot, cacheDir, delta, faultInjector = null } = {}) {
+export async function publishPreparedDelta({ repoRoot, cacheDir, delta } = {}) {
   assertSidecarRuntimeSupported();
   const paths = resolveSidecarStorePaths({ repoRoot, cacheDir });
-  return withSidecarUpdaterLock(paths.lifecycle_path, (lock) => publishSidecarGraphCandidate({
-    paths, lock, basis: "published", faultInjector,
-    apply: (graph) => publishPreparedDeltaInDatabase(graph, delta)
+  return withSidecarUpdaterLock(paths.lifecycle_path, (lock) => updateSidecarGraph({
+    paths, lock, basis: "published", apply: (graph) => publishPreparedDeltaInDatabase(graph, delta)
   }));
 }
 
@@ -540,41 +467,57 @@ function selectWholeSymbolFacts(graph, symbol, documentPath) {
   };
 }
 
-function selectPositionSymbolFacts(graph, documentPath, positionSymbols) {
+function selectPositionSymbolFacts(graph, documentPaths, positionSymbols, { planning = false,
+  includeOutgoing = false } = {}) {
   const key = ({ provider_id: providerId, symbol_id: symbolId }) => `${providerId}\0${symbolId}`;
-  const documentOccurrences = selectStoreOccurrencesByDocument(graph, [documentPath]);
-  const named = positionSymbols(documentOccurrences);
+  const documentOccurrences = selectStoreOccurrencesByDocument(graph, documentPaths);
+  const named = documentPaths.flatMap(documentPath => positionSymbols(
+    documentOccurrences.filter(row => row.document_path === documentPath)));
   const namedKeys = new Set(named.map(key));
-  const locals = named.filter((entry) => entry.document_local === true);
+  const nativeKeys = new Set(documentOccurrences.filter(row => namedKeys.has(key(row)))
+    .map(row => row.payload.symbol_key));
+  const locals = named.filter(entry => entry.document_local === true);
   const localKeys = new Set(locals.map(key));
-  const localIds = new Set(locals.map(({ symbol_id: symbolId }) => symbolId));
-  const globalIds = [...new Set(named.map(({ symbol_id: symbolId }) => symbolId))]
-    .filter((symbolId) => !localIds.has(symbolId));
+  const localIds = new Set(locals.map(entry => entry.symbol_id));
+  const outgoing = planning && includeOutgoing ? documentOccurrences.filter(row =>
+    (row.roles & 1) !== 1 && !row.payload.symbol?.startsWith("local ")) : [];
+  const globalIds = [...new Set([...named, ...outgoing].map(entry => entry.symbol_id))]
+    .filter(symbolId => !localIds.has(symbolId));
+  const incomingIds = new Set(named.map(entry => entry.symbol_id));
+  const outgoingKeys = new Set(outgoing.map(key));
   const symbols = selectStoreSymbols(graph, [...globalIds, ...localIds])
-    .filter((row) => !localIds.has(row.raw_symbol) || localKeys.has(key(row)));
+    .filter(row => !localIds.has(row.raw_symbol) || localKeys.has(key(row)))
+    .filter(row => !planning || incomingIds.has(row.symbol_id) || outgoingKeys.has(key(row)));
+  const globals = symbols.filter(row => !localIds.has(row.raw_symbol));
+  const occurrences = planning ? [
+    ...selectStoreSymbolOccurrences(graph, globals.filter(row => incomingIds.has(row.symbol_id)),
+      row => nativeKeys.has(row.payload.symbol_key) || (row.roles & 1) === 1),
+    ...selectStoreSymbolDefinitionOccurrences(graph, globals.filter(row =>
+      outgoingKeys.has(key(row)) && !incomingIds.has(row.symbol_id)))
+  ] : selectStoreSymbolOccurrences(graph, globals);
   return {
     symbols,
-    occurrences: selectStoreSymbolOccurrences(graph,
-      symbols.filter((row) => !localIds.has(row.raw_symbol))),
-    positionOccurrences: documentOccurrences.filter((row) => namedKeys.has(key(row))),
-    symbolEdges: uniqueSymbolEdges([...selectStoreSymbolEdges(graph, globalIds),
-      ...selectStoreDocumentSymbolEdges(graph, documentPath, locals)]),
-    partialSymbols: selectStoreSymbolsReferencedElsewhere(graph, documentPath, locals)
-      .map(({ provider_id: providerId, symbol_id: symbolId }) =>
-        ({ provider_id: providerId, symbol_id: symbolId }))
+    occurrences,
+    positionOccurrences: planning ? documentOccurrences
+      : documentOccurrences.filter(row => namedKeys.has(key(row))),
+    symbolEdges: planning ? [] : uniqueSymbolEdges([...selectStoreSymbolEdges(graph, globalIds),
+      ...documentPaths.flatMap(documentPath => selectStoreDocumentSymbolEdges(graph, documentPath, locals))]),
+    partialSymbols: documentPaths.flatMap(documentPath =>
+      selectStoreSymbolsReferencedElsewhere(graph, documentPath, locals))
+      .map(({ provider_id, symbol_id }) => ({ provider_id, symbol_id }))
   };
 }
 
 export function selectSidecarSymbolSelection(graph, { symbol = null, documentPath = null,
-  positionSymbols = null } = {}) {
+  positionSymbols = null, documentPaths = null, planning = false, includeOutgoing = false } = {}) {
   return readSnapshot(graph, () => {
     const publication = readStorePublication(graph);
     const { symbols, occurrences, positionOccurrences, symbolEdges, partialSymbols } =
-      documentPath && !symbol && typeof positionSymbols === "function"
-        ? selectPositionSymbolFacts(graph, documentPath, positionSymbols)
+      (documentPath || documentPaths) && !symbol && typeof positionSymbols === "function"
+        ? selectPositionSymbolFacts(graph, documentPaths ?? [documentPath], positionSymbols, { planning, includeOutgoing })
         : selectWholeSymbolFacts(graph, symbol, documentPath);
 
-    const sourcePaths = [...new Set([documentPath,
+    const sourcePaths = [...new Set([...(documentPaths ?? [documentPath]),
       ...[symbols, occurrences, positionOccurrences, symbolEdges].flat()
         .map((row) => row.document_path),
       ...symbolEdges.map((edge) => edge.payload?.provenance?.path)
@@ -600,9 +543,16 @@ export function readSidecarSymbolSelection({
   cacheDir,
   symbol = null,
   documentPath = null,
-  positionSymbols = null
+  positionSymbols = null,
+  documentPaths = null, planning = false, includeOutgoing = false
 } = {}) {
   const storePaths = resolveSidecarStorePaths({ repoRoot, cacheDir });
   return withPublishedGraph(storePaths, (graph) =>
-    selectSidecarSymbolSelection(graph, { symbol, documentPath, positionSymbols }));
+    selectSidecarSymbolSelection(graph, { symbol, documentPath, documentPaths, positionSymbols, planning, includeOutgoing }));
+}
+
+export function readSidecarPathExistence({ repoRoot, cacheDir, paths, prefixes }) {
+  return withPublishedGraph(resolveSidecarStorePaths({ repoRoot, cacheDir }), graph =>
+    readSnapshot(graph, () => ({ publication: readStorePublication(graph),
+      files: selectStoreFiles(graph, paths), prefixes: selectStoreExistingPrefixes(graph, prefixes) })));
 }

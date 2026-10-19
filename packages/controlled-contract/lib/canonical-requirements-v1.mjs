@@ -8,6 +8,7 @@ export const AUTHORED_REQUIREMENT_DIAGNOSTIC_CODES = Object.freeze({
   CLAIM_NOT_A_REQUIREMENT: "authored_requirement_row_claim_not_a_requirement",
   INCOMPLETE_ROW_EMITS: "authored_requirement_incomplete_row_emits",
   MEMBERSHIP_ROW_CLAIMS: "authored_requirement_membership_row_claims",
+  DEFINITION_ROW_CLAIMS: "authored_requirement_definition_row_claims",
   COMPLETE_ROW_EMITS_NOTHING: "authored_requirement_complete_row_emits_nothing",
   SOURCE_LOCATION_INVALID: "authored_requirement_source_location_invalid",
   DUPLICATE_COLLECTION: "authored_requirement_collection_duplicate",
@@ -32,6 +33,7 @@ export function authoredRequirementDiagnostics(contract) {
     if (rows.has(row.row_id)) diagnostics.push({ code: CODES.DUPLICATE_ROW, ...about });
     rows.add(row.row_id);
     const membership = Object.hasOwn(row.input, "membership");
+    const definition = row.input.definition === true;
     const complete = row.pending.length === 0;
     for (const claimId of row.claim_ids) {
       const claim = claims.get(claimId);
@@ -41,7 +43,8 @@ export function authoredRequirementDiagnostics(contract) {
     if (!complete && (row.constraint_ids.length > 0 || row.claim_ids.length > 0)) diagnostics.push({
       code: CODES.INCOMPLETE_ROW_EMITS, ...about, pending_count: row.pending.length });
     if (membership && row.claim_ids.length > 0) diagnostics.push({ code: CODES.MEMBERSHIP_ROW_CLAIMS, ...about });
-    if (complete && (row.constraint_ids.length === 0 || (!membership && row.claim_ids.length !== row.constraint_ids.length))) {
+    if (definition && row.claim_ids.length > 0) diagnostics.push({ code: CODES.DEFINITION_ROW_CLAIMS, ...about });
+    if (complete && (row.constraint_ids.length === 0 || (!membership && !definition && row.claim_ids.length !== row.constraint_ids.length))) {
       diagnostics.push({ code: CODES.COMPLETE_ROW_EMITS_NOTHING, ...about,
         constraint_count: row.constraint_ids.length, claim_count: row.claim_ids.length });
     }

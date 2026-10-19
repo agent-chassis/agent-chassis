@@ -136,7 +136,8 @@ signal catches them.
 | `all` | both, sorted |
 | `list` | prints the classification and exits |
 
-The runner forwards native Node options and accepts literal `.test.mjs` file
+The runner forwards native Node options, including `--enable-source-maps` for
+native proof coverage of installed artifacts after cleanup, and accepts literal `.test.mjs` file
 paths, including absolute paths outside the repository. Its per-test backstop is
 30s for unit and 120s for integration/all, overridable with `--test-timeout=`.
 It clamps `HOME` / `XDG` / credential / agent-identity environment variables.
@@ -246,18 +247,33 @@ cannot prove is the runner's own unchanged root.
   proves nothing.
 - **Recovery leaves live and unproven roots alone.** It opens a handle before proving
   ownership and holds it through both proofs and the removal. It removes a root
-  only when the marker's owner process or boot is gone. Roots whose markers use
-  another schema are not recovered. Every runner on the host recovers at
+  only when the owner process is absent or its pid has been reused in the same
+  boot and pid namespace, with `/proc` describing that namespace. The current
+  marker records that namespace. A different boot or process view cannot prove
+  exit: containers can share `/tmp` while hiding live owners or projecting a
+  different boot ID. Those roots are preserved, as are roots whose markers use
+  another schema. Every runner on the host recovers at
   startup, so a test that plants an abandoned root for its own runner to recover
   runs that scenario in a private `/tmp` mount namespace where one is available.
 - Every handle is released on every path, and a cleanup failure is reported per
   root and makes the run non-clean without changing the child's exit or signal.
 
-### Retained run artifacts and live timing
+### Run artifacts, explicit preservation and live timing
 
-Every finite `unit`, `integration` or `all` run retains a private diagnostic
-directory. `list` creates nothing. Before the suite starts the runner prints
-`[run-tests] artifacts=<dir> run=<id>` to stderr. After the suite it prints the
+Every finite `unit`, `integration` or `all` run records a private diagnostic
+directory and removes it after output drains and log descriptors close. This
+default applies to success, failure, watchdog expiry, catchable termination,
+partial setup failure and output-drain failure. Pass `--preserve-test-artifacts`
+to keep that invocation's diagnostics after exit. It takes no value, may appear
+only once, and is never inherited by nested runners. Selecting
+`--test-artifacts-dir` alone does not request preservation. For example:
+
+```sh
+node tests/run-tests.mjs integration --preserve-test-artifacts tests/integration/run-tests-artifacts.test.mjs
+```
+
+`list` creates nothing. Before the suite starts the runner prints
+`[run-tests] artifacts=<dir> run=<id> preserve=<true|false>` to stderr. After the suite it prints the
 slowest files, tests and component spans (at most 20 each), then
 `run status=<status> recording=<complete|incomplete> artifacts=<dir>`.
 
@@ -267,7 +283,10 @@ slowest files, tests and component spans (at most 20 each), then
 1. `--test-artifacts-dir=PATH` (or `--test-artifacts-dir PATH`), created 0700 if
    missing, within the caller's own write authority.
 2. A runner started inside another run's suite (a nested runner in a test)
-   allocates under `<outer-run>/nested/`. The outer runner passes
+   allocates under `<outer-run>/nested/`. If it explicitly preserves diagnostics
+   and its parent does not, it uses the inherited external storage base instead,
+   so parent cleanup cannot remove its preserved files. Ancestry remains in
+   `run.json`. The outer runner passes
    `PORTFOLIO_WIKI_TOOLS_TEST_RUN_CONTEXT` to its suite. This is routing data
    naming the run and its directory, and it grants nothing. The nested runner
    refuses it unless it names a real, non-symlink, current-uid, mode-0700
@@ -277,10 +296,16 @@ slowest files, tests and component spans (at most 20 each), then
 
 A base inside a runner-owned `HOME`/`TMPDIR` root is refused before launch with
 `test_runner.artifact_create_failed.v1`. There is no fallback probe, no
-overwrite and no pruning: a run never deletes another run's directory, and
-removing retained runs is up to the operator. "Retained" means the directory
-survives this run's own cleanup. It does not survive a launcher or session that
-discards its temporary filesystem.
+overwrite and no historical pruning. Each runner deletes only its own allocated
+directory, including disposable nested runs, after confirming its path still
+resolves to the held directory handle. Substitution or deletion failures are
+reported with the exact path and make an otherwise successful run fail. Explicitly
+preserved runs remain until the operator removes them. A launcher or session
+that discards its temporary filesystem can still remove preserved data.
+`SIGKILL`, OOM and power loss cannot run JavaScript cleanup and can leave partial
+diagnostic directories; stale recovery of `HOME`/`TMPDIR` does not recover those
+separate artifact directories. User-selected reporter output files and artifact
+base directories are not deleted.
 
 **Contents.** All files are mode 0600. Every record is appended as it is
 observed; nothing is buffered until the end of the suite. There is no fsync, so
@@ -719,6 +744,10 @@ request's span contains its retrieval pages' spans, so spans are never summed,
 and a helper-level saving is not a suite-level one.
 
 ## Public snapshot behaviour
+
+The public snapshot excludes `docs/benchmark-runs/` and `docs/scratch/`.
+Benchmark integration notes and scratch artifacts remain repository-local;
+the test dependency planner treats both as unavailable publication roots.
 
 `tools/agent-chassis-snapshot.mjs` consumes the same classifier and the same
 enumerator. It ships:

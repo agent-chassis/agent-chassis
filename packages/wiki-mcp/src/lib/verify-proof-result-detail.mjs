@@ -2,7 +2,7 @@ import { projectDiagnostic, STRUCTURED_DIAGNOSTIC_SCHEMA_VERSION }
   from "../../../wiki-core/src/lib/diagnostic-projection.mjs";
 import { classifyMutationOutcome, countMutationOutcomes } from
   "@agent-chassis/controlled-contract/test-proof-mutation-outcome";
-import { projectSelectedTestFailureDiagnostic } from
+import { projectSelectedTestFailureDiagnostic, reportedTestFailureLocation } from
   "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-error-diagnostic.mjs";
 import { fitWholePrefix, projectVerifyProofSummaryRow } from "./verify-proof-result-summary.mjs";
 const VERIFY_PROOF_TOOL_NAME = "workspace_verify_proof";
@@ -12,7 +12,7 @@ const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
 export const VERIFY_PROOF_EVIDENCE_MEANING = Object.freeze({
   proof_observation: "selected test outcome as observed (passed, failed, skipped or another reported status); not_observed when no selected-test event was recorded",
   mutation_evidence: "additional falsification evidence for the same proof, per member: detected, survived (counterevidence), unavailable (a capability limitation: no credit and no counterevidence) or unevaluable",
-  evaluator_outcome: "proven or unproven for the requested proof and tested source only; not_executable when required evidence is incomplete or cannot be evaluated; never a verdict on the whole unit"
+  evaluator_outcome: "requirement relationship outcome for the tested source only; unproven includes behavioral coverage not established despite valid execution; not_executable means required evidence is incomplete or cannot be evaluated; native test outcomes remain separate"
 });
 
 const PUBLIC_PROOF_STATUSES = Object.freeze({
@@ -71,6 +71,14 @@ function distinctDiagnosticCodes(relationships) {
 function projectProofRecovery(proof) {
   if (proof.status === "unsatisfied") {
     const failed = proof.relationship_results.filter(({ status }) => status === "unsatisfied");
+    if (failed.length > 0 && failed.every(({ reason_code: code }) =>
+      code === "verify_proof.behavioral_coverage_not_established.v1")) return Object.freeze({
+      condition: "behavioral_coverage_not_established",
+      diagnostic_codes: distinctDiagnosticCodes(failed),
+      effect: "no requirement-satisfaction credit; the selected test's actual outcome and execution evaluation are preserved",
+      responsible_actor: "verification_runtime_owner",
+      next_step: "Read the recorded execution evidence and the linked requirements. This evaluator establishes no behavioral coverage; an unchanged-input retry is not implied."
+    });
     return Object.freeze({
       condition: "evaluated_counterevidence",
       diagnostic_codes: distinctDiagnosticCodes(failed),
@@ -103,13 +111,15 @@ function projectProofRecovery(proof) {
 export const VERIFY_PROOF_TEST_FAILURE_DIAGNOSIS_SCHEMA_VERSION =
   "workspace-verify-proof-test-failure-diagnosis.v1";
 const DIAGNOSIS_MESSAGE_INLINE_BYTES = 1024;
+const DIAGNOSIS_RELATED_MESSAGE_INLINE_BYTES = 256;
+const DIAGNOSIS_RELATED_ERROR_LIMIT = 3;
 const DIAGNOSIS_IDENTITY_INLINE_BYTES = 160;
 const DIAGNOSIS_RELATED_CODE_LIMIT = 16;
 const DIAGNOSIS_ISSUE_LIMIT = 8;
 const DIAGNOSIS_DETAIL_LIMIT = 8;
 const utf8Bytes = (text) => Buffer.byteLength(text, "utf8");
 
-export function distillSelectedTestFailure(selection) {
+export function distillSelectedTestFailure(selection, { complete = false } = {}) {
   const issues = Array.isArray(selection?.issues) ? selection.issues : [];
   const frame = {
     schema_version: VERIFY_PROOF_TEST_FAILURE_DIAGNOSIS_SCHEMA_VERSION,
@@ -117,8 +127,8 @@ export function distillSelectedTestFailure(selection) {
     ...(selection?.origin === undefined ? {} : { origin: { ...selection.origin } })
   };
 
-  const issueFacts = { issues: issues.slice(0, DIAGNOSIS_ISSUE_LIMIT).map(({ path, reason }) => ({ path, reason })),
-    ...(issues.length <= DIAGNOSIS_ISSUE_LIMIT ? {} : { issues_omitted: issues.length - DIAGNOSIS_ISSUE_LIMIT }) };
+  const issueFacts = { issues: issues.slice(0, complete ? issues.length : DIAGNOSIS_ISSUE_LIMIT).map(({ path, reason }) => ({ path, reason })),
+    ...(complete || issues.length <= DIAGNOSIS_ISSUE_LIMIT ? {} : { issues_omitted: issues.length - DIAGNOSIS_ISSUE_LIMIT }) };
   const root = selection?.error;
   if (frame.status !== "captured" || root === null || typeof root !== "object") {
     return Object.freeze({ ...frame, ...issueFacts });
@@ -129,7 +139,7 @@ export function distillSelectedTestFailure(selection) {
     if (error === null || typeof error !== "object" || error.ref !== undefined) return;
     if (!isRoot) related.push(error);
     if (error.stack !== undefined) retained.add("stack");
-    if (error.native_details !== undefined) retained.add("native_details");
+    if (!complete && error.native_details !== undefined) retained.add("native_details");
     if (error.cause !== undefined) visit(error.cause, false);
     for (const member of error.aggregate_errors ?? []) visit(member, false);
     for (const field of ["expected", "actual", "value"]) {
@@ -137,48 +147,92 @@ export function distillSelectedTestFailure(selection) {
     }
   };
   visit(root, true);
-  if (root.cause !== undefined) retained.add("cause");
-  if (root.aggregate_errors !== undefined) retained.add("aggregate_errors");
-  const error = {};
-  for (const field of ["name", "message", "code", "operator", "generated_message"]) {
-    const value = root[field];
-    if (value === undefined) continue;
-    const limit = field === "message" ? DIAGNOSIS_MESSAGE_INLINE_BYTES : DIAGNOSIS_IDENTITY_INLINE_BYTES;
-    if (typeof value !== "string" || utf8Bytes(value) <= limit) error[field] = value;
-    else {
-      error[`${field}_retained`] = { utf8_bytes: utf8Bytes(value) };
-      retained.add(field);
-    }
-  }
-  if (root.location !== undefined) error.location = { ...root.location };
-  for (const field of ["expected", "actual", "value"]) {
-    if (root[field] === undefined) continue;
-    error[field] = root[field].type === "error" ? { type: "error", deferred: true } : { ...root[field] };
-  }
+  if (!complete && root.cause !== undefined) retained.add("cause");
+  if (!complete && root.aggregate_errors !== undefined) retained.add("aggregate_errors");
+  let remaining = complete ? Infinity : DIAGNOSIS_RELATED_ERROR_LIMIT;
+  const projectError = (source, isRoot = false) => {
+    if (source.ref !== undefined) return { ref: source.ref };
+    if (!isRoot && remaining-- <= 0) return { deferred: true, ref: source.id,
+      reason: "presentation_error_limit" };
+    const error = complete && source.id !== undefined ? { id: source.id } : {};
+    for (const field of ["name", "message", "code", "operator", "generated_message"]) {
+      const value = source[field];
+      if (value === undefined) continue;
+      const limit = complete ? Infinity : field === "message" ? (isRoot ? DIAGNOSIS_MESSAGE_INLINE_BYTES
+        : DIAGNOSIS_RELATED_MESSAGE_INLINE_BYTES) : DIAGNOSIS_IDENTITY_INLINE_BYTES;
+      if (typeof value !== "string" || utf8Bytes(value) <= limit) error[field] = value;
+      else if (field === "message") {
 
-  if (Array.isArray(root.native_details)) {
-    error.native_details = root.native_details.slice(0, DIAGNOSIS_DETAIL_LIMIT)
-      .filter(({ label }) => typeof label === "string" && utf8Bytes(label) <= DIAGNOSIS_IDENTITY_INLINE_BYTES)
-      .map(({ label, text, utf8_bytes: bytes }) => ({ label, deferred: true,
-        utf8_bytes: typeof text === "string" ? utf8Bytes(text) : bytes }));
-  }
+        let prefix = "";
+        let bytes = 0;
+        for (const character of value) {
+          const size = utf8Bytes(character);
+          if (bytes + size > limit) break;
+          prefix += character;
+          bytes += size;
+        }
+        error.message = prefix;
+        error.message_presentation = { status: "partial", retained_utf8_bytes: utf8Bytes(value),
+          returned_utf8_bytes: bytes, omitted_utf8_bytes: utf8Bytes(value) - bytes };
+        retained.add(field);
+      } else {
+        error[`${field}_retained`] = { utf8_bytes: utf8Bytes(value) };
+        retained.add(field);
+      }
+    }
+
+    const location = source.location ?? (isRoot ? undefined
+      : reportedTestFailureLocation(undefined, (source.stack ?? "").split("\n")));
+    if (location !== undefined) {
+      error.location = { ...location };
+      if (source.location === undefined) error.location_source = "native_stack";
+    }
+    for (const field of ["expected", "actual", "value"]) {
+      if (source[field] === undefined) continue;
+      error[field] = source[field].type === "error" ? (complete ? { type: "error", error: projectError(source[field].error) } : { type: "error", deferred: true }) : { ...source[field] };
+    }
+
+    if (Array.isArray(source.native_details)) {
+      error.native_details = source.native_details.slice(0, complete ? source.native_details.length : DIAGNOSIS_DETAIL_LIMIT)
+        .filter(({ label }) => typeof label === "string" && (complete || utf8Bytes(label) <= DIAGNOSIS_IDENTITY_INLINE_BYTES))
+        .map(({ label, text, utf8_bytes: bytes }) => complete ? { label, text, utf8_bytes: typeof text === "string" ? utf8Bytes(text) : bytes } : ({ label, deferred: true,
+          utf8_bytes: typeof text === "string" ? utf8Bytes(text) : bytes }));
+      const omitted = source.native_details.length - error.native_details.length;
+      if (omitted > 0) error.native_details_omitted = omitted;
+    }
+
+    if (source.cause !== undefined && (complete || source.cause.value === undefined)) {
+      error.cause = source.cause.value === undefined ? projectError(source.cause) : structuredClone(source.cause);
+    }
+    if (Array.isArray(source.aggregate_errors)) {
+      error.aggregate_errors = [];
+      for (const member of source.aggregate_errors) {
+        if (remaining <= 0) break;
+        error.aggregate_errors.push(projectError(member));
+      }
+      const omitted = source.aggregate_errors.length - error.aggregate_errors.length;
+      if (omitted > 0) error.aggregate_errors_omitted = omitted;
+    }
+    return error;
+  };
+  const error = projectError(root, true);
   const codes = [...new Set(related.map(({ code }) => code).filter((code) =>
-    typeof code === "string" && utf8Bytes(code) <= DIAGNOSIS_IDENTITY_INLINE_BYTES))];
+    typeof code === "string" && (complete || utf8Bytes(code) <= DIAGNOSIS_IDENTITY_INLINE_BYTES)))];
   return Object.freeze({
     ...frame,
     error,
     ...(related.length === 0 ? {} : { related_errors: {
       count: related.length,
-      codes: codes.slice(0, DIAGNOSIS_RELATED_CODE_LIMIT),
-      codes_omitted: Math.max(0, codes.length - DIAGNOSIS_RELATED_CODE_LIMIT)
+      codes: complete ? codes : codes.slice(0, DIAGNOSIS_RELATED_CODE_LIMIT),
+      codes_omitted: complete ? 0 : Math.max(0, codes.length - DIAGNOSIS_RELATED_CODE_LIMIT)
     } }),
     ...(retained.size === 0 ? {} : { retained_fields: [...retained].sort() }),
     ...issueFacts
   });
 }
 
-export function distillTestFailureDiagnostic(diagnostic) {
-  return distillSelectedTestFailure(projectSelectedTestFailureDiagnostic(diagnostic));
+export function distillTestFailureDiagnostic(diagnostic, options) {
+  return distillSelectedTestFailure(projectSelectedTestFailureDiagnostic(diagnostic), options);
 }
 
 export function projectObservedIdentity(event) {
@@ -315,13 +369,21 @@ function boundedRegressionFact(fact) {
   }));
 }
 
-export function projectVerifyProofRegressions(evidence) {
+function regressionDiagnosticMeaning(name, fact) {
+  if (name !== 'runner_selection') return fact;
+  const { file: _file, configuration: _configuration, correction: _setup, ...meaning } = fact;
+  return { ...meaning,
+    stopping_condition: "No MCP call can choose this file's runner. The configuration owner must resolve this selection before this file can execute." };
+}
+
+export function projectVerifyProofRegressions(evidence, { complete = false, problemsOnly = false } = {}) {
   const regressions = evidence?.regression_results;
   if (regressions === undefined || regressions === null) return undefined;
-  const ordered = regressions.results.map((row, index) => ({ row, index }))
+  const ordered = regressions.results.filter(row => !problemsOnly || row.status !== "passed")
+    .map((row, index) => ({ row, index }))
     .sort((left, right) => Number(left.row.status === "passed") - Number(right.row.status === "passed") ||
       left.index - right.index);
-  const kept = ordered.slice(0, VERIFY_PROOF_REGRESSION_ROW_LIMIT);
+  const kept = ordered.slice(0, complete ? ordered.length : VERIFY_PROOF_REGRESSION_ROW_LIMIT);
   return {
     source_unit: regressions.source_unit,
     proof_credit_granted: regressions.proof_credit_granted,
@@ -332,14 +394,24 @@ export function projectVerifyProofRegressions(evidence) {
       ...(row.reason_code === null || row.reason_code === undefined ? {} : { reason_code: row.reason_code }),
       ...(row.runner === undefined ? {} : { runner: row.runner.runner }),
       ...(row.execution === undefined ? {} : { exit_code: row.execution.exit_code }),
+      ...(row.status === 'passed' || row.execution === undefined ? {} : { execution: {
+        executed: row.execution.executed,
+        ...(row.execution.signal == null ? {} : { signal: row.execution.signal }),
+        ...Object.fromEntries(['timed_out', 'cancelled', 'cleanup_failed', 'output_lost']
+          .filter(key => row.execution[key] === true).map(key => [key, true]))
+      } }),
+      ...(row.status === 'passed' || row.diagnosis === undefined ? {} : { diagnosis: structuredClone(row.diagnosis) }),
 
       ...(row.status === "passed" ? {} : Object.fromEntries(REGRESSION_DIAGNOSTIC_FACTS
         .filter((name) => row[name] !== null && typeof row[name] === "object")
-        .map((name) => [name, boundedRegressionFact(row[name])]))),
-      ...(row.native_read === undefined ? {} : { native_read: structuredClone(row.native_read) })
+        .map((name) => {
+          const meaning = regressionDiagnosticMeaning(name, row[name]);
+          return [name, complete ? structuredClone(meaning) : boundedRegressionFact(meaning)];
+        }))),
+      ...(row.native_read === undefined ? {} : { native_read: structuredClone(row.native_read) }),
+      ...(row.native_diagnosis === undefined ? {} : { native_diagnosis: structuredClone(row.native_diagnosis) })
     })),
-    results_returned: kept.length,
-    results_omitted: ordered.length - kept.length
+    ...(ordered.length === kept.length ? {} : { results_omitted: ordered.length - kept.length })
   };
 }
 
@@ -356,7 +428,7 @@ export function selectVerifyProofRows(evidence, subject) {
 }
 
 const SELECTED_JOIN_FACTS = Object.freeze(["join_kind", "arity", "owner_code", "path",
-  "resolved_node_identity", "case_id"]);
+  "case_id"]);
 const isScalar = (value) => value === null || ["string", "number", "boolean"].includes(typeof value);
 
 const MISSING_SELECTION_IDENTITY = Object.freeze(["code", "obligation_id", "field"]);
@@ -410,7 +482,7 @@ function selectedDiagnostic(entry, idLimit) {
   };
 }
 
-function selectedTestFailure(proof) {
+function selectedTestFailure(proof, complete) {
   const observed = proof.observed_evidence;
   if ((observed === undefined || observed === null) && proof.selected_observation !== undefined) {
     const { test_id: testId, file, name, status, skip_phase: skipPhase,
@@ -436,7 +508,7 @@ function selectedTestFailure(proof) {
       diagnostic: event.failure_diagnostic === undefined
         ? { status: "not_captured",
           meaning: "the provider recorded no structured failure diagnostic for this test" }
-        : distillTestFailureDiagnostic(event.failure_diagnostic)
+        : distillTestFailureDiagnostic(event.failure_diagnostic, { complete })
     })
   };
 }
@@ -477,8 +549,21 @@ export function projectProofCheckLimitations(proof) {
   });
 }
 
-function projectSelectedProof(proof, subject, ids) {
-  const row = projectVerifyProofSummaryRow(proof);
+export function projectProofTraversal(proof, { complete = false, problemsOnly = false } = {}) {
+  const observations = (proof.observed_evidence?.traversal_observations ?? [])
+    .filter(row => !problemsOnly || !row.observed || !row.target_pass_observed);
+  if (observations.length === 0) return undefined;
+  const kept = complete ? observations : observations.slice(0, 8);
+  return { total: observations.length, omitted: observations.length - kept.length,
+    observations: kept.map((entry) => ({ ...entry,
+      meaning: entry.observed
+        ? entry.target_pass_observed ? "implementation reached; selected test passed"
+          : "implementation reached; selected test failed"
+        : "required reach not observed" })) };
+}
+
+function projectSelectedProof(proof, subject, ids, complete) {
+  const row = projectVerifyProofSummaryRow(proof, { complete });
   const byObligation = subject !== proof.test_proof_id;
   return {
     ...row,
@@ -490,7 +575,7 @@ function projectSelectedProof(proof, subject, ids) {
     ...(proof.status === "proven" ? {} : {
       failure: {
         ...(proof.reason_code === undefined ? {} : { reason_code: proof.reason_code }),
-        selected_test: selectedTestFailure(proof),
+        selected_test: selectedTestFailure(proof, complete),
         relationships: selectedFailedRelationships(proof, subject).map((relationship) => ({
           obligation_id: relationship.obligation_id,
           status: relationship.status,
@@ -503,7 +588,7 @@ function projectSelectedProof(proof, subject, ids) {
   };
 }
 
-export function projectVerifyProofSelectedDetail(evidence, subject, { fits = () => true } = {}) {
+export function projectVerifyProofSelectedDetail(evidence, subject, { fits = () => true, completeDiagnosis = false } = {}) {
   const proofs = selectVerifyProofRows(evidence, subject);
   if (proofs.length === 0) return null;
   const total = proofs.flatMap((proof) => selectedFailedRelationships(proof, subject))
@@ -524,10 +609,10 @@ export function projectVerifyProofSelectedDetail(evidence, subject, { fits = () 
       subject: structuredClone(evidence.subject),
       subject_binding: structuredClone(evidence.subject_binding),
       evidence_meaning: VERIFY_PROOF_EVIDENCE_MEANING,
-      proofs: proofs.map((proof) => projectSelectedProof(proof, subject, ids)),
+      proofs: proofs.map((proof) => projectSelectedProof(proof, subject, ids, completeDiagnosis)),
 
       ...(projectVerifyProofRegressions(evidence) === undefined ? {}
-        : { regressions: projectVerifyProofRegressions(evidence) })
+        : { regressions: projectVerifyProofRegressions(evidence, { complete: completeDiagnosis, problemsOnly: true }) })
     };
   };
   return fitWholePrefix(total, build, fits);

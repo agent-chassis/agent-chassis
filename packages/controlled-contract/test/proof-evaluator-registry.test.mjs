@@ -13,7 +13,7 @@ async function loadExecutionPack() {
   const { loadExactAdmittedProofPack } = await import("../lib/admitted-proof-packs.mjs");
   return loadExactAdmittedProofPack({
     profileId: "proof.verification.test-validity",
-    profileVersion: "11.0.0"
+    profileVersion: "12.0.0"
   });
 }
 
@@ -76,7 +76,7 @@ async function copiedRegistry({ evaluatorSource, registryTransform = (source) =>
   const registrySource = await readFile(new URL(
     "../lib/proof-evaluator-registry.mjs", import.meta.url), "utf8");
   const evaluatorPath = path.join(temporary,
-    "profiles/proof.verification.test-validity/11.0.0/evaluator.mjs");
+    "profiles/proof.verification.test-validity/12.0.0/evaluator.mjs");
   await mkdir(path.dirname(evaluatorPath), { recursive: true });
   await mkdir(path.join(temporary, "lib"));
   if (writeEvaluator) await writeFile(evaluatorPath, evaluatorSource);
@@ -89,13 +89,13 @@ async function copiedRegistry({ evaluatorSource, registryTransform = (source) =>
 
 const proofPack = { profile: {
   profile_id: "proof.verification.test-validity",
-  profile_version: "11.0.0"
+  profile_version: "12.0.0"
 } };
 
 test("exact evaluator resolution rejects comment-only and semantic byte drift", async (t) => {
   const { resolveExactProofEvaluator } = await loadRegistry();
   const evaluatorSource = await readFile(new URL(
-    "../profiles/proof.verification.test-validity/11.0.0/evaluator.mjs",
+    "../profiles/proof.verification.test-validity/12.0.0/evaluator.mjs",
     import.meta.url), "utf8");
 
   const loadCopied = async (options) => {

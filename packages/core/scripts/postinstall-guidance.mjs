@@ -2,18 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DETECTED_AGENTS = Object.freeze([
-  Object.freeze({
-    key: "claude",
-    label: "Claude",
-    command: "claude"
-  }),
-  Object.freeze({
-    key: "codex",
-    label: "Codex",
-    command: "codex"
-  })
-]);
+import { SETUP_AGENTS, setupAgentChoices, setupAgentCommands } from "./setup-agent-catalog.mjs";
 
 function defaultCommandAvailable(command) {
   try {
@@ -34,7 +23,7 @@ function defaultCommandAvailable(command) {
 
 export function detectAvailableAgents({ commandAvailable = defaultCommandAvailable } = {}) {
   const availability = {};
-  for (const agent of DETECTED_AGENTS) {
+  for (const agent of SETUP_AGENTS) {
     try {
       availability[agent.key] = commandAvailable(agent.command) === true;
     } catch {
@@ -45,7 +34,7 @@ export function detectAvailableAgents({ commandAvailable = defaultCommandAvailab
 }
 
 export function renderPostinstallGuidance(availability = {}) {
-  const availableAgents = DETECTED_AGENTS.filter((agent) => availability[agent.key] === true);
+  const availableAgents = SETUP_AGENTS.filter((agent) => availability[agent.key] === true);
   const lines = [
     "AgentChassis installed.",
     "Run first-time setup from your consumer repo root:",
@@ -54,15 +43,15 @@ export function renderPostinstallGuidance(availability = {}) {
 
   if (availableAgents.length === 0) {
     lines.push(
-      "No supported agent CLI was detected on PATH (checked: claude, codex).",
-      "After installing one, rerun setup or pass --agent claude|codex."
+      `No supported agent CLI was detected on PATH (checked: ${SETUP_AGENTS.map(agent => agent.command).join(", ")}).`,
+      `After installing one, rerun setup or pass --agent ${setupAgentChoices()}.`
     );
     return lines.join("\n");
   }
 
   lines.push(`Detected agent CLIs: ${availableAgents.map((agent) => agent.label).join(", ")}.`);
   if (availableAgents.length > 1) {
-    lines.push("Use --agent claude or --agent codex to choose non-interactively.");
+    lines.push(`Use ${setupAgentCommands(availableAgents)} to choose non-interactively.`);
   }
   return lines.join("\n");
 }

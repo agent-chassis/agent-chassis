@@ -392,6 +392,7 @@ function createStdioMcpConnectionAdmissionInternal({
           closeGeneration = () => {
             if (closePromise !== null) return closePromise;
             closePromise = Promise.resolve().then(() => generation.close?.())
+              .catch((error) => { cleanupFailure ??= error; throw error; })
               .finally(() => generations.delete(generation));
             return closePromise;
           };
@@ -436,7 +437,8 @@ function createStdioMcpConnectionAdmissionInternal({
           if (!socket.destroyed) socket.write(encodeStdioMcpAdmissionAcknowledgement());
           forwardBufferedBytes(generation, initialBytes);
 
-          input.on("error", () => {});
+          generation.lifecycle?.failureSettlement?.then(() => finish(
+            STDIO_MCP_ADMISSION_REASONS.GENERATION_FAILED));
 
           socket.on("end", () => {
             recordGenerationClientTransportEof(generation, (error) => {
@@ -454,7 +456,7 @@ function createStdioMcpConnectionAdmissionInternal({
             void disposeGeneration().catch((error) => { cleanupFailure ??= error; });
             void finish(null);
           });
-        }).catch((error) => {
+        }).catch(() => {
           reservations.delete(state);
           if (closeGeneration) {
             void closeGeneration().catch((closeError) => { cleanupFailure ??= closeError; });
@@ -466,7 +468,6 @@ function createStdioMcpConnectionAdmissionInternal({
             onRejection(reason);
           }
           void finish(reason);
-          if (error !== ADMISSION_CLOSED_DURING_READINESS) cleanupFailure ??= error;
         }).finally(() => {
           factories.delete(factory);
         });

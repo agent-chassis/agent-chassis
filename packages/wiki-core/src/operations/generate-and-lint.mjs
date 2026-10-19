@@ -113,6 +113,16 @@ const DEFAULT_DEPENDENCIES = Object.freeze({
   lintRepoFromCapturedCorpus
 });
 
+export class GenerateAndLintExecutionError extends Error {
+  constructor(cause, phaseFacts, completedResult) {
+    super(cause?.message ?? String(cause), { cause });
+    this.name = "GenerateAndLintExecutionError";
+    this.code = cause?.code ?? "generate_and_lint_execution_unavailable";
+    this.phase_facts = { ...phaseFacts };
+    this.completed_result = completedResult;
+  }
+}
+
 async function generateAndLintImpl({
   dir = ".",
   profile = null,
@@ -126,69 +136,77 @@ async function generateAndLintImpl({
   instrumentation = null,
   identifyRecords = null
 } = {}, dependencies = DEFAULT_DEPENDENCIES) {
-  const targetDir = path.resolve(String(dir));
-  const context = await dependencies.resolveContractContext(targetDir, {
-    profile,
-    extensionNamespaces
-  });
-  const operationDate = resolveOperationDate(clock);
-  const snapshot = await dependencies.createWorkRecordCorpusSnapshot({
-    dir: targetDir,
-    instrumentation
-  });
+  const phases = { generated_views: "not_evaluated", lint: "not_evaluated", checked_corpus: null };
+  let completedResult = null;
   try {
-    if (typeof instrumentation?.increment === "function") {
-      instrumentation.increment("canonical_state_load_count", 1);
-    }
-    const canonicalState = await dependencies.loadCanonicalState(targetDir, {
-      extensionNamespaces: context.extensionNamespaces,
-      workRecords: snapshot.loads
-    });
-    const generatedBuild = await dependencies.buildGeneratedViewsFromCanonicalState({
-      targetDir,
-      context,
-      canonicalState,
-      operationDate,
-      instrumentation
-    });
-    const generated = await dependencies.generateViewsFromBuild(generatedBuild);
-
-    const lint = await dependencies.lintRepoFromCapturedCorpus({
-      dir: targetDir,
+    const targetDir = path.resolve(String(dir));
+    const context = await dependencies.resolveContractContext(targetDir, {
       profile,
-      extensionNamespaces,
-      includeAllFindings: true,
-      instrumentation
-    }, {
-      context,
-      operationDate,
-      workRecordSnapshot: snapshot,
-      canonicalState,
-      generatedBuild
+      extensionNamespaces
     });
+    const operationDate = resolveOperationDate(clock);
+    const snapshot = await dependencies.createWorkRecordCorpusSnapshot({
+      dir: targetDir,
+      instrumentation
+    });
+    try {
+      phases.checked_corpus = describeCheckedCorpus(snapshot.loads ?? [], identifyRecords);
+      if (typeof instrumentation?.increment === "function") {
+        instrumentation.increment("canonical_state_load_count", 1);
+      }
+      const canonicalState = await dependencies.loadCanonicalState(targetDir, {
+        extensionNamespaces: context.extensionNamespaces,
+        workRecords: snapshot.loads
+      });
+      const generatedBuild = await dependencies.buildGeneratedViewsFromCanonicalState({
+        targetDir,
+        context,
+        canonicalState,
+        operationDate,
+        instrumentation
+      });
+      phases.generated_views = "unknown";
+      const generated = await dependencies.generateViewsFromBuild(generatedBuild);
+      phases.generated_views = "regenerated";
 
-    const includeFullOutput =
-      verbose === true || includeAllFindings === true || include_all_findings === true;
+      phases.lint = "unavailable";
+      const lint = await dependencies.lintRepoFromCapturedCorpus({
+        dir: targetDir,
+        profile,
+        extensionNamespaces,
+        includeAllFindings: true,
+        instrumentation
+      }, {
+        context,
+        operationDate,
+        workRecordSnapshot: snapshot,
+        canonicalState,
+        generatedBuild
+      });
+      phases.lint = "completed";
 
-    const compactResult = {
-      ...buildLintFindingsResponse(lint, {
-        maxFindings: maxFindings ?? max_findings
-      }),
-      checked_corpus: describeCheckedCorpus(snapshot.loads ?? [], identifyRecords)
-    };
+      const includeFullOutput =
+        verbose === true || includeAllFindings === true || include_all_findings === true;
 
-    if (includeFullOutput) {
-      return {
+      const compactResult = {
+        ...buildLintFindingsResponse(lint, {
+          maxFindings: maxFindings ?? max_findings
+        }),
+        checked_corpus: phases.checked_corpus
+      };
+
+      completedResult = {
         ...compactResult,
         targetDir: generated.targetDir,
         generated,
         lint
       };
+      return includeFullOutput ? completedResult : compactResult;
+    } finally {
+      snapshot.release();
     }
-
-    return compactResult;
-  } finally {
-    snapshot.release();
+  } catch (error) {
+    throw new GenerateAndLintExecutionError(error, phases, completedResult);
   }
 }
 

@@ -28,7 +28,7 @@ import { readCanonicalWorkRecord } from "./backend-scope-authority.mjs";
 import { isLandedPublicationIdentity } from "./launcher-transition-plan.mjs";
 import { projectProvisioningRefusal } from "./backend-provisioning-refusal-projection.mjs";
 
-import { runMaybeAsyncGenerator } from "./slice-integration-authorization.mjs";
+import { runMaybeAsyncGenerator, distillGitReadFailure } from "./slice-integration-authorization.mjs";
 import {
   INTEGRATED_DELIVERY_OBSERVATION_STATES,
   classifyExactDirectCommitRef,
@@ -239,37 +239,57 @@ function probeExactAncestry(runGit, mainRepo, ancestor, descendant, cache) {
 
 function resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch }) {
   if (wkTip !== null) return Object.freeze({ base_ref: wkRef, base_sha: wkTip });
+  return runMaybeAsyncGenerator(function* selectedBaseSteps() {
   let resolved;
   try {
     resolved = resolveIndependentUnitBase({ mainRepo, base: baseBranch, deps: { runGit } });
-  } catch {
-    return null;
+  } catch (error) {
+    if (typeof baseBranch !== "string" || baseBranch.length === 0) {
+      return exactSliceResolutionFailure("scope_existence_base_unresolved", {
+        wk_ref: wkRef, base_branch: baseBranch ?? null,
+        resolution_failure: { code: error.code ?? error.name, message: error.message }
+      });
+    }
+    const ref = `refs/heads/${baseBranch}`;
+    const observation = yield classifyExactDirectCommitRef(runGit, mainRepo, ref);
+    return exactSliceResolutionFailure("scope_existence_base_unresolved", {
+      wk_ref: wkRef, base_branch: baseBranch, required_ref: ref,
+      resolution_failure: { code: error.code ?? error.name, message: error.message,
+        read: distillGitReadFailure("rev-parse", ref, { outcome: "failed",
+          ...(error.detail ?? {}), error: error.detail?.error ?? error.cause?.message ?? null }),
+        exact_ref: observation }
+    });
   }
   const baseRef = resolved?.base_ref;
   const baseSha = resolved?.base_sha;
   if (typeof baseRef !== "string" || baseRef.length === 0 || typeof baseSha !== "string" ||
       !EXACT_OID_RE.test(baseSha) || /^0+$/u.test(baseSha)) {
-    return null;
+    return exactSliceResolutionFailure("scope_existence_base_unresolved", {
+      wk_ref: wkRef, base_branch: baseBranch ?? null,
+      resolution_failure: { code: "scope_existence_base_result_invalid",
+        message: "Selected base resolution returned an invalid ref or commit identity",
+        observed_base: { base_ref: baseRef ?? null, base_sha: baseSha ?? null } }
+    });
   }
   return Object.freeze({ base_ref: baseRef, base_sha: baseSha });
+  });
 }
 
 function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch }) {
   return runMaybeAsyncGenerator(function* stableScopeExistenceBaseSteps() {
-  const captured = resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
-  if (captured === null) {
-    return exactSliceResolutionFailure("scope_existence_base_unresolved", { wk_ref: wkRef });
-  }
+  const captured = yield resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
+  if (captured.ok === false) return captured;
   const recheck = yield observeExactWkTip(runGit, mainRepo, wkRef);
   if (recheck.state === "unreadable") return unreadableWkTipFailure(wkRef, recheck, "recheck");
-  const observed = resolveScopeExistenceBase({
+  const observed = yield resolveScopeExistenceBase({
     runGit,
     mainRepo,
     wkRef,
     wkTip: recheck.sha,
     baseBranch
   });
-  if (observed === null || observed.base_ref !== captured.base_ref ||
+  if (observed.ok === false) return observed;
+  if (observed.base_ref !== captured.base_ref ||
       observed.base_sha !== captured.base_sha) {
     return exactSliceResolutionFailure("scope_existence_base_unstable", {
       wk_ref: wkRef,
@@ -296,6 +316,7 @@ export const EXACT_SLICE_RESOLUTION_FAILURE_REASONS = Object.freeze({
   [EXACT_SLICE_RESOLUTION_FAILURE_CLASSES.LIFECYCLE]: Object.freeze([
     "exact_slice_required",
     "exact_implementation_slice_unresolved",
+    "missing_initiative_ref_namespace",
     "exact_slice_accumulated_implementation_requires_integration",
     "launcher_transition_settlement_unverifiable",
     "launcher_transition_planned_base_mismatch",
@@ -375,8 +396,16 @@ export function resolveExactSliceDependencies(
   if (!match) return exactSliceResolutionFailure("exact_slice_required");
   const record = readCanonicalWorkRecord(mainRepo, subject);
   const slice = Array.isArray(record?.slices) ? record.slices.find((candidate) => candidate?.id === match[2]) : null;
-  if (!record || !/^IN-\d{4}$/.test(record.initiative ?? "") || !slice || slice.work_kind !== "implementation") {
-    return exactSliceResolutionFailure("exact_implementation_slice_unresolved");
+  if (!record || !slice || slice.work_kind !== "implementation") {
+    return exactSliceResolutionFailure("exact_implementation_slice_unresolved", { assignment_correction: {
+      requested_unit: subject, unit: match[1], authored_field: 'changes.ready_slices',
+      instruction: 'Read the saved slice identities and intended work. Select the intended implementation assignment or author it through save_record changes.ready_slices, preserving the original work intent.' } });
+  }
+
+  if (!/^IN-\d{4}$/.test(record.initiative ?? "")) {
+    return exactSliceResolutionFailure("missing_initiative_ref_namespace", { record_id: record.id,
+      assignment_correction: { requested_unit: subject, unit: record.id, authored_field: 'changes.initiative',
+        instruction: 'Read the parent current revision and its initiative authoring schema. Choose an existing canonical initiative, save changes.initiative on the parent, then continue the same implementation assignment.' } });
   }
   const selectedUnit = { ...slice, kind: "slice" };
   const additionalRecords = new Map();
@@ -624,9 +653,15 @@ export function resolveExactSliceDependencies(
       });
     }
     if (unmet.length > 0) {
+      const identities = unmet.filter(entry => ['dependency_identity_unresolved', 'fact_resolution_failed',
+        'dependency_self_edge_forbidden'].includes(entry.reason));
       return exactSliceResolutionFailure("unit_dependencies_unmet", {
         unmet: unmet.map((entry) => entry.dependency),
-        dependency_diagnostics: unmet
+        dependency_diagnostics: unmet,
+        ...(identities.length ? { identity_correction: { unit: subject, parent: record.id,
+          rejected: identities.map(({ dependency, reason, failure_code }) => ({ dependency, reason,
+            ...(failure_code == null ? {} : { cause: failure_code }) })),
+          authored_field: 'changes.depends_on' } } : {})
       });
     }
     if (capturedDependencyRefs.size === 0) {

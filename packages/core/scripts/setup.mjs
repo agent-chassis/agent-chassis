@@ -7,30 +7,19 @@ import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 import { parseExecutableSelector, parseRunnerSelector } from "./test-runtime-setup/cli.mjs";
+import { SETUP_AGENTS, setupAgentChoices, setupAgentCommands } from "./setup-agent-catalog.mjs";
+
+export { SETUP_AGENTS } from "./setup-agent-catalog.mjs";
 
 const TEST_RUNTIME_SETUP_MODULE = "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/index.mjs";
 
-export const SETUP_AGENTS = Object.freeze([
-  Object.freeze({
-    key: "claude",
-    label: "Claude",
-    command: "claude",
-    template: "agent-launch.claude.toml"
-  }),
-  Object.freeze({
-    key: "codex",
-    label: "Codex",
-    command: "codex",
-    template: "agent-launch.codex.toml"
-  })
-]);
-
-const USAGE = `Usage: agent-chassis setup [--agent claude|codex] [--dry-run]
+const USAGE = `Usage: agent-chassis setup [--agent ${setupAgentChoices()}] [--dry-run]
               [--language <name>] [--runner <name>[@<project>]]...
               [--executable <toolchain>=<absolute-path>]...
+              [--test-runtime-report <path>]
        agent-chassis setup --test-runtimes [options]
 
-Runs first-time AgentChassis setup from a consumer repo root:
+Runs AgentChassis setup from a consumer repo root:
   - npx wiki bootstrap --profile standard
   - copy the matching launcher template to agent-launch.toml when absent
   - npx agent-launch init-config
@@ -42,10 +31,12 @@ Runs first-time AgentChassis setup from a consumer repo root:
     you installed for each environment, prove them in the sandbox and publish
     readiness through the launcher-owned setup; nothing is downloaded or
     installed
-  - print operator-owned root-guidance, staging, code-index, and orchestrator commands
+  - print remaining operator-owned guidance, commit, and launch steps
 
-This command is for a new repository. Setup never creates, reads, modifies, or
-deletes root AGENTS.md or CLAUDE.md. Run the printed commands to create them.
+Use this in a new or existing repository. Setup never creates, reads, modifies,
+or deletes root AGENTS.md or CLAUDE.md. Follow the printed guidance steps while
+preserving existing instructions. Setup does not merge guidance or perform a
+general migration of obsolete AgentChassis state.
 
 Test-runtime options (all optional; setup asks only where a toolchain is
 installed when PATH has none, and says exactly which option to pass when it
@@ -56,6 +47,9 @@ cannot ask):
   --executable <toolchain>=<absolute-path>
                                 where a toolchain is installed, when PATH has
                                 none or the wrong one (repeatable)
+
+--test-runtime-report <path> writes compact diagnostic facts for this invocation's
+last step, separately from readiness history. A requested report must be preserved.
 
 Exit status: 0 when setup succeeded, which includes a repository with no test
 project and is not by itself runtime readiness; 3 when every earlier step
@@ -94,6 +88,7 @@ function parseArgs(argv) {
   const options = {
     agent: null,
     dryRun: false,
+    testRuntimeReport: null,
     language: null,
     runners: [],
     executables: {}
@@ -107,6 +102,11 @@ function parseArgs(argv) {
     } else if (name === "--agent") {
       const { value, next } = valueOf(argv, index, name);
       options.agent = value;
+      index = next;
+    } else if (name === "--test-runtime-report") {
+      const { value, next } = valueOf(argv, index, name);
+      if (!value || value.startsWith("--")) throw new Error(`${name} requires a path`);
+      options.testRuntimeReport = value;
       index = next;
     } else if (name === "--language") {
       const { value, next } = valueOf(argv, index, name);
@@ -129,7 +129,7 @@ function parseArgs(argv) {
   }
 
   if (options.agent !== null && !SETUP_AGENTS.some((agent) => agent.key === options.agent)) {
-    throw new Error(`Unsupported --agent value: ${options.agent}`);
+    throw new Error(`Unsupported --agent value: ${options.agent}. Use ${setupAgentCommands()}.`);
   }
 
   return options;
@@ -171,8 +171,8 @@ async function chooseAgent({ requestedAgent, detectedAgents, input = process.std
   }
 
   if (detectedAgents.length === 0) {
-    output.write("No supported agent CLI was detected on PATH (checked: claude, codex).\n");
-    output.write("Install Claude Code or Codex CLI, then rerun setup with --agent claude or --agent codex.\n");
+    output.write(`No supported agent CLI was detected on PATH (checked: ${SETUP_AGENTS.map(agent => agent.command).join(", ")}).\n`);
+    output.write(`Install a supported CLI, then rerun setup with ${setupAgentCommands()}.\n`);
     return null;
   }
 
@@ -182,7 +182,7 @@ async function chooseAgent({ requestedAgent, detectedAgents, input = process.std
   });
 
   if (!input.isTTY) {
-    output.write("Rerun with --agent claude or --agent codex to choose a launcher template.\n");
+    output.write(`Rerun with ${setupAgentCommands()} to choose a launcher template.\n`);
     return null;
   }
 
@@ -218,14 +218,22 @@ function copyLauncherTemplate({ agent, dryRun, cwd, output }) {
 export function renderNextCommands() {
   return [
     "",
-    "Next commands for a new repository with no existing root agent guidance:",
-    "  cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md",
-    "  printf '@AGENTS.md\\n' > CLAUDE.md",
-    "  git status --short",
-    "  git add AGENTS.md CLAUDE.md wiki .gitignore agent-launch.toml",
-    "  git commit -m \"bootstrap AgentChassis wiki adoption\"",
-    "  npx wiki code-index build --json",
-    "  npx agent-launch orchestrator IN-0001",
+    "Remaining setup steps (also on reruns):",
+    "  Open wiki/templates/AGENTS.md.boilerplate.md.",
+    "  If root AGENTS.md is absent, create it from that template.",
+    "  Otherwise, add only missing AgentChassis guidance; keep existing content",
+    "  and reconcile conflicting rules. Do not append the whole template again.",
+    "  For Claude, add @AGENTS.md on its own line in root CLAUDE.md only if",
+    "  that include is missing. Create the file if needed; keep existing instructions.",
+    "  Review agent-launch.toml: select registered models your authenticated CLI can use.",
+    "  If test-runtime preparation failed, follow its correction and rerun:",
+    "    npx agent-chassis setup --test-runtimes",
+    "  Review and stage only the setup files you intend to track, including",
+    "  package.json and its lockfile, then commit before launching:",
+    "    git status --short",
+    "    git commit -m \"set up AgentChassis\"",
+    "    npx agent-launch orchestrator IN-0001",
+    "  Fresh setup seeds IN-0001; an existing valid initiative is preserved.",
     ""
   ].join("\n");
 }
@@ -247,7 +255,9 @@ async function prepareTestRuntimes({ prepare, options, cwd, input, output, env }
     const { TestRuntimeSetupError } = await import(TEST_RUNTIME_SETUP_MODULE);
     if (!(error instanceof TestRuntimeSetupError)) throw error;
     output.write(`${error.message}\n`);
-    return { ok: false, status: "failed" };
+    return { ok: false, status: "failed", phase: "preparation",
+      failure: { code: error.code, message: error.message, detail: error.detail },
+      correction: error.detail.correction ?? null };
   }
 }
 
@@ -272,7 +282,17 @@ export async function runSetup({
     return;
   }
 
-  const detectedAgents = detectAgents();
+  const reportPath = options.testRuntimeReport === null ? null : path.resolve(cwd, options.testRuntimeReport);
+
+  if (reportPath !== null) {
+    try {
+      fs.rmSync(reportPath, { force: true });
+    } catch (error) {
+      throw new Error(`Could not clear prior test-runtime report at ${reportPath}: ${error.message}`, { cause: error });
+    }
+  }
+
+  const detectedAgents = options.agent === null ? detectAgents() : [];
   const agent = await chooseAgent({
     requestedAgent: options.agent,
     detectedAgents,
@@ -288,6 +308,7 @@ export async function runSetup({
   if (agent === null) {
     output.write("Skipped agent-launch.toml copy because no launcher template was selected.\n");
   } else {
+    if (agent.prerequisites) output.write(`${agent.label}: ${agent.prerequisites}\n`);
     copyLauncherTemplate({ agent, dryRun: options.dryRun, cwd, output });
   }
 
@@ -296,6 +317,14 @@ export async function runSetup({
 
   printStep(output, "Detect local test runtimes");
   const prepared = await prepareTestRuntimes({ prepare, options, cwd, input, output, env });
+  if (reportPath !== null) {
+    const { testRuntimePreparationReport } = await import("./test-runtime-setup/prepare.mjs");
+    try {
+      fs.writeFileSync(reportPath, `${JSON.stringify(testRuntimePreparationReport(prepared))}\n`, { flag: "wx" });
+    } catch (error) {
+      throw new Error(`Could not preserve test-runtime report at ${reportPath}: ${error.message}`, { cause: error });
+    }
+  }
   if (!prepared.ok) process.exitCode = TEST_RUNTIMES_UNAVAILABLE_EXIT_CODE;
 
   printNextCommands(output);

@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+import { resolveRoleGuideInstructions, withRoleGuideInstructionsPrompt } from "./role-guide-instructions.mjs";
 import { mkdtemp } from "node:fs/promises";
 
 import { resolveAgentRoleResultSchemaPath } from "@agent-chassis/agent-launch-core/src/lib/agent-role-result-schema-path.mjs";
@@ -64,6 +65,8 @@ export async function buildHeadlessPlan({
     });
   }
   const runtimeEnv = sanitizeCodexChildEnv(runtimeHomeResult);
+  const guideDelivery = resolveRoleGuideInstructions({ role, selection: modelSelection, workspaceDir: repo });
+  prompt = withRoleGuideInstructionsPrompt(prompt, guideDelivery);
   const modelArgs = codexModelArgs({ model, model_selection: modelSelection });
   const selectionOverrides = buildCodexReasoningEffortConfigOverrides({ role, modelSelection });
 
@@ -136,6 +139,7 @@ export async function buildHeadlessPlan({
       isolation,
       worker_scope_authority: workerScopeAuthority,
       model_selection: modelSelection,
+      guideDelivery,
       model_route_secret_dir: runDirBase
     };
   }
@@ -160,6 +164,7 @@ export async function buildHeadlessPlan({
     isolation,
     worker_scope_authority: workerScopeAuthority,
     model_selection: modelSelection,
+    guideDelivery,
 
     model_route_secret_dir: runDirBase
   };

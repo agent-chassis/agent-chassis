@@ -47,7 +47,7 @@ function capture(events, { resumed = false, baseline = null, drained = true, inv
 }
 
 test("native usage adapters select machine-readable output without losing the invocation", () => {
-  assert.deepEqual(NATIVE_USAGE_FAMILIES, ["claude"], "Codex usage comes from its session record, not a stream adapter");
+  assert.deepEqual(NATIVE_USAGE_FAMILIES, ["opencode", "agy", "claude"], "Codex usage comes from its session record, not a stream adapter");
   const { claude } = NATIVE_USAGE_ADAPTERS;
   assert.deepEqual(claude.outputArgs(["--print", "--output-format", "text", "--no-session-persistence", "--json-schema", "{}"]),
     ["--print", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--json-schema", "{}"]);

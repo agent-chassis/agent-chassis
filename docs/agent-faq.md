@@ -7,8 +7,12 @@ stable structured entry instead of being re-learned from chat history, wrapper
 names, or ad hoc shell inspection.
 
 The canonical corpus lives at `packages/wiki-core/data/agent-faq.v1.json`.
-This page is the durable contract for that corpus and for the read-only
-surfaces that expose it.
+This page is the durable contract for that corpus and its operator read-only
+surface. Historical corpus route strings are not proof of live agent
+registration; use the [current operation reference](mcp-operation-reference.md)
+and returned calls for agent work. Recovery entries use current intent-specific
+routes within session grants: coordinators author and preview saved work; workers
+read their frozen assignment and request correction of missing required context.
 
 ## Corpus Contract
 
@@ -55,7 +59,7 @@ structured failing assertion is `unproven`, while inability to obtain
 authenticated execution or receipt evidence is `not_executable` or refused.
 Callers query the entry by the returned stable reason code, inspect its minimal
 recovery facts, repair the named contract/test or launcher/runtime prerequisite,
-and only then retry the same `workspace_verify_proof` subject.
+and only then retry the same `verify_proof` subject.
 The entry distinguishes ordinary head/tail diagnostic capture from lossless
 proof-reporter protocol capture. Its
 `test_proof_structured_events_oversized` guidance requires reducing the
@@ -66,8 +70,8 @@ evidence includes available error messages and stacks, assertion
 expected/actual/operator values, and nested cause or aggregate-error links. The
 same complete result associates each event stream with its candidate,
 falsifier, or traversal artifact. The compact summary continues to name only
-the evidence reference; callers retrieve its ranges without rerunning
-verification. A `structured-diagnostic.v1` carrier crosses as its original
+the evidence reference; callers follow the returned semantic selections without
+rerunning verification. A `structured-diagnostic.v1` carrier crosses as its original
 value; its producer-declared sensitive values are validated but never replace
 data. No diagnostic value is suppressed by sensitive-key, stack, path, or
 message rules.
@@ -82,10 +86,9 @@ verification answers with the compact `workspace-verify-proof-summary.v1`:
 requested subject, one common subject binding, aggregate status, exact proof
 and obligation-relationship counts, per-proof and per-obligation verdicts,
 shared reason/recovery entries for unmet or unevaluated items, and an evidence
-reference. Complete diagnostics, observed inventories, and bindings are read on
-demand through repeated `workspace_read_mcp_content_reference` calls named by
-the summary's `evidence_retrieval`; they name the same captured result and are
-never rerun.
+reference. Follow the response's exact `get_run_result` selections for recorded
+outcomes and diagnosis detail; reads never rerun verification. Historical generic
+spill-reader names are not public retrieval routes.
 
 The `committed-slice-redispatch-refused` entry covers a worker redispatch that
 finds an existing committed delivery. It distinguishes the refused worker launch
@@ -143,7 +146,8 @@ When authoring an entry:
 - keep the `id` stable
 - describe the observable `symptom` and root `cause`
 - choose the responsible `actor` explicitly
-- name the exact structured `workspace_*` route(s) that resolve the issue
+- name the exact currently registered route(s) that resolve the issue;
+  do not infer a `workspace_*` name from a historical entry
 - add `related_codes`, `related_docs`, or `related_records` only when they help
   the operator or agent recover the issue faster
 

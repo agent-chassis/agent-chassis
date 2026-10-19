@@ -15,6 +15,7 @@ import {
   installProcessErrorGuards,
   jsonContent,
   measureMcpInlineResultBytes,
+  measureMcpSerializedResultBytes,
   normalizeMcpToolResult,
   persistControlledContractRefactorItemReference,
   readRetainedArtifactBytes,
@@ -31,6 +32,7 @@ import { createRegisterTool } from "./register-tool.mjs";
 import {
   CARRIER_FINDING_KINDS,
   assertStructuredCarrier,
+  deliveredAdmissionBytes,
   structuredCarrierFindings
 } from "../../../../tests/helpers/mcp-journey-accounting.mjs";
 
@@ -41,8 +43,8 @@ function completeResultBytes(result) {
 }
 
 function assertWithinInlineLimit(result, limit = INLINE_LIMIT) {
-  const bytes = completeResultBytes(result);
-  assert.ok(bytes <= limit, `complete result used ${bytes} bytes against a ${limit}-byte limit`);
+  const bytes = deliveredAdmissionBytes(result);
+  assert.ok(bytes <= limit, `result admission used ${bytes} bytes against a ${limit}-byte limit`);
 }
 
 async function withSpillEnv(callback, overrides = {}) {
@@ -636,16 +638,16 @@ test("registerTool transports its outputSchema declaration into the response gua
     registeredTier: "paid_cce",
     mcpToolTierRegistrationPolicy: {
       descriptorLoaded: true,
-      descriptorToolNames: new Set(["workspace_tools_list"]),
-      registrationEligibleToolNames: new Set(["workspace_tools_list"]),
-      freeLocalToolNames: new Set(["workspace_tools_list"])
+      descriptorToolNames: new Set(["workspace_read_wiki"]),
+      registrationEligibleToolNames: new Set(["workspace_read_wiki"]),
+      toolDescriptors: new Map([...["workspace_read_wiki"]].map(name => [name, { tool_name: name, kind: "mcp_tool", tier_visibility: ["free_local", "paid_cce"] }]))
     },
     toolUsageAuditBoundary: { wrapHandler(_name, handler) { return handler; } },
     registeredToolNames: new Set(),
     structuredLog() {}
   });
 
-  registerTool("workspace_tools_list", {
+  registerTool("workspace_read_wiki", {
     description: "Return a required structured owner result.",
     outputSchema
   }, async () => ({ content: [{ type: "text", text: "missing" }] }));
@@ -654,7 +656,7 @@ test("registerTool transports its outputSchema declaration into the response gua
   assert.strictEqual(registered[0].config.outputSchema, outputSchema);
   const projected = await registered[0].handler({});
   assert.equal(projected.structuredContent.code, "mechanical_failure");
-  assert.equal(projected.structuredContent.operation, "workspace_tools_list");
+  assert.equal(projected.structuredContent.operation, "workspace_read_wiki");
   assert.equal(projected.structuredContent.broken_invariant,
     "outputSchema requires structuredContent");
 });
@@ -706,26 +708,21 @@ test("the public guard normalizes helper-produced and already-formed results ide
   });
 });
 
-test("admission compares the complete two-representation frame, not either representation alone", async () => {
+test("admission counts one canonical representation while physical wire bytes count both", async () => {
   await withSpillEnv(async (env) => {
-
-    const fitting = {
-      schema_version: "near-limit.v1",
-      value: `near-limit-payload-marker-${"n".repeat(3_000)}`
-    };
+    const make = count => ({ schema_version: "near-limit.v1", value: `é🚀"\\\t\n${"n".repeat(count)}` });
+    const fitting = make(INLINE_LIMIT - measureMcpInlineResultBytes(make(0)));
     const inline = jsonContent(fitting, { env });
     assertStructuredCarrier(inline);
     assert.deepEqual(inline.structuredContent, fitting);
-    assert.equal(completeResultBytes(inline), measureMcpInlineResultBytes(fitting));
+    assert.equal(deliveredAdmissionBytes(inline), INLINE_LIMIT);
+    assert.equal(measureMcpInlineResultBytes(fitting), INLINE_LIMIT);
+    assert.equal(completeResultBytes(inline), measureMcpSerializedResultBytes(fitting));
+    assert.ok(completeResultBytes(inline) > INLINE_LIMIT, "both wire carriers remain exact above the admission limit");
     assertWithinInlineLimit(inline);
 
-    const oversized = {
-      schema_version: "near-limit.v1",
-      value: `near-limit-payload-marker-${"n".repeat(5_000)}`
-    };
-    const oneRepresentation = Buffer.byteLength(JSON.stringify(oversized), "utf8");
-    assert.ok(oneRepresentation < INLINE_LIMIT && oneRepresentation * 2 > INLINE_LIMIT);
-    assert.ok(measureMcpInlineResultBytes(oversized) > INLINE_LIMIT);
+    const oversized = make(INLINE_LIMIT - measureMcpInlineResultBytes(make(0)) + 1);
+    assert.equal(measureMcpInlineResultBytes(oversized), INLINE_LIMIT + 1);
     const result = jsonContent(oversized, { env });
     assert.equal(result.structuredContent.schema_version, "wiki-mcp-spilled-response.v1");
     assert.equal(result.structuredContent.response_spilled, true);
@@ -738,9 +735,16 @@ test("already-formed result metadata participates in the complete-result spill d
   await withSpillEnv(async (env) => {
     const payload = {
       schema_version: "metadata-boundary.v1",
-      value: `structured-payload-${"s".repeat(2_500)}`
+      value: `structured-payload-${"s".repeat(5_000)}`
     };
 
+    const fitting = await guardToolHandler(async () => ({ structuredContent: payload,
+      _meta: { note: "m".repeat(2500) } }), { env })();
+    assert.deepEqual(fitting.structuredContent, payload);
+    assert.deepEqual(fitting._meta, { note: "m".repeat(2500) });
+    assert.equal(deliveredAdmissionBytes(fitting), measureMcpInlineResultBytes(payload) +
+      Buffer.byteLength(JSON.stringify({ _meta: fitting._meta })));
+    assertWithinInlineLimit(fitting);
     assert.ok(measureMcpInlineResultBytes(payload) < INLINE_LIMIT);
     const result = await guardToolHandler(async () => ({
       content: [],

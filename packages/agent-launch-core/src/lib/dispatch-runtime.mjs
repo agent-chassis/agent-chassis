@@ -42,12 +42,13 @@ export function normalizeDispatchModelHint(model) {
   return typeof model === "string" && model.length > 0 ? model : null;
 }
 
-export const BACKEND_SUPPORTED_APPS = Object.freeze(["codex", "claude"]);
+export const BACKEND_SUPPORTED_APPS = Object.freeze(["codex", "claude", "agy", "opencode"]);
 
 export const BACKEND_FAMILY_UNAVAILABLE_REASONS = Object.freeze({
   codex: "codex_launch_executor_not_configured",
   claude: "claude_launch_executor_not_configured",
-  agy: "agy_launch_executor_not_configured"
+  agy: "agy_launch_executor_not_configured",
+  opencode: "opencode_launch_executor_not_configured"
 });
 
 export const BACKEND_RUN_STATUSES = Object.freeze([

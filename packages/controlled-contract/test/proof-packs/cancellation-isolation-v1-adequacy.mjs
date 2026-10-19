@@ -17,7 +17,7 @@ import {
 } from "./cancellation-isolation-v1-harness.mjs";
 
 const PROFILE_DIGEST =
-  "1d804848df3b18b1ff1f8f1c3740a957d3e78765483b1796fc7b70277eef13b9";
+  "32db67d4f97e768160a26883823c5c325271dba3050cbe8d0eed06a638d8e925";
 const GUARANTEE_DIGEST =
   "20b89764350b8a5bd1a4c04f0ef63b2a648b72619515aa4fb174ce6d7e03b109";
 

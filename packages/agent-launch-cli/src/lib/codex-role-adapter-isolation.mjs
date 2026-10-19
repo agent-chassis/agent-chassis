@@ -1,4 +1,4 @@
-
+import { launcherHostSessionProfileFor } from "./launcher-host-session-profile.mjs";
 
 import path from "node:path";
 import { consumeAdvisoryExecutionSubstrate } from "./workspace-agent-advisory-execution-substrate.mjs";
@@ -182,8 +182,8 @@ export function buildCodexRoleBubblewrapPlan(plan, {
   if (childCommand === "codex") {
 
     injectCodexConfigOverridesBeforeFinalPositional(
-      childArgs, buildCodexRoleGuideHookConfigOverrides(plan.role,
-        plan.nativeUsageHook ? { usageHook: plan.nativeUsageHook } : {}));
+      childArgs, buildCodexRoleGuideHookConfigOverrides(plan.guideDelivery ?? null,
+        { usageHook: plan.nativeUsageHook ?? null }));
   }
   const workerSecretMaskInputs = isCodexOrchestratorRole(plan.role)
     ? { readOnlyRoots: [], maskTmpfsDirs: [] }
@@ -244,7 +244,9 @@ export function buildCodexRoleBubblewrapPlan(plan, {
     stdioMcpConduit,
     envPolicy,
 
-    launchRole: plan.role
+    launchRole: plan.role,
+    publishControlledAcceptanceOptOut: isCodexOrchestratorRole(plan.role) ? launcherHostSessionProfileFor(plan).publishControlledAcceptanceOptOut : true,
+    registeredTier: isCodexOrchestratorRole(plan.role) ? launcherHostSessionProfileFor(plan).registeredTier : undefined
   });
 }
 

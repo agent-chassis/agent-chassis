@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.failure.settlement-and-cleanup",
   "profile_version": "4.0.0",
-  "profile_digest": "b9c8a19c88c743ccfc5404835e4d20947ef58a93c0fc53f75842497a6d4ef3d7",
+  "profile_digest": "c61ac23bbf8e94fa75498f7132ec149a0e5ff3d7b70becc302768aeed668046b",
   "description": "Given one grounded operation attempt, one declared failure injection and injected failure carrying one grounded original cause, one cleanup event, one settlement event after both failure and cleanup, one complete declared residue population whose integer cardinality may be zero or greater, complete cause-state observations at failure and after settlement, and a settled failure record: satisfaction establishes that the injected failure targets the operation during the attempt, cleanup targets the residue population after failure, settlement follows cleanup and failure, the complete residue population has cardinality zero after settlement, the settled failure record retains the same cause, and the cause state after settlement equals its state at failure.",
   "parameters": [
     {

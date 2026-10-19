@@ -1,5 +1,5 @@
 import { buildPublicMechanicalRefusal, isPlatformErrorCode, isPreservableSemanticIdentity } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
-import { projectDiagnostic } from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
+import { projectDiagnostic, projectFailureDiagnosis } from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
 import { isRuntimeBlockerCode } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { classifyMechanicalRuntimeBlocker } from "./dispatch-tools/runtime-blocker-classifier.mjs";
 import { RESPONSE_BOUNDARY_ROUTE, RESPONSE_REFUSAL_SCHEMA_VERSION, PROCESS_ERROR_GUARDS_INSTALLED } from "./mcp-response-shared.mjs";
@@ -49,10 +49,35 @@ function authenticatedExternalCondition(value) {
     : null;
 }
 
+function publicThrowDiagnostic(value) {
+  const seen = new Set();
+  let current = value;
+  while (current instanceof Error && !seen.has(current)) {
+    seen.add(current);
+    if (["stdout", "stderr", "output"].some(key => safeReadProperty(current, key) !== undefined)) {
+      return { value: projectFailureDiagnosis(value), redactions: [] };
+    }
+    current = safeReadProperty(current, "cause");
+  }
+  return projectDiagnostic(value);
+}
+
 export function untypedFailureEnvelope(error) {
   const { identity, platform } = preservedCauseIdentity(error);
   const preservableIdentity = identity === "operator_recovery_needed" ? null : identity;
-  const diagnostic = projectDiagnostic(error);
+  const diagnostic = publicThrowDiagnostic(error);
+  const causes = [];
+  const seen = new Set([error]);
+  let cause = safeReadProperty(error, "cause");
+  while (cause !== undefined && cause !== null && !seen.has(cause)) {
+    seen.add(cause);
+    causes.push({ diagnostic: publicThrowDiagnostic(cause).value,
+      ...Object.fromEntries(["code", "path", "syscall"].flatMap(key => {
+        const value = safeReadProperty(cause, key);
+        return typeof value === "string" || typeof value === "number" ? [[key, value]] : [];
+      })) });
+    cause = safeReadProperty(cause, "cause");
+  }
   const decidingFacts = [
     { field: "mcp_response.handler_completed", value: false }
   ];
@@ -95,6 +120,7 @@ export function untypedFailureEnvelope(error) {
     owning_boundary: classification?.owning_boundary ?? "wiki-mcp.mcp-response",
     next_calls: classification?.detail?.next_calls ?? [],
     diagnostic: diagnostic.value,
+    ...(causes.length === 0 ? {} : { causes }),
     diagnostic_redactions: diagnostic.redactions,
     refusal: buildResponseMechanicalRefusal({
       code,

@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.failure.supplementary-isolation",
   "profile_version": "4.0.0",
-  "profile_digest": "ca966f5066849616e3c28f5420d27de94606562428319d455f78f46820507b00",
+  "profile_digest": "6210551c9dd1ad414b690be25e70c2455c0b71ff0981fdfa37687d40ee6b1f87",
   "description": "Within one exact captured attempt, one core computation settles one valid core result; one distinct supplementary computation then fails without producing a result; one final result follows, preserves the exact captured core value and complete core-member population, represents the supplementary component in exactly one closed present-unavailable or omitted-disclosed form, and discloses exactly one captured failure reason from the captured closed reason population.",
   "parameters": [
     {

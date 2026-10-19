@@ -250,6 +250,37 @@ test("task-directed coverage intents are controlled and validate on current read
   }
 });
 
+test("assignment-change task validates and routes its assembled descriptor while unknown ids refuse", async () => {
+  const descriptor = await loadToolDiscoveryDescriptor();
+  const validation = validateToolDiscoveryDescriptor(descriptor);
+  assert.equal(validation.valid, true, JSON.stringify(validation.diagnostics, null, 2));
+  assert.deepEqual(validation.diagnostics, []);
+
+  const row = descriptor.tools.find(tool => tool.tool_name === "request_assignment_change");
+  assert.ok(row, "the assembled registry contains request_assignment_change");
+  assert.deepEqual(row.task_ids, ["worker-assignment-change"]);
+  assert.equal(row.entrypoint, "request_assignment_change");
+  assert.equal(row.runtime_posture, "supported");
+  assert.match(row.notes, /authenticated worker attempt; coordinator decides any revision/u);
+  for (const registered_tier of ["free_local", "paid_cce"]) {
+    const query = { task_id: "worker-assignment-change", registered_tier };
+    for (const routes of [rankToolDiscoveryTools(descriptor, query, { verbose: true }),
+      describeToolDiscoveryTools(descriptor, query, { verbose: true })]) {
+      assert.deepEqual(routes.map(tool => tool.tool_name), ["request_assignment_change"]);
+      assert.deepEqual(routes[0].task_ids, ["worker-assignment-change"]);
+    }
+  }
+
+  for (const taskId of ["worker-assignment-change-unknown", "unregistered-task-id"]) {
+    const invalid = { ...descriptor, tools: descriptor.tools.map(tool => tool === row
+      ? { ...tool, task_ids: [taskId] } : tool) };
+    const rejected = validateToolDiscoveryDescriptor(invalid);
+    assert.equal(rejected.valid, false, taskId);
+    assert.ok(rejected.diagnostics.some(({ code, task_ids: taskIds }) =>
+      code === "invalid_task_id" && taskIds.includes(taskId)), JSON.stringify(rejected.diagnostics, null, 2));
+  }
+});
+
 test("terminal-candidate task ids validate fresh and preserve launcher metadata", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
   const validation = validateToolDiscoveryDescriptor(descriptor);
@@ -496,7 +527,8 @@ test("free/local discovery projection hides paid tool names and CLI operator ent
   }
 
   assert.equal(
-    free.some((row) => row.kind === "cli_command"),
+    free.some((row) => row.kind === "cli_command" &&
+      row.tool_name !== "wiki-feedback-add"),
     false,
     "operator-only CLI fallbacks must not appear in free/local tier-projected discovery"
   );
@@ -749,4 +781,19 @@ test("WK-2603 discovery uses one retained ranking owner", async () => {
     { createNextCalls: () => [] }).tools.map((row) => row.tool_name), names);
   assert.deepEqual(createToolDiscoveryEnvelope({ interface: "cli", descriptor, query }).results
     .map((entry) => entry.tool_name), names);
+});
+
+test("feedback discovery ranks managed routes and retains the direct-worker CLI route", async () => {
+  const descriptor = await loadToolDiscoveryDescriptor();
+  assert.ok(!TOOL_DISCOVERY_CONTROLLED_TASK_IDS.includes("inspect-feedback"));
+  assert.ok(!descriptor.tools.some(row => ["workspace_read_feedback", "wiki-feedback-read"].includes(row.tool_name)));
+  for (const [task, mcp, cli] of [
+    ["record-feedback", "workspace_record_feedback", "wiki-feedback-add"]
+  ]) {
+    assert.ok(TOOL_DISCOVERY_CONTROLLED_TASK_IDS.includes(task));
+    const rows = rankToolDiscoveryTools(descriptor, { task_id: task, registered_tier: "free_local" });
+    assert.equal(rows[0].tool_name, mcp);
+    assert.ok(rows.some(row => row.tool_name === cli));
+    assert.match(rows.find(row => row.tool_name === cli).use_when.join(" "), /direct implementation worker/i);
+  }
 });

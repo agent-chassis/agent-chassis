@@ -7,7 +7,7 @@ import {
 } from "./deterministic-projection-primitives.mjs";
 
 const BEHAVIORAL_PRESERVATION_VERIFICATION_SCHEMA_VERSION =
-  "controlled-contract-behavioral-preservation-verification.v1";
+  "controlled-contract-behavioral-preservation-verification.v2";
 
 const BEHAVIORAL_PRESERVATION_PROFILE_ID = "proof.compatibility.behavioral-preservation";
 const BEHAVIORAL_PRESERVATION_PROFILE_VERSION = "4.0.0";
@@ -43,6 +43,18 @@ const BEHAVIORAL_PRESERVATION_VERIFICATION_REFUSAL_CODES = Object.freeze({
 });
 
 const CODES = BEHAVIORAL_PRESERVATION_VERIFICATION_REFUSAL_CODES;
+
+const COMPARISON_SCOPE = deepFreeze({
+  basis: "supplied_typed_reports_only",
+  checked: ["typed_descriptor_populations", "exact_counts", "selected_canonical_value_pair"],
+  proof_credit: 0,
+  unsupported_claims: [
+    { claim: "captured_full_report_byte_equality", outcome: "unsupported", proof_credit: 0,
+      reason: "No captured bytes or capture binding are read; unselected canonical values are not compared." },
+    { claim: "implementation_behavioral_preservation", outcome: "unsupported", proof_credit: 0,
+      reason: "Supplied reports establish no provenance, runtime completeness or general behavioral equivalence." }
+  ]
+});
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -84,10 +96,11 @@ function refuse(code, reason, detail = null) {
   return deepFreeze({
     schema_version: BEHAVIORAL_PRESERVATION_VERIFICATION_SCHEMA_VERSION,
     verified: false,
-    preserved: null,
+    comparison_matches: null,
     profile_id: BEHAVIORAL_PRESERVATION_PROFILE_ID,
     profile_version: BEHAVIORAL_PRESERVATION_PROFILE_VERSION,
     report_schema_version: BEHAVIORAL_PRESERVATION_REPORT_SCHEMA_VERSION,
+    comparison_scope: COMPARISON_SCOPE,
     source: null,
     members: null,
     differences: null,
@@ -98,7 +111,7 @@ function refuse(code, reason, detail = null) {
 function admitInput(input) {
   if (input === undefined || input === null) {
     return refuse(CODES.MISSING_REQUIRED_INPUT,
-      "baseline and candidate reports are required to verify behavioral preservation",
+      "baseline and candidate reports are required for the bounded report comparison",
       { input: "input" });
   }
   if (!isPlainObject(input)) {
@@ -271,16 +284,17 @@ function verifyBehavioralPreservationReports(input) {
     canonical_value_mismatch:
       selected.baseline.canonical_value !== selected.candidate.canonical_value
   };
-  const preserved = !differences.baseline_population_not_subset &&
+  const comparison_matches = !differences.baseline_population_not_subset &&
     !differences.candidate_population_not_subset && !differences.count_mismatch &&
     !differences.selection_mismatch && !differences.canonical_value_mismatch;
   return deepFreeze({
     schema_version: BEHAVIORAL_PRESERVATION_VERIFICATION_SCHEMA_VERSION,
     verified: true,
-    preserved,
+    comparison_matches,
     profile_id: BEHAVIORAL_PRESERVATION_PROFILE_ID,
     profile_version: BEHAVIORAL_PRESERVATION_PROFILE_VERSION,
     report_schema_version: BEHAVIORAL_PRESERVATION_REPORT_SCHEMA_VERSION,
+    comparison_scope: COMPARISON_SCOPE,
     source: {
       sides: BEHAVIORAL_PRESERVATION_SIDES.map((position) => ({
         position,

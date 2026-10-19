@@ -1,4 +1,5 @@
-
+import { readLauncherConduitTerminationEvidence } from "./launch-isolation-spawn.mjs";
+import { buildServerEnv, resolveLauncherHostSessionProfile, assertLauncherHostSessionProfile } from "./launcher-host-session-profile.mjs";
 
 import { randomBytes } from "node:crypto";
 import {
@@ -18,15 +19,13 @@ import { performance } from "node:perf_hooks";
 import {
   MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX,
   MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES,
-  MANAGED_ASSIGNMENT_READ_ARTIFACT_PATH_ENV_VAR,
   MANAGED_ASSIGNMENT_READ_REFUSAL_CODES,
   PRIVATE_IMMUTABLE_ARTIFACT_MAX_BYTES,
   PrivateImmutableArtifactPublicationError,
   publishPrivateImmutableArtifact
 } from "./managed-assignment-read-artifact.mjs";
 import {
-  FROZEN_REVIEW_CONTRACT_ARTIFACT_FILENAME_PREFIX,
-  FROZEN_REVIEW_CONTRACT_ARTIFACT_PATH_ENV_VAR
+  FROZEN_REVIEW_CONTRACT_ARTIFACT_FILENAME_PREFIX
 } from "@agent-chassis/wiki-core/src/lib/frozen-review-contract-query.mjs";
 
 import {
@@ -49,14 +48,6 @@ import {
 import {
   createStdioMcpConnectionAdmissionForResourceScope
 } from "./stdio-mcp-connection-admission.mjs";
-import {
-  STDIO_MCP_TRANSCRIPT_ROOT_ENV_VAR,
-  resolveStdioMcpTranscriptCaptureRoot
-} from "./stdio-mcp-transcript-capture.mjs";
-import { mcpMetricsServerEnv } from "./mcp-metrics-config.mjs";
-import { nativeUsageTaskEnv } from "@agent-chassis/agent-launch-core/src/lib/native-usage-records.mjs";
-import { projectProxyEnvironment } from "@agent-chassis/agent-launch-core/src/lib/proxy-environment.mjs";
-import { projectHostServerRuntimeEnvironment } from "./test-runtime-setup/location-environment.mjs";
 import {
   LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION,
   WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR,
@@ -134,7 +125,7 @@ function openLauncherNoCceAuthorityDescriptor(directory, declaration) {
 const INPUT_FIELDS = Object.freeze(new Set([
   "family", "role", "assignedUnit", "workspaceDir", "workspaceAlias",
   "dispatchWorktreeRoot", "responseStateDir", "commitTuple", "authority",
-  "sessionContract"
+  "sessionContract", "hostSessionProfile"
 ]));
 
 const TRUSTED_DEPENDENCY_FIELDS = Object.freeze(new Set([
@@ -177,7 +168,10 @@ export async function createDormantStdioMcpLocalChannel({
   const admission = createStdioMcpConnectionAdmissionForResourceScope({
     backing, createGeneration
   });
-  scope.adopt("local-admission", () => admission.settle());
+  scope.adopt("local-admission", async () => {
+    const failure = await admission.settle();
+    if (failure !== null) throw failure;
+  });
   try {
     if (admission.open() !== true) {
       throw new Error("stdio MCP local admission refused to open");
@@ -315,75 +309,6 @@ function assertPrivateDirectory(directory) {
       "stdio MCP conduit directory must be launcher-owned mode 0700",
       { directory, uid: stats.uid, mode: stats.mode & 0o777 });
   }
-}
-
-function transcriptCaptureServerEnv() {
-  const resolved = resolveStdioMcpTranscriptCaptureRoot();
-  return resolved.root === null
-    ? {}
-    : { [STDIO_MCP_TRANSCRIPT_ROOT_ENV_VAR]: resolved.root };
-}
-
-function buildServerEnv(input, role, {
-  frozenReviewContractArtifactPath = null,
-  managedAssignmentArtifactPath = null,
-  reviewerCredential = null
-} = {}) {
-
-  const reviewMaterializationDir = isTrustedStdioMcpConduitAuthority(input.authority)
-    ? input.authority.reviewMaterializationDir
-    : null;
-  const env = {
-    ...transcriptCaptureServerEnv(),
-
-    ...mcpMetricsServerEnv(),
-
-    ...nativeUsageTaskEnv(),
-    PATH: process.env.PATH ?? "/usr/bin:/bin",
-    HOME: process.env.HOME ?? "",
-    ...(process.env.USER ? { USER: process.env.USER } : {}),
-    ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}),
-    ...(process.env.LANG ? { LANG: process.env.LANG } : {}),
-    ...(process.env.LC_ALL ? { LC_ALL: process.env.LC_ALL } : {}),
-    ...(process.env.TZ ? { TZ: process.env.TZ } : {}),
-
-    ...projectProxyEnvironment(process.env),
-
-    ...projectHostServerRuntimeEnvironment(process.env),
-
-    NODE_USE_ENV_PROXY: process.env.NODE_USE_ENV_PROXY ?? "1",
-    WIKI_MCP_TOOL_PROFILE: role,
-    WIKI_MCP_ASSIGNED_UNIT: input.assignedUnit,
-    WIKI_MCP_WORKSPACE_DIR: input.workspaceDir,
-    WIKI_MCP_LAUNCHER_READY_FD: String(STDIO_MCP_READY_FD)
-  };
-  if (typeof input.workspaceAlias === "string" && input.workspaceAlias.length > 0) {
-    env.WIKI_MCP_WORKSPACE_ALIAS = input.workspaceAlias;
-  }
-  if (typeof input.dispatchWorktreeRoot === "string" && input.dispatchWorktreeRoot.length > 0) {
-    env.WIKI_MCP_DISPATCH_WORKTREE_ROOT = input.dispatchWorktreeRoot;
-  }
-  if (typeof input.responseStateDir === "string" && input.responseStateDir.length > 0) {
-    env.WIKI_MCP_RESPONSE_STATE_DIR = input.responseStateDir;
-  }
-
-  const commitTuple = reviewerCredential ?? input.commitTuple;
-  if (commitTuple) {
-    env.WIKI_MCP_COMMIT_LAUNCH_REF = commitTuple.launchRef;
-    env.WIKI_MCP_COMMIT_RUN_ID = commitTuple.runId;
-    env.WIKI_MCP_COMMIT_RETRY_ID = String(commitTuple.retryId);
-  }
-  if (frozenReviewContractArtifactPath !== null) {
-    env[FROZEN_REVIEW_CONTRACT_ARTIFACT_PATH_ENV_VAR] =
-      frozenReviewContractArtifactPath;
-  }
-  if (reviewMaterializationDir !== null) {
-    env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR = reviewMaterializationDir;
-  }
-  if (managedAssignmentArtifactPath !== null) {
-    env[MANAGED_ASSIGNMENT_READ_ARTIFACT_PATH_ENV_VAR] = managedAssignmentArtifactPath;
-  }
-  return env;
 }
 
 function publishFrozenReviewContractArtifact({ scope, directory, snapshot }) {
@@ -552,6 +477,7 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
   const trusted = validateTrustedDependencies(trustedDependencies);
   const runId = `stdio-mcp-${randomBytes(12).toString("hex")}`;
   const scope = new ConduitResourceScope();
+  let conduitBinding = null;
   let namespaceReady = false;
   let readinessFailure = null;
   let cleanupFailure = null;
@@ -566,6 +492,8 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
   let generationStartFailure = null;
   let clientReadinessRequested = false;
   let clientReadinessStartedAt = null;
+  let initialClientReadinessSucceeded = false;
+  const generationRecords = [];
   let clientReadinessTimer = null;
   const delegatedLifecycles = new WeakSet();
   const generationCandidates = new Set();
@@ -702,6 +630,7 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
     if (next !== null) activateCandidate(next);
   };
 
+  const assignmentChangeRelay = lifecycleRelay();
   const bindLifecycleGeneration = (generationLifecycle, child, getStderr) => {
     const candidate = {
       lifecycle: generationLifecycle,
@@ -710,6 +639,8 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       readinessEvent: null
     };
     generationCandidates.add(candidate);
+
+    generationLifecycle.assignmentChangeRequested.then(event => assignmentChangeRelay.resolve(event));
     if (lifecycle === null) activateCandidate(candidate);
     generationLifecycle.serverReady.then((event) => {
       candidate.readinessEvent = event;
@@ -718,12 +649,14 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
     generationLifecycle.clientReady.then((ready) => {
       if (clientReadyRelay.settled) return;
       if (lifecycle !== generationLifecycle) activateCandidate(candidate);
+      initialClientReadinessSucceeded = true;
       clearClientReadinessTimer();
       clientReadyRelay.resolve(ready);
     }, (error) => {
       if (lifecycle === generationLifecycle) recordFacadeFailure(error);
     });
     generationLifecycle.failureSettlement.then((error) => {
+      generationCandidates.delete(candidate);
       if (lifecycle === generationLifecycle) recordFacadeFailure(error);
     }, () => {});
     generationLifecycle.serverExit.then((exit) => {
@@ -794,7 +727,12 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
     serverEnv[WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR] =
       canonicalSerializeLauncherAgentSessionContract(sessionContract).toString("utf8");
 
+    const hostProfile = input.hostSessionProfile === undefined
+      ? resolveLauncherHostSessionProfile({ workspaceDir: input.workspaceDir, role })
+      : assertLauncherHostSessionProfile(input.hostSessionProfile);
+    Object.assign(serverEnv, hostProfile.configurationEnv);
     trusted.bootstrapNodeEngineEnv(serverEnv, input.workspaceDir);
+    const expectedRegisteredTier = hostProfile.registeredTier;
     const expectedToolNames = await trusted.resolveRoleToolNames(role, serverEnv);
 
     const lifecycleBindingState = Object.freeze({
@@ -805,6 +743,8 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       directory,
       authority,
       toolNames: expectedToolNames,
+      assignmentChangeRequested: assignmentChangeRelay.promise,
+      get launcherTermination() { return readLauncherConduitTerminationEvidence(conduitBinding); },
       clientReady: clientReadyRelay.promise,
       failureSettlement: failureSettlementRelay.promise,
       serverExit: serverExitRelay.promise,
@@ -813,6 +753,15 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       markNamespaceReady: () => { namespaceReady = true; },
       cleanup, cancel, settleCleanup,
       get server() { return generationServer; },
+      get generationFailures() {
+        return generationRecords.filter((record) =>
+          record.lifecycle?.currentFailure() || record.startFailure).map((record) => Object.freeze({
+          generation: record.generation,
+          failure: record.lifecycle?.currentFailure() ?? record.startFailure,
+          streamFailure: record.lifecycle?.firstStreamFailure() ?? null,
+          activeAtFailure: record.activeAtFailure
+        }));
+      },
       get readiness() { return readinessEvent; },
       get serverStderr() { return generationStderr(); },
       get namespaceReady() { return namespaceReady; },
@@ -845,13 +794,15 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       }
     });
 
-    const recordGenerationStartFailure = (phase, thrown) => {
+    const recordGenerationStartFailure = (record, phase, thrown) => {
       const error = new StdioMcpConduitError(
         STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_START_FAILED,
         "host wiki-MCP server generation failed to start",
         { phase, code: boundedCauseCode(thrown?.code) });
       Object.defineProperty(error, "cause",
         { value: thrown, writable: true, enumerable: false, configurable: true });
+      record.startFailure = error;
+      record.activeAtFailure = lifecycle === null && !clientReadyRelay.settled;
       if (lifecycle === null && generationStartFailure === null && !clientReadyRelay.settled) {
         generationStartFailure = error;
         recordFacadeFailure(error);
@@ -864,6 +815,9 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
     let generationSequence = 0;
     const createGeneration = ({ initialBytes }) => {
       generationSequence += 1;
+      const record = { generation: generationSequence, lifecycle: null,
+        startFailure: null, activeAtFailure: null };
+      generationRecords.push(record);
       const generationEnv = { ...serverEnv };
       let phase = "generation_bootstrap";
       let termination;
@@ -894,20 +848,26 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
           scope.release(authorityLabel);
         }
       } catch (thrown) {
-        throw recordGenerationStartFailure(phase, thrown);
+        throw recordGenerationStartFailure(record, phase, thrown);
       }
       const { child, readinessMeasurements } = spawned;
       let stderr = "";
       child.stderr?.setEncoding("utf8");
       child.stderr?.on("data", (chunk) => { stderr += chunk; });
       const generationLifecycle = observeConduitLifecycle({
-        child, serverStartupTimeoutMs: trusted.serverStartupTimeoutMs,
-        clientReadinessTimeoutMs: clientReadinessStartedAt === null
+        child, generation: generationSequence, serverStartupTimeoutMs: trusted.serverStartupTimeoutMs,
+        clientReadinessTimeoutMs: initialClientReadinessSucceeded || clientReadinessStartedAt === null
           ? trusted.clientReadinessTimeoutMs
           : Math.max(1, trusted.clientReadinessTimeoutMs -
             (Date.now() - clientReadinessStartedAt)),
-        expectedToolNames, role, getStderr: () => stderr, termination,
-        readinessMeasurements
+        expectedToolNames, expectedRegisteredTier, connectionIdentity: `${runId}:${generationSequence}`, role, getStderr: () => stderr, termination,
+        readinessMeasurements,
+        assignmentChangeBinding: role === "worker" && authority.crossRunIdentity !== null
+          ? { assigned_unit: input.assignedUnit, ...authority.crossRunIdentity } : null
+      });
+      record.lifecycle = generationLifecycle;
+      generationLifecycle.failureSettlement.then(() => {
+        record.activeAtFailure = lifecycle === generationLifecycle;
       });
       bindLifecycleGeneration(generationLifecycle, child, () => stderr);
       return {
@@ -920,6 +880,7 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       scope, directory, identifier: runId, family, role,
       lifecycleCapability, createGeneration
     });
+    conduitBinding = channel;
     return channel;
   } catch (error) {
 

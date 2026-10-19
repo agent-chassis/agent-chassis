@@ -14,11 +14,6 @@ import {
   filterAgentFaqEntriesByRelatedCode,
   getAgentFaq
 } from "../../packages/wiki-core/src/operations/agent-faq.mjs";
-import {
-  assertForgeHandoffGuidance,
-  evaluateForgeHandoffGuidance,
-  FORBIDDEN_AUTHORITY
-} from "../helpers/forge-handoff-guidance.mjs";
 
 const SEED_IDS = ["read-scope-missing-or-unfamiliar", "graph-impact-required-unavailable"];
 const VERIFY_PROOF_EXECUTION_FAQ_ID = "verify-proof-execution-not-executable";
@@ -67,9 +62,8 @@ test("both seed entries carry actor and routes", () => {
   assert.ok(readScope);
   assert.equal(readScope.actor, "agent");
   assert.ok(
-    readScope.routes.some((route) => route.tool === "workspace_work_record_edit" &&
-      route.args?.kind === "list" && route.args?.field === "read_scope"),
-    "read_scope entry must route through workspace_work_record_edit"
+    readScope.routes.some((route) => route.tool === "workspace_read_wiki" && route.args?.subject === "$exact_unit"),
+    "read_scope entry must acquire the saved unit input contract"
   );
 
   const graphImpact = getAgentFaqEntryById("graph-impact-required-unavailable");
@@ -80,7 +74,7 @@ test("both seed entries carry actor and routes", () => {
     branch.routes.map((route) => route.tool)
   );
   assert.ok(forkTools.includes("query_code_index"));
-  assert.ok(forkTools.includes("workspace_record_graph_impact_evidence"));
+  assert.ok(forkTools.includes("start_agent"));
   assert.match(graphImpact.cause, /Graph-dependent operations automatically ensure the shared committed-HEAD index/u);
   for (const route of [...graphImpact.routes, ...graphImpact.fork.flatMap((branch) => branch.routes)]
     .filter(({ tool }) => tool === "query_code_index")) {
@@ -122,7 +116,7 @@ test("filter-by-related-code returns matching entries", () => {
 test("verify-proof execution codes resolve one bounded recovery entry", () => {
   const entry = getAgentFaqEntryById(VERIFY_PROOF_EXECUTION_FAQ_ID);
   assert.equal(entry.actor, "agent_or_operator");
-  assert.deepEqual(entry.routes.map(({ tool }) => tool), ["workspace_verify_proof"]);
+  assert.deepEqual(entry.routes.map(({ tool }) => tool), ["verify_proof"]);
   assert.match(entry.cause, /failing assertion leaves it unproven/u);
   assert.match(entry.cause, /not_executable or refused/u);
   assert.match(entry.cause, /deepest_stable_cause_code/u);
@@ -329,14 +323,14 @@ test("FAQ exposes committed-delivery integration recovery without granting autho
     assert.equal(corpus.includes(forbidden), false, `FAQ must not expose ${forbidden}`);
   }
   const recovery = getAgentFaqEntryById("committed-slice-redispatch-refused");
-  assert.equal(recovery.routes[0].tool, "workspace_integrate_committed_slice");
-  assert.deepEqual(recovery.routes[0].args, { subject: "$canonical_slice_subject" });
-  assert.match(recovery.cause, /launched no replacement worker/u);
+  assert.equal(recovery.routes[0].tool, "get_run_result");
+  assert.deepEqual(recovery.routes[0].args, { subject: "$exact_slice", attempt_id: "$returned_attempt_id" });
+  assert.match(recovery.cause, /no replacement worker is launched/u);
   assert.match(recovery.cause, /not an integration decision/u);
   assert.match(recovery.cause, /independently authenticates/u);
   assert.match(recovery.cause, /follow-up slice of the same WK/u);
   assert.equal(Object.hasOwn(recovery.routes[0].args, "comment_dispositions"), false);
-  assert.match(recovery.routes[0].note, /registered dispositions array/u);
+  assert.match(recovery.routes[0].note, /producer-returned delivery reference/u);
 });
 
 test("WK-1377: every shipped FAQ entry carries an explicit tier classification", () => {
@@ -400,155 +394,19 @@ test("malformed corpus fails closed with a clear error", async () => {
   );
 });
 
-const FORGE_HANDOFF_FAQ_ID = "terminal-review-dispositioned-forge-handoff";
-
-const forgeHandoffEntryText = (entry) =>
-  [entry.title, entry.symptom, entry.cause, ...entry.routes.map((route) => route.note ?? "")].join(
-    "\n"
-  );
-
-test("WK-1731 shipped corpus carries exactly one forge-handoff entry routed to the tool", () => {
-  const entries = listAgentFaqEntries();
-  const routed = entries.filter((entry) =>
-    entry.routes.some((route) => route.tool === "workspace_wk_forge_handoff")
-  );
-  assert.deepEqual(
-    routed.map((entry) => entry.id),
-    [FORGE_HANDOFF_FAQ_ID],
-    "exactly one corpus entry may route to workspace_wk_forge_handoff"
-  );
-
-  const entry = getAgentFaqEntryById(FORGE_HANDOFF_FAQ_ID);
-  assert.ok(entry);
-  assert.equal(entry.actor, "agent_or_operator");
-  assert.deepEqual(entry.tier_visibility, ["free_local", "paid_cce"]);
-
-  assert.deepEqual(entry.routes.map((route) => route.args), [{ assigned_unit: "$wk_id" }]);
-});
-
-test("WK-1731 forge-handoff FAQ entry states the publication boundary", () => {
-  assertForgeHandoffGuidance(forgeHandoffEntryText(getAgentFaqEntryById(FORGE_HANDOFF_FAQ_ID)), {
-    surface: "agent-faq forge-handoff entry"
-  });
-});
-
-test("WK-1731 forge-handoff FAQ entry claims no unsupported authority", () => {
-  const entry = getAgentFaqEntryById(FORGE_HANDOFF_FAQ_ID);
-  assert.deepEqual(evaluateForgeHandoffGuidance(forgeHandoffEntryText(entry)).violations, []);
-
-  for (const rule of FORBIDDEN_AUTHORITY) {
-    const claims = {
-      "merge-or-merge-observation": "It also merges the pull request and reports the merge state.",
-      "state-reconciliation": "It reconciles the WK record with the landed branch.",
-      "parent-wk-completion": "It completes the parent WK on success.",
-      "candidate-reconstruction": "It rebuilds the candidate before publishing.",
-      "caller-supplied-authority": "It accepts a caller-supplied base branch.",
-      "shell-or-gh-route": "If it refuses, publish the branch with `gh` from the shell."
-    };
-    const spliced = { ...entry, cause: `${entry.cause} ${claims[rule.id]}` };
-    assert.ok(
-      evaluateForgeHandoffGuidance(forgeHandoffEntryText(spliced)).violations.some(
-        (violation) => violation.id === rule.id
-      ),
-      `spliced ${rule.id} claim must be reported`
-    );
-  }
-});
-
-test("WK-1731 forge-handoff FAQ entry names only live routes and typed outcomes", () => {
-  const entry = getAgentFaqEntryById(FORGE_HANDOFF_FAQ_ID);
-
-  assert.deepEqual(entry.related_codes, [
-    "terminal_candidate_recovery_current_ref_absent",
-    "wk_forge_handoff_executor_unavailable",
-    "wk_forge_handoff_subject_invalid"
-  ]);
+test("publication FAQ names the current subject-only handoff and preserves the configured destination boundary", () => {
+  const entry = getAgentFaqEntryById("terminal-review-dispositioned-forge-handoff");
+  assert.deepEqual(entry.routes.map(({ tool, args }) => ({ tool, args })),
+    [{ tool: "workspace_publish_work", args: { subject: "$wk_id" } }]);
+  assert.match(entry.cause, /already-reviewed candidate byte-for-byte/);
+  assert.match(entry.cause, /configured base branch.*configured destination/);
+  assert.match(entry.cause, /creates or observes the pull request/);
+  assert.match(entry.cause, /local\/Git destination/);
+  assert.match(entry.cause, /neither merges.*nor completes work/);
+  assert.match(entry.cause, /Other owner refusals remain possible/);
   for (const code of entry.related_codes) {
-    assert.deepEqual(
-      filterAgentFaqEntriesByRelatedCode(code).map((item) => item.id),
-      [FORGE_HANDOFF_FAQ_ID],
-      `${code} must resolve to the forge-handoff entry`
-    );
-  }
-
-  const serialized = JSON.stringify(entry);
-  for (const absent of ["workspace_wk_forge_merge", "workspace_wk_complete", "gh pr", "git push"]) {
-    assert.equal(serialized.includes(absent), false, `entry must not name ${absent}`);
-  }
-  assert.deepEqual(entry.routes.map((route) => route.tool), ["workspace_wk_forge_handoff"]);
-});
-
-test("WK-2153 forge-handoff FAQ entry does not claim an exhaustive refusal surface", () => {
-  const entry = getAgentFaqEntryById(FORGE_HANDOFF_FAQ_ID);
-
-  assert.doesNotMatch(
-    entry.cause,
-    /whole recovery surface/i,
-    "the entry must not claim its listed refusals are the complete recovery surface"
-  );
-  assert.match(
-    entry.cause,
-    /typed refusals include/i,
-    "the entry must present its listed refusals as examples"
-  );
-
-  assert.deepEqual(entry.related_codes, [
-    "terminal_candidate_recovery_current_ref_absent",
-    "wk_forge_handoff_executor_unavailable",
-    "wk_forge_handoff_subject_invalid"
-  ]);
-  for (const code of entry.related_codes) {
-    assert.ok(entry.cause.includes(code), `${code} must still be explained in the entry`);
-    assert.deepEqual(
-      filterAgentFaqEntriesByRelatedCode(code).map((item) => item.id),
-      [FORGE_HANDOFF_FAQ_ID],
-      `${code} must still resolve to the forge-handoff entry`
-    );
-  }
-});
-
-test("WK-2153 forge-handoff FAQ route note permits the optional repository alias", () => {
-  const [route] = getAgentFaqEntryById(FORGE_HANDOFF_FAQ_ID).routes;
-  const { note } = route;
-
-  assert.match(note, /assigned_unit is required/i, "the note must state assigned_unit is required");
-  assert.match(
-    note,
-    /alias may also be supplied/i,
-    "the note must permit the workspace repository alias"
-  );
-  assert.match(
-    note,
-    /not repo-attached/i,
-    "the note must say when the alias is needed"
-  );
-
-  assert.doesNotMatch(
-    note,
-    /and nothing else/i,
-    "the note must not forbid the optional repository alias"
-  );
-
-  assert.deepEqual(route.args, { assigned_unit: "$wk_id" });
-});
-
-test("WK-2153 forge-handoff FAQ route note still rejects authority-shaped input", () => {
-  const { note } = getAgentFaqEntryById(FORGE_HANDOFF_FAQ_ID).routes[0];
-
-  for (const [concept, pattern] of [
-    ["refs", /\brefs\b/i],
-    ["SHAs", /\bSHAs\b/i],
-    ["base or branch names", /base or branch names/i],
-    ["candidate identity", /candidate identity/i],
-    ["pull-request identity", /pull-request identity/i]
-  ]) {
-    assert.match(note, pattern, `the note must still forbid ${concept}`);
-  }
-  assert.match(note, /pass no other input/i, "the note must still close the input surface");
-
-  const serialized = JSON.stringify(getAgentFaqEntryById(FORGE_HANDOFF_FAQ_ID));
-  for (const absent of ["gh pr", "git push", "workspace_wk_forge_merge"]) {
-    assert.ok(!serialized.includes(absent), `entry must not name ${absent}`);
+    assert.ok(entry.cause.includes(code));
+    assert.deepEqual(filterAgentFaqEntriesByRelatedCode(code).map(item => item.id), [entry.id]);
   }
 });
 

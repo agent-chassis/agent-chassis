@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "5cdb42b16d283224f35ef1810824994eb30825ed7d64863eb1def7c3bad88cb6",
+  "parameter_contract_digest": "a26a031bb6d2f4e5b53770c9b4483cf1befecb6cddb12c61ded52a888b55d273",
   "profile_id": "proof.authentication.direct-source-provenance",
   "profile_version": "4.0.0",
-  "profile_digest": "b258c0f95aca2a1652c3484c6ce49fd6d66fbb211afaadf7793ecbc20feef3ef",
+  "profile_digest": "ddefa79856a8e9c7c14de924e7b4234c0d05ee204a014c83379e5c9e72bd21bf",
   "guarantee": "For one exact directly captured evidence occurrence E, target T, provenance source S, and observation attempt A, the captured evidence bytes authenticate T during A, E originates from S during A, T has S as its singular source of record during A, E was observed in A, the selected target and source populations are complete singletons, and four independent verification claims with exact controlled-complement falsifiers verify those same-occurrence behaviors.",
   "guarantee_digest": "4f01a730acc440a7b32445445b8119e3f2a70f868bf3563fefbbee327b45eb81",
   "explicit_exclusions": [
@@ -18,8 +18,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "29c15b366f3b1beb8af5498e5a6a3010b1a0b5acc0ea1004bce554fcb519260c",
-    "adequacy_result_digest": "b6c1f57cf0a982db338a83cf4f4e889a73011401f1041406e4113b62e0d1d2f8",
+    "adequacy_declaration_digest": "fb6dd30ccd09c0c9bb13282d1bd1c67a117718d271371e69a8a5a4a01f0d2456",
+    "adequacy_result_digest": "fc3926c82fce70575b77bf04c78014256d0a40f7fffcb196a1f737ace44de5d0",
     "executable_control_count": 83,
     "negative_fixture_count": 5,
     "coverage_witness_count": 74

@@ -22,8 +22,7 @@ import { inspectControlledContractDesignWorkbenchOperation } from
 import { projectControlledContractTerminalGapDetails, semanticCauseCorrection,
   semanticCauseMeaning, semanticCauseSubject } from
   './terminal-gap-classification.mjs';
-import { REQUIREMENT_SOURCE_FIELD, REQUIREMENT_SOURCE_LOCATION_UNIT, REQUIREMENT_SOURCE_STATES,
-  requirementSourceDigest } from './contract-requirement-source-links.mjs';
+import { accountParentRequirementSource, compactRequirementSourceAccounting } from './contract-requirement-source-links.mjs';
 import { assessProofAuthoringDefinitions } from './proof-authoring-definition-assessment.mjs';
 import { assessAuthoringExceptions, boundAuthoringExceptions } from './authoring-exception-assessment.mjs';
 
@@ -105,61 +104,13 @@ function userRequirementsComparison(resolved, scope, deps) {
   } };
 }
 
-export function accountRequirementSourceResidual(authored, sourceText) {
-  if (typeof sourceText !== 'string' || sourceText.length === 0) {
-    return { state: 'unknown', accounted: false, source_field: REQUIREMENT_SOURCE_FIELD,
-      reason: `no ${REQUIREMENT_SOURCE_FIELD} text is saved, so no residual can be accounted` };
-  }
-  const digest = requirementSourceDigest(sourceText);
-  const links = { current: 0, stale_excluded: 0, absent: 0, inconsistent_row_ids: [] };
-  const covering = [];
-  for (const row of authored?.rows ?? []) {
-    const link = row.source;
-    if (link.state === REQUIREMENT_SOURCE_STATES.absent) { links.absent += 1; continue; }
-    if (link.state !== REQUIREMENT_SOURCE_STATES.current) { links.stale_excluded += 1; continue; }
-    const { start, end } = link.location ?? {};
-    if (link.source?.digest !== digest || !Number.isInteger(start) || !Number.isInteger(end) || start < 0 ||
-        end <= start || sourceText.slice(start, end) !== link.user_requirement) {
-      links.inconsistent_row_ids.push(row.row_id);
-      continue;
-    }
-    links.current += 1;
-    covering.push({ start, end });
-  }
-  covering.sort((left, right) => left.start - right.start || left.end - right.end);
-  const linked = [];
-  for (const interval of covering) {
-    const last = linked.at(-1);
-    if (last !== undefined && interval.start <= last.end) last.end = Math.max(last.end, interval.end);
-    else linked.push({ ...interval });
-  }
-  const segments = [];
-  const unmapped = (start, end) => {
-    if (end <= start) return;
-    const text = sourceText.slice(start, end);
-    segments.push({ start, end, text, whitespace_only: text.trim().length === 0 });
-  };
-  let cursor = 0;
-  for (const interval of linked) { unmapped(cursor, interval.start); cursor = interval.end; }
-  unmapped(cursor, sourceText.length);
-  const length = intervals => intervals.reduce((total, interval) => total + interval.end - interval.start, 0);
-  return { state: 'accounted', accounted: true, source_field: REQUIREMENT_SOURCE_FIELD,
-    source: { digest, length: sourceText.length, unit: REQUIREMENT_SOURCE_LOCATION_UNIT }, links,
-    linked: { interval_count: linked.length, length: length(linked), intervals: linked },
-    unmapped: { segment_count: segments.length, length: length(segments), segments } };
-}
-
 export async function assessRequirementSourceResidualOperation(input) {
   return proofAuthoringOperation(async () => {
     assertControlledContractOperationInput(input, ['repoRoot', 'wkId', 'focus', 'selectedUnit']);
     const resolved = await bindProofAuthoringRevision(await resolveProofAuthoringSource(
       obligationCoverageResolutionInput(input)));
-    const sourceText = resolved.record?.sections?.user_requirements ?? null;
-
-    const { projectAuthoredRequirements } = await import('./contract-requirement-projection.mjs');
     return { unit: unitAddress(resolved), content_digest: resolved.revision,
-      ...accountRequirementSourceResidual(projectAuthoredRequirements(resolved.contract?.content ?? null,
-        { wkId: resolved.wkId, focus: resolved.focus, sourceText }), sourceText) };
+      ...accountParentRequirementSource(resolved.contract?.content ?? null, resolved.record) };
   });
 }
 
@@ -174,6 +125,7 @@ function compactCriterionCoverage(coverage) {
 
 function validationEnvelope(resolved, { sourceDigest, contextDigest }) {
   return { unit: unitAddress(resolved), content_digest: resolved.revision,
+    parent_source_accounting: compactRequirementSourceAccounting(accountParentRequirementSource(resolved.contract?.content ?? null, resolved.record)),
     source: { status: resolved.source === null ? 'source_absent' : 'source_present',
       source_digest: sourceDigest, context_digest: contextDigest } };
 }
@@ -230,7 +182,7 @@ export function narrowCapturedDiagnosis(inventory, captured, subjects) {
   return { diagnosis: entry, corrections };
 }
 
-function diagnosisInventory({ resolved, envelope, obligationId, entries, families, clauses }) {
+function diagnosisInventory({ resolved, envelope, obligationId, entries, families, clauses, unselectable = [] }) {
   const address = correctionAddress(resolved);
   const diagnoses = entries.map(entry => capturedDiagnosis(entry, { address, clauses }).entry);
   return { unit: envelope.unit, focus: resolved.focus, content_digest: envelope.content_digest,
@@ -239,10 +191,10 @@ function diagnosisInventory({ resolved, envelope, obligationId, entries, familie
       ? { scope: 'whole_unit', obligation_ids: (resolved.source?.content?.obligations ?? [])
         .map(obligation => obligation.obligation_id) }
       : { scope: 'selected_obligation', obligation_ids: [obligationId] },
-    group_selectable: resolved.source !== null,
+    group_selectable: resolved.source !== null || diagnoses.length > 0,
     complete: Object.values(families).every(family => family.status !== 'incomplete' &&
       family.status !== 'unavailable'),
-    families, diagnoses,
+    families, diagnoses, unselectable_findings: unselectable,
     corrections: usedCorrectionDefinitions(diagnoses.flatMap(diagnosis => diagnosis.subjects), clauses) };
 }
 const familyAvailability = (failure, failed) => failure === null ? { status: 'complete', failure: null }
@@ -345,12 +297,7 @@ function assessProof(input, deps, { capture, fields }) {
       return capture ? complete : boundAuthoringExceptions(complete);
     })();
     if (resolved.source === null) {
-      const assessment = await sourceAbsentValidation(resolved, input, delivery, deps, exceptions);
-
-      const absent = { status: 'not_applicable', failure: null };
-      return { assessment, diagnosis_inventory: capture ? diagnosisInventory({ resolved, envelope: assessment,
-        obligationId: undefined, entries: [], families: { authoring: absent, semantic: absent },
-        clauses: {} }) : null };
+      return sourceAbsentValidation(resolved, input, delivery, deps, exceptions, capture);
     }
     const pkg = await loadControlledContractProofAuthoring();
     const obligationId = input.obligationId;
@@ -462,9 +409,12 @@ function assessProof(input, deps, { capture, fields }) {
     const diagnoses = capture || obligationId !== undefined ? ownerDiagnoses() : [];
     const inventory = capture ? diagnosisInventory({ resolved, envelope, obligationId, entries: diagnoses,
       families: { authoring: familyAvailability(executableMapFailure, 'incomplete'),
-        ...(definitions.entries.length === 0 && definitionFailure === null ? {}
+        ...(definitions.entries.every(entry => entry.family !== 'definition') && definitionFailure === null ? {}
           : { definition: familyAvailability(definitionFailure, 'unavailable') }),
-        semantic: familyAvailability(workbenchFailure, 'unavailable') }, clauses }) : null;
+        ...(definitions.entries.every(entry => entry.family !== 'specification_meaning') && definitionFailure === null ? {}
+          : { specification_meaning: familyAvailability(definitionFailure, 'unavailable') }),
+        semantic: familyAvailability(workbenchFailure, 'unavailable') }, clauses,
+      unselectable: contractInputFindings(projectProofAuthoringContractInputs(resolved)) }) : null;
 
     if (obligationId !== undefined) {
       const row = result.rows.find(entry => entry.obligation_id === obligationId) ?? null;
@@ -506,15 +456,7 @@ const ISSUE_PRIORITY = Object.freeze({
   semantic: status => status === 'authored_correction_available' || status === 'system_owner_failure' ? 1 : 3
 });
 
-async function sourceAbsentValidation(resolved, input, delivery, deps, exceptions) {
-  if (input.obligationId !== undefined) findObligation(resolved, input.obligationId);
-  if (input.diagnosticGroupId !== undefined) throw new ControlledContractToolError(
-    'obligation_coverage_diagnostic_group_not_found',
-    'The diagnostic group is unknown or belongs to a different resolved snapshot', {
-      changed: false, diagnostic_group_id: input.diagnosticGroupId, next_calls: [validationCall(resolved)] });
-  const contractInputs = projectProofAuthoringContractInputs(resolved, {
-    descriptionPreparation: await prepareProofAuthoringDescriptionRead(resolved) });
-  const coveragePkg = await loadControlledContractProofAuthoring();
+function contractInputFindings(contractInputs, { sourceAbsent = false } = {}) {
   const findings = [];
   if (contractInputs.controlled_acceptance.status === 'unset') findings.push({
     category: 'author_input', code: 'controlled_acceptance_disposition_missing',
@@ -528,28 +470,63 @@ async function sourceAbsentValidation(resolved, input, delivery, deps, exception
     category: 'author_input', code: 'controlled_contract_requirements_missing',
     reason: 'Controlled acceptance applies but no contract requirements are saved',
     owner: 'contract-requirement-authoring' });
-  if (contractInputs.controlled_acceptance.disposition === 'required') findings.push({
+  if (sourceAbsent && contractInputs.controlled_acceptance.disposition === 'required') findings.push({
     category: 'author_input', code: 'obligation_coverage_source_not_found',
     reason: 'No proof-authoring obligations are saved', owner: 'proof-authoring-source' });
+  return findings;
+}
+
+async function sourceAbsentValidation(resolved, input, delivery, deps, exceptions, capture) {
+  if (input.obligationId !== undefined) findObligation(resolved, input.obligationId);
+  const coveragePkg = await loadControlledContractProofAuthoring();
+  let definitionFailure = null;
+  let definitions;
+  let preparation = null;
+  try {
+    preparation = await prepareProofAuthoringDescriptionRead(resolved);
+    definitions = await assessProofAuthoringDefinitions(resolved, coveragePkg, undefined, preparation);
+  } catch (error) {
+    definitionFailure = independentOwnerFailure(error, 'contract-requirement-descriptions');
+    if (definitionFailure === null) throw error;
+    definitions = { specification: { status: 'unavailable', authored_meaning: 'unresolved',
+      lowering: 'not_assessed', source_resolution: 'unavailable', findings: null }, entries: [] };
+  }
+  const contractInputs = projectProofAuthoringContractInputs(resolved, { descriptionPreparation: preparation });
+  const findings = contractInputFindings(contractInputs, { sourceAbsent: true });
   const identity = controlledContractContentDigest({ contract_inputs: contractInputs, diagnostics: findings });
-  const issues = findings.map(finding => ({ meaning: { owner: finding.owner, code: finding.code,
+  const issues = [...definitions.entries.map(entry => entry.issue), ...findings.map(finding => ({ meaning: { owner: finding.owner, code: finding.code,
     category: finding.category, reason: finding.reason }, subjects: 0, occurrences: 1, call: null,
-  obligation_ids: [], obligations_omitted: 0 }));
+  obligation_ids: [], obligations_omitted: 0 }))];
   const zero = { obligations: 0, valid: 0, invalid: 0, explicit_gaps: 0, unselected: 0 };
-  return proofValidationAssessment({
-    envelope: { ...validationEnvelope(resolved, { sourceDigest: null, contextDigest: identity }),
+  const envelope = { ...validationEnvelope(resolved, { sourceDigest: null, contextDigest: identity }),
       authored: { status: findings.length === 0 ? 'valid' : 'invalid', ...zero },
       exceptions,
       route: { status: 'not_assessed', assessed: 0, prevents: 0, stages: {
         authored_inputs: { complete: 0, incomplete: 0 }, canonical_sources: { current: 0, unresolved: 0 },
         system_capability: { available: 0, unavailable: 0 },
         execution_evidence: { not_started: 0, credit_granted: 0 } } },
-      owner_failures: [], execution: { ...PROOF_VALIDATION_EXECUTION }, dispatch: dispatchNotAssessed(resolved),
+      specification: definitions.specification,
+      owner_failures: definitionFailure === null ? [] : [publicOwnerFailure(definitionFailure)],
+      execution: { ...PROOF_VALIDATION_EXECUTION }, dispatch: dispatchNotAssessed(resolved),
       acceptance_coverage: compactCriterionCoverage(wholeUnitCriterionCoverage(coveragePkg, resolved, [])),
-      ...(findings.length === 0 ? userRequirementsComparison(resolved, 'authored_scope', deps) : {}) },
+      ...(findings.length === 0 ? userRequirementsComparison(resolved, 'authored_scope', deps) : {}) };
+  if (input.diagnosticGroupId !== undefined) {
+    const selected = definitions.entries.find(entry => entry.diagnosis.selected.diagnostic_group_id === input.diagnosticGroupId);
+    if (selected === undefined) throw new ControlledContractToolError('obligation_coverage_diagnostic_group_not_found',
+      'The diagnostic group is unknown or belongs to a different resolved snapshot', {
+        changed: false, diagnostic_group_id: input.diagnosticGroupId, next_calls: [validationCall(resolved)] });
+    return { assessment: selectedGroupAnswer({ envelope, diagnosis: selected.diagnosis, resolved, clauses: {}, delivery }),
+      diagnosis_inventory: null };
+  }
+  const assessment = proofValidationAssessment({ envelope,
     diagnostics: { authoring_groups: findings.length, semantic_groups: 0,
       authoring_occurrence_effects: { scope: 'selected_routes_only', blocking: 0, nonblocking: 0, unresolved: 0 },
       semantic_logical_cause_recovery: { authored_correction_available: 0, system_owner_failure: 0,
         inspection_only: 0 } },
     issues, fits: delivery.fits });
+  const absent = { status: 'not_applicable', failure: null };
+  return { assessment, diagnosis_inventory: capture ? diagnosisInventory({ resolved, envelope: assessment,
+    obligationId: undefined, entries: definitions.entries, unselectable: findings, families: { authoring: absent, semantic: absent,
+      definition: familyAvailability(definitionFailure, 'unavailable'),
+      specification_meaning: familyAvailability(definitionFailure, 'unavailable') }, clauses: {} }) : null };
 }

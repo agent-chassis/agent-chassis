@@ -159,6 +159,13 @@ test("F4: shouldExposeTool exposes EXACTLY each agent role's central-policy gran
   }
 });
 
+test("assignment-change has only the shared worker grant", () => {
+  const policy = loadPolicy();
+  assert.deepEqual(policy.access.request_assignment_change, ["worker"]);
+  assert.deepEqual(policy.dispositions.request_assignment_change, ["direct"]);
+  for (const role of AGENT_ROLES) assert.equal(shouldExposeTool(role, "request_assignment_change"), role === "worker");
+});
+
 test("F4: a tool granted only to one role is not visible to any other agent role at the predicate", () => {
   const policy = loadPolicy();
   const grants = resolveRoleToolGrantsFromPolicy(policy);
@@ -636,11 +643,11 @@ test("proof-tool retirement preserves the exact remaining role populations", () 
     role,
     Object.values(policy.access).filter((grants) => grants.includes(role)).length
   ])), {
-    orchestrator: 15,
-    reviewer: 7,
-    worker: 5,
-    redteam: 4,
-    operator: 28
+    orchestrator: 16,
+    reviewer: 8,
+    worker: 7,
+    redteam: 5,
+    operator: 29
   });
 });
 

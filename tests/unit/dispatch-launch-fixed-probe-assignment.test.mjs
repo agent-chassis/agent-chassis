@@ -7,16 +7,13 @@ import { CONNECTED_OPERATIVE_NOTES_HEADING, CONNECTED_OPERATIVE_WINDOW_END, CONN
   "../../packages/wiki-mcp/src/lib/dispatch-launch-fixed-probe-protocol.mjs";
 
 const readAssignment = runInNewContext(`${FIXED_PROBE_MCP_CLIENT_SOURCE}\nreadFixedProbeAssignment`);
-const identity = { assigned_unit: "WK-0001#SLICE-001", role: "worker",
-  canonical_source_digest: "canonical-source", run_id: "selected-run" };
 const continuation = { tool: "returned-reader", arguments: {
-  reference: { ref_id: "frozen-assignment", sha256: "bound-digest" }, select: { field: "guidance" }
+  reference: { ref_id: "frozen-assignment" }, select: { field: "guidance" }
 } };
-const context = { revision: "0123456789abcdef", next_calls: [
+const context = { reference: continuation.arguments.reference, next_calls: [
   { tool: "unselected-contract-reader", arguments: { select: { contract: "coverage" } } }, continuation
 ] };
-const guidance = { complete: true, field: "guidance", value: "exact frozen guidance 🚀\n",
-  identity, next_calls: [] };
+const guidance = { complete: true, field: "guidance", value: "exact frozen guidance 🚀\n", next_calls: [] };
 
 test("fixed assignment probe consumes the returned complete guidance call unchanged", async () => {
   for (const mirrorOnly of [false, true]) {
@@ -34,8 +31,9 @@ test("fixed assignment probe consumes the returned complete guidance call unchan
     assert.equal(JSON.stringify(calls[1][1]), JSON.stringify(continuation.arguments));
     if (!mirrorOnly) assert.equal(calls[1][1], continuation.arguments);
     assert.equal(result.guidance, guidance.value);
-    assert.equal(result.source_digest, context.revision);
-    assert.equal(JSON.stringify(result.identity), JSON.stringify(identity));
+    assert.equal(JSON.stringify(result.reference), JSON.stringify(context.reference));
+    assert.equal(result.identity, undefined);
+    assert.equal(result.source_digest, undefined);
     assert.equal(result.reads, 2);
   }
 });
@@ -68,6 +66,14 @@ test("fixed assignment probe refuses missing selection and incomplete guidance",
     ++reads === 1 ? context : { ...guidance, complete: false } }) }),
   /assignment_read_invalid_guidance_selection/);
   assert.equal(reads, 2);
+  for (const changed of [undefined, { ref_id: "different-assignment" }]) {
+    let calls = 0;
+    await assert.rejects(readAssignment({ callTool: async () => {
+      calls += 1;
+      return { structuredContent: { ...context, reference: changed } };
+    } }), /assignment_read_missing_guidance_selection/);
+    assert.equal(calls, 1, "an altered/missing binding prevents the dependent read");
+  }
 });
 
 const decodeRows = runInNewContext(

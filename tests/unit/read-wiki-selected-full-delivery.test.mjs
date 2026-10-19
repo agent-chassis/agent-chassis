@@ -31,7 +31,7 @@ const AUTHORITY_A = Object.freeze({ role: "reviewer", run: { run_id: "run-a", re
 const AUTHORITY_B = Object.freeze({ role: "reviewer", run: { run_id: "run-b", retry_id: 0 } });
 const row = (index) => ({ index, text: `${MARKER} 行 ${index} "quoted" \\ back\ttab\né 🚀 ${"λ".repeat(40)}`,
   nested: { tags: [`tag-${index}`, "ω"], depth: { leaf: index * 3, empty: [] } } });
-const ROWS = 400;
+const ROWS = 800;
 const CARRIER = Object.freeze({ title: "complete é", rows: Array.from({ length: ROWS }, (_, index) => row(index)),
   groups: { alpha: [[1, 2], [3, { deep: "深" }]], omega: { last: "  final \"value\"" } }, tail: null });
 const binding = (authority, fields = {}) => ({ route: ROUTE, repository: "fixture-repo", unit: "WK-0001#SLICE-001",
@@ -60,45 +60,87 @@ const refused = (reason, code = "selected_response_query_invalid") => (error) =>
 };
 const UNREADABLE = "mcp_response.content_reference_ranged_read_unavailable.v1";
 
-test("RW-D01", async (t) => {
-  const { scope, env } = stateEnv(t);
-  const source = retain(env, AUTHORITY_A);
+function complete(result, expected = CARRIER, options) {
+  const value = assertStructuredCarrier(result, options);
+  assert.deepEqual(value, expected);
+  assert.notEqual(result.isError, true);
+  assert.equal(value.response_spilled, undefined);
+  return value;
+}
+
+for (const inlineLimit of [undefined, 8192, 262144]) test(`RW-D01 SDK inline=${inlineLimit ?? "default"}`, async (t) => {
+  const { scope, env: base, dir } = stateEnv(t);
+  const env = { ...base };
+  if (inlineLimit === undefined) delete env.WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT;
+  else env.WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT = String(inlineLimit);
+  const small = { title: "exact é 🚀 \"quoted\" \\ back\ttab\n", rows: [row(0)] };
+  const sources = { small: retain(env, AUTHORITY_A, small), large: retain(env, AUTHORITY_A) };
+  const before = readdirSync(dir);
   let calls = 0;
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const server = new McpServer({ name: "selected-full-test", version: "1.0.0" });
   const client = new Client({ name: "selected-full-client", version: "1.0.0" }, { capabilities: {} });
   scope.add("sdk pair", async () => { await client.close(); await server.close(); });
-  server.registerTool("selected_full", { description: "selected full" }, guardToolHandler(async () => {
-    calls += 1;
-    return full(env, source);
-  }, { name: "selected_full", env }));
-  server.registerTool("ordinary", { description: "ordinary" },
-    guardToolHandler(async () => jsonContent(CARRIER, { env }), { name: "ordinary", env }));
+  server.registerTool("selected_full", { inputSchema: { size: z.enum(["small", "large", "wrong_authority", "mutated", "remirrored", "metadata", "copied", "deleted"]) } },
+    guardToolHandler(async ({ size }) => {
+      calls += 1;
+      if (size === "wrong_authority") return full(env, sources.small, AUTHORITY_B);
+      const result = full(env, sources[size === "small" || size === "metadata" ? "small" : "large"]);
+      if (size === "mutated") result.structuredContent.rows.push(row(ROWS));
+      if (size === "remirrored") result.content = [{ type: "text", text: "stale" }];
+      if (size === "metadata") result._meta = { extra: "é".repeat(LIMIT) };
+      if (size === "copied") return { ...result };
+      if (size === "deleted") delete result.structuredContent;
+      return result;
+    }, { name: "selected_full", env }));
   await server.connect(serverTransport);
   await client.connect(clientTransport);
-
-  const delivered = await client.callTool({ name: "selected_full", arguments: {} });
-  assert.equal(calls, 1, "one call delivers the value; the client reconstructs nothing");
-  assert.notEqual(delivered.isError, true, JSON.stringify(delivered).slice(0, 400));
-  assert.deepEqual(Object.keys(delivered).sort(), ["content", "structuredContent"]);
-  const value = assertStructuredCarrier(delivered);
-  assert.deepEqual(value, CARRIER, "the complete logical value, exactly");
-  assert.deepEqual(Object.keys(value), ["title", "rows", "groups", "tail"], "no missing or added member");
-  assert.equal(value.rows.length, ROWS);
-  assert.deepEqual(value.rows.map((item) => item.index), Array.from({ length: ROWS }, (_, index) => index),
-    "no dropped, duplicated or reordered row");
-  for (const index of [0, ROWS / 2, ROWS - 1]) assert.deepEqual(value.rows[index], row(index));
-  assert.equal(value.groups.omega.last, "  final \"value\"");
-  assert.deepEqual(delivered.content, [{ type: "text", text: JSON.stringify(CARRIER) }],
-    "one generated compact mirror equal to structuredContent");
-  for (const key of ["response_spilled", "content_reference", "next_calls", "preview"]) {
-    assert.equal(Object.hasOwn(value, key), false, `${key}: not a locator, spill or continuation`);
+  const exact = await client.callTool({ name: "selected_full", arguments: { size: "small" } });
+  assert.deepEqual(assertStructuredCarrier(exact), small);
+  assert.deepEqual(exact.content, [{ type: "text", text: JSON.stringify(small) }]);
+  const delivered = await client.callTool({ name: "selected_full", arguments: { size: "large" } });
+  complete(delivered);
+  assert.ok(deliveredAdmissionBytes(delivered) > 128 * 1024);
+  complete(await client.callTool({ name: "selected_full", arguments: { size: "remirrored" } }));
+  const metadata = await client.callTool({ name: "selected_full", arguments: { size: "metadata" } });
+  complete(metadata, small);
+  assert.deepEqual(metadata._meta, { extra: "é".repeat(LIMIT) });
+  const deleted = await client.callTool({ name: "selected_full", arguments: { size: "deleted" } });
+  assert.equal(deleted.isError, true);
+  assert.match(JSON.stringify(deleted), /lost structuredContent/u);
+  const denied = await client.callTool({ name: "selected_full", arguments: { size: "wrong_authority" } });
+  assert.equal(denied.isError, true);
+  assert.match(JSON.stringify(denied), /source_binding_mismatch/u);
+  assert.ok(deliveredAdmissionBytes(denied) <= LIMIT);
+  assert.equal(JSON.stringify(denied).includes(MARKER), false);
+  assert.deepEqual(readdirSync(dir), before, "authenticated reads create no spill or replacement original");
+  const copied = await client.callTool({ name: "selected_full", arguments: { size: "copied" } });
+  if (inlineLimit === 262144) complete(copied);
+  else {
+    assert.equal(assertStructuredCarrier(copied).response_spilled, true, 'copied result loses selected-full authentication');
+    assert.ok(deliveredAdmissionBytes(copied) <= LIMIT);
   }
-  assert.ok(deliveredAdmissionBytes(delivered) > LIMIT * 4, "materially above the ordinary inline limit");
+  const mutated = await client.callTool({ name: "selected_full", arguments: { size: "mutated" } });
+  if (inlineLimit === 262144) {
+    assert.deepEqual(assertStructuredCarrier(mutated), { ...CARRIER, rows: [...CARRIER.rows, row(ROWS)] });
+  } else assert.equal(assertStructuredCarrier(mutated).response_spilled, true);
+  assert.equal(calls, 8);
+  assert.deepEqual(full(env, sources.large).structuredContent, CARRIER, "every retained row stays exact");
+  t.diagnostic(JSON.stringify({ inline: inlineLimit ?? "default", small: deliveredAdmissionBytes(exact),
+    oversized: deliveredAdmissionBytes(delivered), requested: bytes(CARRIER), physical: bytes(delivered) }));
+});
 
-  const ordinary = assertStructuredCarrier(await client.callTool({ name: "ordinary", arguments: {} }));
-  assert.equal(ordinary.response_spilled, true);
-  assert.equal(Object.hasOwn(ordinary, "rows"), false);
+test("selected members cross the old compact boundary with exact escaping", async t => {
+  const { env } = stateEnv(t);
+  const make = length => ({ text: "é🚀\"\\\t\n" + "x".repeat(length) });
+  const overhead = measureMcpInlineResultBytes(make(0));
+  const atLimit = make(LIMIT - overhead);
+  const overLimit = make(LIMIT - overhead + 1);
+  assert.equal(measureMcpInlineResultBytes(atLimit), LIMIT);
+  assert.deepEqual(assertStructuredCarrier(await guarded(env, full(env, retain(env, AUTHORITY_A, atLimit)))), atLimit);
+  const delivered = await guarded(env, full(env, retain(env, AUTHORITY_A, overLimit)));
+  complete(delivered, overLimit);
+  assert.equal(deliveredAdmissionBytes(delivered), LIMIT + 1);
 });
 
 test("RW-D02", async (t) => {
@@ -184,34 +226,37 @@ test("RW-D03", async (t) => {
   spilledOnly(refusal);
 
   const delivered = await guarded(env, full(env, source));
-  assert.deepEqual(assertStructuredCarrier(delivered), CARRIER);
-  assert.ok(deliveredAdmissionBytes(delivered) > LIMIT && bytes(delivered) > deliveredAdmissionBytes(delivered) * 2 - 64);
+  complete(delivered);
   assert.equal(await guarded(env, delivered), delivered, "normalization is idempotent for the delivered result");
 
-  const forgedHandler = guardToolHandler(async (args) => ({ structuredContent: { ...CARRIER, selected_full: args.selected_full },
+  const forgedHandler = guardToolHandler(async (args) => ({ structuredContent: { ...CARRIER, complete: args.complete, selected_full: args.selected_full },
     _meta: { selected_full: true, delivery_class: "selected_full" }, selectedFull: true }), { name: "forged", env });
-  spilledOnly(await forgedHandler({ selected_full: true, full: true }));
+  spilledOnly(await forgedHandler({ selected_full: true, full: true, complete: true }));
   spilledOnly(await guarded(env, { ...full(env, source) }));
   spilledOnly(await guarded(env, { structuredContent: full(env, source).structuredContent }));
+  spilledOnly(await guarded(env, { structuredContent: { ...full(env, source).structuredContent } }));
 
   const mutated = (mutate) => { const result = full(env, source); mutate(result); return guarded(env, result); };
   spilledOnly(await mutated((result) => { result.structuredContent = { replaced: "r".repeat(LIMIT * 3) }; }));
   spilledOnly(await mutated((result) => { result.structuredContent.unrelated = "appended material"; }));
   spilledOnly(await mutated((result) => { result.structuredContent.rows.push(row(ROWS)); }));
-  spilledOnly(await mutated((result) => { result._meta = { note: "protocol metadata" }; }));
+  const metadata = await mutated((result) => { result._meta = { note: "protocol metadata" }; });
+  complete(metadata);
+  assert.deepEqual(metadata._meta, { note: "protocol metadata" });
   const withResource = await mutated((result) => {
     result.content.push({ type: "resource", resource: { uri: "file:///unrelated", text: "unrelated" } });
   });
-  spilledOnly(withResource, { permitNonTextBlocks: true });
+  complete(withResource, CARRIER, { permitNonTextBlocks: true });
+  assert.equal(withResource.content[1].resource.text, "unrelated");
   const flagged = await mutated((result) => { result.isError = true; });
   assert.equal(flagged.isError, true);
-  spilledOnly(flagged);
+  assert.deepEqual(assertStructuredCarrier(flagged), CARRIER);
 
   const remirrored = await mutated((result) => {
     result.content = [{ type: "text", text: "stale" }, { type: "text", text: "additional" }];
   });
-  assert.deepEqual(assertStructuredCarrier(remirrored), CARRIER);
-  assert.deepEqual(remirrored.content, [{ type: "text", text: JSON.stringify(CARRIER) }]);
+  complete(remirrored);
+  assert.equal(remirrored.content[0].text, JSON.stringify(remirrored.structuredContent));
 
   const invalid = await guarded(env, full(env, source), { outputSchema: { absent_member: z.string() } });
   assert.equal(invalid.isError, true);
@@ -225,14 +270,11 @@ test("native journal selected-full delivery conserves verified source and transp
   const projection = { member: "proof_verifications", value: CARRIER.rows, nested: CARRIER.groups };
   const before = readdirSync(dir);
   const exact = selectedFullContent({ source, serializedBytes, projection });
-  assert.equal(await guarded(env, exact), exact);
-  assert.deepEqual(assertStructuredCarrier(exact), projection);
-  assert.ok(deliveredAdmissionBytes(exact) > LIMIT);
-  assert.equal(exact.content[0].text, JSON.stringify(projection));
+  complete(await guarded(env, exact), projection);
+  assert.deepEqual(assertStructuredCarrier(exact), projection, "the internal original is exact");
   assert.deepEqual(readdirSync(dir), before, "native selection retains no response snapshot");
   const jsonSource = retain(env, AUTHORITY_A);
-  assert.deepEqual(assertStructuredCarrier(await guarded(env, full(env, jsonSource))), CARRIER,
-    "the existing JSON-envelope path is unchanged");
+  complete(await guarded(env, full(env, jsonSource)));
 });
 
 test("native journal selected-full delivery rejects invalid sources and forged admission", async (t) => {
@@ -250,7 +292,20 @@ test("native journal selected-full delivery rejects invalid sources and forged a
   const make = () => selectedFullContent(options);
   await spill({ ...make() });
   const mutation = make(); mutation.structuredContent.value.push(row(ROWS)); await spill(mutation);
-  const metadata = make(); metadata._meta = { selected_full: true }; await spill(metadata);
+  const metadata = make(); metadata._meta = { selected_full: true }; complete(await guarded(env, metadata), projection);
   await spill({ structuredContent: { ...projection, selected_full: true }, selectedFull: true });
   await spill(jsonContent(projection, { env }));
+});
+
+test("selected complete serialization failures remain errors", async t => {
+  const { env } = stateEnv(t);
+  for (const mutate of [result => { result.structuredContent.cycle = result.structuredContent; },
+    result => { result._meta = { invalid: 1n }; }, result => { result.extension = result; }]) {
+    const result = full(env, retain(env, AUTHORITY_A));
+    mutate(result);
+    const failed = await guarded(env, result);
+    assert.equal(failed.isError, true);
+    assert.match(JSON.stringify(failed), /JSON-serializable|BigInt|circular/u);
+    assert.equal(failed.structuredContent?.response_spilled, undefined);
+  }
 });

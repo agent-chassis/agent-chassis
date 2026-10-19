@@ -1,8 +1,10 @@
 const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
 import { VERIFY_PROOF_SUMMARY_SCHEMA_VERSION } from "./mcp-response.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { publicProofSelectedRow } from "./verify-proof-agent-meaning.mjs";
 import { PUBLIC_PROOF_STATUS_VALUES, isVerifyProofPopulationSubject, projectProofEvidencePresentation,
-  projectVerifyProofRegressions, projectVerifyProofSelectedDetail, selectVerifyProofRows } from
+  projectVerifyProofRegressions, projectVerifyProofSelectedDetail, projectProofTraversal,
+  projectProofCheckLimitations, selectVerifyProofRows } from
   "./verify-proof-result-detail.mjs";
 const SUMMARY_DIAGNOSTIC_CODE_LIMIT = 8;
 
@@ -39,13 +41,22 @@ function summaryRepair(repair) {
 
 function summaryRecovery(recovery, proof = null) {
   if (recovery === null || typeof recovery !== "object") return undefined;
-  const { repair: rawRepair, subject, follow_up_call: call,
+  const { repair: rawRepair, subject, follow_up_call: call, acquisition,
     recovery_call: _recoveryCall, authoring_source: _authoringSource, ...rest } = structuredClone(recovery);
   const repair = summaryRepair(rawRepair);
   const ownSubject = proof !== null && subject?.test_proof_id === proof.test_proof_id &&
     subject?.verification_id === proof.verification_id;
   return {
     ...rest,
+    ...(acquisition === undefined ? {} : { acquisition: {
+      code: acquisition.code, state: acquisition.state,
+      missing_capability: acquisition.missing_capability,
+      source: { unit: acquisition.source.unit,
+        ...(acquisition.source.focus_status === 'unknown' ? { focus_status: 'unknown' }
+          : { focus: acquisition.source.focus }) },
+      obligation_ids: acquisition.obligation_ids, reason: acquisition.reason,
+      correction_boundary: acquisition.correction_boundary,
+      ...(acquisition.cause === undefined ? {} : { cause: acquisition.cause }) } }),
     ...(subject === undefined || ownSubject ? {} : { subject }),
     ...(call === undefined ? {} : { follow_up_call: {
       tool: call.tool,
@@ -56,18 +67,23 @@ function summaryRecovery(recovery, proof = null) {
   };
 }
 
-function publicSelectedDetail(detail) {
+export function publicSelectedDetail(detail) {
   if (detail === null) return null;
+  const candidate = detail.subject_binding?.candidate_identity;
   return {
-    ...detail,
-    proofs: detail.proofs.map((proof) => proof.failure?.recovery === undefined ? proof : {
-      ...proof,
-      failure: { ...proof.failure, recovery: summaryRecovery(proof.failure.recovery) }
-    })
+    subject: { requested: detail.subject.requested }, selected_subject: detail.selected_subject,
+    status: detail.result_status,
+    ...(candidate?.commit === undefined ? {} : { subject_binding: { candidate_identity: {
+      commit: candidate.commit,
+      ...(candidate.resolved_branch === undefined ? {} : { resolved_branch: {
+        selector: candidate.resolved_branch.selector, branch: candidate.resolved_branch.branch,
+        commit: candidate.resolved_branch.commit } }) } } }),
+    proofs: detail.proofs.map(publicProofSelectedRow),
+    ...(detail.regressions === undefined ? {} : { regressions: detail.regressions })
   };
 }
 
-function authoringCorrectionCalls(evidence) {
+export function authoringCorrectionCalls(evidence) {
   const supplied = [evidence.recovery,
     ...evidence.proof_results.map((proof) => proof.recovery)]
     .map((recovery) => recovery?.recovery_call)
@@ -118,7 +134,8 @@ function summarySelectedTest(selected) {
     test_id: selected.test_id,
     ...(typeof selected.file === "string" ? { file: selected.file } : {}),
     ...(typeof selected.name === "string" ? { name: selected.name } : {}),
-    ...(typeof selected.node_id === "string" ? { node_id: selected.node_id } : {})
+    ...(typeof selected.node_id === "string" ? { node_id: selected.node_id } : {}),
+    ...(Number.isSafeInteger(selected.nesting) ? { nesting: selected.nesting } : {})
   };
 }
 
@@ -131,12 +148,16 @@ function summaryTiming(timing) {
   };
 }
 
-export function projectVerifyProofSummaryRow(proof) {
+export function projectVerifyProofSummaryRow(proof, { complete = false } = {}) {
   const limitations = summaryLimitations(proof);
   const presentation = projectProofEvidencePresentation(proof);
   const mutation = summaryMutation(presentation.mutation_evidence);
+  const decidingMutation = mutation === undefined || complete ? mutation
+    : mutation.survived || mutation.unevaluable ? Object.fromEntries(Object.entries(mutation)
+      .filter(([key]) => key !== "detected")) : undefined;
   const selectedTest = summarySelectedTest(proof.selected_test);
   const timing = summaryTiming(proof.timing);
+  const traversal = projectProofTraversal(proof, { complete, problemsOnly: !complete });
   return {
     test_proof_id: proof.test_proof_id,
     verification_id: proof.verification_id,
@@ -146,21 +167,64 @@ export function projectVerifyProofSummaryRow(proof) {
     ...(selectedTest === undefined ? {} : { selected_test: selectedTest }),
 
     selected_status: presentation.test_observation.status,
-    ...(mutation === undefined ? {} : { mutation_evidence: mutation }),
+    ...(decidingMutation === undefined ? {} : { mutation_evidence: decidingMutation }),
     ...(typeof proof.declared_target?.target === "string"
       ? { declared_target: proof.declared_target.target } : {}),
 
     ...(typeof proof.runtime_environment?.environment === "string"
       ? { environment: proof.runtime_environment.environment } : {}),
-    ...(limitations === undefined ? {} : { capability_limitations: limitations }),
+    ...(limitations === undefined || !complete ? {} : { capability_limitations: limitations }),
     ...(timing === undefined ? {} : { timing }),
+    ...(traversal === undefined ? {} : { traversal }),
     reason: proofReason(proof),
-    obligations: (proof.relationship_results ?? []).map((relationship) => ({
+    obligations: (proof.relationship_results ?? []).filter(row => complete || row.status !== "proven")
+      .map((relationship) => ({
       obligation_id: relationship.obligation_id,
       status: relationship.status,
       reason: relationshipReason(relationship)
     }))
   };
+}
+
+const COVERAGE_LIMIT = "verify_proof.behavioral_coverage_not_established.v1";
+
+export function isRoutineVerifyProofSuccess(proof) {
+  const presentation = projectProofEvidencePresentation(proof);
+  if (proof.execution_status !== "completed" || presentation.test_observation.status !== "passed" ||
+      presentation.mutation_evidence.survived_count > 0 ||
+      presentation.mutation_evidence.unevaluable_count > 0) return false;
+  if (proof.status === "proven") return true;
+  return proof.status === "unproven" && proof.reason_code === COVERAGE_LIMIT &&
+    proof.relationship_results.length > 0 && proof.relationship_results.every(row =>
+      row.status === "proven" || row.status === "unproven" && row.reason_code === COVERAGE_LIMIT);
+}
+
+function aggregateExecutionMeaning(evidence) {
+  const execution = { proofs: {}, selected_observations: {} };
+  const limitations = new Map();
+  for (const proof of evidence.proof_results) {
+    const status = proof.execution_status;
+    execution.proofs[status] = (execution.proofs[status] ?? 0) + 1;
+    const selected = projectProofEvidencePresentation(proof).test_observation.status;
+    execution.selected_observations[selected] = (execution.selected_observations[selected] ?? 0) + 1;
+    const meanings = projectProofCheckLimitations(proof).map(limitation => ({
+      reason_code: limitation.reason_code, check_kind: limitation.check_kind,
+      ...(limitation.detail?.reason === undefined ? {} : { reason: limitation.detail.reason }),
+      ...(limitation.explanation === undefined ? {} : { explanation: limitation.explanation }),
+      next_step: limitation.next_step
+    }));
+    if (proof.reason_code === COVERAGE_LIMIT || proof.relationship_results.some(row => row.reason_code === COVERAGE_LIMIT)) {
+      meanings.push({ reason_code: COVERAGE_LIMIT,
+        effect: "No requirement-satisfaction credit from execution validity alone.",
+        next_step: "Report this evidence limit; an unchanged-input retry is not indicated." });
+    }
+    for (const key of new Set(meanings.map(meaning => JSON.stringify(meaning)))) {
+      const group = limitations.get(key) ?? { ...JSON.parse(key), proof_count: 0 };
+      group.proof_count++;
+      limitations.set(key, group);
+    }
+  }
+  return { execution, ...(limitations.size === 0 ? {} : { limitations: [...limitations.values()] }) };
 }
 
 function statusCounts(rows) {
@@ -197,8 +261,11 @@ function materializeRows(rows) {
 }
 
 export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
-  decorate = (summary) => summary, invocationTiming = true } = {}) {
-  const rows = evidence.proof_results.map(projectVerifyProofSummaryRow);
+  decorate = (summary) => summary, invocationTiming = true, population = false } = {}) {
+  const relevant = evidence.proof_results.filter(proof => population || !isRoutineVerifyProofSuccess(proof));
+  const rows = relevant.map(proof => projectVerifyProofSummaryRow(proof, { complete: population }));
+  const summarized = evidence.proof_results.length - relevant.length;
+  const executionMeaning = aggregateExecutionMeaning(evidence);
   const relationshipRows = evidence.proof_results.flatMap((proof) => proof.relationship_results ?? []);
   const counts = Object.freeze({
     proofs: Object.freeze({ total: evidence.counts.proofs, ...structuredClone(
@@ -215,7 +282,7 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
     ...facts, count: ids.length, obligation_ids: ids.slice(0, SUMMARY_OPT_OUT_ID_LIMIT),
     obligation_ids_omitted: Math.max(0, ids.length - SUMMARY_OPT_OUT_ID_LIMIT) }))(evidence.proof_opt_outs);
 
-  const regressions = projectVerifyProofRegressions(evidence);
+  const regressions = projectVerifyProofRegressions(evidence, { complete: true, problemsOnly: !population });
   const priority = rows.map((row, index) => ({ row, index }))
     .sort((left, right) => Number(left.row.status === "proven") -
       Number(right.row.status === "proven") || left.index - right.index);
@@ -235,10 +302,12 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
       ...(evidence.reason_code === undefined ? {} : { reason_code: evidence.reason_code }),
       ...(recovery === undefined ? {} : { recovery }),
       counts,
+      ...executionMeaning,
       ...(optOuts === undefined ? {} : { proof_opt_outs: optOuts }),
       ...(regressions === undefined ? {} : { regressions }),
       proofs,
       proofs_returned: proofs.length,
+      proofs_summarized: summarized,
       proofs_omitted: omitted.length,
       proofs_omitted_by_status: statusCounts(omitted),
       reasons,
@@ -251,7 +320,7 @@ export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
       result_digest: evidence.result_digest
     }, kept));
   };
-  return fitWholePrefix(rows.length, build, fits);
+  return population ? build(rows.length) : fitWholePrefix(rows.length, build, fits);
 }
 
 export function fitWholePrefix(total, build, fits) {
@@ -276,22 +345,34 @@ export function selectableSubject(row) {
 
 function selectedFailureDetail(evidence, subject, admission) {
   if (subject === null || isVerifyProofPopulationSubject(subject) ||
-      !selectVerifyProofRows(evidence, subject).some(({ status }) => status !== "proven")) return null;
+      !selectVerifyProofRows(evidence, subject).some(proof => !isRoutineVerifyProofSuccess(proof))) return null;
   return publicSelectedDetail(projectVerifyProofSelectedDetail(evidence, subject, {
     fits: (detail) => admission.fits(publicSelectedDetail(detail))
   }));
 }
 
 export function projectVerifyProofSummary(evidence, { fits = () => true, selectedFits = fits,
-  detailCall = null, selectedSubject = null } = {}) {
+  detailCall = null, selectedSubject = null, population = false } = {}) {
   const correctionCalls = authoringCorrectionCalls(evidence);
   const decorate = (selectedDetail) => (core, kept) => {
 
-    const readCalls = detailCall === null ? [] : kept.filter((row) => row.status !== "proven")
+    const readCalls = detailCall === null || population ? [] : kept.filter((row) => !isRoutineVerifyProofSuccess(
+      evidence.proof_results.find(proof => proof.test_proof_id === row.test_proof_id)))
       .map(selectableSubject).filter((subject) => subject !== null)
       .map((subject, index) => detailCall(subject, {
         recommended: correctionCalls.length === 0 && index === 0
       }));
+    if (!population && selectedDetail !== null && readCalls.length === 0 && detailCall !== null) {
+      readCalls.push(detailCall(selectedSubject, { recommended: correctionCalls.length === 0 }));
+    }
+    if (!population && detailCall !== null &&
+        (evidence.proof_results.length > 0 || evidence.regression_results?.results.length > 0) && !readCalls.some(call =>
+      call.arguments.proof?.subject === evidence.subject.requested)) {
+      readCalls.push({ ...detailCall(evidence.subject.requested, {
+        population: true, recommended: core.proofs_omitted > 0 }),
+        purpose: isVerifyProofPopulationSubject(evidence.subject.requested) ? "proof_population" : "proof_detail",
+        information: "Optional complete selected outcomes and diagnosis." });
+    }
     return {
       schema_version: VERIFY_PROOF_SUMMARY_SCHEMA_VERSION,
       ...core,
@@ -301,10 +382,13 @@ export function projectVerifyProofSummary(evidence, { fits = () => true, selecte
   };
 
   const rowFree = (selectedDetail) => projectVerifyProofOutcomeCore(evidence, {
-    fits: () => false, decorate: decorate(selectedDetail) });
-  const selectedDetail = selectedFailureDetail(evidence, selectedSubject, {
+    population, fits: () => false, decorate: decorate(selectedDetail) });
+  const selectedDetail = population ? { proofs: evidence.proof_results.flatMap(proof =>
+    publicSelectedDetail(projectVerifyProofSelectedDetail(evidence, proof.test_proof_id,
+      { completeDiagnosis: true })).proofs) } : selectedFailureDetail(evidence, selectedSubject, {
     fits: (detail) => selectedFits(rowFree(detail)) });
-  return projectVerifyProofOutcomeCore(evidence, { fits: selectedDetail === null ? fits : selectedFits,
+  return projectVerifyProofOutcomeCore(evidence, { population,
+    fits: population ? () => true : selectedDetail === null ? fits : selectedFits,
     decorate: decorate(selectedDetail) });
 }
 

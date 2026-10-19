@@ -1,0 +1,35 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "c292197fb085bcf603d278fb17b3d5a672cb58ac42d33f049e6ff199702d8181",
+  "profile_id": "proof.result-shape.cross-representation-parity",
+  "profile_version": "5.0.0",
+  "profile_digest": "6c900cfa52b90890a8a9152b727fcc693cf976937e65d5c2a661dcec7c79ded9",
+  "guarantee": "For a supplied controlled graph, match declarations of two distinct result surfaces from one declared logical source, equal complete declared typed-descriptor populations by mutual subset, shared exact nonnegative member count and count signals, and one explicitly selected equal canonical value pair, with read and controlled-complement verification declarations. This is declaration matching only: no report data, captured bytes or implementation behavior is compared. Actual supplied-report comparison requires a separate call to verifyBehavioralPreservationReports and is bounded to its checked inputs; neither result establishes full-report equality or behavioral preservation.",
+  "guarantee_digest": "e70df607c02e551d48636ae7c1510c81ceb4d320840b267b0009eea33991b2ab",
+  "explicit_exclusions": [
+    "actual-report-data-comparison",
+    "applicability-selection",
+    "automatic-or-arbitrary-multi-value-pairing",
+    "business-semantics-referential-integrity-and-cross-member-invariants",
+    "caller-authored-population-truthfulness-and-completeness",
+    "captured-full-report-byte-equality",
+    "delivered-test-implementation-and-result-value-authenticity",
+    "field-name-or-schema-mapping",
+    "implementation-behavioral-preservation",
+    "independent-schema-truthfulness-or-compatibility",
+    "logical-source-provenance",
+    "nested-recursive-value-parity",
+    "ordering-transport-media-type-pagination-and-streaming-parity",
+    "type-coercion-normalization-unit-conversion-rounding-or-timezone-conversion",
+    "typed-member-descriptor-authoritative-construction-or-existence",
+    "unselected-canonical-value-equality"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "53b18e33dad2c05eb7bbfa3c2e0ecaf57e4e2f12d932e8db241d677694c5ee1c",
+    "adequacy_result_digest": "9106e97934be922e6c0d6403a9167a9fb1adeab2b0760239d40c9c94d13e8729",
+    "executable_control_count": 55,
+    "negative_fixture_count": 87,
+    "coverage_witness_count": 87
+  }
+}

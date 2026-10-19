@@ -1063,8 +1063,8 @@ test("structured discovery supplies the advertised source and durable-document r
   const discovery = await loadAuthoringErgonomicsDiscoveryEvidence();
   assert.equal(discovery.state, "complete");
   assert.ok(discovery.tool_count > 0);
-  const entry = discovery.entries.workspace_authoring_ergonomics_report;
-  assert.ok(entry, "the report tool must be discoverable through the live descriptor");
+  const entry = discovery.entries.workspace_read_wiki;
+  assert.ok(entry, "the current reader must have discoverable source ownership");
   assert.ok(entry.source_files.length > 0);
   assert.ok(entry.docs_refs.length > 0);
 });
@@ -1131,11 +1131,11 @@ test("code-index evidence reports shared reuse, rebuild and exact ensure failure
 
 test("an end-to-end report resolves an exact owner from the live descriptor and a canonical record", async (t) => {
   const discovery = await loadAuthoringErgonomicsDiscoveryEvidence();
-  const entry = discovery.entries.workspace_authoring_ergonomics_report;
+  const entry = discovery.entries.workspace_read_wiki;
   assert.ok(entry && entry.source_files.length > 0);
 
   const dir = await makeFixtureRepo(t, {
-    journal: abstractJournal("workspace_authoring_ergonomics_report"),
+    journal: abstractJournal("workspace_read_wiki"),
     records: [
       {
         id: "WK-0800",
@@ -1150,14 +1150,14 @@ test("an end-to-end report resolves an exact owner from the live descriptor and 
       },
       {
         id: "WK-0801",
-        body: { id: "WK-0801", repo: "abstract/repo", status: "todo", write_scope: [entry.source_files[0]] }
+        body: { id: "WK-0801", repo: "abstract/repo", status: "todo", write_scope: [], acceptance: { criteria: ["workspace_read_wiki"] } }
       }
     ]
   });
 
   const report = await buildAuthoringErgonomicsReport({ dir, source_kind: "workspace_errors_log" });
   const routed = report.routing.results.find(
-    (result) => result.subject?.boundary_id === "workspace_authoring_ergonomics_report"
+    (result) => result.subject?.boundary_id === "workspace_read_wiki"
   );
   assert.ok(routed, "the journal's boundary must be routed");
   assert.equal(routed.routing_state, "owner_resolved");

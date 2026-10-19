@@ -1,6 +1,8 @@
+import { requirementSchemaBranch } from "./requirement-authoring-schema-guidance.mjs";
+import { sessionAuthoringSchema } from "./record-authoring-session-exposure.mjs";
+import { recordAuthoringAvailability } from "@agent-chassis/wiki-core/src/lib/record-authoring-availability.mjs";
 
-
-import { RECORD_AUTHORING_SLICE_CONTEXT, WORK_ITEM_ORDINARY_MEMBERS, WORK_ITEM_SLICE_CONTRACT_MEMBERS } from
+import { readySliceAuthoringOperations, readySliceAuthoringProjection, recordAuthoringChangeSchema, RECORD_AUTHORING_SLICE_CONTEXT, WORK_ITEM_ORDINARY_MEMBERS, WORK_ITEM_SLICE_CONTRACT_MEMBERS } from
   "@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs";
 import { resolveRequirementAuthoringGuidance } from "./requirement-authoring-guidance.mjs";
 import { inputContractSourceDigest } from "./tool-discovery-input-guidance-delivery.mjs";
@@ -19,7 +21,7 @@ export const SAVE_RECORD_WORK_ITEM_GROUPS = Object.freeze([
     "blocks", "initiative", "retained_graph_evidence", "validation"]],
   ["tasks", ["tasks"]],
   ["review_evidence", ["entries", "dispositions"]],
-  ["acceptance", ["criteria", "requirements", "obligations", "controlled_acceptance"]],
+  ["acceptance", ["criteria", "requirements", "obligations", "controlled_acceptance", "refresh_proofs"]],
   ["slice_shaping", ["slices", "ready_slices"]],
   ["slice_assignment", WORK_ITEM_SLICE_CONTRACT_MEMBERS],
   ["lifecycle", ["status", "closure"]],
@@ -32,8 +34,7 @@ export const SAVE_RECORD_WORK_ITEM_JOBS = Object.freeze([
   { job: "record_editing", purpose: "the complete save_record schema for editing this record's content, planning, " +
       "tasks, review evidence, lifecycle and removals",
     groups: ["content", "planning", "tasks", "review_evidence", "lifecycle", "removal"] },
-  { job: "acceptance_work", purpose: "the complete save_record schema for criteria, requirements, obligations and " +
-      "controlled acceptance",
+  { job: "acceptance_work", purpose: "the complete save_record schema for supported acceptance work",
     groups: ["acceptance"] },
   { job: "slice_planning", purpose: "the complete save_record schema for shaping slices and, on a slice unit, its assignment",
     groups: ["slice_shaping", "slice_assignment"] }
@@ -51,11 +52,13 @@ function refuse(code, message) {
   throw Object.assign(new TypeError(`${code}: ${message}`), { code });
 }
 
-function workItemGroups(name, schema, sliceUnit) {
+function workItemGroups(name, schema, sliceUnit, registeredTier) {
   const declared = (member) => Object.hasOwn(schema.properties, member);
   return SAVE_RECORD_WORK_ITEM_GROUPS.map((group) => {
     const members = group.members.filter((member) => {
       if (declared(member)) return true;
+      if (member === "requirements" && !recordAuthoringAvailability(registeredTier).compile_requirements) return false;
+      if (sliceUnit && member === 'refresh_proofs') return false;
       if (!sliceUnit && WORK_ITEM_SLICE_CONTRACT_MEMBERS.includes(member)) return false;
       return refuse(SAVE_RECORD_INPUT_EXPOSURE_CODES.MEMBER_NOT_IN_SOURCE,
         `${name} declares no ${member}, which the ${group.name} group names`);
@@ -64,7 +67,7 @@ function workItemGroups(name, schema, sliceUnit) {
   }).filter((group) => group.members.length > 0);
 }
 
-export function createSaveRecordInputExposure({ changeSchemas, variants }) {
+export function createSaveRecordInputExposure({ changeSchemas, variants, registeredTier = null }) {
   const homes = new Set(SAVE_RECORD_WORK_ITEM_GROUPS.flatMap((group) => group.members));
   for (const { member } of WORK_ITEM_ORDINARY_MEMBERS) {
     if (!homes.has(member)) {
@@ -81,13 +84,26 @@ export function createSaveRecordInputExposure({ changeSchemas, variants }) {
   }
   return Object.freeze({ digest: inputContractSourceDigest,
     sources: Object.freeze(Object.fromEntries(variants.map(({ name, kind, context }) => {
-      const schema = changeSchemas[name];
+      const schema = changeSchemas[name] === undefined ? undefined : sessionAuthoringSchema(changeSchemas[name], registeredTier);
       if (schema === undefined) {
         refuse(SAVE_RECORD_INPUT_EXPOSURE_CODES.VARIANT_SOURCE_MISSING, `no source schema for the ${name} variant`);
       }
       return [name, Object.freeze(kind === "work_item"
-        ? { schema, groups: workItemGroups(name, schema, context === RECORD_AUTHORING_SLICE_CONTEXT),
-          guidance: SAVE_RECORD_MEMBER_GUIDANCE }
+        ? { schema, branches: { ...(schema.properties.requirements ? { requirements: requirementSchemaBranch("existing") } : {}), ready_slices: readySliceSchemaBranch("existing") }, groups: workItemGroups(name, schema, context === RECORD_AUTHORING_SLICE_CONTEXT, registeredTier),
+          guidance: recordAuthoringAvailability(registeredTier).compile_requirements ? SAVE_RECORD_MEMBER_GUIDANCE : {} }
         : { schema, groups: [{ name: SAVE_RECORD_WHOLE_RECORD_GROUP, members: Object.keys(schema.properties) }] })];
     }))) });
+}
+
+export function readySliceSchemaBranch(context) {
+  const modes = readySliceAuthoringOperations(context);
+  return { metadata: { capabilities: Object.fromEntries(modes.map(mode => [mode, { row_selector: mode === 'create' ? 'key' : 'id' }])),
+      presets: modes.map(mode => [mode]) },
+    validate(schema) {
+      const owner = recordAuthoringChangeSchema('work_item', context);
+      if (JSON.stringify(schema.properties.ready_slices) !== JSON.stringify(owner.properties.ready_slices)) {
+        throw new TypeError('ready_slices_source_drift: registered member differs from its construction owner');
+      }
+    },
+    select: (schema, requested) => readySliceAuthoringProjection(schema, context, requested) };
 }

@@ -199,11 +199,11 @@
     {
       "kind": "validate_dispatch",
       "label": "Validate dispatch readiness",
-      "suggested_tool": "workspace_validate_dispatch",
+      "suggested_tool": "start_agent",
       "priority": "high",
       "advisory_only": true,
       "default_description": "Optional read-only dispatch-readiness assessment for the selected unit; it is not required before starting the unit.",
-      "verbose_description": "Use when a non-authoritative initiative-status scan hints that admission evidence may be absent, stale, or incomplete, or when a coordinator wants the prospective \"can this unit start?\" answer. Assess the exact selected unit through the read-only dispatch-readiness envelope. This recommendation is advisory: it grants no launch permission, imposes no pre-call on workspace_agent_dispatch, which performs its own current checks, and does not classify recovery, authenticate carriers or sidecars, or decide dispatchability."
+      "verbose_description": "Use when an initiative scan hints that admission evidence may be absent, stale or incomplete, or when a coordinator wants to preview the selected action. Use start_agent with the exact subject and preview:true through the serving request contract. A missing selection or unavailable session capability remains explicit; contract assessment is a separate question. Preview launches nothing, grants no launch permission, leaves unchecked conditions explicit and is not required before a start, which performs its own current checks."
     },
     {
       "kind": "record_graph_impact_evidence",

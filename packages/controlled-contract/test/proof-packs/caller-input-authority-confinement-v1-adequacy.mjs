@@ -1,3 +1,4 @@
+import { ExactBindingError } from "../../lib/deterministic-projection-primitives.mjs";
 import {
   buildStableTestProofPopulation,
   evaluateStableProofPackFixtureV1
@@ -113,23 +114,95 @@ function positiveControls(profile) {
   }));
 }
 
+const transformerRejections = Object.freeze({
+  "duplicate-declared-member": "caller_input_declared_population_invalid",
+  "unclassified-declared-member": "caller_input_declaration_invalid",
+  "overlapping-allowed-and-forbidden-partition": "caller_input_member_classification_invalid",
+  "forbidden-member-without-coordinate": "caller_input_member_classification_invalid",
+  "alias-cycle": "caller_input_alias_cycle",
+  "alias-canonical-collision": "caller_input_alias_collision",
+  "nfc-nfd-request-key-collision": "caller_input_request_key_collision",
+  "double-transport-decoding": "caller_input_accepted_surface_invalid",
+  "canonical-plus-alias-supply": "caller_input_alias_supply_collision",
+  "coordinate-association-omission": "caller_input_coordinate_association_invalid",
+  "operation-association-omission": "caller_input_operation_association_invalid",
+  "operation-association-substitution": "caller_input_association_closure_invalid",
+  "effect-association-substitution": "caller_input_operation_association_invalid",
+  "ambiguous-duplicate-member-coordinate-association": "caller_input_member_classification_invalid",
+  "incomplete-coordinate-population": "caller_input_server_coordinate_invalid",
+  "incomplete-operation-population": "caller_input_association_closure_invalid",
+  "incomplete-effect-population": "caller_input_operation_association_invalid",
+  "same-path-opposite-classification-overlap": "caller_input_declared_population_invalid",
+  "server-selected-coordinate-attribution": "caller_input_server_coordinate_invalid",
+  "missing-mandatory-source-family": "caller_input_source_census_invalid",
+  "duplicate-mandatory-source-family": "caller_input_source_census_invalid",
+  "unknown-accepted-top-level-member": "caller_input_accepted_surface_invalid",
+  "unknown-accepted-nested-member": "caller_input_accepted_surface_invalid",
+  "unknown-accepted-array-member": "caller_input_accepted_surface_invalid",
+  "unknown-forbidden-member": "caller_input_forbidden_surface_invalid",
+  "missing-forbidden-member": "caller_input_forbidden_member_missing",
+  "caller-authored-classification-label": "caller_input_accepted_surface_invalid",
+  "accepted-request-digest-substitution": "caller_input_trace_request_attempt_crossing",
+  "forbidden-attempt-crossing": "caller_input_trace_request_attempt_crossing",
+  "accepted-parser-request-reference-id-splice": "caller_input_trace_request_attempt_crossing",
+  "forbidden-disposition-attempt-reference-id-splice": "caller_input_trace_request_attempt_crossing",
+  "forbidden-request-crossing": "caller_input_trace_request_attempt_crossing",
+  "forbidden-disposition-substitution": "caller_input_parser_disposition_invalid",
+  "refusal-identity-substitution": "caller_input_refusal_cut_invalid",
+  "cut-refusal-crossing": "caller_input_refusal_cut_invalid",
+  "cut-refusal-reference-id-splice": "caller_input_refusal_cut_invalid",
+  "acceptance-refusal-grounded-identity-collision": "caller_input_refusal_cut_invalid",
+  "cut-identity-substitution": "caller_input_sound_negative_boundary_splice",
+  "accepted-request-refusal-crossing": "caller_input_acceptance_invalid",
+  "duplicate-trace-position": "caller_input_trace_position_invalid",
+  "nonmonotonic-trace-position": "caller_input_trace_position_invalid",
+  "parser-accepted-but-ignored-forbidden-input": "caller_input_parser_disposition_invalid",
+  "post-cut-record": "caller_input_refusal_cut_invalid",
+  "unknown-trace-kind": "caller_input_trace_kind_unknown",
+  "missing-observed-source": "sound_negative_projection_result_invalid",
+  "duplicated-observed-source": "caller_input_sound_negative_not_absent",
+  "unstable-observation-endpoint": "caller_input_sound_negative_not_absent",
+  "mixed-source-endpoint": "caller_input_sound_negative_not_absent",
+  "drifted-observation-version": "caller_input_sound_negative_not_absent",
+  "unavailable-observation-source": "caller_input_sound_negative_not_absent",
+  "unknown-source-outcome-kind": "sound_negative_source_outcome_invalid",
+  "evidence-attempt-reference-id-splice": "caller_input_sound_negative_boundary_splice",
+  "evidence-cut-reference-id-splice": "caller_input_sound_negative_boundary_splice",
+  "duplicate-observation": "caller_input_sound_negative_not_absent",
+  "reversed-observation-cut": "caller_input_sound_negative_not_absent",
+  "wrong-attempt-pre-refusal-occurrence": "caller_input_trace_request_attempt_crossing",
+  "operation-grounded-identity-splice": "caller_input_occurrence_association_invalid",
+  "effect-grounded-identity-splice": "caller_input_occurrence_association_invalid",
+  ...Object.fromEntries(PROHIBITED_FAMILIES.map((family) =>
+    [`pre-refusal-${family}-occurrence`, "caller_input_prohibited_occurrence_before_refusal"]))
+});
+
 function invalidControl(controlId, options) {
+  const expectedCode = transformerRejections[controlId];
+  if (!expectedCode) throw new Error(`missing transformer rejection for ${controlId}`);
+  let actualCode = null;
   try {
     buildCallerInputAuthorityConfinementSources(options);
-    return {
-      control_id: controlId,
-      category: "mutant",
-      implementation_outcome: "survived",
-      profile_satisfaction: "invalid"
-    };
   } catch (error) {
-    return {
-      control_id: controlId,
-      category: "mutant",
-      implementation_outcome: typeof error?.code === "string" ? "killed" : "survived",
-      profile_satisfaction: "invalid"
-    };
+    if (!(error instanceof ExactBindingError) || error.code !== expectedCode) throw error;
+    if (controlId.startsWith("pre-refusal-") && error.details.family !==
+        controlId.slice("pre-refusal-".length, -"-occurrence".length)) throw error;
+    if (controlId === "missing-observed-source" &&
+        !error.details.diagnostics?.some(({ code, constraint_id: constraint }) =>
+          code === "direct_proposition_contradiction" &&
+          constraint === "exact-cardinality-not-below-declared-membership")) throw error;
+    actualCode = error.code;
   }
+  return {
+    control_id: controlId,
+    category: "mutant",
+    implementation_outcome: actualCode === null ? "survived" : "killed",
+    profile_satisfaction: "not_evaluated",
+    rejection: {
+      checker: "transformer", subject: "transformer_input",
+      expected_reason: expectedCode, actual_reason: actualCode
+    }
+  };
 }
 
 function insertOccurrence(records, subject, family, { accepted = false, wrongAttempt = false } = {}) {

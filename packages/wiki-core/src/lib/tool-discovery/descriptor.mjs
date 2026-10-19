@@ -179,6 +179,7 @@ export const TOOL_DISCOVERY_CONTROLLED_TASK_IDS = Object.freeze([
   "read-canonical",
   "cleanup-runtime-artifacts",
   "inspect-provenance",
+  "record-feedback",
   "summarize-work-record",
   "validate-docs-policy",
   "set-closure",
@@ -197,6 +198,7 @@ export const TOOL_DISCOVERY_CONTROLLED_TASK_IDS = Object.freeze([
   "coordination-preflight",
   "describe-runtime-blocker-taxonomy",
   "run-validation",
+  "worker-assignment-change",
   "worker-delivery"
 ]);
 const TOOL_DISCOVERY_DIAGNOSTIC_LEVEL_ORDER = new Map(

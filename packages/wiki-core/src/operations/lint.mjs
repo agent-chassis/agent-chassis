@@ -340,6 +340,7 @@ async function lintRepoImpl({
 
   await lintExecutableArtifacts({
     targetDir,
+    scope: context.artifactLintScope,
     addFinding,
     getCanonicalPrefix: (requestedPath) => workRecordSnapshot.getCanonicalPrefix(requestedPath),
     instrumentation

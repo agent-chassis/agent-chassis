@@ -13,6 +13,10 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "passed": {
+      "type": "boolean",
+      "description": "Additional required pack checks, when supplied. False always fails certification; true never overrides control diagnostics."
+    },
     "schema_version": {
       "type": "string",
       "enum": [
@@ -65,7 +69,9 @@
             "type": "string",
             "enum": [
               "passed",
+              "failed",
               "killed",
+              "survived",
               "not_applicable",
               "boundary_demonstrated"
             ]
@@ -79,6 +85,18 @@
               "indeterminate",
               "not_evaluated"
             ]
+          },
+          "rejection": {
+            "description": "Executed negative-control observation. Expected reasons must be authored independently of the observed result. Transformer observations do not establish evaluator rejection.",
+            "type": "object",
+            "required": ["checker", "subject", "expected_reason", "actual_reason"],
+            "additionalProperties": false,
+            "properties": {
+              "checker": { "enum": ["proof_evaluator", "profile_conformance", "transformer"] },
+              "subject": { "enum": ["evaluation_input", "profile", "transformer_input"] },
+              "expected_reason": { "type": "string", "minLength": 1 },
+              "actual_reason": { "type": ["string", "null"], "minLength": 1 }
+            }
           }
         }
       }

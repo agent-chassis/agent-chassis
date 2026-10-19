@@ -33,10 +33,10 @@ for (const code of [
 
 export const SPILLED_ENVELOPE_FIELDS = Object.freeze([
   "schema_version", "response_spilled", "reason", "inline_byte_limit", "total_bytes",
-  "measurement", "preview", "content_reference"
+  "measurement", "preview", "content_reference", "complete", "next_calls", "no_supported_route", "recovery"
 ]);
 export const CONTENT_REFERENCE_FIELDS = Object.freeze([
-  "kind", "ref_id", "media_type", "encoding", "byte_count", "sha256", "read_tool", "range"
+  "kind", "ref_id", "media_type", "encoding", "byte_count", "sha256"
 ]);
 export const CONTENT_REFERENCE_READ_TOOL = "workspace_read_mcp_content_reference";
 
@@ -117,7 +117,9 @@ export function isLosslessMcpSpillDelivery(result) {
       !Number.isSafeInteger(preview.bytes) || preview.bytes < 0) {
     return false;
   }
-  return isMintedContentReference(reference, envelope.total_bytes);
+  return envelope.complete === false && envelope.no_supported_route === false &&
+    envelope.recovery?.state === "callable" && Array.isArray(envelope.next_calls) &&
+    envelope.next_calls.length === 1 && isMintedContentReference(reference, envelope.total_bytes);
 }
 
 export function isMintedSpillMeasurement(measurement, envelope) {
@@ -143,14 +145,7 @@ export function isMintedContentReference(reference, totalBytes) {
     RETAINED_REF_ID_PATTERN.test(reference.ref_id) &&
     reference.media_type === "application/json" && reference.encoding === "utf8" &&
     isPositiveSafeInteger(totalBytes) && reference.byte_count === totalBytes &&
-    typeof reference.sha256 === "string" && /^[a-f0-9]{64}$/u.test(reference.sha256) &&
-    reference.read_tool === CONTENT_REFERENCE_READ_TOOL &&
-    hasExactKeys(reference.range, ["offset", "length", "max_length"]) &&
-    reference.range.offset === 0 &&
-    isPositiveSafeInteger(reference.range.length) &&
-    isPositiveSafeInteger(reference.range.max_length) &&
-    reference.range.length <= reference.range.max_length &&
-    reference.range.length <= totalBytes;
+    typeof reference.sha256 === "string" && /^[a-f0-9]{64}$/u.test(reference.sha256);
 }
 
 export function hasOnlyGeneratedTextCarrier(result) {

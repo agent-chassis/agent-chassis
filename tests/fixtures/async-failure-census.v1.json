@@ -3,7 +3,7 @@
   "work_record": "WK-2382",
   "slice": "SLICE-006",
   "summary": "The bounded five-population asynchronous-failure census for WK-2382, re-derived from the integrated SLICE-003/004/005 candidate. Duplicate mechanisms are collapsed to their retained owner BEFORE counting, so a removed copy is not an independent denominator member. Source shape does not decide safety: a suppression whose identical rejection is authoritatively observed elsewhere is closed, and an ENOENT-only catch that rethrows every other failure is closed, while a rejection that is only logged, permanently retained, or left without a settlement owner is not.",
-  "boundary": "Exactly the eight modules of SLICE-006's read scope, and exactly the five WK-2382 populations. This is not repository-wide exception or code-literal discovery, which WK-2361 owns. WK-2361 CONSUMES and RECONCILES this closed corpus rather than rediscovering it; it does not own remediation of the sites recorded here. Assigning an owner to any residual below is coordinator closeout work on WK-2382, carried to an explicitly linked follow-on unit.",
+  "boundary": "Exactly the nine current modules representing the original eight bounded SLICE-006 modules after the response diagnostics owner was extracted, and exactly the five WK-2382 populations. This is not repository-wide exception or code-literal discovery, which WK-2361 owns. WK-2361 CONSUMES and RECONCILES this closed corpus rather than rediscovering it; it does not own remediation of the sites recorded here. Assigning an owner to any residual below is coordinator closeout work on WK-2382, carried to an explicitly linked follow-on unit.",
   "corpus": [
     "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
     "packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
@@ -12,6 +12,7 @@
     "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
     "packages/wiki-core/src/lib/wiki-allocator.mjs",
     "packages/wiki-mcp/src/lib/mcp-response.mjs",
+    "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs",
     "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs"
   ],
   "dispositions": {
@@ -308,6 +309,15 @@
           "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
           "anchor": "} finally {",
           "occurrence": 1,
+          "symbol": "allocateRetainedArtifact:pending_metadata",
+          "disposition": "masking_capable_recorded_residual",
+          "rationale": "The synchronous pending-metadata unlink is not caught: it can replace a link/publication failure, or report failure after metadata publication succeeded. Retained-response allocation owns this cleanup; the census records its masking capability without changing production behavior or claiming safe suppression.",
+          "witness": "tests/unit/async-failure-census.test.mjs::retained artifact cleanup can mask publication failure and remains an open residual"
+        },
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "anchor": "} finally {",
+          "occurrence": 2,
           "symbol": "readSpilledMcpContentReference",
           "disposition": "inner_catch_non_masking",
           "rationale": "closeSync is wrapped in its own try/catch inside the finally, so the close error never escapes",
@@ -320,6 +330,13 @@
           "module": "packages/wiki-core/src/lib/wiki-allocator.mjs",
           "disposition": "masking_capable_recorded_residual",
           "remediation_owner": "unassigned; coordinator closeout must carry this to an explicitly linked follow-on WK",
+          "not_owned_by": "WK-2361, which reconciles this corpus but does not own remediation"
+        },
+        {
+          "symbol": "allocateRetainedArtifact:pending_metadata",
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "disposition": "masking_capable_recorded_residual",
+          "remediation_owner": "retained-response allocation owner; coordinator closeout must resolve the recorded cleanup-precedence gap",
           "not_owned_by": "WK-2361, which reconciles this corpus but does not own remediation"
         }
       ]
@@ -385,7 +402,7 @@
       ]
     },
     "stream_error_listeners": {
-      "retained_owner": "packages/wiki-mcp/src/lib/mcp-response.mjs#createStdioShutdownController and packages/wiki-mcp/src/lib/mcp-response.mjs#createDiagnosticSink",
+      "retained_owner": "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs#createStdioShutdownController and packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs#createDiagnosticSink",
       "removed_copies": [],
       "sites": [
         {
@@ -398,7 +415,7 @@
           "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status re-runs; the population declares each group once"
         },
         {
-          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "module": "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs",
           "anchor": "stderr.on(\"error\", disable);",
           "occurrence": 1,
           "symbol": "createDiagnosticSink",
@@ -407,7 +424,7 @@
           "witness": "tests/integration/mcp-process-fail-stop.test.mjs::an already-unavailable sink reports false and fail-stop still proceeds"
         },
         {
-          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "module": "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs",
           "anchor": "on(stdin, \"error\", () => requestShutdown(1));",
           "occurrence": 1,
           "symbol": "createStdioShutdownController:stdin",
@@ -416,7 +433,7 @@
           "witness": "tests/integration/mcp-process-fail-stop.test.mjs::the parent-liveness interval and drain timer follow the controller"
         },
         {
-          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "module": "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs",
           "anchor": "on(stdout, \"error\", () => requestShutdown(1));",
           "occurrence": 1,
           "symbol": "createStdioShutdownController:stdout",
@@ -425,7 +442,7 @@
           "witness": "tests/integration/mcp-process-fail-stop.test.mjs::the parent-liveness interval and drain timer follow the controller"
         },
         {
-          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "module": "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs",
           "anchor": "on(stderr, \"error\", disableDiagnostics);",
           "occurrence": 1,
           "symbol": "createStdioShutdownController:stderr",
@@ -445,7 +462,7 @@
       ]
     },
     "process_guards": {
-      "retained_owner": "packages/wiki-mcp/src/lib/mcp-response.mjs#installProcessErrorGuards composed at packages/wiki-mcp/src/server.mjs",
+      "retained_owner": "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs#installProcessErrorGuards composed at packages/wiki-mcp/src/server.mjs",
       "removed_copies": [
         {
           "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
@@ -456,7 +473,7 @@
       ],
       "sites": [
         {
-          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "module": "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs",
           "anchor": "processLike.on(\"unhandledRejection\", (reason) => {",
           "occurrence": 1,
           "symbol": "installProcessErrorGuards:unhandledRejection",
@@ -465,7 +482,7 @@
           "witness": "tests/integration/mcp-process-fail-stop.test.mjs::a second escape performs no second terminal action and does not resurrect the sink"
         },
         {
-          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "module": "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs",
           "anchor": "processLike.on(\"uncaughtException\", (error, origin) => {",
           "occurrence": 1,
           "symbol": "installProcessErrorGuards:uncaughtException",
@@ -478,15 +495,15 @@
   },
   "denominators": {
     "populations": 5,
-    "corpus_modules": 8,
+    "corpus_modules": 9,
     "retained_sites_by_population": {
       "poisoned_memoized_promises": 15,
-      "finally_block_masking": 11,
+      "finally_block_masking": 12,
       "detached_promises": 6,
       "stream_error_listeners": 6,
       "process_guards": 2
     },
-    "retained_sites_total": 40,
+    "retained_sites_total": 41,
     "retained_sites_by_disposition": {
       "accepted_static_module_map_memo": 3,
       "cleanup_failure_suppressed_bounded": 2,
@@ -496,7 +513,7 @@
       "fail_stop_owned": 2,
       "inner_catch_non_masking": 1,
       "launcher_supervision_owned": 6,
-      "masking_capable_recorded_residual": 1,
+      "masking_capable_recorded_residual": 2,
       "revokes_readiness": 2,
       "settles_owning_promise": 1,
       "suppression_observed_elsewhere": 1,
@@ -504,6 +521,6 @@
     },
     "removed_copies_total": 22,
     "accepted_non_remediated_total": 3,
-    "open_residuals_total": 1
+    "open_residuals_total": 2
   }
 }

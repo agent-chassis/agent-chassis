@@ -60,3 +60,20 @@ test("static resources return successful loader text unchanged", async () => {
     ]
   });
 });
+
+test('production static schema and manifest distinguish command declarations from native bindings', async () => {
+  const { readContractFile } = await import('../../packages/wiki-core/src/lib/contract.mjs');
+  const resources = [];
+  registerStaticResources({ registerResource(_name, uri, _config, handler) { resources.push({ uri, handler }); } },
+    { readContractFile, errorContent });
+  const read = async uri => (await resources.find(row => row.uri === uri).handler()).contents[0].text;
+  const schema = await read('contract://schema');
+  assert.match(schema, /two executable declaration kinds/u);
+  assert.match(schema, /operation:"repository_test",id,purpose,selections/u);
+  assert.match(schema, /input_contract:\{tool:"save_record",members:\["validation"\]\}/u);
+  assert.match(schema, /Saving a declaration executes no\ntest/u);
+  const manifest = JSON.parse(await read('contract://manifest'));
+  assert.equal(manifest.validationDeclarations.executableEntryShape.operation, 'node_test');
+  assert.match(manifest.validationDeclarations.meaning, /native node_test proof bindings only/u);
+  assert.match(manifest.validationDeclarations.meaning, /repository_test command declarations/u);
+});

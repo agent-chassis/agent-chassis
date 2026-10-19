@@ -2,10 +2,8 @@
 
 import { ControlledContractToolError, VALIDATE_PROOF_INPUT_SCHEMA } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
-import { boundProofValidationAssessment } from
+import { boundProofValidationAssessment, capturedDiagnosisNavigation } from
   "@agent-chassis/wiki-core/src/operations/controlled-contract/proof-authoring-diagnostic-projection.mjs";
-import { boundAuthoringExceptions } from
-  "@agent-chassis/wiki-core/src/operations/controlled-contract/authoring-exception-assessment.mjs";
 
 import { measureMcpInlineResultBytes } from "./mcp-response.mjs";
 import { CONTRACT_ASSESSMENT_ROUTE } from "./controlled-contract-query-context.mjs";
@@ -13,14 +11,16 @@ import { proofAuthoringFocusInputSchema, proofAuthoringUnitInputSchema } from ".
 import { requestSchema } from "./proof-request-schema.mjs";
 import { selectedResponseDeliveryBound, selectedResponseDetailSchema } from "./selected-response-snapshot.mjs";
 import { createContractAssessmentResults } from "./task-assess-contract-results.mjs";
+import { assessmentAuthoredValidity, projectContractAssessmentResponse } from './task-assess-contract-response.mjs';
+import { serveContractAssessmentResponse } from './task-assess-contract-response-calls.mjs';
 import { assessmentCurrentRead, projectAssessmentGuidance, projectSelectedDiagnosisGuidance } from
   "./task-assess-contract-corrections.mjs";
-import { requiredWithout, requiresPath, withDeclaredCrossFieldRules } from
+import { exclusiveWith, requiredWithout, requiresPath, withDeclaredCrossFieldRules } from
   "./zod-request-constraint-declarations.mjs";
 
 const AUTHENTICATED_ORIGINAL_RULE = "With original, top-level unit, focus and obligation_id are compared with the " +
-  "authenticated original after it is read: a value that restates the original is redundant and reported as " +
-  "normalized; any other value conflicts and is refused with the original-only and the fresh request as separate " +
+  "authenticated original after it is read: a value that restates the original is redundant and accepted; " +
+  "any other value conflicts and is refused with the original-only and the fresh request as separate " +
   "choices. Neither is run on the caller's behalf.";
 
 export function createContractAssessmentInputContract(z) {
@@ -29,8 +29,10 @@ export function createContractAssessmentInputContract(z) {
   const original = withDeclaredCrossFieldRules(z.object({
     source: selectedResponseDetailSchema(z).shape.source,
     diagnosis_id: selector("diagnostic_group_id").optional(),
-    obligation_id: selector("obligation_id").optional()
-  }).strict(), [requiresPath({ field: "obligation_id", path: ["diagnosis_id"] })]);
+    obligation_id: selector("obligation_id").optional(),
+    view: z.literal("diagnoses").optional()
+  }).strict(), [requiresPath({ field: "obligation_id", path: ["diagnosis_id"] }),
+    exclusiveWith({ field: "view", others: ["diagnosis_id", "obligation_id"] })]);
   const inputSchema = withDeclaredCrossFieldRules(z.object({
     unit: proofAuthoringUnitInputSchema(z).optional(),
     focus: proofAuthoringFocusInputSchema(z).optional(),
@@ -74,36 +76,37 @@ const indexedDiagnostics = ({ authoring_occurrence_effects: _effects, semantic_l
   issues: diagnostics.issues.map(({ call, ...issue }) =>
     ({ ...issue, diagnosis_id: call?.arguments?.diagnostic_group_id ?? null })) });
 
-function assessmentBody(carrier) {
+function assessmentBody(carrier, registeredTier, compact = true) {
   const { allowed_selectors: _selectors, diagnostics, acceptance_coverage: coverage, ...facts } = carrier.assessment;
   const { supported_next_call: _validate, ...scope } = coverage ?? {};
   return projectAssessmentGuidance(carrier, { ...facts,
     ...(coverage === undefined ? {} : { acceptance_coverage: _validate === undefined ? coverage
       : { ...scope, whole_unit_request: present({ unit: carrier.unit, focus: carrier.focus }) } }),
-    ...(diagnostics === undefined ? {} : { diagnostics: indexedDiagnostics(diagnostics) }) });
+    ...(diagnostics === undefined ? {} : { diagnostics: indexedDiagnostics(
+      (compact ? boundProofValidationAssessment(carrier.assessment, candidate => candidate.diagnostics.issues.every(issue => issue.call === null)).diagnostics : diagnostics)) }) }, registeredTier, { compact });
 }
 
-function refuseOversizedSummary({ carrier, bytes, bound, originalRequest }) {
+function refuseOversizedSummary({ carrier, bytes, bound, inventoryRequest }) {
   const scope = present({ unit: carrier.unit, focus: carrier.focus, obligation_id: carrier.selection.obligation_id });
   throw new ControlledContractToolError("proof_validation_answer_exceeds_compact_class",
     `The assessment summary for ${JSON.stringify(scope)} measures ${bytes} bytes, above the ${bound}-byte compact class`,
     { changed: false, phase: "delivery", scope, measured_bytes: bytes, limit: bound,
       reason: "the assessment summary with no admitted issue or diagnosis alone exceeds the compact class",
-      next_calls: [{ ...contractAssessmentCall(originalRequest), purpose: "historical_retrieval" }] });
+      next_calls: [{ ...contractAssessmentCall(inventoryRequest), purpose: "diagnostic_inventory" }] });
 }
 
-function selectedDiagnosisBody(carrier, { diagnosis_id: diagnosisId, diagnosis, corrections }, restriction) {
+function selectedDiagnosisBody(carrier, { diagnosis_id: diagnosisId, diagnosis, corrections }, restriction, registeredTier) {
   const { correction_route: _route, ...saved } = diagnosis;
   const total = carrier.diagnosis_inventory.diagnoses.find((entry) =>
     entry.diagnostic_group_id === diagnosisId).subjects.length;
   return { diagnosis_id: diagnosisId, ...present({ obligation_id: restriction }),
-    ...projectSelectedDiagnosisGuidance(carrier, saved, corrections),
+    ...projectSelectedDiagnosisGuidance(carrier, saved, corrections, registeredTier),
     subjects_returned: saved.subjects.length, subjects_in_original_diagnosis: total,
     correction: { supplied: false } };
 }
 
 export function createContractAssessmentSurface({ workspace, z, sessionEnv = process.env,
-  responseEnv = process.env, sourceDeps = {}, assessmentDeps = {} }) {
+  responseEnv = process.env, sourceDeps = {}, assessmentDeps = {}, registeredTier, requestContracts = () => null }) {
   const contract = createContractAssessmentInputContract(z);
   const results = createContractAssessmentResults({ workspace, sessionEnv, responseEnv, sourceDeps, assessmentDeps });
 
@@ -123,28 +126,63 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
     const normalized = requested === undefined ? {} : { normalized: normalizeAgainstOriginal(request, carrier) };
     const source = read.original.locator;
     const selected = read.selected_diagnosis;
-    const retained = carrier.diagnosis_inventory.diagnoses.map((entry) => entry.diagnostic_group_id);
-    const complete = selected === undefined ? assessmentBody(carrier) : null;
+    const inventoryView = requested?.view === "diagnoses";
+    const navigation = capturedDiagnosisNavigation(carrier.diagnosis_inventory).map(row =>
+      selected !== undefined && requested.obligation_id !== undefined && row.diagnosis_id === selected.diagnosis_id
+        ? { ...row, subjects: selected.diagnosis.subjects.length, obligation_ids: [requested.obligation_id], obligations_omitted: 0 } : row);
+    const retained = navigation.map(row => row.diagnosis_id);
+    const equivalentCount = navigation.reduce((count, row) => count + (row.equivalent_diagnoses?.length ?? 0), 0);
+    const complete = selected === undefined ? assessmentBody(carrier, registeredTier, source !== null) : null;
 
-    const summary = complete === null || complete.exceptions === undefined ? complete
-      : { ...complete, exceptions: boundAuthoringExceptions(complete.exceptions) };
+    const summary = complete;
     const historicalCall = (arguments_) => ({ ...contractAssessmentCall(arguments_), purpose: "historical_retrieval" });
+    const diagnosisCall = (arguments_) => {
+      const row = navigation.find(row => row.diagnosis_id === arguments_.original.diagnosis_id);
 
-    const diagnosisRequest = (id) => ({ original: { source, diagnosis_id: id } });
+      return { ...contractAssessmentCall(arguments_),
+        ...(row.code === undefined ? { information: `${row.recovery_status.replaceAll('_', ' ')}: ${row.reason_codes.map(code =>
+          code.replace(/^controlled_contract_/u, '').replaceAll('_', ' ')).join('; ')}` } : {}),
+        ...present({ code: row.code, family: row.family, category: row.category }),
+        ...present({ choice: row.choice, equivalent_diagnoses: row.equivalent_diagnoses }),
+        subjects: row.subjects };
+    };
+
+    const diagnosisRequest = (id) => ({ original: { source, diagnosis_id: id,
+      ...(selected !== undefined && requested.obligation_id !== undefined ? { obligation_id: requested.obligation_id } : {}) } });
     const originalRequest = source === null ? null : { original: { source } };
+    const inventoryRequest = source === null ? null : { original: { source, view: "diagnoses" } };
+    let includeOriginalCall = true;
 
     const answer = (assessment, offered) => {
       const body = present({ repository: carrier.repository, unit: carrier.unit, focus: carrier.focus,
         selection: carrier.selection, source_authority: carrier.source_authority,
-        ...(selected === undefined ? { assessment }
+        ...(inventoryView ? { source: carrier.assessment.source, content_digest: carrier.assessment.content_digest,
+          ...(retained.length === 0 && summary.save_guidance !== undefined
+            ? { assessment: { save_guidance: summary.save_guidance } } : {}) }
+          : selected === undefined ? { assessment }
           : { source: carrier.assessment.source, content_digest: carrier.assessment.content_digest,
-            selected_diagnosis: selectedDiagnosisBody(carrier, selected, requested.obligation_id) }),
+            selected_diagnosis: selectedDiagnosisBody(carrier, selected, requested.obligation_id, registeredTier) }),
         original: present({ available: read.original.available, revision: read.original.revision, source,
           purpose: "historical_retrieval", write_authority: false,
           retention_failure: read.original.retention_failure }),
+        diagnostic_navigation: { complete: carrier.diagnosis_inventory.complete,
+          ...(inventoryView ? { families: Object.fromEntries(Object.entries(carrier.diagnosis_inventory.families)
+            .map(([family, state]) => [family, { status: state.status, ...(state.failure == null ? {} : { failure: { code: state.failure.code, cause: { code: state.failure.cause?.code } } }) }])),
+            unselectable_findings: carrier.diagnosis_inventory.unselectable_findings,
+            diagnoses_total: navigation.length, diagnoses_returned: offered.length,
+            diagnoses_omitted: navigation.length - offered.length }
+            : Object.values(carrier.diagnosis_inventory.families).some(state =>
+              ["incomplete", "unavailable"].includes(state.status)) ? {
+              families: Object.fromEntries(Object.entries(carrier.diagnosis_inventory.families)
+                .map(([family, state]) => [family, { status: state.status }])) } : {}),
+          ...(inventoryView || selected !== undefined ? {} : { diagnoses_total: retained.length, diagnoses_returned: offered.length, diagnoses_omitted: retained.length - offered.length }),
+          ...(equivalentCount === 0 ? {} : { equivalent_diagnoses: equivalentCount,
+            retained_diagnoses_total: navigation.length + equivalentCount }),
+          ...(inventoryRequest === null ? { unavailable_reason: "original_not_retained" } : {}) },
 
         ...(selected !== undefined || source === null ? {} : { diagnosis_selection: { retained: retained.length,
-          calls_returned: offered.length, calls_omitted: retained.length - offered.length } }),
+          calls_returned: offered.length, calls_omitted: retained.length - offered.length,
+          ...(equivalentCount === 0 ? {} : { equivalent_diagnoses: equivalentCount }) } }),
         source_revision_currentness: read.source_revision_currentness,
         assessment_context_currentness: read.assessment_context_currentness });
       const continuations = source === null ? { original: null, unavailable_reason: "original_not_retained" } : {
@@ -152,49 +190,33 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
         ...(selected !== undefined ? { diagnosis: diagnosisRequest(selected.diagnosis_id) }
           : { diagnoses: offered.map(diagnosisRequest) }) };
       const currentRead = assessmentCurrentRead(body);
-      const { diagnoses, diagnosis } = continuations;
-      const nextCalls = [...(currentRead === null ? [] : [currentRead]),
-        ...(originalRequest === null ? [] : [historicalCall(originalRequest)]),
-        ...(diagnoses ?? (diagnosis === undefined ? [] : [diagnosis])).map(historicalCall)];
+      const diagnosisCalls = selected === undefined ? (continuations.diagnoses ?? []).map(diagnosisCall) : [];
+
+      const nextCalls = [...diagnosisCalls,
+        ...(selected !== undefined || currentRead === null ? [] : [currentRead]),
+        ...(originalRequest === null || inventoryView || !includeOriginalCall ? [] : [historicalCall(originalRequest)]),
+        ...(inventoryRequest === null || inventoryView ? [] : [{ ...contractAssessmentCall(inventoryRequest), purpose: "diagnostic_inventory" }])];
       return { body, continuations, nextCalls };
     };
     const bound = selectedResponseDeliveryBound(responseEnv);
-    const delivered = ({ body, nextCalls }) => measureMcpInlineResultBytes({ ...body, next_calls: nextCalls });
-    let projected;
-    if (requested !== undefined) {
+    const delivered = ({ body, nextCalls }) => measureMcpInlineResultBytes({ ...body, ...normalized, next_calls: nextCalls });
+    let projected = answer(summary, []);
+    if (selected !== undefined) {
 
-      projected = answer(complete, retained);
-    } else if (source === null) {
+      projected = answer(null, [selected.diagnosis_id]);
+    } else if (source !== null) {
 
-      projected = answer(complete, []);
-    } else if (carrier.assessment.diagnostics !== undefined) {
-
-      const offeredBy = (diagnostics) =>
-        [...new Set(diagnostics.issues.map((issue) => issue.diagnosis_id).filter((id) => id !== null))];
-      const view = (bounded) => {
-        const diagnostics = indexedDiagnostics(bounded.diagnostics);
-        return answer({ ...summary, diagnostics }, offeredBy(diagnostics));
-      };
-      projected = view(boundProofValidationAssessment(carrier.assessment,
-        (candidate) => delivered(view(candidate)) <= bound));
-    } else {
-
-      const all = complete.diagnoses ?? [];
-      const view = (rows, calls) => answer({ ...summary, ...(complete.diagnoses === undefined ? {} : {
-        diagnoses: rows, diagnoses_returned: rows.length, diagnoses_omitted: all.length - rows.length,
-        complete: rows.length === all.length }) }, all.slice(0, calls).map((entry) => entry.diagnostic_group_id));
-      const fits = (rows, calls) => delivered(view(rows, calls)) <= bound;
-      let calls = 0;
-      while (calls < all.length && fits([], calls + 1)) calls += 1;
-      const rows = [];
-      for (const row of all) if (fits([...rows, row], calls)) rows.push(row);
-      projected = view(rows, calls);
+      includeOriginalCall = !inventoryView;
+      const offered = [];
+      const ranked = [...retained].sort((a, b) => Number(navigation.find(row => row.diagnosis_id === b).family === "authoring") - Number(navigation.find(row => row.diagnosis_id === a).family === "authoring"));
+      for (const id of ranked) if (inventoryView || delivered(answer(summary, [...offered, id])) <= bound) offered.push(id);
+      projected = answer(summary, offered);
     }
     if (requested === undefined && source !== null && delivered(projected) > bound) {
-      refuseOversizedSummary({ carrier, bytes: delivered(projected), bound, originalRequest });
+      refuseOversizedSummary({ carrier, bytes: delivered(projected), bound, inventoryRequest });
     }
     const { body, continuations, nextCalls } = projected;
-    const bytes = measureMcpInlineResultBytes({ body, continuations });
+    const bytes = delivered(projected);
     return { registered: false, ...normalized, body, continuations, nextCalls,
       delivery: { delivered: false, measured_bytes: bytes, bound_bytes: bound, fits: bytes <= bound,
         complete_transport_required: bytes > bound } };
@@ -203,19 +225,20 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
   async function prepare(request) {
     const parsed = parse(request);
     const { original, ...current } = parsed;
-    const { nextCalls: _calls, ...prepared } = project(parsed,
-      original === undefined ? await results.current(current) : await results.original(original));
-    return prepared;
+    const read = original === undefined ? await results.current(current) : await results.original(original);
+    const { nextCalls: _calls, ...prepared } = project(parsed, read);
+    const assessment = prepared.body.assessment;
+    return { ...prepared, body: { ...prepared.body, ...(assessment === undefined ? {} : {
+      assessment: { ...assessment, authored: { ...assessment.authored,
+        status: assessmentAuthoredValidity(read.carrier) } } }), next_calls: _calls } };
   }
 
   async function respond(request) {
     const parsed = parse(request);
     const { original, ...current } = parsed;
-    const delivered = (read) => {
-      const prepared = project(parsed, read);
-      return { ...prepared.body, ...(prepared.normalized === undefined ? {} : { normalized: prepared.normalized }),
-        next_calls: prepared.nextCalls };
-    };
+
+    const delivered = read => serveContractAssessmentResponse(projectContractAssessmentResponse(read, parsed, {
+      tier: registeredTier, responseEnv, normalize: normalizeAgainstOriginal }), requestContracts());
     return original === undefined ? results.deliverCurrent(current, delivered) : results.deliverOriginal(original, delivered);
   }
 

@@ -1,4 +1,4 @@
-import { open, readFile, stat } from "node:fs/promises";
+import { lstat, open, readFile } from "node:fs/promises";
 import path from "node:path";
 import { buildGeneratedViews } from "./generate.mjs";
 import { scanInternalLeaks } from "./generate-area-readme-projection.mjs";
@@ -114,7 +114,8 @@ export async function lintRepoContract({
       });
     }
 
-    for (const message of validateContractMetadataShape(rawMetadata || metadata, manifest, profile)) {
+    for (const message of validateContractMetadataShape(rawMetadata || metadata, manifest, profile,
+      { includeArtifactLint: false })) {
       addFinding("error", message, {
         code: "invalid_contract_metadata",
         path: "wiki/.wiki-contract.json"
@@ -147,61 +148,108 @@ async function readFirstTwoBytes(filePath) {
 
 export async function lintExecutableArtifacts({
   targetDir,
+  scope,
   addFinding,
   getCanonicalPrefix = null,
   instrumentation = null,
-  readPrefix = readFirstTwoBytes
+  readPrefix = readFirstTwoBytes,
+  inspectPath = lstat,
+  readDirectory
 }) {
-  for (const tree of ["docs", "wiki"]) {
-    const treePath = path.join(targetDir, tree);
-    if (!(await pathExists(treePath))) {
-      continue;
+  if (!scope || !scope.ok) {
+    for (const diagnostic of scope?.diagnostics ?? [{ code: "artifact-scope-invalid",
+      path: "wiki/.wiki-contract.json", message: "Artifact scope was not resolved; artifact checks were not evaluated; all artifact scope remains unverified. Runtime maintainer: supply the resolved contract context and rerun lint." }]) {
+      addFinding("error", diagnostic.message, diagnostic);
     }
-    for await (const filePath of walkFilesUnder(treePath)) {
-      const relPath = path.relative(targetDir, filePath).replaceAll(path.sep, "/");
-      const ext = path.extname(filePath).toLowerCase();
-      const basename = path.basename(filePath);
-      const isPlaceholderFilename = ALLOWED_DOC_PLACEHOLDER_FILENAMES.has(basename);
+    return;
+  }
+  const relative = file => path.relative(targetDir, file).split(path.sep).join("/");
+  const reportedFailures = new Set();
+  const reportFailure = (code, file, error) => {
+    const relPath = relative(file);
+    const identity = `${code}:${relPath}`;
+    if (reportedFailures.has(identity)) return;
+    reportedFailures.add(identity);
+    addFinding("error", `${relPath}: ${error.message}; artifact checks for this path/subtree could not complete; independent selected paths continue. Repository maintainer: repair the path kind, permissions or I/O cause, replace symbolic links with regular content, and rerun lint.`, {
+      code, path: relPath, cause: error.message, cause_code: error.code ?? null,
+      effects: "no artifact content changed; independent selected paths continue",
+      unverified_scope: relPath,
+      recovery: { actor: "repository maintainer", action: "repair the path kind, permissions or I/O cause; replace symbolic links with regular content; rerun lint" }
+    });
+  };
 
-      if (!isPlaceholderFilename && !ALLOWED_DOC_SUFFIXES.has(ext)) {
-        const extLabel = ext.length > 0 ? `'${ext}'` : "(no extension)";
-        addFinding("error", `${relPath}: suffix ${extLabel} is not allowed under ${tree}/; allowed suffixes: .md .json .txt .yml .yaml .csv`, {
-          code: "executable_artifact_disallowed_suffix",
-          path: relPath
+  const inspectSelection = async (selected, directory) => {
+    const parts = selected.replace(/\/$/u, "").split("/");
+    let current = targetDir;
+    for (let index = 0; index < parts.length; index++) {
+      current = path.join(current, parts[index]);
+      let info;
+      try { info = await inspectPath(current); }
+      catch (error) {
+        if (error.code !== "ENOENT") reportFailure("artifact-read-failed", current, error);
+        return null;
+      }
+      if (info.isSymbolicLink()) {
+        reportFailure("artifact-path-symlink", current, new Error("symbolic link is unsupported and was not followed"));
+        return null;
+      }
+      const wantsDirectory = index < parts.length - 1 || directory;
+      if (wantsDirectory ? !info.isDirectory() : !info.isFile()) {
+        reportFailure("artifact-path-kind-invalid", current, new Error(wantsDirectory ? "expected directory" : "expected regular file"));
+        return null;
+      }
+      if (index === parts.length - 1) return info;
+    }
+  };
+  const checked = new Set();
+  const checkFile = async (filePath, knownStat = null) => {
+    if (checked.has(filePath)) return;
+    checked.add(filePath);
+    const relPath = relative(filePath);
+    instrumentation?.artifactPathVisited?.(relPath);
+    let info = knownStat;
+    try { info ??= await inspectPath(filePath); }
+    catch (error) { reportFailure("artifact-read-failed", filePath, error); return; }
+    if (info.isSymbolicLink() || !info.isFile()) {
+      reportFailure(info.isSymbolicLink() ? "artifact-path-symlink" : "artifact-path-kind-invalid", filePath,
+        new Error(info.isSymbolicLink() ? "symbolic link is unsupported and was not followed" : "expected regular file"));
+      return;
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    if (!ALLOWED_DOC_PLACEHOLDER_FILENAMES.has(path.basename(filePath)) && !ALLOWED_DOC_SUFFIXES.has(ext)) {
+      const extLabel = ext.length > 0 ? `'${ext}'` : "(no extension)";
+      addFinding("error", `${relPath}: suffix ${extLabel} is not allowed in selected artifact scope; allowed suffixes: .md .json .txt .yml .yaml .csv`, {
+        code: "executable_artifact_disallowed_suffix", path: relPath
+      });
+    }
+    if ((info.mode & 0o111) !== 0) {
+      addFinding("error", `${relPath}: file has executable mode bit set in selected artifact scope`, {
+        code: "executable_artifact_mode_bit", path: relPath
+      });
+    }
+    try {
+      const capturedPrefix = typeof getCanonicalPrefix === "function" ? getCanonicalPrefix(relPath) : null;
+      const raw = capturedPrefix === null ? await readPrefix(filePath) : capturedPrefix;
+      if (capturedPrefix === null) {
+        instrumentation?.increment?.("shebang_prefix_bytes_read", raw.length);
+        instrumentation?.artifactPrefixRead?.(relPath, raw.length);
+      }
+      if (raw.length >= 2 && raw[0] === 0x23 && raw[1] === 0x21) {
+        addFinding("error", `${relPath}: file begins with shebang (#!) at byte zero in selected artifact scope`, {
+          code: "executable_artifact_shebang", path: relPath
         });
       }
-
-      let fileStat = null;
-      try {
-        fileStat = await stat(filePath);
-      } catch {
-
-      }
-      if (fileStat && (fileStat.mode & 0o111) !== 0) {
-        addFinding("error", `${relPath}: file has executable mode bit set under ${tree}/`, {
-          code: "executable_artifact_mode_bit",
-          path: relPath
-        });
-      }
-
-      try {
-        const capturedPrefix = typeof getCanonicalPrefix === "function"
-          ? getCanonicalPrefix(relPath)
-          : null;
-        const raw = capturedPrefix === null ? await readPrefix(filePath) : capturedPrefix;
-        if (capturedPrefix === null && typeof instrumentation?.increment === "function") {
-          instrumentation.increment("shebang_prefix_bytes_read", raw.length);
-        }
-        if (raw.length >= 2 && raw[0] === 0x23 && raw[1] === 0x21) {
-          addFinding("error", `${relPath}: file begins with shebang (#!) at byte zero under ${tree}/`, {
-            code: "executable_artifact_shebang",
-            path: relPath
-          });
-        }
-      } catch {
-
-      }
+    } catch (error) { reportFailure("artifact-read-failed", filePath, error); }
+  };
+  for (const root of scope.roots) {
+    if (!(await inspectSelection(root, true))) continue;
+    for await (const file of walkFilesUnder(path.join(targetDir, root), { onFailure: reportFailure, readDirectory })) {
+      await checkFile(file);
     }
+  }
+  for (const file of scope.files) {
+    const info = await inspectSelection(file, false);
+    if (info) await checkFile(path.join(targetDir, file), info);
   }
 }
 

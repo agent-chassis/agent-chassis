@@ -4,7 +4,8 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
-import { NPM_RUNNER_PACKAGES, resolveNpmWorkspace, workspaceMembers } from "./npm-workspace.mjs";
+import { NPM_RUNNER_PACKAGES, PNPM_WORKSPACE, resolveNpmWorkspace, workspaceMembers } from "./npm-workspace.mjs";
+import { denoWorkspacePatterns } from "./deno-config.mjs";
 
 export const SKIPPED_DIRECTORIES = Object.freeze([
   ".git", ".agent-launch", ".agent-runs", ".cache", ".venv", "venv", "__pycache__",
@@ -31,6 +32,7 @@ const MANIFEST_EVIDENCE = Object.freeze([
   Object.freeze({ manifest: "deno.json", ecosystem: "deno", language: "typescript" }),
   Object.freeze({ manifest: "deno.jsonc", ecosystem: "deno", language: "typescript" }),
   Object.freeze({ manifest: "package.json", ecosystem: "npm", language: "javascript" }),
+  Object.freeze({ manifest: PNPM_WORKSPACE, ecosystem: "npm", language: "javascript" }),
   Object.freeze({ manifest: "pyproject.toml", ecosystem: "python", language: "python" }),
   Object.freeze({ manifest: "requirements.txt", ecosystem: "python", language: "python" }),
   Object.freeze({ manifest: "test-requirements.txt", ecosystem: "python", language: "python" }),
@@ -205,18 +207,21 @@ function ignoredByRepository(root, relatives) {
   return new Set(result.stdout.split("\0").filter(Boolean));
 }
 
-export function collectRepositoryManifests(root, { depth = MANIFEST_SEARCH_DEPTH, targets = [] } = {}) {
+export function collectRepositoryManifests(root, { depth = MANIFEST_SEARCH_DEPTH, targets = [],
+  includeTestSources = false } = {}) {
   const skipped = new Set(SKIPPED_DIRECTORIES);
   const names = new Set(MANIFEST_NAMES);
 
   const nested = MANIFEST_NAMES.filter((name) => name.includes("/"));
   const found = [];
+  const sources = [];
   const excluded = [];
   const walk = (directory, relative, remaining) => {
     let entries;
     try {
       entries = readdirSync(directory, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      if (includeTestSources) throw error;
       return;
     }
     for (const name of nested) {
@@ -231,6 +236,8 @@ export function collectRepositoryManifests(root, { depth = MANIFEST_SEARCH_DEPTH
         walk(path.join(directory, entry.name), child, remaining - 1);
       } else if (entry.isFile() && names.has(entry.name)) {
         found.push(child);
+      } else if (includeTestSources && entry.isFile() && /\.(?:[cm]?[jt]sx?)$/u.test(entry.name)) {
+        sources.push(child);
       }
     }
   };
@@ -256,11 +263,12 @@ export function collectRepositoryManifests(root, { depth = MANIFEST_SEARCH_DEPTH
     }
   }
   found.sort();
-  const ignored = ignoredByRepository(root, found);
+  const ignored = ignoredByRepository(root, [...found, ...sources]);
   for (const relative of found) {
     if (ignored.has(relative)) excluded.push({ path: relative, reason: EXCLUSION_REASONS.IGNORED });
   }
   return { manifests: found.filter((relative) => !ignored.has(relative)),
+    ...(includeTestSources ? { testSources: sources.filter((relative) => !ignored.has(relative)) } : {}),
     excluded: excluded.sort((left, right) => left.path.localeCompare(right.path)) };
 }
 
@@ -268,8 +276,11 @@ export function repositoryManifestReader(root) {
   return (relative) => {
     try {
       return readFileSync(path.join(root, relative), "utf8");
-    } catch {
-      return null;
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+      throw Object.assign(new Error(`Cannot read repository evidence ${relative}: ${error.message}`), {
+        code: "test_runtime_evidence_unreadable", detail: { path: relative, cause: error.code }
+      });
     }
   };
 }
@@ -290,9 +301,20 @@ export function discoverRuntimeEnvironments({ manifests, runners, readFile }) {
     if (evidence.ecosystem === "npm") {
 
       entry.npm = resolveNpmWorkspace(directory, readFile);
+      const invalid = entry.npm.errors.find(({ file }) => file ===
+        (directory === "." ? PNPM_WORKSPACE : `${directory}/${PNPM_WORKSPACE}`));
+      if (invalid !== undefined) throw Object.assign(new Error(`${invalid.file}: ${invalid.error}`), {
+        code: "test_runtime_manifest_invalid", detail: { manifest: invalid.file, error: invalid.error }
+      });
       entry.runners.push(...entry.npm.manifest.runners);
       entry.declaresDependencies = entry.npm.manifest.declaresDependencies;
       if (entry.npm.patterns.length > 0) entry.workspaces = [...entry.npm.patterns];
+    } else if (evidence.ecosystem === "deno") {
+
+      const primary = directory === "." ? "deno.json" : `${directory}/deno.json`;
+      if (evidence.manifest === "deno.json" || !manifests.includes(primary)) {
+        entry.workspaces = denoWorkspacePatterns(text, relative);
+      }
     } else if (evidence.ecosystem === "python") {
       entry.runners.push(...pythonRunners(text));
       if (PYTHON_REQUIREMENT_FILES.includes(evidence.manifest)) entry.requirementFiles = true;

@@ -1,138 +1,111 @@
+# Registered-tier tool exposure
 
-# Tool Discovery Registered-Tier Exposure
+The current [task inventory](mcp-operation-reference.md) is projected through
+actual registration, launcher-resolved session role, the central role policy,
+registered tier, descriptor `tier_visibility` and install/runtime posture.
+Audience prose is descriptive and cannot grant a tool. A role does not acquire
+paid capability from a prompt, requested child role or caller tier field.
 
-Backlink: [Tool Discovery v1](tool-discovery.md).
+## Registered tiers
 
-This page is the canonical reference for tool discovery as a registered-tier
-projection: the `free_local` / `paid_cce` / `operator_only` vocabulary, canonical
-tier resolution, per-tier prose, and how the session-role gate composes with tier
-exposure.
+- `free_local`: ordinary local mechanical capability without CCE authority.
+- `paid_cce`: paid capability under the serving host's resolved CCE-key posture.
+- `operator_only`: independently preserved operator maintenance surfaces.
 
-## Registered-Tier Exposure And Projection
+A free session sees free entries; a paid session may see both free and paid
+entries when its role and actual registration permit them. Unknown or absent
+classification grants nothing. The server fixes the role/tier tool surface at
+startup; changing task text does not re-register tools.
 
-Tool discovery is a **tier projection**, not a single global corpus shown to
-every registration. The checked-in descriptor corpus may carry full metadata and
-per-tier prose, but `workspace_tools_list` / `workspace_tools_describe`, the agent FAQ, live MCP tool descriptions, and
-mixed-route default responses render only the tool information relevant to the
-**resolved registered tier**.
+Tier exposure and CCE admission are different. Uncertainty must not expose paid
+tools, and a configured unavailable or non-granting CCE must not become a free
+admission pass. Only launcher-confirmed no-authority posture supplies local
+mechanical operation without a policy decision. See
+[enforcement model](enforcement-model.md).
 
-### Registered tiers
+## Authoring and source navigation
 
-Each entry declares a `tier_visibility` array over the controlled vocabulary:
+| Capability | Free/local | Paid CCE |
+| --- | --- | --- |
+| `workspace_create_record`, ordinary `save_record` fields | Available to granted roles | Available to granted roles |
+| `user_requirements` prose, criteria, validation, exact scopes and slices | Available | Available |
+| Controlled `requirements` compilation/retirement and grammar exceptions | Unavailable | Available to granted roles |
+| `query_code_index` | Unavailable | Available to granted roles |
+| Proof discovery, assessment and supported test/proof execution | Role-granted; capability and bindings still required | Same mechanical owners plus configured policy |
+| Reviewer findings | Fixed neutral advisory contract | Advisory findings; CCE intent is independently authenticated |
 
-- `free_local` — visible to a free/local no-key registration (and, by superset, to
-  a Chassis Control Engine registration).
-- `paid_cce` — visible only to a registration whose CCE-key posture is positively
-  resolved.
-- `operator_only` — surfaced only to an operator-tier caller; CLI fallback rows and
-  operator entrypoints carry this so they are never agent-visible.
+A refused paid member refuses the entire save before publication; it does not
+save ordinary members beside it. No-key status chooses no controlled-acceptance
+exemption for the author. An executable implementation contract still needs
+complete current controlled acceptance or an explicit author-chosen exemption
+with a nonempty rationale.
 
-Exposure composes as a mechanically closed superset: a free/local registration sees
-`free_local` entries; a CCE registration sees `free_local` plus `paid_cce`
-entries. An entry with missing or unknown tier metadata is visible to **no** tier —
-missing classification yields no exposure rather than defaulting to free/agent-visible.
-A tool is exposed only when **both** the launcher-minted session role (`operator`,
-`orchestrator`, `worker`, `reviewer` or `redteam`) and the resolved tier allow it.
-Any other `WIKI_MCP_TOOL_PROFILE` value, including the retired `full` and
-`agent-safe` names, refuses server startup and exposes nothing. The role alone is never
-authority to expose a higher-tier surface. `tier_visibility` composes with, and does
-not replace, `audience`, `recommended_route`, `runtime_posture`, and
-`side_effects`.
+## Free/local authoring route
 
-### Tier resolution is canonical, never caller-asserted
+For free/local work, use the same record journey:
 
-The runtime registered tier is resolved from the canonical CCE/Node Engine
-key/no-key posture described by [docs/enforcement-model.md](enforcement-model.md),
-`decision`, `decision`, and `decision` — a positively-resolved CCE key
-selects the CCE tier; its absence, an unreadable config, or any uncertainty
-resolves to free/local. The tier is **never** derived from caller-supplied
-request data, prompt text, argv, ambient child env, claimed identity, or ad hoc
-local inference. Uncertainty or an invalid CCE-key posture must not expose
-higher-tier tools or higher-tier explanatory text.
+1. Create with `workspace_create_record`, preserving the user's request in
+   `initial.user_requirements`. Read the returned `workspace_read_wiki` call to
+   obtain the unit, current combined revision and selected input contract.
+2. Inspect source with the family's ordinary repository read/search tools within
+   your role entitlement. Do not call the unavailable `query_code_index`, switch
+   to an operator CLI as an agent tool, or claim complete graph coverage from a
+   text search. Record any missing context or unknown impact.
+3. Save prose, exact file scopes, criteria, validation and slices through
+   `save_record`. These ordinary fields are free. The unit's selected input
+   contract supplies their complete shapes. Keep the behavior-to-evidence mapping
+   from the user request even when it is recorded as prose rather than compiled
+   requirements.
+4. Choose the root work record's controlled-acceptance disposition explicitly.
+   An absent disposition is structurally incomplete. The current free authoring
+   surface cannot compile new controlled requirements; omitting that member does
+   not complete a contract that requires them. When the author decides controlled
+   acceptance does not apply and repository policy permits it, use the separate exception
+   request below with the root's fresh revision and the author's own rationale.
+   The whole-work exemption is stored on the root WK and applies to its slices;
+   when acceptance is required, each selected slice needs its own obligations.
+   Do not infer an exemption from the tier or write an `opted_out` ordinary change.
+5. Assess the selected slice with `workspace_assess_contract`, inspect its actual
+   diagnostics, and compare its prose contract with the complete user request.
+   Start only the exact authored slice through `start_agent` when authorized.
+   A valid exemption records no controlled proof credit and does not waive tests,
+   review, CCE policy or repository conduct requirements.
 
-### Projection is per-tier, and degrades downward
+The exception request is a template, not an executed example or a recommendation
+to exempt any particular work:
 
-A registration renders only the tool information its resolved tier allows. A
-free/local registration receives the free/local base body for every entry it can
-see; higher-tier explanatory text, remediation routing, and analysis are not part
-of that registered product surface. Where a tier
-boundary changes what a route may *say* as well as what it may *run*, the
-per-entry metadata carries that distinction — projection never reconstructs it
-from caller context.
+```text
+save_record({
+  unit: <root-WK>,
+  revision: <root-current-revision>,
+  exception: {
+    kind: "controlled_acceptance", action: "apply",
+    subject: <root-WK>, rationale: <author-chosen-nonempty-rationale>
+  }
+})
+```
 
-`workspace_validate_dispatch` and `workspace_agent_dispatch` remain free/local for
-dispatch-readiness and launch flow. Validation may refresh only the ignored
-current-HEAD graph cache described in
-[Discovery Surfaces](tool-discovery-surfaces.md#discovery-surfaces); this cache
-write confers no additional authority and does not mutate the carrier.
+Read the root WK first, then read its returned reference with
+`select:{input_contract:{tool:"save_record", operation:"exception"}}`.
+The rationale is recorded as written and is not assessed for eligibility. If
+repository policy requires compiled requirements for this work and does not
+permit an exemption, report that exact authority/capability mismatch; do not
+silently narrow the contract or invent a free compiler route.
 
-### Per-tier prose (`tier_text`)
+## Review and result posture
 
-A mixed route that is visible to both tiers carries a free/local base body and
-an optional `tier_text.paid_cce` override. Projection strips the internal
-`tier_text` container from output, applies the resolved tier's override, and — for
-an unknown/absent tier or a missing override — degrades to the free/local base
-rather than falling through to higher-tier text.
+`start_agent` and `get_run_result` are the public start/result tools. Historical
+`workspace_agent_dispatch`, `workspace_agent_run_status` and
+`workspace_validate_dispatch` are not aliases. A preview checks only the facts
+it reports and establishes no runtime admission or successful child launch.
 
-An override replaces the base text for its tier, so it is complete on its own and
-follows the [Discovery Prose Boundary](tool-discovery-schema.md#discovery-prose-boundary).
-The per-note ceiling and prose checks apply to each override separately from the
-base notes and the historical raw-notes aggregate.
+Reviewer and standalone redteam output remains advisory text; schema diagnostics
+concern only separately requested formal attestation. Findings do not veto or
+authorize a corrective dispatch. Standalone redteam requires its exact canonical
+adversarial unit; the free launcher provides no caller-selected reviewer mode.
+Integration is an explicit coordinator request under mechanical identity checks
+and any configured CCE policy, not a side effect of result observation.
 
-### `agent-safe` / `agent-authoritative` are not tier labels
-
-`agent-safe` and `agent-authoritative` are descriptive routing prose, not session
-profiles, security classifications or product-tier availability. They may be used
-only when clearly qualified; registered-tier metadata remains the sole authority
-for tier exposure. Do not read either label as a free-tier availability signal.
-
-MCP runtime exposure is derived from actual registration, the launcher-minted
-session role, `session-role-tool-access.json`, the registered tier,
-`tier_visibility`, `install_state`, and `runtime_posture`. These are independent
-AND gates except that the `operator` role is the declared full-role posture.
-The registration boundary also requires a canonical descriptor row with valid
-conformance metadata in every tier.
-
-`audience` describes intended consumers for discovery prose. It is not an
-exposure, lifecycle, support-state, or authority gate and cannot override any
-of the runtime facts above. Caller text, prompt intent, argv, environment,
-wrapper names, and inferred defaults likewise cannot widen visibility.
-
-### Startup-static role dispositions
-
-Role exposure is fixed when the MCP server starts. The launcher-resolved role,
-registered tier, and checked-in access policy are evaluated once; task text does
-not activate schemas or re-register tools during a session.
-
-Every supported operation must have one known disposition and explicit role
-grants in the central policy:
-
-- `direct` identifies an ordinary role-granted operation.
-- `operator_recovery_only` identifies an operation limited to operator
-  recovery.
-
-A disposition does not grant access. Exposure remains the intersection of
-runtime registration, role grant, registered tier, descriptor tier visibility,
-install state, and runtime posture. Missing, unknown, or inconsistent
-classification fails closed.
-
-Lint checks descriptor-to-policy completeness and consistency. A separate
-booted conformance check reconciles runtime registration with the descriptor
-and policy because static descriptor lint cannot observe an unlisted runtime
-registration. New operations must satisfy both checks before becoming visible.
-
-### Terminology disambiguation
-
-Response-shape language such as the code-index compact/degraded/verbose contract is
-about payload size, not availability. It is **not** a product tier: do not confuse
-a "three response-shape mode" contract with `free_local` / `paid_cce` /
-`operator_only` tool exposure.
-
-### Free-tier structured role results under decision
-
-In the free/local tier, `workspace_agent_run_status`
-can report terminal success while `structured_role_result.valid:false`, because
-`decision` free-tier reviewer/redteam/worker output is prose-only and non-attesting.
-That value is expected, non-attesting state — not a failed child run, a failed
-dispatch, or missing findings. A schema-valid structured role result requires a
-configured CCE key.
+Per-tier prose must describe the capability actually served. Paid-only
+explanations or recovery routes must not appear as mandatory free instructions.
+Payload-size modes and lexical match tiers are unrelated to product availability.

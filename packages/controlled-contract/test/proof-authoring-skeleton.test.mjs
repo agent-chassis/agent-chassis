@@ -14,8 +14,13 @@ import {
   ProofGraphProposalError,
   validateProofGraphProposal
 } from "../lib/proof-graph-proposal-v1.mjs";
-import { inspectProofPackBindingsPage } from
+import { inspectProofPackBindingsPage, validateSuppliedProofPackBindings } from
   "../lib/proof-pack-binding-assistance.mjs";
+import { executeUncappedIntegrationPrefixProjection } from
+  "../lib/deterministic-projection.mjs";
+import { assessPolicyPatternsExperimentalV1, evaluateVerificationProfileV1 } from
+  "../lib/verification-profile-v1.mjs";
+import { loadAdmittedProofPack } from "../lib/admitted-proof-packs.mjs";
 import { readCarrierSetFixture } from
   "../../../tests/helpers/controlled-contract-carrier-set-fixtures.mjs";
 import { buildRefusalBeforeEffectsFixture } from
@@ -647,6 +652,59 @@ test("authors stable-v1 integration prefixes with the package-owned evaluation i
     profile_id === integrationPack.profile_id &&
     profile_version === integrationPack.profile_version), true);
 });
+
+test("root and focused construction retain exact derived census artifacts despite unsupported assessment",
+  async () => {
+    const pack = await loadAdmittedProofPack(integrationPack.profile_id);
+    for (const focus of [null, "prefix-authoring"]) {
+      const input = await fixtureWk2063Input();
+      input.focus = focus;
+      input.canonicalRecord = { ...input.canonicalRecord, focus };
+      const result = await buildProofAuthoringSkeleton(input);
+      const artifacts = new Map(result.artifact_members.map(member =>
+        [member.artifact_role, Buffer.from(member.bytes_base64, "base64")]));
+      assert.equal(artifacts.size, 4);
+      const sources = ["dag-source", "integration-units", "execution-paths"].map(role =>
+        artifacts.get(role));
+      const censusBytes = executeUncappedIntegrationPrefixProjection(sources);
+      assert.deepEqual(artifacts.get("prefix-census"), censusBytes);
+      const census = JSON.parse(censusBytes);
+      assert.deepEqual(result.source_map.projection, census);
+      assert.deepEqual(sources.map(bytes => createHash("sha256").update(bytes).digest("hex")),
+        result.source_map.source_digests);
+      for (const member of result.artifact_members) {
+        const bytes = artifacts.get(member.artifact_role);
+        assert.equal(member.byte_length, bytes.byteLength);
+        assert.equal(member.content_digest,
+          `sha256:${createHash("sha256").update(bytes).digest("hex")}`);
+      }
+      const entry = result.proof_plan_request.selected_packs.find(({ profile_id }) =>
+        profile_id === integrationPack.profile_id);
+      const evaluationInput = result.evaluation_inputs[entry.evaluation_input_path];
+      const caseIds = census.cases.map(({ case_id }) => `ref-${case_id}`).sort();
+      assert.deepEqual(evaluationInput.reference_bindings.find(({ role }) =>
+        role === "prefix_cases").reference_ids.slice().sort(), caseIds);
+      assert.equal(result.counts.cases, census.cases.length);
+      assert.equal(census.cases.length, census.prefixes.length * result.branches.length);
+      assert.equal(evaluationInput.number_bindings.find(({ role }) =>
+        role === "case_count").value, census.cases.length);
+      const binding = await validateSuppliedProofPackBindings({
+        contract: result.contract, profileId: integrationPack.profile_id,
+        profileVersion: integrationPack.profile_version, evaluationInput
+      });
+      assert.equal(binding.summary.status, "valid");
+      assert.deepEqual(binding.evaluation_input_diagnostics, []);
+      const payload = { contract: result.contract, profile: pack.profile,
+        evaluation_input: evaluationInput };
+      assert.equal(assessPolicyPatternsExperimentalV1(payload).satisfaction, "satisfied");
+      const assessed = evaluateVerificationProfileV1(payload);
+      assert.equal(assessed.satisfaction, "indeterminate");
+      assert.equal(assessed.diagnostics.find(({ code }) =>
+        code === "proof_evaluation_unavailable").owner_facts.outcome, "unsupported");
+      assert.ok(result.proof_plan.packs.some(({ profile_id }) =>
+        profile_id === integrationPack.profile_id));
+    }
+  });
 
 test("integration authoring rejects caller authority, focus mismatches, and incomplete ownership",
   async () => {

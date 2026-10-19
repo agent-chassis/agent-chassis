@@ -1,244 +1,185 @@
 
 # Initiative Status Coordinator Workflow
 
-`workspace_initiative_status` is the adopted compact coordinator action lens for
-an initiative or selected work unit. It answers "what durable coordinator action
-is pending now?" without replacing the tools that read full work-record
-context, validate dispatchability, launch agents, monitor runs, lint the repo,
-or mutate work records.
+Use `workspace_read_wiki` to read an initiative's compact context, then follow
+its returned membership and action selections to answer "what durable
+coordinator action is pending now?" The connected session's advertised schemas
+and exact returned calls define the available route. An initiative lens does
+not replace record reads, assessment, launch, observation, mutation or
+integration.
 
-Use `workspace_initiative_status` when discovery reports the route as supported.
-When the surface is unavailable, coordinators should use the existing
-structured tools directly:
-`workspace_work_record_summary`, `workspace_validate_dispatch`,
-`workspace_agent_dispatch`, `workspace_agent_run_status`,
-`workspace_lint_repo`,
-`workspace_generate_and_lint`, and the work-record setter routes.
+The work lens is read-only and advisory. It ranks pending actions and describes
+possible next operations without performing them. Reading status does not
+launch agents, write records, set statuses, record closure, run diagnostics,
+refresh evidence or interpret launcher or Chassis Control Engine policy. A
+no-action result is neither lifecycle completion nor approval.
 
-The surface is read-only and advisory. It may rank pending actions and name the
-structured tool that should perform the next operation, but it must not perform
-that operation itself. It must not dispatch agents, write work records, set
-statuses, record closure, run lint, refresh metrics, write graph evidence,
-reinterpret Chassis Control Engine or launcher policy, parse closure prose as authority,
-or recommend shell commands and raw JSON edits as fallback paths.
+See [MCP Operation Reference](mcp-operation-reference.md) for current operations
+and [MCP repository model](mcp-repository-model.md#agent-facing-repository-model)
+for repository binding and source ownership.
 
 ## Legacy-Named Integration Status
 
-`workspace_integration_status` is a read-only local coordination inventory; its
-legacy name does not restore the retired initiative integration-branch model. It
-accepts only the server-resolved repository and one `IN-####` selector. That
-selector must load as a valid canonical `wiki/initiatives/IN-####.json` record.
-Missing, malformed, projection-only, or identity-mismatched initiatives refuse;
-only a valid initiative with no matching records returns an empty inventory.
+The integration membership view is now a `workspace_read_wiki` selection:
+follow the initiative context's returned reference with
+`select:{membership:"integration"}`. This heading retains the historical
+label; the view is a local coordination inventory, and does not restore
+initiative integration branches.
+
+The selected initiative must resolve to a valid canonical initiative JSON
+record. Missing, malformed, projection-only or identity-mismatched initiatives
+are invalid input, not an empty inventory. Only a valid initiative with no
+matching records returns zero members.
 
 Membership comes exclusively from canonical work-record JSON whose `initiative`
-scalar equals the selected initiative. Initiative or WK `related` arrays and
-Markdown projections do not add members. `matched_count` and `work_records`
-describe that same complete population in deterministic WK-id order. Malformed or
-unreadable work-record input prevents a complete census and fails loudly rather
-than becoming a partial or empty success. Reported `wk/IN-####/WK-####` names are
-expected short-lived ref labels, not observations of live Git state.
+scalar equals the selected initiative. Initiative or work-record `related`
+arrays and Markdown projections do not add members. `matched_count` under
+`sources.work_records` and the sorted `work_records` describe the same complete
+population in deterministic work-record ID order. Malformed or unreadable
+work-record input prevents a complete census and fails rather than becoming a
+partial or empty success. Expected branch labels describe short-lived work
+refs, not observations of live Git state.
 
-The operation does not implement trusted Git, runtime, lease, worktree, forge,
-mergeability, publication, or policy observations, and it supports no caller or
-environment injection for them. Their fields remain explicitly
-`unknown`, `not_available`, or `not_evaluated`. Use
-`workspace_coordination_preflight` to discover configured runtime capabilities;
-discovery does not itself supply mergeability or publication evidence. This
-status surface grants no integration, review, promotion, merge, or lifecycle
-authority.
+The view does not implement trusted Git, runtime, lease, worktree, forge,
+mergeability, publication or policy observations. Their fields remain explicitly
+`unknown`, `not_available` or `not_evaluated`; no caller or environment injection
+supplies them. Advertised capabilities and expected branch labels are not
+evidence that these facts were observed. Membership grants no integration,
+review, merge or lifecycle authority.
 
 ## Default Behavior
 
-Use `workspace_initiative_status` when a coordinator needs a bounded
-next-action view across an initiative or a single `WK-*` lifecycle:
+Start with `workspace_read_wiki` and set `subject` to the actual canonical
+initiative ID. The first answer is compact context, not the complete initiative
+record or a membership view. Follow its exact returned call with the returned
+`reference` and `select:{membership:"work"}` for the advisory action lens, or
+`select:{membership:"integration"}` for the membership census. Supply a
+selection only with its returned reference, not with `subject`. Do not add a
+repository selector or construct a reference.
 
-- For initiative scope, pass `initiative` to scan the initiative frontier and
-  return counts, a bounded ranked `top_actions` list, truncation metadata, and a
-  progressive-disclosure next step.
-- For unit scope, pass `unit` to inspect one `WK-*`, tracker, or slice
-  lifecycle as an action lens rather than as another work-record summary.
-- When both `initiative` and `unit` are supplied, the tool verifies membership
-  before deriving the action lens.
+Work membership scans the initiative frontier and returns counts, a ranked
+`top_actions` list, truncation metadata and action-selection calls. It is not a
+complete list of members. The reader asks its native status owner for detailed
+rows internally, but still returns at most five ranked actions. Respect
+`top_actions_total`, `top_actions_returned` and `top_actions_truncated`: a full
+selected response does not remove this action-count cap. Public requests accept
+no `verbose`, `limit` or action-pagination controls.
 
-The default output is compact. It should not include full
-work-record summaries, slice bodies, acceptance criteria, validation arrays,
-docs lists, closure prose, long diagnostics, or raw evidence payloads. Use
-explicit verbose or selected-action disclosure only when the compact action row
-is insufficient to decide which structured tool to call next.
+Top-level `next_calls` read action detail on the same initiative reference with
+an offered `select.action`. Use the exact returned action identity. A
+selected work-unit action checks initiative membership and derives that unit's
+action lens; it does not rescan the initiative frontier. Read the selected
+canonical work-record or slice identity as `workspace_read_wiki`'s `subject`
+when its contract context is needed, then follow that context's field or
+inventory selections for complete needed content. Do not sample unrelated
+record summaries as a substitute for the initiative scan.
 
-Compact `top_actions` rows carry only `target_unit`, `reason_code`, and
-`suggested_tool`; compact `next_action` uses the same projection, and the other
-action fields are available through explicit verbose disclosure. The default
-action channel is independently bounded by the requested count (five by
-default) and a 1,000-byte pretty-JSON
-row budget. `top_actions_total`, `top_actions_returned`, and
-`top_actions_truncated` distinguish the complete ranked population from the
-returned projection even when the byte budget is reached before the count cap.
+A repository with no work-record corpus directory is a fresh empty corpus, not
+an error or a request to initialize storage. After a valid initiative resolves,
+an absent directory gives the same zero-member counts as an empty one and stays
+absent. For a `todo` or `in_progress` initiative with no work, the work lens can
+report `allocation_required`. Allocation guidance names `workspace_create_record`
+when available and identifies the caller inputs still needed, including a title;
+reading that guidance creates nothing. Closed or inactive initiatives retain a
+no-action result.
 
-For initiative frontier scans, start with `workspace_initiative_status` before
-sampling individual `workspace_work_record_summary` results. Use work-record
-summaries only for the selected unit or narrow follow-up called for by the
-compact status row, not as the first pass across an initiative.
+Only initial `ENOENT` for the exact corpus directory means an empty corpus.
+Non-directory paths, permission or I/O failures, malformed records and a source
+that disappears after enumeration remain read failures. The initiative itself
+must first pass canonical identity and record validation; traversal-shaped,
+mistyped, missing, malformed and identity-mismatched subjects do not acquire
+zero-member success. Its canonical loader owns grammar, contained paths,
+identity equality and failure classification.
 
-A repository with no `wiki/work-records` directory is a fresh empty corpus, not
-an error and not a request to initialize storage. Initiative status returns the
-same zero-member counts as an existing empty directory and leaves the absent
-directory absent. For a `todo` or `in_progress` initiative, that empty frontier
-reports `allocation_required` and recommends the allocator-backed
-`workspace_create_record` route. Closed or inactive initiatives retain a
-no-action result. Only `ENOENT` from enumerating that exact corpus directory has
-this meaning: malformed records, non-directory paths, permission/I/O failures,
-and a record that disappears after enumeration remain loud read failures.
-
-That empty-corpus rule applies only after the requested initiative resolves to
-an existing, valid canonical `wiki/initiatives/IN-####.json` record whose loaded
-identity equals the selector. `loadKindRecordById` owns the grammar, contained
-path, equality, validation, and failure classification. Traversal-shaped,
-mistyped, missing, malformed, or identity-mismatched initiatives refuse before
-counts are projected; only initial `ENOENT` for the exact canonical initiative
-file is missing, while other I/O and a later disappearance remain loud. A valid
-initiative with no corpus or no matching WKs retains zero-member counts and
-creates nothing; the allocation action is advisory only.
-
-The action taxonomy and the runtime-blocker taxonomy the route projects against
-are PACKAGE-OWNED controlled vocabularies that ship inside
-`@agent-chassis/wiki-core`. They resolve from the package's own location, never
-from the repository being read, so a consuming repository is never expected to
-contain a copy of them and never sees a filesystem error for a file it does not
-own. A test or caller that injects a taxonomy is exercising a deterministic
-seam, not the installed product path: the zero-member behavior above must hold
-with nothing injected.
+The action and runtime-blocker taxonomies are package-owned vocabularies in
+`@agent-chassis/wiki-core`. They resolve from that package's location. A consuming
+repository needs no copy, and ordinary empty-corpus behavior needs no injected
+taxonomy.
 
 ## Consistency Channel
 
-In initiative (scan) scope the response carries a `consistency` array alongside
-`counts`, `top_actions`, and `next_action`. It holds low-priority diagnostic
-entries — currently `open_slice_under_terminal_parent`: an open slice
-(`todo`/`active`/`review`/`blocked`) whose parent record is already terminal
-(`done` or `cancelled`).
+Work membership's initiative scan includes a `consistency` array alongside the
+counts and actions. The current diagnostic, `open_slice_under_terminal_parent`,
+identifies an open slice (`todo`, `active`, `review` or `blocked`) under a
+`done` or `cancelled` parent. Those slices are excluded from actionable counts,
+`top_actions` and `next_action`, while the diagnostic keeps the mismatch visible
+for coordinator judgment.
 
-Such a slice is a record/slice mismatch, not actionable frontier work: the
-parent is legitimately closed, so the open slice is excluded from
-`top_actions`, `next_action`, and the actionable `counts`. It is not silently
-dropped, though — surfacing it here keeps a wrongly-closed parent that still
-carries a live wave visible so a coordinator can reconcile the mismatch (mark
-the slice terminal, or reopen the parent) without it polluting the actionable
-ranker. Each entry carries `record_id`, `slice_id`, `record_status`,
-`slice_status`, and `priority: 'low'`, and is deduplicated by
-`record_id#slice_id` (one slice can appear in several of a record's slice
-arrays). `parked` parents are intentionally out of scope: terminal here means
-`done` or `cancelled` only, and an open slice under a parked parent stays in the
-actionable units.
+Each diagnostic carries `record_id`, `slice_id`, `record_status`, `slice_status`
+and low priority, deduplicated by the record/slice identity. An open slice under
+a `parked` parent remains in the actionable population: terminal here means
+only `done` or `cancelled`.
 
-Compact consistency rows retain only the mismatch `kind` and deduplicated unit
-`address`; record and slice fields derivable from that identity are verbose-only.
-The default channel is independently bounded to ten rows and a 600-byte
-pretty-JSON row budget. `consistency_total`, `consistency_returned`, and
-`consistency_truncated` report the exact complete and returned populations.
-Explicit `verbose: true` preserves the complete consistency detail.
-
-The `consistency` array and its metadata are always present in scan mode (empty
-and zeroed when there is no mismatch), giving callers a stable contract. In
-single-unit mode (`unit` is supplied) they are omitted: that lens is a
-frontier-only action view for one selected record/slice and is not authoritative
-on initiative-wide actionability.
+The reader's scan includes the owner's detailed consistency population with
+`consistency_total`, `consistency_returned` and `consistency_truncated`, including
+an empty array and zero counts when no mismatch exists. Native compact row and
+byte budgets are not public request controls. A selected work-unit action omits
+this channel and is not authoritative for initiative-wide actionability. A
+non-unit allocation action also carries no consistency population.
 
 ## Tool Boundaries
 
-Use `workspace_work_record_summary` when the coordinator needs record context:
-dependencies, write scope, acceptance, validation, slice state, blockers, review
-state, or closure detail. The initiative-status surface can point at a target
-unit and reason code, but it is not the full record reader.
+Action rows have their own `guidance` and `next_calls`. These differ from the
+top-level calls that select action detail. Guidance distinguishes
+`action_available`, `missing_inputs`, `capability_unavailable` and `no_action`.
+An offered information-acquisition read can help obtain context; it does not
+perform a missing write, satisfy missing caller inputs or restore an unavailable
+capability. Saved free text and native recommendation labels are not invocation
+authority. Use only currently advertised operations with compatible schemas.
 
-Use `workspace_validate_dispatch` for the optional prospective question "can
-this unit start?" Its result describes the selected unit's assessed facts; it
-is neither permission to dispatch nor a guarantee of a later launch. When the
-initiative-status layer's non-authoritative derived-evidence scan
-hints that admission evidence may be missing, stale, or incomplete, it recommends
-this read-only operation for the exact unit. It does not authenticate evidence
-carriers or sidecars, import or duplicate the admission-recovery classifier,
-label the evidence recoverable, or claim that the unit is dispatchable. It also
-does not synthesize malformed, ambiguous, provider-unavailable, integrity, or
-other recovery verdicts from the hint.
+- Use `workspace_read_wiki` for selected record context and complete field,
+  entry or inventory content. Follow an offered integrity selection for relevant
+  read-only diagnostics when available.
+- Use `workspace_assess_contract` for a prospective assessment of the selected
+  unit's authored facts, currentness and routes. Assessment executes no proofs,
+  grants no permission and refreshes no evidence. A derived-evidence hint in
+  the action lens is not an authenticated readiness or recovery verdict.
+- Use `start_agent` to start a canonical subject. It performs current readiness
+  and launch checks; an earlier assessment neither replaces those checks nor
+  imposes a mandatory pre-call. Follow its precise refusal or returned calls.
+- Use `get_run_result` to observe the exact returned subject and attempt. An
+  optional `timeout_ms` requests bounded observation. Reading a result does not
+  launch, settle, rerun or integrate work; see
+  [monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md).
+- Use `save_record` for authored changes to a selected unit with its current
+  revision. Missing `revision` or `changes` requires obtaining current context
+  and authoring the change. Maintenance and closeout diagnostics are separate
+  from mutation effects and do not widen the selected unit's scope.
+- Use `integrate_work` only with an exact returned delivery reference. An
+  initiative reference, action, subject or commit is not that delivery locator.
+  Membership, observation and saving a disposition do not integrate work; see
+  [slice integration](mcp-dispatch-slice-integration.md).
 
-The initiative-status recommendation is advisory and does not impose a
-validation pre-call. Preserve the assessment's precise refusals and corrections;
-dispatch checks the current facts through the existing readiness owner.
-The deprecated `workspace_work_record_refresh_admission_metrics` and
-`workspace_work_record_refresh_target_resolution_evidence` operations are not
-initiative-status readiness recommendations. `workspace_validate_dispatch`
-remains read-only and does not refresh derived evidence.
-
-Use `workspace_agent_dispatch` for "start this unit." Dispatch prepares the
-canonical assignment, performs the required readiness and currentness checks
-internally, and launches or returns a precise refusal. A separate
-`workspace_validate_dispatch` call is optional; a prior passing assessment does
-not replace dispatch's checks. Policy and launch authority remain with their
-existing owners. Dispatch remains MCP-only agent authority. If dispatch transport
-is missing, report the structured transport blocker instead of invoking role
-wrappers, shell commands, or hand-written prompts.
-
-Use `workspace_agent_run_status` after dispatch, addressing the canonical
-subject and optionally the returned `run_id` as `attempt_id`. Supply
-`timeout_ms` for bounded observation; omit it for one immediate read. The
-initiative-status surface may identify that a run needs monitoring, but
-run-status owns lifecycle truth for the launched run.
-
-Use `workspace_lint_repo` or `workspace_generate_and_lint` when the coordinator
-needs repo contract diagnostics. Lint output is diagnostic unless the selected
-`WK-*` or slice explicitly owns the lint surface in its scope and acceptance
-criteria. A pre-existing repo-wide lint finding should be reported as a caveat
-or routed to the owning work, not silently absorbed into an unrelated selected
-unit's scope.
-
-Use work-record setter tools for actual mutations:
-`workspace_work_record_set_status`, `workspace_work_record_set_closure`,
-`workspace_work_record_edit` (including task `mark_done` and acceptance
-criteria and notes), `workspace_work_record_upsert_slice`,
-`workspace_work_record_delete_slice`, and
-`workspace_work_record_shape_review_unit`. The initiative-status surface may
-suggest one of these operations, but the setter route owns
-validation-before-write, stale-source protection, advisory closeout lint, and
-schema-backed persistence.
+The [operation reference](mcp-operation-reference.md#operations) owns these
+request boundaries. An action recommendation is advisory, not a new policy or
+automatic lifecycle prerequisite. Existing diagnostics outside the selected
+unit's scope remain caveats or work for their owner.
 
 ## Blocker Handling
 
-Runtime and operator blockers are not WK scope. Missing MCP dispatch transport,
-backend unavailability, read-only mounts, stale graph-impact state, missing
-operator configuration, and monitor-handle mismatches should be surfaced with
-their stable blocker codes and recovery guidance. Do not rewrite the selected
-WK's acceptance criteria, write scope, or closure to absorb those environment
-facts.
+Runtime and operator blockers are not work-contract scope. Missing transport,
+backend unavailability, read-only mounts, unavailable capabilities, stale
+evidence, missing operator configuration and attempt-selection mismatches must
+retain their supplied causes, stable codes and supported recovery. Do not rewrite
+acceptance criteria, write scope or closure to absorb environment facts.
 
-WK-scope blockers are different: ambiguous acceptance criteria, missing
-write-scope authority, incomplete review evidence, unresolved medium-or-higher
-review findings, or a selected unit that needs a remediation slice belong in the
-work-record lifecycle. Initiative status should classify these as coordinator
-actions against the appropriate structured record tools, not as runtime
-failures.
+Work-contract blockers concern the saved unit's meaning and obligations, such
+as ambiguous acceptance, missing write scope or unresolved review disposition.
+Address them through the appropriate structured record operations within the
+unit's authorized scope. Neither kind of blocker establishes an additional
+automatic launch or lifecycle gate in this page.
 
 ## Progressive Disclosure
 
-The compact response is the normal coordinator loop. Expand only along the next
-necessary boundary:
+The coordinator reading route is initiative context, returned work membership,
+returned action selection, then the selected work-record context and complete
+needed fields or inventories. Integration membership is a separate selection
+from the same initiative context for the canonical member census. Neither view
+supplies execution evidence or performs an operation it recommends.
 
-- read the selected work record with `workspace_work_record_summary` for full
-  contract context
-- optionally call `workspace_validate_dispatch` for a prospective "can this
-  start?" assessment
-- call `workspace_agent_dispatch` to start the canonical unit, with required
-  preparation and current checks performed inside dispatch
-- call `workspace_agent_run_status` for a specific monitor handle
-- call lint tools for repo diagnostics
-- call setter routes for validated work-record writes
-- use initiative-status verbose or selected-action detail only after the route is
-  discoverable, and only for the evidence references behind a compact action row
-
-Do not recover from a missing or insufficient compact response by reading raw
-work-record JSON, editing JSON by hand, changing spill limits, or falling back
-to shell. The recovery path is a narrower structured read, validation, monitor,
-lint, dispatch, or setter tool. If the initiative-status route is unavailable
-or discovery does not expose it as supported, report the missing structured
-surface and use the existing structured tools directly rather than treating
-this document as invocation authority.
+Follow the owning operation's exact returned calls for assessment, launch,
+observation, mutation or integration. If a source moves, a route refuses or a
+capability is unavailable, report the exact supplied cause and supported
+recovery. Do not turn a missing route or insufficient answer into permission to
+use retired aliases, shell substitutes, raw record edits or invented references.
+Acquiring information grants no proof, permission or completion credit.

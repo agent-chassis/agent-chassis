@@ -767,7 +767,7 @@
       "intent": "ordinary_test_run",
       "tie_break_rank": 16,
       "use_when": [
-        "The user asks to run one ordinary repository test file, or one native test selected in it, and see its native outcome; this grants no proof credit."
+        "Run one repository-owned test command and see its native outcome without proof credit."
       ],
       "match_phrases": [
         "run this ordinary test file",
@@ -781,15 +781,10 @@
         "name": "workspace_run_test",
         "required_authored_fields": [
           {
-            "name": "file",
+            "name": "entrypoint_or_harness",
             "any_of": [
-              "repository_relative_test_file"
-            ]
-          },
-          {
-            "name": "runner",
-            "any_of": [
-              "runtime_runner"
+              "entrypoint",
+              "harness"
             ]
           }
         ]
@@ -800,20 +795,20 @@
       ],
       "prerequisite_state": [
         {
-          "name": "file",
+          "name": "repository_command",
           "required": true,
           "accepted_sources": [
-            "user-provided repository-relative test file",
-            "prior workspace_run_test answer"
+            "frozen selected worker assignment",
+            "orchestrator/reviewer literal repository command"
           ],
-          "if_missing": "ask for the one repository-relative test file and its runtime runner; do not ask for a command, arguments, environment variables or a root"
+          "if_missing": "Read the worker assignment for permitted entrypoint selections; other execution roles author their complete harness and required source. No script discovery grants worker command authority."
         }
       ],
       "replacement_guidance": [
         {
-          "replace": "shell test command or saved-proof verification",
-          "with": "workspace_run_test for an ordinary file run, or workspace_verify_proof for saved proofs",
-          "when": "the task is to see a test file's native outcome rather than verify proofs"
+          "replace": "public file/runner/selector execution",
+          "with": "assigned worker entrypoint/selection or nonworker repository harness",
+          "when": "ordinary native execution is intended; saved proofs use verify_proof"
         }
       ]
     },

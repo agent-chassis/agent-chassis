@@ -213,10 +213,13 @@ export function deriveControlledAcceptanceEvaluatedSnapshot({
       test_proof_binding_count: Array.isArray(ownerInput?.testProofBindings)
         ? ownerInput.testProofBindings.length : 0
     }),
+    parent_source_accounting: workbench.parent_source_accounting ?? null,
     currentness: currentness([
-      assessmentBinding(assessment),
-      obligationBinding(obligation),
-      acceptanceBinding(acceptance)
+      ...(ownerInput?.proofPosture?.disposition === "opted_out" ? [] : [
+        assessmentBinding(assessment), obligationBinding(obligation), acceptanceBinding(acceptance)]),
+
+      binding("requirement_source", ownerInput?.parentSourceAccounting?.measurement_performed === true ? true : null,
+        [], { claims: false })
     ]),
     obligation_design: frozen({ status: obligation?.resolution?.status ?? "unresolved",
       counts: obligation?.resolution?.counts ?? null,
@@ -304,6 +307,7 @@ export function projectControlledAcceptanceEvaluatedSnapshot(snapshot) {
       candidate_row_count: snapshot.repair.candidate_row_count,
       affected_role_count: snapshot.repair.affected_role_count
     }),
+    parent_source_accounting: snapshot.parent_source_accounting ?? null,
     proof_authoring_diagnostics: snapshot.proof_authoring_diagnostics ?? null,
     ordinary_authoring_readiness:
       snapshot.ordinary_authoring_readiness ?? null,

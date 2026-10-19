@@ -119,25 +119,25 @@
       "profile_id": "proof.compatibility.behavioral-preservation",
       "profile_version": "4.0.0",
       "path": "profiles/proof.compatibility.behavioral-preservation/4.0.0",
-      "short_description": "Baseline and candidate reports have equal typed observables, counts and one selected value pair.",
+      "short_description": "Unsupported captured full-report equality and behavioral-preservation requirement; graph declarations earn zero credit.",
       "usage": {
         "requires": [
-          "Two distinct captured full reports with equal SHA-256, complete typed observable populations/counts, one selected value pair and complement checks."
+          "The original full behavioral-preservation requirement remains unchanged. Generic evaluation cannot bind captures or compare their bytes and returns unsupported with zero credit."
         ],
         "fits": {
-          "example": "Distinct baseline and candidate CLI/JSON reports have identical captured bytes, descriptors, counts and the selected canonical value.",
-          "why": "The comparison is exact for these reports and one selected value pair."
+          "example": "Assess the original behavioral-preservation requirement alongside an independently supported proof.",
+          "why": "The assessment retains the unsupported claim without aborting other results or narrowing the requirement."
         },
         "does_not_fit": {
-          "example": "Equal report counts are offered without matching observable populations.",
-          "why": "Insufficient evidence: counts alone do not establish descriptor or selected-value equality; uncaptured behavior remains outside the guarantee."
+          "example": "Matching graph declarations or one selected report value are used to establish full-report equality.",
+          "why": "Declaration matching does not invoke report comparison. The supplied-report checker does not compare unselected values, capture provenance or runtime behavior."
         }
       }
     },
     {
       "profile_id": "proof.completeness.lossless-projection",
-      "profile_version": "4.0.0",
-      "path": "profiles/proof.completeness.lossless-projection/4.0.0",
+      "profile_version": "5.0.0",
+      "path": "profiles/proof.completeness.lossless-projection/5.0.0",
       "short_description": "Compact members plus disclosed omissions account for the complete source population.",
       "usage": {
         "requires": [
@@ -176,18 +176,18 @@
       "profile_id": "proof.design.implementation-readiness",
       "profile_version": "4.0.0",
       "path": "profiles/proof.design.implementation-readiness/4.0.0",
-      "short_description": "An authored design unit binds loci, requirements, validation and zero placeholders.",
+      "short_description": "Checks authored warning-design declarations for exact fields, loci, requirements, validation and zero placeholders.",
       "usage": {
         "requires": [
-          "Grounded distinct implementation/test loci, complete nonempty requirements and validation, exact warning fields and zero placeholders."
+          "Grounded distinct implementation/test loci, complete nonempty requirements and validation, and zero placeholders. All four warning fields are mandatory with exact values: code, severity, message template and payload schema."
         ],
         "fits": {
           "example": "An API-warning design names both loci, validates every declared requirement and binds code, severity, message template and payload schema.",
-          "why": "The authored design populations and warning shape satisfy the declared closure."
+          "why": "Checks authored design populations and warning declarations; does not establish actual implementation readiness, runtime behavior or product sufficiency."
         },
         "does_not_fit": {
-          "example": "The design retains one placeholder.",
-          "why": "False proposition: the complete placeholder population must have count zero; satisfaction alone does not establish product sufficiency."
+          "example": "A general implementation plan defines no warning.",
+          "why": "Outside this proof's warning-design scope. Preserve the plan's requirements; do not invent a warning to satisfy this proof."
         }
       }
     },
@@ -594,18 +594,19 @@
       "profile_id": "proof.readiness.before-success",
       "profile_version": "4.0.0",
       "path": "profiles/proof.readiness.before-success/4.0.0",
-      "short_description": "A readiness probe reaches the expected ready state before completion is reported.",
+      "short_description": "According to the declared ordering, a readiness probe reaches the expected ready state at or before completion.",
       "usage": {
         "requires": [
-          "Grounded initialized capability, distinct later readiness operation/result, complete expected/observed ready states and completion report order."
+          "Grounded initialization and distinct readiness operation on the same capability; the readiness operation occurs after initialization.",
+          "Complete expected/observed ready states and declared completion report order: readiness at or before completion (non-strict; equal time permitted); completion preceding readiness is rejected."
         ],
         "fits": {
-          "example": "A message broker is initialized, its distinct readiness probe succeeds with expected state, then completion is reported.",
-          "why": "Initialization is followed by an actual bound readiness result before completion."
+          "example": "A message-broker model declares initialization, a later readiness probe with the expected state, and readiness earlier than or simultaneous with completion.",
+          "why": "Checks the authored declarations and their verification structure; this does not itself observe real runtime timing."
         },
         "does_not_fit": {
-          "example": "Only a success status is offered without the readiness probe and state comparison.",
-          "why": "Insufficient evidence: initialization or completion status alone does not establish the declared capability’s readiness."
+          "example": "Only a success status is offered, or the requirement demands readiness strictly earlier than completion.",
+          "why": "Status alone omits the probe/state comparison. This proof does not establish strict precedence; preserve that requirement unchanged."
         }
       }
     },
@@ -630,20 +631,20 @@
     },
     {
       "profile_id": "proof.result-shape.cross-representation-parity",
-      "profile_version": "4.0.0",
-      "path": "profiles/proof.result-shape.cross-representation-parity/4.0.0",
-      "short_description": "Two surfaces of one logical source have equal typed members, counts and one paired value.",
+      "profile_version": "5.0.0",
+      "path": "profiles/proof.result-shape.cross-representation-parity/5.0.0",
+      "short_description": "Match declared typed populations, counts and one selected value pair in a supplied graph.",
       "usage": {
         "requires": [
-          "Two distinct surfaces of one source, complete typed descriptor populations/counts, one selected canonical value pair and independent complement checks."
+          "Authored graph declarations, complete declared typed populations/counts, a selected value pair and complement checks. No report comparison runs on this route."
         ],
         "fits": {
-          "example": "CLI and JSON surfaces expose equal descriptors/counts and the same selected canonical value.",
-          "why": "Both full surfaces are inspected; equality is exact for the one selected value pair."
+          "example": "A graph declares matching descriptor populations, counts and a selected canonical pair for two result surfaces.",
+          "why": "Only those declarations and their verification structure are matched."
         },
         "does_not_fit": {
-          "example": "Equal counts are offered as the whole parity check.",
-          "why": "Insufficient evidence: counts alone establish neither descriptor equality nor the selected canonical value equality."
+          "example": "A matching selected value is offered as proof that all report bytes or implementation behavior are equal.",
+          "why": "Captured full-report byte equality and implementation behavioral preservation are unsupported; separate report comparison checks only supplied populations/counts and one selected pair."
         }
       }
     },
@@ -687,20 +688,20 @@
     },
     {
       "profile_id": "proof.verification.test-validity",
-      "profile_version": "11.0.0",
-      "path": "profiles/proof.verification.test-validity/11.0.0",
-      "short_description": "Authenticated evidence shows one selected test ran, passed and caught each applicable falsifier.",
+      "profile_version": "12.0.0",
+      "path": "profiles/proof.verification.test-validity/12.0.0",
+      "short_description": "Authenticate and evaluate one selected test execution; assertion-to-requirement adequacy is not established.",
       "usage": {
         "requires": [
-          "Saved case-derived component/suite and exact launcher-authenticated candidate, selected-test inventory, falsifier/traversal evidence, pins and evaluator."
+          "Preserve the authored requirement, verification and falsification meanings. Supply a native case, exact selected test and launcher-authenticated evidence; no existence/absence graph pattern is required."
         ],
         "fits": {
-          "example": "The selected test passes, every supported mutation is detected, required traversal is proven, and no shortcut is observed.",
-          "why": "Credit concerns this exact bound runtime proof instance; unavailable mutations disclose limitations without earning detection credit."
+          "example": "A selected clamp test runs against the caller's unchanged lower, interior and upper-bound requirements.",
+          "why": "The exact evaluator checks passing unskipped execution, selected-test identity, supported mutation outcomes, required traversal and prohibited shortcuts. Requirement-satisfaction credit remains zero."
         },
         "does_not_fit": {
-          "example": "An isolated observed supported mutation leaves the selected test passing.",
-          "why": "False proposition: a surviving supported mutation is counterevidence; absent or malformed runtime evidence has a different outcome."
+          "example": "A supported, isolated, actually observed dependency mutation leaves the selected test passing.",
+          "why": "This is counterevidence to bounded execution validity. An unavailable mutation remains a limitation. Neither detection nor traversal establishes assertion-to-requirement behavioral adequacy."
         }
       }
     }

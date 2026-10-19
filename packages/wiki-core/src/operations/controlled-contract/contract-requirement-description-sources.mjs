@@ -7,6 +7,7 @@ import { getSidecarSymbolDefinition, projectSidecarSymbolQueryForMcp, resolveCom
 import { readCompleteFiles } from '../../lib/sidecar-occurrence-source.mjs';
 import { parseScipSymbol } from '../../lib/sidecar-scip-normalize.mjs';
 import { descriptionKey } from './contract-requirement-descriptions.mjs';
+import { projectRequirementSourceLink, REQUIREMENT_SOURCE_FIELD } from './contract-requirement-source-links.mjs';
 
 const codeBound = entity => ['code_symbol', 'repository_path'].includes(entity.identity.kind);
 const failure = (code, more = {}) => ({ state: 'incomplete', code, ...more });
@@ -14,6 +15,35 @@ const quietPublishedContext = { prepare: options => resolvePublishedSidecarSnaps
 const indexUnavailable = error => error?.code === 'sidecar_published_index_unavailable' ||
   ['repository_snapshot_changed', 'base_store_incompatible'].includes(error?.code);
 const callableTypes = ['cc:operation', 'cc:command', 'cc:process', 'cc:runtime_component', 'cc:test', 'cc:capability'];
+
+export function projectRequirementDescriptionSource(source) {
+  const pick = (value, fields) => Object.fromEntries(fields.filter(key => value?.[key] !== undefined)
+    .map(key => [key, structuredClone(value[key])]));
+  const definition = value => pick(value, ['path', 'symbol', 'declaration_kind',
+    'start_line', 'end_line', 'source_text', 'defined_meanings']);
+  return { ...pick(source, ['state', 'code', 'identity', 'resolution', 'defined_meanings',
+    'path', 'repository', 'cause', 'source_basis', 'source_limitation']),
+    ...(source.source_generation?.committed_source == null ? {} : { source_basis: 'committed_source' }),
+    ...(source.definitions === undefined ? {} : { definitions: source.definitions.map(definition) }),
+    ...(source.candidates === undefined ? {} : { candidates: source.candidates.map(definition) }),
+    ...(typeof source.recovery === 'string' ? { recovery: source.recovery } : {}),
+    ...(source.scip_unavailable == null ? {} : { source_limitation: pick(source.scip_unavailable, ['code', 'reason']) }) };
+}
+
+export function projectRequirementDefinitionMeaning(value) {
+  if (Array.isArray(value)) return value.map(projectRequirementDefinitionMeaning);
+  if (value === null || typeof value !== 'object') return value;
+  if (value.source?.field === REQUIREMENT_SOURCE_FIELD && value.user_requirement !== undefined) {
+    return projectRequirementSourceLink(value);
+  }
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'source_generation')
+    .map(([key, member]) => [key, key === 'source' && member?.state === 'absent'
+      ? projectRequirementSourceLink(member) : key === 'source' && member?.state !== undefined &&
+      (member.source_generation !== undefined || member.defined_meanings !== undefined ||
+        member.definitions !== undefined || member.candidates !== undefined ||
+        member.source_basis !== undefined || member.code?.startsWith('description_'))
+      ? projectRequirementDescriptionSource(member) : projectRequirementDefinitionMeaning(member)]));
+}
 
 async function optionalIndex(repoRoot, context) {
   try { return { prepared: await prepareCommittedQuery({ dir: repoRoot }, context ?? quietPublishedContext) }; }
@@ -64,7 +94,8 @@ async function prepareDescriptionSources({ repoRoot, repository, owner, entities
   const queryable = codeEntities.filter(entity => {
     if (entity.identity.repository === repository) return true;
     descriptions.set(descriptionKey(owner, entity), failure('description_repository_unavailable',
-      { repository: entity.identity.repository, recovery: 'Resolve the exact object in its owning repository.' }));
+      { repository: entity.identity.repository, bound_repository: repository,
+        recovery: `The reference names ${entity.identity.repository}; source resolution is bound to ${repository}. Correct the identity only if mistaken, preserving the requirement meaning. An intentional foreign reference remains outside this source scope.` }));
     return false;
   });
   if (!queryable.length) return { descriptions, source_generation: null, assertDefinitions: async () => {} };
@@ -97,7 +128,7 @@ async function prepareDescriptionSources({ repoRoot, repository, owner, entities
     }
     if (identity.kind === 'repository_path') {
       descriptions.set(key, { state: 'complete', identity, source_generation: generation,
-        defined_meanings: ['subject', 'object'], definitions: [file] });
+        defined_meanings: ['subject', 'object', 'identity'], definitions: [file] });
       continue;
     }
     let parsed = await resolveCommittedSourceSymbol({ path: identity.path, symbol: identity.symbol, source_text: file.source_text });
@@ -146,7 +177,8 @@ async function prepareDescriptionSources({ repoRoot, repository, owner, entities
         candidates: parsed.candidates ?? [], recovery: 'Identify one exact declaration in the owning path; unsupported source syntax needs an available native definition.' }));
       continue;
     }
-    const meanings = parsed.state === 'resolved' ? [...parsed.definition.defined_meanings] : ['subject', 'object'];
+
+    const meanings = [...new Set([...(parsed.state === 'resolved' ? parsed.definition.defined_meanings : ['subject', 'object']), 'identity'])];
     if (meanings.includes('behavior') && callableTypes.includes(entity.type_term)) meanings.push('value');
     descriptions.set(key, { state: 'complete', identity, source_generation: generation, defined_meanings: meanings,
       ...(native === null ? {} : { native_identity: native.native_identity }),

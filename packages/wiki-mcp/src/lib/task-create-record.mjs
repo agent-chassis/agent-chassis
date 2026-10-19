@@ -1,14 +1,15 @@
-
+import { sessionAuthoringSchema } from "./record-authoring-session-exposure.mjs";
 
 import { getManifestRecordBirthKinds } from "@agent-chassis/wiki-core/src/lib/contract.mjs";
 import { recordAuthoringChangeSchema, recordAuthoringIssueByMemberPath, validateRecordAuthoringChanges } from "@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs";
 import { createRecordFromInitial } from "@agent-chassis/wiki-core/src/operations/create.mjs";
 import { serializeWorkRecordDiagnosticValue } from "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { creationCause, creationConflictSubject, creationFacts, creationMaintenance, creationRecovery } from "./create-record-response.mjs";
 import { createCreateRecordInputExposure } from "./create-record-input-exposure.mjs";
 import { compactInputSchemaAdvertisement } from "./input-schema-exposure.mjs";
 import { requestSchema } from "./proof-request-schema.mjs";
-import { REQUIREMENT_BATCH_SCHEMA_ENTRY_STATEMENT } from "./requirement-authoring-guidance.mjs";
+import { REQUIREMENT_BIRTH_SCHEMA_ENTRY_STATEMENT } from "./requirement-authoring-guidance.mjs";
 import { resolveContractAssessmentContext } from "./task-assess-contract.mjs";
 import { contractAssessmentAuthorityIdentity } from "./controlled-contract-query-context.mjs";
 import { parseToolProfile } from "./tool-profile.mjs";
@@ -18,14 +19,14 @@ import { buildSaveRecordOriginalCall, buildSaveRecordRetryCall } from "./task-sa
 import { retainedFindingsReferenceResolver } from "./work-record-entry-tools.mjs";
 import { readRetainedGraphImpact } from "./graph-impact-persistence-tools.mjs";
 import { projectPublicationOutcome } from "./work-record-write-route-helpers.mjs";
-import { selectedResponseDeliveryBound, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
-import { guardToolHandler, jsonContent, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
+import { readSelectedResponseSource, retainSelectedResponseSource, selectedResponseDeliveryBound, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
+import { describeRetentionFailure, guardToolHandler, jsonContent, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
 import { projectToolInputValidationFailure } from "./register-tool.mjs";
-import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
+import { createMutationRecovery, mutationAuthorityIdentity, mutationRecoverySchema } from './record-mutation-recovery.mjs';
 
 export const CREATE_RECORD_TOOL_NAME = CREATE_RECORD_ROUTE;
 
-export function createCreateRecordInputContract(z) {
+export function createCreateRecordInputContract(z, registeredTier = null) {
   const kinds = getManifestRecordBirthKinds().map(row => row.kind);
   const initialSchemas = Object.fromEntries(kinds.map(kind => [kind, recordAuthoringChangeSchema(kind, "birth")]));
   const title = z.string().min(1).regex(/\S/u, "title must be nonempty text")
@@ -35,11 +36,12 @@ export function createCreateRecordInputContract(z) {
   const variants = kinds.map((kind, index) => z.object({ kind: z.literal(kind), title,
     initial: kind === "source" ? initials[index] : initials[index].optional() }).strict());
 
-  const advertisedInputSchema = z.object({ kind: z.enum(kinds), title,
-    initial: z.union(initials).optional().describe("Initial context for the selected kind. Required for source; source metadata must be explicitly supplied.")
+  const advertisedInputSchema = z.object({ kind: z.enum(kinds).optional(), title: title.optional(),
+    initial: z.union(initials).optional().describe("Initial context for the selected kind. Required for source; source metadata must be explicitly supplied."),
+    recover: mutationRecoverySchema(z).optional()
   }).strict().describe("Create one record in the session-bound repository. The server enforces the selected kind's closed initial schema; source requires initial. No repository selector.");
 
-  const compactInitial = compactInitialAlternatives(kinds, initialSchemas);
+  const compactInitial = compactInitialAlternatives(kinds, Object.fromEntries(Object.entries(initialSchemas).map(([kind, schema]) => [kind, sessionAuthoringSchema(schema, registeredTier)])));
   const publishedInputSchemaProjection = (converted) => {
     const { anyOf: typed, ...declared } = converted?.properties?.initial ?? {};
     if (!Array.isArray(typed) || typed.length !== compactInitial.length) {
@@ -47,13 +49,15 @@ export function createCreateRecordInputContract(z) {
     }
     return { ...converted, properties: { ...converted.properties, initial: { anyOf: compactInitial, ...declared } } };
   };
-  return Object.freeze({ inputSchema: z.discriminatedUnion("kind", variants), advertisedInputSchema, initialSchemas,
+  const mutationSchema = z.discriminatedUnion('kind', variants);
+  const recoverySchema = z.object({ recover: mutationRecoverySchema(z) }).strict();
+  return Object.freeze({ inputSchema: z.union([mutationSchema, recoverySchema]), mutationSchema, recoverySchema, advertisedInputSchema, initialSchemas,
     publishedInputSchemaProjection });
 }
 
 const DEFERRED_INITIAL_MEMBER = "requirements";
 const DEFERRED_INITIAL_REQUIREMENTS = "One batch of controlled requirements {entities, requirements, collections, unresolved}, " +
-  `validated in full by the server. Its complete declaration: ${REQUIREMENT_BATCH_SCHEMA_ENTRY_STATEMENT}, then the selection that answer returns.`;
+  `validated in full by the server. Its complete declaration: ${REQUIREMENT_BIRTH_SCHEMA_ENTRY_STATEMENT}, then the selection that answer returns.`;
 
 export const CREATE_RECORD_INITIAL_CONTRACT_GUIDANCE =
   "initial lists every member of the selected kind; a member shown without a type has its complete schema in that " +
@@ -76,7 +80,7 @@ export function buildCreateRecordReadCall({ unit, kind, path }) {
     case "source": case "area": subject = path; break;
     default: throw new TypeError(`Unsupported creation read kind '${String(kind)}'`);
   }
-  return buildNextCall({ tool: "workspace_read_wiki", arguments: { subject }, recommended: true });
+  return buildNextCall({ tool: "workspace_read_wiki", arguments: { subject }, recommended: false });
 }
 
 export function buildCreateRecordCorrectionCall({ unit, revision, changes }) {
@@ -93,13 +97,12 @@ const addressed = diagnostics => diagnostics.map(row => {
 
   ...(row.path_segments === undefined ? {} : { path_segments: ["initial", ...row.path_segments.slice(1)] }) };
 });
-const MISPLACED_MEMBER = "record_authoring_member_not_applicable";
-const unpublishedCandidate = allocation => allocation?.publication_state === "not_published" && allocation.consumed_id === null;
+const unpublishedCandidate = allocation => allocation?.publication_state === "not_published";
 
 export function createCreateRecordSurface({ workspace, z, responseEnv = process.env, sessionEnv = process.env,
   generateAndLint, assessment = null, resolveRetainedFindingsSource = null, dispatchSessionIdentity = null,
   registeredTier = null, birthOptions = {}, maintenanceOptions = {} }) {
-  const contract = createCreateRecordInputContract(z);
+  const contract = createCreateRecordInputContract(z, registeredTier);
   const role = parseToolProfile(sessionEnv);
   let context = null;
   const authorize = async () => {
@@ -109,11 +112,12 @@ export function createCreateRecordSurface({ workspace, z, responseEnv = process.
   };
   const maintenance = createSaveRecordMaintenance({ workspace, responseEnv, generateAndLint, ...maintenanceOptions,
     authorityIdentity: unit => contractAssessmentAuthorityIdentity(context, { unit }) });
+  const recovery = createMutationRecovery({ route: CREATE_RECORD_ROUTE, workspace, responseEnv,
+    authorityIdentity: unit => contractAssessmentAuthorityIdentity(context, { unit }) });
   const resolveExternalReference = retainedFindingsReferenceResolver(resolveRetainedFindingsSource, dispatchSessionIdentity);
 
-  async function prepare(request) {
-    await authorize();
-    const parsed = contract.inputSchema.safeParse(request);
+  async function execute(request, onProgress) {
+    const parsed = contract.mutationSchema.safeParse(request);
     let body;
     if (!parsed.success) {
       const owner = getManifestRecordBirthKinds().some(row => row.kind === request?.kind)
@@ -146,14 +150,15 @@ export function createCreateRecordSurface({ workspace, z, responseEnv = process.
           allocator_state_advanced: created.allocator_state_advanced ?? null,
           consumed_id: kind === "area" ? null : created.id,
           effects: { published: created.written, ...notCaused } };
-        for (const field of ["record", "revision", "record_source_digest", "bindings", "entries",
+        for (const field of ["record", "revision", "record_source_digest", "bindings", "requirement_rows", "entries",
           "criterion_identity_changes", "changed_fields", "receipt", "assessment", "assessed_source", "assessment_unavailable"]) {
           if (created[field] !== undefined) body[field] = created[field];
         }
         if (created.assessment_carrier?.original !== undefined) body.assessment_original = created.assessment_carrier.original;
+        body.mutation_request = parsed.data;
         published = body;
         const settled = await maintenance.settleCreation(body, { unit: created.id, kind, source, readIdentity,
-          recordSourceDigest: created.record_source_digest ?? null });
+          recordSourceDigest: created.record_source_digest ?? null }, onProgress);
         body = { ...settled.complete, original: settled.original };
       } catch (error) {
         const allocation = error.creation ?? (published === null ? null : { id: published.unit,
@@ -162,6 +167,11 @@ export function createCreateRecordSurface({ workspace, z, responseEnv = process.
         const publication = projectPublicationOutcome(allocation ?? { written: error.details?.changed === false ? false : null });
         body = { ...(published ?? {}), outcome: error.code === "create_record_initial_invalid" || error.details?.changed === false ? "refused" : "failed",
           unit: unpublishedCandidate(allocation) ? null : allocation?.id ?? null, kind, title, ...publication,
+          ...(typeof allocation?.revision === "string" ? { revision: allocation.revision } : {}),
+          ...(allocation?.bindings === undefined ? {} : { bindings: allocation.bindings }),
+          ...(allocation?.requirement_rows === undefined ? {} : { requirement_rows: allocation.requirement_rows }),
+          ...(allocation?.receipt === undefined ? {} : { receipt: allocation.receipt }),
+          ...(allocation?.record_source_digest === undefined ? {} : { record_source_digest: allocation.record_source_digest }),
           ...(allocation === null ? {} : { allocation }),
           diagnostics: addressed(error.diagnostics ?? [{ code: error.code ?? "create_record_failed", severity: "error",
             path: "$", message: error.message }]),
@@ -170,14 +180,57 @@ export function createCreateRecordSurface({ workspace, z, responseEnv = process.
             ...(error.cause === undefined ? {} : { cause: serializeWorkRecordDiagnosticValue(error.cause) }),
             ...(error.cleanup_failures === undefined ? {} : { cleanup_failures: serializeWorkRecordDiagnosticValue(error.cleanup_failures) }) },
           effects: { published: publication.written === null ? "unknown" : publication.written, ...notCaused } };
-        const settled = await maintenance.settleCreation(body, null);
+        body.mutation_request = parsed.data;
+        const source = publication.written === true && allocation?.relativeFile
+          ? { path: allocation.relativeFile } : null;
+        if (source !== null) body.source = source;
+        const settled = await maintenance.settleCreation(body, source === null ? null : {
+          unit: allocation.id, kind, source, readIdentity: { repository: workspace.repo, id: allocation.id, path: source.path },
+          recordSourceDigest: allocation.record_source_digest ?? null }, onProgress);
         body = { ...settled.complete, original: settled.original };
       }
     }
-    return { body, observation: maintenance.retainObservation(body) };
+    return { body };
   }
-  async function original(source) { await authorize(); return maintenance.readOriginal(source); }
-  return Object.freeze({ inputContract: contract, prepare, original });
+  async function prepare(request) {
+    await authorize();
+    if (request?.recover !== undefined) {
+      const query = contract.inputSchema.safeParse(request);
+      const original = query.success && contract.mutationSchema.safeParse(request.recover.request);
+      if (!original?.success) return { body: { outcome: 'mutation_outcome_unavailable', effects: { published: 'unknown' },
+        cause: { code: 'mutation_recovery_request_invalid', message: 'Recovery requires the exact original valid creation request.' },
+        diagnostics: (original?.error?.issues ?? query.error?.issues ?? []).map(issue => ({ code: 'mutation_recovery_request_invalid',
+          path: ['recover', 'request', ...issue.path].join('.'), message: issue.message })),
+        recovery: { correction: 'Supply the exact request that was submitted. This read does not execute it; changing authored values just to obtain a match cannot recover the original operation.' } } };
+      const recovered = recovery.observe(original.data, request.recover.unit);
+      return { ...recovered, body: await maintenance.observeBody(recovered.body) };
+    }
+    const parsed = contract.mutationSchema.safeParse(request);
+    const tracked = parsed.success ? recovery.start(parsed.data) : null;
+    const result = await execute(request, tracked?.record);
+    if (tracked !== null) maintenance.retainObservation(result.body);
+    tracked?.record(result.body);
+    return { ...result, source: tracked?.retained, read: tracked?.read };
+  }
+  function retainDetail(carrier) {
+    return retainSelectedResponseSource({ binding: { route: CREATE_RECORD_ROUTE, repository: workspace.repo,
+      unit: carrier.unit ?? null, query_identity: { operation: "creation_detail", unit: carrier.unit ?? null },
+      authority_identity: mutationAuthorityIdentity(workspace, { ...contractAssessmentAuthorityIdentity(context, { unit: carrier.unit ?? null }), route: CREATE_RECORD_ROUTE }) }, carrier },
+    { responseOwner: (envelope, options) => jsonContent(envelope, { env: responseEnv, ...options,
+      selectedAccess: () => ({ operator_only: true }) }) });
+  }
+  async function original(source) {
+    await authorize();
+    const retained = readSelectedResponseSource(source, { env: responseEnv, route: CREATE_RECORD_ROUTE,
+      expected: { route: CREATE_RECORD_ROUTE, repository: workspace.repo } });
+    if (retained.binding.query_identity?.operation !== "creation_detail") return maintenance.readOriginal(source);
+    const unit = retained.binding.unit;
+    return readSelectedResponseSource(source, { env: responseEnv, route: CREATE_RECORD_ROUTE, expected: {
+      route: CREATE_RECORD_ROUTE, repository: workspace.repo, unit,
+      query_identity: { operation: "creation_detail", unit },
+      authority_identity: mutationAuthorityIdentity(workspace, { ...contractAssessmentAuthorityIdentity(context, { unit }), route: CREATE_RECORD_ROUTE }) } });
+  }
+  return Object.freeze({ inputContract: contract, prepare, original, retainDetail });
 }
 
 export function createCreateRecordTask(configuration) {
@@ -189,63 +242,86 @@ export function createCreateRecordTask(configuration) {
   buildSubjectCall({ unit: "WK-0001", kind: "work_item", path: "wiki/work-records/WK-0001.json" });
   const surface = createCreateRecordSurface(configuration);
   async function handle(request) {
-    const { body, observation } = await surface.prepare(request);
-    const nextCalls = [];
-    if (observation.available) nextCalls.push(buildOriginalCall(observation.locator));
-    else if (body.original?.available) nextCalls.push(buildOriginalCall(body.original.locator));
-    if (body.original?.available && body.maintenance?.members.some(row => row.state !== "succeeded")) {
-      nextCalls.push(buildRetryCall(body.unit, body.original.locator));
+    const prepared = await surface.prepare(request);
+    const { body } = prepared;
+    const result = creationFacts(body);
+    const maintenance = creationMaintenance(body);
+    if (maintenance !== null) result.maintenance = maintenance;
+    const recovery = creationRecovery(body, maintenance);
+    if (recovery !== null) result.recovery = recovery;
+    const nextCalls = [...(body.next_calls ?? [])];
+    if (body.maintenance?.state === 'maintenance_attempt_in_progress' && body.original?.available) nextCalls.push({
+      tool: 'save_record', arguments: { unit: body.unit, maintenance_observe: { save_result: body.original.locator } }, recommended: true });
+    if (request.recover !== undefined && body.outcome === 'mutation_outcome_unknown') nextCalls.push({
+      tool: CREATE_RECORD_TOOL_NAME, arguments: request, recommended: true });
+    if (body.original?.available && body.maintenance?.state !== 'maintenance_attempt_in_progress' && body.maintenance?.members?.some(row => row.state !== "succeeded")) {
+      nextCalls.push({ ...buildRetryCall(body.unit, body.original.locator), recommended: false });
     }
-    const sourcePath = unpublishedCandidate(body.allocation) ? undefined : body.source?.path ?? body.allocation?.relativeFile;
-    if (sourcePath !== undefined) nextCalls.push(buildSubjectCall({ unit: body.unit, kind: body.kind, path: sourcePath }));
-    const complete = { ...body, observation, complete: true, next_calls: nextCalls };
-    if (measureMcpInlineResultBytes(complete) <= selectedResponseDeliveryBound(responseEnv)) {
-      return jsonContent(complete, { env: responseEnv });
+    const conflict = creationConflictSubject(body);
+    const sourcePath = conflict ?? (unpublishedCandidate(body.allocation) ? undefined : body.source?.path ?? body.allocation?.relativeFile);
+    if (sourcePath !== undefined) nextCalls.push({ ...buildSubjectCall({ unit: body.unit, kind: body.kind, path: sourcePath }),
+      recommended: body.effects?.published === "unknown" });
+    const complete = { ...result, complete: true, next_calls: nextCalls };
+    if (measureMcpInlineResultBytes(complete) <= selectedResponseDeliveryBound(responseEnv)) return jsonContent(complete, { env: responseEnv });
+    if (prepared.source !== undefined) {
+      try { return selectedFullContent({ source: prepared.source, retained: prepared.retained ?? prepared.read(), projection: complete }); }
+      catch (error) { complete.delivery_failure = creationCause(error); }
     }
-    return jsonContent({ outcome: body.outcome, unit: body.unit, kind: body.kind, revision: body.revision,
-      complete: false, populations: { bindings: Object.values(body.bindings ?? {}).reduce((n, rows) => n + Object.keys(rows).length, 0),
-        diagnostics: body.diagnostics?.length ?? 0, entries: body.entries?.length ?? 0,
-        maintenance_members: body.maintenance?.members.length ?? 0 },
-      maintenance: { applicable: body.maintenance.applicable, attempt: body.maintenance.attempt, state: body.maintenance.state,
-        members: body.maintenance.members.map(({ member, state }) => ({ member, state })) },
-      ...(body.outcome === "created" ? {} : { ...projectPublicationOutcome(body),
-        ...(body.allocation === undefined ? {} : { allocation: {
-          id: body.allocation.id, relativeFile: body.allocation.relativeFile, ...projectPublicationOutcome(body.allocation),
-          allocator_state_advanced: body.allocation.allocator_state_advanced, consumed_id: body.allocation.consumed_id } }) }),
-      effects: body.effects, original: body.original, observation: observation.available ? observation : {
-        available: false, locator: null, reason: "creation_observation_unavailable" },
-      complete_detail: { available: observation.available, original_scope: "creation_facts_before_maintenance" },
-      ...(body.cause === undefined ? {} : { cause: { code: body.cause.code, message: body.cause.message } }),
+
+    let detail;
+    try { detail = surface.retainDetail(complete); }
+    catch (error) { detail = { failure: describeRetentionFailure(error, {
+      operation: "retain_creation_detail", subject: { unit: body.unit } }) }; }
+    const summary = { ...result, bindings: undefined,
+      ...(result.diagnostics === undefined ? {} : { diagnostics: result.diagnostics.slice(0, 1) }),
+      ...(maintenance === null ? {} : { maintenance: { ...maintenance, members: maintenance.members.map(row => ({ ...row,
+        ...(row.check === undefined ? {} : { check: { ...row.check,
+          ...(row.check.findings === undefined ? {} : { findings: row.check.findings.slice(0, 1) }) } }) })) } }) };
+    if (detail.failure === undefined) return jsonContent({ ...summary, complete: false,
+      next_calls: [{ ...buildOriginalCall(detail), recommended: true }, ...nextCalls] }, { env: responseEnv });
+    return jsonContent({ ...summary, complete: false,
+      recovery: { state: "no_supported_route", code: "creation_detail_unavailable",
+        stopping_condition: "Creation's reported publication state stands. Needed continuation detail exceeds delivery capacity and no authenticated original is available; do not guess identities or repeat creation.",
+        cause: creationCause(detail.failure.cause) },
       next_calls: nextCalls }, { env: responseEnv });
   }
   async function readOriginal(source) {
-    return selectedFullContent({ source, retained: await surface.original(source), member: "carrier" });
+    const retained = await surface.original(source);
+    return selectedFullContent({ source, retained, projection: retained.binding.query_identity.operation === "creation_detail"
+      ? retained.carrier : creationFacts(retained.carrier) });
   }
   return Object.freeze({ inputContract: surface.inputContract, handle, readOriginal });
 }
 
 export function registerCreateRecordTools({ registerTool, ...configuration }) {
   const task = createCreateRecordTask(configuration);
-  const requestContracts = registeredToolRequestContracts(registerTool);
   registerTool(CREATE_RECORD_TOOL_NAME, { description: "Create one draft with its explicitly supplied initial meaning in the session-bound repository. Source requires real metadata. Maintenance recovery uses the immutable creation result and never repeats birth. " +
+    'After acknowledgment or mappings are lost, use {recover:{request:<exact original creation request>}}. It only observes retained state; identical operations remain ambiguous. ' +
     CREATE_RECORD_INITIAL_CONTRACT_GUIDANCE,
     inputSchema: task.inputContract.inputSchema,
     advertisedInputSchema: task.inputContract.advertisedInputSchema,
     publishedInputSchemaProjection: task.inputContract.publishedInputSchemaProjection, writeSemantics: "none",
 
-    inputSchemaExposure: createCreateRecordInputExposure({ initialSchemas: task.inputContract.initialSchemas }),
+    inputSchemaExposure: createCreateRecordInputExposure({ initialSchemas: task.inputContract.initialSchemas, registeredTier: configuration.registeredTier }),
 
     inputValidationErrorProjector: async ({ args, validationError }) => {
+      const recovery = args?.recover !== undefined;
+      const selected = (recovery ? task.inputContract.recoverySchema : task.inputContract.mutationSchema).safeParse(args);
+      const failure = selected.success ? validationError : selected.error;
       const initial = args?.initial;
-      if (initial === null || typeof initial !== "object" || Array.isArray(initial) ||
-          !validationError.issues.every(issue => issue.path[0] === "initial") ||
-          !getManifestRecordBirthKinds().some(row => row.kind === args.kind)) return null;
-      const owner = validateRecordAuthoringChanges(args.kind, "birth", initial);
-      if (!owner.some(row => row.code === MISPLACED_MEMBER)) return null;
+      const owner = !recovery && initial !== null && typeof initial === "object" && !Array.isArray(initial) &&
+        getManifestRecordBirthKinds().some(row => row.kind === args.kind)
+        ? validateRecordAuthoringChanges(args.kind, "birth", initial) : null;
+      const ownerDiagnostics = owner?.length > 0 ? [
+        ...failure.issues.filter(issue => issue.path[0] !== "initial"),
+        ...addressed(owner).map(recordAuthoringIssueByMemberPath)
+      ] : null;
       return { terminal_result: { ...jsonContent(await projectToolInputValidationFailure({
-        tool: CREATE_RECORD_TOOL_NAME, args, validationError,
-        ownerDiagnostics: addressed(owner).map(recordAuthoringIssueByMemberPath),
-        requestContract: requestContracts.contractFor(CREATE_RECORD_TOOL_NAME)
+        tool: CREATE_RECORD_TOOL_NAME, args, validationError: failure,
+        ownerDiagnostics, ownerGuidance: !recovery && getManifestRecordBirthKinds().some(row => row.kind === args?.kind) &&
+          (owner?.length > 0 || failure.issues.some(issue => issue.path[0] === "initial"))
+          ? { calls: [buildNextCall({ tool: "workspace_read_wiki",
+            arguments: { subject: { record_kind: args.kind } }, recommended: false })] } : null
       }), { env: configuration.responseEnv ?? process.env }), isError: true } };
     } },
   guardToolHandler(task.handle, { env: configuration.responseEnv ?? process.env }));

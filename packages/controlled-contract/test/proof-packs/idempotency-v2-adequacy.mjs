@@ -13,7 +13,7 @@ const ref = (referenceId) => ({ kind: "reference", reference_id: referenceId });
 const IDEMPOTENCY_V2_GUARANTEE_DIGEST =
   "38166c31a5bcf62c7d3cdde9af1b4ecec27b67d299a4a190a15715f96f852050";
 const IDEMPOTENCY_V2_PROFILE_DIGEST =
-  "5829f7a995e07b827e2810623b0e593eb3d4ea3e64154ae8c9ae0d61fa179a23";
+  "8adaa11f02d03e2707d42300ad80671b52c8e5bf7c46d87e15b9bfcadbacc38c";
 
 function evaluateFixture(fixture) {
   return evaluateStableProofPackFixtureV1({

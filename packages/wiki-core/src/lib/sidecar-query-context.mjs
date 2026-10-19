@@ -1,3 +1,4 @@
+import { planningFields, planningCounts } from "./sidecar-planning-query.mjs";
 import path from "node:path";
 
 import { createSidecarContextTrustProjection } from "./sidecar-context-projection.mjs";
@@ -23,15 +24,15 @@ async function evaluateContextForPath(input, context) {
   const includeSuppressed = input.includeSuppressed === true;
   const prepared = await prepareCommittedQuery({ dir: targetDir, cacheDir: input.cacheDir }, context);
   const composed = await composeCommittedPaths({ prepared, cacheDir: input.cacheDir, targetDir,
-    validPaths: [input.path], includeSuppressed });
+    validPaths: [input.path], includeSuppressed, includeOutgoing: true });
   const descriptor = composed.selection.files.find((file) => file.path === input.path) ?? null;
-  const files = await readCompleteFiles(prepared.repoRoot, [input.path],
-    new Map(descriptor ? [[input.path, descriptor]] : []));
-  const source = files.get(input.path).entry;
+  const retainedSource = composed.complete_files.find(file => file.path === input.path);
+  const source = retainedSource ?? (await readCompleteFiles(prepared.repoRoot, [input.path],
+    new Map(descriptor ? [[input.path, descriptor]] : []))).get(input.path).entry;
   const { status } = prepared;
   const affectedFiles = attributeAffectedFiles(composed);
-  const relatedCodePaths = composed.related_code_paths_by_path[input.path];
-  const likelyTests = composed.likely_tests_by_path[input.path];
+  const relatedCodePaths = affectedFiles.filter(file => file.relationships.some(row =>
+    row.basis === "scip" || row.kind === "reverse_import")).map(file => file.path);
   const loc = source.state === "available" ? source.line_count : null;
   return createSidecarResultEnvelope({
     source_kind: "code_index",
@@ -54,18 +55,16 @@ async function evaluateContextForPath(input, context) {
     source_entries: descriptor ? [{ kind: descriptor.mode === "120000" ? "symlink" : "file",
       path: descriptor.path, entry: structuredClone(descriptor) }] : [],
     related_code_paths: relatedCodePaths,
-    likely_tests: likelyTests,
+    ...planningFields(composed),
     affected_files: affectedFiles,
     structural_impacts: composed.impacts,
-    missing_update_hints: composed.hints,
     graph_state: composed.graph_state,
     counts: {
+      ...planningCounts(composed),
       canonical_refs: composed.canonical_refs.length,
       related_code_paths: relatedCodePaths.length,
-      likely_tests: likelyTests.length,
       affected_files: affectedFiles.length,
       structural_impacts: composed.impacts.length,
-      missing_update_hints: composed.hints.length,
       source_lines: loc
     }
   });

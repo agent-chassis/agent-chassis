@@ -3,6 +3,15 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { parseRepositoryScopeFileSelector } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
+import { createWorkerScopeTreeReader } from "./backend-worker-scope-tree.mjs";
+import { defaultRunGit } from "./worktree-substrate.mjs";
+
+function fileDigest(bytes, objectFormat = null) {
+  const hash = createHash(objectFormat ?? "sha256");
+  if (objectFormat !== null) hash.update(`blob ${bytes.length}\0`);
+  return `${objectFormat === null ? "sha256" : `git-${objectFormat}`}:${hash.update(bytes).digest("hex")}`;
+}
 
 export const ORDINARY_SOURCE_SNAPSHOT_SCHEMA_VERSION = "repository-execution-source-snapshot.v3";
 
@@ -26,7 +35,8 @@ function canonicalJson(value) {
 }
 
 export function collectRepositorySourceEntries(root, { excludedTopLevelNames = [], exclusions = [],
-  symlinks = "refuse", refuse = defaultRefuse, mappedDependencies = null } = {}) {
+  symlinks = "refuse", refuse = defaultRefuse, mappedDependencies = null,
+  selectedPaths = null, objectFormat = null } = {}) {
   if (symlinks !== "refuse" && symlinks !== "omit") {
     throw new TypeError("repository source entries omit or refuse symlinks");
   }
@@ -35,11 +45,12 @@ export function collectRepositorySourceEntries(root, { excludedTopLevelNames = [
   const entries = [];
   const record = (absolute, relative, stat, walk) => {
     if (stat.isDirectory()) {
-      entries.push({ path: relative, kind: "directory", mode: stat.mode & 0o777 });
+      if (selectedPaths === null) entries.push({ path: relative, kind: "directory", mode: stat.mode & 0o777 });
       walk(absolute);
     } else if (stat.isFile()) {
-      entries.push({ path: relative, kind: "file", mode: stat.mode & 0o777,
-        digest: `sha256:${createHash("sha256").update(readFileSync(absolute)).digest("hex")}` });
+      entries.push({ path: relative, kind: "file", mode: objectFormat === null ? stat.mode & 0o777
+        : (stat.mode & 0o111) === 0 ? 0o644 : 0o755,
+        digest: fileDigest(readFileSync(absolute), objectFormat) });
     } else if (stat.isSymbolicLink()) {
       if (symlinks === "refuse") refuse("symlink", { path: relative });
     } else {
@@ -62,6 +73,8 @@ export function collectRepositorySourceEntries(root, { excludedTopLevelNames = [
     for (const name of readdirSync(directory).sort()) {
       const absolute = path.join(directory, name);
       const relative = relativeOf(absolute);
+      if (selectedPaths !== null && !selectedPaths.some(selected => selected === relative ||
+          selected.startsWith(`${relative}/`))) continue;
       if (directory === root && topLevel.has(name)) continue;
       const keep = excluded.get(relative);
       if (keep !== undefined) {
@@ -74,6 +87,45 @@ export function collectRepositorySourceEntries(root, { excludedTopLevelNames = [
   };
   walk(root);
   return entries;
+}
+
+export function captureRepositoryDefinitionSnapshot({ root, paths, commit = null, runGit = defaultRunGit }) {
+  const fail = (code, message, detail) => { throw Object.assign(new Error(message), { code, detail }); };
+  if (!Array.isArray(paths) || paths.length === 0 || new Set(paths).size !== paths.length ||
+      !paths.every(value => parseRepositoryScopeFileSelector(value).ok)) {
+    fail("repository_test_definition_paths_invalid", "definition paths must be exact canonical repository files", { paths });
+  }
+  const probe = args => {
+    const result = runGit({ repo: root, args: ["--no-replace-objects", ...args] });
+    if (result?.ok !== true) fail("repository_test_definition_git_unavailable", "cannot read definition Git identity",
+      { commit, args, result });
+    return result.stdout.trim();
+  };
+  const objectFormat = probe(["rev-parse", "--show-object-format"]);
+  if (!["sha1", "sha256"].includes(objectFormat)) fail("repository_test_definition_object_format_invalid",
+    "definition repository has an unsupported object format", { objectFormat });
+  let entries;
+  if (commit === null) entries = collectRepositorySourceEntries(root, { selectedPaths: paths, objectFormat });
+  else {
+    const reader = createWorkerScopeTreeReader({ runGit, mainRepo: root, baseSha: commit });
+    entries = paths.map(relative => {
+      const resolved = reader.resolve(relative.split("/"));
+      if (resolved.kind !== "file" || resolved.index !== relative.split("/").length - 1) {
+        if (resolved.kind === "symlink") defaultRefuse("symlink", { path: relative, commit });
+        fail("repository_test_definition_unavailable", "listed definition is not a regular file at the launch commit",
+          { path: relative, commit, kind: resolved.kind });
+      }
+      return { path: relative, kind: "file", mode: Number.parseInt(resolved.mode, 8) & 0o777,
+        digest: `git-${objectFormat}:${probe(["rev-parse", "--verify", `${commit}:${relative}`])}` };
+    });
+  }
+  entries.sort((left, right) => left.path.localeCompare(right.path));
+  if (entries.length !== paths.length || entries.some(entry => entry.kind !== "file") ||
+      paths.some(relative => !entries.some(entry => entry.path === relative))) {
+    fail("repository_test_definition_unavailable", "a listed definition is missing or is not a regular file", { paths });
+  }
+  return Object.freeze({ schema_version: "repository-test-definition-snapshot.v1", entries: Object.freeze(entries),
+    digest: repositorySnapshotDigest(entries) });
 }
 
 export function repositorySnapshotDigest(value) {

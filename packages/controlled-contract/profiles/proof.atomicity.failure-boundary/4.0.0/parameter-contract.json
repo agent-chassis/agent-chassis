@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.atomicity.failure-boundary",
   "profile_version": "4.0.0",
-  "profile_digest": "f43e6adf68566acc48f995cc7b7e271db34f759166406bf27573340cd03bca23",
+  "profile_digest": "8f7ed427e3a0b34e05982a9e99ffe2796ead7ab50ca16d0b8e8c8b627c90903d",
   "description": "When a declared failure is injected at a declared boundary positioned between two distinct ordered constituent effects of one compound-operation attempt, the declared constituent-effect population of at least two members, observed at the declared settlement event that follows the injected failure, has a settled state that is a member of a closed two-member population of allowed settled states whose declared members are the fully-committed state and the fully-uncommitted state, and the declared partial-commit state is not a member of that allowed population.",
   "parameters": [
     {

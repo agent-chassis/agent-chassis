@@ -3,6 +3,8 @@
 import { canonicalCollection, identityOf, membershipConstraint, renderConstraint, statementConstraint } from
   "@agent-chassis/controlled-contract/canonical-specification";
 import { derive, normalizeClauses } from "@agent-chassis/controlled-contract/closed-membership";
+import { createValueScopeNormalizer } from '@agent-chassis/controlled-contract/controlled-value-definitions-v1';
+import { ControlledValueError, valueReferences, valueFailure, mapValueReferences } from '@agent-chassis/controlled-contract/controlled-values-v1';
 
 import { MEMBERSHIP_SUBJECT_TYPES, NATIVE_AUTHORING, TERM_IDENTITY_KIND, UNCONDITIONAL, COLLECTION_KINDS, behaviorBranch,
   canonicalJson, isPending, valueSchemaAt } from "../../lib/controlled-requirement-authoring-schema.mjs";
@@ -31,6 +33,25 @@ export const finding = (path, cause, message, accepts = null, more = {}) => ({ p
 export const termBinding = (id, type) => ({ type_term: type, identity: { kind: TERM_IDENTITY_KIND, term: id } });
 export const isMembership = row => Object.hasOwn(row, "membership");
 
+const BINDING_CORRECTIONS = {
+  choose_established_or_distinct_entity: {
+    executable: false,
+    choices: [
+      { intent: 'reuse_established_object', instruction: 'Only if the saved object is intended, omit the submitted declaration and reuse its established id and binding.' },
+      { intent: 'specify_distinct_object', instruction: 'If a different object is intended, declare its full intended binding under a fresh id and update its affected uses. Saved bindings remain immutable. Correct existing rows through row_id, or id with rebind_case_ids for a single claim; preserve intended verification/case and obligation associations through their existing amendments.' }
+    ],
+    preserve: 'Keep requested behavior, operands, applicability, source passages and occurrences, and intended evidence associations. The binding conflict establishes no intended object; the author chooses.'
+  },
+  distinguish_alias_from_mistaken_identity: {
+    executable: false,
+    choices: [
+      { intent: 'consolidate_true_aliases', instruction: 'Only if these ids intentionally denote the same object, use one established binding at the affected uses and remove the redundant declaration, preserving applicable source and evidence mappings.' },
+      { intent: 'correct_mistaken_identity', instruction: 'If distinct objects are intended, correct the mistaken declaration to the intended distinct identity and retain their distinct uses. An established id needs a fresh id for a different binding; use existing row correction and case/obligation amendments for saved uses.' }
+    ],
+    preserve: 'Keep requested behavior, operands, applicability, source passages and occurrences, and intended verification/case/obligation associations. Identical declared identities establish no equality of intended objects; the author chooses.'
+  }
+};
+
 export function behaviorUses(subject, subjectPath, behavior, path, uses) {
   const facts = relations.get(behavior.relation);
   uses.push({ id: subject, path: subjectPath, types: facts.subject_types, role: `the subject of ${facts.term}` });
@@ -38,19 +59,26 @@ export function behaviorUses(subject, subjectPath, behavior, path, uses) {
     path: [...path, "objects", index, "referent"], types: facts.operand_types, role: `an object of ${facts.term}` }); });
   (behavior.applies?.context ?? []).forEach((id, index) => uses.push({ id, path: [...path, "applies", "context", index],
     types: facts.context_types, role: `the ${behavior.applies.mode} context of ${facts.term}` }));
+  for (const [index, operand] of (behavior.objects ?? []).entries()) if (operand.value || operand.observation || operand.binding) {
+    for (const id of valueReferences(operand)) uses.push({ id, path: [...path, 'objects', index], types: null, role: `a typed dependency of ${facts.term}` });
+  }
 }
 
 export function membershipUses(clauses, clausesPath, applies, path, uses) {
-  clauses.forEach((clause, index) => uses.push({ id: clause.member, path: [...clausesPath, index, "member"], types: null,
-    role: "a member named by a closed membership" }));
+  clauses.forEach((clause, index) => {
+    for (const id of clause.domain ? valueReferences(clause.domain) : [clause.member]) uses.push({ id, path: [...clausesPath, index], types: null,
+      role: 'a member or typed domain named by a closed membership' });
+  });
   (applies?.context ?? []).forEach((id, index) => uses.push({ id, path: [...path, "applies", "context", index], types: null,
     role: `the ${applies.mode} context of a closed membership` }));
 }
 
 export function requirementUses(requirements, uses) {
   requirements.forEach((row, index) => {
+    for (const declaration of row.for_each ?? []) for (const id of valueReferences(declaration.domain)) uses.push({ id,
+      path: ['requirements', index, 'for_each'], types: null, role: 'a lexical domain dependency' });
     if (!isMembership(row)) { behaviorUses(row.subject, ["requirements", index, "subject"], row.behavior, ["requirements", index, "behavior"], uses); return; }
-    uses.push({ id: row.subject, path: ["requirements", index, "subject"], types: MEMBERSHIP_SUBJECT_TYPES, role: "the population of a closed membership" });
+    uses.push({ id: row.subject, path: ["requirements", index, "subject"], types: row.membership.some(clause => clause.domain) ? null : MEMBERSHIP_SUBJECT_TYPES, role: "the subject of a closed membership" });
     membershipUses(row.membership, ["requirements", index, "membership"], row.applies, ["requirements", index], uses);
   });
 }
@@ -68,12 +96,18 @@ export function bindEntities({ uses, declared = {}, known, open = null }) {
   const bindings = new Map();
   const inferred = {};
   const typeOf = id => typeof declared[id] === "string" ? declared[id] : declared[id].type_term;
+  const bindingOf = id => typeof declared[id] === 'string' ? termBinding(id, declared[id]) : clone(declared[id]);
+  const usesOf = id => uses.filter(use => use.id === id).map(use => clone(use));
   for (const id of Object.keys(declared)) {
 
-    if (known.has(id)) refusals.push(finding(["entities", id], typeOf(id) === known.get(id).type_term ? "entity_already_established"
-      : "entity_declaration_conflicts_with_established", `${id} is already established as ${known.get(id).type_term}`
-      + `${typeOf(id) === known.get(id).type_term ? "" : ` and is not ${typeOf(id)}`}. Remove this declaration; the established entity is used as it is.`,
-    null, { recovery: { kind: "remove_member", path: ["entities", id], established: { id, type: known.get(id).type_term } } }));
+    if (known.has(id)) {
+      const submitted = bindingOf(id), established = clone(known.get(id));
+      const same = canonicalJson(submitted) === canonicalJson(established);
+      refusals.push(finding(['entities', id], same ? 'entity_already_established' : 'entity_declaration_conflicts_with_established',
+        same ? `${id} repeats its complete established binding` : `${id} submits a different binding from its immutable established binding`,
+        null, { submitted: { id, ...submitted }, established: { id, ...established }, uses: usesOf(id),
+          recovery: { kind: 'resubmit_corrected_batch', correct: 'choose_established_or_distinct_entity' } }));
+    }
     else if (open?.has(id)) refusals.push(finding(["entities", id], "entity_type_open_in_referenced_specification",
       `${id} is an entity of the referenced specification, which leaves its type open. A check request cannot settle it; remove this declaration.`,
       null, { recovery: { kind: "remove_member", path: ["entities", id] } }));
@@ -118,28 +152,55 @@ export function bindEntities({ uses, declared = {}, known, open = null }) {
     if (first === id) continue;
     const other = known.get(first) ?? bindings.get(first);
     refusals.push(finding(Object.hasOwn(declared, id) ? ["entities", id] : uses.find(row => row.id === id).path, "entity_identity_declared_twice",
-      `${id} [${bound.type_term}] has the identity of ${first} [${other.type_term}]. One entity has one id: name it ${first} everywhere and remove ${id}.`, null,
-      { recovery: { kind: "use_entity", id: first, in_place_of: id, ...(Object.hasOwn(declared, id) ? { remove: ["entities", id] } : {}) } }));
+      `${id} [${bound.type_term}] and ${first} [${other.type_term}] declare the same identity`, null,
+      { bindings: [{ id: first, ...clone(other) }, { id, ...clone(bound) }], uses: [...usesOf(first), ...usesOf(id)],
+        recovery: { kind: 'resubmit_corrected_batch', correct: 'distinguish_alias_from_mistaken_identity' } }));
+  }
+  const corrected = new Set();
+  for (const row of refusals) if (BINDING_CORRECTIONS[row.recovery?.correct] && !corrected.has(row.recovery.correct)) {
+    corrected.add(row.recovery.correct);
+    row.recovery.correction = clone(BINDING_CORRECTIONS[row.recovery.correct]);
   }
   return { bindings, inferred, refusals, holes };
 }
 
 export function createRequirementNormalizer({ schema, unit }) {
+  let values = null, scopeFailure = null;
+  const configureScopes = (rows, bindings) => {
+    values = null; scopeFailure = null;
+    try { values = createValueScopeNormalizer(rows, bindings); } catch (error) {
+      if (!(error instanceof ControlledValueError)) throw error;
+      scopeFailure = error;
+    }
+  };
+  const valueRefusal = (error, path) => finding(path, error.code, error.message, null, {
+    subject: error.details.subject, reason: error.details.cause, effects: error.details.effects,
+    actor: error.details.actor, recovery: error.details.recovery });
+  const guarded = (prepare, pathIndex) => (...args) => {
+    try {
+      if (scopeFailure) throw scopeFailure;
+      return prepare(...args);
+    } catch (error) {
+      if (!(error instanceof ControlledValueError)) throw error;
+      return { holes: [], refusals: [valueRefusal(error, args[pathIndex])], notes: [], inputs: null, written: null };
+    }
+  };
 
-  function prepareMembership({ subject, clauses, applies }, clausesPath, bindings) {
+  function prepareMembershipValue({ subject, clauses, applies, for_each, within }, clausesPath, bindings) {
     const out = { holes: [], refusals: [], inputs: null, membership: null };
 
     const firstAt = new Map();
     clauses.forEach((clause, index) => {
-      if (!firstAt.has(clause.member)) { firstAt.set(clause.member, index); return; }
-      const conflicting = [[...clausesPath, firstAt.get(clause.member)], [...clausesPath, index]];
+      const memberKey = clause.domain ? canonicalJson(clause.domain) : clause.member;
+      if (!firstAt.has(memberKey)) { firstAt.set(memberKey, index); return; }
+      const conflicting = [[...clausesPath, firstAt.get(memberKey)], [...clausesPath, index]];
       out.refusals.push(finding([...clausesPath, index, "member"], "closed_membership_member_stated_twice",
-        `${clause.member} has two clauses in the closed membership of ${subject} (positions ${firstAt.get(clause.member)} and ${index}); a member has one. Resubmit the batch with one clause for ${clause.member}.`, null,
+        `${clause.member ?? "typed domain"} has two clauses in the closed membership of ${subject} (positions ${firstAt.get(memberKey)} and ${index}); a member has one. Resubmit the batch with one clause for ${clause.member}.`, null,
         { owner: MEMBERSHIP_OWNER, conflicting, recovery: { kind: "resubmit_corrected_batch", correct: "keep_one_clause_for_the_member", member: clause.member, clauses: conflicting } }));
     });
     if (out.refusals.length) return out;
     clauses.forEach((clause, index) => { if (clause.modality === undefined) out.holes.push({ path: [...clausesPath, index, "modality"],
-      accepts: strip(schema.$defs.membership_clause.properties.modality),
+      accepts: strip((schema.$defs.membership_clause.oneOf?.find(branch => branch.properties.domain) ?? schema.$defs.membership_clause).properties.modality),
       question: `modality of ${clause.member} in the closed membership of ${subject}: MUST is required; MAY is permitted and not required; `
         + "a member left out is forbidden" }); });
     if (out.holes.length) return out;
@@ -150,7 +211,20 @@ export function createRequirementNormalizer({ schema, unit }) {
         `${error.message}${error.membership.correction ? `; ${error.membership.correction}` : ""}`, null, { owner: MEMBERSHIP_OWNER }));
       return out;
     }
-    if ([subject, ...clauses.map(clause => clause.member), ...(applies?.context ?? [])].some(id => !bindings.has(id))) return out;
+    if ([subject, ...clauses.flatMap(clause => clause.domain ? valueReferences(clause.domain) : [clause.member]), ...(applies?.context ?? [])].some(id => !bindings.has(id))) return out;
+    if (clauses.some(clause => clause.domain)) {
+      const map = id => structuredClone(bindings.get(id));
+      const metadata = values?.normalize({ subject, for_each, within }) ?? {};
+      const scope = scopeOf(applies, bindings);
+      const constraint = membershipConstraint({ subject: bindings.get(subject), applies: { mode: scope.mode, context: scope.context.map(unnamed) },
+        clauses: specification.clauses.map(clause => ({ ...clause, domain: values.normalize({ subject, for_each, within,
+          behavior: { relation: 'value:equals', objects: [{ value: clause.domain }] } }, map).objects[0].value })),
+        ...(metadata.for_each === undefined ? {} : { for_each: metadata.for_each }), ...(metadata.within === undefined ? {} : { within: metadata.within }) });
+      out.membership = deepFreeze({ identity: identityOf(unit, constraint), constraint, declaration: {
+        form: MEMBERSHIP_FORM, owner: MEMBERSHIP_OWNER, subject: { id: subject, ...clone(bindings.get(subject)) },
+        applies: scope, specification, members: [], derived: derive(specification) } });
+      return out;
+    }
     const members = specification.clauses.map(clause => ({ id: clause.member, ...clone(bindings.get(clause.member)) }));
     const scope = scopeOf(applies, bindings);
     const { required, permitted } = derive(specification);
@@ -224,17 +298,51 @@ export function createRequirementNormalizer({ schema, unit }) {
       objects: objects.map(object => Object.hasOwn(object, "referent") ? { ...clone(object), referent: referent(bindings.get(object.referent)) } : clone(object)) };
   }
 
-  function prepareRequirement(statement, path, bindings) {
+  function prepareVerificationBehavior(statement, subject, behavior, path, bindings, out) {
+    if (relations.get(behavior.relation).operand_kind !== 'value') return prepareBehavior(behavior, path, bindings, out);
+    if (!bindings.has(subject) || valueReferences(behavior.objects ?? []).some(id => !bindings.has(id))) return null;
+    let metadata;
+    try {
+      if (!values) configureScopes([statement], bindings);
+      if (scopeFailure) throw scopeFailure;
+      metadata = values.normalize({ ...statement, subject, behavior });
+    } catch (error) {
+      if (!(error instanceof ControlledValueError)) throw error;
+      out.refusals.push(finding(path, error.code, error.message, null, { subject: error.details.subject,
+        reason: error.details.cause, effects: error.details.effects, actor: error.details.actor, recovery: error.details.recovery }));
+      return null;
+    }
+    return prepareBehavior({ ...behavior, ...(metadata.objects ? { objects: metadata.objects } : {}) }, path, bindings, out);
+  }
+
+  function prepareRequirementValue(statement, path, bindings) {
     const out = { holes: [], refusals: [], notes: [], inputs: null, written: null };
-    if (statement.modality === undefined) out.holes.push({ path: [...path, "modality"], accepts: strip(schema.$defs.requirement.properties.modality),
+    const facts = relations.get(statement.behavior.relation);
+    const declaration = NATIVE_AUTHORING.vocabulary.operator_signatures.get(statement.behavior.relation);
+    if (statement.definition && (statement.modality !== undefined || statement.nature !== undefined || statement.behavior.applies !== undefined || statement.verification !== undefined || statement.for_each !== undefined)) {
+      valueFailure('value_definition_normative_fields', statement.subject, 'definitions have no modality, nature, applicability, verification or for_each');
+    }
+    if (declaration.authoring_roles && !declaration.authoring_roles.includes(statement.definition ? 'definition' : 'normative')) {
+      valueFailure('value_relation_role_invalid', statement.subject, `${statement.behavior.relation} does not admit this row role`);
+    }
+    if (!statement.definition && statement.modality === undefined) out.holes.push({ path: [...path, "modality"], accepts: strip(schema.$defs.requirement.properties.modality),
       question: `modality: the strength with which ${statement.subject} stands in ${statement.behavior.relation}` });
-    const behavior = prepareBehavior(statement.behavior, [...path, "behavior"], bindings, out);
-    if (!behavior || statement.modality === undefined || !bindings.has(statement.subject)) return out;
+    const typed = facts.operand_kind === 'value' || statement.for_each !== undefined || statement.within !== undefined;
+    let metadata = {};
+    if (typed) {
+      if (!bindings.has(statement.subject) || valueReferences([...(statement.behavior.objects ?? []), ...(statement.for_each ?? []).map(row => row.domain)]).some(id => !bindings.has(id))) return out;
+      if (!values) configureScopes([statement], bindings);
+      if (scopeFailure) throw scopeFailure;
+      metadata = values.normalize(statement);
+    }
+    const behavior = prepareBehavior({ ...statement.behavior, ...(metadata.objects ? { objects: metadata.objects } : {}) }, [...path, "behavior"], bindings, out);
+    if (!behavior || (!statement.definition && statement.modality === undefined) || !bindings.has(statement.subject)) return out;
     const subject = bindings.get(statement.subject);
 
-    out.written = { ...(statement.nature === undefined ? {} : { nature: statement.nature }), modality: statement.modality, subject: referent(subject), behavior };
-    const facts = relations.get(behavior.relation);
-    const claimOf = (from, stated) => ({ ...(statement.nature === undefined ? {} : { nature: statement.nature }), modality: statement.modality, subject: referent(from), behavior: stated });
+    const rowMetadata = { ...(statement.definition ? { definition: true } : { modality: statement.modality }),
+      ...(metadata.for_each === undefined ? {} : { for_each: metadata.for_each }), ...(metadata.within === undefined ? {} : { within: metadata.within }) };
+    out.written = { ...(statement.nature === undefined ? {} : { nature: statement.nature }), ...rowMetadata, subject: referent(subject), behavior };
+    const claimOf = (from, stated) => ({ ...(statement.nature === undefined ? {} : { nature: statement.nature }), ...rowMetadata, subject: referent(from), behavior: stated });
 
     const pairs = facts.pointwise && behavior.objects.length > 1 ? behavior.objects.map(object => [object]) : [behavior.objects];
     if (pairs.length > 1) out.notes.push({ change: "grouped_statement_stated_per_object", path, stated: 1, stored: pairs.length });
@@ -253,9 +361,12 @@ export function createRequirementNormalizer({ schema, unit }) {
     return out;
   }
 
-  const prepareRows = (requirements, bindings) => requirements.map((row, index) => isMembership(row)
-    ? prepareMembership({ subject: row.subject, clauses: row.membership, applies: row.applies }, ["requirements", index, "membership"], bindings)
-    : prepareRequirement(row, ["requirements", index], bindings));
+  const prepareRequirement = guarded(prepareRequirementValue, 1);
+  const prepareMembership = guarded(prepareMembershipValue, 1);
+
+  const prepareRows = (requirements, bindings) => { if (!values) configureScopes(requirements, bindings); return requirements.map((row, index) => isMembership(row)
+    ? prepareMembership({ subject: row.subject, clauses: row.membership, applies: row.applies, for_each: row.for_each, within: row.within }, ["requirements", index, "membership"], bindings)
+    : prepareRequirement(row, ["requirements", index], bindings)); };
 
   function membershipsStatedTwice(requirements, ids) {
     const refusals = [];
@@ -286,9 +397,16 @@ export function createRequirementNormalizer({ schema, unit }) {
       const mine = (rows ?? []).map(row => row.identity);
       const repeated = mine.filter(identity => first.has(identity) && first.get(identity) !== index);
       if (repeated.length) refusals.push(finding(["requirements", index], "restates_requirement",
-        `${ids[index]} states ${repeated.length === mine.length ? "exactly" : "in part"} what ${[...new Set(repeated.map(identity => ids[first.get(identity)]))].join(", ")} `
-          + `${repeated.length === mine.length ? "states" : "already says"} (${repeated.join(", ")}); state it once`, null, { restated: repeated,
-          first_stated_by: [...new Set(repeated.map(identity => ids[first.get(identity)]))] }));
+        `${ids[index]} has ${repeated.length === mine.length ? "identical" : "overlapping"} authored formal predicates with ${[...new Set(repeated.map(identity => ids[first.get(identity)]))].join(", ")} `
+          + `(${repeated.join(", ")})`, null, { restated: repeated,
+          first_stated_by: [...new Set(repeated.map(identity => ids[first.get(identity)]))],
+          recovery: { kind: 'resubmit_corrected_batch', correct: 'state_once_or_define_distinct_behaviors',
+            ...(refusals.length === 0 ? { correction: { executable: false,
+              choices: [
+                { intent: 'consolidate_repeated_meaning', instruction: 'Only if the intended meaning genuinely repeats, author it once while preserving all applicable source passages and intended evidence associations through explicit row source links, definitions and obligation/case associations.' },
+                { intent: 'define_distinct_behaviors', instruction: 'If distinct requested behaviors were encoded identically, retain those requested clauses and complete their actual definitions through the existing grammar. Changing names or choosing unrelated symbols is not a repair.' }
+              ],
+              limitation: 'Identical formal predicates do not establish identical intended meaning. A duplicate-encoding or batch-size refusal does not establish an unsupported concept. The author chooses; no row, source passage or evidence mapping is automatically merged or deleted.' } } : {}) } }));
       for (const identity of mine) if (!first.has(identity)) first.set(identity, index);
     });
     return refusals;
@@ -352,6 +470,6 @@ export function createRequirementNormalizer({ schema, unit }) {
     return refusals;
   }
 
-  return Object.freeze({ prepareMembership, prepareBehavior, prepareRequirement, prepareRows, membershipsStatedTwice, constraintsOfRows,
-    restatedRequirements, statementsOfRows, resolveCollections, restatedCollections });
+  return Object.freeze({ prepareMembership, prepareBehavior, prepareVerificationBehavior, prepareRequirement, prepareRows, membershipsStatedTwice, constraintsOfRows,
+    restatedRequirements, statementsOfRows, resolveCollections, restatedCollections, configureScopes });
 }

@@ -77,3 +77,29 @@ test('complete grouping preserves duplicate occurrences, long fields and distinc
   assert.deepEqual(grouped.groups[0].subjects.at(-1), grouped.groups[0].subjects[0]);
   assert.deepEqual(grouped.groups.slice(1).map(group => group.reason.params.limit), [1, 2]);
 });
+
+test('atomicity identifies CR, LF and whitespace without sentence heuristics or rewriting', () => {
+  for (const [statement, conditions] of [[' leading', ['surrounding_whitespace']],
+    ['trailing ', ['surrounding_whitespace']], ['a\rb', ['carriage_return']],
+    ['a\nb', ['line_feed']], [' a\r\nb ', ['surrounding_whitespace', 'carriage_return', 'line_feed']]]) {
+    const document = valid();
+    document.obligations[0].statement = statement;
+    const before = structuredClone(document);
+    const result = validateObligationCoverageDraft(document);
+    const issue = result.diagnostics.find(row => row.code === 'obligation_coverage_statement_not_atomic');
+    assert.deepEqual(issue.failed_conditions, conditions);
+    assert.equal(issue.pointer, '/obligations/0/statement');
+    assert.match(issue.correction, /trimmed single-line.*user_requirements.*exact source links/u);
+    assert.deepEqual(document, before);
+  }
+  for (const statement of ['One sentence. Two sentences!', 'A; B: C?', 'one line']) {
+    const document = valid(); document.obligations[0].statement = statement;
+    assert.equal(validateObligationCoverageDraft(document).valid, true);
+  }
+  for (const statement of ['', 3]) {
+    const document = valid(); document.obligations[0].statement = statement;
+    const result = validateObligationCoverageDraft(document);
+    assert.equal(result.valid, false);
+    assert.ok(result.schema_errors.length > 0);
+  }
+});

@@ -164,7 +164,8 @@ export async function materializeTerminalCandidateCheckout({ binding, candidateR
     chmodSync(candidateRoot, 0o700);
   }
   await gitStdout(git, binding.main_repo,
-    ["worktree", "add", "--detach", checkoutPath, binding.candidate], {
+
+    ["worktree", "add", "--force", "--detach", checkoutPath, binding.candidate], {
       code: TERMINAL_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
       message: "could not create detached terminal candidate checkout"
     });

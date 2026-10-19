@@ -1,4 +1,4 @@
-
+import { claudeCompactionSettings as buildClaudeRoleGuideCompactionHookSettings } from "../helpers/role-guide-delivery.mjs";
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -25,7 +25,6 @@ import {
   resolveRoleGuideCompactionHook
 } from "../../packages/agent-launch-cli/src/lib/role-guide-compaction-hook.mjs";
 import {
-  buildClaudeRoleGuideCompactionHookSettings,
   composeClaudeSettingsWithRoleGuideHook,
   withClaudeConfinedSettingsPath
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-claude-launch-support.mjs";
@@ -61,12 +60,12 @@ function unquoteShellWord(word) {
 test("compact hooks select one package guide for each confined role", async (t) => {
   await t.test("every confined role selects exactly its package guide through the shared owner", () => {
     for (const [role, guide] of Object.entries(ROLE_TABLE)) {
-      const expected = resolveAgentRoleGuidePath(guide);
-      const hook = resolveRoleGuideCompactionHook(role);
-      assert.equal(resolveLaunchRoleGuidePath(role), expected, role);
+      const expected = resolveAgentRoleGuidePath(guide, "free_local");
+      const hook = resolveRoleGuideCompactionHook(role, { registeredTier: "free_local" });
+      assert.equal(resolveLaunchRoleGuidePath(role, "free_local"), expected, role);
       assert.equal(hook.guidePath, expected, role);
-      assert.equal(path.dirname(hook.guidePath), resolveLaunchRoleGuideDirectory(role), role);
-      assert.equal(path.dirname(hook.guidePath), resolveAgentRoleGuideDirectory(), role);
+      assert.equal(path.dirname(hook.guidePath), resolveLaunchRoleGuideDirectory(role, "free_local"), role);
+      assert.equal(path.dirname(hook.guidePath), guide === "orchestrator" ? path.join(resolveAgentRoleGuideDirectory(), "orchestrator/01") : resolveAgentRoleGuideDirectory(), role);
       assert.equal(path.isAbsolute(hook.guidePath), true, role);
       assert.equal(Object.isFrozen(hook), true, role);
 
@@ -85,10 +84,10 @@ test("compact hooks select one package guide for each confined role", async (t) 
 
   await t.test("roles outside the table select no guide and no hook", () => {
     for (const role of UNSELECTED_ROLES) {
-      assert.equal(resolveLaunchRoleGuidePath(role), null, String(role));
-      assert.equal(resolveLaunchRoleGuideDirectory(role), null, String(role));
-      assert.equal(resolveRoleGuideCompactionHook(role), null, String(role));
-      assert.equal(buildClaudeRoleGuideCompactionHookSettings(role), null, String(role));
+      assert.equal(resolveLaunchRoleGuidePath(role, "free_local"), null, String(role));
+      assert.equal(resolveLaunchRoleGuideDirectory(role, "free_local"), null, String(role));
+      assert.equal(resolveRoleGuideCompactionHook(role, { registeredTier: "free_local" }), null, String(role));
+      assert.equal(buildClaudeRoleGuideCompactionHookSettings(role, { registeredTier: "free_local" }), null, String(role));
     }
   });
 
@@ -109,7 +108,7 @@ test("compact hooks select one package guide for each confined role", async (t) 
   });
 
   await t.test("the hook is one SessionStart handler that matches only a compaction", () => {
-    const hook = resolveRoleGuideCompactionHook("worker");
+    const hook = resolveRoleGuideCompactionHook("worker", { registeredTier: "free_local" });
     assert.equal(hook.event, "SessionStart");
     assert.equal(hook.matcher, "^compact$");
     assert.equal(hook.timeoutSec, ROLE_GUIDE_COMPACTION_HOOK_TIMEOUT_SEC);
@@ -142,10 +141,10 @@ test("compact hooks select one package guide for each confined role", async (t) 
   await t.test("the selection ignores everything except the trusted launch role", () => {
     const seen = [];
     const hook = resolveRoleGuideCompactionHook("redteam", {
-      resolveGuidePath: (...args) => { seen.push(args); return resolveLaunchRoleGuidePath(...args); }
+      resolveGuidePath: (...args) => { seen.push(args); return resolveLaunchRoleGuidePath(...args, "free_local"); }
     });
-    assert.deepEqual(seen, [["redteam"]], "only the role reaches the guide owner");
-    assert.equal(hook.guidePath, resolveAgentRoleGuidePath("reviewer"));
+    assert.deepEqual(seen, [["redteam", undefined]], "only the role reaches the guide owner");
+    assert.equal(hook.guidePath, resolveAgentRoleGuidePath("reviewer", "free_local"));
   });
 
   await t.test("a guide path that cannot be named in a hook refuses with a repairable diagnostic", () => {
@@ -178,8 +177,8 @@ test("compact hooks select one package guide for each confined role", async (t) 
 
   await t.test("Claude gets one synchronous command hook and keeps every other setting", () => {
     for (const role of Object.keys(ROLE_TABLE)) {
-      const hook = resolveRoleGuideCompactionHook(role);
-      const fragment = buildClaudeRoleGuideCompactionHookSettings(role);
+      const hook = resolveRoleGuideCompactionHook(role, { registeredTier: "free_local" });
+      const fragment = buildClaudeRoleGuideCompactionHookSettings(role, { registeredTier: "free_local" });
       assert.deepEqual(fragment, {
         hooks: {
           SessionStart: [{
@@ -189,7 +188,7 @@ test("compact hooks select one package guide for each confined role", async (t) 
         }
       }, role);
     }
-    const fragment = buildClaudeRoleGuideCompactionHookSettings("worker");
+    const fragment = buildClaudeRoleGuideCompactionHookSettings("worker", { registeredTier: "free_local" });
     const other = { matcher: "startup", hooks: [{ type: "command", command: "true" }] };
     const settings = {
       permissions: { allow: ["Bash"], deny: ["WebFetch"], disableBypassPermissionsMode: "disable" },

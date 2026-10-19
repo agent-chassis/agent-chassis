@@ -4,99 +4,83 @@
 [![Node.js 24.20.0 or newer](https://img.shields.io/badge/Node.js-24.20.0%2B-339933)](docs/package-install.md#runtime-prerequisite)
 [![License: Elastic 2.0](https://img.shields.io/badge/License-Elastic_2.0-blue)](LICENSE)
 
-**AgentChassis wraps an engineering process around the coding agents you already
-use.** You keep Codex or Claude. AgentChassis adds written work contracts,
-scoped execution, separate implementation and review, and a durable record of
-the outcome.
+AgentChassis is a local orchestration system for building and maintaining
+complex software with coding agents. It coordinates planning, parallel
+implementation, verification and delivery while enforcing each agent’s
+permissions. Mix Codex, Claude Code, OpenCode and agy, with shared work records
+that preserve decisions, results and progress across sessions.
 
-When work spans hours, many files, or several agents, the plan needs to survive
-the session that created it. AgentChassis keeps intent, decisions, and progress
-in your repository so the next agent or engineer can pick up the work with its
-context intact.
+## Install
 
-## Who it's for
+Requires Node.js 24.20+, npm, Git 2.40+, and Linux with
+[bubblewrap](docs/quickstart.md#sandbox-prerequisite-bubblewrap).
+Install and authenticate your preferred coding agent first.
 
-Engineers and teams using coding agents for substantial repository work:
-features, refactors, and changes that need several steps or contributors. It is
-most useful when coordinating the work starts to demand as much attention as
-writing the code. For a quick, closely watched edit, the setup may add little
-value.
+From your repository root:
 
-## How it works
+```bash
+npm install --save-dev @agent-chassis/core
+npx agent-chassis setup
+```
 
-You describe the objective to an orchestrator. It develops a plan, records the
-design and decisions, and divides implementation into bounded units of work.
-Each unit has a contract: what to change, which files the worker may read and
-write, what success means, and how to validate it.
+Setup selects the only detected CLI or prompts when several are installed.
 
-Workers implement those contracts. Separate reviewers examine the changes
-against the intended result. The orchestrator coordinates dependencies, decides
-how to address review findings, and records validation, completion, and remaining
-work. Review findings inform those decisions; they do not themselves approve a
-change or authorize it to land.
+Complete the instructions printed by setup, then start your first session:
 
-The repository holds the shared context: durable documentation under `docs/`
-and work records, initiatives, and decisions under `wiki/`. This gives ongoing
-work continuity across agent sessions and gives people a record they can inspect.
+```bash
+npx agent-launch orchestrator IN-0001
+```
 
-### A simple example
+Describe what you want to build or change.
 
-Suppose you ask:
+[Setup and configuration](docs/quickstart.md) ·
+[Resume existing work](docs/agent-launch-operator-entrypoints.md#operator-orchestrator-entrypoints) ·
+[Troubleshooting](docs/local-test-runtime-setup.md)
 
-> Add request-body validation to `POST /users`, with tests, without changing
-> the other routes.
+## What you get
 
-The orchestrator records a contract covering the users route and its tests:
-invalid email addresses must return `400`, valid requests must still succeed,
-and other routes must retain their behavior. A worker implements the change
-and runs the declared checks. A separate reviewer checks the result against
-that contract, and the orchestrator coordinates any required corrections.
+- **Your choice of agent, anytime:** Use Codex, Claude Code, OpenCode or agy—or
+  mix them. Committed work records capture what was done, why it was done and
+  what’s in progress. New agents can pick up existing work or reconstruct
+  months-old work with a search.
 
-The contract, review findings, and recorded outcome remain available after the
-sessions end. This illustrative example shows the basic loop; larger changes
-use multiple units with their own scopes and dependencies.
+- **Agent boundaries are enforced:** The system assigns tool access by role and
+  file access by task. The tool server and operating system enforce those limits.
 
-## Local use and hosted governance
+- **Work in parallel without overwriting each other’s edits:** Separate Git
+  worktrees keep each assignment’s changes isolated.
 
-AgentChassis runs locally without an AgentChassis account or hosted service.
-Codex and Claude retain their own provider requirements.
+- **Write tests that enforce your requirements:** Agents use a library of
+  reusable specifications to build tests that prove specific behaviors, such as
+  idempotency, ordering and failure recovery.
 
-On supported Linux managed runs, `bwrap` enforces declared repository read and
-write boundaries. Runs without containment are explicitly recorded as
-unenforced. Scope enforcement does not establish that a change is correct or
-provide a hostile-agent security guarantee. See the
-[enforcement model](docs/enforcement-model.md) for the exact boundaries.
+- **17 tools define the entire workflow:** Project knowledge, assignments,
+  verification, execution and delivery share one small toolset.
 
-The optional **Chassis Control Engine**, in private beta, adds central admission
-policy and signed attestations for teams working across repositories.
+## Private beta
+
+- **Organizational rules enforced across agent work:** The system checks proposed
+  actions against configured policy and blocks actions that policy does not permit.
+
+- **Enforced specifications:** Required specifications must pass compilation and
+  completeness checks before implementation can start.
+
+- **Integrated code index for JavaScript, Python and more:** Agents can follow
+  definitions, references and dependencies to understand how your system fits
+  together without relying on text searches.
+
 [Request beta access](https://forms.gle/YBJc1TnxoEPea3kx6).
-
-## Get started
-
-You need a Git repository, Node.js 24.20.0 or newer, and a local Codex or Claude
-installation. Begin with the **[quickstart](docs/quickstart.md)** for package
-installation, repository setup, and your first orchestrator session.
-
-To run Codex with an Anthropic model served by Vertex AI, follow the
-[Vertex AI inference how-to](docs/vertex-ai-inference.md).
-
-Interfaces are still evolving. The documented setup path assumes no existing
-root agent guidance or AgentChassis adoption state; adoption of repositories
-with that existing state is deferred. macOS filesystem containment and explicit
-contract migration commands are not yet supported. See
-[adoption](docs/adoption.md) and [versioning](docs/versioning.md) for details.
 
 ## Learn more
 
-- [Operating model](docs/operating-model.md) — how repository knowledge and work
-  coordination fit together.
-- [Operator guide](docs/agent-launch-operator-entrypoints.md) — launch, resume,
-  and inspect sessions.
-- [MCP integration](docs/mcp-integration.md) — connect agents to the structured
-  repository tools.
-- [Documentation index](docs/index.md) — the complete reference.
+- Explore workflow tools: [operation reference](docs/mcp-operation-reference.md).
+- Configure agents and models: [role defaults](docs/quickstart.md#6-configure-role-launch-defaults)
+  and [agent requirements](docs/agent-launch-family-runtime-state.md#per-family-runtime-state).
+- Launch or resume work: [operator commands](docs/agent-launch-operator-entrypoints.md#operator-orchestrator-entrypoints).
+- Understand permissions and test execution: [permissions](docs/enforcement-model.md)
+  and [test execution](docs/test-proof-execution.md#host-execution).
+- Browse all documentation: [documentation index](docs/index.md).
 
-Agents start at [the agent guide](docs/README-agents.md) for retrieval order and
-package roadmaps.
+Agents start with [the agent guide](docs/README-agents.md).
 
 Source-available under the [Elastic License 2.0](LICENSE).

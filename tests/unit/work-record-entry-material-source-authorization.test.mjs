@@ -180,3 +180,23 @@ test("a non-function authorizeSource is refused rather than ignored", async () =
   await assert.rejects(resolveWorkRecordEntryMaterial({ record, selected, repository: REPOSITORY,
     loadWorkRecordById, authorizeSource: true }), /authorizeSource must be a function/u);
 });
+
+test('authorized unavailable material preserves every loaded-source cause without disclosing denied sources', async () => {
+  const { own } = fixture();
+  const selected = assignment(own, { selectedRefs: [ref(SOURCE_ID, 1, 'SOURCE-PARENT')] });
+  const diagnostics = Array.from({ length: 12 }, (_, i) => ({ code: `cause_${i}`,
+    message: `source cause ${i}: ${'界'.repeat(600)}; correction ${i}`, path: SOURCE_PATH }));
+  let loads = 0;
+  const loadWorkRecordById = async () => { loads++; return { valid: false, record: null, diagnostics }; };
+  const unavailable = await resolveWorkRecordEntryMaterial({ ...selected, repository: REPOSITORY,
+    authorizeSource: () => true, loadWorkRecordById });
+  assert.equal(unavailable.ok, false);
+  assert.equal(unavailable.diagnostic.code, 'work_record_material_source_unavailable');
+  assert.deepEqual(unavailable.diagnostic.source_failure.diagnostics, diagnostics);
+  assert.deepEqual(unavailable.diagnostic.source_failure.effects, { material_loaded: false });
+  const denied = await resolveWorkRecordEntryMaterial({ ...selected, repository: REPOSITORY,
+    authorizeSource: () => false, loadWorkRecordById });
+  assert.equal(loads, 1, 'denied access never loads the source or its diagnostics');
+  assert.equal(denied.diagnostic.code, 'work_record_material_source_denied');
+  assert.equal(denied.diagnostic.source_failure, undefined);
+});

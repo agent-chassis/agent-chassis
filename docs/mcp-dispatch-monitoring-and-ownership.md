@@ -35,7 +35,7 @@ already terminal. Repeated completion notifications share one capture and bindin
 pending, captured, failed, not configured and unavailable originals; journal
 `result_publication` retains its separate durable-result meaning. Immediate and
 successful bounded waits preserve the same original locator and publication facts.
-A captured managed-worker original reports `bound:true` only after its locator
+A captured managed-worker original is bound only after its locator
 is durably attached to the exact recorded result. Binding failure reports stage
 `original_binding` and its actual publisher refusal or cause while preserving
 the captured original for live and held-locator reads. Observation retries neither
@@ -45,9 +45,12 @@ delivery. Only explicit `integrate_work` selects the authenticated delivery and
 invokes its existing effect owners. Saving a disposition records advisory input
 without requesting integration.
 
-The default result contains actual attempt/status/terminal facts, producer
-pending state, a compact final-result summary, publication state, recorded counts
-when available, original availability and the exact selected detail call. Accepted
+The default result contains the selected subject/attempt and known role, status
+and terminal facts. It reports `producer_pending` when publication is pending,
+`timed_out` for a bounded wait, actual execution/publication failures, and the
+issued original and direct `final_result` read when available. Healthy lifecycle
+and publication bookkeeping, character counts, schema summaries and repeated
+no-effect flags stay internal. Accepted
 nonterminal or original-publication-pending observations return an executable
 `get_run_result` call pinned to the server-selected subject and attempt. For a
 worker attempt that call carries `timeout_ms:1200000`, selected by the server, so
@@ -57,14 +60,39 @@ timeout is never replayed. A review attempt's call and a worker's
 originals take precedence. Refusals and failed publication offer no observation
 call, and no wait, as a publication repair.
 
+Worker process completion, saved final-response availability (`original`), and
+authenticated delivery (`delivery`) are independent
+facts. A successful receipt-population read explicitly reports `state:"absent"`
+when empty. For a completed worker this means the worker ended without an
+authenticated delivery and nothing is available to integrate, even when the
+process succeeded and its final response is readable. A failed or unavailable
+receipt read preserves its cause and cannot establish absence. Accepted
+assignment-change completion remains its own intentional outcome; reviewer and
+redteam results do not require worker delivery.
+
+Once producer publication settles, a coordinator observing a terminal worker
+without delivery is offered the existing read-only
+`start_agent({subject,preview:true})` assessment. Preview assesses saved
+readiness and leaves execution admission unchecked; it neither retires the
+attempt nor establishes retry eligibility. A separate, explicit replacement
+`start_agent({subject})` request reaches the existing managed-attempt admission
+owner: it can retire a proven-dead attempt only after authenticating its binding
+and proving the slice ref equals its bound base, then applies normal launch
+admission. Live, uncertain, committed or unreadable prior attempts remain subject
+to that owner's refusals. Receipt absence and process success alone authorize no
+retry. There is no public retirement-only correction here, and another
+observation is not a repair. Reading final-response detail remains available
+independently and performs no lifecycle action.
+
 The calling client's own tool-request deadline bounds a wait independently of the
 server. A client that abandons the request sooner ends only its own call: the
 attempt and its producer continue, and a later read observes them. The
 launcher's Codex registration allows the `wiki` server 1260 seconds per tool
 request; see [client registrations](agent-launch-mcp-conduit-lifecycle.md#client-registrations).
-Complete child text and internal journal carriers never appear in that summary.
-No field invents result durability, cleanup, success or proof credit. The
-`observation` facts report `executed:false`, `integrated:false`, `retained:false`.
+Complete child text is reached through the issued result selection; internal
+journal carriers are never public. No field invents result durability, cleanup,
+success or proof credit. Reads execute, integrate and retain nothing without
+repeating those assertions in every successful response.
 
 ## Selection and authority
 
@@ -96,10 +124,27 @@ result or execution tool.
 `{result:{ref_id},proof?,detail?}` authenticates the stored original before
 choosing its incumbent producer owner. Native, standalone proof, delivery,
 integration and observation originals retain their existing producer identities.
+For a retained run observation, `{result}` delivers its public `final_result`
+directly, rather than another summary and a required self-read. A completed
+selected member has no next call to reread itself. Attempt ambiguity returns
+one exact read per choice with the known role/state, retaining the existing
+live and durable election rules. No selected attempt is replaced by a newer one.
 The public common reader changes no stored binding or schema identity. Optional
 proof selection names an exact subject or authored source tuple. Non-proof
 originals reject proof selectors. Detail is the delivery/observation owner's
 selected material, not an execution selector or a generic spill read.
+Selectable members are public result meaning (`final_result`, delivery `outcome`,
+integration `result`, or assignment-change `request`/`assignment`), never stored
+identity, binding, phase or transport members. Delivery and integration reads
+reuse their owners' public effect and failure projections rather than returning
+the underlying transaction carrier. A coordinator's delivery read carries no
+worker termination instruction. Successful delivery reads need no self-read;
+partial worker outcomes retain their exact remaining-effect recovery.
+
+Result-owned continuations are admitted against the receiving session's actual
+registered request contracts. An unavailable continuation is a specific
+limitation beside the still-valid result. Offered integration, readiness preview
+and candidate verification calls confer no execution authority.
 
 `{assigned:true,recorded_invocation:{invocation_id},proof?}` reads an authenticated
 managed worker's own recorded proof invocation through the existing journal and
@@ -230,3 +275,24 @@ The existing integration primitive owns live ref fences, scope, Git CAS,
 canonical record CAS, recovery and retirement. Dispositions are advisory context
 for configured policy, not an approval token. See
 [slice integration](mcp-dispatch-slice-integration.md).
+
+## Observing assignment-change requests
+
+`get_run_result` discovers accepted assignment-change requests through the
+existing authenticated attempt journal. A live or unpublished attempt reports
+pending termination; acceptance and elapsed time establish no termination
+proof. After producer publication the compact summary and retained terminal
+original identify `assignment_change_requested`. Exit and publication failures
+remain separate facts. Request originals expose complete semantic members
+through the existing selected-response reader, with exact request text and
+frozen assignment bytes preserved. Reads never scan orphan originals for
+acceptance, publish, settle, stop, release, revise assignments or start successors.
+
+An identical request retry authenticates historical identity and reads the first
+acceptance. A contrary delivery intent reports uncertainty and the delivery
+transaction owner's recovery. When a committed retained delivery exists, only
+its incumbent receipt/checkout recovery is offered; no second commit is run.
+An intent with no retained delivery has no callable reconciliation here, and
+blind retries are not recovery. A coordinator decides revisions separately,
+starting with the returned `workspace_read_wiki({subject:<bound unit>})` call to
+obtain current authoring revision and schema. A later launch is a distinct action.

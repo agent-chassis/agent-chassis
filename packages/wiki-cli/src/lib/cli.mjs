@@ -65,3 +65,23 @@ export function optionalListOption(options, key) {
 
   return parseListOption(options, key);
 }
+
+export async function readBoundedJsonStdin(stream = process.stdin) {
+  const maximum = 256 * 1024;
+  const chunks = [];
+  let bytes = 0;
+  for await (const chunk of stream) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'utf8');
+    bytes += buffer.length;
+    if (bytes > maximum) {
+      const { FeedbackError } = await import('@agent-chassis/wiki-core/src/lib/agent-feedback-schema.mjs');
+      throw new FeedbackError('feedback_stdin_too_large', `Raw stdin exceeds ${maximum} UTF-8 bytes; minify the same lossless JSON`, { maximum_bytes: maximum });
+    }
+    chunks.push(buffer);
+  }
+  const { feedbackInvalid } = await import('@agent-chassis/wiki-core/src/lib/agent-feedback-schema.mjs');
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+    return JSON.parse(text);
+  } catch (cause) { throw feedbackInvalid(`stdin must contain valid UTF-8 JSON: ${cause.message}`); }
+}

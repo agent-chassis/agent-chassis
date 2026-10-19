@@ -105,16 +105,31 @@ Rules:
 
 The shared contract defines baseline Tier 1 required fields plus shared Tier 2 contextual fields that tooling understands. Repositories may still add extra fields locally. Current and migrated `WK-*` work-record field authority lives in the `work-record.v1` JSON schema and the `workRecordAuthority` stanza of `contract/manifest.json`; this schema document intentionally does not duplicate that full JSON field model.
 
-The sole executable work-record validation declaration is the closed
-`acceptance.validation[]` shape
-`{operation: "node_test", target, verification_ids}`. `operation` is data, not
-shell text; `target` is one canonical repository-relative `.mjs` test-module
-path. Plain strings and `{note, verification_ids}` objects are non-executable
-human notes. Command-bearing objects, unknown operations or fields, duplicate
-verification bindings, and `sections.structured_validation` are invalid. The
-work record owns only the operation/target/verification relationship; the
-controlled-contract package owns stable runtime test identity, referenced proof
-meaning, and mechanical validity.
+`acceptance.validation[]` supports two executable declaration kinds. A native
+proof binding uses the closed shape `{operation:"node_test",target,verification_ids}`:
+`target` is one canonical repository-relative `.mjs` test-module path. A repository
+command uses `{operation:"repository_test",id,purpose,selections}`. Each selection
+requires `id`, `harness:{cwd,argv}` and nonempty `definition_paths`; `argv` is a
+nonempty array of argument strings. Optional selection fields are `environment`
+and `additional_baseline_commits`. Optional `default_selection` names one declared
+selection. These command declarations supply worker entrypoints; they do not bind
+native verifications or establish proof credit.
+
+For a command declaration, read the current unit with `workspace_read_wiki
+{subject:<unit>}`, then select `{input_contract:{tool:"save_record",members:["validation"]}}` using
+its returned reference. This is a template: use the actual unit and reference.
+`save_record` takes `changes.validation:{repository_tests:[<declarations>],notes:[<notes>]}`;
+use the selected schema for the current replacement rules before saving. Read back
+the declarations to check command, selection and definition paths. If validation
+refuses a declaration, correct the named field rather than switching declaration
+kinds to bypass it.
+
+Plain strings and `{note,verification_ids}` objects are non-executable notes.
+Unknown operations or fields, arbitrary command objects outside the supported
+`repository_test` shape, duplicate native verification bindings, and
+`sections.structured_validation` are invalid. Saving a declaration executes no
+test. The controlled-contract package owns native test identity, proof meaning
+and mechanical validity.
 
 ### Work Record
 

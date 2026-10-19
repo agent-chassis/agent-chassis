@@ -1,132 +1,153 @@
 
 
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { cp, mkdir } from "node:fs/promises";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 
-const CONFIG_CHAIN_LIMIT = 32;
+export function resolveTypescriptConfig(ts, root, config) {
+  return ts.resolveProjectReferencePath({ path: path.resolve(root, config) });
+}
 
-function parseConfig(text) {
-  let json = "";
-  let index = 0;
-  while (index < text.length) {
-    const char = text[index];
-    if (char === '"') {
-      const start = index;
-      index += 1;
-      while (index < text.length && text[index] !== '"') index += text[index] === "\\" ? 2 : 1;
-      index += 1;
-      json += text.slice(start, index);
-    } else if (char === "/" && text[index + 1] === "/") {
-      while (index < text.length && text[index] !== "\n") index += 1;
-    } else if (char === "/" && text[index + 1] === "*") {
-      const end = text.indexOf("*/", index + 2);
-      index = end === -1 ? text.length : end + 2;
-    } else {
-      json += char;
-      index += 1;
-    }
+export function readTypescriptConfig(ts, file, host = ts.sys) {
+  return ts.getParsedCommandLineOfConfigFile(file, {}, {
+    ...host, onUnRecoverableConfigFileDiagnostic: host.onUnRecoverableConfigFileDiagnostic ??
+      ((diagnostic) => { throw new Error(ts.formatDiagnostics([diagnostic], ts.createCompilerHost({}))); })
+  });
+}
+
+export function observeTypescriptConfiguration(ts, file, host = ts.sys) {
+  const absent = new Set();
+  const diagnostics = [];
+  const parsed = readTypescriptConfig(ts, file, { ...host,
+    readFile: input => {
+      const text = (host.readFile === ts.sys.readFile ? readTypescriptConfigInput(ts, input) : host.readFile(input));
+      if (text === undefined) absent.add(path.resolve(input));
+      return text;
+    }, onUnRecoverableConfigFileDiagnostic: diagnostic => diagnostics.push(diagnostic) });
+  diagnostics.push(...(parsed?.errors ?? []));
+  const errors = diagnostics.filter(({ code }) => code !== 18002 && code !== 18003);
+  const missing = errors.filter(diagnostic => diagnostic.code === 6053 ||
+    (diagnostic.code === 5083 && absent.size > 0));
+  const invalid = errors.filter(diagnostic => !missing.includes(diagnostic));
+  const state = invalid.length > 0 ? "configuration_error" : missing.length > 0 ? "configuration_unavailable"
+    : !parsed ? "configuration_error" : parsed.fileNames.length === 0 ? "empty_project" : "ready";
+  const describe = values => values.map(diagnostic => ({ code: diagnostic.code,
+    message: ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n") }));
+  return { parsed, state, diagnostics: describe(errors), missing: describe(missing), invalid: describe(invalid) };
+}
+
+export function readTypescriptConfigInput(ts, file) {
+  const text = ts.sys.readFile(file);
+  if (text !== undefined) return text;
+
+  try { readFileSync(file); }
+  catch (error) {
+    if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+    return undefined;
   }
-  try {
-    return JSON.parse(json.replace(/,(\s*[}\]])/gu, "$1"));
-  } catch {
+  throw new Error(`TypeScript could not read configuration input ${file}, although the filesystem read succeeded`);
+}
 
-    return null;
+export function isEmptyTypescriptFiles(ts, files) {
+  for (const file of files) {
+    const text = readTypescriptConfigInput(ts, file);
+    if (text === undefined) return false;
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    if (source.parseDiagnostics.length > 0) return false;
+    let identifier = false;
+    const visit = (node) => {
+      if (ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) identifier = true;
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    if (identifier) return false;
   }
+  return true;
 }
 
-export function typescriptConfigExtends(text) {
-  const value = parseConfig(String(text ?? ""))?.extends;
-  return (Array.isArray(value) ? value : [value]).filter((entry) => typeof entry === "string" && entry.length > 0);
-}
-
-const isRelative = (specifier) => specifier.startsWith("./") || specifier.startsWith("../") ||
-  specifier === "." || specifier === "..";
-
-function isFile(file) {
-  try { return statSync(file).isFile(); } catch { return false; }
-}
-
-function isDirectory(directory) {
-  try { return statSync(directory).isDirectory(); } catch { return false; }
-}
-
-function configFile(base) {
-  return [base, `${base}.json`, path.join(base, "tsconfig.json")].find(isFile) ?? null;
-}
-
-function packageConfigFile(packageRoot) {
-  let manifest = null;
-  try { manifest = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")); } catch {   }
-  const root = manifest?.exports?.["."] ?? manifest?.exports;
-  const exported = typeof root === "string" ? root : root?.default;
-  const named = [manifest?.tsconfig, exported].find((entry) => typeof entry === "string");
-  return configFile(path.join(packageRoot, named ?? "tsconfig.json"));
-}
-
-export async function typescriptConfigPackagePopulation({ repoRoot, configPath, trackedPaths, readCommitted }) {
-  const root = path.resolve(repoRoot);
-  const tracked = new Set(trackedPaths);
-  const committedBelow = (relative) => trackedPaths.some((value) => value.startsWith(`${relative}/`));
-  const packages = new Set();
-  const missing = new Set();
+export function isEmptyTypescriptProject({ indexerPath, checkoutRoot, configPath }) {
+  const ts = createRequire(indexerPath)("typescript");
   const seen = new Set();
-
-  const pending = [{ committed: configPath }];
-  while (pending.length > 0 && seen.size < CONFIG_CHAIN_LIMIT) {
-    const current = pending.shift();
-    const identity = current.committed ?? current.installed;
-    if (seen.has(identity)) continue;
-    seen.add(identity);
-    const text = current.committed ? await readCommitted(current.committed) : readFileSync(current.installed, "utf8");
-    if (typeof text !== "string") continue;
-    const directory = current.committed
-      ? path.posix.dirname(current.committed) : path.dirname(current.installed);
-    for (const specifier of typescriptConfigExtends(text)) {
-      if (path.isAbsolute(specifier)) continue;
-      if (isRelative(specifier)) {
-        if (current.installed) {
-          const file = configFile(path.resolve(directory, specifier));
-          if (file) pending.push({ installed: file });
-          continue;
-        }
-        const base = path.posix.normalize(path.posix.join(directory, specifier));
-        const committed = [base, `${base}.json`, path.posix.join(base, "tsconfig.json")]
-          .find((candidate) => tracked.has(candidate));
-        if (committed) pending.push({ committed });
-        continue;
-      }
-      const segments = specifier.split("/");
-      const name = segments.slice(0, specifier.startsWith("@") ? 2 : 1).join("/");
-      const subpath = segments.slice(specifier.startsWith("@") ? 2 : 1).join("/");
-
-      let from = current.committed ? path.join(root, directory) : directory;
-      let packageRoot = null;
-      while (packageRoot === null) {
-        const candidate = path.join(from, "node_modules", name);
-        if (isDirectory(candidate)) packageRoot = candidate;
-        else if (from === root || path.dirname(from) === from) break;
-        else from = path.dirname(from);
-      }
-      if (packageRoot === null) {
-        missing.add(specifier);
-        continue;
-      }
-      const relative = path.relative(root, packageRoot).split(path.sep).join("/");
-      if (relative.startsWith("../") || committedBelow(relative)) continue;
-      packages.add(packageRoot);
-      const file = subpath ? configFile(path.join(packageRoot, subpath)) : packageConfigFile(packageRoot);
-      if (file) pending.push({ installed: file });
-    }
+  function empty(config) {
+    if (seen.has(config)) return true;
+    seen.add(config);
+    const { parsed, state } = observeTypescriptConfiguration(ts, config);
+    if (!parsed || !["ready", "empty_project"].includes(state)) return false;
+    if (!isEmptyTypescriptFiles(ts, parsed.fileNames)) return false;
+    return (parsed.projectReferences ?? []).every((reference) => empty(ts.resolveProjectReferencePath(reference)));
   }
-  return { population: [...packages].sort(), missing: [...missing].sort() };
+  return empty(path.join(checkoutRoot, configPath));
 }
 
-export async function materializeTypescriptConfigPackages({ sourceRepoRoot, snapshotRoot, population }) {
-  for (const packageRoot of population) {
-    const destination = path.join(snapshotRoot, path.relative(sourceRepoRoot, packageRoot));
-    if (existsSync(destination)) continue;
-    await mkdir(path.dirname(destination), { recursive: true });
-    await cp(packageRoot, destination, { recursive: true, dereference: true });
+export function typescriptConfigPopulation({ repoRoot, configPath, trackedPaths, indexerPath }) {
+  if (!indexerPath) return { state: "indexer_unavailable", population: [], missing: [] };
+  const require = createRequire(indexerPath);
+  let compiler;
+  try { compiler = require.resolve("typescript"); }
+  catch (error) {
+    if (error.code !== "MODULE_NOT_FOUND") throw error;
+    return { state: "compiler_unavailable", message: error.message, population: [], missing: [] };
   }
+  const ts = require(compiler);
+  const root = path.resolve(repoRoot);
+  const tracked = new Set(trackedPaths.map((file) => path.join(root, file)));
+  const consumed = new Set();
+  const configurations = [];
+  const outcomes = [];
+  const seen = new Set();
+  const stat = (file) => {
+    try { return statSync(file); }
+    catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+      throw error;
+    }
+  };
+  const host = {
+    ...ts.sys,
+    fileExists: (file) => stat(file)?.isFile() ?? false,
+    directoryExists: (file) => stat(file)?.isDirectory() ?? false,
+    readFile: (file) => {
+      const text = readTypescriptConfigInput(ts, file);
+      if (text !== undefined) {
+        consumed.add(path.resolve(file));
+        return text;
+      }
+      return undefined;
+    }
+  };
+  function visit(file) {
+    file = resolveTypescriptConfig(ts, root, file);
+    if (seen.has(file)) return;
+    seen.add(file);
+    const observed = observeTypescriptConfiguration(ts, file, host);
+    const { parsed } = observed;
+    configurations.push(path.relative(root, file).split(path.sep).join("/"));
+    outcomes.push({ configuration: path.relative(root, file).split(path.sep).join("/"),
+      state: observed.state, diagnostics: observed.diagnostics, missing: observed.missing, invalid: observed.invalid });
+    if (!parsed) return;
+    for (const reference of parsed.projectReferences ?? []) visit(ts.resolveProjectReferencePath(reference));
+  }
+  visit(path.join(root, configPath));
+
+  const missing = [...new Set(outcomes.flatMap(outcome => outcome.missing.map(d => `TS${d.code}: ${d.message}`)))].sort();
+  const invalid = [...new Set(outcomes.flatMap(outcome => outcome.invalid.map(d => `TS${d.code}: ${d.message}`)))].sort();
+
+  const population = new Set([path.dirname(require.resolve("typescript/package.json"))]);
+  for (const file of consumed) {
+
+    const relative = path.relative(root, file);
+    const segments = relative.split(path.sep);
+    const modules = segments.lastIndexOf("node_modules");
+    if (!relative.startsWith(`..${path.sep}`) && modules !== -1) {
+      const end = modules + (segments[modules + 1]?.startsWith("@") ? 3 : 2);
+      const packageRoot = path.join(root, ...segments.slice(0, end));
+      if (!trackedPaths.some((value) => path.join(root, value).startsWith(`${packageRoot}${path.sep}`))) {
+        population.add(packageRoot);
+        continue;
+      }
+    }
+    if (!tracked.has(file)) population.add(file);
+  }
+  return { state: "observed", population: [...population].sort(), missing, invalid, outcomes,
+    configurations: configurations.sort() };
 }

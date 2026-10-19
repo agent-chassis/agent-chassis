@@ -1,12 +1,32 @@
 
 
+import { declareRequestConstraints } from './zod-request-constraint-declarations.mjs';
+
+function referenceTarget(schema, defs) {
+  const seen = new Set();
+  while (schema?.$ref) {
+    if (seen.has(schema)) throw new Error(`Nonproductive authored request-schema reference cycle: ${schema.$ref}`);
+    seen.add(schema);
+    const match = /^#\/\$defs\/([^/]+)$/u.exec(schema.$ref);
+    const target = match && defs?.[match[1].replaceAll('~1', '/').replaceAll('~0', '~')];
+    if (target === undefined || target === null || target === false) throw new Error(`Unknown authored request-schema reference: ${schema.$ref}`);
+    schema = target;
+  }
+  return schema;
+}
+
 function convertRequestSchema(z, schema, defs, context) {
   if (context.defs !== defs) {
     throw new Error('Authored request-schema conversion cannot cross definition environments');
   }
   if (context.memoize && context.completed.has(schema)) return context.completed.get(schema);
   if (context.active.has(schema)) {
-    throw new Error('Recursive authored request schemas are unsupported');
+    if (!context.recursive.has(schema)) context.recursive.set(schema, z.lazy(() => {
+      const completed = context.completed.get(schema);
+      if (completed === undefined) throw new Error('Recursive authored request schema was not completely converted');
+      return completed;
+    }));
+    return context.recursive.get(schema);
   }
   context.active.add(schema);
   const convert = (child) => convertRequestSchema(z, child, defs, context);
@@ -20,8 +40,7 @@ function convertRequestSchema(z, schema, defs, context) {
   };
   let result;
   if (schema.$ref) {
-    const target = defs?.[schema.$ref.split('/').at(-1)];
-    if (target === undefined) throw new Error(`Unknown authored request-schema reference: ${schema.$ref}`);
+    const target = referenceTarget(schema, defs);
     result = convert(target);
   }
   else if (schema.anyOf || schema.oneOf) result = z.union((schema.anyOf ?? schema.oneOf).map(convert));
@@ -43,9 +62,28 @@ function convertRequestSchema(z, schema, defs, context) {
     if (schema.description) result = result.describe(schema.description);
   }
   else if (schema.type === 'array') {
-    result = z.array(convert(schema.items));
-    if (schema.minItems !== undefined) result = result.min(schema.minItems);
-    if (schema.maxItems !== undefined) result = result.max(schema.maxItems);
+    if (schema.prefixItems) {
+      const prefix = schema.prefixItems.map(convert);
+      const minimum = schema.minItems ?? 0;
+      const maximum = schema.maxItems ?? (schema.items === false ? prefix.length : Infinity);
+      const alternatives = [];
+      for (let count = minimum; count < prefix.length && count <= maximum; count++) alternatives.push(z.tuple(prefix.slice(0, count)));
+      if (maximum >= prefix.length) {
+        let full = z.tuple(prefix);
+        if (schema.items !== false && maximum > prefix.length) full = full.rest(schema.items === undefined || schema.items === true ? z.unknown() : convert(schema.items));
+        alternatives.push(full);
+      }
+      if (!alternatives.length) throw new Error('Unsatisfiable authored positional operand bounds');
+      result = alternatives.length === 1 ? alternatives[0] : z.union(alternatives);
+      if (minimum > prefix.length || (Number.isFinite(maximum) && maximum > prefix.length)) {
+        result = declareRequestConstraints(result.refine(items => items.length >= minimum && items.length <= maximum, 'Wrong positional operand count'),
+          [{ constraint: 'array_length', min_items: minimum, ...(Number.isFinite(maximum) ? { max_items: maximum } : {}) }]);
+      }
+    } else {
+      result = z.array(convert(schema.items));
+      if (schema.minItems !== undefined) result = result.min(schema.minItems);
+      if (schema.maxItems !== undefined) result = result.max(schema.maxItems);
+    }
     if (schema.uniqueItems) result = result.refine(items => new Set(items.map(value => JSON.stringify(value))).size === items.length,
       'Values must be unique');
     if (schema.description) result = result.describe(schema.description);
@@ -69,7 +107,7 @@ function convertRequestSchema(z, schema, defs, context) {
   }
   else throw new Error('Unsupported authored request-schema declaration');
   context.active.delete(schema);
-  if (context.memoize) context.completed.set(schema, result);
+  context.completed.set(schema, result);
   return result;
 }
 
@@ -78,6 +116,7 @@ export function requestSchema(z, schema, defs, { memoize = false } = {}) {
     memoize,
     completed: new WeakMap(),
     optional: new WeakMap(),
+    recursive: new WeakMap(),
     active: new WeakSet(),
     defs
   });

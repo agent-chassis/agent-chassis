@@ -6,12 +6,12 @@ import {
   assertSidecarCachePathIgnored,
   createSidecarIndexStatusEnvelope,
   discoverSidecarGitState,
+  qualifyPublishedSidecarFreshness,
   resolveSidecarArtifactPath
 } from "./sidecar-status.mjs";
 import { readSidecarStoreStatus } from "./sidecar-store.mjs";
 
 export const SIDECAR_PUBLISHED_INDEX_UNAVAILABLE_CODE = "sidecar_published_index_unavailable";
-const STALE_REASON = "published_snapshot_behind_head";
 
 export class SidecarPublishedIndexUnavailableError extends Error {
   constructor(indexState) {
@@ -33,7 +33,8 @@ async function publishedUsability(store) {
   }
   if (!store.publication?.repository_commit) return { usable: false, reason: "index_unpublished" };
   const classification = await classifySidecarPreparation({ publication: store.publication,
-    requestedCommit: store.publication.repository_commit, providerInputsChanged: async () => false });
+    requestedCommit: store.publication.repository_commit,
+    requestedInputIdentity: store.publication.base_coverage?.checkout_identity, providerInputsChanged: async () => false });
   return classification.action === "clean"
     ? { usable: false, reason: classification.reason }
     : { usable: true, classification };
@@ -61,22 +62,17 @@ export async function resolvePublishedSidecarSnapshot({
     publication: usability.usable ? publicationIdentity(store.publication) : null });
   if (!usability.usable) {
     throw new SidecarPublishedIndexUnavailableError({ state: "unavailable", reason: usability.reason,
+      artifact_exists: store.artifact_exists,
+      artifact_schema_version: store.observed_store_schema_version ?? null,
+      expected_artifact_schema_version: store.required_store_schema_version,
+      cause: store.error_message ? { code: store.error_code, message: store.error_message } : null,
+      recovery: refreshState ?? { state: "unavailable", reason: "refresh_not_requested" },
       indexed_commit: null, current_head: gitState.index_head,
       freshness: store.state === "missing" ? "missing" : "rebuild_required", refresh: refreshState });
   }
   const described = createSidecarIndexStatusEnvelope({ gitState, artifactPaths, store,
     classification: usability.classification });
-  const fresh = store.publication.repository_commit === gitState.index_head;
-
-  const status = fresh ? described : {
-    ...described,
-    staleness: "stale",
-    status_reason: STALE_REASON,
-    scip_state: { ...described.scip_state, staleness: "stale" },
-    derived_evidence: described.derived_evidence.map((entry) => entry.kind === "sidecar_index_status"
-      ? { ...entry, status_reason: STALE_REASON, scip_state: { ...entry.scip_state, staleness: "stale" } }
-      : entry)
-  };
+  const status = qualifyPublishedSidecarFreshness(described, store.publication, gitState.index_head);
   return {
     available: true,
     outcome: "available",

@@ -20,7 +20,7 @@ const WRAPPER_OPTIONS = new Set(["--test-file-timeout", "--test-runner-phase-tim
 const DIAGNOSTIC_KINDS = new Set(["focused", "baseline"]);
 const VALUELESS_OPTIONS = new Set([
   "--test-only", "--test-force-exit", "--experimental-test-coverage",
-  "--test-update-snapshots"
+  "--test-update-snapshots", "--enable-source-maps"
 ]);
 const RESERVED_GLOB = /[*?\[\]{}]/u;
 const MAX_BUDGET_MS = 2_147_483_647;
@@ -55,6 +55,7 @@ export function parseTestRunnerOptions(tokens, { repoRoot, selectedFiles }) {
   let fileTimeoutMs = 600_000;
   let phaseTimeoutMs = 30_000;
   let artifactsDir = null;
+  let preserveArtifacts = false;
   let diagnosticKind = "focused";
   const wrapperFlags = [];
   let reporterCount = 0;
@@ -81,6 +82,14 @@ export function parseTestRunnerOptions(tokens, { repoRoot, selectedFiles }) {
     const equal = token.indexOf("=");
     const name = equal === -1 ? token : token.slice(0, equal);
     const attached = equal === -1 ? null : token.slice(equal + 1);
+    if (name === "--preserve-test-artifacts") {
+      if (attached !== null) invalid(`${name} does not take a value`);
+      if (seenWrapper.has(name)) invalid(`${name} may appear only once`);
+      seenWrapper.add(name);
+      preserveArtifacts = true;
+      wrapperFlags.push(name);
+      continue;
+    }
     if (name === "--watch" || name.startsWith("--watch-") ||
         name === "--test-watch" || name.startsWith("--test-watch-")) {
       throw new TestRunnerOptionError(TEST_RUNNER_OPTION_CODES.UNSUPPORTED,
@@ -144,7 +153,7 @@ export function parseTestRunnerOptions(tokens, { repoRoot, selectedFiles }) {
   const targets = explicit.length > 0 ? explicit : selectedFiles.map((file) => path.resolve(repoRoot, file));
   const uniqueTargets = [...new Set(targets)];
   return Object.freeze({
-    native, files: uniqueTargets, fileTimeoutMs, phaseTimeoutMs, artifactsDir, diagnosticKind,
+    native, files: uniqueTargets, fileTimeoutMs, phaseTimeoutMs, artifactsDir, preserveArtifacts, diagnosticKind,
     flags: Object.freeze([...wrapperFlags, ...native]),
     reporterCount, destinationCount, hasTimeout, hasConcurrency, hasShard
   });

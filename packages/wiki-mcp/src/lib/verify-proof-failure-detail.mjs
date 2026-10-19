@@ -23,6 +23,8 @@ import { parseProofSourceUnitAddress as parseProofAuthoringUnitAddress } from
   "../../../wiki-core/src/operations/controlled-contract/saved-proof-source.mjs";
 import { isControlledContractFocus } from
   "../../../wiki-core/src/lib/controlled-contract-tools.mjs";
+import { resolveNativeTestSelector } from "../../../controlled-contract/lib/test-proof-provider-registry.mjs";
+import { authorableNativeCaseTarget } from "@agent-chassis/controlled-contract/native-test-cases";
 
 export const VERIFY_PROOF_REFUSAL_SCHEMA_VERSION = "workspace-verify-proof-refusal.v1";
 export const VERIFY_PROOF_EXECUTION_CODES = new Set(
@@ -69,7 +71,7 @@ const TEST_PROOF_EVIDENCE_FAILURES = Object.freeze({
   test_proof_artifact_untrusted: "repair_the_receipt_provider_protocol_then_retry",
   test_proof_bound_identity_mismatch: "repair_the_reporter_identity_binding_then_retry",
   test_proof_selected_identity_not_observed:
-    "repair_the_declared_test_startup_or_reporter_observation_then_retry",
+    "resolve_the_selected_test_observation_limit",
 
   test_proof_selected_test_skipped: "resolve_the_reported_selected_test_skip_then_retry",
   test_proof_caller_executor_forbidden:
@@ -551,7 +553,10 @@ export const TEST_PROOF_FAILURES = Object.freeze({
     detail(detail) { return detail === null || detail === undefined ? {} : null; }
   },
   test_proof_source_snapshot_symlink_unsupported: {
-    recovery_action: "remove_the_symlink_from_the_launcher_bound_source",
+    recovery_action: "source_owner_corrects_the_rejected_symlink",
+    retry: false,
+    correction_owner: "source_owner",
+    condition: "authenticated_source_correction_required",
     detail(detail) {
       return typeof detail?.path === "string" && detail.path.length > 0 &&
         detail.path.length <= 4096 && !path.isAbsolute(detail.path)
@@ -846,6 +851,7 @@ export function projectObservedEvidence(receipt, target, expectedTestId) {
     [artifact.artifact_id, artifact]));
   const falsifierOutcomes = (receipt.falsifier_executions ?? []).map(projectFalsifierOutcome);
   const executionRows = [];
+  const traversalObservations = [];
   const appendStructuredExecutions = (phase, association, phaseIdentity) => {
     for (const artifactId of association?.evidence_artifact_ids ?? []) {
       const artifact = artifacts.get(artifactId);
@@ -883,6 +889,18 @@ export function projectObservedEvidence(receipt, target, expectedTestId) {
     });
   }
   for (const traversal of receipt.boundary_traversals ?? []) {
+    for (const artifactId of traversal.evidence_artifact_ids ?? []) {
+      const artifact = artifacts.get(artifactId);
+      const boundary = artifact?.payload;
+      if (artifact?.kind !== "boundary_trace" || boundary?.mechanism !== "node_test_v8_coverage") continue;
+      if (typeof boundary.observed !== "boolean" || typeof boundary.target_pass_observed !== "boolean" ||
+          boundary.target_test_id !== expectedTestId || !safeDeclaredTarget(boundary.module_path)) {
+        throw new TypeError("authenticated traversal observation cannot be safely projected");
+      }
+      traversalObservations.push({ boundary_id: traversal.boundary_id, observable_id: traversal.observable_id,
+        module_path: boundary.module_path, observed: boundary.observed,
+        target_pass_observed: boundary.target_pass_observed });
+    }
     appendStructuredExecutions("traversal", traversal, {
       boundary_id: traversal.boundary_id,
       observable_id: traversal.observable_id
@@ -901,11 +919,12 @@ export function projectObservedEvidence(receipt, target, expectedTestId) {
     omitted_count: events.length - candidates.length,
     observed_identity_candidates: candidates,
     falsifier_outcomes: falsifierOutcomes,
-    executions: executionRows
+    executions: executionRows,
+    traversal_observations: traversalObservations
   };
 }
 
-function projectedSelectedIdentityNotObserved(detail, executionContext) {
+function projectedSelectedIdentityNotObserved(detail, executionContext, selectionRefused) {
   const projected = projectedBoundIdentityMismatch(detail);
   if (projected === null || !Array.isArray(detail.observed_failures) ||
       detail.observed_failure_count !== detail.observed_failures.length ||
@@ -918,8 +937,27 @@ function projectedSelectedIdentityNotObserved(detail, executionContext) {
         typeof code !== "string" || !SAFE_WRAPPER_ERROR_CODE_RE.test(code))) return null;
   const observedFailures = publicObservedIdentities(detail.observed_failures);
   if (observedFailures === null) return null;
+  const selectionStatus = detail.selection_status ?? "unknown";
+  if (!["not_collected", "collected_not_observed", "collection_incomplete", "unknown"].includes(selectionStatus)) return null;
+  let candidates = projected.observed_identity_candidates;
+  if (selectionRefused && selectionStatus === "not_collected" && detail.selected_node_id !== undefined) {
+    const selected = resolveNativeTestSelector({ ...detail.provider, node_id: detail.selected_node_id },
+      { path: detail.target });
+    if (!selected.valid) return null;
+    candidates = candidates.map(candidate => {
+      const selector = resolveNativeTestSelector({ ...detail.provider, node_id: candidate.name },
+        { path: candidate.file });
+      return !selector.valid ? null : { ...candidate,
+        case_target: authorableNativeCaseTarget({ provider: detail.provider,
+          path: selector.path, selector: { node_id: selector.node_id } }) };
+    });
+    if (candidates.includes(null)) return null;
+  }
   return {
     ...projected,
+    ...(selectionRefused ? { selection_status: selectionStatus,
+      ...(detail.selected_node_id === undefined ? {} : { selected_node_id: detail.selected_node_id }) } : {}),
+    observed_identity_candidates: candidates,
     target: detail.target,
     file_wrapper_status: detail.file_wrapper_status,
     file_wrapper_error_codes: [...detail.file_wrapper_error_codes],
@@ -989,7 +1027,8 @@ export function projectedEvidenceFailure(error, executionContext) {
       SELECTED_OBSERVATION_CODES.has(error.code)) {
     const mismatch = error.code === "test_proof_bound_identity_mismatch"
       ? projectedBoundIdentityMismatch(detail)
-      : projectedSelectedIdentityNotObserved(detail, executionContext);
+      : projectedSelectedIdentityNotObserved(detail, executionContext,
+        error.code === "test_proof_selected_identity_not_observed");
     if (mismatch === null) return null;
     Object.assign(projected, mismatch);
   }
@@ -1045,10 +1084,18 @@ export function projectedEvidenceFailure(error, executionContext) {
     error.code === "test_proof_evidence_identity_invalid"
     ? "receipt" : null;
   if (stage !== null) projected.execution_stage = stage;
-  const recoveryAction = executionFailure
-    ? evidenceExecutionRecovery(projected)
-    : TEST_PROOF_EVIDENCE_FAILURES[error.code];
-  const correction = noRetryCorrection(recoveryAction, projected) ??
+  const missingIdentity = error.code === "test_proof_selected_identity_not_observed";
+  const recoveryAction = missingIdentity
+    ? projected.selection_status === "not_collected"
+      ? "author_the_named_selected_test_or_correct_the_saved_selection"
+      : projected.selection_status === "collected_not_observed"
+        ? "report_the_launcher_selected_test_observation_defect"
+        : "resolve_the_selected_test_observation_limit"
+    : executionFailure ? evidenceExecutionRecovery(projected) : TEST_PROOF_EVIDENCE_FAILURES[error.code];
+  const correction = (missingIdentity ? {
+    correction_owner: projected.selection_status === "not_collected" ? "proof_author" : LAUNCHER_OBSERVATION_CORRECTION_OWNER,
+    condition: projected.selection_status
+  } : null) ?? noRetryCorrection(recoveryAction, projected) ??
     infrastructureCorrection(executionFailure ? projected.structured_observation_code : error.code);
   return {
     details: projected,

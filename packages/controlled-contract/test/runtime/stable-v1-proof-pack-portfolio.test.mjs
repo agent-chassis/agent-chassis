@@ -9,6 +9,7 @@ import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { profileDigest } from "../../lib/verification-profile-v1.mjs";
+import { validateCurrentProofDefinition } from "../../lib/test-validity-execution-definition.mjs";
 import { executableDependencyClosure } from
   "../support/executable-dependency-closure.mjs";
 import {
@@ -109,7 +110,7 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
     assert.equal(adequacy.profile_digest, profileDigest(profile));
     assert.equal(admission.guarantee, adequacy.guarantee);
     assert.deepEqual(admission.explicit_exclusions, [...adequacy.explicit_exclusions].sort());
-    assert.equal(profile.schema_version, "controlled-contract-verification-profile.v2");
+    assert.equal(validateCurrentProofDefinition(profile), true);
     assert.equal(profile.contract_schema_version, "controlled-acceptance-contract.v1");
     assert.equal(profile.vocabulary_version, "controlled-contract-vocabulary.v1");
     assert.equal(admission.profile_digest, profileDigest(profile));

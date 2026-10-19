@@ -19,7 +19,6 @@ export function createStartAgentInputContract(z) {
   const shape = z.object({
     subject: z.string().regex(/^WK-\d{4}(?:#SLICE-\d{3})?$/u).optional(),
     role: z.enum(["worker", "reviewer", "redteam"]).optional(),
-    app: z.string().min(1).optional(), model: z.string().min(1).optional(),
     diff_base_sha: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u).optional(),
     reviewed_sha: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u).optional(),
     preview: z.boolean().optional()
@@ -39,6 +38,7 @@ export function createStartAgentInputContract(z) {
     }
   });
   const inputValidationError = (request, validationError) => {
+    const suppliedModelSelection = ["app", "model"].some(field => Object.hasOwn(request ?? {}, field));
     const missingChoice = request?.subject === undefined && request?.role === undefined;
     const roleChoices = missingChoice ? ["worker", "reviewer", "redteam"].map(role => {
       const args = { preview: true, role };
@@ -46,14 +46,17 @@ export function createStartAgentInputContract(z) {
       return buildNextCall({ tool: START_AGENT_TOOL_NAME, arguments: args });
     }) : [];
     return createToolInputValidationError({ tool: START_AGENT_TOOL_NAME, validationError,
-      details: { correction: request?.preview === true && request?.subject === undefined
+      details: { correction: suppliedModelSelection
+        ? "Omit app and model; the operator configures the role model in agent-launch.toml."
+        : request?.preview === true && request?.subject === undefined
         ? "Choose a role for capability preview; subject is not required."
         : "Supply subject for normal start/action preview, or choose a role for subject-free capability preview.",
       ...(roleChoices.length === 0 ? {} : { role_choices: roleChoices,
         choice_state: "caller_role_not_selected" }) } });
   };
   return Object.freeze({ inputSchema, inputValidationError, declaredInput: shape, advertisedInputSchema: shape.describe(
-    "Start with subject only; role derives from the saved unit. Managed worker implementation " +
+    "Start with subject only; role derives from the saved unit. The operator configures the role model in agent-launch.toml. " +
+    "Managed worker implementation " +
     "requires an exact slice, for example WK-0001#SLICE-001. Parent targets remain role-dependent. " +
     "preview:true selects action preview, " +
     "or subject-free capabilities with required role: {\"preview\":true,\"role\":\"worker\"} or " +

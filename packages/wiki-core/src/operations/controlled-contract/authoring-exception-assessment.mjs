@@ -28,16 +28,21 @@ function proofDecisions(resolved, obligationId) {
     ...(of("undecided").length === 0 ? {} : { undecided_obligation_ids: of("undecided").map((row) => row.obligation_id) }) };
 }
 
+export function unresolvedSpecificationMeanings(resolved) {
+  return (resolved.contract?.content?.authored_requirements?.unresolved ?? [])
+    .map((entry, index) => ({ id: `u${index + 1}`, location: `/authored_requirements/unresolved/${index}`,
+      ...(typeof entry === 'string' ? { text: entry } : structuredClone(entry)) }));
+}
+
 function grammarResidue(resolved) {
-  const unresolved = resolved.contract?.content?.authored_requirements?.unresolved ?? [];
-  const excepted = unresolved.map((entry, index) => ({ entry, id: `u${index + 1}` }))
-    .filter(({ entry }) => typeof entry !== "string" && entry.grammar_exception !== undefined);
+  const unresolved = unresolvedSpecificationMeanings(resolved);
+  const excepted = unresolved.filter(entry => entry.grammar_exception !== undefined);
   return { unresolved_meanings: unresolved.length, exceptions: excepted.length,
 
     ...(unresolved.length === 0 ? {} : { specification: "incomplete" }),
     ...(excepted.length === 0 ? {} : { enforcement: GRAMMAR_EXCEPTION_ENFORCEMENT,
       consequence: RECORD_AUTHORING_EXCEPTION_CONSEQUENCES.grammar,
-      excepted_meanings: excepted.map(({ entry, id }) => ({ id, text: entry.text,
+      excepted_meanings: excepted.map(({ id, ...entry }) => ({ id, text: entry.text,
         ...(entry.reason === undefined ? {} : { reason: entry.reason }), ...rationaleOf(entry.grammar_exception.rationale) })) }) };
 }
 

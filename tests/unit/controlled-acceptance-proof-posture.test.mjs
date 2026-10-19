@@ -44,6 +44,7 @@ function workbench(generation, complete, contractDigest = null, coverage = "comp
   return {
     subject: { generation_id: generation }, mechanically_complete: complete,
     evaluated_snapshot: coverage === null ? null : {
+      parent_source_accounting: { accounting_status: "complete", parent_unit: "WK-9997", scope: "parent_work_record" },
       ordinary_authoring_readiness: { acceptance_coverage: { status: coverage } } },
     dimension_count: 9, incomplete_row_count: complete ? 0 : 4,
     actionable_row_count: complete ? 0 : 3,
@@ -306,5 +307,30 @@ test("an exemption is projected as the caller's authored, unassessed disposition
     assert.throws(() => assertControlledAcceptanceStateProjection(candidate, opted.id),
       (error) => error.code === "controlled_acceptance_state_projection_invalid",
       JSON.stringify(provenance ?? null));
+  }
+});
+
+test("paid shared completeness requires source accounting, including opted-out drafts; free admission retains its tier", async () => {
+  for (const disposition of ["required", "opted_out"]) {
+    const wk = record({ proof_posture: buildControlledAcceptanceProofPosture({ wkId: "WK-9997", disposition,
+      rationale: disposition === "opted_out" ? "Documentation only." : null }) });
+    for (const status of ["complete", "incomplete", "unknown"]) {
+      const facts = workbench("sha256:generation", true);
+      facts.evaluated_snapshot.parent_source_accounting = { scope: "parent_work_record", parent_unit: wk.id,
+        accounting_status: status, correction: { tool: "workspace_read_wiki", arguments: { subject: wk.id } } };
+      const paid = await classifyControlledAcceptanceStateOperation({ repoRoot: "/repo", wkId: wk.id, record: wk },
+        { registeredTier: "paid_cce", inspectWorkbench: async () => facts });
+      assert.equal(paid.state, disposition === "opted_out" ? "opted_out" : status === "complete" ? "complete" : "incomplete");
+      assert.equal(paid.mechanically_complete, status === "complete");
+      assert.equal(paid.semantic.admission.admits, status === "complete");
+      if (status !== "complete") {
+        assert.equal(paid.semantic.admission.blocked_reason_code, "controlled_acceptance_incomplete");
+        assert.equal(paid.recovery.tool, "workspace_read_wiki");
+        assert.equal(paid.semantic.admission.supported_next_call.tool, "workspace_read_wiki");
+      }
+      const free = await classifyControlledAcceptanceStateOperation({ repoRoot: "/repo", wkId: wk.id, record: wk },
+        { registeredTier: "free_local", inspectWorkbench: async () => facts });
+      assert.equal(free.semantic.admission.admits, true);
+    }
   }
 });

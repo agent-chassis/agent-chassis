@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { evaluateStableProofPackFixtureV1 } from
   "../support/stable-v1-proof-pack-runtime.mjs";
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from
@@ -100,6 +101,11 @@ const requiredClaimPatterns = Object.freeze([
   "verification-reads-exact-traversal-bindings"
 ]);
 
+const currentIdentity = JSON.parse(readFileSync(new URL(
+  "../../profiles/catalog.json", import.meta.url
+), "utf8")).packs.find(({ profile_id: id }) => id === "proof.pagination.complete-traversal");
+if (!currentIdentity) throw new Error("current catalog has no complete traversal identity");
+
 function completeTraversalProfileConforms(profile) {
   const roles = new Set(profile.reference_roles?.map(({ role }) => role));
   const bindings = new Set(profile.reference_binding_patterns?.map(
@@ -110,7 +116,7 @@ function completeTraversalProfileConforms(profile) {
     id === "verification-reads-exact-traversal-bindings"
   )?.proposition_template.operands.map(({ role }) => role) ?? []);
   return profile.profile_id === "proof.pagination.complete-traversal" &&
-    profile.profile_version === "2.0.0" &&
+    profile.profile_version === currentIdentity.profile_version &&
     requiredRoles.every((role) => roles.has(role)) &&
     requiredBindingPatterns.every((id) => bindings.has(id)) &&
     requiredClaimPatterns.every((id) => claims.has(id)) &&
@@ -118,7 +124,10 @@ function completeTraversalProfileConforms(profile) {
       .every((role) => reads.has(role));
 }
 
-function runCompletePaginationAdequacy(profile) {
+function runCompletePaginationAdequacy(profile, assessControlOutcomes) {
+  if (typeof assessControlOutcomes !== "function") throw new TypeError(
+    "complete traversal certification requires the shared control-outcome assessor"
+  );
   const controls = [];
   for (const [controlId, options] of Object.entries(POSITIVE_CASES)) {
     const execution = executeCompleteTraversalPositive(options);
@@ -139,28 +148,37 @@ function runCompletePaginationAdequacy(profile) {
       control_id: controlId,
       category: "mutant",
       implementation_outcome: execution.killed ? "killed" : "survived",
-      profile_satisfaction: "not_evaluated"
+      profile_satisfaction: "not_evaluated",
+      rejection: {
+        checker: "transformer", subject: "transformer_input",
+        expected_reason: execution.expected_code, actual_reason: execution.code
+      }
     });
   }
   for (const [controlId, weaken] of Object.entries(PROFILE_WEAKENINGS)) {
     const mutant = structuredClone(profile);
     weaken(mutant);
+    const conforms = completeTraversalProfileConforms(mutant);
     controls.push({
       control_id: controlId,
       category: "profile_rejection",
       implementation_outcome: "not_applicable",
-      profile_satisfaction: completeTraversalProfileConforms(mutant)
-        ? "satisfied" : "invalid"
+      profile_satisfaction: conforms ? "satisfied" : "invalid",
+      rejection: {
+        checker: "profile_conformance", subject: "profile",
+        expected_reason: "complete_traversal_profile_nonconforming",
+        actual_reason: conforms ? null : "complete_traversal_profile_nonconforming"
+      }
     });
   }
   return {
     controls,
-    passed: completeTraversalProfileConforms(profile) && controls.every((control) =>
-      control.implementation_outcome !== "failed" &&
-      control.implementation_outcome !== "survived" &&
-      control.profile_satisfaction !== "invalid" &&
-      control.profile_satisfaction !== "unsatisfied"
-    ),
+    passed: completeTraversalProfileConforms(profile) && assessControlOutcomes({
+      required_positive_cases: Object.keys(POSITIVE_CASES),
+      required_mutant_kills: COMPLETE_TRAVERSAL_MUTANT_IDS,
+      required_profile_rejections: Object.keys(PROFILE_WEAKENINGS),
+      explicit_exclusions: []
+    }, controls).length === 0,
     positive_count: Object.keys(POSITIVE_CASES).length,
     mutant_count: COMPLETE_TRAVERSAL_MUTANT_IDS.length,
     profile_weakening_count: Object.keys(PROFILE_WEAKENINGS).length
@@ -170,8 +188,12 @@ function runCompletePaginationAdequacy(profile) {
 const GUARANTEE_DIGEST =
   "c5ad980aa18bc912f1364789e814675e45343e85f3ebf56702f932b357323414";
 
-async function runProofPackAdequacyControls({ profile, profile_digest: profileDigest }) {
-  const result = runCompletePaginationAdequacy(profile);
+async function runProofPackAdequacyControls({ profile, profile_digest: profileDigest,
+  assess_control_outcomes: assessControlOutcomes }) {
+  const result = runCompletePaginationAdequacy(profile, assessControlOutcomes);
+  if (typeof result.passed !== "boolean") throw new Error(
+    "complete traversal required checks did not report a result"
+  );
   const baseline = buildCompletePaginationProfileFixture({ profile });
   const satisfaction = evaluateStableProofPackFixtureV1({
     contract: baseline.contract,
@@ -195,6 +217,7 @@ async function runProofPackAdequacyControls({ profile, profile_digest: profileDi
     profile_version: profile.profile_version,
     profile_digest: profileDigest,
     guarantee_digest: GUARANTEE_DIGEST,
+    passed: result.passed,
     controls: [...result.controls, ...exclusions]
   };
 }

@@ -16,7 +16,7 @@ import {
 } from "./failure-settlement-cleanup-v1-harness.mjs";
 
 const PROFILE_DIGEST =
-  "b9c8a19c88c743ccfc5404835e4d20947ef58a93c0fc53f75842497a6d4ef3d7";
+  "c61ac23bbf8e94fa75498f7132ec149a0e5ff3d7b70becc302768aeed668046b";
 const GUARANTEE_DIGEST =
   "a29c4f79b079c6dbf4b8b35bc31e426c08a56a114376f79565566124499eccbc";
 

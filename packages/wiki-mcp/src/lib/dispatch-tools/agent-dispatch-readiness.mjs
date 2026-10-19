@@ -96,7 +96,7 @@ export async function orchestrateAgentDispatchReadiness({
               readiness.dispatch_role ?? readinessDispatchRole,
               false
             );
-        const nextAction = nextActionForControlledAcceptanceRecovery(
+        const nextAction = readiness.controlled_acceptance_failure?.explanation ?? nextActionForControlledAcceptanceRecovery(
           readiness, fallbackNextAction);
         const initiativeAuthoring = readinessDecisionCode === MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE
           ? missingInitiativeAuthoring(readiness) : null;

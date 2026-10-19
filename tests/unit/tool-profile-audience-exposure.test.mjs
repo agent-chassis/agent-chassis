@@ -1,315 +1,59 @@
-
-
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { SESSION_ROLE_TOOL_ACCESS_POLICY_PATH } from "../../packages/wiki-core/src/lib/tool-discovery/gating.mjs";
+import { parseToolProfile, shouldExposeTool, shouldExposeToolFromPolicy, SESSION_ROLE_VALUES } from "../../packages/wiki-mcp/src/lib/tool-profile.mjs";
+import { resolveSessionProfile, sessionProfileAllowsTool } from "../../packages/wiki-core/src/lib/tool-discovery/session-profile.mjs";
+const policy = () => JSON.parse(readFileSync(SESSION_ROLE_TOOL_ACCESS_POLICY_PATH, "utf8"));
+const ORCHESTRATOR = ["get_run_result", "integrate_work", "query_code_index", "save_record", "start_agent", "verify_proof", "workspace_advance_candidate", "workspace_assess_contract", "workspace_check_landing", "workspace_create_record", "workspace_find_proofs", "workspace_inspect_candidate", "workspace_publish_work", "workspace_read_wiki", "workspace_record_feedback", "workspace_run_test"];
 
-import { WORKER_COMMIT_TOOL_NAME } from "../../packages/agent-launch-cli/src/lib/commit-tool-exposure-guard.mjs";
-import {
-  SESSION_ROLE_TOOL_ACCESS_POLICY_PATH,
-  resolveToolAudience,
-  resolveToolTierVisibility
-} from "../../packages/wiki-core/src/lib/tool-discovery.mjs";
-import {
-  isToolTierRegistrable,
-  parseToolProfile,
-  shouldExposeTool,
-  shouldExposeToolFromPolicy,
-  SESSION_ROLE_VALUES
-} from "../../packages/wiki-mcp/src/lib/tool-profile.mjs";
-
-const SUBMIT_FOR_REVIEW = "workspace_submit_for_review";
-
-function loadAccessPolicy() {
-  return JSON.parse(readFileSync(SESSION_ROLE_TOOL_ACCESS_POLICY_PATH, "utf8"));
-}
-
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-test("known session roles are exactly the five policy roles", () => {
-  assert.deepEqual(
-    [...SESSION_ROLE_VALUES].sort(),
-    ["operator", "orchestrator", "redteam", "reviewer", "worker"]
-  );
-});
-
-test("orchestrator gets content reads, process-measurement reads, and authority; not delivery or cache writers", () => {
-  const role = "orchestrator";
-  for (const name of [
-    "workspace_search_repo",
-    "workspace_read_page",
-    "workspace_validate_dispatch",
-    "workspace_coordination_preflight",
-    "workspace_initiative_status",
-    "workspace_agent_run_status",
-    "workspace_node_engine_admission_runtime_diagnostic",
-    "workspace_work_record_set_status",
-    "workspace_agent_dispatch",
-    "workspace_generate_and_lint"
-  ]) {
-    assert.equal(shouldExposeTool(role, name), true, `orchestrator must see ${name}`);
+test("startup accepts exactly the current roles and refuses absent, unknown and retired profiles", () => {
+  for (const role of SESSION_ROLE_VALUES) assert.equal(parseToolProfile({ WIKI_MCP_TOOL_PROFILE: role }), role);
+  for (const env of [{}, { WIKI_MCP_TOOL_PROFILE: "" }, { WIKI_MCP_TOOL_PROFILE: "   " }]) {
+    assert.throws(() => parseToolProfile(env), /WIKI_MCP_TOOL_PROFILE is required.*absent or empty profile/su);
   }
-  for (const name of [
-    WORKER_COMMIT_TOOL_NAME,
-    SUBMIT_FOR_REVIEW,
-    "workspace_build_search_index",
-    "workspace_code_index_build"
-  ]) {
-    assert.equal(shouldExposeTool(role, name), false, `orchestrator must not see ${name}`);
+  for (const role of ["nonsense-role", "full", "agent-safe"]) {
+    assert.throws(() => parseToolProfile({ WIKI_MCP_TOOL_PROFILE: role }), /Unsupported WIKI_MCP_TOOL_PROFILE/u);
+    for (const name of ORCHESTRATOR) assert.equal(shouldExposeTool(role, name), false);
   }
 });
 
-test("reviewer and redteam get broad CONTENT reads + submit-for-review, but no process-measurement or authority", () => {
-  for (const role of ["reviewer", "redteam"]) {
-    for (const name of [
-      "workspace_search_repo",
-      "workspace_read_page",
-      "workspace_get_record",
-      "query_code_index",
-      "workspace_work_record_validate",
-      "workspace_work_record_summary",
-      SUBMIT_FOR_REVIEW
-    ]) {
-      assert.equal(shouldExposeTool(role, name), true, `${role} must see ${name}`);
-    }
-
-    for (const name of [
-      "workspace_validate_dispatch",
-      "workspace_coordination_preflight",
-      "workspace_initiative_status",
-      "workspace_integration_status",
-      "workspace_agent_run_status",
-      "workspace_agent_run_wait",
-      "workspace_node_engine_admission_runtime_diagnostic",
-      "workspace_work_record_set_status",
-      "workspace_agent_dispatch",
-      "workspace_create_record",
-      WORKER_COMMIT_TOOL_NAME
-    ]) {
-      assert.equal(shouldExposeTool(role, name), false, `${role} must not see ${name}`);
-    }
-  }
-});
-
-test("worker gets the closed-input commit primitive and no retired validation route", () => {
-  const role = "worker";
-  assert.equal(shouldExposeTool(role, WORKER_COMMIT_TOOL_NAME), true);
-  assert.equal(shouldExposeTool(role, SUBMIT_FOR_REVIEW), false);
-
-  assert.equal(shouldExposeTool(role, "workspace_read_page"), true);
-  for (const name of [
-    "workspace_search_repo",
-    "workspace_get_record",
-    "workspace_work_record_validate",
-    "workspace_work_record_set_status"
-  ]) {
-    assert.equal(shouldExposeTool(role, name), false, `worker must not see ${name}`);
-  }
-
-  for (const retired of ["workspace_run_validation", "workspace_worker_run_declared_test"]) {
-    for (const profile of SESSION_ROLE_VALUES) {
-      assert.equal(shouldExposeTool(profile, retired), false, `${profile} must not see ${retired}`);
-    }
-  }
-});
-
-test("operator follows the exact central grant and denies unlisted names", () => {
-  for (const profile of ["operator"]) {
-    for (const name of [
-      "workspace_build_search_index",
-      "workspace_code_index_rebuild",
-      WORKER_COMMIT_TOOL_NAME,
-      SUBMIT_FOR_REVIEW
-    ]) {
-      assert.equal(shouldExposeTool(profile, name), true, `${profile} must see ${name}`);
-    }
-    assert.equal(
-      shouldExposeTool(profile, "some_unlisted_tool_name"),
-      false,
-      `${profile} must deny a policy-unlisted operation`
-    );
-  }
-});
-
-test("runtime requires matching sibling disposition and grant entries", () => {
-  const policy = loadAccessPolicy();
-  assert.deepEqual(
-    Object.keys(policy.access).sort(),
-    Object.keys(policy.dispositions).sort(),
-    "the checked-in runtime policy populations must match exactly"
-  );
-
-  const missingDisposition = clone(policy);
-  delete missingDisposition.dispositions.workspace_search_repo;
-  assert.equal(
-    shouldExposeToolFromPolicy("orchestrator", "workspace_search_repo", missingDisposition),
-    false
-  );
-
-  const missingGrant = clone(policy);
-  delete missingGrant.access.workspace_search_repo;
-  assert.equal(
-    shouldExposeToolFromPolicy("operator", "workspace_search_repo", missingGrant),
-    false
-  );
-});
-
-test("runtime refuses an unknown central policy schema", () => {
-  const policy = loadAccessPolicy();
-  policy.schema_version = "session-role-tool-access.v999";
-  assert.throws(
-    () => shouldExposeToolFromPolicy("orchestrator", "workspace_search_repo", policy),
-    (error) => error?.code === "session_role_policy_incompatible_schema_version"
-  );
-});
-
-test("resolved descriptor defaults and role/tier composition fail closed", () => {
-  assert.deepEqual(resolveToolAudience({}), ["agent", "operator"]);
-  assert.deepEqual(resolveToolTierVisibility({}), []);
-
-  const name = "workspace_agent_dispatch";
-  assert.equal(shouldExposeTool("orchestrator", name), true);
-  assert.equal(isToolTierRegistrable("free_local", name, new Set([name])), false);
-  assert.equal(isToolTierRegistrable("paid_cce", name, new Set([name])), true);
-  assert.equal(shouldExposeTool("reviewer", name), false);
-});
-
-test("accepted-decision capability floor retains exactly the enumerated role grants", () => {
-  const policy = loadAccessPolicy();
-  const expected = {
-    commit: ["worker", "operator"],
-    workspace_verify_proof: ["orchestrator", "reviewer", "worker"],
-    workspace_submit_for_review: ["reviewer", "redteam", "operator"]
-  };
-  for (const [name, roles] of Object.entries(expected)) {
-    assert.deepEqual(policy.access[name], roles, name);
-    for (const role of SESSION_ROLE_VALUES) {
-      assert.equal(
-        shouldExposeTool(role, name),
-        roles.includes(role),
-        `${name}/${role}`
-      );
-    }
-  }
-});
-
-test("SLICE-008 workbench policy preserves exact exposure and removal mutants remain discriminating", () => {
-  const baseline = loadAccessPolicy();
-  const retainOnlyPolicy = clone(baseline);
-  const classifiedNames = Object.keys(baseline.access).sort();
-  assert.deepEqual(
-    retainOnlyPolicy,
-    baseline,
-    "the checked-in policy clone must preserve the exact current surface"
-  );
-
-  for (const role of ["orchestrator", "operator"]) {
-    const visible = classifiedNames.filter((name) =>
-      shouldExposeToolFromPolicy(role, name, retainOnlyPolicy));
-    assert.equal(visible.length, role === "orchestrator" ? 58 : 75, role);
-  }
-
-  for (const [role, toolName] of [
-    ["orchestrator", "workspace_search_repo"],
-    ["operator", "lint_repo"]
-  ]) {
-    const countOnlyMutant = clone(baseline);
-    countOnlyMutant.access[toolName] = countOnlyMutant.access[toolName]
-      .filter((candidateRole) => candidateRole !== role);
-    const before = classifiedNames.filter((name) =>
-      shouldExposeToolFromPolicy(role, name, baseline));
-    const after = classifiedNames.filter((name) =>
-      shouldExposeToolFromPolicy(role, name, countOnlyMutant));
-    assert.equal(after.length, before.length - 1, `${role}: raw count decreases`);
-    assert.equal(shouldExposeToolFromPolicy(role, toolName, countOnlyMutant), false);
-  }
-});
-
-test("controlled-contract policy exposes only the retained semantic owners",
-  () => {
-    const expected = {
-      workspace_controlled_proof_intents_discover: ["orchestrator", "reviewer", "redteam", "operator"],
-      workspace_controlled_contract_obligation_coverage_upsert: ["orchestrator", "operator"],
-
-      workspace_controlled_contract_obligation_coverage_query: ["orchestrator", "reviewer", "worker", "redteam", "operator"],
-      workspace_controlled_contract_obligation_coverage_remove: ["orchestrator", "operator"],
-      workspace_validate_proof: ["orchestrator", "reviewer", "redteam", "operator"],
-      workspace_verify_proof: ["orchestrator", "reviewer", "worker"]
-    };
-    for (const [name, granted] of Object.entries(expected)) {
-      for (const role of SESSION_ROLE_VALUES) assert.equal(
-        shouldExposeTool(role, name), granted.includes(role), `${name}/${role}`);
-    }
-    for (const name of [
-      "workspace_controlled_contract_carrier_create",
-      "workspace_controlled_verification_bundle_patch",
-      "workspace_controlled_proof_authoring_skeleton",
-      "workspace_controlled_contract_authoring_continue",
-      "workspace_controlled_contract_proof_graph_continue",
-      "workspace_controlled_proof_plan_build"
-    ]) {
-      assert.equal(shouldExposeTool("orchestrator", name), false, name);
-      assert.equal(shouldExposeTool("operator", name), false, name);
-    }
-    assert.equal(shouldExposeTool("orchestrator",
-      "workspace_controlled_contract_carrier_patch"), false);
-    assert.equal(shouldExposeTool("orchestrator",
-      "workspace_controlled_contract_authoring_state"), false);
-  });
-
-test("retired full and agent-safe profile names are refused, not translated", () => {
-
+test("current roles use exact central grants, deny retired routes and cannot widen through caller options", () => {
+  assert.deepEqual([...SESSION_ROLE_VALUES].sort(), ["operator", "orchestrator", "redteam", "reviewer", "worker"]);
+  const canonical = policy();
+  assert.deepEqual(Object.keys(canonical.access).sort(), Object.keys(canonical.dispositions).sort());
+  assert.deepEqual(Object.keys(canonical.access).filter(name => shouldExposeTool("orchestrator", name)).sort(), ORCHESTRATOR);
   for (const role of SESSION_ROLE_VALUES) {
-    assert.equal(parseToolProfile({ WIKI_MCP_TOOL_PROFILE: role }), role);
-  }
-  assert.deepEqual([...SESSION_ROLE_VALUES].sort(),
-    ["operator", "orchestrator", "redteam", "reviewer", "worker"]);
-  for (const retired of ["full", "agent-safe"]) {
-    assert.throws(() => parseToolProfile({ WIKI_MCP_TOOL_PROFILE: retired }),
-      new RegExp(`Unsupported WIKI_MCP_TOOL_PROFILE: ${retired}\\.`, "u"));
-
-    for (const name of ["workspace_search_repo", "workspace_validate_dispatch",
-      "workspace_build_search_index", WORKER_COMMIT_TOOL_NAME, SUBMIT_FOR_REVIEW]) {
-      assert.equal(shouldExposeTool(retired, name), false, `${retired} -> ${name}`);
+    for (const [name, roles] of Object.entries(canonical.access)) {
+      assert.equal(shouldExposeTool(role, name, { toolNames: new Set(["forged"]) }), roles.includes(role), `${role}/${name}`);
+    }
+    for (const name of ["forged", "commit", "workspace_submit_for_review", "workspace_read_page", "workspace_agent_dispatch"]) {
+      assert.equal(shouldExposeTool(role, name), false, `${role}/${name}`);
     }
   }
+  assert.equal(shouldExposeTool("worker", "workspace_deliver_work"), true);
+  assert.equal(shouldExposeTool("orchestrator", "workspace_deliver_work"), false);
 });
 
-test("shouldExposeTool ignores any caller-threaded descriptor-derived set", () => {
-
-  assert.equal(
-    shouldExposeTool("reviewer", "workspace_agent_dispatch", {
-      roleToolNames: new Set(["workspace_agent_dispatch"]),
-      agentSafeToolNames: new Set(["workspace_agent_dispatch"])
-    }),
-    false
-  );
-
-  assert.equal(
-    shouldExposeTool("reviewer", "workspace_search_repo", {
-      roleToolNames: new Set(),
-      agentSafeToolNames: new Set()
-    }),
-    true
-  );
+test("missing classifications and grants fail closed independently, including operator", () => {
+  for (const removed of ["access", "dispositions"]) {
+    const mutant = policy();
+    delete mutant[removed].workspace_read_wiki;
+    for (const role of SESSION_ROLE_VALUES) assert.equal(shouldExposeToolFromPolicy(role, "workspace_read_wiki", mutant), false);
+  }
+  const mutant = policy();
+  mutant.access.workspace_read_wiki = mutant.access.workspace_read_wiki.filter(role => role !== "orchestrator");
+  assert.equal(shouldExposeToolFromPolicy("orchestrator", "workspace_read_wiki", mutant), false);
+  assert.equal(shouldExposeToolFromPolicy("operator", "workspace_read_wiki", mutant), true);
+  const unknown = policy(); unknown.schema_version = "session-role-tool-access.v999";
+  assert.throws(() => shouldExposeToolFromPolicy("orchestrator", "workspace_read_wiki", unknown), { code: "session_role_policy_incompatible_schema_version" });
 });
 
-test("an unknown/unmintable profile is exposed nothing (fail closed)", () => {
-  assert.equal(shouldExposeTool("nonsense-role", "workspace_search_repo"), false);
-  assert.throws(() => parseToolProfile({ WIKI_MCP_TOOL_PROFILE: "nonsense-role" }));
-});
-
-test("an absent or empty profile is rejected (fail closed)", () => {
-  for (const env of [
-    {},
-    { WIKI_MCP_TOOL_PROFILE: "" },
-    { WIKI_MCP_TOOL_PROFILE: "   " }
-  ]) {
-    assert.throws(
-      () => parseToolProfile(env),
-      /WIKI_MCP_TOOL_PROFILE is required.*absent or empty profile/s
-    );
+test("both profiles require descriptor visibility independently of role grants", () => {
+  for (const apiKey of [null, {value: "fixture"}]) {
+    const profile = resolveSessionProfile({apiKey});
+    assert.equal(sessionProfileAllowsTool(profile, {kind: "mcp_tool", tier_visibility: []}), false);
+    assert.equal(sessionProfileAllowsTool(profile, {kind: "mcp_tool"}), false);
+    assert.equal(sessionProfileAllowsTool(profile, {kind: "mcp_tool", tier_visibility: [profile.registeredTier]}), true);
   }
 });

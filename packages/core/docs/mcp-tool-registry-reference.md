@@ -10,23 +10,13 @@ Availability is a runtime fact, not a documentation inventory. Registration,
 launcher-minted role and tier visibility, installation, and runtime posture can
 all change the set visible to one session.
 
-Use the two discovery layers for different questions:
-
-| Question | Authoritative live surface |
-| --- | --- |
-| Which repository-local tools are visible and supported for this session, and what authority, side effects, support posture, documentation, and advertised inputs help select one? | `workspace_tools_list` and `workspace_tools_describe`; see [Tool discovery surfaces](tool-discovery-surfaces.md) |
-| What exact request object does a registered MCP tool accept now? | MCP protocol `tools/list`, using that tool's live `inputSchema`; see [Tool input schema publication](mcp-integration.md#tool-input-schema-publication) |
-
-The repository-local descriptor projection is selection metadata. It does not
-own, replace, or certify `tools/list` schema publication. Conversely,
-`tools/list` publishes registered protocol signatures but does not replace the
-repository-local authority, side-effect, support, and documentation guidance.
-
-For a complete role-visible catalog, page `workspace_tools_list` with unchanged
-filters until `has_more` is false, as required by decision. Use targeted
-describe or query calls for detail, then re-read the selected name in
-`tools/list` before invocation. If a name is absent from the current live
-registry, prose elsewhere does not make it callable.
+Use the live MCP `tools/list` declaration for the registered request contract.
+For intent-specific discovery, use the [task surfaces](tool-discovery-surfaces.md):
+`workspace_read_wiki` for canonical material, search and selected authoring
+contracts, `workspace_find_proofs` for proof discovery, and
+`start_agent` previews for capability or selected-action assessment. Follow
+producer-returned references and next calls unchanged. Session role and tier
+grants still apply; retained registrar code does not make a route callable.
 
 Profiles are routing and context-shaping projections, not security
 classifications. They do not independently establish least privilege,
@@ -42,23 +32,11 @@ dispatch and recovery navigation,
 controlled authoring, and [MCP repository model](mcp-repository-model.md) for
 bounded content retrieval.
 
-The current controlled-contract/proof descriptor contributes exactly six
-operations. The central session-role policy classifies every row exactly once.
-Contract requirements, explicit controlled-acceptance disposition, obligations,
-proof selections, and shared cases use the ordinary obligation-coverage query,
-upsert, and remove routes. Discovery, explicit validation, and verification
-complete the public surface. Findings-only roles retain direct read diagnostics,
-while proof execution keeps its independently dispositioned role grants.
-
-`workspace_work_record_edit` is an orchestrator/operator-only, write-capable
-selection entry. Its live `tools/list` schema is mechanically built from
-`WORK_RECORD_EDIT_FIELD_REGISTRY`; the complete field/action/scope/value/owner
-projection and refusal contract are in [Bounded ordinary authored-field
-editor](mcp-operation-reference.md#bounded-ordinary-authored-field-editor).
-Reviewer, worker, and redteam sessions are denied by
-`session-role-tool-access.json`. Task completion is the editor's `task`
-`mark_done` action; no dedicated task setter, scalar setter, or CLI-equivalent
-general editor is registered.
+Saved contract and requirement reads use `workspace_read_wiki`; authoring uses
+`save_record` with the saved unit's selected input contract. Explicit assessment
+uses `workspace_assess_contract`, and proof execution uses `verify_proof` within
+its role grants. `workspace_tools_list`, `workspace_tools_describe` and the old
+scalar/editor endpoints are not registered public routes.
 
 ## Available MCP Resources
 

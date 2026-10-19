@@ -11,7 +11,7 @@ dispatch itself is documented in
 Write the default operator-owned launcher registry:
 
 ```bash
-npm run agent-launch -- init-config
+npx agent-launch init-config
 ```
 
 This creates the workspace-local launcher state under the active workspace
@@ -24,7 +24,9 @@ This creates the workspace-local launcher state under the active workspace
 Launcher authority state is workspace-local (not a machine-global `~/.config`
 location) so it persists across launcher/session restarts in runtimes where
 the user `HOME` is ephemeral but the workspace persists. The `.agent-launch/`
-directory is git-ignored. Resolution never consults `HOME`, `XDG_CONFIG_HOME`,
+directory is ignored by explicit bootstrap and non-dry runtime setup;
+`init-config` alone is not the ignore-rule owner. See
+[local runtime setup](local-test-runtime-setup.md). Resolution never consults `HOME`, `XDG_CONFIG_HOME`,
 or `XDG_STATE_HOME`; the active workspace is the trusted launcher/MCP-supplied
 workspace dir, or the repo root discovered from the process working directory.
 
@@ -36,7 +38,7 @@ The default profiles target:
 If an existing operator config still uses `["claude", "--bare"]`, rerun:
 
 ```bash
-npm run agent-launch -- init-config --force
+npx agent-launch init-config --force
 ```
 
 or update `base_argv` manually to `["claude"]`.

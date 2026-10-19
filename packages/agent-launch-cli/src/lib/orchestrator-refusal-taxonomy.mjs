@@ -4,6 +4,7 @@ export const ORCHESTRATOR_REFUSAL_MODE = "refusal";
 export const ORCHESTRATOR_REFUSAL_ROLE = "orchestrator";
 
 export const ORCHESTRATOR_REFUSAL_REASON_KINDS = Object.freeze({
+  NATIVE_CAPABILITY_UNAVAILABLE: "native_capability_unavailable",
   NO_PRIOR_SESSION: "no_prior_session",
   LOCAL_CONFIG_INVALID: "local_config_invalid",
   WIKI_MCP_UNRESOLVED: "wiki_mcp_unresolved"

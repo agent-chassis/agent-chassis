@@ -5,10 +5,6 @@ import {
   assertLauncherVerifyProofRoleContext,
   executeLauncherVerifyProofReceiptPopulation
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-verify-proof-capability.mjs";
-import {
-  buildWorkerDeclaredTestSuccess,
-  projectWorkerProofBindingPopulation
-} from "../../packages/wiki-mcp/src/lib/worker-declared-test-tool.mjs";
 
 const TARGET = "tests/worker-proof.test.mjs";
 const VERIFICATION = "claim-worker-proof";
@@ -78,54 +74,3 @@ test("worker adapter inherits target confinement and arbitrary-process refusal",
   }), (error) => error.code === "agent_launch.verify_proof.input_invalid.v1");
 });
 
-test("worker projects the declarative selector of every bound proof and nothing executed", () => {
-  const binding = {
-    test_proof_id: "test-proof-worker",
-    verification_claim_id: VERIFICATION,
-    test_selector: { name: "worker proof passes", nesting: 1 }
-  };
-  const population = projectWorkerProofBindingPopulation({
-    verificationIds: [VERIFICATION],
-    selection: { bindings: [binding] }
-  });
-  assert.deepEqual(population, { status: "complete", bindings: [{
-    verification_id: VERIFICATION,
-    test_proof_id: "test-proof-worker",
-    test_selector: { name: "worker proof passes", nesting: 1 }
-  }] });
-  assert.equal(Object.isFrozen(population.bindings[0]), true);
-  assert.equal(JSON.stringify(population).includes("test_id"), false);
-
-  assert.equal(projectWorkerProofBindingPopulation({
-    verificationIds: [VERIFICATION], selection: { bindings: [] }
-  }), null);
-  assert.equal(projectWorkerProofBindingPopulation({
-    verificationIds: [VERIFICATION], selection: { bindings: [binding, binding] }
-  }), null);
-  assert.equal(projectWorkerProofBindingPopulation({
-    verificationIds: [VERIFICATION, "claim-other"], selection: { bindings: [binding] }
-  }), null);
-
-  const result = buildWorkerDeclaredTestSuccess({
-    workspaceRepo: "agent-chassis/agent-chassis",
-    assignedUnit: "WK-2458#SLICE-003",
-    authorizedTargets: [TARGET],
-    verificationIds: [VERIFICATION],
-    result: { ran: true, ok: true },
-    target: TARGET
-  });
-  assert.equal(result.ran, true);
-  assert.equal(result.ok, true);
-  assert.equal(Object.hasOwn(result, "test_proof_runtime_evidence"), false);
-  assert.equal(Object.hasOwn(result, "proof_execution_readiness"), false);
-  const withEvidence = buildWorkerDeclaredTestSuccess({
-    workspaceRepo: "agent-chassis/agent-chassis",
-    assignedUnit: "WK-2458#SLICE-003",
-    authorizedTargets: [TARGET],
-    verificationIds: [VERIFICATION],
-    testProofRuntimeEvidence: [],
-    result: { ran: true, ok: true },
-    target: TARGET
-  });
-  assert.deepEqual(withEvidence.test_proof_runtime_evidence, []);
-});

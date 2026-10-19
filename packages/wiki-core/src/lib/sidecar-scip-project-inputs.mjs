@@ -11,7 +11,7 @@ import {
 export const SIDECAR_PROVIDER_INPUT_RECORD_SCHEMA = "sidecar-provider-input.v2";
 
 export const SIDECAR_PROVIDER_INPUT_FACETS = Object.freeze([
-  "committed_inputs", "tool", "settings", "dependencies", "invocation"
+  "source_inputs", "tool", "settings", "dependencies", "invocation"
 ]);
 
 function canonical(value, identity = false) {
@@ -28,8 +28,8 @@ function text(value, label) {
   return value;
 }
 
-function committedDigest(entries) {
-  if (!Array.isArray(entries)) throw new TypeError("provider input committedEntries must be an array");
+function sourceDigest(entries) {
+  if (!Array.isArray(entries)) throw new TypeError("provider input sourceEntries must be an array");
   const hash = createHash("sha256");
   const seen = new Set();
   for (const entry of [...entries].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)) {
@@ -64,14 +64,14 @@ function invocationFacet(invocation) {
   return { args: [...invocation.args], commit_sensitive: invocation.commit_sensitive };
 }
 
-export function createSidecarProviderInputRecord({ provider, project, committedEntries, tool,
+export function createSidecarProviderInputRecord({ provider, project, sourceEntries, tool,
   settings = {}, dependencies = null, invocation }) {
   if (!Array.isArray(tool)) throw new TypeError("provider input tool must be an array of observations");
   return Object.freeze(structuredClone({
     schema: SIDECAR_PROVIDER_INPUT_RECORD_SCHEMA,
     provider: text(provider, "provider"),
     project: text(project, "project"),
-    committed_inputs: committedDigest(committedEntries),
+    source_inputs: sourceDigest(sourceEntries),
     tool,
     settings: settingsFacet(settings),
     dependencies,

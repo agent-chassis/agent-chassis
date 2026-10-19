@@ -6,11 +6,54 @@ import { applyNativeTestProofCase, authorableNativeCaseTarget, projectAuthoredTe
   NATIVE_TEST_CASE_AMENDMENT_SCHEMA, NATIVE_TEST_CASE_AUTHORING_GUIDANCE, NATIVE_TEST_CASE_SCHEMA } from '../../packages/controlled-contract/lib/native-test-proof-authoring.mjs';
 import { TEST_PROOF_PROVIDER_AUTHORING_FACTS } from '../../packages/controlled-contract/lib/test-proof-provider-registry.mjs';
 import { buildStableTestProofBindingTemplate } from '@agent-chassis/controlled-contract';
+import { isClosedNodeTestTarget } from '../../packages/wiki-core/src/lib/work-record-test-proof-bindings.mjs';
+import { CLOSED_NODE_TEST_TARGET_SCHEMA, isClosedNodeTestTarget as packageTargetPredicate } from
+  '@agent-chassis/controlled-contract/test-proof';
 import { CASE_COMPONENT_REQUEST_PATH, CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH, CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
   CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE, CONTROLLED_CONTRACT_REQUIREMENT_REQUEST_GUIDANCE_LOCATIONS } from '../../packages/wiki-core/src/lib/controlled-contract-tools.mjs';
 const component = { type_term: 'cc:runtime_component', identity: { kind: 'repository_path', repository: 'fixture/repo', path: 'module.mjs' } };
 const create = () => ({ references: [], claims: [], relations: [], test_proofs: [] });
 const apply = (contract, row, caseInput) => applyNativeTestProofCase({ contract, row, caseInput, subject: 'WK-9999', buildTemplate: buildStableTestProofBindingTemplate });
+test('unqualified target authoring agrees with the closed work-record target owner', () => {
+  assert.equal(isClosedNodeTestTarget, packageTargetPredicate, 'the save owner uses the package predicate');
+  assert.deepEqual(NATIVE_TEST_CASE_SCHEMA.properties.target.oneOf[0].properties.path, CLOSED_NODE_TEST_TARGET_SCHEMA);
+  const invalid = ['test/add.test.js', 'test/add.test.cjs', './test.mjs', 'test//add.mjs',
+    '@scope/test.mjs', '-test.mjs', '--test/test.mjs', 'test/./add.mjs', 'test/../add.mjs',
+    '../test.mjs', '/test.mjs', 'test\\add.mjs', 'test/add.mjs\0', '',
+    `${'a'.repeat(4093)}.mjs`];
+  const valid = ['test/add.test.mjs', 'test.mjs', '.hidden/test.mjs', 'test/-add.mjs',
+    'test/.../add.mjs', `${'a'.repeat(4092)}.mjs`];
+  for (const [paths, expected] of [[invalid, false], [valid, true]]) for (const path of paths) {
+    const input = { target: { path, selector: { name: 'add returns the sum' } } };
+    assert.equal(isClosedNodeTestTarget(path), expected, path);
+    assert.equal(validateNativeTestCase(input), expected, path);
+  }
+
+  for (const target of [{}, { selector: {} }, { selector: { name: 'sum' } },
+    { path: 'test/add.test.mjs' }]) assert.equal(validateNativeTestCase({ target }), true);
+  assert.deepEqual(NATIVE_TEST_CASE_AMENDMENT_SCHEMA.properties.target.oneOf[0],
+    NATIVE_TEST_CASE_SCHEMA.properties.target.oneOf[0]);
+  assert.equal(NATIVE_TEST_CASE_AUTHORING_GUIDANCE.target_variants.node_test.path_pattern,
+    NATIVE_TEST_CASE_SCHEMA.properties.target.oneOf[0].properties.path.pattern);
+});
+
+test('closed execution targets leave general JavaScript source modules and qualified targets intact', () => {
+  for (const path of ['src/index.js', 'src/index.cjs']) {
+    const input = { component: { ...component, identity: { ...component.identity, path } },
+      target: { path: 'test/add.test.mjs', selector: { name: 'add returns the sum' } },
+      falsification: { support: 'provider', strategy: 'dependency_failure', module_path: path } };
+    assert.equal(validateNativeTestCase(input), true, path);
+    const derived = apply(create(), { obligation_id: 'OBL-ONE' }, input);
+    assert.equal(derived.system_under_test_boundary.runtime_module_path, path);
+    assert.equal(derived.falsifiers[0].mutation.module_path, path);
+  }
+  for (const path of ['test/add.test.js', 'test/add.test.cjs']) {
+    const target = { provider: { provider_id: 'launcher.jest', provider_version: '1.0.0' },
+      path, selector: { node_id: `${path}::["add returns the sum"]` } };
+    assert.equal(validateNativeTestCase({ target }), true, path);
+    assert.deepEqual(resolveNativeCaseTarget(target).selection, { title_path: ['add returns the sum'] });
+  }
+});
 test('pure native authoring retains supplied partial values without inventing claims or propositions', () => {
   const contract = create(), row = { obligation_id: 'OBL-ONE' };
   const first = apply(contract, row, { observation: { kind: 'return_value' } });

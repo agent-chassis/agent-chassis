@@ -1,6 +1,16 @@
 
 
-export function planProofAuthoringRequirementRetirement({ retirements = [], contract = null }) {
+export function planProofAuthoringRequirementRetirement({ retirements = [], contract = null, prospectiveContract = null }) {
+
+  const prospectiveRows = new Map((prospectiveContract?.authored_requirements?.rows ?? []).map(row => [row.row_id, row]));
+  const retired = new Map(retirements.map(fact => [fact.claim_id, fact]));
+  const correctionRows = (contract?.authored_requirements?.rows ?? []).flatMap(row => {
+    if (!prospectiveRows.has(row.row_id)) return [];
+    const leaving = row.claim_ids.filter(id => retired.has(id));
+    return leaving.length === 0 ? [] : [{ row_id: row.row_id, prior_claim_ids: [...row.claim_ids],
+      retired_claim_ids: leaving, retired_verification_ids: [...new Set(leaving.flatMap(id => retired.get(id).retired_verification_ids))].sort() }];
+  });
+  const correctionIds = new Set(correctionRows.flatMap(row => [...row.retired_claim_ids, ...row.retired_verification_ids]));
   const claims = new Map((contract?.claims ?? []).map(claim => [claim.claim_id, claim]));
   const verified = new Map();
   for (const relation of contract?.relations ?? []) {
@@ -10,6 +20,8 @@ export function planProofAuthoringRequirementRetirement({ retirements = [], cont
   }
   return Object.freeze({
     selections: Object.freeze([...retirements]),
+    correctionRows,
+    correctionIds,
     retiredRequirementIds: new Set(retirements.map(fact => fact.claim_id)),
     retiredVerificationIds: new Set(retirements.flatMap(fact => fact.retired_verification_ids)),
 
@@ -48,6 +60,10 @@ export function reconcileProofAuthoringRequirementRetirement(plan, { sources, ca
       if (use === null) return true;
       const identity = { unit, obligation_id: row.obligation_id, ...(row.case_id ? { case_id: row.case_id } : {}),
         retired_identities: use.retiredIdentities };
+      if (use.retiredIdentities.some(id => plan.correctionIds.has(id))) {
+        conflicts.push({ ...identity, condition: 'row_correction_requires_amendment' });
+        return true;
+      }
       if (use.retires && !amended.has(row.obligation_id)) {
         retiredUses.push(identity);
         return false;

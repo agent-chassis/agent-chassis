@@ -832,6 +832,7 @@ function resolveIterationCompletePopulation(profile, pattern, resultsByPattern,
   const declared = pattern.for_each.complete_population_pattern_id;
   const candidates = (profile.reference_binding_patterns ?? []).filter((candidate) =>
     candidate.comparison === "complete_population" &&
+    candidate.roles.length === 2 &&
     candidate.roles?.[1] === pattern.for_each.population_role &&
     (declared === undefined || candidate.pattern_id === declared)
   );
@@ -1179,9 +1180,10 @@ function evaluateVerificationProfileWithRuntime(
       continue;
     }
     if (pattern.comparison === "complete_population") {
-      const [populationRole, memberRole] = pattern.roles;
+      const [populationRole, ...memberRoles] = pattern.roles;
       const populationReferenceId = binding.bindingByRole.get(populationRole)[0];
-      const memberReferenceIds = binding.bindingByRole.get(memberRole);
+
+      const memberReferenceIds = memberRoles.flatMap((role) => binding.bindingByRole.get(role));
       const populationReference = contract.references.find(
         ({ reference_id: referenceId }) => referenceId === populationReferenceId
       );

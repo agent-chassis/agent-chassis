@@ -5,7 +5,8 @@ import path from "node:path";
 import {
   buildSearchSourceCorpus,
   captureSearchSourceCorpus,
-  projectCapturedWorkRecordEntrySources
+  projectCapturedWorkRecordEntrySources,
+  SEARCH_KIND_FILTER_GUIDANCE
 } from "./search-source-corpus.mjs";
 import { findPassageMatchRange } from "./search-passages.mjs";
 
@@ -618,6 +619,12 @@ export async function loadLexicalSearchIndexForRead(
         })
   };
 }
+
+export const SEARCH_FILTER_MATCH_GUIDANCE = SEARCH_KIND_FILTER_GUIDANCE + ' ' +
+  'type/status/priority/owner/area/initiative match metadata; owner matches owners if owner is absent. ' +
+  'retrieval_role/topic match list members. ' +
+  'canonicality/maintenance_mode/knowledge_role/evidence_stage/retrieval_visibility/lifecycle/sensitivity match facets. ' +
+  'E.g. {kind:issues,status:todo}. Omitted/empty retrieval_visibility excludes suppressed.';
 
 export function matchesSearchFilters(chunk, filters = {}) {
   if (filters.kind && chunk.pageKind !== filters.kind) {

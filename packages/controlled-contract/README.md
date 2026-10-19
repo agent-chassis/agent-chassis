@@ -2,7 +2,9 @@
 
 Deterministic controlled-contract validation and proof-plan assessment.
 
-Version 1.0.0 adds authenticated, pack-owned parameter and construction metadata.
+The package manifest declares version 0.11.0. Package versions, schema versions
+and proof-definition versions are independent identities. This package provides
+authenticated, pack-owned parameter and construction metadata.
 Import `@agent-chassis/controlled-contract/pack-parameters` for
 `loadPackParameterContract`, `validatePackParameterContract`,
 `describePackParameters`, `inspectPackParameterCoverage`,
@@ -12,9 +14,10 @@ WK values and generic instance resolution remain separate consumers.
 
 Current admissions use v3 and bind `parameter_contract_digest`. The proof-intent
 catalog and multi-pack assessment use v2. The catalog publishes one current version per proof: ordinary packs use 4.0.0,
-idempotency and forbidden noninvocation use 5.0.0, and test-validity uses 11.0.0. Named and
+idempotency, forbidden noninvocation and lossless projection use 5.0.0, and test-validity uses 12.0.0. Named and
 exact loads reject other versions with `proof_pack_exact_version_not_current`.
-The work record section below records the prior stage-free cutover baseline.
+The current definition-format section below describes schema and certification
+boundaries; the generated pack index is the complete current version inventory.
 See [durable parameter guidance](../../docs/proof-pack-parameters.md) and the
 [complete generated pack index](../../docs/proof-pack-parameters/index.md).
 
@@ -42,13 +45,13 @@ controlled-contract-select-proof-packs \
 
 controlled-contract-describe-proof-pack \
   --profile-id proof.completeness.lossless-projection \
-  --profile-version 4.0.0 \
+  --profile-version 5.0.0 \
   --intent controlled-proof-intent.lossless-projection
 
 controlled-contract-inspect-proof-pack-bindings \
   --input contract.json \
   --profile-id proof.completeness.lossless-projection \
-  --profile-version 4.0.0 \
+  --profile-version 5.0.0 \
   --intent controlled-proof-intent.lossless-projection
 
 controlled-contract-build-proof-plan \
@@ -260,7 +263,7 @@ choices in a schema-valid `controlled-contract-proof-plan-request.v1` document:
   "selected_packs": [
     {
       "profile_id": "proof.completeness.lossless-projection",
-      "profile_version": "1.0.0",
+      "profile_version": "5.0.0",
       "evaluation_input_path": "lossless-projection.evaluation-input.json"
     }
   ]
@@ -318,11 +321,29 @@ Every admitted assessment, including a one-pack assessment, requires a
 schema-valid `controlled-contract-proof-plan.v1` document. The CLI has no
 single-pack flags and never assigns proof intent implicitly.
 
-`proof.compatibility.behavioral-preservation` is verified from two typed
-behavior reports a real test produces itself and hands to the package-owned
-`verifyBehavioralPreservationReports`; the verification compares complete typed
-observable populations, exact counts, and one selected canonical value pair, and
-asserts nothing about provenance, execution, or proof credit.
+`proof.compatibility.behavioral-preservation@4.0.0` retains its original
+captured full-report byte-equality requirement. Generic assessment returns
+`proof_evaluation_unavailable` with `outcome: unsupported` and zero credit:
+it matches authored declarations but neither binds captures nor invokes the
+supplied-report checker. Mixed assessments continue and remain `not_proven`.
+No requirement or saved binding is replaced with a narrower comparison.
+
+`proof.result-shape.cross-representation-parity@5.0.0` is the independently
+selected declaration comparison: complete declared typed-descriptor populations,
+exact count declarations, one selected canonical-value equality declaration,
+and the associated read/complement verification structure. Its guarantee
+explicitly excludes actual report comparison, captured bytes and implementation
+behavior. Version 4.0.0 is retired; saved selections require explicit refresh
+and receive no automatic credit or binding transfer.
+
+A separate call to `verifyBehavioralPreservationReports` actually reads two
+supplied typed reports. It compares descriptor sets, consistent exact counts,
+selection identity and one selected canonical value pair. Its v2 result retains
+those comparison outcomes in `comparison_matches` and states their scope in
+`comparison_scope`. Matching the selected value while an unselected value differs
+can yield `comparison_matches: true`; full captured-report equality and implementation
+behavioral preservation remain explicitly unsupported with reasons and zero
+credit. No provenance, runtime completeness or general equivalence is established.
 
 ## Evaluator selection trace
 
@@ -383,7 +404,8 @@ reported as not assessed; a different proof pack cannot silently substitute.
 
 ## Compact output
 
-The multi-pack terminal result is intentionally small:
+The following terminal-result excerpt is illustrative and has not been executed
+as part of this README. It shows the planning result shape, not runtime evidence:
 
 ```json
 {
@@ -396,7 +418,7 @@ The multi-pack terminal result is intentionally small:
   "authority": "non_authoritative",
   "per_pack": [{
     "profile_id": "proof.completeness.lossless-projection",
-    "profile_version": "1.0.0",
+    "profile_version": "5.0.0",
     "profile_discrimination": "proven"
   }],
   "diagnostic_count": 0,
@@ -444,7 +466,7 @@ always uses the complete intrinsic stable-v1 vocabulary and its declared algebra
 
 Two independent packs cover different bounded-policy obligations:
 
-- `proof.policy.declared-boundary-record-consistency@1.0.0` checks an exact
+- `proof.policy.declared-boundary-record-consistency@4.0.0` retains the requirement to check an exact
   `caller_asserted` observation record against an exact declared policy and
   captured UTF-8 subjects. Its `declared-boundary-record-consistency.v1`
   transformer applies the closed character/byte/UTF-16 unit and measurement
@@ -453,15 +475,33 @@ Two independent packs cover different bounded-policy obligations:
   table, and emits complete populations and counts bound to the source-set
   digest. `captured_execution_transcript` is a recognized but refused
   provenance value because this package has no mechanism that can establish it.
-- `proof.policy.declared-limit-propagation@1.0.0` checks one exact raw UTF-8
+  Assessment independently matches authored declarations and neither invokes
+  that transformer nor binds its report to the exact source inputs. It therefore
+  reports `proof_evaluation_unavailable`, `outcome: unsupported`, and zero guarantee
+  credit through the shared unsupported outcome. Declaration matches remain
+  visible without guarantee participation. Mixed assessment continues other
+  proofs and cannot report complete success. The transformer and CLI remain
+  usable for their supplied-data checks; the observation stays `caller_asserted`,
+  with no production enforcement claim or authentication prerequisite. Separating
+  declaration matching and transformer verification into independently supported
+  definitions remains later work; the full saved guarantee is unchanged.
+- `proof.policy.declared-limit-propagation@4.0.0` retains the requirement to check one exact raw UTF-8
   guidance artifact against the exact declared policy. Its
   `declared-limit-guidance-propagation.v1` transformer requires exactly one
   plain-decimal value and exact unit token per policy key and refuses missing,
   duplicate, stale, conflicting, substituted, wrong-unit, and unrelated-number
   guidance.
+  Assessment neither invokes the transformer nor binds its report to the exact
+  policy and raw guidance text. It returns the shared unsupported outcome with
+  that specific missing connection and zero guarantee credit. The transformer
+  and CLI retain their supplied-text checks and source-bound reports; matching
+  graph declarations cannot certify captured guidance. Its complete requirement,
+  discovery and authoring remain available. Independent declaration and
+  raw-guidance definitions have not been separated.
 
-Both profiles use projected-evaluation binding for transformer-derived
-case/association-to-limit and limit-to-unit edges. They are independently
+Both profiles declare case/association-to-limit and limit-to-unit edges in the
+projected graph; these declarations alone do not connect assessment to the
+transformer and its sources. They are independently
 selectable and neither entails the other. Neither proves that a captured unit is
 the unit enforced by production code, runtime truth, authority, applicability,
 CCE consequence, or shared policy identity across separate assessments. The
@@ -478,7 +518,7 @@ controlled-contract-derive-declared-limit-guidance-propagation \
 
 ### Exact caller-input authority confinement
 
-`proof.input.caller-authority-confinement@1.0.0` implements
+`proof.input.caller-authority-confinement@4.0.0` implements
 `controlled-proof-intent.caller-input-authority-confinement` with the
 package-owned `caller-input-surface-capture.v1` transformer. It consumes exactly
 five positionally bound canonical artifacts: the closed accepted-input policy,
@@ -516,7 +556,7 @@ the captured policy, exact requests, and required source census.
 
 ### Exact absence-only sound-negative observation
 
-`proof.observation.sound-negative@1.0.0` implements
+`proof.observation.sound-negative@4.0.0` implements
 `controlled-proof-intent.sound-negative-observation` with the package-owned
 `sound-negative-observation-capture.v1` transformer and its
 `observation-contract` projection. Its profile
@@ -548,7 +588,7 @@ evidenced-unavailability proof.
 
 ### Exact supplementary-failure isolation
 
-`proof.failure.supplementary-isolation@1.0.0` implements
+`proof.failure.supplementary-isolation@4.0.0` implements
 `controlled-proof-intent.supplementary-failure-isolation` with the package-owned
 `supplementary-isolation-attempt-record.v1` transformer. It consumes the exact
 attempt, core-settlement, supplementary-failure, and final-result records and
@@ -573,7 +613,7 @@ applicability, evidence authority, or CCE consequence.
 
 ### Exact lexicographic-ordering conformance
 
-`proof.ordering.lexicographic-conformance@1.0.0` is an exact-capture planning
+`proof.ordering.lexicographic-conformance@4.0.0` is an exact-capture planning
 proof pack for
 `controlled-proof-intent.deterministic-lexicographic-ordering`. It binds four
 canonical artifacts—the declared input, complete ordered result, closed ordering
@@ -641,11 +681,11 @@ packs; callers do not choose plausible identities.
 packs, selected explicitly according to policy. It is not an `any_of` profile
 and selection never turns the two policies into simultaneous obligations:
 
-- `proof.pagination.snapshot-consistency@1.0.0` binds every declared page
+- `proof.pagination.snapshot-consistency@4.0.0` binds every declared page
   attempt and returned page to one immutable exact snapshot across a relevant
   live-source mutation, and compares the complete stable and interleaved ordered
   member-occurrence sequences.
-- `proof.pagination.versioned-cursor-refusal@1.0.0` binds cursors and successful
+- `proof.pagination.versioned-cursor-refusal@4.0.0` binds cursors and successful
   pages to their traversal version, then proves that the exact stale next-page
   attempt is refused before any page artifact, return event, cursor advancement,
   protected write, or protected mutation. An unrelated-source control remains
@@ -661,7 +701,7 @@ obligation.
 
 ## Direct-source authentication and provenance
 
-`proof.authentication.direct-source-provenance@1.0.0` binds one exact captured
+`proof.authentication.direct-source-provenance@4.0.0` binds one exact captured
 evidence occurrence, target, singular provenance/source-of-record source, and
 observation attempt. Its four mandatory behaviors are `authenticates`,
 `originates_from`, `has_source_of_record`, and `observed_in`; each has an
@@ -808,9 +848,9 @@ node bin/prepare-validator-cache.mjs --verify   # fail unless an exact artifact 
 node bin/prepare-validator-cache.mjs --json     # emit the status record
 ```
 
-Neither form is a startup prerequisite and neither keeps a second cache. Runtime
-behaviour, recovery, and operator procedure are in
-`the project documentation`.
+Neither form is a startup prerequisite and neither keeps a second cache. Runtime behavior and recovery are described in
+[public validator startup guidance](../../docs/mcp-integration.md#controlled-contract-validator-startup).
+The development-only runbook is not an installed-package prerequisite.
 
 ## Supported public surface
 
@@ -821,7 +861,7 @@ vocabulary, and compact admitted packs. Historical carriers, prototype policy
 tools, pack fixtures, mutation corpora, coverage witnesses, and
 release-certification executables are development sources and are not
 published.
-# Supported native-v1 surface
+## Supported native-v1 surface
 
 The published root and explicit subpaths support only the native
 `controlled-acceptance-contract.v1` family. Stable entrypoints reject
@@ -859,21 +899,25 @@ generic diff, migration, rollback, or audit API. Repository and MCP behavior is
 documented in
 [`docs/mcp-controlled-contract-operations.md`](../../docs/mcp-controlled-contract-operations.md#generation-bound-controlled-contract-refactoring).
 
-## Current proof definition format and certification (work record)
+## Current proof definition format and certification
 
 Proofs are declared during design and consumed after implementation. Definition
 certification checks the adequacy of the reusable definition; it produces no
-implementation evidence. The current definition/input/result schemas are v2.
+implementation evidence. Graph-pattern profile definitions, shared input and planning-result
+schemas use v2; the bounded test-execution definition uses its closed v1 schema.
+Saved-source proof execution results and authored obligation
+coverage use v3. These versions describe separate contracts.
 They contain no `evaluation_stages`, `required_by_stage`, or `evaluation_stage`.
-Every satisfaction leaf is assessed under its substantive applicability and
+Every graph-pattern satisfaction leaf is assessed under its substantive applicability and
 binding semantics. Event ordering, observation intervals, complete populations,
 controlled complements, exclusions and attribution requirements are unchanged.
 There is no default stage, stage rank, inactive-rule credit or stage in a pack
 identity, authoring offer, component selector or verification result.
 
-The seven changed schema contracts are explicitly versioned:
+Current schema identities include:
 
 - `controlled-contract-verification-profile.v2`
+- `controlled-contract-test-execution-profile.v1` (authenticated test execution)
 - `controlled-contract-proof-pack-authoring.v2`
 - `controlled-contract-proof-verification-result.v3` (saved-source execution)
 - `controlled-contract-obligation-coverage.v3` (authored draft)
@@ -882,8 +926,8 @@ The seven changed schema contracts are explicitly versioned:
 - `controlled-contract-component-exclusion-applicability.v2`
 - `controlled-contract-verification-profile-result.v2`
 
-The embedded authoring identity separately advances
-`controlled-contract-proof-pack-selection.v3` and `.v4`.
+Selection uses `controlled-contract-proof-pack-selection.v4`; embedded saved
+authoring selections use their separately declared v3 contract.
 
 Stable-v1 JavaScript evaluator names refer to the controlled-acceptance contract
 and vocabulary family; their current proof definition, input and result formats
@@ -894,64 +938,21 @@ Retired definitions and their certifications are deleted, not kept as a
 compatibility surface; see
 [certification retirement and storage](../../docs/versioning.md#certification-retirement-and-storage).
 
-The complete current census is 38 identities across 37 profile IDs: all 37
-runtime catalog entries, the intent catalog's 39 edges, and the
-verifier's independently pinned test-validity definition. Exact-consumer reads
-also cover the evaluator registry, authoring skeleton, and the behavioral and
-boundary-record consumers; their selections are already in the catalog
-population. `proof.scope.write-confinement` is deactivated as a selectable
-proof and has no catalog entry or controlled intent; the write-confinement
-evidence verifier names its retired 4.0.0 identity for reference only and
-loads no pack; that definition's files are deleted. Test-only execution of the
-superseded implementation-readiness 2.0.0 pin is retired and its files are deleted.
-
-| Definition | Previous version | Current version | Selection owner |
-| --- | --- | --- | --- |
-| `proof.atomicity.failure-boundary` | 2.0.0 | 3.0.0 | catalog |
-| `proof.authentication.direct-source-provenance` | 2.0.0 | 3.0.0 | catalog |
-| `proof.authorization.failed-attempt-nonconsumption` | 2.0.0 | 3.0.0 | catalog |
-| `proof.authorization.refusal-before-effects` | 2.0.0 | 3.0.0 | catalog |
-| `proof.authorization.revocation-propagation` | 2.0.0 | 3.0.0 | catalog |
-| `proof.cancellation.isolation` | 2.0.0 | 3.0.0 | catalog |
-| `proof.compatibility.behavioral-preservation` | 2.0.0 | 3.0.0 | catalog |
-| `proof.completeness.lossless-projection` | 2.0.0 | 3.0.0 | catalog |
-| `proof.concurrency.single-winner-effect` | 2.0.0 | 3.0.0 | catalog |
-| `proof.design.implementation-readiness` | 2.1.0 | 3.0.0 | catalog |
-| `proof.dormancy.nonactivation` | 2.0.0 | 3.0.0 | catalog |
-| `proof.failure.cleanup-noninterference` | 2.0.0 | 3.0.0 | catalog |
-| `proof.failure.retry-convergence` | 2.0.0 | 3.0.0 | catalog |
-| `proof.failure.settlement-and-cleanup` | 2.0.0 | 3.0.0 | catalog |
-| `proof.failure.supplementary-isolation` | 2.0.0 | 3.0.0 | catalog |
-| `proof.idempotency.effect-nonduplication` | 3.0.0 | 4.0.0 | catalog |
-| `proof.input.caller-authority-confinement` | 2.0.0 | 3.0.0 | catalog |
-| `proof.integration.prefix-safety` | 2.0.0 | 3.0.0 | catalog |
-| `proof.lifecycle.bounded-state-stability` | 2.0.0 | 3.0.0 | catalog |
-| `proof.lifecycle.bounded-terminal-stability` | 2.0.0 | 3.0.0 | catalog |
-| `proof.observation.sound-negative` | 2.0.0 | 3.0.0 | catalog |
-| `proof.operation.forbidden-noninvocation` | 4.0.0 | 5.0.0 | catalog |
-| `proof.ordering.lexicographic-conformance` | 2.0.0 | 3.0.0 | catalog |
-| `proof.ordering.visibility-after-durable-settlement` | 2.0.0 | 3.0.0 | catalog |
-| `proof.ownership.exact-isolation` | 2.0.0 | 3.0.0 | catalog |
-| `proof.ownership.fenced-handoff` | 2.0.0 | 3.0.0 | catalog |
-| `proof.pagination.complete-traversal` | 2.0.0 | 3.0.0 | catalog |
-| `proof.pagination.snapshot-consistency` | 2.0.0 | 3.0.0 | catalog |
-| `proof.pagination.versioned-cursor-refusal` | 2.0.0 | 3.0.0 | catalog |
-| `proof.policy.declared-boundary-record-consistency` | 2.0.0 | 3.0.0 | catalog |
-| `proof.policy.declared-limit-propagation` | 2.0.0 | 3.0.0 | catalog |
-| `proof.readiness.before-success` | 2.0.0 | 3.0.0 | catalog |
-| `proof.result-shape.conformance` | 2.0.0 | 3.0.0 | catalog |
-| `proof.result-shape.cross-representation-parity` | 2.0.0 | 3.0.0 | catalog |
-| `proof.scope.write-confinement` | 2.0.0 | 3.0.0 | catalog |
-| `proof.single-use.replay-refusal` | 2.0.0 | 3.0.0 | catalog |
-| `proof.state.bounded-interval-nonmutation` | 2.0.0 | 3.0.0 | catalog |
-| `proof.verification.test-validity` | 2.0.0 | 5.0.0 | catalog |
-| `proof.verification.test-validity` | 4.0.0 | 6.0.0 | exact verifier |
-
-The historical test-validity versions in this cutover table are not supported
-runtime selections. The sole current identity is 8.0.0, with the existing exact
-execution evaluator and certification population (one positive control and nine
-weakenings). Off-catalog evaluator registrations are refused during publication.
-Retired artifacts are deleted; there is no executable compatibility.
+The runtime catalog contains 37 selectable profile identities, each with
+one current exact version. Ordinary profiles use 4.0.0; idempotency, forbidden
+noninvocation and lossless projection use 5.0.0; test-validity uses 12.0.0.
+The verifier consumes that same current test-validity identity. Its closed
+`controlled-contract-test-execution-profile.v1` definition names the existing
+authenticated execution evaluator, with no fixed behavioral graph pattern.
+Native case authoring preserves authored requirement, verification and falsification
+meanings. Definition assessment reports execution pending; passing execution,
+detected mutations and traversal establish no assertion-to-requirement adequacy
+or requirement-satisfaction credit. Retired
+`proof.scope.write-confinement` is not selectable and has no catalog entry.
+Historical cutover tables are not runtime selections. Use the
+[generated current pack index](../../docs/proof-pack-parameters/index.md) or
+`controlled-contract-discover-proof-intents` for the exact current population;
+exact loading refuses obsolete pins instead of supplying compatibility.
 
 `proof-obligation-runtime-resolver` consumes prepared native bindings and shared
 saved-application resolutions. Its v3 results carry the selected definition,
@@ -981,22 +982,12 @@ test support are development-only and never enter the npm tarball. Storage bound
 refusal codes and recovery are defined in
 [Versioning](../../docs/versioning.md#certification-retirement-and-storage).
 
-The complete work record publication executes 1,633 controls and includes 2,195
-negative fixtures and 4,349 coverage witnesses across all 39 definitions.
-Publication authentication checks the exact runtime profile, template and
-admission bytes, the regenerated certification archives, executable dependency
-closures, result digests, and component-applicability companions. Historical identities never enter this
-current executable population.
-
-Stage-only surfaces, mutations and witnesses are removed from the new adequacy
-and negative-corpus formats (experimental v0.2). All unaffected positive,
-mutant, profile-rejection, exclusion and coverage controls remain required.
-Definition versioning does not authorize changes to a substantive guarantee.
-The generator publishes into an empty destination only after all 38 exact
-certifications pass. It refuses a certification directory holding anything besides
-its archive and README.
-Validator schema declarations load independently of admitted catalog snapshots,
-so a schema cutover can be certified before its admissions exist.
+Certification is definition evidence, not delivered-implementation evidence.
+Archived control counts describe their particular certified definition generation;
+they are not current production execution totals. The build executes the current
+certification owners and publishes only authenticated current definitions.
+Validator declarations load independently of the admitted catalog, so schema
+cutovers can be certified before their admissions exist.
 
 ## Proof obligation drafts
 
@@ -1010,8 +1001,9 @@ dependency facts without provider execution. Complete readers use
 `validateObligationCoverageCarrier` on derived v1 mappings and reject raw drafts
 as requiring resolution. No old-source parser or automatic migration is provided.
 
-Package 1.0.0 and existing implemented-capability bindings remain unchanged by
-this local source cutover. Local packaging checks do not authorize a release or
+The package manifest still declares 0.11.0; current source edits are not a
+new npm release. Existing implemented-capability bindings remain separate
+from package version labels. Local packaging checks do not authorize a release or
 republication under an existing release identity.
 
 ### Forbidden-operation noninvocation

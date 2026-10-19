@@ -4,9 +4,9 @@
 
 Two distinct grounded generations are exercised by two distinct grounded attempts of one grounded operation before a grounded cancellation operation targets one generation; after its cancellation result establishes that generation's criterion-conforming cancelled state, the other generation's selected resource state and authority remain preserved and that other attempt later produces a successful result equal to its criterion-conforming expected state.
 
-Profile digest: 1d804848df3b18b1ff1f8f1c3740a957d3e78765483b1796fc7b70277eef13b9. Parameter digest: 9b07d139bab6ced95b0ace8ec88cbae25f88aeaca7b236504b88bd6dc6c05d81.
+Profile digest: 32db67d4f97e768160a26883823c5c325271dba3050cbe8d0eed06a638d8e925. Parameter digest: cf3f534333a24e1eb509271662e9f3ebfafbe490974bd71b83529f8eb834c9ca.
 
-Admission digest: a7bf51f0d64b5f02a4a151a8d43167e0b1014df11185a5cdb1a2f58ac3b39dc3.
+Admission digest: 1733002143059078e726aa57416becb191461bc6ad25fe2eb09f30e8aa41189c.
 
 Roles: 31/31 accounted; 4 owned gaps. Semantic parameters: 27; internal roles: 4.
 

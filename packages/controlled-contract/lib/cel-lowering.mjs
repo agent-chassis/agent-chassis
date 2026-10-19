@@ -8,6 +8,8 @@ import { buildEqualityNormalizationV1 } from './equality-normalization-v1.mjs';
 import { DEFAULT_MANDATORY_MODALITIES } from './native-contract-dag.mjs';
 
 import NATIVE_CONTRACT_SCHEMA_V1 from './stable-contract-schema-v1.mjs';
+import { isValueConstraint, lowerValueSpecification, valueInventoryRows } from './cel-scope-lowering.mjs';
+import { valueReferences } from './controlled-values-v1.mjs';
 
 export const LOWERING_VERSION = 'semantic-builder-cel-lowering.experimental.v4';
 export const STATEMENT_FORM = 'statement';
@@ -65,6 +67,8 @@ const local = term => term.slice(term.indexOf(':') + 1);
 if (canonical(MODALITIES) !== canonical(['MUST', 'MUST_NOT', 'MAY'])) drift('the claim modalities disagree with MUST/MUST_NOT/MAY');
 
 export function definitionMeaning(constraint) {
+  if (constraint.relation?.startsWith('value:')) return constraint.definition
+    ? [...(operators.get(constraint.relation)?.definition_capability ?? [])] : ['subject'];
   if (constraint.form === MEMBERSHIP_FORM) return ['structure', 'population'];
   if (constraint.nature !== 'behavior') return [];
   const operator = operators.get(constraint.relation);
@@ -95,7 +99,7 @@ export function definitionMeaning(constraint) {
 const extraFields = (value, allowed) => Object.keys(value).filter(key => !allowed.includes(key));
 export function unsupportedConstraintQualifiers(constraint) {
   const extras = extraFields(constraint, constraint.form === MEMBERSHIP_FORM
-    ? ['form', 'subject', 'applies', 'clauses'] : ['form', 'nature', 'modality', 'relation', 'subject', 'operands', 'applies']);
+    ? ['form', 'subject', 'applies', 'clauses', 'for_each', 'within'] : ['form', 'nature', 'modality', 'relation', 'subject', 'operands', 'applies', 'definition', 'for_each', 'within']);
   extras.push(...extraFields(constraint.applies, ['mode', 'context']).map(key => `applies.${key}`));
   const mode = modes.get(constraint.applies.mode);
   if (!mode) extras.push('applies.mode');
@@ -105,11 +109,11 @@ export function unsupportedConstraintQualifiers(constraint) {
     if (count < bounds.minimum || (bounds.maximum !== null && count > bounds.maximum)) extras.push('applies.context');
   }
   for (const [index, operand] of (constraint.operands ?? []).entries()) {
-    extras.push(...extraFields(operand, ['reference', 'number', 'boolean', 'range']).map(key => `operands[${index}].${key}`));
-    if (['reference', 'number', 'boolean', 'range'].filter(key => Object.hasOwn(operand, key)).length !== 1) extras.push(`operands[${index}]`);
+    extras.push(...extraFields(operand, ['reference', 'number', 'boolean', 'range', 'value', 'type', 'observation', 'binding']).map(key => `operands[${index}].${key}`));
+    if (['reference', 'number', 'boolean', 'range', 'value', 'type', 'observation', 'binding'].filter(key => Object.hasOwn(operand, key)).length !== 1) extras.push(`operands[${index}]`);
     if (operand.range) extras.push(...extraFields(operand.range, ['minimum', 'maximum']).map(key => `operands[${index}].range.${key}`));
   }
-  for (const [index, clause] of (constraint.clauses ?? []).entries()) extras.push(...extraFields(clause, ['member', 'modality']).map(key => `clauses[${index}].${key}`));
+  for (const [index, clause] of (constraint.clauses ?? []).entries()) extras.push(...extraFields(clause, ['member', 'domain', 'modality']).map(key => `clauses[${index}].${key}`));
   return extras;
 }
 
@@ -143,6 +147,7 @@ export function ruleOf(term) {
   const operator = operators.get(term);
   if (!operator) drift(`relation ${term} is not in the vocabulary`);
   const kind = operator.signature.operand_kind;
+  if (kind === 'value') return { rule: 'typed_value', positional_payloads: operator.signature.positional_payloads };
   const complement = operator.controlled_complement;
   if (operator.population_semantics.kind === 'closed_extensional_relation') return POPULATION_RELATIONS[operator.population_semantics.relation]
     ? { rule: 'population_relation', relation: operator.population_semantics.relation } : { unsupported: 'no_lowering_rule' };
@@ -168,7 +173,7 @@ export function ruleOf(term) {
     ...(operator.multiplicity === 'single_value_per_subject_scope' ? { single: true } : {}) };
   return { unsupported: 'no_lowering_rule' };
 }
-for (const operator of CONTROLLED_VOCABULARY.operators) if ((operator.operand_semantics.ordering === 'significant') !== (ruleOf(operator.term).rule === 'order')) drift(`${operator.term}: operand order is significant exactly where the observation is an order`);
+for (const operator of CONTROLLED_VOCABULARY.operators.filter(row => row.signature.operand_kind !== 'value')) if ((operator.operand_semantics.ordering === 'significant') !== (ruleOf(operator.term).rule === 'order')) drift(`${operator.term}: operand order is significant exactly where the observation is an order`);
 
 const declared = (operator, trait) => operator.algebraic_traits[trait] === true;
 for (const operator of CONTROLLED_VOCABULARY.operators) for (const trait of ['irreflexive', 'symmetric', 'transitive']) if (declared(operator, trait)
@@ -252,6 +257,11 @@ function applicability(applies, read) {
 
 const guarded = (scope, body) => scope === null ? body : scope.except ? `(${scope.holds}) || (${body})` : `!(${scope.holds}) || (${body})`;
 const named = rows => [...new Map(rows.map(row => [row.name, row])).values()].sort((left, right) => left.name < right.name ? -1 : 1);
+
+const knownObservations = names => {
+  const reads = [...new Set(names)].sort();
+  return reads.length ? `size([${reads.map(name => `${name} == ${name}`).join(', ')}]) == ${reads.length}` : null;
+};
 const representativesOf = (key, equality) => new Set([key, ...equality.of(key).map(alias => alias.as)]);
 const relatedSubjects = (left, right, equality) => [...representativesOf(left, equality)].some(key => representativesOf(right, equality).has(key));
 const normalizedKey = (identity, equality, read) => equality.of(identity).reduceRight((otherwise, alias) => {
@@ -261,12 +271,16 @@ const normalizedKey = (identity, equality, read) => equality.of(identity).reduce
 const sameSubject = (left, right, equality, read) => left === right ? 'true'
   : `${normalizedKey(left, equality, read)} == ${normalizedKey(right, equality, read)}`;
 
-function closedExtensions(rows, bindings, equality) {
+function closedExtensions(rows, bindings, equality, relevance = new Map()) {
   const expressions = [];
   const dependencies = [];
   const unresolved = [];
   for (const observed of bindings.filter(row => ['relation', 'value_set'].includes(row.fact))) {
-    const governing = rows.map(row => row.constraint).filter(constraint => constraint.form === STATEMENT_FORM
+    const governing = rows.flatMap(({ constraint }) => [constraint,
+      ...(constraint.form === STATEMENT_FORM && operators.get(constraint.relation)?.algebraic_traits.symmetric
+        ? constraint.operands.filter(operand => operand.reference).map(operand => ({ ...constraint,
+          subject: operand.reference, operands: [{ reference: constraint.subject }] })) : [])])
+      .filter(constraint => constraint.form === STATEMENT_FORM
       && constraint.nature === 'behavior' && relatedSubjects(entityKey(constraint.subject), observed.entity.key, equality)
       && (constraint.relation === observed.relation || (ruleOf(constraint.relation).rule === 'range'
         && ruleOf(constraint.relation).bounds.includes(observed.relation))));
@@ -288,9 +302,11 @@ function closedExtensions(rows, bindings, equality) {
         permits.push(`(${active}) && (${value})`);
       }
     }
-    expressions.push(conformityExpression({ clauses: [] }, observed.name,
-      { permittedPredicate: permits.length ? permits.map(value => `(${value})`).join(' || ') : 'false' }));
-    if (observed.relation === 'number:returns') expressions.push(`${distinctCount(observed.name)} <= 1`);
+    const active = relevance.get(observed.name)?.expression ?? 'true';
+    const relevant = expression => active === 'true' ? expression : `!(${active}) || (${expression})`;
+    expressions.push(relevant(conformityExpression({ clauses: [] }, observed.name,
+      { permittedPredicate: permits.length ? permits.map(value => `(${value})`).join(' || ') : 'false' })));
+    if (observed.relation === 'number:returns') expressions.push(relevant(`${distinctCount(observed.name)} <= 1`));
   }
   return { expressions, bindings: dependencies, unresolved };
 }
@@ -326,7 +342,8 @@ function conditionDefinitions(rows, bindings, equality) {
     }
     dependencies.push(...lowered.flatMap(row => row.bindings));
     const predicate = [...new Set(lowered.map(row => `(${row.expression})`))].join(' && ');
-    consistency.push(`${observed.name} == (${predicate})`);
+    consistency.push(clause('condition_consistency', { subject: observed.entity.key, definition_constraint_ids: candidates.map(row => row.identity) },
+      `${observed.name} == (${predicate})`, [observed.name, ...lowered.flatMap(row => row.bindings.map(binding => binding.name))]));
     definitions.set(observed.name, { constraint_ids: candidates.map(row => row.identity), predicate });
   }
   return { consistency, bindings: dependencies, unresolved, definitions };
@@ -337,6 +354,9 @@ export function lowerConstraint(constraint, aliases = () => []) {
   const unsupported = reason => ({ state: 'unsupported', reason, gap: GAPS[reason] });
   const qualifiers = unsupportedConstraintQualifiers(constraint);
   if (qualifiers.length) return { ...unsupported('qualifier_not_encoded'), qualifiers };
+  if (isValueConstraint(constraint)) return { state: 'lowered', expression: null,
+    force: constraint.definition ? 'structural' : constraint.modality === 'MAY' ? FORCE.permitted : FORCE.mandatory,
+    bindings: [], context_required: 'typed definitions and lexical domains' };
 
   const key = entity => aliases(entityKey(entity)).reduceRight((otherwise, alias) => { read.push(...alias.bindings); return `(${alias.when} ? ${text(alias.as)} : ${otherwise})`; }, text(entityKey(entity)));
   let body;
@@ -367,7 +387,10 @@ export function lowerConstraint(constraint, aliases = () => []) {
 }
 
 const entitiesOf = constraint => [constraint.subject, ...constraint.applies.context, ...(constraint.operands ?? []).filter(row => row.reference).map(row => row.reference),
-  ...(constraint.clauses ?? []).map(clause => clause.member)];
+  ...(constraint.clauses ?? []).flatMap(clause => clause.member ? [clause.member] : []),
+  ...valueReferences([...(constraint.operands ?? []).filter(row => row.value || row.observation || row.binding),
+    ...(constraint.clauses ?? []).flatMap(clause => clause.domain ? [clause.domain] : []), ...(constraint.for_each ?? [])]),
+  ...(constraint.within ? [constraint.within.owner] : [])];
 
 function equalityOf(rows, byKey) {
   const contextOf = applies => ({ mode: applies.mode, operand_reference_ids: applies.context.map(entityKey) });
@@ -406,7 +429,7 @@ const lawOf = (relation, declaration) => ({ relation, declaration, support: decl
 
 const CONTAINS = Object.keys(MEMBERSHIP_CONTAINER).find(term => MEMBERSHIP_CONTAINER[term] === 'subject');
 
-function inputContract(bindings, equality) {
+function inputContract(bindings, equality, conditions, relevance) {
   const clauses = [];
   const extensions = bindings.filter(row => row.fact === 'relation');
   const populations = bindings.filter(row => row.fact === 'members');
@@ -452,10 +475,18 @@ function inputContract(bindings, equality) {
         `!(${alias.when}) || (${coincides(row, other)})`, [...reads, row.name, other.name]));
     }
   }
-  return [...new Map(clauses.map(row => [row.expression, row])).values()].sort((left, right) => left.expression < right.expression ? -1 : 1);
+
+  const scoped = clauses.map(row => {
+    const paths = row.reads.map(name => relevance.get(name)).filter(path => path && path.expression !== 'true');
+    const guards = [...new Set(paths.map(path => path.expression))];
+    return guards.length ? { ...row, expression: `!(${guards.map(value => `(${value})`).join(' && ')}) || (${row.expression})`,
+      reads: [...new Set([...row.reads, ...paths.flatMap(path => path.reads)])].sort() } : row;
+  });
+  return [...new Map([...scoped, ...conditions].map(row => [row.expression, row])).values()].sort((left, right) => left.expression < right.expression ? -1 : 1);
 }
 
 export const EVALUATION = Object.freeze({
+  availability: 'not_provided', capture_completeness: 'not_established_by_generation', satisfaction: 'not_assessed',
   observation: 'One situation. Every binding is the fact of that situation; an expression that reads a binding the observation does not supply does not evaluate, and that is not a truth value.',
   admissible: 'cel.admissible holds of an observation exactly when its bindings satisfy the input contract. An observation it does not hold of is invalid input: it neither conforms nor violates.',
   conformity: 'cel.conformity holds when every applicable mandatory statement and the closed permissions of every governed extension hold. Violating values remain evaluable observations.',
@@ -466,6 +497,30 @@ export const EVALUATION = Object.freeze({
   satisfiability: 'Nothing here says whether any admissible observation conforms. Statements that cannot hold together are all compiled.' });
 
 export function lowerSpecification(rows, { selectedConstraintIds = null } = {}) {
+  if (rows.some(row => isValueConstraint(row.constraint))) {
+    const defined = new Set(rows.filter(row => row.constraint.definition).map(row => JSON.stringify(row.constraint.subject.identity)));
+    const typedRow = row => isValueConstraint(row.constraint) || (['reference:precedes', 'reference:follows'].includes(row.constraint.relation)
+      && [row.constraint.subject, ...row.constraint.operands.map(operand => operand.reference)].some(entity => defined.has(JSON.stringify(entity.identity))));
+    const typedRows = rows.filter(typedRow);
+    const legacyRows = rows.filter(row => !typedRow(row));
+    const typed = lowerValueSpecification(typedRows, { selectedConstraintIds, applicability, knownObservations });
+    const legacySelection = selectedConstraintIds === null ? null : new Set(selectedConstraintIds);
+    if (legacySelection) {
+      const subjects = new Set(typedRows.filter(row => typed.constraints.some(included => included.identity === row.identity)).map(row => JSON.stringify(row.constraint.subject.identity)));
+      for (const row of legacyRows) if (['MUST', 'MUST_NOT'].includes(row.constraint.modality) && subjects.has(JSON.stringify(row.constraint.subject.identity))) legacySelection.add(row.identity);
+    }
+    const legacy = lowerSpecification(legacyRows, { selectedConstraintIds: legacySelection });
+    const hasLegacy = legacy.constraints.length > 0;
+    const complete = typed.unresolved_definitions.length === 0 && typed.conformity !== null
+      && (!hasLegacy || legacy.conformity !== null);
+    return { ...legacy, constraints: [...legacy.constraints, ...typed.constraints],
+      conformity: complete ? hasLegacy ? `(${legacy.conformity}) && (${typed.conformity})` : typed.conformity : null,
+      admissible: complete ? hasLegacy ? `(${legacy.admissible}) && (${typed.admissible})` : typed.admissible : null,
+      bindings: named([...legacy.bindings, ...typed.bindings]), input_contract: [...legacy.input_contract, ...typed.input_contract],
+      unresolved_definitions: [...legacy.unresolved_definitions, ...typed.unresolved_definitions],
+      environment: { ...legacy.environment, ...typed.environment,
+        extension_functions: { ...legacy.environment.extension_functions, ...typed.environment.extension_functions } } };
+  }
   const byKey = new Map();
   let collision = false;
   for (const { constraint } of rows) for (const entity of entitiesOf(constraint)) {
@@ -481,13 +536,27 @@ export function lowerSpecification(rows, { selectedConstraintIds = null } = {}) 
   let closure = collision ? { expressions: [], bindings: [], unresolved: [] } : closedExtensions(rows, observed, equality);
   let conditionsResolved = conditionDefinitions(rows, named([...observed, ...closure.bindings]), equality);
   const governing = new Map();
+
+  const relevanceOf = predicateBindings => {
+    const guards = new Map();
+    const add = (binding, active, reads = []) => {
+      const paths = guards.get(binding.name) ?? new Map();
+      paths.set(active, reads);
+      guards.set(binding.name, paths);
+    };
+    for (const binding of [...observed, ...predicateBindings]) add(binding, 'true');
+    for (const row of governing.values()) for (const binding of row.bindings ?? []) add(binding, row.relevance ?? 'true', row.relevance_reads);
+    return new Map([...guards].map(([name, paths]) => [name, paths.has('true') ? { expression: 'true', reads: [] }
+      : { expression: [...paths.keys()].sort().map(value => `(${value})`).join(' || '), reads: [...new Set([...paths.values()].flat())].sort() }]));
+  };
   while (true) {
     const before = governing.size;
     const previousDependencies = canonical(named([...closure.bindings, ...conditionsResolved.bindings]));
     const contextBindings = named([...observed, ...closure.bindings, ...[...governing.values()].flatMap(row => row.bindings ?? [])]);
     conditionsResolved = conditionDefinitions(rows, contextBindings, equality);
 
-    if (!collision) closure = closedExtensions(rows, named([...contextBindings, ...conditionsResolved.bindings]), equality);
+    const relevance = relevanceOf(conditionsResolved.bindings);
+    if (!collision) closure = closedExtensions(rows, named([...contextBindings, ...conditionsResolved.bindings]), equality, relevance);
     const definitionFacts = named([...contextBindings, ...conditionsResolved.bindings])
       .filter(row => !['applicability', 'denotation'].includes(row.fact));
     for (const row of selectedConstraintIds === null ? [] : whole) {
@@ -496,9 +565,16 @@ export function lowerSpecification(rows, { selectedConstraintIds = null } = {}) 
       if (constraint.form !== MEMBERSHIP_FORM && !(constraint.nature === 'behavior'
         && DEFAULT_MANDATORY_MODALITIES.includes(constraint.modality))) continue;
       const read = [];
+      const relevanceReads = new Set();
       const matches = (row.bindings ?? []).flatMap(binding => definitionFacts.filter(fact => binding.fact === fact.fact
         && binding.relation === fact.relation && relatedSubjects(binding.entity.key, fact.entity.key, equality))
-        .map(fact => sameSubject(binding.entity.key, fact.entity.key, equality, read)));
+        .map(fact => {
+          const same = sameSubject(binding.entity.key, fact.entity.key, equality, read);
+          const path = relevance.get(fact.name);
+          for (const name of path?.reads ?? []) relevanceReads.add(name);
+          const active = path?.expression ?? 'true';
+          return active === 'true' ? same : same === 'true' ? active : `(${active}) && (${same})`;
+        }));
 
       const equalityContext = EQUALITY.has(constraint.relation) && [constraint.subject, ...constraint.operands.map(operand => operand.reference)]
         .some(entity => definitionFacts.some(fact => relatedSubjects(entityKey(entity), fact.entity.key, equality)));
@@ -510,7 +586,7 @@ export function lowerSpecification(rows, { selectedConstraintIds = null } = {}) 
       }
       if (!matches.length && !equalityContext) continue;
       const active = equalityContext || matches.includes('true') ? null : [...new Set(matches)].map(value => `(${value})`).join(' || ');
-      governing.set(row.identity, { ...row, expression: active === null ? row.expression : `!(${active}) || (${row.expression})`,
+      governing.set(row.identity, { ...row, relevance: active ?? 'true', relevance_reads: [...new Set([...read.map(binding => binding.name), ...relevanceReads])].sort(), expression: active === null ? row.expression : `!(${active}) || (${row.expression})`,
         bindings: named([...(row.bindings ?? []), ...read]) });
     }
 
@@ -530,24 +606,26 @@ export function lowerSpecification(rows, { selectedConstraintIds = null } = {}) 
   const bindings = named([...merged.values()]).map(row => definitions.has(row.name) ? { ...row, definition: definitions.get(row.name) } : row);
 
   const omitted = [];
-  const contract = collision ? [] : inputContract(bindings, equality);
+  const consistency = [...new Map([...conditionsResolved.consistency, ...conditionContext.consistency].map(row => [row.expression, row])).values()];
+  const relevance = relevanceOf([...conditionsResolved.bindings, ...conditionContext.bindings]);
+  const contract = collision ? [] : inputContract(bindings, equality, consistency, relevance);
   const unresolvedDefinitions = [...new Map([...closure.unresolved, ...conditionsResolved.unresolved, ...conditionContext.unresolved]
     .map(row => [canonical(row), row])).values()];
   const complete = lowered.length > 0 && lowered.every(row => row.state === 'lowered') && unresolvedDefinitions.length === 0;
   const conjunction = (force, empty) => { const mine = lowered.filter(row => row.force === force); return mine.length ? mine.map(row => `(${row.expression})`).join(' && ') : empty; };
   const all = [...lowered.map(row => row.expression ?? ''), ...closure.expressions, ...contract.map(row => row.expression)];
-  const consistency = [...new Set([...conditionsResolved.consistency, ...conditionContext.consistency])];
-  const conformance = [conjunction(FORCE.mandatory, 'true'), ...closure.expressions.map(expression => `(${expression})`),
-    ...consistency.map(expression => `(${expression})`)].join(' && ');
+  const conformance = [conjunction(FORCE.mandatory, 'true'), ...closure.expressions.map(expression => `(${expression})`)].join(' && ');
 
-  const conditions = bindings.filter(row => row.fact === 'applicability').map(row => row.name);
-  const knownConditions = conditions.length ? `[${conditions.join(', ')}].all(c, c == true || c == false)` : null;
+  const conditionReads = [...new Set([...bindings.filter(row => row.fact === 'applicability').map(row => row.name), ...consistency.flatMap(row => row.reads)])].sort();
+
+  const knownConditions = knownObservations(conditionReads);
+  const admission = contract.length ? contract.map(row => `(${row.expression})`).join(' && ') : 'true';
   return { constraints: lowered.map(row => row.state === 'lowered' ? { identity: row.identity, force: row.force, expression: row.expression, reads: row.bindings.map(entry => entry.name),
     ...(selectedConstraintIds === null || selectedConstraintIds.has(row.identity) ? {} : { role: 'definition_context' }) }
     : { identity: row.identity, expression: null, not_lowered: { reason: row.reason, gap: row.gap, ...(row.qualifiers ? { qualifiers: row.qualifiers } : {}) } }),
 
   conformity: complete ? knownConditions === null ? conformance : `${knownConditions} ? (${conformance}) : false` : null, recommended: complete ? conjunction(FORCE.recommended, null) : null,
-  admissible: complete ? (contract.length ? contract.map(row => `(${row.expression})`).join(' && ') : 'true') : null,
+  admissible: complete ? knownConditions === null ? admission : `${knownConditions} ? (${admission}) : false` : null,
   input_contract: contract, bindings, unresolved_definitions: unresolvedDefinitions, evaluation: EVALUATION,
 
   coverage: { state: omitted.length ? 'omissions' : 'complete', omitted },
@@ -566,6 +644,15 @@ const statement = (relation, operands, more = {}) => ({ form: STATEMENT_FORM, na
 export function loweringInventory() {
   const relations = CONTROLLED_VOCABULARY.operators.map(operator => {
     const rule = ruleOf(operator.term);
+    if (operator.signature.operand_kind === 'value') {
+      const example = lowerValueSpecification(valueInventoryRows(operator, SAMPLE.s, SAMPLE.o));
+      return { relation: operator.term, operand_kind: 'value', operands_per_constraint: 'all, in declared positional order',
+        multiplicity: operator.multiplicity, applicability_modes: 'all', positional_payloads: operator.signature.positional_payloads,
+        type_rule: operator.signature.type_rule, authoring_roles: operator.authoring_roles,
+        ...(example.conformity === null ? { rule: null, not_lowered: example.unresolved_definitions[0]?.reason }
+          : { rule: 'typed_value', must: example.conformity, bindings: example.bindings,
+            input_contract: example.input_contract, input_contract_predicates: [], input_contract_observations: [], environment: example.environment }) };
+    }
 
     const operands = sampleOperands(operator);
     const row = { identity: 'sample', constraint: statement(operator.term, rule.rule === 'order' ? operands : operands.slice(0, 1)) };

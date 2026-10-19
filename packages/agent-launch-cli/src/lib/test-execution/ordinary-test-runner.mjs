@@ -2,13 +2,14 @@
 
 import { lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
+import { stripVTControlCharacters } from "node:util";
 
 import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/test-proof";
 
 import { DEPENDENCY_ECOSYSTEMS } from "../test-runtime-setup/ecosystems.mjs";
 import { enclosingPackage } from "../test-runtime-setup/npm-workspace.mjs";
 import { readinessRecovery } from "../test-runtime-setup/readiness.mjs";
-import { resolveCurrentRunnerRuntime } from "./current-runtime.mjs";
+import { resolveCurrentHarnessRuntime, resolveCurrentRunnerRuntime } from "./current-runtime.mjs";
 import { DEPENDENCY_EXCLUSION_FAILED_CODE, DEPENDENCY_PROJECTION_CONFLICT_CODE, SELECTED_SOURCE_UNAVAILABLE_CODE,
   ensureNpmDependencyProjection, excludeNpmDependencyProjection } from "./dependency-projection.mjs";
 import { SavedTestEntrypointsError, readSavedTestEntrypoints } from "../test-runtime-setup/test-entrypoints.mjs";
@@ -20,6 +21,7 @@ import { configuredExecutableFailure } from "./runtime-inputs.mjs";
 
 export const ORDINARY_TEST_RUN_SCHEMA_VERSION = "ordinary-test-file-run.v1";
 export const ORDINARY_TEST_RUN_CODES = Object.freeze({
+  HARNESS_INVALID: "ordinary_test_harness_invalid",
   REQUEST_INVALID: "ordinary_test_request_invalid",
   TARGET_NO_MATCH: "ordinary_test_target_no_match",
   RUNNER_UNKNOWN: "ordinary_test_runner_unknown",
@@ -33,7 +35,7 @@ export const ORDINARY_TEST_RUN_CODES = Object.freeze({
   SELECTION_UNRESOLVED: "ordinary_test_selection_unresolved"
 });
 
-const REQUEST_FIELDS = Object.freeze(["repositoryRoot", "checkoutRoot", "target", "runner", "environment",
+const REQUEST_FIELDS = Object.freeze(["repositoryRoot", "checkoutRoot", "target", "runner", "harness", "environment",
   "selector", "timeoutMs", "budget"]);
 const GLOB_CHARACTER = /[*?[\]{}]/u;
 const SELECTOR_MAX_LENGTH = 1024;
@@ -91,25 +93,39 @@ function absoluteRoot(value, name) {
   }
 }
 
-function validateRequest(request) {
+function validateRequest(request, expandedLiteral) {
   const unknown = Object.keys(request ?? {}).filter((key) => !REQUEST_FIELDS.includes(key));
   if (request === null || typeof request !== "object" || unknown.length > 0) {
     refuse(ORDINARY_TEST_RUN_CODES.REQUEST_INVALID,
-      "an ordinary test run accepts only its launcher-resolved roots, one file, a runner, an environment, " +
-      "a native selector and its timeout or budget; commands, arguments and environment variables are never inputs",
+      "an ordinary test run accepts launcher-resolved roots, file/runner/selector or harness, environment, " +
+      "and its timeout or budget",
       { unknown_fields: unknown, allowed_fields: REQUEST_FIELDS });
   }
   const { runner, environment = null, selector = null, timeoutMs = DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
     budget = null } = request;
   const repositoryRoot = absoluteRoot(request.repositoryRoot, "repositoryRoot");
   const checkoutRoot = absoluteRoot(request.checkoutRoot, "checkoutRoot");
-  const defect = ordinaryTargetDefect(request.target);
+  const harness = request.harness ?? null;
+  if (harness !== null) {
+    const bad = (message) => refuse(ORDINARY_TEST_RUN_CODES.HARNESS_INVALID, message, { field: "harness" });
+    if (typeof harness !== "object" || Array.isArray(harness) ||
+        Object.keys(harness).some((key) => !["cwd", "argv"].includes(key))) bad("harness accepts only cwd and argv");
+    if (["target", "runner", "selector"].some((key) => request[key] !== undefined && request[key] !== null)) {
+      bad("harness is mutually exclusive with file, runner and selector");
+    }
+    const defect = harness.cwd === "." ? null : ordinaryTargetDefect(harness.cwd, { pattern: true });
+    if (defect !== null) bad(`harness.cwd must be a repository-relative directory: ${defect}`);
+    if (!Array.isArray(harness.argv) || harness.argv.length === 0 || harness.argv.length > 1024 ||
+        harness.argv.some((arg) => typeof arg !== "string" || arg.includes("\0") || arg.length > 32768) ||
+        harness.argv[0].length === 0) bad("harness.argv must name an executable followed by literal arguments");
+  }
+  const defect = harness === null ? ordinaryTargetDefect(request.target, { pattern: expandedLiteral }) : null;
   if (defect !== null) {
     refuse(ORDINARY_TEST_RUN_CODES.TARGET_INVALID, `the target must be one literal repository-relative file: ${defect}`,
       { target: typeof request.target === "string" ? request.target : null });
   }
   const descriptor = TEST_RUNTIME_RUNNER_CATALOG.runners.find(({ name }) => name === runner) ?? null;
-  if (descriptor === null) {
+  if (harness === null && descriptor === null) {
     refuse(ORDINARY_TEST_RUN_CODES.RUNNER_UNKNOWN, `${JSON.stringify(runner)} is not a runtime runner`,
       { runner: typeof runner === "string" ? runner : null,
         runners: TEST_RUNTIME_RUNNER_CATALOG.runners.map(({ name }) => name) });
@@ -126,7 +142,7 @@ function validateRequest(request) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) {
     refuse(ORDINARY_TEST_RUN_CODES.REQUEST_INVALID, "timeoutMs must be a positive integer", { field: "timeoutMs" });
   }
-  return { repositoryRoot, checkoutRoot, target: request.target, descriptor, environment, selector, timeoutMs,
+  return { repositoryRoot, checkoutRoot, target: request.target, harness, descriptor, environment, selector, timeoutMs,
     budget };
 }
 
@@ -181,8 +197,18 @@ export async function resolveTestFileRuntime({ repositoryRoot, checkoutRoot, tar
 }
 
 async function currentRuntime(validated, stage, executionRoot = null) {
-  const resolved = await resolveTestFileRuntime({ ...validated, compilerCache: stage?.compilerCache ?? null,
-    executionRoot, hostPath: executionRoot === null ? undefined : process.env.PATH ?? null });
+  let resolved;
+  if (validated.harness === null) {
+    resolved = await resolveTestFileRuntime({ ...validated, compilerCache: stage?.compilerCache ?? null,
+      executionRoot, hostPath: executionRoot === null ? undefined : process.env.PATH ?? null });
+  } else {
+    const { located, runtime } = await resolveCurrentHarnessRuntime({ ...validated,
+      scratchRoot: executionRoot.scratch, hostPath: process.env.PATH ?? null });
+    resolved = !located.ok ? { ok: false, kind: "route", ...located.failure }
+      : !runtime.ok ? { ...runtime, kind: "runtime", route: located.route }
+        : { ok: true, project: located.project, route: located.route, runtime,
+          cache: { directory: null, choice: "none" } };
+  }
   if (!resolved.ok) {
     refuse(resolved.code, resolved.message, resolved.kind === "runtime"
       ? { ...resolved.detail, route: resolved.route } : resolved.detail, resolved.recovery);
@@ -244,12 +270,15 @@ function* linesFrom(text, from = 0) {
   for (let start = from; start < text.length;) {
     const newline = text.indexOf("\n", start);
     const end = newline < 0 ? text.length : newline;
-    yield { start, line: text.slice(start, end) };
+
+    yield { start, nextStart: end + 1, line: stripVTControlCharacters(text.slice(start, end)) };
     start = end + 1;
   }
 }
 
-function firstErrorLine(text) {
+function firstErrorLine(text, results) {
+
+  if (results[0]?.substantive === true) return failedResultStart(text, results[0], results);
   let fallback = null;
   let listing = false;
   let listed = false;
@@ -272,16 +301,59 @@ function firstErrorLine(text) {
 }
 
 const failedResult = (line) => !PASSING_LINE.test(line) && FAILED_RESULT_LINE.test(line) &&
-  !/^\s*FAIL(?:ED)?\s*$/u.test(line) && !/:\s*$/u.test(line);
+  !/^\s*FAIL(?:ED)?\s*$/u.test(line) && !/:\s*$/u.test(line) &&
+  !/^\s*[✘✗✖✕]\s+\d+\s+problems?\b/u.test(line);
 const WORD_CHARACTER = /[\p{L}\p{N}_]/u;
 
 const resultLine = (line) => PASSING_LINE.test(line) || FAILED_RESULT_LINE.test(line);
 
+const TYPESCRIPT_DIAGNOSTIC = /^[^\s"'`][^"'`\r\n]*\(\d+,\d+\):\s+error TS\d+:/u;
+const GO_DIAGNOSTIC = /^[^\s"'`]+\.go:\d+:\d+:\s+\S/u;
+const ESLINT_ROW = /^\s+\d+:\d+\s+(error|warning)\s+\S/u;
+const FILE_HEADER = /^[^\s"'`][^"'`\r\n]*\.[^\s./\\]+\s*$/u;
+const COLLECTION_HEADER = /^_+ ERROR collecting .+ _+\s*$/u;
+const COLLECTION_END = /^(?:=+\s+.+\s+=+\s*$|!+ Interrupted:)/u;
+const AGGREGATE_RESULT = /^(?:FAIL\s+.+\s+\[build failed\]\s*$|test result: FAILED\.)/u;
+
 function failedResultLines(text) {
   const seen = new Set();
   const lines = [];
+  const diagnostics = [];
+  let file = null;
+  let collection = null;
   let previous = null;
   for (const entry of linesFrom(text)) {
+    const rawLine = () => text.slice(entry.start, Math.min(entry.nextStart, text.length)).replace(/\r?\n$/u, "");
+    if (COLLECTION_HEADER.test(entry.line)) {
+      if (collection !== null) collection.end = entry.start;
+      collection = { ...entry, context: rawLine(), substantive: true };
+      diagnostics.push(collection);
+      file = null;
+      continue;
+    }
+    if (COLLECTION_END.test(entry.line)) {
+      if (collection !== null) collection.end = entry.start;
+      collection = null;
+    }
+    if (collection !== null) {
+
+      if (/^E\s+/u.test(entry.line) && ERROR_STATEMENT.test(entry.line) && collection.errorStart === undefined) {
+        collection.start = entry.start;
+        collection.errorStart = entry.start;
+      }
+      continue;
+    }
+    if (!PASSING_LINE.test(entry.line) && (TYPESCRIPT_DIAGNOSTIC.test(entry.line) || GO_DIAGNOSTIC.test(entry.line))) {
+      diagnostics.push({ ...entry, end: entry.nextStart, substantive: true });
+      file = null;
+      continue;
+    }
+    const lint = file === null ? null : ESLINT_ROW.exec(entry.line);
+    if (lint !== null) {
+      diagnostics.push({ ...entry, end: entry.nextStart, substantive: true, context: file, warning: lint[1] === "warning" });
+      continue;
+    }
+    if (!NO_WORD_LINE.test(entry.line)) file = !PASSING_LINE.test(entry.line) && FILE_HEADER.test(entry.line) ? rawLine() : null;
     if (NO_WORD_LINE.test(entry.line)) continue;
     const result = resultLine(entry.line);
     if (result && previous?.failed !== undefined) previous.failed.listed = true;
@@ -293,7 +365,10 @@ function failedResultLines(text) {
     }
     previous = { result, failed };
   }
-  return lines;
+
+  return diagnostics.length === 0 ? lines : [...diagnostics,
+    ...lines.filter(entry => !AGGREGATE_RESULT.test(entry.line)).map(entry => ({ ...entry, substantive: true }))]
+    .sort((a, b) => Number(a.warning === true) - Number(b.warning === true) || a.start - b.start);
 }
 
 const headingWords = (line) => line.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
@@ -303,19 +378,20 @@ function namePosition(line, words) {
     WORD_CHARACTER.test(line.slice(at + words.length, at + words.length + 1)) ? -1 : at;
 }
 
-function failedResultStart(text, { start, line, listed }, results) {
+function failedResultStart(text, { start, nextStart, line, listed }, results) {
   if (!listed) return start;
   let named = null;
   let past = false;
-  for (const next of linesFrom(text, start + line.length + 1)) {
-    if (resultLine(next.line)) continue;
+  for (const next of linesFrom(text, nextStart)) {
+
+    if (resultLine(next.line) && next.line.trim() !== line.trim()) continue;
     if (!past && NO_WORD_LINE.test(next.line)) continue;
     past = true;
     const words = headingWords(next.line);
     const at = namePosition(line, words);
     if (at < 0) continue;
     let useful = false;
-    for (const following of linesFrom(text, next.start + next.line.length + 1)) {
+    for (const following of linesFrom(text, next.nextStart)) {
       if (NO_WORD_LINE.test(following.line)) continue;
       useful = !resultLine(following.line) &&
         !results.some((result) => namePosition(result.line, headingWords(following.line)) >= 0);
@@ -333,8 +409,10 @@ export function ordinaryFailedResultDiagnostic(text, { failure = null, maxBytes 
   const lines = failedResultLines(text);
   if (failure === null || failure > lines.length) return Object.freeze({ failures: lines.length });
   const start = failedResultStart(text, lines[failure - 1], lines);
-  return Object.freeze({ failures: lines.length, failure, offset: Buffer.byteLength(text.slice(0, start), "utf8"),
-    text: utf8Bounded(text.slice(start), maxBytes, false), total_bytes: Buffer.byteLength(text, "utf8") });
+  return Object.freeze({ failures: lines.length, failure,
+    ...(lines[failure - 1].context === undefined ? {} : { context: lines[failure - 1].context }),
+    offset: Buffer.byteLength(text.slice(0, start), "utf8"),
+    text: utf8Bounded(text.slice(start, lines[failure - 1].end), maxBytes, false), total_bytes: Buffer.byteLength(text, "utf8") });
 }
 
 function utf8Bounded(text, limit, fromEnd) {
@@ -347,10 +425,15 @@ function utf8Bounded(text, limit, fromEnd) {
 
 function captureExcerpt(text, maxBytes) {
   const total = Buffer.byteLength(text, "utf8");
-  const start = firstErrorLine(text);
+  const results = failedResultLines(text);
+  const start = firstErrorLine(text, results);
   if (start !== null) {
-    return { basis: "first_error_line", offset: Buffer.byteLength(text.slice(0, start), "utf8"),
-      text: utf8Bounded(text.slice(start), maxBytes, false), total_bytes: total };
+    return { basis: "first_error_line", selectable: results.length > 0,
+      warning: results[0]?.warning === true, offset: Buffer.byteLength(text.slice(0, start), "utf8"),
+      ...(results[0]?.substantive === true ? { substantive: true,
+        ...(results[0].context === undefined ? {} : { context: results[0].context }) } : {}),
+      text: utf8Bounded(text.slice(start, results[0]?.substantive === true ? results[0].end : undefined), maxBytes, false),
+      total_bytes: total };
   }
   if (total <= maxBytes) return { basis: "whole", offset: 0, text, total_bytes: total };
   const tail = utf8Bounded(text, maxBytes, true);
@@ -369,8 +452,14 @@ export function ordinaryRunDiagnostic(run, { maxBytes = DIAGNOSTIC_EXCERPT_MAX_B
   }
   const captured = ["stderr", "stdout"].filter((source) => typeof run[source] === "string" && run[source].length > 0)
     .map((source) => ({ source, ...captureExcerpt(run[source], maxBytes) }));
-  const chosen = captured.find(({ basis }) => basis === "first_error_line") ?? captured[0];
-  return chosen === undefined ? null : Object.freeze(chosen);
+  const substantive = captured.filter(entry => entry.substantive === true);
+
+  const chosen = substantive.find(entry => !entry.warning) ??
+    (substantive.length === 0 ? undefined : captured.find(entry => entry.selectable && !entry.warning) ?? substantive[0]) ??
+    captured.find(({ basis }) => basis === "first_error_line") ?? captured[0];
+  if (chosen === undefined) return null;
+  const { substantive: preferred, selectable, warning, ...diagnostic } = chosen;
+  return Object.freeze(diagnostic);
 }
 
 const REQUEST_REFUSAL_CODES = new Set(Object.values(ORDINARY_TEST_RUN_CODES));
@@ -387,6 +476,9 @@ export function ordinaryRequestCorrection(result) {
   }
   if (result.code === "test_runtime_runner_not_prepared") {
     return Object.freeze({ fields: Object.freeze(["file", "runner"]) });
+  }
+  if (result.code === ORDINARY_TEST_RUN_CODES.HARNESS_INVALID) {
+    return Object.freeze({ fields: Object.freeze(["harness"]) });
   }
   if (!REQUEST_REFUSAL_CODES.has(result.code)) return null;
   if (result.code === ORDINARY_TEST_RUN_CODES.RUNNER_UNKNOWN && Array.isArray(detail.runners)) {
@@ -468,13 +560,28 @@ async function runTestFileWithRoot(request, stage, executionRoot, started) {
   let associations;
   let prepared;
   try {
-    validated = validateRequest(request);
+
+    validated = validateRequest(request, started !== null);
     const { checkoutRoot, target, descriptor } = validated;
-    const absoluteFile = checkoutFile(checkoutRoot, target, { missing: ORDINARY_TEST_RUN_CODES.TARGET_MISSING,
-      escapes: ORDINARY_TEST_RUN_CODES.TARGET_ESCAPES, notFile: ORDINARY_TEST_RUN_CODES.TARGET_NOT_FILE });
+    if (validated.harness === null) {
+      validated.absoluteFile = checkoutFile(checkoutRoot, target, { missing: ORDINARY_TEST_RUN_CODES.TARGET_MISSING,
+        escapes: ORDINARY_TEST_RUN_CODES.TARGET_ESCAPES, notFile: ORDINARY_TEST_RUN_CODES.TARGET_NOT_FILE });
+    } else {
+      const relative = validated.harness.cwd;
+      let directory;
+      try { directory = realpathSync(path.join(checkoutRoot, relative)); }
+      catch (error) { refuse(ORDINARY_TEST_RUN_CODES.HARNESS_INVALID,
+        `harness.cwd ${relative} cannot be resolved`, { field: "harness", errno: error.code }); }
+      if (directory !== checkoutRoot && !directory.startsWith(`${checkoutRoot}/`)) {
+        refuse(ORDINARY_TEST_RUN_CODES.HARNESS_INVALID, `harness.cwd ${relative} resolves outside the checkout`,
+          { field: "harness" });
+      }
+      if (!lstatSync(directory).isDirectory()) refuse(ORDINARY_TEST_RUN_CODES.HARNESS_INVALID,
+        `harness.cwd ${relative} is not a directory`, { field: "harness" });
+      validated.commandDirectory = directory;
+    }
     prepared = await currentRuntime(validated, stage, executionRoot);
-    associations = savedAssociations(checkoutRoot, descriptor, prepared.project);
-    validated.absoluteFile = absoluteFile;
+    associations = validated.harness === null ? savedAssociations(checkoutRoot, descriptor, prepared.project) : [];
   } catch (error) {
     if (error instanceof OrdinaryRefusal) return refusal(error);
     throw error;
@@ -486,7 +593,8 @@ async function runTestFileWithRoot(request, stage, executionRoot, started) {
   const budget = validated.budget ?? ownedBudget;
   const resolution = [];
   const baseEvidence = (phase) => ({ schema_version: RUN_EVIDENCE_SCHEMA_VERSION, operation: "ordinary_test",
-    phase, target, runner: descriptor.runner_id, raw_exec_enabled: false });
+    phase, ...(validated.harness === null ? { target, runner: descriptor.runner_id, raw_exec_enabled: false }
+      : { harness: validated.harness }) });
 
   const projectDir = project === "." ? checkoutRoot : path.join(checkoutRoot, project);
   let contribution = null;
@@ -530,7 +638,8 @@ async function runTestFileWithRoot(request, stage, executionRoot, started) {
     return run;
   };
   try {
-    const file = project === "." ? target : path.posix.relative(project, target);
+    const subject = validated.harness?.cwd ?? target;
+    const file = project === "." ? subject : path.posix.relative(project, subject);
     if (stage !== null) {
       contribution = await stage.compose({ runtime, project, route, cache, checkout: checkoutRoot, projectDir,
         executionRoot,
@@ -538,7 +647,7 @@ async function runTestFileWithRoot(request, stage, executionRoot, started) {
     }
     const invocationCheckout = contribution?.additions?.copyRoot ?? checkoutRoot;
     const invocationProjectDir = project === "." ? invocationCheckout : path.join(invocationCheckout, project);
-    const invocationAbsoluteFile = path.join(invocationCheckout, target);
+    const invocationAbsoluteFile = validated.harness === null ? path.join(invocationCheckout, target) : null;
     try {
       runtime = provisionInvocationDependencies(runtime, { checkoutRoot, invocationCheckout,
         invocationProjectDir, file });
@@ -550,7 +659,13 @@ async function runTestFileWithRoot(request, stage, executionRoot, started) {
     }
     let plan;
     try {
-      plan = await resolveInstalledRunnerIntegration(descriptor).ordinaryInvocation({ runtime,
+      plan = validated.harness !== null ? {
+        invocation: { command: validated.harness.argv[0], args: validated.harness.argv.slice(1),
+          cwd: validated.commandDirectory },
+        harness: { kind: "repository_command", specification: validated.harness },
+        selection: { owner: "repository_harness", exact: "not_inferred" }
+      } : await resolveInstalledRunnerIntegration(descriptor).ordinaryInvocation({ runtime,
+        repositoryRoot: validated.repositoryRoot,
         checkout: invocationCheckout, projectDir: invocationProjectDir, project, target,
         absoluteFile: invocationAbsoluteFile, file, selector,
         entrypoints: associations, metadata, proof: contribution?.proof ?? null });
@@ -589,10 +704,8 @@ async function runTestFileWithRoot(request, stage, executionRoot, started) {
       run,
       resolution: Object.freeze(resolution),
       identity: Object.freeze({
-        runner: descriptor.name,
-        runner_id: descriptor.runner_id,
-        target,
-        selector,
+        ...(validated.harness === null ? { runner: descriptor.name, runner_id: descriptor.runner_id, target, selector }
+          : { command_harness: validated.harness }),
         project,
         environment: runtime.identity.environment,
         route,

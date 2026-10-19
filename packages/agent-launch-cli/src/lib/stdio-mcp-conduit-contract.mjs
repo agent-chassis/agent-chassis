@@ -66,7 +66,7 @@ function controlledConduitErrorCode(value) {
 }
 
 export const STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION =
-  "stdio-mcp-conduit-lifecycle-vocabulary.v2";
+  "stdio-mcp-conduit-lifecycle-vocabulary.v4";
 export const STDIO_MCP_LIFECYCLE_PROTOCOL_RECOVERY =
   "deploy one coherent build and restart the long-lived backend";
 
@@ -91,7 +91,7 @@ export const STDIO_MCP_CLIENT_READINESS_BLOCKER_REASON =
   "stdio_mcp_client_readiness_failed";
 export const STDIO_MCP_CLEANUP_BLOCKER_REASON = "stdio_mcp_cleanup_failed";
 
-export const STDIO_MCP_CONDUIT_ALLOWED_FAMILIES = Object.freeze(new Set(["claude", "codex"]));
+export const STDIO_MCP_CONDUIT_ALLOWED_FAMILIES = Object.freeze(new Set(["claude", "codex", "agy", "opencode"]));
 export const STDIO_MCP_CONDUIT_ALLOWED_ROLES = Object.freeze(
   new Set(["orchestrator", "worker", "reviewer", "redteam"])
 );
@@ -266,8 +266,7 @@ function composeCleanupResidue(failure, cleanupFailure) {
   };
 }
 
-export function attachStdioMcpConduitLaunchOutcome(supervised, conduit, legacyBuildRefusal) {
-  void legacyBuildRefusal;
+export function attachStdioMcpConduitLaunchOutcome(supervised, conduit) {
   if (!conduit || !supervised || typeof supervised.probe !== "function") {
     return supervised;
   }
@@ -285,9 +284,14 @@ export function attachStdioMcpConduitLaunchOutcome(supervised, conduit, legacyBu
           describeStdioMcpConduitLaunchFailure(conduit),
           cleanupFailure
         );
-        published = failure === null
+        const terminal = failure === null
           ? probed
           : buildStdioMcpConduitTerminalProbe(failure, probed);
+        const generations = projectStdioMcpGenerationFailures(conduit);
+        published = generations.length === 0 ? terminal : Object.freeze({
+          ...terminal,
+          exit: Object.freeze({ ...terminal?.exit, conduit_generation_failures: generations })
+        });
         return published;
       })();
     }
@@ -297,10 +301,49 @@ export function attachStdioMcpConduitLaunchOutcome(supervised, conduit, legacyBu
     ...supervised,
     probe: async () => {
       if (published !== null) return published;
-      const probed = await innerProbe();
+      const observed = await innerProbe();
+      const termination = conduit.launcherTermination ?? null;
+      const probed = termination === null || observed === null || observed === undefined ? observed
+        : { ...observed, exit: { ...observed.exit, launcher_termination: termination } };
       const conduitFailed = describeStdioMcpConduitLaunchFailure(conduit) !== null;
       if (!conduitFailed && !isTerminalStdioMcpConduitProbeResult(probed)) return probed;
       return publishTerminal(probed);
     }
   };
+}
+
+export function projectStdioMcpGenerationFailures(conduit) {
+  return Object.freeze((conduit?.generationFailures ?? []).slice(0, 64).map((record) => {
+    const context = record.streamFailure?.detail ?? null;
+    const phase = context?.phase ?? record.failure?.detail?.phase;
+    const startPhase = ["generation_bootstrap", "generation_authority_descriptor", "generation_spawn"].includes(phase) ? phase : null;
+    const stream = ["stdin", "stdout", "stderr", "readiness"].includes(context?.stream)
+      ? context.stream : null;
+    const errno = typeof context?.errno === "string" && /^[A-Z][A-Z0-9_]{0,63}$/u.test(context.errno)
+      ? context.errno : null;
+    const active = record.activeAtFailure === true;
+    return Object.freeze({
+      generation: Number.isInteger(record.generation) ? record.generation : null,
+      cause_code: controlledConduitErrorCode(record.failure?.code),
+      stream, fd: stream === null ? null : ["stdin", "stdout", "stderr", "readiness"].indexOf(stream),
+      errno, phase: controlledLifecyclePhase(phase) ?? startPhase,
+      active_at_failure: record.activeAtFailure ?? null,
+      effects: Object.freeze({ connection_closed: true, session_shutdown_requested: active }),
+      uncertainty: stream === null
+        ? errno === null ? "trigger_stream_and_errno_unavailable" : "trigger_and_stream_unavailable_errno_observed"
+        : errno === null ? "trigger_and_errno_unavailable_stream_observed" : "trigger_unavailable_stream_and_errno_observed",
+      next_actor: active ? "operator" : "mcp_client",
+      next_action: active ? "restart_failed_session_and_investigate_cause"
+        : "fresh_authenticated_connection_if_required_connection_remains_healthy"
+    });
+  }));
+}
+
+export function renderStdioMcpGenerationFailures(failures) {
+  return failures.map((failure) =>
+    `agent-launch: wiki-MCP generation=${failure.generation} cause=${failure.cause_code} ` +
+    `stream=${failure.stream} fd=${failure.fd} errno=${failure.errno} phase=${failure.phase} ` +
+    `active=${failure.active_at_failure} connection_closed=${failure.effects.connection_closed} ` +
+    `session_shutdown_requested=${failure.effects.session_shutdown_requested} ` +
+    `uncertainty=${failure.uncertainty} next_actor=${failure.next_actor} next_action=${failure.next_action}`);
 }

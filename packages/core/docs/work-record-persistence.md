@@ -42,14 +42,30 @@ existing-slice declaration carries them. The record-unit declaration and the
 birth declaration omit them, and birth is always the record. An existing save
 derives record or slice applicability from the unit address it names
 (`WK-…` or `WK-…#SLICE-…`); no request member selects it. `save_record`
-enforces one closed `changes` branch per address form. It publishes a work item
-once, as the slice-unit declaration, with each slice contract member marked
-slice-unit only; the unit address decides applicability at the server.
+enforces and publishes four closed `changes` branches: root work item, slice
+work item, initiative and decision. `refresh_proofs` appears only on the
+root work-item branch; each slice contract member is marked slice-unit only
+on the slice branch. The unit address decides applicability at the server.
 `workspace_create_record` advertises and enforces the birth declaration. It
 publishes a work item's `initial.requirements` by name with its declaration
 deferred: the complete requirement batch declaration is the
-`requirement_batch_schema` topic of the requirement guidance, readable before
+`["requirement_schema","birth"]` selection of the requirement guidance, readable before
 any record exists, and the server validates the whole batch on creation.
+
+Selected input contracts use the existing `input_contract` member and branch
+selections. A saved unit's authoring jobs and a work-item kind's creation job
+lead to `view: "choices"` when the source publishes branches. Those choices
+include focused member calls and the complete requested member set. Requirement
+birth uses the same capability owner as requirement updates; compilation remains
+unavailable where the serving tier does not grant it.
+
+For `ready_slices`, `branches: {ready_slices: ["create"]}` selects the owner's
+new `key` row and `["update"]` selects its saved `id` row. Birth offers creation
+only. Each selection states its effective scope and includes every referenced
+local definition; all shaping modes, fields and owner constraints of the chosen
+row remain intact. Omission selects the whole member, and selecting both modes
+on an existing unit returns that same whole member. Reading these contracts
+allocates nothing, saves nothing and grants no proof credit.
 
 A slice contract member authored on the record unit or at birth is refused
 before any canonical write or allocation with
@@ -727,6 +743,36 @@ the same combined revision, settled, compensated and maintained exactly as an
 authored change is, and its retry is the same maintenance retry. A refused
 exception, or an ordinary save that names a member which no longer records one,
 is offered the read of the exception contract and no replacement request.
+An explicit root-WK save may carry `changes: {refresh_proofs: true}` alone.
+It refreshes exact selected proof-reference metadata across the root and all
+current slices through the same candidate preparation, combined revision,
+whole canonical source lease, publication participants, compensation and full
+readback. The no-op path also rechecks revisions and definitions. Authored
+inputs, selected versions, execution history and absent sources are preserved.
+The result's `refresh` population counts and exact unit/obligation membership
+are retained by the existing bounded transport; changed-unit membership comes
+only from `effects.semantic_sources_written`.
+Definition assertions run before effects, between participants and after
+commit; they alone cannot claim `changed: false`. Only the pre-effect boundary
+or proven compensation establishes unchanged state. A stale failure preserves
+its actual revision, source-byte or definition cause. Committed readback
+failures retain `published: true`, their publication phase and `retry_safe:
+false`; failed compensation retains uncertainty and surviving effects. Read
+the failure observation and current root state instead of replaying a mutation
+whose publication is established or indeterminate.
+
+Requirement-description source-descriptor reads resolve Git membership and
+hash only the source paths the authored entities name. They reuse the
+checkout-input owner's path, exclusion, file-type, mode and content-identity
+checks. Each assertion reads those sources again, including admitted dirty and
+untracked files, without reading unrelated checkout content on this path.
+This makes source-descriptor checks proportional to the requested source
+population for plain-path and explicit-name descriptions. Entities carrying a
+`scip_symbol` additionally use published-index preparation; when a usable
+published index is available, its freshness check still captures checkout-wide
+inputs. The canonical read lease remains bounded at 60 seconds, and its existing
+ownership, expiry, currentness, publication and compensation rules still apply.
+
 A notes/entry-only work-item save delivers
 a concise receipt with its outcome, unit, revision, actual changed fields and
 entry identities, publication effects, maintenance result and actionable
@@ -753,8 +799,10 @@ saved receipt and not maintenance recovery. It is the recommended call when
 the save names no other, and follows a required omitted-detail retrieval or
 maintenance retry unrecommended. The save does not run the read or issue a
 reference itself, the call is offered only when the registered reader accepts
-it, and a no-op, a refusal, a settlement failure and a maintenance retry offer
-none. A refusal whose owner supplies the exact unit read as its correction
+it. An ordinary no-op and a maintenance retry offer no current-unit read. An
+explicit refresh no-op offers the current root read; a settlement failure with
+established or indeterminate publication offers that read beside its retained
+failure, without replay. A refusal whose owner supplies the exact unit read as its correction
 recommends that read when the registered reader accepts it; an owner call that
 still needs authored members is never completed into a call. A settlement
 failure has no receipt, so its retained failure observation stays recommended;

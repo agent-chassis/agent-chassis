@@ -181,7 +181,7 @@ function caseTargetRebindingBlock(record, selectedUnit, definition, placeholder,
   return null;
 }
 
-export function resolveUnselectedCaseAssociation(pkg, { contract, cases, uses, record, selectedUnit, definition, rows,
+function selectableCaseVerifications(pkg, { contract, cases, uses, record, selectedUnit, definition, rows,
   verificationClaims }) {
   const eligible = [...new Set(rows.flatMap(row => pkg.eligibleCaseVerificationIds(contract, row)))].sort();
   const placeholder = pkg.authoredCaseVerificationId(definition);
@@ -200,6 +200,24 @@ export function resolveUnselectedCaseAssociation(pkg, { contract, cases, uses, r
   }
   const unselectable = new Set(blocked.map(entry => entry.verification_id));
   return { eligible, candidates: eligible.filter(id => !unselectable.has(id)), blocked };
+}
+
+export function resolveUnselectedCaseAssociation(pkg, input) {
+  const association = selectableCaseVerifications(pkg, input);
+  const { cases, uses } = input;
+  const population = cases.filter(definition => definition.verification_id === undefined).map(definition => {
+    const ownUses = uses.filter(use => use.row.case_id === definition.case_id);
+    const candidates = new Set(ownUses.flatMap(use => selectableCaseVerifications(pkg, { ...input,
+      definition, selectedUnit: use.unit, rows: [use.row] }).candidates));
+    return { case_id: definition.case_id, candidates, uses: ownUses.map(use => ({
+      unit: use.unit, obligation_id: use.row.obligation_id }))
+      .sort((a, b) => a.unit.localeCompare(b.unit) || a.obligation_id.localeCompare(b.obligation_id)) };
+  }).sort((a, b) => a.case_id.localeCompare(b.case_id));
+  const competitions = association.candidates.map(verification_id => ({ verification_id,
+    cases: population.filter(entry => entry.candidates.has(verification_id))
+      .map(({ case_id, uses }) => ({ case_id, uses })) }))
+    .filter(entry => entry.cases.length > 1 && entry.cases.some(row => row.case_id === input.definition.case_id));
+  return { ...association, ...(competitions.length === 0 ? {} : { competitions }) };
 }
 
 function unselectedCaseAssociations(pkg, resolved, derived) {

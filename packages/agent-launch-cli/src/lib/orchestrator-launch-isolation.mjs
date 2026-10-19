@@ -135,11 +135,16 @@ function buildOrchestratorBwrapPlanForPosture({
   appStateHomeDir = null,
   homeReadOnlyFiles = [],
   familyRuntimeReadOnlyRoots = [],
+  additionalMaskTmpfsDirs = [],
+  additionalReadOnlyRoots = [],
+  envPolicy = null,
   familyRuntimePolicyProfile = null,
   dispatchWorktreeRoot = null,
   stdioMcpConduit = null,
 
   launchRole = null,
+  registeredTier,
+  publishControlledAcceptanceOptOut = true,
   resolveExecutable = resolveFamilyRuntimeExecutable
 } = {}) {
   if (!isNonEmptyString(repo)) {
@@ -191,11 +196,12 @@ function buildOrchestratorBwrapPlanForPosture({
     cwd: repo,
     env,
 
-    envPolicy: null,
+    envPolicy,
 
     writableRoots: INTERACTIVE_ORCHESTRATOR_COORDINATION_WRITABLE_SUBPATHS
       .map((subpath) => path.join(repo, subpath)),
-    readOnlyRoots: [managedWorktreeReadRoot],
+    readOnlyRoots: [managedWorktreeReadRoot, ...additionalReadOnlyRoots],
+    maskTmpfsDirs: additionalMaskTmpfsDirs,
     runtimeRoots,
     homePolicy,
     familyRuntimeReadOnlyRoots: mergedFamilyRuntimeReadOnlyRoots,
@@ -207,6 +213,8 @@ function buildOrchestratorBwrapPlanForPosture({
 
     installGitStatusWrapper: true,
     launchRole,
+    registeredTier,
+    publishControlledAcceptanceOptOut,
 
     newSession
   });

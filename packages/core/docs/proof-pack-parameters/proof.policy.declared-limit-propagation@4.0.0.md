@@ -4,9 +4,9 @@
 
 For one exact closed declared policy and one exact raw UTF-8 guidance artifact, the package-owned transformer associates every required policy key with exactly one plain decimal value and exact unit token, refuses missing, duplicate, stale, conflicting, substituted, wrong-unit, and unrelated-number guidance, and emits complete policy-key and association populations, exact counts, associations, and one canonical report bound to the exact source-set digest.
 
-Profile digest: faf875026c614c47bc3a6cc8199364eb9178c1c5dccf150511125b351f3e8f4e. Parameter digest: 5e01624605dd7699c79cf0bc8644f22acc8d19c98c11e3d943b3e8e758bcf61b.
+Profile digest: a6f5c27d290bab66daaf33ff66ef14206871027b4ae230c4f1292a395b5025e6. Parameter digest: a0e4004a4541b53322d55525d9591d0bac938901960aae7fdd390290d0ed7c90.
 
-Admission digest: 2ef9f50233ee17f52127d782f8cd50a678cffef0bb542ea52939c1e4fee87abe.
+Admission digest: 6d51b6b4ed740d524c97e229156a3367b1fa8526d32e8ca9ce7533bc8f91fdd3.
 
 Roles: 21/21 accounted; 2 owned gaps. Semantic parameters: 14; internal roles: 7.
 

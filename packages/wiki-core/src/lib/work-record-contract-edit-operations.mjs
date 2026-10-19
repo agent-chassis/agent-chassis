@@ -63,7 +63,8 @@ const ACCEPTANCE_CRITERIA_LIST_SCHEMA = Object.freeze({
   type: "array", items: Object.freeze({ shape: "acceptance_criterion" })
 });
 const ACCEPTANCE_NOTE_LIST_SCHEMA = Object.freeze({
-  type: "array", items: Object.freeze({ shape: "acceptance_note" })
+  type: "array", items: Object.freeze({ shape: "acceptance_note" }),
+  replacement_shape: "repository_tests"
 });
 const REPLACE = Object.freeze(["replace"]);
 const REPLACE_APPEND = Object.freeze(["replace", "append"]);

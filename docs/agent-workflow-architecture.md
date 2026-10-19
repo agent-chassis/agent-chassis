@@ -34,20 +34,23 @@ transfer the first operation's authority or grant the next effect.
 
 ## Discovery
 
-Tool discovery is the authority for runtime availability, request schemas,
-side effects, support state, and durable documentation pointers. Agents call a
-known supported capability directly and use `workspace_tools_list`,
-`workspace_tools_describe`, or the advisory router when the capability or its
-contract is not already known. Registered handlers,
-manifest entries, examples, executable files, and remembered tool names do not
-establish support independently of discovery.
+The connected session's advertised tools and request schemas are the invocation
+contract. MCP `tools/list` advertises that inventory; it is a protocol method,
+not an agent tool to invoke by a different name. Call a known advertised
+operation directly using its current schema, and follow the exact next calls
+returned by its owner. When an operation or its inputs are unknown, consult the
+session's advertised inventory and schemas before calling it. Remembered names,
+checked-in descriptors, examples, and executable files do not establish a
+callable route.
 
-Discovery results describe the current runtime and role. Managed agents receive
-only launcher-selected capabilities, so a coordinator cannot infer a worker's
-tool set from its role name or prompt.
+The server selects visibility and authority for the connected session. Managed
+agents receive only launcher-selected capabilities, so a coordinator cannot
+infer a worker's tool set from its role name or prompt. An absent route grants
+no permission to use a retired alias, an advisory router, or a shell substitute.
 
-See [Tool Discovery v1](tool-discovery.md) and
-[MCP integration](mcp-integration.md).
+See [MCP Operation Reference](mcp-operation-reference.md) for current operations
+and request boundaries, and [MCP repository model](mcp-repository-model.md) for
+repository binding and read ownership.
 
 ## Canonical context
 
@@ -56,14 +59,31 @@ work contracts, decisions, initiatives, sources, and area indexes live in the
 wiki. Generated catalogs and views are retrieval aids rather than independent
 authority.
 
-Natural-language retrieval starts from the wiki catalog and structured wiki
-search. Selected reads preserve the source and selection identity needed to
-interpret their content. Code-index and graph-impact results supplement this
-context with implementation paths, likely tests, and structural relationships;
-they do not override durable documentation or accepted decisions.
+Start with `workspace_read_wiki` using a source offered by the session's schema:
 
-See [MCP repository model](mcp-repository-model.md) and
-[Work-record persistence](work-record-persistence.md).
+- For a known record or document, supply `subject` as its canonical ID or its
+  `docs/` or `wiki/` Markdown document path. JSON storage paths are not subjects.
+- For an unknown record, supply `search` with a `query`, then follow the returned
+  calls to choose the matching resource.
+
+These first reads return compact context and selection calls, not the complete
+document or record. Read complete content by passing the returned `reference`
+with exactly one offered `select` to `workspace_read_wiki`. Follow the owner's
+call unchanged for the field, entry, text, or population needed; a complete
+selection covers that selected content, not every part of the record. A
+reference without `select` returns compact context again. Preserve returned
+references and selection identities rather than constructing them or guessing
+selectors. Reads stay within the server's configured repository and the
+session's grants; no caller repository selector or fallback route expands them.
+
+When the session exposes code-index evidence, its implementation paths, likely
+tests, and structural relationships supplement canonical context. Reading
+canonical material does not require indexing, and index evidence does not
+override durable documentation or accepted decisions.
+
+See [MCP Operation Reference](mcp-operation-reference.md#compact-first-reads-and-authoring)
+for the read contract and [MCP repository model](mcp-repository-model.md#agent-facing-repository-model)
+for source ownership and compact-to-complete delivery.
 
 ## Work and contract authoring
 

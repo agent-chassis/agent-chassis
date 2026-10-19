@@ -16,6 +16,7 @@ import {
 import {
   isDiagnosticValue,
   projectDiagnostic,
+  projectFailureDiagnosis,
   STRUCTURED_DIAGNOSTIC_SCHEMA_VERSION
 } from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
 
@@ -917,7 +918,6 @@ export function projectSafePostcheckMismatchField(error) {
 
 const RAW_OUTPUT_FIELDS = new Set(["stdout", "stderr", "output", "captured_run", "stack",
   "stdout_tail", "stderr_tail"]);
-const DISTILLED_CAUSE_DEPTH = 4;
 
 const VERBATIM_CARRIER_FIELDS = new Set(["exact_returned_policy"]);
 export const DISPATCH_FAILURE_DETAIL_SCHEMA_VERSION = "dispatch_failure_detail.v1";
@@ -933,6 +933,11 @@ function causeLevel(name, message, facts) {
   const level = {};
   if (typeof name === "string") level.name = name;
   if (typeof message === "string") level.message = message;
+  if (["stdout", "stderr", "output"].some(key => facts[key] !== undefined)) {
+    const diagnosis = projectFailureDiagnosis({ ...facts, name, message });
+    level.message = diagnosis.message;
+    level.process_failure = diagnosis;
+  }
   for (const [key, value] of Object.entries(facts)) {
     if (!CAUSE_LEVEL_EXCLUDED.has(key) && !Object.hasOwn(level, key) && isScalar(value)) level[key] = value;
   }
@@ -963,11 +968,23 @@ function structuredDiagnosticValue(carrier) {
     ? distillValue(original, ["value"], []) : original;
 }
 
+function finishCauseChain(chain, originalMessages) {
+  for (let i = chain.length - 2; i >= 0; i -= 1) {
+    const child = originalMessages[i + 1];
+    if (typeof child === "string" && child.length > 0 && typeof chain[i].message === "string" &&
+        typeof chain[i + 1].message === "string" && child !== chain[i + 1].message) {
+      chain[i].message = chain[i].message.split(child).join(chain[i + 1].message);
+    }
+  }
+  return chain;
+}
+
 function distillThrownCauses(error) {
   const chain = [];
+  const originalMessages = [];
   const seen = new Set();
   let current = error;
-  while (current !== null && current !== undefined && chain.length < DISTILLED_CAUSE_DEPTH &&
+  while (current !== null && current !== undefined &&
       !seen.has(current)) {
     if (typeof current !== "object" && typeof current !== "function") {
       chain.push({ value: String(current) });
@@ -980,22 +997,27 @@ function distillThrownCauses(error) {
       break;
     }
     const name = current instanceof Error ? safeRead(current, "name") : undefined;
-    chain.push(causeLevel(name, safeRead(current, "message"), ownScalarFacts(current)));
+    originalMessages.push(safeRead(current, "message"));
+    chain.push(causeLevel(name, originalMessages.at(-1), ownScalarFacts(current)));
     current = safeRead(current, "cause");
   }
-  return chain;
+  return finishCauseChain(chain, originalMessages);
 }
 
 export function distillCapturedCauses(evidence, { nested = false } = {}) {
   const chain = [];
+  const originalMessages = [];
+  const seen = new Set();
   let current = evidence?.value;
-  while (chain.length < DISTILLED_CAUSE_DEPTH) {
+  while (!seen.has(current)) {
     if (current === null || typeof current !== "object") {
       if (chain.length > 0 || current !== undefined) chain.push({ value: current ?? null });
       break;
     }
     const facts = current.properties !== null && typeof current.properties === "object"
       ? current.properties : current;
+    seen.add(current);
+    originalMessages.push(current.message);
     const level = causeLevel(current.name, current.message, facts);
     if (nested) {
       for (const [key, value] of Object.entries(facts)) {
@@ -1008,7 +1030,7 @@ export function distillCapturedCauses(evidence, { nested = false } = {}) {
     if (!Object.hasOwn(current, "cause")) break;
     current = current.cause;
   }
-  return chain;
+  return finishCauseChain(chain, originalMessages);
 }
 
 function isCapturedEvidence(value) {

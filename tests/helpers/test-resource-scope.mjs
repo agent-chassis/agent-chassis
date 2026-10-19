@@ -38,6 +38,16 @@ function labelledCleanupError(label, cause) {
   return error;
 }
 
+export function createTestResourceCleanupHook(owner) {
+  let settlement;
+  return function cleanupOwnedResources() {
+    if (settlement === undefined) {
+      settlement = owner.dispose().finally(() => { owner = null; });
+    }
+    return settlement;
+  };
+}
+
 export function createTestResourceScope({ label = "test-resource-scope", fixtureInstance = null } = {}) {
   let state = "open";
   let disposePromise;

@@ -4,9 +4,9 @@
 
 For one declared lifecycle entity, terminal event, terminal state, and explicit bounded horizon, one complete nonempty horizon-scoped observation population records the terminal state for every observation after the terminal event and before the horizon; complete singleton observed-state and terminal-state populations are equal; and one complete in-horizon reactivation-event population has exact cardinality zero.
 
-Profile digest: 4513f0e6e9a346ee870fcf61a01ea5b0a0b99889ddc9022fb6f08a10688550e0. Parameter digest: 30c85078d0c495a736f1ae5ad4625936d8f04e66072c08afe7eff2f4690c3c3e.
+Profile digest: a795af5d60bbe95adb4d98e55c814b093f9cb861bf75a98105b808a9f3d09c03. Parameter digest: 6188b199b7db00629747b03ebae72a6aeee61cc171c4e211f488cd6748b9a197.
 
-Admission digest: f107a21dc652e66bb638214eee26306a29227a3f1f58f158bbdae9e38bd136ae.
+Admission digest: 191d2f75e480f117aa68337231b340f4f85a460df6b30004358831cac5e8b98e.
 
 Roles: 19/19 accounted; 3 owned gaps. Semantic parameters: 13; internal roles: 6.
 

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { CONTROLLED_VALUE_OPERATORS } from "./controlled-value-operators.v1.mjs";
 
 const VOCABULARY_VERSION = "controlled-contract-vocabulary.v1";
 
@@ -6,7 +7,8 @@ const VALUE_KINDS = [
   ["reference", "An operand that names one grounded controlled reference."],
   ["boolean", "An operand carrying exactly one true or false value."],
   ["number", "An operand carrying exactly one finite numeric value."],
-  ["range", "An operand carrying one inclusive numeric interval with at least one bound."]
+  ["range", "An operand carrying one inclusive numeric interval with at least one bound."],
+  ["value", "An operand carrying one typed value, type, observation selector or lexical binding payload."]
 ].map(([term, definition]) => ({ term, definition }));
 
 const TYPE_TERMS = [
@@ -557,7 +559,8 @@ const OPERATORS = [
   ...authenticationProvenanceOperators,
   ...booleanOperators,
   ...numberOperators,
-  ...rangeOperators
+  ...rangeOperators,
+  ...CONTROLLED_VALUE_OPERATORS
 ];
 
 function canonicalValue(value) {

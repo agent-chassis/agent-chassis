@@ -271,9 +271,7 @@ function bindingDiagnostics(pack, evaluation) {
       actual: actual ?? null
     });
   };
-  expect("pack.profile_digest", pack.profile.schema_version ===
-    "controlled-contract-test-validity-profile.v1"
-    ? canonicalDigest(pack.profile) : profileDigest(pack.profile), pack.profile_digest);
+  expect("pack.profile_digest", profileDigest(pack.profile), pack.profile_digest);
   expect("admission.profile_digest", pack.profile_digest, pack.admission.profile_digest);
   expect("admission.profile_id", pack.profile.profile_id, pack.admission.profile_id);
   expect("admission.profile_version", pack.profile.profile_version,
@@ -327,7 +325,9 @@ function assessmentStages({ contract, evaluationInput, evaluation, diagnostics,
     evaluation.omitted_count === 0;
   const classified = diagnostics.map((diagnostic) => {
     const { detail } = diagnostic;
-    return { ...diagnostic, assessment_stage: runtimeDiagnostic(diagnostic)
+    return { ...diagnostic, assessment_stage: ["proof_evaluation_unavailable",
+      "test_validity_authenticated_execution_required"].includes(detail.code)
+      ? "execution_pending" : runtimeDiagnostic(diagnostic)
       ? absent && validEvaluation &&
         detail.code === "test_validity_witness_population_incomplete"
         ? "execution_pending" : "execution_evidence"
@@ -340,6 +340,10 @@ function assessmentStages({ contract, evaluationInput, evaluation, diagnostics,
     evaluation.pattern_results.every(({ status }) => status === "satisfied");
   const complete = structure === "proven" && admissionValid &&
     (profileDiscrimination === "proven" ||
+      diagnostics.some(({ detail }) => detail.code === "proof_evaluation_unavailable" &&
+        detail.owner_facts.declaration_match.satisfaction === "satisfied") ||
+      validEvaluation && pending === classified.length && diagnostics.some(({ detail }) =>
+        detail.code === "test_validity_authenticated_execution_required") ||
       pending > 0 && pending === classified.length && patternsComplete);
   return {
     diagnostics: classified,
@@ -645,14 +649,21 @@ function requiredNextEvidence({ structure, profileDiscrimination, categories,
     description: "Resolve the reported schema, carrier, or decomposition diagnostics without a more specific mechanical mapping.",
     requiredBindings: ["controlled_contract"]
   }));
-  const runtimeDiagnostics = diagnostics.filter(({ assessment_stage: stage }) =>
-    stage === "execution_pending" || stage === "execution_evidence");
+  const unsupported = diagnostics.find(({ detail }) => detail.code === "proof_evaluation_unavailable");
+  if (unsupported) required.push(action({
+    code: "proof_evaluation_unavailable",
+    description: unsupported.detail.message + " " + unsupported.detail.owner_facts.recovery,
+    requiredBindings: ["supported_guarantee_evaluation"]
+  }));
+  const runtimeDiagnostics = diagnostics.filter(({ assessment_stage: stage, detail }) =>
+    detail.code !== "proof_evaluation_unavailable" &&
+      (stage === "execution_pending" || stage === "execution_evidence"));
   if (runtimeDiagnostics.length > 0) required.push(action({
     code: "test_validity_runtime_evidence_required",
     description: "Resolve the current candidate, observed test inventory and exact runtime-pack prerequisites through the runtime owner, then obtain authenticated candidate, falsifier and traversal observations. Requirements and coverage mappings cannot supply executed evidence.",
     requiredBindings: ["current_execution_candidate", "runtime_test_inventory", "runtime_proof_evidence"]
   }));
-  if (profileDiscrimination === "not_proven" &&
+  if (profileDiscrimination === "not_proven" && !unsupported &&
       (runtimeDiagnostics.length === 0 || diagnostics.some(
         ({ assessment_stage: stage }) => stage === "authoring"))) required.push(action({
     code: "admitted_profile_remediation",
@@ -664,7 +675,7 @@ function requiredNextEvidence({ structure, profileDiscrimination, categories,
     description: "Run an admitted, adequacy-verified proof profile against the controlled graph.",
     requiredBindings: ["immutable_proof_pack", "evaluation_input"]
   }));
-  if (categories.outside_selected_profile.length > 0) required.push(action({
+  if (categories.outside_selected_profile.length > 0 && !unsupported) required.push(action({
     code: "mandatory_claims_outside_profile",
     description: "Provide separate evidence or an admitted profile covering each mandatory claim outside the selected profile.",
     subjectIds: categories.outside_selected_profile.map(({ claim_id: id }) => id),
@@ -773,12 +784,15 @@ function projectContractAssessment({
     ? sortByKey(contractSnapshot.residue.map(clone), "residue_id")
     : [];
   const residueStatus = residueAxis(residue);
+  const unsupportedEvaluation = evaluation?.diagnostics?.find(
+    ({ code }) => code === "proof_evaluation_unavailable");
   const rawDiagnostics = [
     ...collectDiagnostics(structuralSnapshot, evaluation, bindings),
 
     ...(profileDiscrimination === "proven" ? [] :
-      (evaluation?.pattern_results ?? []).filter(({ status }) =>
-        ["unsatisfied", "indeterminate"].includes(status)).map((result) => ({
+      (evaluation?.pattern_results ?? []).filter(({ status, pattern_id: id }) =>
+        ["unsatisfied", "indeterminate"].includes(status) &&
+        !unsupportedEvaluation?.owner_facts.declaration_match.satisfied_pattern_ids.includes(id)).map((result) => ({
         source: "admitted_profile_evaluation",
         detail: { code: "assessment_pattern_not_satisfied",
           pattern_id: result.pattern_id, pattern_kind: result.pattern_kind,
@@ -848,7 +862,9 @@ function projectContractAssessment({
     overall_code: overallCode(structure, profileDiscrimination, residueStatus),
     verification_scope: {
       graph_edge_coverage: "assessed",
-      proof_plan_discrimination: admissionValid
+      proof_plan_discrimination: admissionValid && !evaluation?.diagnostics?.some(
+        ({ code }) => ["proof_evaluation_unavailable",
+          "test_validity_authenticated_execution_required"].includes(code))
         ? "assessed_by_admitted_profile"
         : "not_assessed"
     },

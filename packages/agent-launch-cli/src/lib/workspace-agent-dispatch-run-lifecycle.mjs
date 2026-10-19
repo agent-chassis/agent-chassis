@@ -54,6 +54,7 @@ function assembleRunLifecycle(ctx, projectRunRecord) {
     releaseManagedRunSubjectReservationForLaunch = null,
 
     resolveCanonicalAdmissionReviewRecord = null,
+    readManagedRunCompletion = null,
     publishManagedRunResult = null
   } = ctx;
 
@@ -64,7 +65,7 @@ function assembleRunLifecycle(ctx, projectRunRecord) {
   }
   const onLaunchCompletion = (record, completion) => subscribeRunCompletion(record, completion, {
     clock, captureSliceReviewTerminalResult, settleFormalReviewAttestation, publishManagedRunResult,
-    assessManagedRunResult, projectRunRecord, captureRunOriginal: ctx.captureRunOriginal ?? null,
+    assessManagedRunResult, readManagedRunCompletion, projectRunRecord, captureRunOriginal: ctx.captureRunOriginal ?? null,
     publishManagedRunOriginal: ctx.publishManagedRunOriginal ?? null,
     publishManagedReviewOriginal: ctx.publishManagedReviewOriginal ?? null
   });
@@ -91,6 +92,7 @@ function assembleRunLifecycle(ctx, projectRunRecord) {
     releaseManagedRunSubjectReservationForLaunch,
     resolveCanonicalAdmissionReviewRecord,
     publishManagedRunResult,
+    readManagedRunCompletion,
     assessManagedRunResult,
     projectRunRecord,
     onLaunchCompletion

@@ -334,7 +334,7 @@ const INTEGRATION_CLOSEOUT_CONTINUATION = Object.freeze({
     Object.freeze({ order: 1, action: "resume_original_worker_monitor", state: "current" })
   ]),
   monitor_resumption: Object.freeze({
-    tools: Object.freeze(["workspace_agent_run_status"]),
+    tools: Object.freeze(["get_run_result"]),
     subject_source: "canonical_integrated_slice",
     subject_included: false,
     instruction: "Observe the canonical slice subject; include attempt_id only when status reports ambiguity."

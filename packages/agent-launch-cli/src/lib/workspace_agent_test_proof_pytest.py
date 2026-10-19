@@ -249,7 +249,14 @@ def _install_fault(fault):
 
     class FaultFinder(importlib.abc.MetaPathFinder):
         def find_spec(self, fullname, path, target=None):
-            spec = importlib.machinery.PathFinder.find_spec(fullname, path)
+            # Respect the shared candidate binding and editable finders too.
+            spec = None
+            for finder in sys.meta_path:
+                if finder is self or not hasattr(finder, 'find_spec'):
+                    continue
+                spec = finder.find_spec(fullname, path, target)
+                if spec is not None:
+                    break
             if spec is None or not spec.has_location or spec.origin is None:
                 return None
             if os.path.realpath(spec.origin) != fault.absolute:

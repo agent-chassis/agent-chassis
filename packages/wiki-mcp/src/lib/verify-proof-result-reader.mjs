@@ -4,11 +4,10 @@ import { isDeepStrictEqual } from "node:util";
 import { activeMcpInlineByteLimit, measureMcpInlineResultBytes } from "./mcp-response.mjs";
 import { selectedResponseDeliveryBound } from "./selected-response-snapshot.mjs";
 import { projectVerifyProofSelectedDetail, selectVerifyProofRows } from "./verify-proof-result-detail.mjs";
-import { projectVerifyProofSummary } from "./verify-proof-result-summary.mjs";
+import { publicSelectedDetail, authoringCorrectionCalls } from "./verify-proof-result-summary.mjs";
+import { projectVerifyProofExecutionResponse } from "./verify-proof-execution-response.mjs";
 import { projectPublicVerifyProofRefusal, selectedVerifyProofSourceChoice,
   verifyProofSourceAmbiguityChoices } from "./dispatch-run-proof-verification.mjs";
-
-const RESULT_SUBJECT_CHOICE_LIMIT = 50;
 
 export function requestedVerifyProofSource(args) {
   return args.source === undefined ? null : { unit: args.source.unit,
@@ -37,7 +36,7 @@ function resultSubjectChoices(evidence) {
     .sort();
 }
 
-export function readVerifyProofOriginal({ original, request, decoration, calls, refuse, responseEnv }) {
+export function readVerifyProofOriginal({ original, request, decoration, calls, refuse, responseEnv, selectedSubject = false }) {
   const { kind, record } = original;
   const sourceChoices = kind === "refusal" ? verifyProofSourceAmbiguityChoices(record) : null;
   if (request.source !== null && sourceChoices === null &&
@@ -55,17 +54,23 @@ export function readVerifyProofOriginal({ original, request, decoration, calls, 
     ...decoration } };
   }
   const admission = verifyProofAnswerAdmission(responseEnv, decoration);
-  if (request.subject === original.subject) {
-    const summary = projectVerifyProofSummary(record, { ...admission, detailCall: calls.detail,
+  if (request.subject === original.subject && (!selectedSubject || selectVerifyProofRows(record, request.subject).length === 0)) {
+    const summary = projectVerifyProofExecutionResponse(record, {
+      population: selectedSubject,
+      ...(selectedSubject ? { fits: () => true, selectedFits: () => true } : admission), detailCall: calls.detail,
       selectedSubject: request.subject });
     return { kind: "answer", value: { ...summary, ...decoration } };
   }
   if (selectVerifyProofRows(record, request.subject).length === 0) {
     const choices = resultSubjectChoices(record);
     throw refuse("subject_not_in_result", { held: kind, selection: { result_digest: record.result_digest,
-      choices: choices.slice(0, RESULT_SUBJECT_CHOICE_LIMIT), choice_count: choices.length } });
+      choices, choice_count: choices.length } });
   }
 
-  return { kind: "answer", value: { ...projectVerifyProofSelectedDetail(record, request.subject,
-    { fits: admission.selectedFits }), ...decoration } };
+  const selected = publicSelectedDetail(projectVerifyProofSelectedDetail(record, request.subject,
+    { completeDiagnosis: true }));
+  const nextCalls = authoringCorrectionCalls({
+    ...(request.subject === original.subject && record.recovery !== undefined ? { recovery: record.recovery } : {}),
+    proof_results: selectVerifyProofRows(record, request.subject) });
+  return { kind: "answer", value: { ...selected, ...decoration, next_calls: nextCalls } };
 }

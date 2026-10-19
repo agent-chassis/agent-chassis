@@ -4,9 +4,9 @@
 
 For one declared resource and fence, complete declared predecessor attempt and effect populations precede the fence under one predecessor authority and epoch; successor activation and complete declared successor attempt and effect populations follow the fence under one distinct successor authority and epoch; every complete declared post-fence predecessor attempt is refused and writes or mutates no declared protected resource; the complete post-fence predecessor protected-effect and dual-active observation populations are empty; and distinct observations ordered around the fence record the corresponding predecessor and successor authority, epoch, and resource.
 
-Profile digest: 599f9755af61ffb2b62d2d132f4f64e73d5ee8c26fd0d3587fa3d7139343c898. Parameter digest: cd71b2cfd7c3e07e69f8350a077865423b77d9267b1002520f74c4ecc3d879f2.
+Profile digest: d213337cf01ea3d81d73d6c69c5e4a1fbc87570b27ca8b49f581453ea97aa267. Parameter digest: 52acb3ff13ba705a1fe54177bf5a19b05f4c074fddafa9e1ff853eed63928345.
 
-Admission digest: 4defd76a24c13a3aed8ba8c2fe360fed1f56d77133eb6ba8ab5cc9486ddacdab.
+Admission digest: 629bad872cdddf11dbe7e035f6e1abda416ea3f110f023c6ec0c06258db5ff57.
 
 Roles: 42/42 accounted; 6 owned gaps. Semantic parameters: 28; internal roles: 14.
 

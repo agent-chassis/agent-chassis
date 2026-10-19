@@ -71,6 +71,41 @@ export function planAcceptanceNarrativeValidation({
       path
     );
   }
+  const commands = action === "replace" && requested !== null && typeof requested === "object" &&
+    !Array.isArray(requested);
+  if (commands) {
+    if (!Array.isArray(requested.repository_tests) ||
+        Object.keys(requested).some(key => !["repository_tests", "notes"].includes(key)) ||
+        (Object.hasOwn(requested, "notes") && !Array.isArray(requested.notes))) {
+      return narrativeInputRefusal(`${path} must contain repository_tests and optional notes only`, path);
+    }
+    const projected = projectWorkRecordTestProofValidation({
+      selectedUnit: { acceptance: { validation: requested.repository_tests } }, path: `${path}.repository_tests`
+    });
+    if (projected.status !== "valid" || projected.entry_kinds.some(kind => kind !== "repository_test")) {
+      const issue = projected.diagnostics[0];
+      return { ok: false, diagnostic: mechanicalDiagnostic(issue?.code ?? "repository_test_operation_invalid",
+        issue?.message ?? `${path}.repository_tests accepts only repository_test declarations`, issue?.path ?? path) };
+    }
+    const stored = projectWorkRecordTestProofValidation({ selectedUnit: { acceptance: { validation: current } },
+      path: storedPath });
+    if (stored.status !== "valid") {
+      const issue = stored.diagnostics[0];
+      return { ok: false, diagnostic: mechanicalDiagnostic(issue.code, issue.message, issue.path,
+        { state: "corrupt_stored_validation" }) };
+    }
+
+    const notes = planAcceptanceNarrativeValidation({ current,
+      requested: requested.notes ?? current.filter(entry => typeof entry === "string" || entry?.note !== undefined),
+      action, path: `${path}.notes`, storedPath });
+    if (!notes.ok) return notes;
+    if (!notes.changed && jsonEqual(stored.repository_tests, requested.repository_tests)) {
+      return { ok: true, changed: false, validation: cloneJson(current) };
+    }
+    const validation = [...notes.validation.filter(entry => entry?.operation !== "repository_test"),
+      ...cloneJson(requested.repository_tests)];
+    return { ok: true, changed: !jsonEqual(current, validation), validation };
+  }
   if (action === "replace" && !Array.isArray(requested)) {
     return narrativeInputRefusal(`${path} must be an array of acceptance notes`, path);
   }
@@ -103,7 +138,7 @@ export function planAcceptanceNarrativeValidation({
   if (jsonEqual(storedNotes, items)) {
     return { ok: true, changed: false, validation: cloneJson(current) };
   }
-  const executables = current.filter((_entry, index) => stored.entry_kinds[index] === "executable");
+  const executables = current.filter((_entry, index) => stored.entry_kinds[index] !== "note");
   return { ok: true, changed: true, validation: [...cloneJson(items), ...cloneJson(executables)] };
 }
 

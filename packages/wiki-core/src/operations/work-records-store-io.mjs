@@ -349,7 +349,8 @@ async function maintainRecordOwnedAdmissionArtifacts({
   retainedPaths = [],
   recordStore = null,
   instrumentation = null,
-  unlinkArtifact = unlink
+  unlinkArtifact = unlink,
+  eligiblePaths = null
 }) {
   const recordId = typeof record?.id === "string" ? record.id : null;
   const report = {
@@ -441,6 +442,7 @@ async function maintainRecordOwnedAdmissionArtifacts({
   if (mode !== "remove") return report;
 
   for (const relativePath of [...candidates, ...report.stages]) {
+    if (eligiblePaths !== null && !eligiblePaths.has(relativePath)) continue;
     countMaintenance(instrumentation, "unlink_attempt_count");
     try {
       await unlinkArtifact(path.resolve(targetDir, relativePath));
@@ -464,6 +466,19 @@ async function maintainRecordOwnedAdmissionArtifacts({
       }
     )
   };
+}
+
+export async function recoverWorkRecordAdmissionArtifactCleanup({ dir, id, paths }) {
+  const targetDir = path.resolve(String(dir));
+  if (!/^WK-\d{4,}$/u.test(id) || !Array.isArray(paths) || paths.some(entry => typeof entry !== 'string')) {
+    throw new TypeError('Artifact cleanup recovery requires its retained work-record subject and paths');
+  }
+  return withWorkRecordWriteLock(targetDir, async () => {
+    const loaded = await loadWorkRecordByPath({ dir: targetDir, path: getWorkRecordPath(targetDir, id) });
+    if (!loaded.valid) throw Object.assign(new Error('Current canonical references could not be established for cleanup'),
+      { code: 'cleanup_reference_record_unavailable' });
+    return maintainRecordOwnedAdmissionArtifacts({ targetDir, record: loaded.record, mode: 'remove', eligiblePaths: new Set(paths) });
+  });
 }
 
 async function restoreBirthAdmissionArtifact(targetDir, publication) {

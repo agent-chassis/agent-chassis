@@ -11,6 +11,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
+import { publishBooleanLiteralSchema } from "../../packages/wiki-mcp/src/lib/published-boolean-literal-schema.mjs";
 
 import {
   createRegisterTool,
@@ -59,6 +60,7 @@ import { createSaveRecordInputContract, saveRecordUnitVariant } from
 import { createRequire } from "node:module";
 import { INPUT_SCHEMA_EXPOSURE_CODES } from "../../packages/wiki-mcp/src/lib/input-schema-exposure.mjs";
 import { createSaveRecordInputExposure } from "../../packages/wiki-mcp/src/lib/save-record-input-exposure.mjs";
+import { WORK_ITEM_SLICE_CONTRACT_MEMBERS } from "../../packages/wiki-core/src/lib/record-authoring-schema.mjs";
 
 const AUTHORITATIVE = z.object({
   unit: z.string().regex(/^WK-[0-9]{4}$/u),
@@ -90,7 +92,7 @@ function createBoundary({
   toolNames = [toolName],
   toolProfile = "operator",
   registeredTier = "paid_cce",
-  freeLocalToolNames = toolNames,
+  freeVisibleToolNames = toolNames,
   server = null,
 
   responseEnv = undefined,
@@ -107,7 +109,7 @@ function createBoundary({
       descriptorToolNames: names,
       registrationEligibleToolNames: names,
       descriptorLoaded: true,
-      freeLocalToolNames: new Set(freeLocalToolNames)
+      toolDescriptors: new Map([...names].map(name => [name, { tool_name: name, kind: "mcp_tool", tier_visibility: new Set(freeVisibleToolNames).has(name) ? ["free_local", "paid_cce"] : ["paid_cce"] }]))
     },
     toolUsageAuditBoundary: { wrapHandler: (_name, handler) => handler },
     registeredToolNames: new Set(),
@@ -132,19 +134,20 @@ function createBoundary({
 
 const errorTextOf = (result) => JSON.stringify(result);
 
-test('shared task projection bounds selected authoring paths and native constraint parameters', async () => {
+test('shared task projection preserves long selected authoring paths and every deciding constraint', async () => {
   const longMember = 'x'.repeat(2048);
   const body = await projectToolInputValidationFailure({ tool: 'save_record', args: { unit: 'WK-0001' },
-    ownerDiagnostics: [{ code: 'record_authoring_change_invalid', path: `changes.${longMember}`,
+    ownerDiagnostics: Array.from({ length: 12 }, (_, index) => ({ code: 'record_authoring_change_invalid', path: `changes.${longMember}.${index}`,
       message: `changes.${longMember} is not an accepted member`,
-      constraint: { keyword: 'additionalProperties', additionalProperty: longMember } }],
+      constraint: { keyword: 'additionalProperties', additionalProperty: longMember } })),
     requestContract: { acceptsArguments: () => assert.fail('authored correction must remain a caller choice') }
   });
   const [issue] = body.invalid_fields;
-  assert.deepEqual(issue.path, ['changes', { index: 1, utf8_bytes: 2048 }]);
-  assert.equal(issue.message, undefined);
-  assert.ok(issue.message_utf8_bytes > 2048);
-  assert.deepEqual(issue.constraint, { keyword: 'additionalProperties', additionalProperty_utf8_bytes: 2048 });
+  assert.deepEqual(issue.path, ['changes', longMember, 0]);
+  assert.equal(issue.message, `changes.${longMember} is not an accepted member`);
+  assert.deepEqual(issue.constraint, { keyword: 'additionalProperties', additionalProperty: longMember });
+  assert.equal(body.invalid_fields.length, 12);
+  assert.deepEqual(body.invalid_fields[11].path, ['changes', longMember, 11]);
   assert.deepEqual(body.next_calls, []);
 });
 
@@ -176,7 +179,7 @@ test("shared task refusals preserve constraints and require real caller choices 
   assert.deepEqual(enumRefusal.invalid_fields[0].options, ["worker", "reviewer"]);
 });
 
-test("shared task correction removes only unsupported fields and passes the full serving validator", async () => {
+test("shared task refusal leaves unsupported-field removal to an explicit caller choice", async () => {
   const boundary = createBoundary();
   boundary.register({ description: "d", inputSchema: AUTHORITATIVE, advertisedInputSchema: ADVERTISED,
     inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: {
@@ -189,12 +192,11 @@ test("shared task correction removes only unsupported fields and passes the full
   assert.deepEqual(boundary.calls, []);
   assert.equal(body.invalid_fields[0].message, "Unrecognized key(s) in object: 'extra'");
   assert.deepEqual(body.invalid_fields[0].keys, ["extra"]);
-  const corrected = body.next_calls[0];
-  assert.equal(corrected.tool, boundary.toolName);
-  assert.deepEqual(corrected.arguments, { unit: "WK-2665", answer: { kind: "skip" } });
-  assert.equal(await boundary.contracts.contractFor(corrected.tool).acceptsArguments(corrected.arguments), true);
-  assert.notEqual((await handler(corrected.arguments)).isError, true);
-  assert.deepEqual(boundary.calls, [corrected.arguments]);
+  assert.deepEqual(body.next_calls, []);
+  assert.match(body.correction, /Choose how to express the rejected fields/);
+  const chosen = { unit: "WK-2665", answer: { kind: "skip" } };
+  assert.notEqual((await handler(chosen)).isError, true);
+  assert.deepEqual(boundary.calls, [chosen]);
   assert.equal(args.answer.extra, true, "projection never changes the refused request");
 });
 
@@ -221,7 +223,7 @@ test("owner-supplied read-only guidance stays beside the refusal's facts and is 
   const withRead = guided({ calls: [read], reference_acquisition: { reads: ["record"], writes: [] } });
   const body = (await withRead.handler(authored)).structuredContent;
   assert.deepEqual(body.next_calls, [read]);
-  assert.match(body.correction, /^Supply the missing caller choices.*they write nothing and are not a corrected request\.$/u);
+  assert.match(body.correction, /^Choose how to express the rejected fields.*they write nothing and are not a corrected request\.$/u);
   assert.deepEqual(body.owner_guidance, { reference_acquisition: { reads: ["record"], writes: [] } });
   assert.deepEqual([body.invalid_fields, body.required_inputs, body.issue_count, body.code, body.accepted],
     [defaults.authored.invalid_fields, defaults.authored.required_inputs, defaults.authored.issue_count,
@@ -229,10 +231,9 @@ test("owner-supplied read-only guidance stays beside the refusal's facts and is 
   assert.deepEqual(withRead.calls, [], "the full validator still refuses before the handler");
 
   const both = (await withRead.handler(removable)).structuredContent;
-  assert.deepEqual(both.next_calls[0], defaults.removable.next_calls[0]);
-  const { recommended: _recommended, ...alongside } = read;
-  assert.deepEqual(both.next_calls.slice(1), [alongside]);
-  assert.match(both.correction, /^Call the corrected request with the unsupported fields removed\. The read-only calls/u);
+  assert.deepEqual(both.next_calls, [read]);
+  assert.deepEqual(defaults.removable.next_calls, []);
+  assert.match(both.correction, /not a corrected request/);
 
   const unavailable = { state: "unavailable", missing_capability: "c", owner: "o", reason: "r" };
   const none = (await guided({ calls: [], unavailable }).handler(authored)).structuredContent;
@@ -750,10 +751,64 @@ test("a declared published-schema projection is listed and retained as one decla
     publishedInputSchemaProjection: deferRows }), /agent_tool_published_schema_projection_unavailable/u);
 });
 
+test("common boolean publication covers plain registrations and follows each native projection exactly once", async t => {
+  const scope = createTestResourceScope();
+  t.after(() => scope.dispose());
+  for (const custom of [false, true]) {
+    const server = new McpServer({ name: `boolean-${custom}`, version: "1" });
+    const client = new Client({ name: "reader", version: "1" });
+    scope.add(`server-${custom}`, () => server.close());
+    scope.add(`client-${custom}`, () => client.close());
+    const boundary = createBoundary({ server, toolName: "query_code_index" });
+    const schema = z.object({ status: z.literal(true) }).strict();
+    let projections = 0;
+    boundary.register({ description: "d", inputSchema: schema,
+      ...(custom ? { publishedInputSchemaProjection: converted => {
+        projections++;
+        assert.equal(converted.properties.status.const, true, "native projection receives the SDK declaration first");
+        return { ...converted, properties: { status: { ...converted.properties.status, description: "Native annotation." } } };
+      } } : {}) });
+    const [left, right] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(right), client.connect(left)]);
+    const contract = boundary.contracts.contractFor("query_code_index");
+    const listed = (await client.listTools()).tools[0].inputSchema;
+    assert.deepEqual(listed.properties.status, { type: "boolean", not: { const: false },
+      ...(custom ? { description: "Native annotation." } : {}) });
+    assert.deepEqual(listed, contract.publishedRequestSchema(), "served and retained schemas share the final declaration");
+    assert.deepEqual((await client.listTools()).tools[0].inputSchema, listed);
+    assert.equal(projections, custom ? 1 : 0, "the cached final declaration does not reapply either projection");
+    for (const status of [false, "true"]) {
+      assert.equal(await contract.acceptsArguments({ status }), false);
+      assert.equal((await client.callTool({ name: "query_code_index", arguments: { status } })).isError, true);
+    }
+    assert.deepEqual(boundary.calls, [], "strict validation rejects both values before the handler");
+    assert.equal(await contract.acceptsArguments({ status: true }), true);
+    assert.notEqual((await client.callTool({ name: "query_code_index", arguments: { status: true } })).isError, true);
+    assert.deepEqual(boundary.calls, [{ status: true }]);
+  }
+});
+
+test("save advertisements share repeated owner nodes within each variant conversion", () => {
+  const contract = createSaveRecordInputContract(z, "paid_cce");
+  const variants = contract.advertisedInputSchema.shape.changes.unwrap().options;
+  assert.equal(variants.length, 4);
+  const cases = variants.slice(0, 2).map(variant => {
+    const rows = variant.shape.obligations.unwrap().element.options;
+    assert.ok(rows.length > 1, "new and addressed obligation rows both declare the case");
+    const declarations = rows.map(row => row.shape.case);
+    assert.ok(declarations.every(node => node === declarations[0]),
+      "the same owner case definition and optional wrapper are converted once");
+    return declarations[0];
+  });
+  assert.notEqual(cases[0], cases[1], "sharing stays within each root/slice conversion");
+  assert.ok(variants[0].shape.refresh_proofs);
+  assert.equal(variants[1].shape.refresh_proofs, undefined);
+});
+
 test("compact advertisements preserve registrar authority and full validation", async (t) => {
   const scope = createTestResourceScope();
   t.after(() => scope.dispose());
-  const contract = createSaveRecordInputContract(z);
+  const contract = createSaveRecordInputContract(z, "paid_cce");
   const declaration = { description: "d", inputSchema: contract.inputSchema,
     advertisedInputSchema: contract.advertisedInputSchema,
     publishedInputSchemaProjection: contract.publishedInputSchemaProjection, inputSchemaExposure: saveExposure() };
@@ -774,7 +829,8 @@ test("compact advertisements preserve registrar authority and full validation", 
   const { changes: flatChanges, ...flatEnvelope } = flat.properties;
   assert.deepEqual([listedEnvelope, listed.required, listed.additionalProperties, listedChanges.description],
     [flatEnvelope, flat.required, flat.additionalProperties, flatChanges.description]);
-  const published = { work_item_slice: 0, initiative: 1, decision: 2 };
+  const published = { work_item: 0, work_item_slice: 1, initiative: 2, decision: 3 };
+  assert.equal(listedChanges.anyOf.length, 4);
   for (const [variant, index] of Object.entries(published)) {
     const source = SAVE_SOURCES[variant], compact = listedChanges.anyOf[index];
     assert.deepEqual(Object.keys(compact.properties), Object.keys(source.properties), `${variant}: every member, in owner order`);
@@ -782,12 +838,15 @@ test("compact advertisements preserve registrar authority and full validation", 
     for (const [member, node] of Object.entries(compact.properties)) {
       const owner = source.properties[member];
       const deferred = Object.keys(node).every(keyword => keyword === "description");
-      if (deferred) assert.equal(node.description, owner.description, `${variant}.${member}: deferred with the owner's description`);
-      else assert.deepEqual(node, owner, `${variant}.${member}: a published member is the owner's complete declaration`);
+      if (deferred) assert.deepEqual(node, WORK_ITEM_SLICE_CONTRACT_MEMBERS.includes(member)
+        ? { description: owner.description }
+        : member === 'ready_slices' ? { description: "Select this member's full input_contract schema." } : {},
+      `${variant}.${member}: prose is selected; applicability and ready-slice navigation stay visible`);
+      else assert.deepEqual(node, publishBooleanLiteralSchema(owner), `${variant}.${member}: a published member preserves the owner's complete declaration`);
     }
     assert.equal(JSON.stringify(compact).includes("$ref") || Object.hasOwn(compact, "$defs"), false);
   }
-  assert.deepEqual(Object.entries(listedChanges.anyOf[0].properties).filter(([, node]) => Object.keys(node).length > 0 &&
+  assert.deepEqual(Object.entries(listedChanges.anyOf[published.work_item_slice].properties).filter(([, node]) => Object.keys(node).length > 0 &&
     !Object.keys(node).every(keyword => keyword === "description")).map(([member]) => member),
   ["title", "priority", "base_branch", "owner", "initiative", "work_kind", "target_unit", "agent_role",
     "expected_changed_line_budget", "status"], "exactly the scalar members stay typed");
@@ -796,7 +855,24 @@ test("compact advertisements preserve registrar authority and full validation", 
 
   const Ajv = createRequire(import.meta.url)("ajv");
   const admits = new Ajv({ strict: false, allErrors: true }).compile(listed);
+  const selectedRefresh = retained.inputSchemaExposure.source('work_item').select({ members: ['refresh_proofs'] }).schema;
+  for (const schema of [contract.changeSchemas.work_item, selectedRefresh, listedChanges.anyOf[published.work_item]]) {
+    assert.equal(schema.properties.refresh_proofs.type, 'boolean',
+      'owner, selected and actual tools/list schemas preserve the Boolean type');
+    const validate = new Ajv({ strict: false, allErrors: true }).compile(schema);
+    for (const value of [true, false, 'true', 1, null]) {
+      assert.equal(validate({ refresh_proofs: value }), value === true, JSON.stringify({ value, errors: validate.errors }));
+    }
+  }
+  for (const variant of ['work_item_slice', 'initiative', 'decision']) {
+    assert.equal(Object.hasOwn(listedChanges.anyOf[published[variant]].properties, 'refresh_proofs'), false, variant);
+  }
   const revision = `sha256:${"a".repeat(64)}`;
+  for (const value of [true, false, 'true', 1, null]) {
+    const request = { unit: 'WK-0001', revision, changes: { refresh_proofs: value } };
+    assert.equal(contract.inputSchema.safeParse(request).success, value === true);
+    assert.equal(admits(request), value === true);
+  }
   const ownerValid = [
     { unit: "WK-0001", revision, changes: { title: "T", notes: "N", tasks: [{ action: "append_todo", value: "t" }] } },
     { unit: "WK-0001", revision, changes: { criteria: [{ key: "criterion", text: "Meaning." }, { id: "criterion-a" }],
@@ -850,7 +926,7 @@ test("hidden, skipped and failed registrations lend no contract, and registrars 
   assert.equal(hidden.registered.size, 0);
   assert.equal(hidden.contracts.contractFor(PRIMARY_ROUTE), null);
 
-  const skipped = createBoundary({ registeredTier: "free_local", freeLocalToolNames: [] });
+  const skipped = createBoundary({ registeredTier: "free_local", freeVisibleToolNames: [] });
   skipped.register({ description: "d", inputSchema: AUTHORITATIVE });
   assert.equal(skipped.registered.size, 0);
   assert.equal(skipped.contracts.contractFor(PRIMARY_ROUTE), null);
@@ -892,8 +968,8 @@ test("a conflicting registration withdraws the retained contract instead of leav
   assert.equal(boundary.contracts.contractFor(PLAIN_ROUTE), null);
 });
 
-const SAVE_SOURCES = createSaveRecordInputContract(z).changeSchemas;
-const saveExposure = (changeSchemas = SAVE_SOURCES) => createSaveRecordInputExposure({ changeSchemas,
+const SAVE_SOURCES = createSaveRecordInputContract(z, "paid_cce").changeSchemas;
+const saveExposure = (changeSchemas = SAVE_SOURCES) => createSaveRecordInputExposure({ changeSchemas, registeredTier: "paid_cce",
   variants: ["WK-0001", "WK-0001#SLICE-001", "IN-0001", "DEC-0001"].map(unit => saveRecordUnitVariant(unit)) });
 
 test("a declared input schema exposure is bound with a successful registration and decides nothing", async () => {
@@ -905,7 +981,9 @@ test("a declared input schema exposure is bound with a successful registration a
   assert.equal(Object.hasOwn(config, "inputSchemaExposure"), false, "the declaration never reaches the SDK");
   const contract = boundary.contracts.contractFor(PRIMARY_ROUTE);
   const selected = contract.inputSchemaExposure.source("work_item").select({ groups: ["acceptance"], members: ["title"] });
-  assert.deepEqual(selected.members, ["title", "criteria", "requirements", "obligations", "controlled_acceptance"]);
+  assert.deepEqual(selected.members, ["title", "criteria", "requirements", "obligations", "controlled_acceptance", "refresh_proofs"]);
+  assert.deepEqual(contract.inputSchemaExposure.source("work_item_slice").select({ groups: ["acceptance"], members: ["title"] }).members,
+    ["title", "criteria", "requirements", "obligations", "controlled_acceptance"]);
   assert.equal(selected.schema.properties.obligations, SAVE_SOURCES.work_item.properties.obligations);
 
   const without = createBoundary();
@@ -1018,7 +1096,7 @@ test("a throwing validator or projector, or an unrecognized projector result, st
   }
 });
 
-test("an oversized generated failure is retrieved completely through the existing spill transport", async () => {
+test("an oversized unselected failure is retained without advertising an unserved byte reader", async () => {
   const scope = createTestResourceScope();
   try {
     const stateDir = await scope.acquire("spill-directory",
@@ -1039,19 +1117,13 @@ test("an oversized generated failure is retrieved completely through the existin
     assert.equal(result.isError, true);
     assert.equal(result.structuredContent.response_spilled, true);
     const reference = result.structuredContent.content_reference;
-    const chunks = [];
-    for (let offset = 0; ;) {
-      const chunk = readSpilledMcpContentReference({
-        ref_id: reference.ref_id, offset, length: reference.range.max_length
-      }, { env });
-      chunks.push(Buffer.from(chunk.data_base64, "base64"));
-      if (chunk.eof) break;
-      offset = chunk.next_offset;
-    }
-    const recovered = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    assert.deepEqual(recovered, asJson(error.envelope));
-    assert.equal(recovered.diagnostic.validator_diagnostics.length, 60);
-    assert.equal(recovered.diagnostic.validator_diagnostics[59].unionErrors.length, 2);
+    assert.equal(reference.read_tool, undefined);
+    assert.equal(reference.range, undefined);
+    assert.equal(result.structuredContent.complete, false);
+    assert.equal(result.structuredContent.no_supported_route, true);
+    assert.deepEqual(result.structuredContent.next_calls, []);
+    assert.equal(result.structuredContent.recovery.missing_capability, 'authorized_semantic_selection');
+    assert.doesNotMatch(JSON.stringify(result), /workspace_read_mcp_content_reference|data_base64/u);
   } finally {
     await scope.dispose();
   }

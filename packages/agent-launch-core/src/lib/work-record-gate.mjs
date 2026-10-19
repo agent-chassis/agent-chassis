@@ -291,8 +291,7 @@ function normalizeCanonicalSummary(canonicalSummary) {
           .filter((entry) => entry !== null)
       : [],
     validation_commands: Array.isArray(canonicalSummary.validation_commands)
-      ? canonicalSummary.validation_commands.filter(isNonEmptyString)
-      : [],
+      ? cloneJson(canonicalSummary.validation_commands) : [],
 
     operative_summary: isNonEmptyString(canonicalSummary.operative_summary)
       ? canonicalSummary.operative_summary

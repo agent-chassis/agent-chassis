@@ -160,7 +160,9 @@ function registryValueSchema(field) {
   const items = declared.items?.shape === "acceptance_note" ? { anyOf: [{ type: "string" }, open] }
     : declared.items?.shape === "acceptance_criterion" ? { anyOf: [{ type: "string" }, open] }
       : declared.items?.type === "object" ? closed({ ref: { type: "string" } }, ["ref"]) : { type: "string" };
-  return { type: "array", items, ...(declared.max_items ? { maxItems: declared.max_items } : {}) };
+  const list = { type: "array", items, ...(declared.max_items ? { maxItems: declared.max_items } : {}) };
+  return declared.replacement_shape === "repository_tests"
+    ? WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA.properties.validation : list;
 }
 
 export const WORK_ITEM_SHARED_DEFINITIONS = Object.freeze({
@@ -174,7 +176,10 @@ function requirementBatch(existing) {
   return requirementBatches.get(existing);
 }
 
-export const workItemRequirementBatchSchema = (context = "existing") => requirementBatch(context !== "birth").schema;
+export const workItemRequirementBatchSchema = (context = "existing", capabilities = null) => capabilities === null
+  ? requirementBatch(context !== "birth").schema
+  : buildRequirementBatchSchema({ label, labelReference, claimId: retiredClaim,
+    rebindCaseIds: upsertRequirement.properties.rebind_case_ids, existingRows: context !== "birth", capabilities }).schema;
 
 function workItemChangeComposition(context) {
   const { obligation_id: obligationId, controlled_contract_node_ids: _nodes,
@@ -184,7 +189,8 @@ function workItemChangeComposition(context) {
 
   const obligationCase = optionallyKeyed(caseId, { verification: orLabel(verificationId), ...caseBody });
 
-  const readySliceEditTargets = { type: "array", items: WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA };
+  const readySliceEditTargets = { type: "array", items: structuredClone(WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA) };
+  const readyProvenance = readyEditTargetProvenance(readySliceEditTargets);
   const properties = {
     ...Object.fromEntries(WORK_ITEM_ORDINARY_MEMBERS.map(({ member, field }) =>
       [member, registryValueSchema(field)])),
@@ -267,8 +273,12 @@ function workItemChangeComposition(context) {
   const names = WORK_ITEM_SHARED_DEFINITIONS;
   return { properties, definitions: requirementBatch(context !== "birth").$defs,
     shared: [[names.case, obligationCase],
+      ...['statement', 'criteria', 'claims', 'proof'].map(member => [
+        `obligation_${member}`, properties.obligations.items.oneOf[0].properties[member]]),
       [names.caseComponent, caseBody.component], [names.caseTarget, caseBody.target],
-      [names.caseFalsification, caseBody.falsification], [names.readySliceEditTargets, readySliceEditTargets]] };
+      [names.caseFalsification, caseBody.falsification], [names.readySliceEditTargets, readySliceEditTargets],
+      [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.contentCarrier, contentCarrier],
+      [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.editTargetProvenance, readyProvenance]] };
 }
 
 const KIND_SCALAR_SCHEMAS = Object.freeze({ string: { type: "string" },
@@ -302,8 +312,8 @@ export const WORK_ITEM_BIRTH_SHARED_DEFINITIONS = Object.freeze({
   contentCarrier: "content_carrier", editTargetProvenance: "edit_target_provenance"
 });
 
-function birthEditTargetProvenance(properties) {
-  const facet = properties.ready_slices.items.properties.expected_edit_targets.items.properties.facet_provenance;
+function readyEditTargetProvenance(targets) {
+  const facet = targets.items.properties.facet_provenance;
   const entries = Object.entries(facet.properties);
   const [, shared] = entries[0];
   const body = JSON.stringify(shared);
@@ -359,17 +369,40 @@ export function recordAuthoringChangeSchema(kind, context = "existing") {
         }, ["action", "value"]) };
         ({ properties, $defs: definitions } = shareRecordAuthoringDefinitions({ properties, definitions,
           shared: [[WORK_ITEM_BIRTH_SHARED_DEFINITIONS.contentCarrier, copies.get(contentCarrier)],
-            [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.editTargetProvenance, birthEditTargetProvenance(properties)]] }));
+            [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.editTargetProvenance, readyEditTargetProvenance(properties.ready_slices.items.properties.expected_edit_targets)]] }));
       }
     }
 
     if (kind === "work_item" && context !== "birth") {
       ({ properties, $defs: definitions } = shareRecordAuthoringDefinitions({ properties, definitions, shared: composed.shared }));
     }
+    const refresh = kind === 'work_item' && context === 'existing';
+    if (refresh) properties.refresh_proofs = { type: 'boolean', const: true, description:
+      'Root WK only, alone in changes. Refresh saved references across this WK and all current slices at each exact selected name/version. ' +
+      'Preserve authored inputs; select, upgrade and execute no proof. Incompatible or unavailable definitions refuse the whole refresh.' };
     schemas.set(cacheKey, Object.freeze({ type: "object", additionalProperties: false,
-      ...(context === "birth" ? {} : { minProperties: 1 }), $defs: definitions, properties }));
+      ...(context === "birth" ? {} : { minProperties: 1 }), $defs: definitions, properties,
+      ...(refresh ? { if: { required: ['refresh_proofs'] }, then: { maxProperties: 1 } } : {}) }));
   }
   return schemas.get(cacheKey);
+}
+
+export const readySliceAuthoringOperations = (context = 'existing') => context === 'birth' ? ['create'] : ['create', 'update'];
+
+export function readySliceAuthoringProjection(schema, context, requested) {
+  const available = readySliceAuthoringOperations(context);
+  if (!Array.isArray(requested) || !requested.length || new Set(requested).size !== requested.length ||
+      requested.some(mode => !available.includes(mode))) {
+    throw Object.assign(new TypeError(`ready_slices_selection_invalid: choose ${available.join(', ')}`),
+      { code: 'input_schema_exposure_selection_invalid' });
+  }
+  const effective = available.filter(mode => requested.includes(mode));
+  if (effective.length === available.length) return { schema, scope: null, guidance: topics => topics };
+  const member = schema.properties.ready_slices;
+  const { [ROW]: _row, oneOf, ...items } = member.items;
+  return { schema: { ...schema, properties: { ...schema.properties, ready_slices: { ...member,
+    items: { ...items, ...oneOf[effective[0] === 'create' ? 0 : 1] } } } },
+    scope: { effective, excluded: available.filter(mode => !effective.includes(mode)) }, guidance: topics => topics };
 }
 
 const require = createRequire(import.meta.url);
@@ -394,6 +427,16 @@ function rowVariant(kind, row) {
   return id ? 1 : 0;
 }
 
+function targetVariant(node, instance) {
+  const arms = node?.oneOf;
+  if (arms?.length !== 2 || arms[0].properties?.provider !== undefined || arms[1].properties?.provider === undefined) return undefined;
+  if (has(instance, 'provider')) return 1;
+  const selector = instance?.selector;
+  if (selector && typeof selector === 'object' && !Array.isArray(selector) &&
+      Object.keys(selector).some(key => !Object.hasOwn(arms[0].properties.selector.properties, key))) return null;
+  return 0;
+}
+
 function definitionUses(schema, changes, at) {
   const visit = (declared, instance, consumed, occurrence) => {
     const definition = recordAuthoringDefinitionName(declared);
@@ -406,21 +449,24 @@ function definitionUses(schema, changes, at) {
       const selected = rowVariant(kind, instance);
       if (selected === null) return { row: pathOf(consumed === 0 ? "" : `/${at.slice(0, consumed).join("/")}`) };
       const within = visit(node.oneOf[selected], instance, consumed, occurrence * node.oneOf.length + selected);
-      return within === null || within.row !== undefined ? within : [...here, ...within];
+      return within === null || (within.row !== undefined || within.target !== undefined) ? within : [...here, ...within];
     }
     if (consumed === at.length) return here;
-    for (const alternative of node.anyOf ?? node.oneOf ?? []) {
+    for (const [index, alternative] of (node.anyOf ?? node.oneOf ?? []).entries()) {
+      const target = targetVariant(node, instance);
+      if (target === null) return { target: pathOf(consumed === 0 ? '' : `/${at.slice(0, consumed).join('/')}`) };
+      if (target !== undefined && index !== target) continue;
       const within = visit(alternative, instance, consumed, occurrence);
-      if (within !== null) return within.row !== undefined ? within : [...here, ...within];
+      if (within !== null) return (within.row !== undefined || within.target !== undefined) ? within : [...here, ...within];
     }
     const segment = at[consumed];
     const next = node.properties?.[segment] ?? (node.items !== undefined && /^[0-9]+$/u.test(segment) ? node.items : undefined);
     if (next === undefined) return null;
     const within = visit(next, instance?.[segment], consumed + 1, occurrence);
-    return within === null || within.row !== undefined ? within : [...here, ...within];
+    return within === null || (within.row !== undefined || within.target !== undefined) ? within : [...here, ...within];
   };
   const uses = visit(schema, changes, 0, 0);
-  return uses === null || uses.row !== undefined ? uses : [{ definition: null, node: schema, consumed: 0, occurrence: 0 }, ...uses];
+  return uses === null || (uses.row !== undefined || uses.target !== undefined) ? uses : [{ definition: null, node: schema, consumed: 0, occurrence: 0 }, ...uses];
 }
 
 function followSchemaPath(tokens, at, changes, { node, consumed }) {
@@ -438,6 +484,9 @@ function followSchemaPath(tokens, at, changes, { node, consumed }) {
     } else if (token === "oneOf" || token === "anyOf") {
       const kind = node[ROW];
       const branch = Number(tokens[index + 1]);
+      const target = targetVariant(node, instance);
+      if (target === null) return verdict({ target: pathOf(consumed === 0 ? '' : `/${at.slice(0, consumed).join('/')}`) });
+      if (target !== undefined && (!Number.isInteger(branch) || branch !== target)) return verdict({ drop: true });
       if (kind !== undefined) {
 
         if (instance === null || typeof instance !== "object" || Array.isArray(instance)) return verdict({});
@@ -461,12 +510,13 @@ function classifyError(schema, changes, error, evaluation) {
   const at = error.instancePath.split("/").slice(1);
   const uses = definitionUses(schema, changes, at);
   if (uses === null) return {};
-  if (uses.row !== undefined) return { row: uses.row };
+  if (uses.row !== undefined || uses.target !== undefined) return uses;
   const named = tokens[0] === "$defs";
   const candidates = named ? uses.filter(use => use.definition === tokens[1]) : uses;
   const relative = named ? tokens.slice(2) : tokens;
   for (const use of [...candidates].reverse()) {
     const { result, reached } = followSchemaPath(relative, at, changes, use);
+    if (result.drop || result.target !== undefined || result.row !== undefined) return result;
     if (!reached) continue;
     if (use.definition !== null && evaluation !== use.occurrence) return { drop: true };
     return result;
@@ -513,6 +563,10 @@ const REQUIREMENT_BATCH_CAUSE_WORDS = Object.freeze({
   not_an_integer: "must be an integer", not_a_number: "must be a number", not_a_boolean: "must be a boolean" });
 
 export function validateRecordAuthoringChanges(kind, context, changes) {
+  if (has(changes, 'refresh_proofs') && (kind !== 'work_item' || context !== 'existing')) return Object.freeze([{
+    code: 'record_authoring_member_not_applicable', severity: 'error', path: 'changes.refresh_proofs',
+    message: 'changes.refresh_proofs applies only to an existing root WK. Read its root revision and send changes: {refresh_proofs: true} alone.',
+    constraint: { keyword: 'applicability', member: 'refresh_proofs', applies_to: 'root_wk' } }]);
   const schema = recordAuthoringChangeSchema(kind, context);
   const validate = validatorFor(schema);
 
@@ -560,6 +614,12 @@ export function validateRecordAuthoringChanges(kind, context, changes) {
     raised.set(identity, evaluation + 1);
     const classified = classifyError(schema, changes, error, evaluation);
     if (classified.drop) continue;
+    if (classified.target !== undefined) {
+      byPath.set(classified.target, { message: 'does not identify one target form: node:test uses selector.name/nesting; ' +
+        'a provider-qualified target requires a provider identity object and that owner’s selector. Read the input contract to choose one form',
+        constraint: { keyword: 'oneOf', members: ['node_test', 'provider_qualified'] } });
+      continue;
+    }
     if (classified.row !== undefined) {
       byPath.set(classified.row, { message: "must carry exactly one of key (a new row) or id (an existing row)",
         constraint: { keyword: "oneOf", members: ["key", "id"] } });

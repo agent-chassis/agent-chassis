@@ -274,6 +274,9 @@ function authoringDescriptor(manifest, dimension, row) {
     }
   };
 
+  if (state === "proof_authoring_required" &&
+      dimension.owner_result?.saved_applications !== undefined) return null;
+
   if (state === "contract_required") {
     const prerequisite = row.evidence.unresolved_decisions?.failed_prerequisite;
     if (prerequisite !== "canonical_contract_absent" || facts === null) return null;
@@ -333,6 +336,8 @@ function authoringDescriptor(manifest, dimension, row) {
 
   if (state === "proof_authoring_required") {
     const proofSelection = facts?.proof_selection ?? null;
+
+    if (proofSelection === null) return null;
     const firstPack = proofSelection?.packs?.[0] ?? null;
     return {
       semantic_owner: "proof_authoring",

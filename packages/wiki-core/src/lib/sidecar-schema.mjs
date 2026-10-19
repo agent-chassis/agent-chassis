@@ -44,6 +44,7 @@ export const SIDECAR_EVIDENCE_BASIS_VALUES = Object.freeze([
   "explicit_metadata",
   "path_match",
   "docs_backlink",
+  "working_checkout",
   "git_blob",
   "git_tree",
   "cochange",

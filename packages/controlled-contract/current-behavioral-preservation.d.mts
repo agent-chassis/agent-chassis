@@ -17,11 +17,11 @@ export type BehavioralPreservationVerificationRefusalCode =
     keyof typeof BEHAVIORAL_PRESERVATION_VERIFICATION_REFUSAL_CODES
   ];
 export const BEHAVIORAL_PRESERVATION_VERIFICATION_SCHEMA_VERSION:
-  "controlled-contract-behavioral-preservation-verification.v1";
+  "controlled-contract-behavioral-preservation-verification.v2";
 export const BEHAVIORAL_PRESERVATION_REPORT_SCHEMA_VERSION:
   "controlled-contract-behavioral-preservation-report.v1";
 export const BEHAVIORAL_PRESERVATION_PROFILE_ID: "proof.compatibility.behavioral-preservation";
-export const BEHAVIORAL_PRESERVATION_PROFILE_VERSION: "2.0.0";
+export const BEHAVIORAL_PRESERVATION_PROFILE_VERSION: "4.0.0";
 export const BEHAVIORAL_PRESERVATION_SIDES: readonly ["baseline", "candidate"];
 export type BehavioralPreservationSide = typeof BEHAVIORAL_PRESERVATION_SIDES[number];
 
@@ -70,12 +70,23 @@ interface BehavioralPreservationVerificationBase {
   readonly schema_version: typeof BEHAVIORAL_PRESERVATION_VERIFICATION_SCHEMA_VERSION;
   readonly profile_id: typeof BEHAVIORAL_PRESERVATION_PROFILE_ID;
   readonly profile_version: typeof BEHAVIORAL_PRESERVATION_PROFILE_VERSION;
+  readonly comparison_scope: Readonly<{
+    basis: "supplied_typed_reports_only";
+    checked: readonly ["typed_descriptor_populations", "exact_counts", "selected_canonical_value_pair"];
+    proof_credit: 0;
+    unsupported_claims: readonly Readonly<{
+      claim: "captured_full_report_byte_equality" | "implementation_behavioral_preservation";
+      outcome: "unsupported";
+      proof_credit: 0;
+      reason: string;
+    }>[];
+  }>;
   readonly report_schema_version: typeof BEHAVIORAL_PRESERVATION_REPORT_SCHEMA_VERSION;
 }
 export interface BehavioralPreservationVerified extends BehavioralPreservationVerificationBase {
   readonly verified: true;
-  /** True exactly when populations, counts, selection, and the selected canonical value are equal. */
-  readonly preserved: boolean;
+  /** Bounded data conjunction only: populations, counts, selection and selected value; no full-report or behavior credit. */
+  readonly comparison_matches: boolean;
   readonly source: BehavioralPreservationVerificationSource;
   readonly members: Readonly<Record<BehavioralPreservationSide,
     readonly BehavioralPreservationMemberDescriptor[]>>;
@@ -85,7 +96,7 @@ export interface BehavioralPreservationVerified extends BehavioralPreservationVe
 export interface BehavioralPreservationVerificationRefused
   extends BehavioralPreservationVerificationBase {
   readonly verified: false;
-  readonly preserved: null;
+  readonly comparison_matches: null;
   readonly source: null;
   readonly members: null;
   readonly differences: null;
@@ -97,7 +108,7 @@ export type BehavioralPreservationVerificationResult =
 /**
  * Verify one ordered pair of typed behavior reports. Refusals are returned,
  * never thrown; a readable pair whose sides differ is a verified result with
- * `preserved: false` and its differences named.
+ * `comparison_matches: false` and its differences named.
  */
 export function verifyBehavioralPreservationReports(
   input?: BehavioralPreservationReportPair | unknown

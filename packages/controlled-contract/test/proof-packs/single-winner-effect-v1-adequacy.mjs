@@ -16,7 +16,7 @@ import {
 } from "./single-winner-effect-v1-harness.mjs";
 
 const SINGLE_WINNER_EFFECT_V1_PROFILE_DIGEST =
-  "911220d1882abf1d1c2359215bba19d72e8bfc19015fb8c4affaa1b524cd1565";
+  "c28cb6701e4a0579522492a8c8e322a6da37b06d5e261d64b4604e2d0c227185";
 const SINGLE_WINNER_EFFECT_V1_GUARANTEE_DIGEST =
   "defcedac8d42c9dde51822e911be1f334993db004b4bb9f174e6b0f1ddc38e4c";
 

@@ -1,11 +1,11 @@
-
+import { sessionProfileAllowsTool } from "@agent-chassis/wiki-core/src/lib/tool-discovery/session-profile.mjs";
 
 import { shouldExposeTool } from "./tool-profile.mjs";
 import { guardToolHandler } from "./mcp-response.mjs";
 import { isDeepStrictEqual } from "node:util";
+import { publishBooleanLiteralSchema } from "./published-boolean-literal-schema.mjs";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { getMethodLiteral } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
-import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import {
   AGENT_TOOL_LIVE_DESCRIPTION_HARD_LIMIT_CHARACTERS
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery/descriptor.mjs";
@@ -263,17 +263,12 @@ function taskValidatorIssue(issue, depth = 0) {
       projected.constraint = taskValidatorIssue(value, depth + 1);
     } else if (key === "unionErrors") {
       projected.union_error_count = value.length;
-      if (depth < 3) projected.union_errors = value.slice(0, 8).map(error => ({
+      projected.union_errors = value.map(error => ({
         issue_count: error.issues.length,
-        issues: error.issues.slice(0, 8).map(child => taskValidatorIssue(child, depth + 1))
+        issues: error.issues.map(child => taskValidatorIssue(child, depth + 1))
       }));
-    } else if (typeof value === "string" && Buffer.byteLength(value, "utf8") > 512) {
-      projected[`${key}_utf8_bytes`] = Buffer.byteLength(value, "utf8");
     } else if (Array.isArray(value)) {
-      projected[key] = value.slice(0, 8).map((entry, index) =>
-        typeof entry === "string" && Buffer.byteLength(entry, "utf8") > 128
-          ? { index, utf8_bytes: Buffer.byteLength(entry, "utf8") } : entry);
-      if (value.length > 8) projected[`${key}_count`] = value.length;
+      projected[key] = value;
     } else {
       projected[key] = value;
     }
@@ -286,22 +281,10 @@ function taskValidatorIssue(issue, depth = 0) {
   return projected;
 }
 
-export async function projectToolInputValidationFailure({ tool, args, validationError, requestContract,
+export async function projectToolInputValidationFailure({ tool, args, validationError,
   ownerDiagnostics = null, ownerGuidance = null }) {
   const issues = ownerDiagnostics ?? validationError.issues;
-  const nextCalls = [];
 
-  if (issues.every(issue => issue.code === "unrecognized_keys")) {
-    const corrected = structuredClone(args);
-    for (const issue of issues) {
-      const parent = issue.path.reduce((value, part) => value?.[part], corrected);
-      for (const key of issue.keys) delete parent[key];
-    }
-    if (Buffer.byteLength(JSON.stringify(corrected), "utf8") <= 4096 &&
-        await requestContract.acceptsArguments(corrected)) {
-      nextCalls.push(buildNextCall({ tool, arguments: corrected, recommended: true }));
-    }
-  }
   const missing = issues.filter(issue => issue.code === "invalid_type" && issue.received === "undefined");
   const { calls: guidanceCalls = [], ...guidance } = ownerGuidance ?? {};
   const guidanceFacts = Object.keys(guidance).length > 0 ? guidance : null;
@@ -309,19 +292,15 @@ export async function projectToolInputValidationFailure({ tool, args, validation
     ...(typeof (args?.unit ?? args?.subject) === "string" && (args.unit ?? args.subject).length <= 128
       ? { subject: args.unit ?? args.subject } : {}),
     issue_count: issues.length,
-    invalid_fields: issues.slice(0, 8).map(issue => taskValidatorIssue(issue)),
-    ...(missing.length === 0 ? {} : { required_inputs: missing.slice(0, 8).map(issue => ({
+    invalid_fields: issues.map(issue => taskValidatorIssue(issue)),
+    ...(missing.length === 0 ? {} : { required_inputs: missing.map(issue => ({
       path: issue.path, expected: issue.expected, choice: "caller_supplied_value_required"
     })) }),
-    correction: (nextCalls.length > 0 ? "Call the corrected request with the unsupported fields removed."
-      : "Supply the missing caller choices or correct the reported field constraints before calling this tool again.") +
+    correction: "Choose how to express the rejected fields using supported inputs, or explicitly omit them; " +
+      "supply missing caller choices and correct reported constraints before calling again." +
       (guidanceCalls.length === 0 ? "" : " The read-only calls return guidance for that correction; they write nothing and are not a corrected request."),
     ...(guidanceFacts === null ? {} : { owner_guidance: guidanceFacts }),
-    next_calls: [...nextCalls, ...guidanceCalls.map((call) => {
-
-      const { recommended: _recommended, ...alongside } = call;
-      return nextCalls.length === 0 ? call : alongside;
-    })] };
+    next_calls: guidanceCalls };
 }
 
 function createEffectsEnforcingHandler(
@@ -445,13 +424,11 @@ export function createRegisterTool({
       );
     }
 
-    if (
-      registeredTier !== "paid_cce" &&
-      mcpToolTierRegistrationPolicy.descriptorLoaded === true &&
-      !mcpToolTierRegistrationPolicy.freeLocalToolNames?.has(name)
-    ) {
-      return;
+    if (!(mcpToolTierRegistrationPolicy.toolDescriptors instanceof Map)) {
+      throw Object.assign(new TypeError(`Visibility policy is missing for '${name}'; deploy one coherent package build and restart the server`),
+        { code: "agent_tool_visibility_policy_missing" });
     }
+    if (!sessionProfileAllowsTool({ registeredTier }, mcpToolTierRegistrationPolicy.toolDescriptors.get(name))) return;
 
     const {
       writeSemantics,
@@ -509,6 +486,10 @@ export function createRegisterTool({
         `agent_tool_published_schema_projection_invalid: '${name}' declares a publishedInputSchemaProjection that is not a function`
       );
     }
+
+    const finalPublishedInputSchemaProjection = converted => publishBooleanLiteralSchema(
+      publishedInputSchemaProjection === undefined ? converted : publishedInputSchemaProjection(converted)
+    );
     const schemaToPublish = advertisedInputSchema === undefined
       ? authoritativeInputSchema
       : declarationOnlySchemaView(
@@ -574,13 +555,13 @@ export function createRegisterTool({
     requestContracts.retain(name, {
       ...declaredRequestContract,
       publishedInputSchema: effectiveConfig?.inputSchema,
-      publishedInputSchemaProjection,
+      publishedInputSchemaProjection: finalPublishedInputSchemaProjection,
       boundInputSchemaExposure
     });
-    if (publishedInputSchemaProjection !== undefined && listedSchemaProjection !== null) {
+    if (listedSchemaProjection !== null) {
       if (!listedSchemaProjection.installed) {
         throw new Error(
-          `agent_tool_published_schema_projection_unavailable: '${name}' declares a publishedInputSchemaProjection but this server's tools/list handler was installed before its registrar; create the registrar before any tool is registered`
+          `agent_tool_published_schema_projection_unavailable: '${name}' requires common publication but this server's tools/list handler was installed before its registrar; create the registrar before any tool is registered`
         );
       }
       const contract = requestContracts.lookup.contractFor(name);

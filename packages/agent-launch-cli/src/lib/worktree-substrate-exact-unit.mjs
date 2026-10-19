@@ -139,11 +139,12 @@ function compensateFullSliceAllocation({
     const currentTip = branchExists(runGit, repo, branch)
       ? revParse(runGit, repo, branch)
       : null;
-    if (currentTip !== null && currentTip !== branchTip) {
+    const association = runGit({ repo: worktreePath, args: ["symbolic-ref", "--quiet", "HEAD"] });
+    if (currentTip !== branchTip || association?.ok !== true || association.stdout.trim() !== `refs/heads/${branch}`) {
       preserveBranch = true;
       recordFailure("worktree ownership", "slice branch tip changed after allocation; registered or concurrent winner preserved");
     } else {
-      const remove = runGit({ repo, args: ["worktree", "remove", "--force", worktreePath] });
+      const remove = runGit({ repo, args: ["worktree", "remove", worktreePath] });
       if (!remove || remove.ok !== true) {
         preserveBranch = true;
         recordFailure("worktree remove", remove?.stderr ?? remove?.error ?? remove?.status);
@@ -270,6 +271,68 @@ function assertFullWorktreePhysicalState(runGit, worktreePath) {
   }
 }
 
+export function inspectFullSliceResources({ runGit = defaultRunGit, repo, name }) {
+  const scopes = canonicalUnitScopes(repo, name.wk_id, name.slice_id, {
+    expectedInitiative: name.initiative
+  });
+  const branch = name.output_branch;
+  const worktreePath = name.worktree_path;
+  const fullRef = assertRefFormat(runGit, repo, branch);
+  assertStoreDisjointFromWorktree(repo, worktreePath);
+  const branchPresent = branchExists(runGit, repo, branch);
+  let worktreePresent;
+  try {
+    lstatSync(worktreePath);
+    worktreePresent = true;
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      fail(
+        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+        "failed to inspect deterministic slice worktree path without following links",
+        { worktreePath, error: String(error?.message ?? error).slice(0, 512) },
+        error
+      );
+    }
+    worktreePresent = false;
+  }
+  if (!branchPresent && worktreePresent) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.TARGET_EXISTS,
+      "slice worktree path exists without its deterministic slice branch",
+      { slice_resource_state: "branch_absent_worktree_present", branch, worktreePath }
+    );
+  }
+  if (!branchPresent) assertNoRefNamespaceCollision(enumerateRefs(runGit, repo), fullRef);
+  return { scopes, branch, worktreePath, fullRef, branchPresent, worktreePresent };
+}
+
+export function assertFullSliceWorktreeAtTip({ runGit = defaultRunGit, repo, worktreePath, branch, baseSha,
+  fullRef = `refs/heads/${branch}` }) {
+  const association = gitOrThrow(
+    runGit,
+    worktreePath,
+    ["symbolic-ref", "--quiet", "HEAD"],
+    "failed to verify the existing full-checkout exact-unit worktree association"
+  ).stdout.trim();
+  if (association !== fullRef) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+      "existing full-checkout exact-unit worktree is not attached to the deterministic slice branch",
+      { expected: fullRef, actual: association || null, worktreePath }
+    );
+  }
+  const head = revParse(runGit, worktreePath, "HEAD");
+  const branchTip = revParse(runGit, repo, branch);
+  if (head !== baseSha || branchTip !== baseSha) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+      "slice worktree HEAD and deterministic slice branch do not equal the selected continuation tip",
+      { expected: baseSha, head, branch_tip: branchTip }
+    );
+  }
+  assertFullWorktreePhysicalState(runGit, worktreePath);
+}
+
 export function allocateFullSliceExactUnitWorktree({
   mainRepo,
   unitAddress,
@@ -306,37 +369,8 @@ export function allocateFullSliceExactUnitWorktree({
       `caller-supplied full-checkout authority is forbidden; ${suppliedCarrier[0]} must be resolved from the exact canonical selected unit server-side`
     );
   }
-  const scopes = canonicalUnitScopes(repo, name.wk_id, name.slice_id, {
-    expectedInitiative: name.initiative
-  });
-  const branch = name.output_branch;
-  const worktreePath = name.worktree_path;
-  const fullRef = assertRefFormat(runGit, repo, branch);
-  assertStoreDisjointFromWorktree(repo, worktreePath);
-  const branchPresent = branchExists(runGit, repo, branch);
-  let worktreePresent;
-  try {
-    lstatSync(worktreePath);
-    worktreePresent = true;
-  } catch (error) {
-    if (error?.code !== "ENOENT") {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-        "failed to inspect deterministic slice worktree path without following links",
-        { worktreePath, error: String(error?.message ?? error).slice(0, 512) },
-        error
-      );
-    }
-    worktreePresent = false;
-  }
-  if (!branchPresent && worktreePresent) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.TARGET_EXISTS,
-      "slice worktree path exists without its deterministic slice branch",
-      { slice_resource_state: "branch_absent_worktree_present", branch, worktreePath }
-    );
-  }
-  if (!branchPresent) assertNoRefNamespaceCollision(enumerateRefs(runGit, repo), fullRef);
+  const { scopes, branch, worktreePath, fullRef, branchPresent, worktreePresent } =
+    inspectFullSliceResources({ runGit, repo, name });
   const baseRef = `wk/${name.initiative}/${name.wk_id}`;
   const resolveWkTip = deps.resolveWkBranchTipBase ?? resolveWkBranchTipBase;
 
@@ -381,31 +415,8 @@ export function allocateFullSliceExactUnitWorktree({
       worktreeAddAttempted = true;
       gitOrThrow(runGit, repo, addArgs, "failed to provision full-checkout exact-unit worktree/branch");
       worktreeCreated = true;
-    } else {
-      const association = gitOrThrow(
-        runGit,
-        worktreePath,
-        ["symbolic-ref", "--quiet", "HEAD"],
-        "failed to verify the existing full-checkout exact-unit worktree association"
-      ).stdout.trim();
-      if (association !== fullRef) {
-        fail(
-          WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-          "existing full-checkout exact-unit worktree is not attached to the deterministic slice branch",
-          { expected: fullRef, actual: association || null, worktreePath }
-        );
-      }
     }
-    const head = revParse(runGit, worktreePath, "HEAD");
-    const branchTip = revParse(runGit, repo, branch);
-    if (head !== baseSha || branchTip !== baseSha) {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-        "slice worktree HEAD and deterministic slice branch do not equal the selected continuation tip",
-        { expected: baseSha, head, branch_tip: branchTip }
-      );
-    }
-    assertFullWorktreePhysicalState(runGit, worktreePath);
+    assertFullSliceWorktreeAtTip({ runGit, repo, worktreePath, branch, baseSha, fullRef });
     binding = Object.freeze({
       schema_version: WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2,
       launch_ref: launchRef,
@@ -563,7 +574,7 @@ function assertNoRefNamespaceCollisionExceptSelf(existingRefs, targetFullRef) {
   assertNoRefNamespaceCollision(existingRefs.filter((existing) => existing !== targetFullRef), targetFullRef);
 }
 
-export function allocateOrAdoptExactUnitWorktree({
+export function inspectExistingWkWorktree({
   mainRepo,
   unitAddress,
   launchRef,
@@ -571,14 +582,16 @@ export function allocateOrAdoptExactUnitWorktree({
   retryId = 0,
   worktreeRoot,
   base,
+  resourceInspectionOnly = false,
   deps = {}
 } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
-  const writeBindingFile = deps.writeBindingFile ?? defaultWriteBindingFile;
 
   const repo = assertAbsolutePath(mainRepo, "mainRepo");
-  assertOpaqueId(launchRef, "launch_ref");
-  assertOpaqueId(runId, "run_id");
+  if (!resourceInspectionOnly) {
+    assertOpaqueId(launchRef, "launch_ref");
+    assertOpaqueId(runId, "run_id");
+  }
   assertNonNegativeRetryId(retryId);
   const root = assertAbsolutePath(worktreeRoot, "worktreeRoot");
   assertWorktreeRootOutsideMainRepo(repo, root);
@@ -593,10 +606,8 @@ export function allocateOrAdoptExactUnitWorktree({
   const pathPresent = existsSync(worktreePath);
 
   if (!branchPresent && !pathPresent) {
-    const binding = allocateExactUnitWorktree({
-      mainRepo: repo, unitAddress, launchRef, runId, retryId, worktreeRoot: root, base, deps
-    });
-    return { binding, receipt: Object.freeze({ reused: false }) };
+    assertNoRefNamespaceCollision(enumerateRefs(runGit, repo), fullRef);
+    return null;
   }
 
   const refuse = (state, message, detail = {}) =>
@@ -641,6 +652,7 @@ export function allocateOrAdoptExactUnitWorktree({
 
   const { writeScope, source: writeScopeSource } = canonicalWriteScope(repo, name.wk_id, name.slice_id);
 
+  if (resourceInspectionOnly) return Object.freeze({ base_ref: capturedBase.base_ref, base_sha: baseSha, wk_tip_sha: wkTipSha });
   const binding = Object.freeze({
     schema_version: WORKTREE_SUBSTRATE_SCHEMA_VERSION,
     launch_ref: launchRef,
@@ -659,9 +671,17 @@ export function allocateOrAdoptExactUnitWorktree({
     wk_tip_sha: wkTipSha
   });
 
-  const filePath = bindingFilePath(repo, launchRef, runId, retryId);
+  return binding;
+}
+
+export function allocateOrAdoptExactUnitWorktree(args = {}) {
+  const binding = inspectExistingWkWorktree({ ...args, resourceInspectionOnly: false });
+  if (binding === null) {
+    return { binding: allocateExactUnitWorktree(args), receipt: Object.freeze({ reused: false }) };
+  }
+  const filePath = bindingFilePath(args.mainRepo, binding.launch_ref, binding.run_id, binding.retry_id);
   try {
-    writeBindingFile({ filePath, contents: `${JSON.stringify(binding, null, 2)}\n` });
+    (args.deps?.writeBindingFile ?? defaultWriteBindingFile)({ filePath, contents: `${JSON.stringify(binding, null, 2)}\n` });
   } catch (storeErr) {
 
     if (existsSync(filePath)) {

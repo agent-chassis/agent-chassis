@@ -109,6 +109,17 @@ export interface OccurrenceCaseAssociation {
   readonly eligible_verification_ids: readonly string[];
   readonly candidate_verification_ids: readonly string[];
   readonly blocked: readonly Readonly<Record<string, unknown>>[];
+  /** Current unbound competitors; these do not block individual selection. */
+  readonly competitions?: readonly {
+    readonly verification_id: string;
+    readonly cases: readonly { readonly case_id: string;
+      readonly uses: readonly { readonly unit: string; readonly obligation_id: string }[] }[];
+  }[];
+  readonly competition_recovery?: {
+    readonly condition: 'competing_unbound_cases';
+    readonly choices: readonly { readonly when: string; readonly field: string; readonly then?: string }[];
+    readonly correction: string;
+  };
   readonly required_choice: CaseVerificationSelectionChoice | CaseReuseChoice;
 }
 

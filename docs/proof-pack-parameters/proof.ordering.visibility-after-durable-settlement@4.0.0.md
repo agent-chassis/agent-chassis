@@ -4,9 +4,9 @@
 
 For one caller-declared effect population, declared success or visibility cannot precede durable settlement of every declared effect; failure visibility is empty, and a selected post-visibility observation of that declared population equals the caller-declared expected durable state.
 
-Profile digest: f5e3a5de0ae1f1bfdd30bcccf4b4969026389947715fea0e84efd509a3f89edf. Parameter digest: 228dce91f4fafcae617c3eaf5d1b008d168e066d5e86a99eef352ae59ddc9175.
+Profile digest: ee24b6d72157cc8ab09b58aceef905a52156e72508c73d473a4bfe551317b4ea. Parameter digest: 3b3d36e087eaaea28b8508b21eb3d96c44e204bf0104d7c0614b76e92d595dcc.
 
-Admission digest: b1dca9b69ce9a65b92713f8da4807a42d0231345ce4175f2c714dff96b96ccfa.
+Admission digest: 74ea80509a1c087485e4b046afdaf6e3b7e5e292b9cf74cb3b2a526a0462587b.
 
 Roles: 26/26 accounted; 3 owned gaps. Semantic parameters: 21; internal roles: 5.
 

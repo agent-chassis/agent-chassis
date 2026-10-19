@@ -1,3 +1,4 @@
+import { accountParentRequirementSource, compactRequirementSourceAccounting } from './contract-requirement-source-links.mjs';
 import { resolveProofAuthoringReadinessInputs, bindProofAuthoringReadinessInputs,
   assertProofAuthoringReadinessCurrent } from './proof-authoring-readiness-inputs.mjs';
 import {
@@ -16,7 +17,7 @@ import {
 } from "../../lib/controlled-contract-authoring-continuations.mjs";
 import { loadWorkRecordById } from "../../lib/work-record-store.mjs";
 import { scopedControlledContractWorkRecordStore } from "../../lib/controlled-contract-tool-shared.mjs";
-import { validateWorkRecord } from "../../lib/work-record-schema.mjs";
+import { validateWorkRecord, computeWorkRecordSourceDigest } from "../../lib/work-record-schema.mjs";
 import { loadControlledContractProofAuthoring, loadControlledContractProofIntents } from
   "./package-runtime.mjs";
 import {
@@ -353,6 +354,11 @@ async function resolveWorkbenchInput(input) {
   const hasContract = canonicalSet.members.some(member => member.carrier_kind === "contract");
   ownerStage = "saved_applications";
   const saved = hasContract ? await resolveProofAuthoringReadinessInputs(ownerRequest, canonicalSet) : null;
+  if (saved !== null && computeWorkRecordSourceDigest(saved.obligationCoverage.record) !== loaded.source_digest) {
+    fail("controlled_acceptance_source_not_current", "The parent work record moved while resolving source accounting", {
+      wk_id: input.wkId, expected_source_digest: loaded.source_digest,
+      actual_source_digest: computeWorkRecordSourceDigest(saved.obligationCoverage.record) });
+  }
   const authoringState = saved?.authoringState ?? await resolveAuthoringState(ownerRequest, canonicalSet);
   const contractAssessment = saved?.contractAssessment ?? null;
   const obligationCoverage = saved?.obligationCoverage ?? null;
@@ -374,6 +380,7 @@ async function resolveWorkbenchInput(input) {
       manifest_digest: canonicalSet.manifest_content_digest ?? null,
       record_source_digest: loaded.source_digest ?? null },
     proofPosture,
+    parentSourceAccounting: accountParentRequirementSource(canonicalSet.members.find(member => member.carrier_kind === "contract")?.content ?? null, loaded.record),
     authoringState: Object.freeze({ ...authoringState,
       ...(referenceAuthoring === null
         ? {} : { reference_authoring: referenceAuthoring }),
@@ -496,7 +503,9 @@ async function evaluateControlledAcceptance(input, deps) {
   const posture = ownerInput.proofPosture ?? Object.freeze({
     present: false, valid: true, disposition: null, proof_posture: null, reason: null
   });
-  const derived = deps.deriveWorkbench(ownerInput);
+  const derived = Object.freeze({ ...deps.deriveWorkbench(ownerInput),
+    parent_source_accounting: ownerInput.parentSourceAccounting === undefined ? null
+      : compactRequirementSourceAccounting(ownerInput.parentSourceAccounting) });
   let state;
   try {
     state = resolveControlledAcceptanceState({ posture, workbench: derived });
@@ -572,7 +581,7 @@ function optedOutManifest(derived, posture) {
       controlled_acceptance_state: "opted_out",
 
       controlled_acceptance_provenance: CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE }),
-    mechanically_complete: true,
+    mechanically_complete: derived.parent_source_accounting?.accounting_status === "complete",
     dimensions
   });
 }

@@ -1,4 +1,5 @@
-
+import { valueReferences, valueCanonicalKey } from '@agent-chassis/controlled-contract/controlled-values-v1';
+import { typedRowReferences } from './contract-requirement-value-projection.mjs';
 
 import {
   CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
@@ -194,6 +195,13 @@ export function applyRequirementCorrections(content, requirements, compiled, tar
     for (const operand of proposition.operands ?? []) {
       if (operand.kind === "reference") usedReferences.add(operand.reference_id);
     }
+  }
+  for (const proposition of content.propositions) for (const id of valueReferences([
+    ...(proposition.operands ?? []).filter(operand => operand.kind === 'value'), proposition.for_each ?? [], proposition.within ?? null])) usedReferences.add(id);
+  const byIdentity = new Map(content.references.map(reference => [valueCanonicalKey(reference.identity), reference.reference_id]));
+  for (const row of content.authored_requirements?.rows ?? []) for (const entity of [row.input.subject, ...typedRowReferences(row.input)]) {
+    const id = byIdentity.get(valueCanonicalKey(entity.identity));
+    if (id) usedReferences.add(id);
   }
   for (const proof of content.test_proofs) {
     for (const id of proof.system_under_test_boundary?.subject_reference_ids ?? []) {

@@ -647,12 +647,12 @@ function makeDispatchValidationAction(taxonomy, selection, overrides = {}) {
   const selected = findBestActionMatch(taxonomy, ['validate', 'dispatch'], null);
   return normalizeActionFromTaxonomy(taxonomy, selected, {
     kind: 'validate_dispatch',
-    suggested_tool: 'workspace_validate_dispatch',
+    suggested_tool: 'start_agent',
     target_unit: selection.address,
     priority: 'high',
     blocking: false,
     reason_code: 'record_needs_validation',
-    summary: 'Optionally assess dispatch readiness for this unit; the assessment grants no launch permission.',
+    summary: 'Optionally preview dispatch readiness for this exact unit; preview launches nothing, grants no launch permission and leaves unchecked conditions explicit.',
     ...overrides,
   });
 }
@@ -747,9 +747,7 @@ function deriveActionForSelection(taxonomy, selection, { initiativeMismatch = fa
   if (status === 'todo' || status === 'active' || status === 'inbox') {
     const dispatchIntent = getDispatchIntent(selection.entry);
     if (dispatchIntent && asNonEmptyString(dispatchIntent.target_unit) && dispatchIntent.target_unit !== 'none') {
-      return makeDispatchValidationAction(taxonomy, selection, {
-        summary: 'Readiness assessment for the selected unit is optional; starting it goes to dispatch, which checks current facts itself.',
-      });
+      return makeDispatchValidationAction(taxonomy, selection);
     }
 
     return makeSummaryAction(taxonomy, selection, {

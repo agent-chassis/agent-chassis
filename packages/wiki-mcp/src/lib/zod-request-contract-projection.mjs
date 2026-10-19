@@ -148,6 +148,8 @@ export function projectZodRequestContract(schema, {
   const usedNames = new Set();
   const omissions = [];
   const occurrences = [];
+  const active = new Map();
+  const recursiveReferences = new Map();
   let definitionIndex = 1;
 
   const omit = (node, path, entry) => {
@@ -176,6 +178,12 @@ export function projectZodRequestContract(schema, {
       }
       constraints.push(...refinement.declared);
     }
+    for (const constraint of constraints) {
+      if (constraint.constraint === "array_length") {
+        body.minItems = constraint.min_items;
+        if (constraint.max_items !== undefined) body.maxItems = constraint.max_items;
+      }
+    }
 
     const restated = description !== undefined &&
       constraints.some((constraint) => constraint.statement === description);
@@ -201,6 +209,15 @@ export function projectZodRequestContract(schema, {
       case "ZodNativeEnum": return { enum: [...new Set(Object.values(inner._def.values))] };
       case "ZodArray": return arrayConstraints(
         inner, (item, setValue) => emit(item, keyHint, depth + 1, `${path}[]`, setValue));
+      case "ZodLazy": return emit(inner._def.getter(), keyHint, depth, path);
+      case "ZodTuple": {
+        const prefixItems = [];
+        inner._def.items.forEach((item, index) => emit(item, keyHint, depth + 1, `${path}[${index}]`, value => { prefixItems[index] = value; }));
+        const tuple = { type: "array", prefixItems, minItems: prefixItems.length, items: false };
+        if (inner._def.rest) emit(inner._def.rest, keyHint, depth + 1, `${path}[]`, value => { tuple.items = value; });
+        else tuple.maxItems = prefixItems.length;
+        return tuple;
+      }
       case "ZodObject": return objectContract(
         inner, (value, key, setValue) => emit(value, key, depth + 1, `${path}.${key}`, setValue));
       case "ZodRecord": {
@@ -235,8 +252,30 @@ export function projectZodRequestContract(schema, {
   const MINIMUM_HOISTED_BYTES = 96;
   const emit = (node, keyHint, depth, path, setValue = () => {}) => {
     if (node?._def === undefined) return {};
+    if (recursiveReferences.has(node)) {
+      const reference = recursiveReferences.get(node);
+      setValue(reference);
+      return reference;
+    }
+    const ancestor = active.get(node);
+    if (ancestor !== undefined) {
+      ancestor.name ??= assignDefinitionName(usedNames, nameHints.get(node) ?? ancestor.keyHint, definitionIndex++);
+      const reference = { $ref: `#/$defs/${ancestor.name}` };
+      setValue(reference);
+      return reference;
+    }
+    const frame = { keyHint };
+    active.set(node, frame);
     const omissionsBefore = omissions.length;
     const projected = project(node, keyHint, depth, path);
+    active.delete(node);
+    if (frame.name !== undefined) {
+      definitions[frame.name] = projected;
+      const reference = { $ref: `#/$defs/${frame.name}` };
+      if (omissions.length === omissionsBefore) recursiveReferences.set(node, reference);
+      setValue(reference);
+      return reference;
+    }
     let current = projected;
     const set = (value) => { current = value; setValue(value); };
     set(projected);
@@ -250,6 +289,7 @@ export function projectZodRequestContract(schema, {
   const result = {
     schema_version: ZOD_REQUEST_CONTRACT_SCHEMA_VERSION,
     contract,
+    ...(Object.keys(definitions).length > 0 ? { $defs: definitions } : {}),
     ...(omissions.length > 0 ? { unprojected: omissions } : {})
   };
 

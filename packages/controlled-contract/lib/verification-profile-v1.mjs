@@ -532,7 +532,10 @@ function nativeStableWorkUnits(input) {
 
 function enrichResult(result, profile, nativeEvaluation) {
   const nativeDiagnostics = nativeEvaluation.diagnostics;
-  const projected = projectBoundedDiagnostics([...result.diagnostics, ...nativeDiagnostics]);
+
+  const projected = projectBoundedDiagnostics([...result.diagnostics, ...nativeDiagnostics], {
+    priorityCodes: ["proof_evaluation_unavailable"]
+  });
   const enriched = {
     ...result,
     satisfaction: nativeDiagnostics.length > 0 ? "unsatisfied" : result.satisfaction,
@@ -680,7 +683,136 @@ function evaluateVerificationProfileV1(payload, { graphSelectionSink = null } = 
     semanticRequestCount: semanticEvaluation.requestCount,
     testValidityEvaluated: testValidityInputs.length > 0
   };
-  const result = evaluateVerificationProfileWithRuntime(payload, stableRuntimeOptions(graphSelectionSink));
+  const behavioral = payload.profile.profile_id === "proof.compatibility.behavioral-preservation";
+  const declaredBoundary = payload.profile.profile_id === "proof.policy.declared-boundary-record-consistency";
+  const declaredGuidance = payload.profile.profile_id === "proof.policy.declared-limit-propagation";
+  const snapshot = payload.profile.profile_id === "proof.pagination.snapshot-consistency";
+  const versionedCursor = payload.profile.profile_id === "proof.pagination.versioned-cursor-refusal";
+  const authentication = payload.profile.profile_id === "proof.authentication.direct-source-provenance";
+  const soundNegative = payload.profile.profile_id === "proof.observation.sound-negative";
+  const callerAuthority = payload.profile.profile_id === "proof.input.caller-authority-confinement";
+  const supplementary = payload.profile.profile_id === "proof.failure.supplementary-isolation";
+  const ordering = payload.profile.profile_id === "proof.ordering.lexicographic-conformance";
+  const dormancy = payload.profile.profile_id === "proof.dormancy.nonactivation";
+  const integrationPrefix = payload.profile.profile_id === "proof.integration.prefix-safety";
+  const unsupported = authentication || soundNegative || callerAuthority ||
+    supplementary || ordering || dormancy || integrationPrefix ||
+    behavioral || declaredBoundary || declaredGuidance || snapshot || versionedCursor ||
+    payload.profile.profile_id === "proof.pagination.complete-traversal";
+  const declaration = evaluateVerificationProfileWithRuntime(payload,
+    stableRuntimeOptions(unsupported ? null : graphSelectionSink));
+
+  const result = unsupported ? {
+    ...declaration,
+    satisfaction: declaration.satisfaction === "invalid" ? "invalid" : "indeterminate",
+    satisfaction_trace: null,
+    pattern_results: declaration.pattern_results.map(pattern => pattern.status === "satisfied"
+      ? { ...pattern, status: "indeterminate" } : pattern),
+    diagnostics: [...declaration.diagnostics, {
+      code: "proof_evaluation_unavailable",
+      message: integrationPrefix
+        ? "proof.integration.prefix-safety cannot currently verify its advertised source-derived census " +
+          "guarantee in generic assessment: assessment matches authored declarations only; it neither invokes " +
+          "integration-prefix-census.v1 nor establishes that the evaluated case population is its exact " +
+          "derivation from the DAG, integration-unit partition, execution paths and required branches. " +
+          "buildIntegrationPrefixAuthoring separately invokes the transformer, constructs the complete " +
+          "prefix x path x required-branch population and emits its source artifacts and authored graph; " +
+          "those construction results remain valid. Preservation of each case is an authored declaration. " +
+          "Dishonest preservation declarations and runtime or deployment behavior remain excluded; " +
+          "execution or runtime preservation evidence is not required by this guarantee."
+        : dormancy
+        ? "proof.dormancy.nonactivation cannot currently verify its advertised exact-capture guarantee: " +
+          "evaluation checks declared complete populations, membership, zero activation count, operand joins " +
+          "and the four caller-supplied resolver facts, conditional on those declarations and facts. It does " +
+          "not connect the evaluated declarations to the exact captured production reachability snapshot, " +
+          "default-configuration artifact or activation-observation artifact. Matching declarations and " +
+          "positive resolver facts do not establish exact capture linkage or actual production nonactivation. " +
+          "Independent resolver authority, reachability recomputation and interpretation of configuration " +
+          "bytes remain outside this contract."
+        : supplementary
+        ? "proof.failure.supplementary-isolation cannot currently verify its advertised captured-source " +
+          "guarantee: assessment matches authored declarations only; it neither invokes " +
+          "supplementary-isolation-attempt-record.v1 nor connects its checked attempt, core-settlement, " +
+          "supplementary-failure and final-result sources and projection to the evaluated graph. Matching " +
+          "declarations do not establish captured settlement before failure, exact core value/member " +
+          "preservation, exactly one present-unavailable or omitted-disclosed branch, or exactly one " +
+          "reason from the closed captured population."
+        : ordering
+        ? "proof.ordering.lexicographic-conformance cannot currently verify its advertised captured-source " +
+          "guarantee: assessment matches authored declarations only; it neither invokes " +
+          "deterministic-lexicographic-conformance.v1 nor connects its checked input, result, ordering policy " +
+          "and item-key/comparator evidence sources and conformance report to the evaluated graph. Matching " +
+          "declarations do not establish complete captured populations/counts, key precedence/direction, " +
+          "first-unequal-key comparison, stable identity tie-breaking, comparator checks or input, " +
+          "declaration and serialization permutation invariance."
+        : authentication
+        ? "proof.authentication.direct-source-provenance cannot currently verify its advertised source-backed " +
+          "guarantee: assessment matches authored declarations only; it neither invokes " +
+          "deriveAuthenticationProvenanceOccurrenceCapture nor connects its checked evidence content, target " +
+          "resolution, source authentication, source-of-record assignment, attempt binding and authentication " +
+          "witnesses to the evaluated graph. The checker separately verifies supplied signed witnesses within " +
+          "the declared trust boundary; declaration matching does not establish those checks."
+        : soundNegative
+        ? "proof.observation.sound-negative cannot currently verify its advertised source-backed guarantee: " +
+          "assessment matches authored declarations only; it neither invokes deriveSoundNegativeObservationCapture " +
+          "nor connects its checked observation evidence and capture proof to the evaluated graph. Matching " +
+          "declarations do not establish the authenticated source/attempt bindings, complete required-source " +
+          "coverage, stable observation interval or absence conclusion that the composed checker checks."
+        : callerAuthority
+        ? "proof.input.caller-authority-confinement cannot currently verify its advertised source-backed " +
+          "guarantee: assessment matches authored declarations only; it neither invokes " +
+          "deriveCallerInputAuthorityConfinementCapture nor connects its checked policy, accepted and forbidden " +
+          "requests, observation evidence and capture proof to the evaluated graph. Matching declarations do not " +
+          "establish the composed checker's caller-input classification, resolution-coordinate confinement or " +
+          "absence of prohibited effects before refusal."
+        : behavioral
+        ? "proof.compatibility.behavioral-preservation cannot verify captured full-report byte equality or " +
+          "implementation behavioral preservation: generic evaluation matches authored declarations only; " +
+          "it neither binds captures nor invokes verifyBehavioralPreservationReports, whose supplied-report " +
+          "comparison checks populations, counts and one selected value pair only."
+        : declaredBoundary
+        ? "proof.policy.declared-boundary-record-consistency cannot currently verify its advertised " +
+          "transformer-backed guarantee: assessment matches authored declarations only; it neither invokes " +
+          "deriveDeclaredBoundaryRecordConsistency nor binds its report to the exact policy, caller_asserted " +
+          "observation record and subject inputs. The transformer separately measures declared units, checks " +
+          "the complete boundary census and recorded dispositions, and binds its report to those sources."
+        : declaredGuidance
+        ? "proof.policy.declared-limit-propagation cannot currently verify its advertised transformer-backed " +
+          "guarantee: assessment matches authored declarations only; it neither invokes " +
+          "deriveDeclaredLimitGuidancePropagation nor binds its report to the exact declared policy and raw " +
+          "UTF-8 guidance inputs. The transformer separately checks required keys, decimal values and unit " +
+          "tokens, rejects inconsistent guidance, and binds its report to those sources."
+        : snapshot
+        ? "proof.pagination.snapshot-consistency cannot currently verify its advertised captured-trace " +
+          "guarantee: assessment matches authored declarations only; it neither invokes " +
+          "mutation-pagination-trace.v1 nor connects its checked source inputs and result to the evaluated graph. " +
+          "The required evidence-to-evaluation connection does not exist for the declared snapshot/state, " +
+          "relevant mutation and stable versus mutation-interleaved ordered member sequences."
+        : versionedCursor
+        ? "proof.pagination.versioned-cursor-refusal cannot currently verify its advertised captured-trace " +
+          "guarantee: assessment matches authored declarations only; it neither invokes " +
+          "mutation-pagination-trace.v1 nor connects its checked source inputs and result to the evaluated graph. " +
+          "The required evidence-to-evaluation connection does not exist for the exact stale attempt/refusal, " +
+          "prohibited returns, cursor advances and protected effects, or the unrelated-mutation control."
+        : "proof.pagination.complete-traversal cannot currently verify its advertised " +
+        "captured/authenticated traversal guarantee: the required evidence-to-evaluation connection does not exist.",
+      outcome: "unsupported",
+      proof_credit: 0,
+      profile_id: payload.profile.profile_id,
+      profile_version: payload.profile.profile_version,
+      recovery: integrationPrefix || dormancy || supplementary || ordering || snapshot || versionedCursor
+        ? "Separate supported claims from unsupported claims; removing containment requires evidence for " +
+          "the exact guarantee being enabled; retrying unchanged cannot establish it."
+        : "Implement and certify the advertised guarantee before removing containment; " +
+        "retrying unchanged cannot establish it.",
+      declaration_match: {
+        satisfaction: declaration.satisfaction,
+        scope: "authored_declarations_only",
+        satisfied_pattern_ids: declaration.pattern_results.filter(({ status }) => status === "satisfied")
+          .map(({ pattern_id: id }) => id)
+      }
+    }]
+  } : declaration;
   const enriched = enrichResult(result, payload.profile, nativeEvaluation);
   assertStableResourceUsage({
     projection_result_bytes: canonicalJsonBytes(enriched).byteLength,

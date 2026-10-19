@@ -1,0 +1,22 @@
+# Requires the installed, authenticated native agy CLI.
+# Copy to agent-launch.toml to activate.
+
+[roles.orchestrator]
+model = "gemini-3.8-flash-low"
+effort = "low"
+high_priority_role_guide = true
+
+[roles.worker]
+model = "gemini-3.8-flash-low"
+effort = "low"
+high_priority_role_guide = true
+
+[roles.reviewer]
+model = "gemini-3.8-flash-low"
+effort = "low"
+high_priority_role_guide = true
+
+[roles.redteam]
+model = "gemini-3.8-flash-low"
+effort = "low"
+high_priority_role_guide = true

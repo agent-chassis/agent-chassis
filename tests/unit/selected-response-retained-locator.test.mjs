@@ -209,7 +209,13 @@ test("a retained code answer refuses public bytes with its semantic detail call"
       "../../packages/wiki-mcp/src/lib/code-index-query-tools.mjs");
     const { createSelectedCodeIndexResponse } = await import(
       "../../packages/wiki-mcp/src/lib/code-index-query-response.mjs");
-    const result = { query_kind: "impact", index_head: "e".repeat(40),
+    const checkoutIdentity = "a".repeat(64);
+    const storeIncarnation = "4bc53193-333b-4f4c-a462-fbe45503e182";
+    const graphSnapshot = { schema_version: "graph-snapshot.v1",
+      store_incarnation: storeIncarnation, publication_sequence: 7,
+      repository_commit: "e".repeat(40), repository_tree: "f".repeat(40),
+      base_coverage: { checkout_identity: checkoutIdentity } };
+    const result = { query_kind: "impact", index_head: "e".repeat(40), graph_snapshot: graphSnapshot,
       input_diff_sources: [{ kind: "patch_text", text: `+${"é".repeat(9000)}` }],
       affected_files: [{ path: "src/ü.mjs", relationships: [{ basis: "graph", kind: "reverse_import",
         input_path: "src/core.mjs" }] }] };
@@ -219,16 +225,14 @@ test("a retained code answer refuses public bytes with its semantic detail call"
       queryIdentity: { paths: ["src/core.mjs"] }, collections: ["affected_files"],
       projectSummary: (value) => ({ query_kind: value.query_kind, index_head: value.index_head }) });
 
-    const snapshot_identity = answer.next_calls[0].arguments.detail.snapshot_identity;
-    assert.match(snapshot_identity, /^[A-Za-z0-9_-]{43}$/u);
     const expectedCall = { detail: { source: answer.selected_detail.source,
-      snapshot_identity, collection: "affected_files" } };
+      collection: "affected_files" } };
     assert.equal(CODE_INDEX_QUERY_ROUTE, "query_code_index");
     assert.deepEqual(answer.next_calls.map(({ tool, arguments: args }) => ({ tool, args })),
       [{ tool: CODE_INDEX_QUERY_ROUTE, args: expectedCall }]);
-    assert.equal(answer.read_mode, "query");
-    assert.deepEqual(Object.keys(answer.selected_detail).sort(), ["collections", "schema_version", "source"]);
-    assert.deepEqual(answer.selected_detail.collections, { affected_files: 1 },
+    assert.equal(answer.read_mode, undefined);
+    assert.deepEqual(Object.keys(answer.selected_detail).sort(), ["source", "totals"]);
+    assert.deepEqual(answer.selected_detail.totals, { affected_files: 1 },
       "the caller's retained patch is not a selectable collection");
 
     const handlers = new Map();
@@ -247,7 +251,31 @@ test("a retained code answer refuses public bytes with its semantic detail call"
     const original = readSelectedResponseSource(answer.selected_detail.source,
       { env, expected: { route: CODE_INDEX_QUERY_ROUTE, repository: "demo" } });
     assert.deepEqual(original.carrier, { workspaceRepo: "demo", ...result });
-    assert.equal(original.binding.observation_identity, result.index_head);
+    assert.deepEqual(JSON.parse(original.binding.observation_identity),
+      [checkoutIdentity, storeIncarnation, 7, false]);
+
+    const retainedIdentity = (value) => {
+      const retained = createSelectedCodeIndexResponse({ workspaceRepo: "demo", result: value, session,
+        queryIdentity: { paths: ["src/core.mjs"] }, collections: ["affected_files"],
+        projectSummary: (row) => ({ query_kind: row.query_kind, index_head: row.index_head }) });
+      return readSelectedResponseSource(retained.selected_detail.source,
+        { env, expected: { route: CODE_INDEX_QUERY_ROUTE, repository: "demo" } }).binding.observation_identity;
+    };
+
+    for (const [snapshot, expected] of [
+      [{ ...graphSnapshot, base_coverage: { checkout_identity: "b".repeat(64) } },
+        ["b".repeat(64), storeIncarnation, 7, false]],
+      [{ ...graphSnapshot, store_incarnation: "f2fdebac-c90e-4b0c-aeec-f6568d9db809" },
+        [checkoutIdentity, "f2fdebac-c90e-4b0c-aeec-f6568d9db809", 7, false]],
+      [{ ...graphSnapshot, publication_sequence: 8 }, [checkoutIdentity, storeIncarnation, 8, false]]
+    ]) {
+      const identity = retainedIdentity({ ...result, graph_snapshot: snapshot });
+      assert.notEqual(identity, original.binding.observation_identity);
+      assert.deepEqual(JSON.parse(identity), expected);
+    }
+    const { graph_snapshot: _snapshot, ...withoutSnapshot } = result;
+    assert.equal(retainedIdentity(withoutSnapshot), null,
+      "an index_head without a graph snapshot grants no observation identity");
   } finally {
     await scope.dispose();
   }

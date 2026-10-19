@@ -116,7 +116,8 @@ function renderComponent(component) {
     ? [component.version && `${component.version} [${component.version_source}]`,
       component.source && `source ${component.source}`, component.dir && `at ${component.dir}`]
       .filter(Boolean).join(", ")
-    : `${component.code}: ${component.message}`;
+    : `${component.code}: ${component.message}` +
+      (typeof component.detail?.diagnostic === "string" ? `\n${component.detail.diagnostic.slice(0, 4000)}` : "");
   return `  ${component.status.padEnd(8)} ${label}${detail ? ` - ${detail}` : ""}`;
 }
 

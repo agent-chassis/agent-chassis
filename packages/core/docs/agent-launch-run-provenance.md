@@ -660,8 +660,8 @@ covered, and a run that includes one cannot have a complete total.
 ### Mechanism
 
 `@agent-chassis/agent-launch-core` exports the two entry points a launch site
-uses: `native-usage-records.mjs` for a client whose output stream carries its
-usage (Claude), and `native-usage-codex-session.mjs` for Codex. The stream
+uses: `native-usage-records.mjs` for clients whose output streams carry their
+usage (Claude, OpenCode and Agy), and `native-usage-codex-session.mjs` for Codex. The stream
 steps are:
 
 1. `prepareNativeUsageLaunch` runs before spawn. It mints a fresh
@@ -674,7 +674,7 @@ steps are:
    the argv and output its caller asked for, with `usage_output_mode_unsupported`.
 2. The site pipes the client's stdout to the tap. The tap decodes it with the
    [JSONL decoder](#native-usage-jsonl-decoder), and the Claude adapter
-   (`native-usage-adapters.mjs`, the only stream adapter) turns each event
+   (`native-usage-adapters.mjs`, the stream adapter registry) turns each event
    into readable text and accounting facts.
 3. The site's existing text sink receives only the readable projection, so the
    family result parser and the logs see text, never a protocol envelope.
@@ -841,6 +841,92 @@ Consequences in the record:
 - A stream that was truncated, undrained, damaged or without a terminal event
   yields `partial` or `unavailable` quantities with `stream_incomplete` or
   `terminal_usage_missing`; observed numbers are kept as `observed`.
+
+### OpenCode and Agy benchmark launches
+
+The headless OpenCode **1.19.3** (`run --format json`) and Agy **1.4.0**
+(`--print --output-format stream-json`) adapters use this same accounting path.
+`native-usage-step-adapters.mjs` selects native facts; the shared capture and
+numerical kernel own normalization and arithmetic. The orchestrator begins its
+task before creating its MCP conduit, so every launcher-dispatched worker,
+reviewer and redteam joins the same task. Each started attempt registers even
+when it fails, is cancelled, or never reports usage. A retry is another
+contributor; settlement and replay of one invocation never add it again.
+
+| Native source | Interpretation |
+| --- | --- |
+| OpenCode `step_finish.part`, keyed by part ID and bound to its session and message | Disjoint request reports. `tokens.input`, `cache.read`, and `cache.write` are separate input categories; `tokens.output` excludes `tokens.reasoning`. Normalize output as their sum and keep reasoning separately. |
+| OpenCode `part.cost` | Sum the unique steps' client estimates, retaining USD and `opencode.step_finish.cost` provenance. Missing cost stays unavailable. |
+| Agy `step_update.step_update.usage`, keyed by conversation and step index | Latest per-step observations, including checkpoint steps. Repeated updates replace that step; they are never added as new requests. Before a result, these remain partial observations. |
+| Agy `result.result.usage` | Cumulative session counters replace the per-step observations. Input combines `input_tokens` and `cache_read_tokens`; `output_tokens` already includes `thinking_tokens`. No cache-write or monetary cost counter is reported by this protocol: those quantities remain unavailable. |
+
+The OpenCode mapping was checked against the installed 1.19.3 package's native
+`Session.getUsage` implementation and CLI event emitter: the emitter filters
+parts to the current session, and a resumed `run` emits only the new invocation's
+steps. Its invocation interval starts from zero even on resume; the record still
+retains the launcher's actual `resumed` fact. No lifetime baseline is inferred
+from its message or session aggregates and no descendant database is added.
+
+The native serve/API owner prepares the same accounting tap with
+`prepareNativeUsageLaunch({ family: "opencode", usageTransport: "opencode_api",
+args, workspaceDir, env, identity, resumed })` from the exported
+`native-usage-records.mjs` entry point. The real service argv is returned unchanged.
+Pass the returned `tap` as the shared supervisor's `stdoutTap`, then:
+
+1. Call `tap.bindNativeSession(session.id, { clientVersion: health.version })`
+   after validating the native health response and created session, before
+   observing parts. Omit the version option if no native version was observed.
+2. Call `tap.observeNativePart(part)` for each native `step-start` or `step-finish`
+   part from that invocation's API events or complete message-part inventory.
+   Repeated part IDs are counted once; conflicting parts or session identities
+   make usage incomplete. Text/tool bodies and message/session token aggregates
+   are not accounting inputs. On resume, feed only the new invocation's parts.
+3. Call `tap.endNativeUsage({ complete })` before the supervisor settles usage.
+   `complete: true` requires the owner's complete inventory/stream of the
+   invocation's native parts. A final response containing only its last
+   message's parts does not prove that earlier tool-call requests were captured.
+   Missing, failed, or cancelled collection uses `complete: false`; reported
+   observations are retained as partial. Collect before terminating the native
+   service when possible, including the API-error path.
+
+The supervisor owns registration, exit, settlement and retention for this tap
+exactly as for stdout clients. API mode ignores readiness stdout and preserves
+it for the existing result parser. Ordinary `tap.end({ drained: true })` cannot
+establish API source completeness. Without explicit source completion, even a
+native stop part remains partial. No new harness parser, arithmetic owner or
+output schema is introduced. This interface does not itself start an API
+subscription or fetch a session inventory: those belong to the native service
+owner. Its wiring is separate from the stream adapter's accounting contract.
+
+Agy's [headless protocol](https://antigravity.google/docs/cli/headless) documents
+per-step usage and cumulative session results; the [1.4.0 release changelog](https://github.com/google-antigravity/antigravity-cli/blob/1.4.0/CHANGELOG.md)
+identifies the supported release. Resumes subtract only the retained same-session,
+same-source baseline. Interrupted per-step observations extend that baseline;
+a later cumulative result replaces them. Without a bound baseline, resumed
+quantities stay unavailable. A terminal error or cancellation can still carry
+complete usage; without terminal usage, observations stay partial. Child
+conversation identifiers and tool result bodies are never additional usage
+reports. These adapters describe root-session reports, not inclusive descendant
+aggregates; separately dispatched clients are separately registered populations.
+
+Both supervisors tap stdout before bounded result capture, checkpoint observations,
+and settle after exit and stream drainage, independent of result parsing success.
+They preserve these clients' native protocol for existing completion parsers.
+Malformed events, conflicting identities, conflicting repeated OpenCode parts,
+missing fields, and capture limits prevent complete totals. Missing counters never
+become zero. The record's client version remains null when the stream reports none;
+the version pins above describe the qualified format rather than invented runtime
+version evidence. API captures can retain the validated native health version. Interactive TTY sessions have no stream capture in these adapters.
+
+The AgentChassis benchmark exporter continues to follow `native-usage.json` to
+`run-total.json`; it has no OpenCode or Agy parser. Trial metadata retains coverage,
+partial observations, cache writes, reasoning and cost provenance. Numeric trial
+fields are populated only for complete quantities. Retained `runtime/native-usage/`
+artifacts carry the same launch entries, usage records and totals, including failed
+attempts. Model-free tests exercise framing, repeated and cumulative reports,
+resumes across tasks, failures, missing contributors, protocol preservation and
+agreement between retained totals and the trial projection. They do not qualify
+live providers, billing, unreported auxiliary requests or interactive usage.
 
 ### Checkpoints
 
@@ -1087,44 +1173,6 @@ accounting artifact. Retention ends when the result ConfigMap is deleted. The
 launch-core modules the wrapper loads are part of the wrapper implementation
 digest. Those modules load only each other and Node's own modules, so the
 worker image needs the core package's files and no installed dependency of it.
-
-### Benchmark export
-
-The DeepSWE in-container exporter reads the launcher's total and launches
-nothing: `runtime-observations.mjs --native-usage` follows the orchestrator's
-`native-usage.json` to `run-total.json` and prints one `native_usage_json=`
-line. It withdraws the complete values, without changing any number, when the
-dispatches the runtime started are not all among the launcher's launch entries
-(`dispatch_attempt_without_launch_entry`), a start's outcome was never observed
-(`dispatch_start_unresolved`), no orchestrator entry exists
-(`orchestrator_launch_entry_missing`), or the transcripts are unavailable
-(`dispatch_membership_unverified`). With no pointer or total it prints nothing.
-
-The exporter also copies the records directory the pointer names, unchanged,
-to `runtime/native-usage/` in the bundle (`runtime-observations.mjs
---native-usage-records` prints its path): the launch entries, settled records,
-pending checkpoints and total. Each orchestrator and worker launch therefore
-keeps its own breakdown after Pier removes the container. Without a pointer
-the manifest lists `native_usage_records` as missing.
-
-Both Pier adapters pass that line to one function, `write_agent_context` in
-`agent_chassis_pier_agent.py`. It writes into the `AgentContext` object Pier
-supplied, never a replacement:
-
-| Context field | Written from | When |
-| --- | --- | --- |
-| `n_input_tokens` | total input, cache included | only when that quantity is complete |
-| `n_cache_tokens` | cache reads | only when complete |
-| `n_output_tokens` | output | only when complete |
-| `peak_context_tokens` | peak single-request input | only when complete, which no route currently establishes |
-| `cost_usd` | the native cost estimate | only when complete for every contributor |
-| `metadata.agent_chassis_native_usage` | the whole projection: coverage, labelled partial observations, cache creation, estimate provenance, causes | always; `unavailable` when nothing was exported |
-| `metadata.agent_chassis_smoke` | the adapter's run summary | always |
-
-Other metadata and fields are left as Pier gave them, and no arithmetic is done
-in Python. On an error or cancellation the live adapter writes whatever the
-bounded evidence export captured and re-raises the original error. This mapping
-is checked against the actual `datacurve-pier==0.3.1` `AgentContext`.
 
 ## Inspect Run Provenance
 

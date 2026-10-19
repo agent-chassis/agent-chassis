@@ -220,9 +220,14 @@ export function createManagedAssignmentReadSnapshot(assignment) {
       assigned_unit: assignment.unit_address,
       role: assignment.role,
       canonical_source_digest: assignment.source_digest ?? null,
-      run_id: assignment.run_id ?? null
+      run_id: assignment.run_id ?? null,
+      binding_run_id: assignment.binding_run_id ?? null,
+      retry_id: assignment.retry_id ?? null,
+      launch_ref: assignment.monitor_handle ?? null,
+      worktree_path: assignment.worktree_path
     },
-    guidance: assignment.assignment_guidance
+    guidance: assignment.assignment_guidance,
+    repository_test_binding: assignment.repository_test_binding ?? null
   };
   const bytes = new Uint8Array(Buffer.from(JSON.stringify(presentation), "utf8"));
   return Object.freeze({

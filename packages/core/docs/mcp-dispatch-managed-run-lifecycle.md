@@ -236,6 +236,50 @@ fixed publication order proves nothing was spawned; every other held reservation
 stays blocked and auditable, and a stale owner can never release or reclaim a
 newer reservation.
 
+The backend also retains a process-local provisioning-attempt authority. Its
+settlement is separate from durable pending-identity and subject-reservation
+settlement. After recording an authenticated provisioned attempt, the managed
+executor wrapper covers all synchronous preparation with one settlement boundary:
+provisioning-binding recording, Git-binding derivation, result-mode resolution,
+assignment presentation, repository-test definition capture, assignment minting,
+and executor-packet construction. Any return or throw before that packet is
+complete settles only the exact recorded tuple as never started, preserving the
+original refusal or exception and retained worktree/binding evidence. Missing
+definitions remain a refusal with their original path, commit and kind. The
+outer lifecycle still owns pending-identity discard and reservation release;
+a settled in-memory attempt alone authorizes neither durable release nor spawn.
+
+Existing worker input checks run before bootstrap: canonical assignment and
+scope, prospective source, test declarations/definition availability, backend
+admission and assigned-source access. Served dispatch also performs shared input
+inspection before admission-evidence refresh. The reserved lifecycle repeats
+these checks and preparation binds the digest and source again under ownership
+locks. Created binding/output verification remains after allocation. A failure
+before family executor entry settles only this preparation's authenticated
+effects and reports parent checkout usability or its precise retained-state
+limitation; it preserves the original refusal and exact attempt. This does not
+replace the attempt-state `recordProvisioned`/`recordExecutorResult` settlement
+above, nor authorize cleanup after uncertain executor entry. See
+[launch preparation](mcp-dispatch-launch-and-admission.md) for retained generation,
+checkout synchronization and concurrent-winner boundaries.
+
+Once the packet enters the executor, the existing executor-result rules apply:
+refusal, throw and terminal status settle the attempt; an accepted running or
+launching result retains its probe and liveness protection. Result recording is
+outside the executor catch so a recording error cannot trigger a second,
+throw-shaped settlement. A missing probe never establishes worker termination.
+Both recording paths check the complete attempt identity; neither can settle a
+foreign or superseded tuple.
+
+This preparation boundary prevents new stranded attempts. An attempt stranded
+in an already-running backend has no authenticated public operation that settles
+this process-local map: durable observation and retirement do not mutate it.
+The operator must replace the backend-hosting process to load the repaired code
+and obtain a fresh process-local authority. Retained durable identities,
+reservations and worktree bindings still undergo their ordinary authenticated
+checks; restarting is not release proof and does not guarantee a corrected start
+will be admitted. Do not delete lifecycle state or substitute a caller reset.
+
 A durable attempt is retired through a launcher-owned state transition — never a
 file deletion, and never an operator or caller capability — once its safety
 purpose is provably complete. Three authorizations exist: the slice was
@@ -608,8 +652,9 @@ the shared dispatch failure projection: its facts, effects and returned policy
 cross unchanged, its evidence becomes a `cause_chain` whose levels keep their
 structured facts (a missing fork ref, a refusal reason), and the complete carrier
 is retained once for the operator and named by `retained_evidence`. Cold recovery
-is not latched, so each status that re-attempts it and fails is a new failure at
-that seam and retains its own original.
+is not latched. Each explicit `integrate_work` attempt that
+reaches recovery and fails reports that attempt’s cause and retained evidence.
+A `get_run_result` read only observes the recorded state; it does not retry recovery.
 
 Producers keep their facts at the point of failure:
 
@@ -1256,3 +1301,33 @@ provider, evaluator, receipt, policy, or authority. Candidate or controlled
 generation movement invalidates the attempt. Its result is advisory evidence
 with no review, dispatch, integration, admission, completion, CCE, lifecycle, or
 policy effect, and existing findings-only review requirements remain unchanged.
+
+## Assignment-change early stop
+
+A durably accepted `request_assignment_change` is an alternative worker
+completion. It does not deliver work. Producer settlement reads the exact
+attempt's completion observation through the existing journal owner and records
+`assignment_change_requested` as the semantic result after observed termination.
+The host requires this attempt's private launcher stop capability before durable
+acceptance. Acceptance emits a normal terminal event through the private lifecycle
+pipe; the shared isolated-launch process owner immediately sends SIGKILL to its
+owned confined worker, without a grace period for another model turn or report.
+The accepted call stays pending. Completed and remaining work in the request are
+the handoff; no later worker call is required or permitted. Multiple authenticated
+connection generations reach the same attempt stop owner. Refusals leave the
+worker usable and other attempts unchanged. Channel or signal failure after
+acceptance retains consumed authority and the actual failure; pending acceptance
+cannot prove death or authorize release.
+Process status, exit/signal facts and actual producer/publication failures stay
+independent. Child prose cannot mint acceptance, and absent or malformed final
+prose cannot erase it.
+
+Before unchanged-ref or missing-delivery classification, the post-worker
+lifecycle consults that same accepted fact. An intentional early stop produces
+neither `missing_closed_input_delivery` nor `no_commit_base_equal` retirement.
+No delivery, integration, proof credit, canonical completion, checkout
+finalization or destructive cleanup follows from acceptance or settlement.
+Staged, unstaged and untracked work, the index, refs, prior evidence and frozen
+assignment remain in place. Release and later separately authorized cleanup
+still require their incumbent authenticated evidence and owners; acceptance
+proves no process death and cancels no concurrent host test writer.

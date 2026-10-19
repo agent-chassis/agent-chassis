@@ -12,16 +12,16 @@ import { selectedResponseDetailSchema, selectedResponseRequestSchema } from "./s
 
 export const VERIFY_PROOF_TASK = "verify_proof";
 export const VERIFY_PROOF_EXECUTION_INPUT_SCHEMA = z.object({
-  subject: z.string().min(1).max(512).describe("One saved proof, obligation, WK or slice subject."),
+  subject: z.string().min(1).max(512).describe("A saved test_proof_id or obligation_id, or a WK/slice population such as WK-1234 or WK-1234#SLICE-001."),
   source: z.object({ unit: proofAuthoringUnitInputSchema(z),
     focus: proofAuthoringFocusInputSchema(z).optional() }).strict().optional()
-    .describe("Exact authored source for a saved proof or obligation; grants no execution authority."),
+    .describe("Exact authored source for an individual proof/obligation only. Omitted focus selects root; no other source is searched. Not with a WK/slice population. Grants no execution authority."),
   branch: z.string().min(1).max(128).optional()
     .describe("Orchestrator only: the execution branch as a WK ID, slice ID or canonical WK or slice branch name; runs the commit it names now. Not with git_sha."),
   git_sha: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u).optional()
     .describe("Orchestrator only: an exact full commit. Neither given: the subject's WK or slice branch."),
   environment: z.string().min(3).max(512).regex(TEST_RUNTIME_ENVIRONMENT_ID_RE).optional()
-    .describe("One existing prepared environment identity serving every selected proof."),
+    .describe("One existing prepared environment identity serving every selected proof. Omitted: route each proof independently to its owning prepared environment."),
   timeout: verifyProofTimeoutInputSchema(z)
 }).strict();
 
@@ -40,7 +40,7 @@ export function createVerifyProofTask({ workspace, sessionEnv, responseEnv,
     env: sessionEnv, responseEnv, jsonContent, errorContent, deps,
     requestSchema: retainedRequestSchema,
     calls: preparedVerifyProofCalls(verifyProofExecutionCall, evidence =>
-      projectVerifyProofRecoveryForRegisteredTools(evidence, { requestContracts, receivingRole,
+      projectVerifyProofRecoveryForRegisteredTools(evidence, { requestContracts, receivingRole, workspace, sessionEnv, responseEnv,
         resolveAuthoringSource: () => resolveObligationCoverageQueryContext({ workspace, env: sessionEnv }) })) });
   return async (request, extra = undefined) => {
     const parsed = VERIFY_PROOF_EXECUTION_INPUT_SCHEMA.safeParse(request);
@@ -68,7 +68,7 @@ export function createVerifyProofTask({ workspace, sessionEnv, responseEnv,
 export function registerVerifyProofTask({ registerTool, ...host }) {
   registerTool(VERIFY_PROOF_TASK, {
     writeSemantics: MCP_WRITE_SEMANTICS.NONE,
-    description: "Execute selected saved proofs in the authenticated source. A slice source also runs each file of its regression_tests once and reports those native outcomes beside the proofs, with no proof credit. Returns bounded outcomes and common-reader requests for settled originals. Advisory results.",
+    description: "Execute an authorized saved proof selection; cases, targets and providers come from saved prerequisites. Source selects authored meaning; branch/git_sha separately select orchestrator code. Workers and eligible reviewers use their bound code. A slice selection also runs its entire regression_tests list once, even when proofs are narrowed. Returns the observed outcome and deciding problems; process success alone establishes no requirement credit. Use offered get_run_result calls only for needed diagnosis; reads never execute. Advisory results.",
     inputSchema: VERIFY_PROOF_EXECUTION_INPUT_SCHEMA
   }, createVerifyProofTask({ ...host, requestContracts: registeredToolRequestContracts(registerTool) }));
 }

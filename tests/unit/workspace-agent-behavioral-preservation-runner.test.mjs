@@ -16,10 +16,8 @@ import {
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs";
 import {
   DEFAULT_VALIDATION_TIMEOUT_MS,
-  runManagedWorkerDeclaredTest,
   runWorkspaceAgentBehavioralPreservationPair,
   runWorkspaceAgentTestProofAttempt,
-  runWorkspaceAgentValidation
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-validation-runner.mjs";
 import { digestTestProofEvidence } from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-evidence.mjs";
@@ -116,8 +114,6 @@ test("refuses caller reports, pair identities, timestamps, and authority substit
 });
 
 test("leaves the existing validation-runner entry points unchanged", async () => {
-  assert.equal(typeof runWorkspaceAgentValidation, "function");
-  assert.equal(typeof runManagedWorkerDeclaredTest, "function");
   assert.equal(DEFAULT_VALIDATION_TIMEOUT_MS, 30000);
 
   await assert.rejects(() => runWorkspaceAgentTestProofAttempt({

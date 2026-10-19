@@ -864,6 +864,7 @@ function createExpandedProfileSemanticValidator({
     for (const pattern of profile.claim_patterns) {
       if (pattern.for_each?.empty_behavior !== "vacuously_satisfied") continue;
       const closureCandidates = populationPatterns.filter((candidate) =>
+        candidate.roles.length === 2 &&
         candidate.roles[1] === pattern.for_each.population_role &&
         (pattern.for_each.complete_population_pattern_id === undefined ||
           candidate.pattern_id === pattern.for_each.complete_population_pattern_id)
@@ -872,7 +873,8 @@ function createExpandedProfileSemanticValidator({
       const closurePatternId = closure?.pattern_id ??
         pattern.for_each.complete_population_pattern_id ?? null;
       const definition = roleById.get(pattern.for_each.population_role);
-      if (!closure || closure.roles[1] !== pattern.for_each.population_role) {
+      if (!closure || closure.roles.length !== 2 ||
+          closure.roles[1] !== pattern.for_each.population_role) {
         diagnostics.push({
           code: "profile_for_each_named_population_binding_invalid",
           pattern_id: pattern.pattern_id,
@@ -1028,7 +1030,8 @@ function createExpandedProfileSemanticValidator({
           pattern_id: pattern.pattern_id,
           associated_role: association.associated_role
         });
-        if (!closure || closure.roles[1] !== association.associated_role) diagnostics.push({
+        if (!closure || closure.roles.length !== 2 ||
+            closure.roles[1] !== association.associated_role) diagnostics.push({
           code: "profile_for_each_association_population_binding_invalid",
           pattern_id: pattern.pattern_id,
           associated_role: association.associated_role,
@@ -1148,11 +1151,12 @@ function createExpandedProfileSemanticValidator({
       ...validateAssociationBindingSemantics(profile, branchLocalExactlyOne)
     ];
     const completePopulationPatterns = (profile.reference_binding_patterns ?? [])
-      .filter(({ comparison }) => comparison === "complete_population");
+      .filter(({ comparison, roles }) => comparison === "complete_population" &&
+        roles.length === 2);
     for (const pattern of profile.claim_patterns ?? []) {
       const iterationPopulationBindingCount = pattern.for_each
         ? completePopulationPatterns.filter(({ roles }) =>
-          roles[1] === pattern.for_each.population_role
+          roles.length === 2 && roles[1] === pattern.for_each.population_role
         ).length
         : 0;
       if (pattern.for_each && iterationPopulationBindingCount !== 1) diagnostics.push({

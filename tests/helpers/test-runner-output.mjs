@@ -263,6 +263,7 @@ export function createRunnerOutput({ stdoutFd = 1, stderrFd = 2,
     forward,
     message,
     attachLogs,
+    detachLogs() { logs.stdout = null; logs.stderr = null; },
     drain,
 
     settle() { settling = true; relief(); },

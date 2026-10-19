@@ -77,7 +77,7 @@ test("ordinary and full-census adequacy are release clean", async () => {
   }
 });
 
-test("real aggregate assessment proves four cross-domain profile evaluations", async () => {
+test("aggregate assessment retains four cross-domain declarations without source-derived guarantee credit", async () => {
   for (const options of [
     { domain: "managed-repository-selection" },
     { domain: "api-schema-rollout" },
@@ -88,7 +88,13 @@ test("real aggregate assessment proves four cross-domain profile evaluations", a
     try {
       assert.equal(observation.error, undefined);
       assert.equal(observation.result.assessment.structure, "proven");
-      assert.equal(observation.result.assessment.profile_discrimination, "proven");
+      assert.equal(observation.result.assessment.profile_discrimination, "not_proven");
+      const evaluation = observation.result.reports.admittedProof.result;
+      assert.equal(evaluation.satisfaction, "indeterminate");
+      const diagnostic = evaluation.diagnostics.find(({ code }) =>
+        code === "proof_evaluation_unavailable");
+      assert.equal(diagnostic.owner_facts.outcome, "unsupported");
+      assert.equal(diagnostic.owner_facts.declaration_match.satisfaction, "satisfied");
       assert.equal(observation.result.assessment.assessment_scope, "planning");
     } finally { await cleanup(observation); }
   }

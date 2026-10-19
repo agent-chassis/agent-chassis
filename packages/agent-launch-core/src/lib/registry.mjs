@@ -14,6 +14,24 @@ export function createDefaultRegistry() {
   return {
     schema_version: 1,
     agents: {
+      opencode: {
+        base_argv: ["opencode"],
+        noninteractive_argv: ["run", "--pure", "--format", "json"],
+        instruction_transport: { kind: "argv_content" },
+        wrapper_arg: ["--", "{wrapper_content}"],
+        response_transport: { kind: "stdout_capture" },
+        timeout_seconds: 60,
+        read_only: { supported: false, argv_suffix: [], response_writable: true }
+      },
+      agy: {
+        base_argv: ["agy"],
+        noninteractive_argv: ["--output-format", "json"],
+        instruction_transport: { kind: "argv_content" },
+        wrapper_arg: ["--print", "{wrapper_content}"],
+        response_transport: { kind: "stdout_capture" },
+        timeout_seconds: 60,
+        read_only: { supported: false, argv_suffix: [], response_writable: true }
+      },
       claude: {
         base_argv: ["claude"],
         noninteractive_argv: ["--print", "--output-format", "text", "--no-session-persistence"],

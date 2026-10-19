@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   TEST_RESOURCE_SCOPE_ERROR_CODES,
+  createTestResourceCleanupHook,
   createTestResourceScope
 } from "../helpers/test-resource-scope.mjs";
 
@@ -15,6 +16,57 @@ function deferred() {
   });
   return { promise, resolve, reject };
 }
+
+test("releasing cleanup hooks preserve LIFO, concurrent and repeated settlement", async () => {
+  const scope = createTestResourceScope();
+  const gate = deferred(), calls = [];
+  scope.add("first", () => calls.push("first"));
+  scope.add("last", async () => { calls.push("last"); await gate.promise; });
+  const hook = createTestResourceCleanupHook(scope);
+  const result = hook();
+  assert.equal(hook(), result);
+  await Promise.resolve();
+  gate.resolve();
+  await result;
+  assert.deepEqual(calls, ["last", "first"]);
+  assert.equal(hook(), result, "a retained hook repeats its original settlement after release");
+  await scope.dispose();
+  assert.deepEqual(calls, ["last", "first"], "the resource owner remains idempotent");
+});
+
+test("releasing cleanup hooks propagate the owner's exact exhaustive failure", async () => {
+  const scope = createTestResourceScope(), calls = [];
+  const cause = new Error("native cleanup failure");
+  scope.add("first", () => calls.push("first"));
+  scope.add("last", () => { calls.push("last"); throw cause; });
+  const hook = createTestResourceCleanupHook(scope), result = hook();
+  let original;
+  await assert.rejects(scope.dispose(), error => { original = error; return true; });
+  await assert.rejects(result, error => {
+    assert.equal(error, original);
+    assert.equal(error.errors[0].cause, cause);
+    return true;
+  });
+  assert.deepEqual(calls, ["last", "first"]);
+  assert.equal(hook(), result);
+  await assert.rejects(hook(), error => error === original);
+});
+
+test("releasing cleanup hooks clean failed setup and in-flight acquisitions", async () => {
+  const scope = createTestResourceScope(), calls = [];
+  const hook = createTestResourceCleanupHook(scope), gate = deferred();
+  scope.add("before setup", () => calls.push("before setup"));
+  const setupFailure = new Error("setup failed");
+  assert.throws(() => scope.acquire("failed", () => { throw setupFailure; }, () => {}),
+    error => error === setupFailure);
+  const acquisition = scope.acquire("pending", () => gate.promise, value => calls.push(value));
+  const result = hook();
+  gate.resolve("pending disposed");
+  await assert.rejects(acquisition, error => error.code === TEST_RESOURCE_SCOPE_ERROR_CODES.ACQUISITION_DISPOSAL_RACE);
+  await result;
+  assert.deepEqual(calls, ["pending disposed", "before setup"]);
+  assert.equal(hook(), result);
+});
 
 test("resource scope owns unique labels and disposes exhaustively in strict LIFO order", async () => {
   const scope = createTestResourceScope();

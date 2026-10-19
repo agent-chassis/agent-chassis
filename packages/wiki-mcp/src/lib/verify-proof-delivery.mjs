@@ -1,14 +1,27 @@
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
-import { assertNoControlledContractRawResponse, describeRetentionFailure } from "./mcp-response.mjs";
-import { retainSelectedResponseSource } from "./selected-response-snapshot.mjs";
+import { assertNoControlledContractRawResponse, describeRetentionFailure, activeMcpInlineByteLimit, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
+import { retainSelectedResponseSource, readSelectedResponseSource } from "./selected-response-snapshot.mjs";
 import { VERIFY_PROOF_TOOL_NAME, projectPublicVerifyProofAggregate, projectVerifyProofSummary } from "./verify-proof-public-result.mjs";
-import { requestedVerifyProofSource as requestedSource, verifyProofAnswerAdmission as answerAdmission } from "./verify-proof-result-reader.mjs";
+import { requestedVerifyProofSource as requestedSource, verifyProofAnswerAdmission as answerAdmission,
+  projectPublicVerifyProofSourceRefusal as publicSourceRefusal } from "./verify-proof-result-reader.mjs";
 import { projectProofAuthoringAcquisition } from "./verify-proof-failure-detail.mjs";
+import { readManagedProofVerification } from "../../../agent-launch-cli/src/lib/managed-run-process-identity-store.mjs";
+import { readVerifyProofRunRecord } from "./verify-proof-run-record-reader.mjs";
 import { distillCapturedCauses } from "./dispatch-tool-helpers.mjs";
+import { projectVerifyProofExecutionResponse, projectVerifyProofExecutionRefusal } from "./verify-proof-execution-response.mjs";
+import { isVerifyProofPopulationSubject } from "./verify-proof-result-detail.mjs";
+import { captureDiagnosticEvidence } from "../../../agent-launch-cli/src/lib/diagnostic-evidence.mjs";
+import { projectVerifyProofRegressionReads } from "./verify-proof-regression-reads.mjs";
 
 export async function projectVerifyProofRecoveryForRegisteredTools(evidence, {
-  requestContracts, receivingRole, resolveAuthoringSource
+  requestContracts, receivingRole, resolveAuthoringSource, workspace, sessionEnv, responseEnv
 }) {
+  evidence = await projectVerifyProofRegressionReads(evidence, {
+    requestContracts, workspace, sessionEnv, responseEnv });
+  if (evidence.reason_code === "test_proof_source_snapshot_symlink_unsupported") {
+    const { projectSymlinkSourceRecovery } = await import("./verify-proof-source-repair-recovery.mjs");
+    return projectSymlinkSourceRecovery(evidence, { requestContracts, workspace, sessionEnv });
+  }
   let authoringContext;
   const resolveSource = resolveAuthoringSource === undefined ? undefined
     : () => authoringContext ??= resolveAuthoringSource();
@@ -81,6 +94,7 @@ export function recordedInvocation(subject, invocationId, calls = shippedVerifyP
 
 export const shippedVerifyProofCalls = Object.freeze({
   retained: (repository, locator, subject, options) => resultBoundCall(repository, locator)(subject, options),
+  originalRetained: (repository, locator, subject) => resultBoundCall(repository, locator)(subject),
   recorded: recordedInvocationCall,
   sourceRetained: sourceResultCall,
   sourceRecorded: sourceRecordedCall,
@@ -88,29 +102,49 @@ export const shippedVerifyProofCalls = Object.freeze({
   retentionFailure: describeRetentionFailure,
   evidence: (evidence) => evidence,
   refusal: (evidence) => evidence,
-  settledFailure: ({ error, errorContent }) => errorContent(error)
+  presentRefusal: publicSourceRefusal,
+  settledFailure: ({ error, errorContent }) => errorContent(error),
+  unmodeledFailure: ({ error, errorContent }) => errorContent(error),
+  refusalRecordingFailure: ({ recordingError, errorContent }) => errorContent(recordingError),
+  summary: projectVerifyProofSummary
 });
 
-export function verifyProofRetainedResultCall(locator, { recommended = false } = {}) {
+export function verifyProofRetainedResultCall(locator, { recommended = false, subject = null, population = false } = {}) {
   return Object.freeze({ tool: "get_run_result", ...(recommended ? { recommended: true } : {}),
-    arguments: { result: { ref_id: locator.ref_id } } });
+    arguments: { result: { ref_id: locator.ref_id },
+      ...(subject === null || !population && isVerifyProofPopulationSubject(subject) ? {} : { proof: { subject } }) } });
 }
 
-export function verifyProofRecordedResultCall(invocationId, { recommended = false } = {}) {
+export function verifyProofRecordedResultCall(invocationId, { recommended = false, subject = null, population = false } = {}) {
   return Object.freeze({ tool: "get_run_result", ...(recommended ? { recommended: true } : {}),
-    arguments: { assigned: true, recorded_invocation: { invocation_id: invocationId } } });
+    arguments: { assigned: true, recorded_invocation: { invocation_id: invocationId },
+      ...(subject === null || !population && isVerifyProofPopulationSubject(subject) ? {} : { proof: { subject } }) } });
 }
 
-function executionRecovery(recovery, executionCall, request) {
+function executionRecovery(recovery, executionCall, request, binding, role) {
   const projected = { ...recovery };
   if (recovery?.retry_operation === VERIFY_PROOF_TOOL_NAME) {
     projected.retry_operation = executionCall({ subject: request.subject }).tool;
+    projected.previous_execution = executionCall(request).arguments;
   }
   if (recovery?.follow_up_call?.tool === VERIFY_PROOF_TOOL_NAME) {
     const arguments_ = { ...request, ...recovery.follow_up_call.arguments };
+    if (arguments_.subject !== request.subject && !isVerifyProofPopulationSubject(arguments_.subject) &&
+        request.source === undefined && typeof binding?.wk_id === "string") {
+      arguments_.source = { unit: binding.selected_unit == null ? binding.wk_id
+        : `${binding.wk_id}#${binding.selected_unit}`,
+      ...(binding.focus == null ? {} : { focus: binding.focus }) };
+    }
+    if (recovery.condition === "evaluated_counterevidence" &&
+        (arguments_.git_sha !== undefined || role !== "worker")) {
 
-    if (recovery.condition === "evaluated_counterevidence") delete arguments_.git_sha;
-    projected.follow_up_call = executionCall(arguments_);
+      delete projected.follow_up_call;
+      projected.previous_execution = executionCall(arguments_).arguments;
+      if (role === "reviewer") {
+        projected.next_step = "Report the counterevidence for this reviewed source; the implementation owner corrects it.";
+        projected.stopping_condition = "Corrected-source verification requires a separately authorized source/session; this reviewer cannot change its bound source.";
+      } else projected.required_choice = "Choose corrected branch or git_sha; keep the other choices in previous_execution.";
+    } else projected.follow_up_call = executionCall(arguments_);
   }
   if (recovery?.correction?.verify_after_correction?.tool === VERIFY_PROOF_TOOL_NAME) {
     projected.correction = { ...recovery.correction,
@@ -130,14 +164,14 @@ function preparedBoundaryFailure(error, { operation, subject }) {
   for (const field of ["name", "message", "code", "syscall", "path"]) {
     const value = cause?.[field];
     if (typeof value !== "string") continue;
-    const bytes = Buffer.byteLength(value, "utf8");
-    if (bytes <= 1024) diagnosis[field] = value;
-    else diagnosis[`${field}_omitted`] = { utf8_bytes: bytes };
+    diagnosis[field] = value;
   }
   return { failed_operation: operation, subject,
     cause_code: captured.cause_code,
     ...(error?.details?.stage === undefined ? {} : { stage: error.details.stage }),
     diagnosis,
+    ...(retainedCause?.schema_version === "agent_launch.diagnostic_evidence.v1"
+      ? { causes: distillCapturedCauses(retainedCause, { nested: true }) } : {}),
     correction: operation === "retain_selected_response_source"
       ? "Repair the response state path named by the diagnosis so it is a writable directory; this settled original was not retained. No automatic retry occurred."
       : operation === "record_verify_proof_run_result"
@@ -150,24 +184,48 @@ function preparedRetentionFailure(error, context) {
     ...(error?.details?.cause_code === undefined ? {} : { recording_cause_code: error.details.cause_code }) };
 }
 
+function unmodeledExecutionFailure({ error, effects, subject, errorContent }) {
+  const causes = distillCapturedCauses(captureDiagnosticEvidence(error));
+  return errorContent(Object.assign(new Error("Proof execution failed without a modeled correction", { cause: error }), {
+    code: causes[0]?.code,
+    envelope: { subject: { requested: subject }, status: "not_executable",
+      cause: causes[0],
+      ...(causes.length <= 1 ? {} : { causes: causes.slice(1) }),
+      ...(effects === undefined ? {} : { execution_effects: effects }),
+      stopping_condition: "The execution owner failed without a modeled correction. Preserve these effects; no supported automatic retry is available.",
+      next_calls: [] }
+  }));
+}
+
 export function preparedVerifyProofCalls(executionCall, projectRecovery = evidence => evidence) {
   return Object.freeze({
-    retained: (_repository, locator, _subject, options) => verifyProofRetainedResultCall(locator, options),
-    recorded: (_subject, invocationId, options) => verifyProofRecordedResultCall(invocationId, options),
+    summary: projectVerifyProofExecutionResponse,
+    presentRefusal: (evidence, { request }) => projectVerifyProofExecutionRefusal(evidence, { executionCall, request }),
+    originalRetained: (_repository, locator) => verifyProofRetainedResultCall(locator),
+    retained: (_repository, locator, subject, options) => verifyProofRetainedResultCall(locator, { ...options, subject }),
+    recorded: (subject, invocationId, options) => verifyProofRecordedResultCall(invocationId, { ...options, subject }),
 
     sourceRetained: (_repository, _locator, subject, source, request) =>
       executionCall({ ...request, subject, source }),
     sourceRecorded: (subject, _invocationId, source, request) =>
       executionCall({ ...request, subject, source }),
     execution: executionCall,
+    refusalRecordingFailure: ({ envelope, recordingError, errorContent, request }) => errorContent(Object.assign(
+      new Error("Proof verification refused and its original could not be recorded"), {
+        code: envelope.reason_code,
+        envelope: { ...projectVerifyProofExecutionRefusal(envelope, { executionCall, request }),
+          original_retention: preparedRetentionFailure(recordingError, {
+            operation: "record_verify_proof_run_result", subject: envelope.subject }) }
+      })),
+    unmodeledFailure: unmodeledExecutionFailure,
     retentionFailure: preparedRetentionFailure,
     refusal: projectRecovery,
-    evidence: (evidence, request) => projectRecovery({ ...evidence,
+    evidence: (evidence, request, role) => projectRecovery({ ...evidence,
       ...(evidence.recovery === undefined ? {} : {
-        recovery: executionRecovery(evidence.recovery, executionCall, request) }),
+        recovery: executionRecovery(evidence.recovery, executionCall, request, evidence.execution_source_binding, role) }),
       proof_results: evidence.proof_results.map((proof) => ({ ...proof,
         ...(proof.recovery === undefined ? {} : {
-          recovery: executionRecovery(proof.recovery, executionCall, request) }) })) }),
+          recovery: executionRecovery(proof.recovery, executionCall, request, evidence.execution_source_binding, role) }) })) }),
     settledFailure: ({ evidence, error, errorContent, responseEnv, original = null, phase = "recording" }) => {
       const delivery = phase === "delivery";
       const failure = (delivery ? preparedBoundaryFailure : preparedRetentionFailure)(error, {
@@ -180,7 +238,7 @@ export function preparedVerifyProofCalls(executionCall, projectRecovery = eviden
         ? verifyProofRetainedResultCall(original.result, options)
         : verifyProofRecordedResultCall(original.recorded_invocation.invocation_id, options);
       if (detailCall !== null) decoration.next_calls = [detailCall(null, { recommended: true })];
-      const summary = projectVerifyProofSummary(evidence, {
+      const summary = projectVerifyProofExecutionResponse(evidence, {
         ...answerAdmission(responseEnv, decoration), detailCall,
         selectedSubject: evidence.subject.requested });
       return errorContent(Object.assign(new Error(delivery
@@ -192,8 +250,8 @@ export function preparedVerifyProofCalls(executionCall, projectRecovery = eviden
   });
 }
 
-export async function validatedVerifyProofEvidence(result, calls, request) {
-  const evidence = await calls.evidence(projectPublicVerifyProofAggregate(result), request);
+export async function validatedVerifyProofEvidence(result, calls, request, role) {
+  const evidence = await calls.evidence(projectPublicVerifyProofAggregate(result), request, role);
   assertNoControlledContractRawResponse(evidence, { toolName: VERIFY_PROOF_TOOL_NAME });
   return evidence;
 }
@@ -206,9 +264,10 @@ export function deliverStandaloneVerification({ evidence, args, repository, json
       binding: { route: VERIFY_PROOF_TOOL_NAME, repository,
         unit: evidence.subject_binding?.wk_id ?? null,
         query_identity: { subject: args.subject, source: requestedSource(args) },
-        observation_identity: evidence.result_digest },
+        observation_identity: evidence.result_digest,
+        authority_identity: run.authorityIdentity },
       carrier: evidence,
-      ownerCall: (retained) => calls.retained(repository, retained, args.subject),
+      ownerCall: (retained) => calls.originalRetained(repository, retained, args.subject),
       ownerRequestSchema: requestSchema
     }, { env: responseEnv });
   } catch (error) {
@@ -219,27 +278,46 @@ export function deliverStandaloneVerification({ evidence, args, repository, json
       meaning: "this settled result could not be retained, so it cannot be read back by result; " +
         "its outcome above stands"
     };
-    const summary = projectVerifyProofSummary(evidence, {
+    const summary = calls.summary(evidence, {
       ...answerAdmission(responseEnv, { result_retention: retention }), selectedSubject: args.subject });
     return jsonContent({ ...summary, result_retention: retention });
   }
   run.original = { result: locator };
-  const summary = projectVerifyProofSummary(evidence, {
+  const summary = calls.summary(evidence, {
     ...answerAdmission(responseEnv, { result: locator }),
     detailCall: (_subject, options) => calls.retained(repository, locator, _subject, options),
     selectedSubject: args.subject
   });
-  return jsonContent({ ...summary, result: locator });
+  const value = { ...summary, result: locator };
+  if (measureMcpInlineResultBytes(value) <= activeMcpInlineByteLimit(responseEnv)) return jsonContent(value);
+
+  const retained = readSelectedResponseSource(locator, { env: responseEnv,
+    expected: { route: VERIFY_PROOF_TOOL_NAME, repository } });
+  return selectedFullContent({ source: locator, retained, projection: value });
+}
+
+export function deliverRecordedProofProjection({ run, projection, isError = false }) {
+  const page = readManagedProofVerification({ mainRepo: run.attempt.repository,
+    subject: run.attempt.subject, sliceBinding: run.attempt.slice_binding, invocationId: run.invocationId });
+  if (page?.ok !== true) throw Object.assign(new Error("the settled proof's recorded original could not be selected"), {
+    code: page?.code ?? page?.refusal?.code ?? "proof_verification_record_unavailable", details: page?.refusal });
+  const original = readVerifyProofRunRecord({ workspaceDir: run.attempt.repository,
+    verification: page.items[0].verification, includeVerifiedSource: true });
+  const result = selectedFullContent({ source: original.source, serializedBytes: original.serializedBytes, projection });
+  if (isError) result.isError = true;
+  return result;
 }
 
 export function deliverManagedVerification({ evidence, args, run, jsonContent, responseEnv, calls }) {
   const recorded = recordedInvocation(args.subject, run.invocationId, calls);
-  const summary = projectVerifyProofSummary(evidence, {
+  const summary = calls.summary(evidence, {
     ...answerAdmission(responseEnv, { recorded_invocation: recorded }),
     detailCall: (proofSubject, options) => calls.recorded(proofSubject, run.invocationId, options),
     selectedSubject: args.subject
   });
-  return jsonContent({ ...summary, recorded_invocation: recorded });
+  const value = { ...summary, recorded_invocation: recorded };
+  return measureMcpInlineResultBytes(value) <= activeMcpInlineByteLimit(responseEnv)
+    ? jsonContent(value) : deliverRecordedProofProjection({ run, projection: value });
 }
 
 export function deliveryFailure(result, error) {

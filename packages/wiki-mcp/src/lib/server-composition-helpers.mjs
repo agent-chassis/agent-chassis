@@ -3,7 +3,6 @@
 import {
   loadToolDiscoveryDescriptor,
   validateToolDiscoveryDescriptor,
-  resolveToolTierVisibility
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
 import {
   evaluateAgentToolConformance,
@@ -49,24 +48,21 @@ export async function loadMcpToolTierRegistrationPolicy({
         `agent-tool conformance debt grew or a baseline debt entry changed: ${conformance.debt_added.join(", ")}`
       );
     }
-    const freeLocalToolNames = new Set();
+    const toolDescriptors = new Map();
     const descriptorToolNames = new Set();
     for (const tool of Array.isArray(descriptor?.tools) ? descriptor.tools : []) {
       if (!tool || typeof tool.tool_name !== "string" || tool.kind !== "mcp_tool") {
         continue;
       }
       descriptorToolNames.add(tool.tool_name);
-      const visibility = resolveToolTierVisibility(tool);
-      if (visibility.includes("free_local")) {
-        freeLocalToolNames.add(tool.tool_name);
-      }
+      toolDescriptors.set(tool.tool_name, tool);
     }
     return {
       descriptorLoaded: true,
       descriptorToolNames,
       registrationEligibleToolNames: new Set(conformance.registration_eligible_tool_names),
       conformance,
-      freeLocalToolNames
+      toolDescriptors
     };
   } catch (error) {
     structuredLog({

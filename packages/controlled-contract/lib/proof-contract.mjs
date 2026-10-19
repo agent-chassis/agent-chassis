@@ -34,9 +34,11 @@ export const proofDiagnostic = (code, path, reason, details = {}, problem =
   proofProblem('unclassified', 'owner_diagnostic', { code })) => ({ code, path, reason,
   owner: '@agent-chassis/controlled-contract', ...details, problem });
 
-export const proofOwnerDiagnostic = (error, path, problem = proofProblem('unclassified',
-  'owner_failure', { owner_code: error.code, details: error.details ?? null },
-  { definitionSensitive: true })) => proofDiagnostic(error.code, path, error.message,
+export const proofOwnerDiagnostic = (error, path, problem = error.code === 'obligation_coverage_proof_unselected'
+  ? proofProblem('author_input', 'proof_decision_missing', { field: 'proof.name',
+    discovery_input: 'query', owner_code: error.code, details: error.details ?? null })
+  : proofProblem('unclassified', 'owner_failure', { owner_code: error.code, details: error.details ?? null },
+    { definitionSensitive: true })) => proofDiagnostic(error.code, path, error.message,
   error.details, problem);
 
 export function selectProofAuthoringRows(draft, context = {}) {

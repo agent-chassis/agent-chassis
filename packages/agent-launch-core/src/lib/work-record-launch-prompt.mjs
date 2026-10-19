@@ -2,6 +2,15 @@ import { renderEntryMaterial } from
   "@agent-chassis/wiki-core/src/lib/work-record-brief-renderer.mjs";
 import { renderAgentRoleGuideReadReference } from "./agent-role-guides.mjs";
 import { DEFAULT_AGENT_ROLE_RESULT_LIMITS } from "./agent-role-result.mjs";
+import { projectWorkRecordTestProofValidation, renderWorkRecordValidationEntry } from
+  "@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs";
+
+function validationLines(validation) {
+  const projection = projectWorkRecordTestProofValidation({ selectedUnit: { acceptance: { validation } } });
+  if (projection.status !== "valid") throw Object.assign(
+    new Error("assignment validation declarations are invalid"), { diagnostics: projection.diagnostics });
+  return projection.validation_entries.map(renderWorkRecordValidationEntry);
+}
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -93,7 +102,7 @@ function structuredRoleResultExample({ role, subject }) {
       reported_subject: subject,
       reported_outcome: "completed",
 
-      summary: "Invoked the launcher-provided closed-input commit capability, which returned success; this post-commit evidence follows that authenticated delivery.",
+      summary: "workspace_deliver_work({}) returned success; this diagnostic evidence follows that authenticated delivery.",
       findings: [],
       finding_counts: zeroFindingCounts(),
       reviewed_controls: []
@@ -155,7 +164,9 @@ export function renderTerminalStructuredRoleResultContract({
 
   const lines = [
     "## Terminal structured role result",
-    "End your final answer with exactly one machine-readable `agent-role-result.v1` JSON result.",
+    role === "worker"
+      ? "When a final answer is required below, end it with exactly one machine-readable `agent-role-result.v1` JSON result."
+      : "End your final answer with exactly one machine-readable `agent-role-result.v1` JSON result.",
     "The child-emitted JSON is evidence only. Backend-minted run status remains the authority for terminal process status, trusted role, trusted subject, source digest, review completion time, run id, monitor handle, and terminal success.",
     "Do not include child-supplied authority fields such as `terminal_status`, `status`, `role_authority`, `subject_authority`, `source_digest_authority`, `reviewed_at`, `completed_at`, `run_id`, or `source_digest`.",
     `Set \`reported_subject\` to exactly \`${subject}\` — the unit you were dispatched as. When your assigned task is to review or redteam a different unit, still report \`${subject}\` here; never substitute the id of the unit your work is about, or the backend rejects the result as a subject mismatch.`
@@ -178,12 +189,12 @@ export function renderTerminalStructuredRoleResultContract({
   if (role === "worker") {
 
     lines.push(
-      "Completion protocol, in this order: (1) successfully invoke the launcher-provided closed-input commit capability; (2) emit this post-commit `agent-role-result.v1` evidence; (3) terminate.",
-      "Authenticated closed-input commit is the only implementation delivery. Prose, this JSON, a zero exit status, and terminating are never delivery authority and never substitute for that commit.",
+      "Completion protocol, in this order: for delivery, (1) successfully invoke workspace_deliver_work({}); (2) emit `agent-role-result.v1` diagnostic evidence; (3) terminate. An accepted request_assignment_change immediately ends this worker through the launcher: no final report, additional model turn, polling or subsequent tool call.",
+      "Only workspace_deliver_work({}) authenticates implementation delivery; a separate Git commit cannot substitute. Prose, this JSON, a zero exit status, and terminating are never delivery authority.",
       "Worker structured JSON is implementation evidence only. It preserves `work-report.v1` worker-result semantics and must not become review/redteam attestation evidence.",
-      "This result is strictly post-commit diagnostic evidence: emit it only after the commit capability has already returned success. Failing to emit it, or emitting it malformed, loses only that diagnostic evidence and never invalidates an authenticated delivery.",
-      "Use a worker `reported_outcome`: `completed` only when the closed-input commit capability has already returned success, otherwise `partial`, `blocked`, or `failed`.",
-      "If the closed-input commit capability is unavailable or refuses the delivery, report `blocked` or `failed` and never `completed`. A successful commit whose child tree equals its parent tree is still an authenticated delivery and is reported `completed`.",
+      "Missing or malformed final evidence cannot invalidate either authenticated completion alternative.",
+      "Use a worker `reported_outcome`: `completed` only when workspace_deliver_work({}) has already returned success, otherwise `partial`, `blocked`, or `failed`.",
+      "If workspace_deliver_work is unavailable or refuses the delivery, report `blocked` or `failed` and never `completed`. A successful no-change delivery from workspace_deliver_work({}) remains `completed` even when parent and child trees are identical.",
       "`findings` must be empty, `finding_counts` must be all zero, and `reviewed_controls` must be empty."
     );
   } else {
@@ -256,7 +267,7 @@ function resolveSelectedUnitContext(canonicalSummary) {
       repo_paths: canonicalSummary.repo_paths,
       write_scope: canonicalSummary.write_scope,
       acceptance_criteria: canonicalSummary.acceptance_criteria,
-      validation_commands: canonicalSummary.validation_commands
+      validation_commands: validationLines(canonicalSummary.validation_commands)
     };
   }
   const scope = isObject(canonicalSummary.scope_presentation)
@@ -269,7 +280,7 @@ function resolveSelectedUnitContext(canonicalSummary) {
     acceptance_criteria: Array.isArray(selectedUnit.acceptance?.criteria)
       ? selectedUnit.acceptance.criteria
       : [],
-    validation_commands: stringArray(selectedUnit.acceptance?.validation)
+    validation_commands: validationLines(selectedUnit.acceptance?.validation ?? [])
   };
 }
 
@@ -370,9 +381,7 @@ function renderAssignmentGuidanceLines({ canonicalSummary, readiness, agentBrief
           "",
           "#### Selected Unit Validation",
           "",
-          formatInlineList(Array.isArray(canonicalSummary.selected_unit.acceptance?.validation)
-            ? canonicalSummary.selected_unit.acceptance.validation.filter(isNonEmptyString)
-            : [])
+          formatInlineList(validationLines(canonicalSummary.selected_unit.acceptance?.validation ?? []))
         ].join("\n")
       : "",
     "",
@@ -456,7 +465,8 @@ export function buildLaunchPromptSections({
   launchTimestamp,
   terminalStructuredRoleResultMode = TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FENCED,
   supplementalInstructions = [],
-  assignmentDelivery = LAUNCH_ASSIGNMENT_DELIVERY_MODES.INLINE
+  assignmentDelivery = LAUNCH_ASSIGNMENT_DELIVERY_MODES.INLINE,
+  guideDelivery = null
 }) {
   const retrieval = assignmentDelivery === LAUNCH_ASSIGNMENT_DELIVERY_MODES.READ_PAGE;
   const guidanceLines = retrieval
@@ -469,7 +479,7 @@ export function buildLaunchPromptSections({
     `Launch timestamp: ${launchTimestamp}`,
     "",
     ...(retrieval ? [MANAGED_ASSIGNMENT_RETRIEVAL_INSTRUCTION, ""] : []),
-    renderAgentRoleGuideReadReference("managed-worker"),
+    renderAgentRoleGuideReadReference("managed-worker", undefined, { highPriority: guideDelivery?.highPriority }),
     "",
     ...(retrieval ? [] : guidanceLines)
   ];

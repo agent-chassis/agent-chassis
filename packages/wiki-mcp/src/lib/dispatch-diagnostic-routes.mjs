@@ -211,9 +211,6 @@ export async function projectManagedLifecycleCapabilities({
   };
   return {
     schema_version: "managed-lifecycle-capabilities.v1",
-    enforcement: isPaidTier
-      ? { tier: "paid_cce", mode: "cce_enforced", audit_grade: true }
-      : { tier: "free_local", mode: "free_substrate", audit_grade: false },
     route_registration: Object.freeze({
       structured_dispatch: Object.freeze({ ...routeRegistration })
     }),
@@ -269,7 +266,7 @@ export function compactCoordinationPreflightProceedScope(proceedScope, coverage)
   };
 }
 
-export function compactManagedLifecycleCapabilities(capabilities) {
+export function compactManagedLifecycleCapabilities(capabilities, { completeRetrieval = COORDINATION_PREFLIGHT_COMPLETE_RETRIEVAL } = {}) {
   if (capabilities === null || typeof capabilities !== "object") return capabilities ?? null;
   const planes = Array.isArray(capabilities.planes) ? capabilities.planes : [];
   const notAvailable = planes.filter(({ status }) => status !== "available");
@@ -280,7 +277,7 @@ export function compactManagedLifecycleCapabilities(capabilities) {
     plane_status: Object.fromEntries(planes.map(({ name, status }) => [name, status])),
     unavailable_planes: notAvailable,
     complete_retrieval: {
-      ...COORDINATION_PREFLIGHT_COMPLETE_RETRIEVAL,
+      ...completeRetrieval,
       returns: "capabilities.planes"
     }
   };

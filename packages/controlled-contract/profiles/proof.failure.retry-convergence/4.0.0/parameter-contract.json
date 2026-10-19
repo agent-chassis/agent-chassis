@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.failure.retry-convergence",
   "profile_version": "4.0.0",
-  "profile_digest": "99c33b5a58719aeaf269595f11b21ae1ac553e1ba42aadda9c216adc0ea81d99",
+  "profile_digest": "07011af76cdd324530692e5ec0793a1b77a000219f6fe7ad4282853dcb10688e",
   "description": "For one caller-declared history containing exactly one failed attempt and one later retry of the same operation and input, failure is followed by cleanup and settlement with zero declared residue before the retry; the retry succeeds, creates exactly one declared final effect that the failed attempt does not create, and the selected final durable state equals the expected state.",
   "parameters": [
     {

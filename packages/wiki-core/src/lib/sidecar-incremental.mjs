@@ -1,6 +1,6 @@
 import {
   collectSidecarGraphFileFacts,
-  isSidecarGraphExtractionSourcePath,
+  isSidecarGraphExtractionSourceFile,
   materializeSidecarGraphUnit
 } from "./sidecar-graph-extractors.mjs";
 import { sidecarResolutionCandidateKeys } from "./sidecar-graph-import-resolution.mjs";
@@ -8,7 +8,7 @@ import { filterSidecarSourcePaths, normalizeSidecarRepoPath } from "./sidecar-pa
 import { readSidecarIncrementalStateFromDatabase } from "./sidecar-store.mjs";
 import { binaryCompare } from "./sidecar-store-queries.mjs";
 
-export const SIDECAR_EXTRACTION_BASIS = Object.freeze({ extraction_basis: "committed_tree_diff.v4" });
+export const SIDECAR_EXTRACTION_BASIS = Object.freeze({ extraction_basis: "working_checkout.v6" });
 
 function record(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -48,7 +48,10 @@ function recordPaths(change) {
 export const SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED = "dependency_limited";
 
 export function isSidecarProviderCoverageSettled(coverage) {
-  return coverage?.state === "complete" || coverage?.state === SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED;
+  return coverage?.state === "complete" || coverage?.state === "provider_limited" ||
+    coverage?.state === SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED ||
+    (coverage?.state === "incomplete" && coverage.projects?.some((entry) =>
+      entry.navigation_status === "no_usable_output"));
 }
 
 function decision(action, reason, comparison = null) {
@@ -58,6 +61,7 @@ function decision(action, reason, comparison = null) {
 export async function classifySidecarPreparation({
   publication = null,
   requestedCommit,
+  requestedInputIdentity = undefined,
   mode = "update",
   generatorIdentity = null,
   compare = null,
@@ -72,39 +76,26 @@ export async function classifySidecarPreparation({
     return decision("clean", "predecessor_missing");
   }
   if (!same(publication.base_input_identity, SIDECAR_EXTRACTION_BASIS) ||
-      publication.base_coverage?.state !== "complete") {
+      publication.base_coverage?.state !== "complete" ||
+      publication.base_coverage?.input_basis !== "working_checkout" ||
+      typeof publication.base_coverage?.checkout_identity !== "string") {
     return decision("clean", "extraction_basis_incompatible");
   }
   if (typeof providerInputsChanged !== "function") {
     throw new TypeError("classifying a publication requires the provider input comparison");
   }
-  if (publication.repository_commit === requestedCommit) {
-    if (!isSidecarProviderCoverageSettled(publication.provider_coverage)) {
-      return decision("incremental", "provider_coverage_incomplete");
-    }
-    return await providerInputsChanged()
-      ? decision("incremental", "provider_inputs_changed")
-      : decision("reuse", "source_commit_match");
+  text(requestedInputIdentity, "requestedInputIdentity");
+  const changed = publication.base_coverage?.checkout_identity !== requestedInputIdentity;
+  if (!changed && isSidecarProviderCoverageSettled(publication.provider_coverage) && !await providerInputsChanged()) {
+    return decision("reuse", "checkout_inputs_match");
   }
-  if (typeof generatorIdentity !== "function") {
-    throw new TypeError("classifying a changed commit requires the generator identity reader");
-  }
-  if (publication.generator_identity !== await generatorIdentity()) {
+  if (typeof generatorIdentity === "function" && publication.generator_identity !== await generatorIdentity()) {
     return decision("clean", "generator_identity_mismatch");
   }
-  if (compare === null) return decision("incremental", "source_commit_changed");
-  const comparison = await compare();
-  if (comparison?.clean === true) {
-    return decision("clean", comparison.reason ?? "predecessor_unavailable", comparison);
-  }
-  if (!Array.isArray(comparison?.records)) {
-    throw new TypeError("committed comparison records must be an array");
-  }
-  const relevant = comparison.records.some((change) => recordPaths(change).some(isSidecarBaseInputPath)) ||
-    await providerInputsChanged();
-  return relevant
-    ? decision("incremental", "relevant_inputs_changed", comparison)
-    : decision("advance_tag", "no_relevant_inputs_changed", comparison);
+  const comparison = compare ? await compare() : null;
+  return decision("incremental", changed ? "checkout_inputs_changed"
+    : !isSidecarProviderCoverageSettled(publication.provider_coverage) ? "provider_coverage_incomplete"
+      : "provider_inputs_changed", comparison);
 }
 
 function targetFiles(target) {
@@ -193,7 +184,7 @@ export async function prepareSidecarIncrementalDelta({
   const providers = validateProviderData(providerData);
   if (!Array.isArray(diffRecords)) throw new TypeError("diffRecords must be an array");
   const extractionPaths = clean
-    ? [...files.keys()].filter(isSidecarGraphExtractionSourcePath)
+    ? [...files.values()].filter(isSidecarGraphExtractionSourceFile).map((file) => file.path)
     : [];
   if (clean) {
     const missing = extractionPaths.filter((relativePath) => !prepared.has(relativePath));
@@ -222,7 +213,7 @@ export async function prepareSidecarIncrementalDelta({
   const units = [];
   let parsedFiles = 0;
   for (const relativePath of [...affectedPaths].sort(binaryCompare)) {
-    if (!files.has(relativePath)) {
+    if (!files.has(relativePath) || !isSidecarGraphExtractionSourceFile(files.get(relativePath))) {
       if (oldUnits.has(relativePath)) units.push({ unit_id: `file:${relativePath}`, remove: true });
       continue;
     }

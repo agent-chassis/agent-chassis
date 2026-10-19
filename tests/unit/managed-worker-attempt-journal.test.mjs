@@ -2,6 +2,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { activeCompletion, arbitrateCompletion, completionObservations } from "../../packages/agent-launch-cli/src/lib/managed-run-completion-observation.mjs";
 
 import {
   ATTEMPT_EVENT_KINDS,
@@ -25,6 +26,69 @@ const SUBJECT = "WK-2358#SLICE-004";
 const OTHER_SUBJECT = "WK-2358#SLICE-005";
 const GENERATION = `sha256:${"a".repeat(64)}`;
 const WK_TIP = "b".repeat(40);
+
+test("completion observations preserve lifecycle while the binding owner arbitrates both alternatives", () => {
+  const dispatch = tuple();
+  const prefix = buildPrefix([ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED]);
+  const pending = admitAttemptCommand({ repository: REPO, subject: SUBJECT, events: prefix,
+    attempt: dispatch, kind: ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED, payload: { dispatch_tuple: dispatch } });
+  assert.equal(pending.admitted, true);
+  const request = { alternative: "assignment_change_requested", intent_id: "request-one",
+    request_digest: "a".repeat(64), assignment_digest: `sha256:${"b".repeat(64)}`,
+    credential: { kind: "identity_store_tuple", launchRef: dispatch.launch_ref, runId: `${dispatch.run_id}.slice`, retryId: 0 },
+    original: { ref_id: "retained-request-one", sha256: "c".repeat(64) }, storage: { state_dir: "/tmp/request-originals" } };
+  const delivery = { alternative: "delivery", intent_id: "delivery-one", phase: "before_materialization", known_effects: "none at acquisition" };
+  for (const [first, second] of [[request, delivery], [delivery, request]]) {
+    const selected = { attempt: dispatch, dispatch_tuple: dispatch, released: false };
+    assert.equal(arbitrateCompletion({ events: pending.events, selected, completion: first }).ok, true);
+    const accepted = admitAttemptCommand({ repository: REPO, subject: SUBJECT, events: pending.events,
+      attempt: dispatch, kind: ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED,
+      payload: { dispatch_tuple: dispatch, invocation_id: first.intent_id, completion: first } });
+    assert.equal(accepted.admitted, true);
+    const malformed = structuredClone(first);
+    delete malformed[first === request ? "original" : "phase"];
+    assert.equal(admitAttemptCommand({ repository: REPO, subject: SUBJECT, events: pending.events,
+      attempt: dispatch, kind: ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED,
+      payload: { dispatch_tuple: dispatch, invocation_id: first.intent_id, completion: malformed } }).admitted, false);
+    assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT, events: accepted.events }).valid, true);
+    assert.deepEqual(reduce(accepted.events).next_command, reduce(pending.events).next_command);
+    assert.equal(arbitrateCompletion({ events: accepted.events, selected, completion: second }).ok, false);
+    assert.deepEqual(completionObservations(accepted.events, dispatch), [first]);
+
+    assert.deepEqual(completionObservations(accepted.events.map(event => ({ ...event,
+      attempt: { ...event.attempt, run_id: "reservation-owner" } })), dispatch), [first]);
+    if (first === delivery) {
+      const release = { alternative: "delivery", intent_id: `release-${delivery.intent_id}`,
+        released_intent_id: delivery.intent_id, phase: "released_zero_effects",
+        known_effects: "delivery ref unchanged; canonical review not attempted" };
+      assert.equal(arbitrateCompletion({ events: accepted.events, selected,
+        completion: { ...release, released_intent_id: "foreign" } }).code, "completion_release_owner_mismatch");
+      assert.equal(arbitrateCompletion({ events: accepted.events, selected, completion: release }).ok, true);
+      const released = admitAttemptCommand({ repository: REPO, subject: SUBJECT, events: accepted.events,
+        attempt: dispatch, kind: ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED,
+        payload: { dispatch_tuple: dispatch, invocation_id: release.intent_id, completion: release } });
+      assert.equal(released.admitted, true);
+      assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT, events: released.events }).valid, true);
+      assert.equal(activeCompletion(completionObservations(released.events, dispatch)), null);
+      assert.equal(arbitrateCompletion({ events: released.events, selected, completion: request }).ok, true);
+      assert.equal(arbitrateCompletion({ events: released.events, selected,
+        completion: { ...delivery, intent_id: "corrected-delivery" } }).ok, true);
+      assert.equal(arbitrateCompletion({ events: released.events, selected, completion: release }).appended, false);
+      assert.deepEqual(reduce(released.events).next_command, reduce(pending.events).next_command);
+    }
+    if (first === request) {
+      const retry = arbitrateCompletion({ events: accepted.events, selected,
+        completion: { ...request, intent_id: "different-invocation" } });
+      assert.equal(retry.ok, true); assert.equal(retry.appended, false);
+      assert.equal(retry.completion.intent_id, request.intent_id);
+      assert.equal(arbitrateCompletion({ events: accepted.events, selected,
+        completion: { ...request, request_digest: "changed" } }).ok, false);
+    }
+  }
+  const terminal = buildPrefix([ATTEMPT_EVENT_KINDS.ATTEMPT_TERMINAL], { events: pending.events });
+  assert.equal(arbitrateCompletion({ events: terminal, selected: { attempt: dispatch, dispatch_tuple: dispatch }, completion: request }).code,
+    "completion_attempt_terminal");
+});
 
 function tuple(runId = "run-1", retryId = 0) {
   return {

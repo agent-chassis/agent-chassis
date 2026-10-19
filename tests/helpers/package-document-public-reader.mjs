@@ -8,6 +8,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { CONTROLLED_ACCEPTANCE_PUBLICATION_ENV, createExceptionPublication } from
+  "../../packages/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
 
 import { errorContent, jsonContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import { registerAgentTaskTools } from "../../packages/wiki-mcp/src/lib/register-agent-task-tools.mjs";
@@ -23,29 +25,34 @@ export const PACKAGE_DOCUMENT_REFUSAL_SCHEMA_VERSION = "tool-doc-read-refusal.v1
 
 let registrationPolicy = null;
 
-export function packageDocumentPublicReader(t, temporaryRoot, { workspaceDir = null } = {}) {
+export function packageDocumentPublicReader(t, temporaryRoot, {
+  workspaceDir = null, publishControlledAcceptanceOptOut = true
+} = {}) {
   const scope = createTestResourceScope();
   t.after(() => scope.dispose());
   let sequence = 0;
-  return async function open(docsCarrier, role = "orchestrator") {
+  return async function open(docsCarrier, role = "orchestrator", registeredTier = "free_local") {
     registrationPolicy ??= await loadMcpToolTierRegistrationPolicy();
     sequence += 1;
     const label = `package document reader ${sequence}`;
     const env = { WIKI_MCP_TOOL_PROFILE: role, WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: "8192",
+      [CONTROLLED_ACCEPTANCE_PUBLICATION_ENV]: String(publishControlledAcceptanceOptOut),
       WIKI_MCP_RESPONSE_STATE_DIR: path.join(temporaryRoot, "responses") };
     const workspace = { repo: "fixture/consumer", dir: workspaceDir ?? path.join(temporaryRoot, "consumer") };
     await mkdir(workspace.dir, { recursive: true });
     const resolutions = [];
     const server = new McpServer({ name: `package-document-reader-${sequence}`, version: "1.0.0" });
     scope.add(`${label} server`, () => server.close());
-    const registerTool = createRegisterTool({ server, toolProfile: role, registeredTier: "free_local",
+    const registerTool = createRegisterTool({ server, toolProfile: role, registeredTier,
       mcpToolTierRegistrationPolicy: registrationPolicy, registeredToolNames: new Set(), structuredLog() {},
       toolUsageAuditBoundary: { wrapHandler: (_name, handler) => handler }, responseEnv: env });
     registerAgentTaskTools({ registerTool,
       workspaceRepos: { currentAlias: "consumer", repos: new Map([["consumer", workspace.dir]]) },
       resolveWorkspaceRepo: (...args) => { resolutions.push(args); return workspace; },
       sessionRole: role, sessionEnv: env, responseEnv: env,
-      registeredTier: "free_local", registeredToolNames: new Set(), docsCarrier,
+
+      exceptionPublication: createExceptionPublication(publishControlledAcceptanceOptOut),
+      registeredTier, registeredToolNames: new Set(), docsCarrier,
       jsonContent: (value) => jsonContent(value, { env }), errorContent: (error) => errorContent(error, { env }) });
     const client = new Client({ name: `package-document-reader-client-${sequence}`, version: "1.0.0" });
     scope.add(`${label} client`, () => client.close());
@@ -63,9 +70,9 @@ export function packageDocumentPublicReader(t, temporaryRoot, { workspaceDir = n
   };
 }
 
-export function packageDocumentOwnerReader({ docsCarrier, augmentDescriptor = (descriptor) => descriptor }) {
+export function packageDocumentOwnerReader({ docsCarrier, registeredTier = "free_local", augmentDescriptor = (descriptor) => descriptor }) {
   return registerToolDocReadTools({ registerTool: () => undefined, z, jsonContent, errorContent,
-    docsCarrier, sessionRole: "orchestrator", registeredTier: "free_local", augmentDescriptor }).readAdvertisedDoc;
+    docsCarrier, sessionRole: "orchestrator", registeredTier, augmentDescriptor }).readAdvertisedDoc;
 }
 
 export function assertPackageDocumentRefusal(result, code, label) {

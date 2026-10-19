@@ -1,7 +1,7 @@
+import { launcherHostSessionProfileFor } from "../lib/launcher-host-session-profile.mjs";
 import path from "node:path";
-import { buildCodexSessionStartHookOverrides } from "@agent-chassis/agent-launch-core/src/lib/codex-session-hook-config.mjs";
+import { buildCodexRoleGuideHookConfigOverrides } from "../lib/codex-role-guide-hook.mjs";
 import {
-  buildCodexUsageHookIdentity,
   prepareCodexSessionUsageLaunch
 } from "@agent-chassis/agent-launch-core/src/lib/native-usage-codex-session.mjs";
 import {
@@ -387,7 +387,7 @@ async function executePlan(plan, io) {
   let conduit = null;
   try {
 
-    conduit = await createStdioMcpConduit(resolveCodexConduitInput({
+    conduit = await createStdioMcpConduit({ ...resolveCodexConduitInput({
       role: plan.role.startsWith("orch") ? "orchestrator" : plan.role,
       assignedUnit: plan.subject,
       workspaceDir: plan.worktree_provisioning?.main_repo ?? plan.repo,
@@ -401,7 +401,7 @@ async function executePlan(plan, io) {
             workspaceDir: plan.repo
           })
         : null
-    }));
+    }), ...(plan.role.startsWith("orch") ? { hostSessionProfile: launcherHostSessionProfileFor(plan) } : {}) });
     injectCodexConfigOverridesBeforeFinalPositional(
       plan.args,
       buildCodexStdioMcpRegistrationOverrides(conduit)
@@ -596,9 +596,9 @@ async function runPlannedChildWithRoute(plan, io, route) {
 
 function unconfinedCodexArgs(plan) {
   const args = Array.isArray(plan.args) ? [...plan.args] : [];
-  if (plan.command === "codex" && plan.nativeUsageHook) {
+  if (plan.command === "codex") {
     injectCodexConfigOverridesBeforeFinalPositional(args,
-      buildCodexSessionStartHookOverrides([buildCodexUsageHookIdentity(plan.nativeUsageHook)]));
+      buildCodexRoleGuideHookConfigOverrides(plan.guideDelivery ?? null, { confined: false, usageHook: plan.nativeUsageHook ?? null }));
   }
   return args;
 }

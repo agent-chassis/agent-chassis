@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.authorization.refusal-before-effects",
   "profile_version": "4.0.0",
-  "profile_digest": "a44e97e49f63a447e7d8c45d25a1ffcc76c269aa5b21108264438490a41f23a6",
+  "profile_digest": "8d43a1ff837dd6e0f925e51bf36d21152cb7344e772c79d70abfd4c0a6de7909",
   "description": "Given one declared operation attempt, one declared refusal event, one declared authority, one declared unauthorized subject, one declared reusable operation, and one complete caller-supplied protected-effect list bound to an exact declared cardinality, this pack establishes only in the declared controlled graph that: the attempt performs the operation and uses the subject; the authority does not authorize that subject for the operation; the refusal rejects that exact attempt; the attempt precedes a protected-interval witness which precedes the refusal; before that refusal the same attempt neither writes nor mutates any listed protected effect; and the verification reads the exact attempt, refusal, operation, and every listed protected effect, with a positive same-attempt, same-population, same-refusal pre-refusal write or mutation as the corresponding falsifier.",
   "parameters": [
     {

@@ -14,6 +14,8 @@ export const STDIO_MCP_CONDUIT_ERROR_CODES = Object.freeze({
   SERVER_READINESS_FAILED: "stdio_mcp_host_server_readiness_failed",
   LIFECYCLE_PROTOCOL_INCOMPATIBLE: "stdio_mcp_lifecycle_protocol_incompatible",
   SERVER_STARTUP_TIMEOUT: "stdio_mcp_host_server_startup_timeout",
+  SERVER_REGISTRATION_PROFILE_INVALID: "server_registration_profile_invalid",
+  SERVER_REGISTRATION_PROFILE_MISMATCH: "server_registration_profile_mismatch",
   TOOL_SURFACE_MISMATCH: "stdio_mcp_tool_surface_mismatch",
   CLIENT_TOOL_SURFACE_MISMATCH: "stdio_mcp_client_tool_surface_mismatch",
   CLIENT_READINESS_TIMEOUT: "stdio_mcp_client_readiness_timeout",
@@ -21,6 +23,7 @@ export const STDIO_MCP_CONDUIT_ERROR_CODES = Object.freeze({
   CLIENT_RELAY_RESTARTED: "stdio_mcp_client_relay_restarted",
   STDIO_SHAPE_UNSUPPORTED: "stdio_mcp_conduit_stdio_shape_unsupported",
 
+  STREAM_ERROR: "stdio_mcp_conduit_stream_error",
   SERVER_EXIT: "stdio_mcp_conduit_server_exit",
   CANCELLED: "stdio_mcp_conduit_cancelled",
   CLEANUP_FAILED: "stdio_mcp_conduit_cleanup_failed",
@@ -125,4 +128,14 @@ export class StdioMcpConduitError extends Error {
 
 export function failStdioMcpConduit(code, message, detail = null) {
   throw new StdioMcpConduitError(code, message, detail);
+}
+
+export function createStdioMcpStreamFailure(cause, { generation, stream, fd, phase }) {
+  const error = new StdioMcpConduitError(
+    STDIO_MCP_CONDUIT_ERROR_CODES.STREAM_ERROR,
+    "host wiki-MCP child stream failed",
+    { generation, stream, fd, errno: cause?.code ?? null, phase }
+  );
+  Object.defineProperty(error, "cause", { value: cause, configurable: true });
+  return error;
 }

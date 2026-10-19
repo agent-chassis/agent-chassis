@@ -6,6 +6,7 @@ import { compiledValidators } from './compiled-validator-cache.mjs';
 import { canonicalDigest } from './deterministic-projection-primitives.mjs';
 
 import { ProofAuthoringError } from './proof-contract.mjs';
+import { CLOSED_NODE_TEST_TARGET_SCHEMA } from './test-proof-providers/node-test.mjs';
 
 const closed = properties => ({ type: 'object', additionalProperties: false, properties });
 const defs = schema.$defs;
@@ -37,7 +38,7 @@ export const NATIVE_TEST_CASE_SCHEMA = closed({
   verification_id: inline(defs.claim_id),
   component: { oneOf: [{ ...closed({ reference_id: inline(defs.reference_id) }), required: ['reference_id'] }, { ...closed({ type_term: inline(defs.reference.properties.type_term),
     identity: inline(defs.reference.properties.identity) }), required: ['type_term', 'identity'] }] },
-  target: { oneOf: [closed({ path: inline(defs.repo_module_path), selector: inline({
+  target: { oneOf: [closed({ path: inline(CLOSED_NODE_TEST_TARGET_SCHEMA), selector: inline({
     ...nodeSelectorArm, required: [] }) }), nativeCaseTarget] },
   observation: closed({ kind: inline(defs.observable_result.properties.kind) }),
   falsification: closed({
@@ -117,7 +118,8 @@ export const CASE_VERIFICATION_OWNERSHIP_RECOVERY = Object.freeze({
     Object.freeze({ when: 'different_test', field: 'requirements[].verification' })]),
   correction: 'If the obligation means the saved test, resubmit its authored key or saved id, meaning and claims ' +
     'in changes.obligations with case:{id}, explicitly choosing an id from saved_case_ids. ' +
-    'If it means a different test, resubmit the unchanged requirement in changes.requirements without id, ' +
+    'If it means a different test, follow verification_association.additional_verification: put the unchanged ' +
+    'requirement in changes.requirements.requirements[], with its entity declarations in changes.requirements.entities, without id or row_id, ' +
     'with distinct verification meaning and verification.key. Use the returned bindings.verification identity ' +
     'in the different obligation claims and case.verification. ' +
     'Resubmit the coherent changes; no case is deleted, reassigned or selected automatically.'
@@ -164,12 +166,12 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
       field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
       links_field: 'obligations[].claims',
       omit_when: 'the case already names an eligible verification, or the obligation claims make exactly one ' +
-        'test_execution verification eligible and no other case owns it: the saved one is kept and the sole one ' +
+        'test_execution verification eligible, no other case owns it and no other amended unbound case proposes it: the saved one is kept and the sole one ' +
         'is adopted. A listed requirement makes each verification that verifies it eligible, so claims need not ' +
         'repeat the verification',
       choose_when: 'the obligation claims make several test_execution verifications eligible, listed there or ' +
         'verifying a requirement listed there: name one of them',
-      unresolved: 'With no eligible verification, several, or one that another case owns, the save still commits ' +
+      unresolved: 'With no eligible verification, several, one that another case owns, or several amended unbound cases proposing the same one, the save still commits ' +
         'every change and reports the case as a saved incomplete draft with its missing association or complete ' +
         'candidates. One explicit selection, or resubmitting the obligation once its claims make a sole ' +
         'verification eligible, resolves that same case; no case identity or other case member is repeated.'
@@ -185,15 +187,42 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
     cardinality: 'One verification identity belongs to at most one case_id. Several obligations may use one ' +
       'case by naming its case_id; a different case_id naming a verification another case already owns is ' +
       'refused, and nothing is saved.',
+    unbound_competition: {
+      condition: 'competing_unbound_cases',
+      choices: [{ when: 'different_tests', field: 'requirements[].verification',
+        then: 'obligations[].case.verification' },
+      { when: 'genuinely_shared_evidence', field: 'obligations[].case.id' }],
+      correction: 'Several unbound cases can select the same verification. No competitor is an existing owner. ' +
+        'If these are different tests, author distinct verification meanings through additional_verification, ' +
+        'then explicitly associate each case with its intended verification through save_record. ' +
+        'If evidence is genuinely shared, explicitly select a verification for one case and reuse that case ' +
+        'only where its test establishes the intended behaviors. An individual explicit selection remains ' +
+        'possible; resubmitting competing obligations together does not choose a winner. ' +
+        'Preserve original requirements, source links and intended evidence mappings. Never replace unrelated ' +
+        'claims with a successful case\'s claim to clear validation. The caller supplies the missing meaning; ' +
+        'assessment cannot decide whether tests establish the same behavior.'
+    },
     additional_verification: 'A genuinely distinct test of the same requirement needs its own verification. ' +
-      'Resubmit that requirement through save_record changes.requirements with unchanged nature, modality, subject ' +
-      'and behavior (read the complete coverage requirements[].meaning, whose select referents are accepted as ' +
-      'input), a verification that differs in verifier, observes or fails_when, and omit id. The ' +
-      'requirement keeps its claim_id; the existing verification, its case and its links are unchanged; ' +
+      'Read the current unit with workspace_read_wiki {subject:<unit>} for its revision and reference. ' +
+      'Using that reference, select {contract:"requirements",view:"row",row_id:<saved row_id>} and follow ' +
+      'its emitted verifications read. These are templates: use the returned unit, reference and row_id. ' +
+      'Preserve the complete row.input meaning, including nature, modality, subject, behavior, applicability, ' +
+      'scopes, membership and source link where present. Replace bound entity objects with their ids. ' +
+      'Recover verification meaning from the verifications read; resolve its select and runtime boundary ' +
+      'references through the returned references. Declare each used entity with type_term and identity, ' +
+      'including verifier-only aliases. Native select objects are not batch input. ' +
+      'Call save_record with the current unit and revision and changes.requirements:{entities:<declarations>,' +
+      'requirements:[<complete requirement row>]}. This is an incomplete template, not an executable call. ' +
+      'For the additional test, omit id and row_id, supply a new request-local key, and author a ' +
+      'verification that differs in verifier, observes or fails_when. If a read omits required meaning, stop ' +
+      'and report that gap; do not guess it. The ' +
+      'requirement claims keep their claim_ids; the existing verification, its case and its links are unchanged; ' +
       'label verification.key to receive its identity in bindings.verification. Link that identity beside ' +
       'the requirement claim in changes.obligations[].claims and name it in case.verification. Identical meaning ' +
       'resubmitted returns the same identities. For the same test, explicitly reuse a known saved case with ' +
-      'changes.obligations[].case:{id}; the obligation key or id and its meaning remain caller choices.'
+      'changes.obligations[].case:{id}; the obligation key or id and its meaning remain caller choices. ' +
+      'Read back the row, verifications, cases and affected obligations to check the saved relationships. ' +
+      'On a stale revision, reread the unit and saved meaning before rebuilding the request.'
   },
 
   case_identity: {
@@ -241,14 +270,14 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
     family_absent: 'no listed family owns that source suffix or runner; the catalog lists none for it',
     request_invalid: 'the save refused the request shape, an unknown provider_id, or a provider_version the catalog does not list; a request defect is not a fact about the target, the family or the language',
     target_selector_valid: 'save accepted provider, path and selector form',
-    target_uninspected: 'test existence and falsifier target shape are checked only when verify_proof runs',
+    target_uninspected: 'A planned test may be named before implementation. Save validates the target form; test existence and falsifier target shape are checked only when verify_proof runs',
     unsupported_demonstrated: 'a verify_proof attempt refused this exact target with one of its mechanism target_constraint refusal_codes and reasons',
-    unresolved: 'a fact above is unknown: keep acceptance required and record the obligation gap (unresolved_coverage)'
+    unresolved: 'An unknown execution fact is not an authored gap. Keep acceptance required and select the proof; omit an unknown execution case. If supplying a case, complete its authored inputs and choose a listed strategy or the explicit no-falsifier form. Never substitute that form for malformed supplied mechanics'
   },
   target_shape_limits: 'A mechanism mutates only the shape its target_constraint states, and a listed family is no assurance that the code under test has that shape. Author the case for the behavior the obligation requires: when no accepted shape exists, author the case without a falsifier and keep the obligation required. Do not add, export or reshape a production function so that it fits the mutation.',
   falsification_support: {
     provider: 'the case declares a falsifier: author strategy and its mechanism fields',
-    registry_unsupported: 'the case declares no falsifier: author support alone, declare no falsifier, and expect verify_proof to run the selected test and report the absent falsification as a capability limitation. It is not a detection and not counterevidence: a passing selected test whose other required checks hold is proven with that limitation, and nothing is retried, waived or installed for it'
+    registry_unsupported: 'Falsification is optional: {support: "registry_unsupported"} declares no falsifier for this case, without separate permission, installation-wide provider absence or a failed mutation attempt. Acceptance remains required. The selected test can pass and its execution evaluation can be satisfied; absent falsification supplies no detection evidence and that pass does not establish the linked requirement behavior. verify_proof reports the limitation and the actual requirement relationship; nothing is retried, waived or installed for it'
   },
   falsification: Object.fromEntries([...falsifierMechanisms].map(([mechanism, falsifier]) => [mechanism, {
     strategies: Object.fromEntries(falsifier.strategies.map(strategy =>

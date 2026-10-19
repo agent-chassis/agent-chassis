@@ -3,7 +3,9 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { verifyProofTimeoutInputSchema } from "../../../wiki-core/src/operations/controlled-contract/verify-proof-operations.mjs";
 import { proofAuthoringFocusInputSchema, proofAuthoringUnitInputSchema } from "./proof-authoring-input-schema.mjs";
-import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
+import { managedTestAuthorityIdentity, managedTestAuthorityAuthenticated } from "./managed-test-source-context.mjs";
+import { activeMcpInlineByteLimit, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
+import { resolveLauncherRunState, resolveAuthenticatedFindingsSource } from "./launcher-run-credential.mjs";
 import { MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
 import { readSelectedResponseSource, selectedResponseLocatorSchema, selectedResponseQueryInvalidError,
   selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
@@ -46,7 +48,7 @@ function recordedReadRefusal(code, message, { stage, subject, invocationId, fact
 }
 
 export async function readRecordedVerification({ args, repoRoot, env, deps, jsonContent, errorContent, responseEnv,
-  originalSelection = false, proofSelection = undefined, readCalls = null }) {
+  originalSelection = false, proofSelection = undefined, readCalls = null, completeDelivery = false }) {
   const invocationId = args.recorded_invocation.invocation_id;
   const base = { subject: args.subject, invocationId };
   const corrected = recordedInvocationCall(args.subject, invocationId);
@@ -97,7 +99,7 @@ export async function readRecordedVerification({ args, repoRoot, env, deps, json
   const originalSource = verification.request?.source ?? null;
   let read;
   try {
-    read = readVerifyProofRunRecord({ workspaceDir: repoRoot, verification });
+    read = readVerifyProofRunRecord({ workspaceDir: repoRoot, verification, includeVerifiedSource: completeDelivery });
   } catch (error) {
     throw recordedReadRefusal(typeof error?.code === "string" ? error.code : "verify_proof_cache.record_unavailable.v1",
       "the recorded invocation's cached evidence could not be read",
@@ -107,7 +109,8 @@ export async function readRecordedVerification({ args, repoRoot, env, deps, json
   }
   const original = { kind: read.kind, record: read.record, subject: originalSubject, source: originalSource };
   const calls = readCalls === null ? shippedVerifyProofCalls : readCalls(original);
-  const decoration = { recorded_invocation: recordedInvocation(originalSubject, invocationId, calls),
+  const decoration = { recorded_invocation: readCalls === null ? recordedInvocation(originalSubject, invocationId, calls)
+    : { invocation_id: invocationId, detail_call: calls.original() },
     observation: { kind: "retained_prior_observation" } };
   const answer = readVerifyProofOriginal({
     original: { ...original, record: calls.evidence === undefined ? original.record
@@ -116,10 +119,11 @@ export async function readRecordedVerification({ args, repoRoot, env, deps, json
       : { subject: args.subject, source: requestedSource(args) }), ...proofSelection },
     decoration,
     responseEnv,
+    selectedSubject: proofSelection?.subject !== undefined,
     calls: { execution: calls.execution, detail: (proofSubject, options) => calls.recorded(proofSubject, invocationId, options),
       source: (source) => calls.sourceRecorded(originalSubject, invocationId, source) },
     refuse: (reason, { held, selection }) => {
-      const original = calls.recorded(originalSubject, invocationId);
+      const original = readCalls === null ? calls.recorded(originalSubject, invocationId) : calls.original();
       if (reason === "source_binding_mismatch") {
         return recordedReadRefusal(RECORDED_READ_INVALID_CODE,
           "source must be the recorded invocation's own request source",
@@ -138,6 +142,12 @@ export async function readRecordedVerification({ args, repoRoot, env, deps, json
         facts: { reason, ...(selection ?? { choices: [], choice_count: 0 }) }, correctedCall: original });
     }
   });
+  const value = answer.kind === "refusal" ? answer.envelope : answer.value;
+  if (completeDelivery && measureMcpInlineResultBytes(value, { isError: answer.kind === "refusal" }) > activeMcpInlineByteLimit(responseEnv)) {
+    const result = selectedFullContent({ source: read.source, serializedBytes: read.serializedBytes, projection: value });
+    if (answer.kind === "refusal") result.isError = true;
+    return result;
+  }
   if (answer.kind !== "refusal") return jsonContent(answer.value);
   return errorContent(Object.assign(new Error("recorded workspace_verify_proof refusal"), {
     code: read.record.code, envelope: answer.envelope }));
@@ -155,6 +165,16 @@ export function readRetainedVerification({ args, repository, jsonContent, errorC
     expected: { route: VERIFY_PROOF_TOOL_NAME, repository } });
   const query = envelope.binding.query_identity ?? {};
   const evidence = envelope.carrier;
+  const state = (deps.resolveLauncherRunState ?? resolveLauncherRunState)(env);
+  if (state.role === "reviewer") {
+    resolveAuthenticatedFindingsSource(env);
+    const identity = managedTestAuthorityIdentity(state);
+    if (!managedTestAuthorityAuthenticated(identity) ||
+        !isDeepStrictEqual(envelope.binding.authority_identity, identity)) {
+      throw selectedResponseQueryInvalidError(VERIFY_PROOF_TOOL_NAME, "source_binding_mismatch",
+        { binding_field: "authority_identity" });
+    }
+  }
   const sourceChoices = verifyProofSourceAmbiguityChoices(evidence);
   if (sourceChoices !== null) {
     const state = (deps.resolveLauncherRunState ?? resolveLauncherRunState)(env);
@@ -176,6 +196,7 @@ export function readRetainedVerification({ args, repository, jsonContent, errorC
       request: { subject: args.subject, source: requestedSource(args), ...proofSelection },
       decoration: { result: locator, observation: { kind: "retained_prior_observation" } },
       responseEnv,
+      selectedSubject: proofSelection?.subject !== undefined,
       calls: { execution: calls.execution, detail: (subject, options) => calls.retained(repository, locator, subject, options),
         source: (source) => calls.sourceRetained(repository, locator, query.subject, source) },
       refuse: (reason, { selection }) => {
@@ -183,7 +204,7 @@ export function readRetainedVerification({ args, repository, jsonContent, errorC
           reason === "source_binding_mismatch" ? { binding_field: "source" }
             : { subject: proofSelection?.subject ?? args.subject, ...(selection ?? {}) });
 
-        if (readCalls !== null) error.next_calls = [calls.retained(repository, locator, query.subject)];
+        if (readCalls !== null) error.next_calls = [calls.original()];
         return error;
       }
     });
@@ -196,7 +217,7 @@ export function readRetainedVerification({ args, repository, jsonContent, errorC
     : (async () => present(await calls.evidence(original.record)))();
 }
 
-const VERIFY_PROOF_DESCRIPTION = "Execute existing saved proofs selected by one subject per call, using installed providers, with timeout and cancellation support. subject selects proofs, not code: orchestrators run the configured current checkout, dirty state included, unless git_sha selects an exact commit; workers and reviewers run their launcher-bound checkout. Each proof is proven, unproven or not_executable for its tested source. A passing test with unavailable mutation remains proven when every other required check holds; mutation limits and incomplete evidence are reported. A canonical work-record ID or slice address selects that unit's saved proof population; a saved test_proof_id or obligation_id narrows verification to that subject. When the ID has several sources, supply the intended source {unit, focus?} on execution, or inspect up to three source identities in the ambiguity refusal. Use the emitted result or recorded_invocation read with an exact source tuple to inspect any retained choice; that read returns its original execution call without executing it. Failed proofs carry selected error and authoring facts. Root next_calls separates owner-supplied authoring queries from result or recorded_invocation reads. result:{ref_id} from an earlier answer reads that settled result instead of executing. Advisory results.";
+const VERIFY_PROOF_DESCRIPTION = "Execute existing saved proofs selected by one subject per call, using installed providers, with timeout and cancellation support. subject selects proofs, not code: orchestrators run the configured current checkout, dirty state included, unless git_sha selects an exact commit; workers and reviewers run their launcher-bound checkout. Each proof is proven, unproven or not_executable for its tested source. Selected-test outcomes and the exact execution evaluation are preserved, including without mutation support. Execution validity alone grants no requirement-satisfaction credit: behavioral coverage not established is unproven; mutation limits and incomplete evidence remain distinct. A canonical work-record ID or slice address selects that unit's saved proof population; a saved test_proof_id or obligation_id narrows verification to that subject. When the ID has several sources, supply the intended source {unit, focus?} on execution, or inspect up to three source identities in the ambiguity refusal. Use the emitted result or recorded_invocation read with an exact source tuple to inspect any retained choice; that read returns its original execution call without executing it. Failed proofs carry selected error and authoring facts. Root next_calls separates owner-supplied authoring queries from result or recorded_invocation reads. result:{ref_id} from an earlier answer reads that settled result instead of executing. Advisory results.";
 const VERIFY_PROOF_SOURCE_DESCRIPTION =
   "Optional for a saved test_proof_id or obligation_id; refused with a WK or slice subject. " +
   "Selects exactly one saved proof source: unit is the source's WK ID or slice address and focus is " +

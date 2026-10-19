@@ -20,7 +20,7 @@ import {
 const REFUSAL_BEFORE_EFFECTS_GUARANTEE_DIGEST =
   "f55adcfd21e759ad9f647d8d63aaefd8d0fc0d112d9b288ca7489077c5c508b8";
 const REFUSAL_BEFORE_EFFECTS_PROFILE_DIGEST =
-  "a44e97e49f63a447e7d8c45d25a1ffcc76c269aa5b21108264438490a41f23a6";
+  "8d43a1ff837dd6e0f925e51bf36d21152cb7344e772c79d70abfd4c0a6de7909";
 
 function evaluateFixture(fixture) {
   return evaluateStableProofPackFixtureV1({

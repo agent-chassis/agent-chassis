@@ -4,9 +4,9 @@
 
 For one caller-declared subject operation, one declared execution context, and one complete exact nonempty forbidden-operation population, the subject must not call any forbidden member while that context applies. A call to even one member violates the prohibition. One verification reads the exact subject, context, population and every forbidden member, verifies that prohibition, and carries positive calls over the same complete population, subject and context as its falsifier. This certifies the declared proof model, not arbitrary implementation execution or broad dependency use.
 
-Profile digest: 99d76e278eacfec4bd5b70eca510af04fd7f39788af1082c74885238696b5702. Parameter digest: e117b5acaea479e88daa4757be755df1e684a809f0105276e51c89f293e5f554.
+Profile digest: 15117ae61d90926813b6c1dbf0500269771f245ed41759adba2c6832d8a370be. Parameter digest: 382b9b367a5f79391c38b46b513831b1c81e7990a650b0651703e0e72a06c715.
 
-Admission digest: 03efc1adbd69728dda31e5510c211b0d8572613a871d1b599d6df516e0772ec7.
+Admission digest: 310baa3379f3d81f5cec00634904f4c9f3f52bf7bf3c94353bb7b82b19034395.
 
 Roles: 5/5 accounted; 0 owned gaps. Semantic parameters: 5; internal roles: 0.
 

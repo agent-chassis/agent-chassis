@@ -19,6 +19,9 @@ export const DISPATCH_FORBIDDEN_ENVELOPE_TOKENS = Object.freeze([
   "agy-worker",
   "agy-review",
   "agy-redteam",
+  "opencode-worker",
+  "opencode-review",
+  "opencode-redteam",
   "gemini-worker",
   "gemini-review",
   "gemini-redteam"

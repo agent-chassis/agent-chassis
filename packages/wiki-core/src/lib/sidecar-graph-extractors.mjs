@@ -101,6 +101,10 @@ export function isSidecarGraphExtractionSourcePath(relativePath) {
   return sourceFilter.included.length === 1 && isTextGraphSource(relativePath);
 }
 
+export function isSidecarGraphExtractionSourceFile(file) {
+  return file.mode !== "120000" && isSidecarGraphExtractionSourcePath(file.path);
+}
+
 function isCodePath(relativePath) {
   return CODE_EXTENSIONS.has(path.posix.extname(relativePath));
 }

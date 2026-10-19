@@ -5,9 +5,25 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  parseAgentLaunchRoleConfigSource,
   readRoleDefaultModel,
   readRoleEffort
 } from "../../packages/agent-launch-cli/src/lib/agent-launch-role-config.mjs";
+
+test("model-family parsing refuses explicit routing fields without inspecting or exposing their values", () => {
+  for (const key of ["app", "client", "provider", "backend", "family", "model_provider"]) {
+    for (const table of ["", "[transport]\n", "[roles.worker]\n"]) {
+      assert.throws(() => parseAgentLaunchRoleConfigSource(`${table}${key} = "private-do-not-print"`, {
+        rejectExplicitRouting: true,
+      }), error => error.code === "role_config.explicit_routing_conflict"
+        && error.message.includes(key) && !error.message.includes("private-do-not-print"));
+    }
+  }
+  const config = parseAgentLaunchRoleConfigSource('# provider = "other"\n[unrelated]\nnote = "client = other"\n'
+    + '[roles.worker]\nmodel = "sonnet"\neffort = "medium"', { rejectExplicitRouting: true });
+  assert.deepEqual(config.roles, { worker: "sonnet" });
+  assert.deepEqual(config.efforts, { worker: "medium" });
+});
 
 function makeRepo() {
   const dir = mkdtempSync(path.join(os.tmpdir(), "agent-launch-role-config-"));

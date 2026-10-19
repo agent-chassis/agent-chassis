@@ -9,8 +9,7 @@ export const SIDECAR_CANONICAL_JOIN_MATCH_TYPES = Object.freeze([
   "directory_prefix",
   "explicit_pattern",
   "docs_backlink",
-  "related_id",
-  "inferred_test_adjacency"
+  "related_id"
 ]);
 
 export const SIDECAR_CANONICAL_JOIN_RANKING = Object.freeze({
@@ -19,8 +18,7 @@ export const SIDECAR_CANONICAL_JOIN_RANKING = Object.freeze({
     directory_prefix: 500,
     explicit_pattern: 450,
     docs_backlink: 350,
-    related_id: 250,
-    inferred_test_adjacency: 150
+    related_id: 250
   }),
   state_adjustments: Object.freeze({
     active_issue: 25,
@@ -91,8 +89,8 @@ function pathHasGlobSyntax(pathValue) {
   return pathValue.includes("*");
 }
 
-function sourceKindForMatch(matchType) {
-  return matchType === "inferred_test_adjacency" ? "test_adjacency" : "code_index";
+function sourceKindForMatch() {
+  return "code_index";
 }
 
 function evidenceBasisForMatch(matchType) {
@@ -101,9 +99,6 @@ function evidenceBasisForMatch(matchType) {
   }
   if (matchType === "related_id") {
     return "explicit_metadata";
-  }
-  if (matchType === "inferred_test_adjacency") {
-    return "inferred_test_adjacency";
   }
   return "path_match";
 }
@@ -193,44 +188,6 @@ function validatedPatternMatches(pattern, relativePath) {
   return segments.some((_, index) =>
     validatedPatternMatches(remainder, segments.slice(index).join("/"))
   );
-}
-
-function defaultTestAdjacency(inputPath) {
-  const parsed = inputPath.match(/^(?<dir>.*\/)?(?<base>[^/.]+)\.[^.]+$/);
-  if (!parsed?.groups?.base) {
-    return [];
-  }
-  const directory = parsed.groups.dir || "";
-  const basename = parsed.groups.base;
-  return uniqueStrings([
-    `${directory}${basename}.test.mjs`,
-    `${directory}${basename}.test.js`,
-    `tests/${basename}.test.mjs`,
-    `tests/${basename}.test.js`
-  ]).filter((candidate) => candidate !== inputPath);
-}
-
-function normalizeAdjacency(adjacency, counts) {
-  const entries = adjacency instanceof Map ? adjacency.entries() : Object.entries(adjacency || {});
-  const normalized = new Map();
-  for (const [inputPath, adjacentPaths] of entries) {
-    increment(counts, "test_adjacency_entries_normalized");
-    normalized.set(
-      normalizeJoinPath(inputPath).relativePath,
-      asStringList(adjacentPaths).map((entry) => normalizeJoinPath(entry).relativePath)
-    );
-  }
-  return normalized;
-}
-
-function knownAdjacentTestPaths({ inputPath, adjacency, knownPathIndex, counts }) {
-  if (!knownPathIndex) {
-    return [];
-  }
-  increment(counts, "test_adjacency_lookups");
-  return uniqueStrings([...(adjacency.get(inputPath) || []), ...defaultTestAdjacency(inputPath)])
-    .map((candidate) => normalizeJoinPath(candidate).relativePath)
-    .filter((candidate) => knownPathIndex.exact.has(candidate));
 }
 
 function addCandidateMatch(candidates, normalized, match) {
@@ -630,17 +587,15 @@ function collectDeclaredEvents({
   queryPath,
   inputPath,
   inputIndex,
-  inferredIndex,
   indexes,
   counts,
   events,
   evidenceByFact
 }) {
-  const inferred = inferredIndex !== null;
   increment(counts, "exact_index_lookups");
   for (const { normalized, declaration } of indexes.exactDeclarations.get(queryPath) || []) {
     increment(counts, "indexed_candidate_visits");
-    if (!inferred && declaration.stale) {
+    if (declaration.stale) {
       addDerivedEvidence(
         evidenceByFact,
         staleWriteScopeEvidence({
@@ -653,12 +608,11 @@ function collectDeclaredEvents({
     }
     events.push({
       normalized,
-      order: [inputIndex, normalized.recordIndex, inferred ? 3 : 1, inferredIndex ?? 0,
+      order: [inputIndex, normalized.recordIndex, 1, 0,
         declaration.declarationIndex],
       match: {
-        ...declarationMatch(declaration, inferred ? "inferred_test_adjacency" : "exact_path"),
-        input_path: inputPath,
-        ...(inferred ? { adjacent_test_path: queryPath } : {})
+        ...declarationMatch(declaration, "exact_path"),
+        input_path: inputPath
       }
     });
   }
@@ -667,7 +621,7 @@ function collectDeclaredEvents({
     increment(counts, "directory_prefix_index_lookups");
     for (const { normalized, declaration } of indexes.directoryDeclarations.get(ancestor) || []) {
       increment(counts, "indexed_candidate_visits");
-      if (!inferred && declaration.stale) {
+      if (declaration.stale) {
         addDerivedEvidence(
           evidenceByFact,
           staleWriteScopeEvidence({
@@ -680,15 +634,14 @@ function collectDeclaredEvents({
       }
       events.push({
         normalized,
-        order: [inputIndex, normalized.recordIndex, inferred ? 3 : 1, inferredIndex ?? 0,
+        order: [inputIndex, normalized.recordIndex, 1, 0,
           declaration.declarationIndex],
         match: {
           ...declarationMatch(
             declaration,
-            inferred ? "inferred_test_adjacency" : "directory_prefix"
+            "directory_prefix"
           ),
-          input_path: inputPath,
-          ...(inferred ? { adjacent_test_path: queryPath } : {})
+          input_path: inputPath
         }
       });
     }
@@ -699,15 +652,14 @@ function collectDeclaredEvents({
     if (!validatedPatternMatches(declaration.pattern, queryPath)) continue;
     events.push({
       normalized,
-      order: [inputIndex, normalized.recordIndex, inferred ? 3 : 1, inferredIndex ?? 0,
+      order: [inputIndex, normalized.recordIndex, 1, 0,
         declaration.declarationIndex],
       match: {
         ...declarationMatch(
           declaration,
-          inferred ? "inferred_test_adjacency" : "explicit_pattern"
+          "explicit_pattern"
         ),
-        input_path: inputPath,
-        ...(inferred ? { adjacent_test_path: queryPath } : {})
+        input_path: inputPath
       }
     });
   }
@@ -724,7 +676,6 @@ export function joinSidecarPathsToCanonicalRecords({
   paths,
   canonicalRecords,
   knownExistingPaths = null,
-  testAdjacency = {},
   includeSuppressed = false,
   envelope = {},
   operationObserver = null
@@ -747,7 +698,6 @@ export function joinSidecarPathsToCanonicalRecords({
   }));
   counts.impacted_paths = inputPaths.length;
   const knownPathIndex = normalizeKnownPathIndex(knownExistingPaths, counts);
-  const adjacency = normalizeAdjacency(testAdjacency, counts);
   const candidates = new Map();
   const evidenceByFact = new Map();
   const normalizedRecords = normalizeCanonicalRecords({
@@ -781,7 +731,6 @@ export function joinSidecarPathsToCanonicalRecords({
       queryPath: inputPath,
       inputPath,
       inputIndex,
-      inferredIndex: null,
       indexes,
       counts,
       events,
@@ -802,24 +751,6 @@ export function joinSidecarPathsToCanonicalRecords({
       });
     }
 
-    const inferredTestPaths = knownAdjacentTestPaths({
-      inputPath,
-      adjacency,
-      knownPathIndex,
-      counts
-    });
-    for (const [inferredIndex, inferredTestPath] of inferredTestPaths.entries()) {
-      collectDeclaredEvents({
-        queryPath: inferredTestPath,
-        inputPath,
-        inputIndex,
-        inferredIndex,
-        indexes,
-        counts,
-        events,
-        evidenceByFact
-      });
-    }
     events.sort(compareEventOrder);
     for (const event of events) {
       addCandidateMatch(candidates, event.normalized, {
@@ -906,9 +837,6 @@ export const SIDECAR_CANONICAL_JOIN_FIXTURES = deepFreeze({
     "packages/app/src/service.test.mjs",
     "docs/architecture/service.md"
   ]),
-  testAdjacency: Object.freeze({
-    "packages/app/src/service.mjs": Object.freeze(["packages/app/src/service.test.mjs"])
-  }),
   canonicalRecords: Object.freeze([
     Object.freeze({
       id: "WK-ACTIVE",
@@ -1039,4 +967,10 @@ export const SIDECAR_CANONICAL_JOIN_FIXTURES = deepFreeze({
 
 export function cloneSidecarCanonicalJoinFixture() {
   return cloneJson(SIDECAR_CANONICAL_JOIN_FIXTURES);
+}
+
+export function declaredAncestorPrefixes(canonicalRecords, paths) {
+  return uniqueStrings(canonicalRecords.flatMap(record => asStringList(record.frontmatter?.write_scope))
+    .filter(prefix => prefix.endsWith("/") && !pathHasGlobSyntax(prefix) &&
+      paths.some(path => path.startsWith(prefix))));
 }

@@ -100,7 +100,6 @@ export {
   buildSidecarIndex
 } from "./lib/sidecar-build.mjs";
 export {
-  SIDECAR_INDEX_ENSURE_MAX_PASSES,
   SidecarIndexEnsureError,
   ensureSidecarIndex
 } from "./lib/sidecar-ensure.mjs";

@@ -9,6 +9,7 @@ import {
   WORKSPACE_AGENT_DISPATCH_FINAL_RESULT_SCHEMA_VERSION
 } from "@agent-chassis/agent-launch-core";
 import { createHash } from "node:crypto";
+import { sameTuple } from "./managed-run-process-identity-contract.mjs";
 
 import {
   dispatchRefusal,
@@ -500,6 +501,9 @@ export async function finalizeLaunchOutcome(params) {
       enforcement: executorResult.enforcement ?? null
     }) } : {})
   };
+  Object.defineProperty(record, "read_managed_run_completion", {
+    value: params.readManagedRunCompletion ?? null, enumerable: false, writable: false
+  });
   Object.defineProperty(record, "findings_lifecycle", {
     value: findingsLifecycle === true,
     enumerable: false,
@@ -545,6 +549,7 @@ export async function finalizeLaunchOutcome(params) {
     pendingRetained: pendingIdentityRetained,
     reservationHolder
   });
+  await attachAcceptedAssignmentChange(record, params.readManagedRunCompletion ?? null);
   await publishCapturedManagedRunResult(record, publishManagedRunResult, assessManagedRunResult);
   const startReviewResult = deriveBackendReviewResult(record);
   if (record.terminal) {
@@ -709,6 +714,35 @@ export async function correctManagedRunResultPublication(request, dependencies) 
   }
 }
 
+async function attachAcceptedAssignmentChange(record, reader) {
+  if (record.role !== "worker" || !record.terminal || typeof reader !== "function" ||
+      record.accepted_assignment_change !== undefined || record.completion_settlement_failure !== undefined) return;
+  let observed;
+  try {
+    observed = await reader({ subject: record.subject, attemptId: record.run_id });
+    if (!observed.ok) throw Object.assign(new Error(observed.refusal?.reason ?? observed.code), { cause: observed });
+    if ((observed.dispatch_tuple !== null || observed.completion !== null) &&
+        !sameTuple(observed.dispatch_tuple, record.managed_execution_tuple)) throw Object.assign(
+      new Error("completion observation does not match the producer execution tuple"), { code: "attempt_binding_mismatch" });
+    if (observed.completion?.alternative !== "assignment_change_requested") return;
+  } catch (error) {
+    const failure = Object.freeze({ code: "managed_run_completion_read_failed",
+      owner: "managed-run identity-store completion reader", subject: record.subject,
+      attempt_id: record.run_id, cause: captureDiagnosticEvidence(error),
+      recovery: "repair the exact completion journal/binding before deciding delivery or assignment change" });
+    record.completion_settlement_failure = failure;
+    record.final_result = Object.freeze({ ...record.final_result, completion_settlement_failure: failure });
+    return;
+  }
+  record.accepted_assignment_change = observed.completion.intent_id;
+  record.final_result = Object.freeze({ ...record.final_result,
+    outcome: "assignment_change_requested",
+    ...(record.exit?.launcher_termination ? { launcher_termination: record.exit.launcher_termination } : {}),
+    assignment_change: {
+      request_id: observed.completion.intent_id, result: { ref_id: observed.completion.original.ref_id }
+    } });
+}
+
 async function publishCapturedManagedRunResult(record, publisher, assessPublication = null) {
   if (record.role !== "worker" || !record.terminal || record.final_result === null ||
       typeof publisher !== "function" || record.final_result_durability === "durable") return;
@@ -860,7 +894,8 @@ export async function settleAndProjectRunStatus(
     captureSliceReviewTerminalResult,
     settleFormalReviewAttestation,
     publishManagedRunResult = null,
-    assessManagedRunResult = null
+    assessManagedRunResult = null,
+    readManagedRunCompletion = null
   } = {}
 ) {
   if (!record.terminal && typeof record.probe === "function") {
@@ -874,6 +909,7 @@ export async function settleAndProjectRunStatus(
     }
   }
 
+  await attachAcceptedAssignmentChange(record, readManagedRunCompletion ?? record.read_managed_run_completion ?? null);
   await publishCapturedManagedRunResult(record, publishManagedRunResult, assessManagedRunResult);
 
   const reviewResult = deriveBackendReviewResult(record);

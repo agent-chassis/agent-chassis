@@ -1,13 +1,12 @@
 
 # Package Install
 
-For the normal first-time setup path, start with **[docs/quickstart.md](quickstart.md)**.
-It covers package access, installing `@agent-chassis/core`, bootstrap, building
-the code index, MCP wiring, and orchestrators in order.
+For installation through the first session, start with the
+[README](../README.md#install). The [quickstart](quickstart.md) supplements those
+steps with setup and model-selection details.
 
-This page keeps the package detail that the quickstart does not spell out: the
-package roles and the recommended local npm scripts. For install forms and CI
-notes, see [docs/local-package-install.md](local-package-install.md).
+This page covers package roles and optional local npm scripts. For install forms
+and CI notes, see [local package installation](local-package-install.md).
 
 ## Runtime Prerequisite
 
@@ -42,14 +41,6 @@ old one. A long-running server looks `git` up on its own `PATH` again for every
 call. It never picks up a changed `PATH`, so a directory that was not on that
 `PATH` when it started stays invisible to it.
 
-The initiative DeepSWE prepared image meets this with a harness-owned Git, which is
-separate from the task's own Git. It is built from one checksum-pinned upstream
-release (currently 2.55.0, newer than the supported minimum) into
-`/opt/agent-chassis/git`, and the harness launch scripts put it on the launcher's
-`PATH`. See the repository-only initiative DeepSWE smoke record
-(`docs/benchmark-runs/initiative/deepswe-smoke/README.md`, "Retained containers and Git")
-for the checks and for recovering a container that predates it.
-
 ## Package Access
 
 Packages are published to the public npm registry under the `@agent-chassis`
@@ -66,7 +57,7 @@ registry.npmjs.org automation token) and publishes each scoped package with
 npm install --save-dev @agent-chassis/core
 ```
 
-`@agent-chassis/core` is the normal public install package. It installs every
+`@agent-chassis/core` is the supported operational install package. It installs every
 binary you need and pulls in the underlying surfaces:
 
 - `@agent-chassis/wiki-cli` provides the `wiki` binary for bootstrap,
@@ -74,15 +65,16 @@ binary you need and pulls in the underlying surfaces:
 - `@agent-chassis/wiki-mcp` provides the `wiki-mcp` stdio MCP server that agents
   call for structured wiki, work-record, dispatch-readiness, code-index, and
   tool-discovery operations.
-- `@agent-chassis/agent-launch-cli` provides the `agent-launch` operator
-  entrypoint, including `agent-launch orchestrator`, `agent-launch resume`, and
-  `agent-launch orchestrator list`.
+- `@agent-chassis/agent-launch-cli` supplies the internal launcher engine. Core
+  alone exports `agent-launch` through `core/bin/agent-launch`, including
+  `agent-launch orchestrator`, `agent-launch resume`, and
+  `agent-launch orchestrator list`. The dependency exports no npm bin.
 
 These in turn pull in their shared `@agent-chassis/*` dependencies
 (`@agent-chassis/wiki-core`, `@agent-chassis/agent-launch-core`, and
 `@agent-chassis/controlled-contract`) from the same registry. Wiki-core uses
-controlled-contract at runtime, so installing `@agent-chassis/core` or a surface
-that depends on wiki-core installs it transitively.
+controlled-contract at runtime, so installing `@agent-chassis/core` installs it
+transitively.
 
 Package consumers that use controlled-contract exports, schemas, or CLIs
 directly can install its independently versioned public package explicitly:
@@ -91,12 +83,9 @@ directly can install its independently versioned public package explicitly:
 npm install --save-dev @agent-chassis/controlled-contract
 ```
 
-If you would rather pin the surfaces individually, you can install them directly
-instead of the bundle:
-
-```bash
-npm install --save-dev @agent-chassis/wiki-cli @agent-chassis/wiki-mcp @agent-chassis/agent-launch-cli
-```
+Individual surface packages are internal dependencies; install core for supported
+consumer operations. The separate controlled-contract library declaration above
+is for direct API consumers.
 
 `wiki-mcp` is a stdio server: when launched by an MCP client it starts and waits
 for JSON-RPC frames on stdin/stdout. It is launched by the client, not run by
@@ -118,7 +107,8 @@ the binaries through npm:
 
 ## Reference
 
-- [docs/quickstart.md](quickstart.md) — the normal first-time setup path.
+- [README installation](../README.md#install) — installation through the first session.
+- [docs/quickstart.md](quickstart.md) — supplementary setup details.
 - [docs/local-package-install.md](local-package-install.md) — registry setup,
   install forms, and CI usage.
 - [docs/mcp-integration.md](mcp-integration.md) — MCP client configuration.

@@ -1,26 +1,24 @@
 {
   "schema_version": "agent-faq.v1",
   "owner": "wiki-core",
-  "description": "Living, append-friendly catalog of recurring problems repo-aware agents hit, each entry pairing a symptom and cause with the exact structured route(s) to resolve it and the responsible actor (agent vs operator). Surfaced read-only through the workspace_agent_faq MCP tool and the agent-faq CLI parity command. This file is the sole content surface: adding a future entry requires editing only this JSON, not code. Each entry has a stable string `id`, `title`, `symptom`, `cause`, an `actor` of `agent`/`operator`/`agent_or_operator`, and `routes` naming structured workspace_* tools; entries may carry an optional `fork` (distinct sub-responses keyed by `when`), `related_codes` (runtime-blocker-codes.v1 codes), `related_docs`, and `related_records`.",
+  "description": "Read-only operator known-issues corpus served by wiki agent-faq. Recovery uses current intent-specific tools within session grants and producer-returned references. Entries identify the responsible actor; this corpus grants no authority. Authoring, action preview, integration and publication require coordinator grants; workers read their assignment and request assignment correction for missing required context.",
   "entries": [
     {
       "id": "read-scope-missing-or-unfamiliar",
       "title": "Worker reports its read-first references are missing, or read_scope vs docs: is unfamiliar",
       "symptom": "A worker reports that its read-first references are missing or empty; lint reports `missing_docs_target` or an unresolved `read_scope` entry; or you set the WK's `docs:` field and the worker expected `read_scope`.",
-      "cause": "`read_scope` is the work record's read-first reference list (`docs/**`, shipped operating guidance, relevant `wiki/**`). It was renamed from `docs:`, with `docs:` kept as a back-compat alias. The two name the same field, so an agent that only knows `docs:` will not recognize `read_scope` (and vice versa), and an empty or stale read-first list surfaces as the worker complaint.",
+      "cause": "read_scope names the durable read-first references for the work record or slice. Missing or stale references require an explicit authored correction; use the saved unit input contract, not a historical field alias.",
       "actor": "agent",
       "tier_visibility": [
         "free_local"
       ],
       "routes": [
         {
-          "tool": "workspace_work_record_edit",
+          "tool": "workspace_read_wiki",
           "args": {
-            "kind": "list",
-            "field": "read_scope",
-            "action": "replace"
+            "subject": "$exact_unit"
           },
-          "note": "Set or correct the WK's read-first reference list through the ordinary editor with the canonical `read_scope` field name. The separate schema-level `docs:` alias is not an editable field. Supply the complete intended replacement value, or use action `append` with one missing durable reference (`docs/**`, shipped operating guidance, relevant `wiki/**`)."
+          "note": "Coordinator: read the exact unit with workspace_read_wiki and select its returned save_record input contract for read_scope. Author the complete intended correction. A managed worker uses assignment:true to read its frozen assignment and request_assignment_change with its own gap evidence and completed/remaining work; acceptance ends that worker immediately."
         }
       ],
       "related_codes": [
@@ -33,7 +31,7 @@
     {
       "id": "graph-impact-required-unavailable",
       "title": "Graph impact required but unavailable or stale",
-      "symptom": "`workspace_validate_dispatch` or `workspace_coordination_preflight` reports graph impact required but unavailable, or you hit a `missing_graph_impact` / `graph_impact_*` blocker.",
+      "symptom": "`start_agent preview` or `start_agent preview` reports graph impact required but unavailable, or you hit a `missing_graph_impact` / `graph_impact_*` blocker.",
       "cause": "Graph-dependent operations automatically ensure the shared committed-HEAD index. Missing, stale, corrupt, and incompatible cache state normally rebuilds through the incumbent atomic/coalesced owner and the requesting operation continues. A remaining unavailable result therefore means the actual rebuild, verification, or captured-HEAD stabilization failed; dirty-worktree content is never substituted for the committed base.",
       "actor": "agent_or_operator",
       "tier_visibility": [
@@ -55,8 +53,12 @@
               "note": "Query committed impact for the changed paths; dirty worktree bytes stay excluded from the committed graph and are only disclosed."
             },
             {
-              "tool": "workspace_record_graph_impact_evidence",
-              "note": "Persist the impact answer by passing its selected_detail.source as graph_impact_source; the server records that retained original, so no compact projection or copied payload is needed. Calling with only the unit computes the unit's impact now instead. Record dirty-worktree limitations in the closure separately from canonical authority."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "Assess the original unit after the reported graph prerequisite is repaired. Do not copy a compact query answer into canonical evidence or substitute dirty data for the committed base."
             }
           ],
           "note": "Agent-recoverable. Do not request an operator rebuild for this sub-state; the overlay is usable, so persist real evidence from it."
@@ -86,9 +88,9 @@
     },
     {
       "id": "graph-impact-evidence-rejected-envelope-shape",
-      "title": "workspace_record_graph_impact_evidence rejects the evidence payload shape",
-      "symptom": "`workspace_record_graph_impact_evidence` rejects your evidence with an error like `requires graph_impact or graph_impact_summary_ref` or `graph_impact must be a graph-impact envelope`, so the work record stays in `missing_graph_impact`.",
-      "cause": "You passed the compact summary ref alone, or a hand-built summary object, instead of the full graph-impact envelope. The persistence route records the complete impact answer produced by a `query_code_index` change-impact question, which carries `structural_impacts`, `summary`, `input_paths` and `validated_paths`; a bare ref or hand-assembled summary lacks those fields and is rejected. The caller never copies the complete answer: the answer's `selected_detail.source` names its retained original. (Through some MCP clients an unknown-schema object argument can also be dropped before it reaches the server, which surfaces as the same rejection.)",
+      "title": "Graph evidence cannot be established for the selected unit",
+      "symptom": "The selected action reports missing or unusable committed graph evidence.",
+      "cause": "Read the original refusal and repair its specific index or graph prerequisite. query_code_index explains changed-path impact from the published index; its compact projection is not a canonical evidence payload. Reassess the selected unit after correction rather than copying query output into a retired evidence request.",
       "actor": "agent",
       "tier_visibility": [
         "paid_cce"
@@ -96,11 +98,15 @@
       "routes": [
         {
           "tool": "query_code_index",
-          "note": "Ask impact for the changed paths first; its compact answer's selected_detail.source names the retained complete answer the persistence route records."
+          "note": "Ask change impact using paths, patchText, diffRecords or liveGit:true. Follow its returned references for complete derived evidence; do not treat a compact summary as a canonical write carrier."
         },
         {
-          "tool": "workspace_record_graph_impact_evidence",
-          "note": "Pass that selected_detail.source as graph_impact_source with the unit; the server reads and persists the retained original without re-evaluating it, and its observation reports whether that original is still the committed HEAD (current or changed). Or call with only the unit to compute the unit's impact now."
+          "tool": "start_agent",
+          "args": {
+            "subject": "$exact_unit",
+            "preview": true
+          },
+          "note": "Assess the original unit after the reported graph prerequisite is repaired. Do not copy a compact query answer into canonical evidence or substitute dirty data for the committed base."
         }
       ],
       "related_codes": [
@@ -113,7 +119,7 @@
     {
       "id": "needs-review-write-scope-loc-line-budget",
       "title": "needs_review on write_scope_total_loc / max_write_file_loc when a small edit targets a large file",
-      "symptom": "`workspace_agent_dispatch` or `workspace_validate_dispatch` (with `node_engine_admissibility: true`) returns a Chassis Control Engine `needs_review` worker-admission result on `write_scope_total_loc` or `max_write_file_loc` (the reason often reads like `review_threshold_exceeded` or an accepted-authority-scope-mismatch on the large-file LOC), even though the actual change is a small, bounded edit inside an otherwise large file.",
+      "symptom": "`start_agent` or `start_agent preview` returns a Chassis Control Engine `needs_review` worker-admission result on `write_scope_total_loc` or `max_write_file_loc` (the reason often reads like `review_threshold_exceeded` or an accepted-authority-scope-mismatch on the large-file LOC), even though the actual change is a small, bounded edit inside an otherwise large file.",
       "cause": "Admission scored the WHOLE-FILE line count of the large `write_scope` file against the review threshold because the selected unit declared no bounded target plan. Without `expected_edit_targets` + `expected_changed_line_budget`, the gate has nothing narrower than the file's total LOC to reason about, so it routes the small edit into review-threshold pressure. This is a missing-target-evidence gap, not (by itself) a reject, a license/escalation problem, or a graph-impact problem.",
       "actor": "agent_or_operator",
       "tier_visibility": [
@@ -121,19 +127,26 @@
       ],
       "routes": [
         {
-          "tool": "workspace_work_record_upsert_slice",
-          "note": "FIRST-LINE remedy: declare the bounded target span on the selected work record or slice. Set `expected_edit_targets` (one entry per file actually touched, with the bounded operation) plus a small `expected_changed_line_budget` covering only the real change, so admission reasons about the bounded target instead of the whole-file LOC. Per the operating model's Scope-And-Ambition guidance this add-target-evidence step comes BEFORE escalation/attestation, not instead of them. (At record scope the same fields are authored on the work record contract; this slice route is the agent-facing way to add/refine them on a selected unit.) These fields are review/remediation context only and do not authorize launch."
-        },
-        {
-          "tool": "workspace_work_record_refresh_target_resolution_evidence",
-          "note": "Rematerialize the unit's worker-admission target-resolution derived evidence from the declared target plan so the next admissibility probe consumes fresh bounded-target metrics rather than a stale or missing target-resolution entry."
-        },
-        {
-          "tool": "workspace_validate_dispatch",
+          "tool": "workspace_read_wiki",
           "args": {
-            "node_engine_admissibility": true
+            "subject": "$exact_unit"
           },
-          "note": "Re-probe admissibility for the selected unit. With a bounded target plan in place the gate can reason about the target span; if it STILL refuses solely on whole-file LOC with no accepted policy authority, stop and record an admission/large-file-ergonomics blocker rather than rewriting readiness, refreshing graph impact, or reaching for escalation."
+          "note": "Read the exact unit with workspace_read_wiki, then follow its returned reference to the save_record input contract for the needed members. Author the complete intended correction using that contract; do not infer replacement values. Narrow scope or split the unit before reassessment."
+        },
+        {
+          "tool": "workspace_read_wiki",
+          "args": {
+            "subject": "$exact_unit"
+          },
+          "note": "Read the exact unit with workspace_read_wiki, then follow its returned reference to the save_record input contract for the needed members. Author the complete intended correction using that contract; do not infer replacement values."
+        },
+        {
+          "tool": "start_agent",
+          "args": {
+            "subject": "$exact_unit",
+            "preview": true
+          },
+          "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
         }
       ],
       "related_codes": [
@@ -151,7 +164,7 @@
     {
       "id": "validate-dispatch-worker-admission-problem-diagnostics",
       "title": "Validate-dispatch worker-admission problem diagnostics",
-      "symptom": "workspace_validate_dispatch returns pack_input_required, pack_input_invalid, request_schema_digest_mismatch, precondition_graph_too_large, non_object_data, or generic invalid_request instead of a launchable admit",
+      "symptom": "start_agent preview returns pack_input_required, pack_input_invalid, request_schema_digest_mismatch, precondition_graph_too_large, non_object_data, or generic invalid_request instead of a launchable admit",
       "cause": "Chassis Control Engine rejected the worker-admission request during admissibility evaluation. These diagnostics are non-launchable by design and describe recovery work, not local launch authority.",
       "actor": "agent_or_operator",
       "tier_visibility": [
@@ -159,8 +172,12 @@
       ],
       "routes": [
         {
-          "tool": "workspace_validate_dispatch",
-          "note": "Rerun validate-dispatch only after repairing the structured admission carrier; do not treat the diagnostic as launch authorization."
+          "tool": "start_agent",
+          "args": {
+            "subject": "$exact_unit",
+            "preview": true
+          },
+          "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
         }
       ],
       "fork": [
@@ -169,8 +186,12 @@
           "actor": "agent",
           "routes": [
             {
-              "tool": "workspace_validate_dispatch",
-              "note": "Supply the missing worker-admission pack input or carrier data, then rerun."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
             }
           ],
           "note": "The request is missing required pack input."
@@ -180,8 +201,12 @@
           "actor": "agent",
           "routes": [
             {
-              "tool": "workspace_validate_dispatch",
-              "note": "Fix the structured pack input shape or field content, then rerun."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
             }
           ],
           "note": "The supplied pack input is malformed or inconsistent."
@@ -191,12 +216,20 @@
           "actor": "operator",
           "routes": [
             {
-              "tool": "workspace_node_engine_admission_runtime_diagnostic",
-              "note": "Check launcher-minted Chassis Control Engine admission runtime binding and request-contract digest wiring."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "The operator repairs the launcher runtime or digest binding named by the refusal; then assess the same unit. Preview does not repair runtime configuration."
             },
             {
-              "tool": "workspace_validate_dispatch",
-              "note": "Verify the repaired request shape after the runtime diagnostic and operator-owned digest rebind."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
             }
           ],
           "note": "The request contract digest does not match the Chassis Control Engine admissibility policy pack."
@@ -217,8 +250,12 @@
           "actor": "agent_or_operator",
           "routes": [
             {
-              "tool": "workspace_validate_dispatch",
-              "note": "Wrap the admission payload as a structured object instead of a scalar, array, or raw string."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
             }
           ],
           "note": "The admission payload is not object-shaped."
@@ -228,8 +265,12 @@
           "actor": "agent_or_operator",
           "routes": [
             {
-              "tool": "workspace_validate_dispatch",
-              "note": "Treat as a generic typed refusal: correct the carrier and retry without exposing secrets or raw payloads."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
             }
           ],
           "note": "Fallback typed refusal when Chassis Control Engine cannot classify the request more specifically."
@@ -256,8 +297,8 @@
     {
       "id": "dispatch-readiness-multi-cluster-or-critical-blast-radius",
       "title": "validate_dispatch non-dispatchable on multi_cluster or critical_blast_radius_*",
-      "symptom": "workspace_validate_dispatch reports the selected unit non-dispatchable with decision code `multi_cluster` (the unit's write_scope spans more than one cohesive change cluster) or a `critical_blast_radius_*` code (the change reaches a critical surface with no current, in-scope accepted escalation).",
-      "cause": "Both are LOCAL dispatch-readiness structural gates an agent can see before any launch \u2014 not Node-Engine threshold verdicts \u2014 so they need no paid tool. multi_cluster wants one cohesive write_scope cluster per unit; critical_blast_radius_* wants a recorded, accepted, in-scope `critical_blast_radius` escalation whose scope matches the change.",
+      "symptom": "start_agent preview reports the selected unit non-dispatchable with decision code `multi_cluster` (the unit's write_scope spans more than one cohesive change cluster) or a `critical_blast_radius_*` code (the change reaches a critical surface with no current, in-scope accepted escalation).",
+      "cause": "Both are LOCAL dispatch-readiness structural gates an agent can see before any launch — not Node-Engine threshold verdicts — so they need no paid tool. multi_cluster wants one cohesive write_scope cluster per unit; critical_blast_radius_* wants a recorded, accepted, in-scope `critical_blast_radius` escalation whose scope matches the change.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local"
@@ -269,12 +310,19 @@
           "actor": "agent",
           "routes": [
             {
-              "tool": "workspace_work_record_upsert_slice",
-              "note": "Split the unit so each slice's write_scope covers one cluster, or narrow this unit to a single cohesive cluster."
+              "tool": "workspace_read_wiki",
+              "args": {
+                "subject": "$exact_unit"
+              },
+              "note": "Read the exact unit with workspace_read_wiki, then follow its returned reference to the save_record input contract for the needed members. Author the complete intended correction using that contract; do not infer replacement values. Narrow scope or split the unit before reassessment."
             },
             {
-              "tool": "workspace_validate_dispatch",
-              "note": "Re-probe dispatch readiness after narrowing/splitting; a single-cluster unit clears the multi_cluster gate."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
             }
           ],
           "note": "Agent-resolvable structural readiness gate; no paid tool required."
@@ -284,8 +332,12 @@
           "actor": "agent_or_operator",
           "routes": [
             {
-              "tool": "workspace_validate_dispatch",
-              "note": "After a coordinator/operator records an accepted `critical_blast_radius` escalation whose scope matches this unit (expired or scope-mismatch escalations do not clear the gate), re-probe dispatch readiness. Do not self-accept the escalation to bypass the gate."
+              "tool": "start_agent",
+              "args": {
+                "subject": "$exact_unit",
+                "preview": true
+              },
+              "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
             }
           ],
           "note": "Escalation acceptance is a coordinator/operator decision, not an agent threshold-recovery action."
@@ -303,21 +355,21 @@
     },
     {
       "id": "run-validation-target-not-authorized",
-      "title": "workspace_run_validation refuses target_not_authorized (target not in the unit's allowlist)",
-      "symptom": "workspace_run_validation returns a structured refusal with refusal_code `workspace_run_validation.target_not_authorized.v1`: the requested target is not an acceptance.validation[] entry with operation node_test on the selected unit.",
-      "cause": "workspace_run_validation only runs targets the unit's work contract authorizes. The refusal carries the caller-visible authorized_targets set; a miss is a contract/allowlist gap resolvable locally with no paid tool.",
+      "title": "A requested validation target is outside the selected contract",
+      "symptom": "Execution refuses because the requested target or source is not authorized by the selected proof or session.",
+      "cause": "Saved proof execution uses verify_proof with a saved subject and its authenticated source. Ordinary workspace_run_test accepts frozen worker entrypoint/selection IDs or a nonworker harness within session authority and supplies no proof credit. Repair the named saved test case through its returned authoring contract when that is the failing boundary; a note or ordinary test run does not authorize a proof.",
       "actor": "agent",
       "tier_visibility": [
         "free_local"
       ],
       "routes": [
         {
-          "tool": "workspace_run_validation",
-          "note": "Re-run with a target from the refusal's authorized_targets, or have the coordinator author or amend the verification's test case through workspace_controlled_contract_obligation_coverage_upsert, the sole author of acceptance.validation node_test bindings, before resubmitting. Ordinary acceptance edits and text notes never authorize execution."
+          "tool": "workspace_run_test",
+          "note": "Use an assigned worker entrypoint/selection or a nonworker harness within your session source authority. To execute a saved proof, use verify_proof with its saved subject instead; author corrections through the returned save_record contract. A test run grants no proof credit."
         }
       ],
       "related_codes": [
-        "workspace_run_validation.target_not_authorized.v1"
+        "run_test.entrypoint_unknown.v1"
       ],
       "related_docs": [
         "docs/tool-discovery.md"
@@ -326,7 +378,7 @@
     {
       "id": "worker-admission-breadth-write-scope-or-validation-count",
       "title": "worker-admission breadth refusal on write_scope_count or validation_command_count",
-      "symptom": "workspace_agent_dispatch or workspace_validate_dispatch (with node_engine_admissibility: true) returns a Chassis Control Engine breadth refusal keyed on control_id `write_scope_count` or `validation_command_count` (e.g. `worker_admission.work_unit_atomicity.write_scope_count_denied.v1`): the unit declares too many write_scope files or too many validation commands for one atomic unit.",
+      "symptom": "start_agent or start_agent preview returns a Chassis Control Engine breadth refusal keyed on control_id `write_scope_count` or `validation_command_count` (e.g. `worker_admission.work_unit_atomicity.write_scope_count_denied.v1`): the unit declares too many write_scope files or too many validation commands for one atomic unit.",
       "cause": "These are Node-Engine-owned breadth thresholds over the raw carrier metrics (write-scope file breadth / validation-command breadth). Under DEC-0125 large-file / breadth admissibility is CCE-exclusive, so only the paid_cce tier reaches this refusal (a free/local agent fails open). The remedy is to split the unit, not to loosen a threshold.",
       "actor": "agent_or_operator",
       "tier_visibility": [
@@ -334,15 +386,19 @@
       ],
       "routes": [
         {
-          "tool": "workspace_work_record_upsert_slice",
-          "note": "Split the unit into narrower slices so each carries a single cohesive write_scope and a bounded validation set, reducing write_scope_count / validation_command_count per unit."
+          "tool": "workspace_read_wiki",
+          "args": {
+            "subject": "$exact_unit"
+          },
+          "note": "Read the exact unit with workspace_read_wiki, then follow its returned reference to the save_record input contract for the needed members. Author the complete intended correction using that contract; do not infer replacement values. Narrow scope or split the unit before reassessment."
         },
         {
-          "tool": "workspace_validate_dispatch",
+          "tool": "start_agent",
           "args": {
-            "node_engine_admissibility": true
+            "subject": "$exact_unit",
+            "preview": true
           },
-          "note": "Re-probe admissibility for the narrowed unit. If it still refuses on breadth with no accepted policy authority, record an admission/breadth blocker rather than loosening a threshold."
+          "note": "After correcting the reported cause, assess the exact unit with start_agent({subject,preview:true}); preview starts nothing and grants no launch permission. Preserve any refusal and its cause-specific correction."
         }
       ],
       "related_codes": [
@@ -357,7 +413,7 @@
     {
       "id": "frozen-slice-review-context-stale-or-mismatched",
       "title": "Exact-slice reviewer dispatch refuses a stale frozen contract context",
-      "symptom": "workspace_agent_dispatch for an exact-slice reviewer refuses with frozen_slice_review_context_stale_or_mismatched after coordinator bookkeeping changed the canonical parent WK or selected review-unit contract while the committed delivery stayed unchanged.",
+      "symptom": "start_agent for an exact-slice reviewer refuses with frozen_slice_review_context_stale_or_mismatched after coordinator bookkeeping changed the canonical parent WK or selected review-unit contract while the committed delivery stayed unchanged.",
       "cause": "The hot backend still selected a process-local frozen review context carrying the earlier broad parent-WK or review-unit contract snapshot. The ordinary exact reviewer dispatch can reauthenticate and replace that selection only when reviewed SHA, accumulated diff base, slice ref, worktree identity and path, repository identity, and committed-target digest all remain identical. Delivery movement, selected-unit movement, an object-store probe failure, or any unauthenticated identity remains fail-closed and is not retry-authorized.",
       "actor": "agent_or_operator",
       "tier_visibility": [
@@ -366,7 +422,7 @@
       ],
       "routes": [
         {
-          "tool": "workspace_agent_dispatch",
+          "tool": "start_agent",
           "args": {
             "role": "reviewer",
             "subject": "<exact-slice-subject-from-refusal>"
@@ -387,8 +443,8 @@
     {
       "id": "terminal-candidate-stale-w-advance",
       "title": "Terminal candidate is stale against current W",
-      "symptom": "workspace_terminal_review_candidate_status returns candidate_stale_w and names the advance route.",
-      "cause": "The exact candidate embeds an older authenticated W than the current exact direct durable WK ref.",
+      "symptom": "Candidate inspection reports that the selected version is stale against the observed workspace base.",
+      "cause": "A stale candidate needs advancement to the observed workspace base. Inspect the candidate, then use the exact returned version_identity as version in workspace_advance_candidate. Review the resulting candidate before publication.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local",
@@ -396,11 +452,11 @@
       ],
       "routes": [
         {
-          "tool": "workspace_terminal_review_candidate_advance",
+          "tool": "workspace_inspect_candidate",
           "args": {
-            "wk_id": "$wk_id"
+            "subject": "$wk_id"
           },
-          "note": "Call only when the status response itself returns this exact next_call; do not supply refs, SHAs, paths, schema, locks, or policy authority."
+          "note": "Inspect the current candidate. Advance only the explicitly selected version_identity returned by inspection; do not invent a version or copy a Git SHA."
         }
       ],
       "related_codes": [
@@ -415,7 +471,7 @@
       "id": "terminal-candidate-continuation-refresh",
       "title": "Terminal candidate divergence continuation is invalid or stale",
       "symptom": "A divergence page continuation is refused as invalid or stale.",
-      "cause": "The opaque continuation is malformed, exhausted, or bound candidate/W/contract authority moved.",
+      "cause": "The previous observation or continuation no longer selects the current candidate. Inspect again and follow the fresh producer-returned references; inspection repairs nothing and authorizes no advance.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local",
@@ -423,11 +479,11 @@
       ],
       "routes": [
         {
-          "tool": "workspace_terminal_review_candidate_status",
+          "tool": "workspace_inspect_candidate",
           "args": {
-            "wk_id": "$wk_id"
+            "subject": "$wk_id"
           },
-          "note": "Re-read status without a continuation. Use only a fresh continuation returned by that response."
+          "note": "Inspect again. Use only fresh producer-returned references and an explicit candidate version for any subsequent advance."
         }
       ],
       "related_codes": [
@@ -442,7 +498,7 @@
       "id": "terminal-candidate-advance-reobserve",
       "title": "Terminal candidate advance lost current authority",
       "symptom": "Advance refuses because exact status, exclusion, B/W, canonical contract, or fixed-ref authority changed.",
-      "cause": "The stale-W fact or an authority input moved between the read-only status gate and the single candidate-ref CAS.",
+      "cause": "The previous observation or continuation no longer selects the current candidate. Inspect again and follow the fresh producer-returned references; inspection repairs nothing and authorizes no advance.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local",
@@ -450,11 +506,11 @@
       ],
       "routes": [
         {
-          "tool": "workspace_terminal_review_candidate_status",
+          "tool": "workspace_inspect_candidate",
           "args": {
-            "wk_id": "$wk_id"
+            "subject": "$wk_id"
           },
-          "note": "Re-observe exact status. Advance again only if the new response itself returns candidate_stale_w and names the advance route."
+          "note": "Inspect again. Use only fresh producer-returned references and an explicit candidate version for any subsequent advance."
         }
       ],
       "related_codes": [
@@ -477,7 +533,7 @@
       "id": "terminal-review-dispositioned-forge-handoff",
       "title": "Terminal whole-WK review is dispositioned and the candidate is unpublished",
       "symptom": "The one terminal whole-WK findings-only review of the exact candidate is finished and every surviving finding is dispositioned, and the next structured action for getting that exact reviewed candidate onto the forge is unclear.",
-      "cause": "After the terminal whole-WK findings-only review is complete and its findings are dispositioned, workspace_wk_forge_handoff is the supported continuation. It publishes the already-reviewed candidate byte-for-byte against the configured base branch, and it creates or observes the pull request for that exact publication. It does not merge, does not observe or report merge state, does not reconcile any record or ref with what landed, and does not complete the parent WK; candidate construction stays launcher-owned, so it never reconstructs or re-derives the candidate. Input is closed to a workspace alias and the record-level assigned_unit: the server derives repository, remote, branch, candidate, and pull-request identity, so no caller-supplied candidate, base, or pull-request fact is accepted from request, prompt, or environment. Merge readiness belongs to the forge actor and its policy, and an unmergeable or conflicting pull request is still a successfully handed-off exact candidate rather than a failure to retry. The typed refusals include: wk_forge_handoff_subject_invalid when the subject is not a WK record id, wk_forge_handoff_executor_unavailable when no trusted forge executor is bound to the server, and terminal_candidate_recovery_current_ref_absent when cold recovery finds no already-present, directly commit-valued, mechanically authenticated terminal-current ref. Each of those fails closed, and other typed refusals reach the caller the same way; there is no shell or `gh` fallback, and no agent route past this boundary.",
+      "cause": "After the exact terminal whole-WK review and disposition, workspace_publish_work publishes the already-reviewed candidate byte-for-byte against the configured base branch to the configured destination. On a hosted destination it creates or observes the pull request; a local/Git destination hands off for human Git landing. Publication neither merges, observes merge state, reconstructs the candidate nor completes work. workspace_check_landing observes landing separately. The closed request is subject only; repository, candidate, branches and destination are configured by the owner. Preserve typed refusals; no shell or gh recovery substitutes for this boundary. Typed refusals include wk_forge_handoff_subject_invalid for an invalid WK subject, wk_forge_handoff_executor_unavailable for a missing configured adapter, and terminal_candidate_recovery_current_ref_absent for an unavailable authenticated current selection. Other owner refusals remain possible.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local",
@@ -485,11 +541,11 @@
       ],
       "routes": [
         {
-          "tool": "workspace_wk_forge_handoff",
+          "tool": "workspace_publish_work",
           "args": {
-            "assigned_unit": "$wk_id"
+            "subject": "$wk_id"
           },
-          "note": "Call only once the terminal whole-WK review of that exact candidate is complete and its findings are dispositioned. assigned_unit is required, and the workspace repository alias may also be supplied when the session is not repo-attached. Pass no other input: no refs, SHAs, base or branch names, no candidate identity, and no pull-request identity. A typed refusal is the answer for that call, not a reason to reach for another route."
+          "note": "After exact review and disposition, publish the current selection to its configured destination. Supply only subject; preserve any typed refusal and its owning recovery."
         }
       ],
       "related_codes": [
@@ -505,9 +561,9 @@
     },
     {
       "id": "verify-proof-execution-not-executable",
-      "title": "workspace_verify_proof reports an execution or receipt prerequisite failure",
-      "symptom": "workspace_verify_proof returns a workspace-verify-proof-refusal.v1 execution, provider, observation, or receipt code instead of a proof outcome.",
-      "cause": "A valid structured run of the predeclared selected assertion is proof evidence: a passing assertion may prove the proof and a failing assertion leaves it unproven, independently of sibling assertions and the whole-file exit code. Siblings remain bounded audit observations and are not attributed to the proof. not_executable or refused instead means the selected proof could not be evaluated because a canonical binding, launcher isolation/spawn/timeout prerequisite, structured node:test reporter protocol, candidate/falsifier/traversal provider, candidate identity, or authenticated receipt failed. Ordinary validation diagnostics use bounded head/tail capture. The proof reporter uses a separate lossless machine-protocol channel on a launcher-owned pipe with its own fixed byte limit and is never parsed after diagnostic elision. test_proof_structured_events_oversized means the authenticated envelope exceeded that protocol limit; reduce the declared test's structured event population or repair the reporter protocol owner before retrying, without treating the bytes as malformed JSON. test_proof_selected_identity_not_observed means the authenticated whole-file run terminated or completed without exposing the selected assertion; use its expected_test_id, target, bounded counts, wrapper status/error codes, and at most eight observed_identity_candidates to repair test startup or reporter observation before retrying. test_proof_bound_identity_mismatch is reserved for a genuine disagreement between the declared identity and its authenticated binding; repair the canonical file/name/nesting identity or the shared identity owner. Read the bounded outer_wrapper_code, deepest_stable_cause_code, execution_stage, declared_target, verification_id, test_proof_id, run disposition, blocker/observation code, and truncation facts in the response. Repair a binding or declared test in the controlled proof contract when those facts name the contract boundary; repair the launcher/runtime or reporter/provider prerequisite when they name execution infrastructure. A completed verification returns the compact workspace-verify-proof-summary.v1: requested subject, one common subject binding, aggregate status, exact proof and obligation-relationship counts, per-proof and per-obligation verdicts, shared reason/recovery entries for unmet or unevaluated items, and next_calls naming the exact read of each returned failure. That read, workspace_verify_proof with the answer's result {ref_id, sha256} and the failed test_proof_id or obligation_id as subject, returns the proof's recorded error name, message, code, assertion operator, captured call trace and cause chain from the settled result without executing anything; a single test_proof_id or obligation_id verification that fails returns it directly. Large expected/actual operands stay in the retained result and are reported as deferred with their type and size. A managed worker's call is recorded once and read through workspace_agent_run_status proof_verification detail with invocation_id and proof_subject. Diagnostic data is complete below the reporter protocol bound; only exact producer-declared protected strings use the existing closed redaction reasons and structured field signals. Raw stdout/stderr, commands, argv, environment, and private provider payloads remain outside the public result.",
+      "title": "verify_proof reports an execution or receipt prerequisite failure",
+      "symptom": "verify_proof returns a workspace-verify-proof-refusal.v1 execution, provider, observation, or receipt code instead of a proof outcome.",
+      "cause": "A valid structured run of the predeclared selected assertion is proof evidence: a passing assertion may prove the proof and a failing assertion leaves it unproven, independently of sibling assertions and the whole-file exit code. Siblings remain bounded audit observations and are not attributed to the proof. not_executable or refused instead means the selected proof could not be evaluated because a canonical binding, launcher isolation/spawn/timeout prerequisite, structured node:test reporter protocol, candidate/falsifier/traversal provider, candidate identity, or authenticated receipt failed. Ordinary validation diagnostics use bounded head/tail capture. The proof reporter uses a separate lossless machine-protocol channel on a launcher-owned pipe with its own fixed byte limit and is never parsed after diagnostic elision. test_proof_structured_events_oversized means the authenticated envelope exceeded that protocol limit; reduce the declared test's structured event population or repair the reporter protocol owner before retrying, without treating the bytes as malformed JSON. test_proof_selected_identity_not_observed means the authenticated whole-file run terminated or completed without exposing the selected assertion; use its expected_test_id, target, bounded counts, wrapper status/error codes, and at most eight observed_identity_candidates to repair test startup or reporter observation before retrying. test_proof_bound_identity_mismatch is reserved for a genuine disagreement between the declared identity and its authenticated binding; repair the canonical file/name/nesting identity or the shared identity owner. Read the bounded outer_wrapper_code, deepest_stable_cause_code, execution_stage, declared_target, verification_id, test_proof_id, run disposition, blocker/observation code, and truncation facts in the response. Repair a binding or declared test in the controlled proof contract when those facts name the contract boundary; repair the launcher/runtime or reporter/provider prerequisite when they name execution infrastructure. A completed verification returns the compact workspace-verify-proof-summary.v1: requested subject, one common subject binding, aggregate status, exact proof and obligation-relationship counts, per-proof and per-obligation verdicts, shared reason/recovery entries for unmet or unevaluated items, and next_calls naming the exact read of each returned failure. Follow get_run_result calls with the returned result locator and proof selector unchanged to read settled failure details without executing again. Large expected/actual operands stay in the retained result and are reported as deferred with their type and size. A managed worker reads its recorded invocation through get_run_result with assigned:true and the producer-returned recorded_invocation. Raw stdout/stderr and private provider payloads remain outside the public proof result.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local",
@@ -515,11 +571,11 @@
       ],
       "routes": [
         {
-          "tool": "workspace_verify_proof",
+          "tool": "verify_proof",
           "args": {
             "subject": "$same_canonical_subject"
           },
-          "note": "Retry the same canonical subject only after the structured response's owning prerequisite has been repaired. A retry does not repair the contract, launcher, reporter, provider, candidate, or receipt by itself. Preserve git_sha when the original call selected an exact commit."
+          "note": "After repairing the named owner prerequisite, explicitly retry the saved subject. Source selection belongs to the authenticated session; do not add gitSha or git_sha. Read settled originals using the returned get_run_result calls."
         }
       ],
       "related_codes": [
@@ -553,8 +609,8 @@
     {
       "id": "committed-slice-redispatch-refused",
       "title": "Worker redispatch finds an existing committed slice delivery",
-      "symptom": "workspace_agent_dispatch refuses a worker call with managed_run_prior_attempt_proven_dead for a slice whose prior attempt already committed a delivery.",
-      "cause": "The refusal protects the committed delivery and means this dispatch launched no replacement worker. It is not an integration decision. The supported next request is workspace_integrate_committed_slice with the canonical slice subject; that operation independently authenticates the exact target and applies its existing CAS and configured CCE checks. Only an accepted integration result permits remaining already-dispositioned remediation to proceed in a follow-up slice of the same WK. Nothing here automatically integrates, creates a slice, redispatches, or claims success.",
+      "symptom": "start_agent refuses a worker call with managed_run_prior_attempt_proven_dead for a slice whose prior attempt already committed a delivery.",
+      "cause": "A committed delivery is integrated explicitly using its authenticated delivery reference returned by get_run_result. Do not redispatch a worker merely to repeat an already committed delivery, and do not invent a receipt from a subject or SHA. This observation is not an integration decision: integrate_work independently authenticates the delivery. Runtime recovery that requires integration before remediation continues in a follow-up slice of the same WK; no replacement worker is launched by a result read.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local",
@@ -562,11 +618,12 @@
       ],
       "routes": [
         {
-          "tool": "workspace_integrate_committed_slice",
+          "tool": "get_run_result",
           "args": {
-            "subject": "$canonical_slice_subject"
+            "subject": "$exact_slice",
+            "attempt_id": "$returned_attempt_id"
           },
-          "note": "Make this separate request with a canonical subject such as WK-2528#SLICE-007. Optionally include the configured repo alias and registered dispositions array. Do not pass comment_dispositions, refs, SHAs, receipts, review verdicts, policy decisions, or authority carriers. Preserve and report this operation's own success or typed refusal."
+          "note": "Read the exact attempt and follow its integrate_work call with the producer-returned delivery reference. Preserve integration refusals and role restrictions."
         }
       ],
       "related_codes": [

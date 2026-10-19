@@ -31,9 +31,13 @@ export function createInitiativeGuidanceProjector(contracts) {
         if (!row.target_role) missingInputs = ["role"];
         break;
       case "validate_record":
-      case "validate_dispatch":
         operation = "workspace_assess_contract";
         args = { unit };
+        break;
+      case "validate_dispatch":
+        operation = "start_agent";
+        if (WORK_UNIT.test(unit ?? "")) args = { subject: unit, preview: true };
+        else missingInputs = ["subject: exact WK or WK#SLICE unit"];
         break;
       case "inspect":
         operation = row.reason_code === "review_result_ready" ? "get_run_result" : "workspace_read_wiki";
@@ -60,7 +64,7 @@ export function createInitiativeGuidanceProjector(contracts) {
         args = row.arguments ?? row.next_call?.arguments ?? null;
         if (operation !== null && args === null) missingInputs = ["arguments"];
     }
-    if (args?.subject === undefined && args?.unit === undefined &&
+    if (missingInputs.length === 0 && args?.subject === undefined && args?.unit === undefined &&
         ["start_agent", "workspace_assess_contract", "workspace_read_wiki", "get_run_result"].includes(operation)) {
       missingInputs.push(operation === "workspace_assess_contract" ? "unit" : "subject");
     }

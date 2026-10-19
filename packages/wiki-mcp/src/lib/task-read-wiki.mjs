@@ -1,4 +1,14 @@
-
+import { scopeDirectory, entryJson, entryNode, entryNodeValue } from './read-wiki-semantic-navigation.mjs';
+import { canonicalJson } from '@agent-chassis/wiki-core/src/lib/controlled-requirement-authoring-schema.mjs';
+import { DEFAULT_EXCEPTION_PUBLICATION } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
+import { readRequirementModel, requirementQuerySelection } from "./requirement-model-read.mjs";
+import { searchChoice, searchLimitations, searchPathSubject } from "./read-wiki-search-presentation.mjs";
+import { readWikiRefusal } from "./read-wiki-refusal.mjs";
+import { readWikiContractMeaning } from "./read-wiki-contract-presentation.mjs";
+import { readWikiCurrentness } from "./read-wiki-currentness.mjs";
+import { projectRequirementDefinitionMeaning } from '@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-description-sources.mjs';
+import { decodeSearchToken } from "@agent-chassis/wiki-core/src/lib/search-source-reader.mjs";
+import { sessionRequirementAuthoringGuidance, requirementGuidanceRevision, requirementGuidanceDetailNavigation } from "./requirement-authoring-guidance.mjs";
 
 import { createHash } from "node:crypto";
 import { groupCompleteSchemaDiagnostics } from "@agent-chassis/controlled-contract/bounded-diagnostics";
@@ -40,26 +50,23 @@ import {
   readSelectedResponseProjection,
   readSelectedResponseSource,
   retainSelectedResponseSource,
-  selectedResponseCorrectableError,
-  selectedResponseQueryInvalidError,
-  selectedResponseRequestSchema
 } from "./selected-response-snapshot.mjs";
-import { REQUIREMENT_AUTHORING_GUIDANCE, REQUIREMENT_AUTHORING_GUIDANCE_REVISION,
-  REQUIREMENT_AUTHORING_GUIDANCE_TOPICS, REQUIREMENT_GUIDANCE_SUBJECT, resolveRequirementAuthoringGuidance,
+import { REQUIREMENT_GUIDANCE_SUBJECT, resolveRequirementAuthoringGuidance,
   requirementCaseFamilySelections } from
   "./requirement-authoring-guidance.mjs";
 import { createReadWikiInputContractReader } from "./task-read-wiki-input-contract.mjs";
 import { createSaveRecordInputNavigation } from "./save-record-input-navigation.mjs";
 import { SAVE_RECORD_TOOL_NAME, saveRecordUnitVariant } from "./task-save-record-tools.mjs";
+import { createReadWikiContextDelivery } from "./read-wiki-context-delivery.mjs";
 import { createReadWikiRecordKindSource } from "./task-read-wiki-record-kind.mjs";
-import { createReadWikiSelectionForms, publishedReadWikiInputSchema } from "./task-read-wiki-selection-forms.mjs";
-import { createReadWikiInputSchema, describeReadWikiTool } from "./task-read-wiki-schema.mjs";
+import { publishedReadWikiInputSchema } from "./task-read-wiki-selection-forms.mjs";
+import { createReadWikiInputSchema, describeReadWikiTool, requirementChoiceQueryIssue, WORK_RECORD_PLANNING_READ_FIELDS } from "./task-read-wiki-schema.mjs";
 import { READ_WIKI_SOURCE_KINDS as KIND, READ_WIKI_TOOL, createReadWikiGrants } from
   "./task-read-wiki-selection.mjs";
 import { readCloseoutReceipt, readCompleteCloseoutReceipt } from "./work-record-closeout-response.mjs";
 import { SAVE_RECORD_ROUTE } from "./save-record-maintenance.mjs";
-import { compareObservedWorkRecords } from "./work-record-read-tools.mjs";
 import { readSourceBoundAuthoringRevision, readCompleteSearchSource } from "@agent-chassis/wiki-core/src/operations/read.mjs";
+import { isPlatformErrorCode } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
 import { workRecordProseRegistryEntries } from
   "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-operations.mjs";
 import { parseWorkRecordSummaryUnit, summarizeTerminalReviewDesignation } from
@@ -83,7 +90,7 @@ const SOURCE_OWNERS = Object.freeze({
 });
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
-const selectionName = (select) => Object.keys(select).find((key) => !["version", "history", "parameters"].includes(key));
+const selectionName = (select) => Object.keys(select).find((key) => !["version", "history", "parameters", "view", "row_id"].includes(key));
 const scalars = (value) => Array.from(String(value)).length;
 
 function valueAt(source, address) {
@@ -91,7 +98,15 @@ function valueAt(source, address) {
 }
 
 function workFields(scope) {
-  return WORK_RECORD_EDIT_FIELD_REGISTRY.filter((entry) => entry.applicability.includes(scope));
+  const fields = WORK_RECORD_EDIT_FIELD_REGISTRY.filter((entry) => entry.applicability.includes(scope));
+  const registered = new Set(fields.map(entry => entry.field));
+  return [...fields, ...WORK_RECORD_PLANNING_READ_FIELDS.filter(field => !registered.has(field))
+    .map(field => ({ field, kind: "planning", canonical_address: [field] }))];
+}
+
+function readableWorkFields(scope) {
+  return [...workFields(scope), ...(scope === 'slice'
+    ? workFields('record').filter(entry => entry.field === 'sections.user_requirements') : [])];
 }
 
 function reviewPurposeFact(unit) {
@@ -116,43 +131,69 @@ export function createReadWikiTask({
   sessionRole,
   policy,
   requestContracts = null,
+  registeredTier = null,
+  exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION,
   env = process.env,
   deps = {}
 }) {
+  const sessionGuidance = sessionRequirementAuthoringGuidance(registeredTier, exceptionPublication);
+  const sessionGuidanceRevision = requirementGuidanceRevision(registeredTier, undefined, exceptionPublication);
+  const sessionGuidanceTopics = Object.keys(sessionGuidance).filter(member => !["schema_version", "overview"].includes(member)).map(member => [member]);
   const grants = createReadWikiGrants(policy, sessionRole);
   const inputSchema = createReadWikiInputSchema(z, grants);
   if (inputSchema === null) return null;
+  const advertisedInputSchema = createReadWikiInputSchema(z, grants, exceptionPublication);
   const owners = { ...SOURCE_OWNERS, ...deps };
   const projectInitiativeGuidance = createInitiativeGuidanceProjector(requestContracts);
-  const requestSchema = selectedResponseRequestSchema(inputSchema._def.schema);
   const { granted } = grants;
 
-  const invalid = (reason, details = {}) => selectedResponseQueryInvalidError(READ_WIKI_TOOL, reason, details);
+  const invalid = (reason, details = {}) => readWikiRefusal(reason, details, details.next_calls ?? []);
   const call = (argumentsValue, recommended = false) =>
     buildNextCall({ tool: READ_WIKI_TOOL, arguments: argumentsValue, recommended });
 
   const followUps = (argumentList) => ({
     next_calls: argumentList.map((item, index) => call(item, index === 0))
   });
-  const correctable = (reason, details, corrected, prerequisite, successCondition) =>
-    selectedResponseCorrectableError(READ_WIKI_TOOL, reason, details,
-      { arguments: corrected, requestSchema, prerequisite, successCondition });
+  const correctable = (reason, details, corrected, prerequisite, successCondition) => {
+    if (!inputSchema.safeParse(corrected).success) throw new TypeError(`read_wiki_correction_not_accepted: ${reason}`);
+    return readWikiRefusal(reason, { ...details, recovery: { state: "callable", prerequisite,
+      success_condition: successCondition } }, [call(corrected, true)]);
+  };
 
   function requireGrant(sourceKind, selection) {
     if (!granted(sourceKind, selection)) {
-      throw invalid("selection_not_granted", { source_kind: sourceKind, selection, role: sessionRole });
+      throw invalid("selection_not_granted", { source_kind: sourceKind, selection, role: sessionRole,
+        cause: `Role ${sessionRole} is not granted ${selection} on ${sourceKind}.`,
+        recovery: { state: 'no_supported_route', missing_capability: `${sourceKind}.${selection}`,
+          reason: 'This session cannot perform the selected read. A read cannot grant the missing capability.' } });
     }
   }
 
-  const selectionForms = createReadWikiSelectionForms(inputSchema._def.schema);
-  const selectionContext = (reference, name, binding) => ({ tool: READ_WIKI_TOOL, reference, binding,
-    form: selectionForms.formOf(name) });
-  const readInputContract = createReadWikiInputContractReader({ requestContracts, invalid, readTool: READ_WIKI_TOOL });
+  const selectionContext = (reference, binding) => ({ tool: READ_WIKI_TOOL, reference, binding });
+  const readInputContract = createReadWikiInputContractReader({ requestContracts, invalid, readTool: READ_WIKI_TOOL, registeredTier, exceptionPublication });
   const recordKinds = createReadWikiRecordKindSource({ requestContracts, invalid, readTool: READ_WIKI_TOOL });
   const inputNavigation = createSaveRecordInputNavigation({ requestContracts, saveTool: SAVE_RECORD_TOOL_NAME,
-    readTool: READ_WIKI_TOOL, variantOf: saveRecordUnitVariant });
+    readTool: READ_WIKI_TOOL, variantOf: saveRecordUnitVariant, exceptionPublication });
 
-  async function withAuthoringChoices(result, resource) {
+  async function withAuthoringChoices(result, resource, forChanges) {
+    if (forChanges !== undefined) {
+      requireGrant(resource.source_kind, 'input_contract');
+      const focused = await inputNavigation.focusedContext({ unit: resource.unit,
+        reference: result.reference, members: forChanges });
+      if (focused?.refusal) {
+        const { code, ...details } = focused.refusal;
+        throw correctable(code, { subject: resource.subject, ...details,
+          effects: { reads: [resource.source_kind], writes: [] } },
+          { reference: result.reference, select: { context: true } },
+          'The requested members must be distinct members of this saved unit; none was selected or dropped.',
+          'Returns ordinary context and complete job choices for the same unit; the caller chooses valid members.');
+      }
+      if (focused.unavailable) throw invalid('authoring_context_unavailable', { subject: resource.subject,
+        requested_members: forChanges, ...focused.unavailable,
+        effects: { reads: [resource.source_kind], writes: [] } });
+      return { subject: resource.subject, revision: result.revision, reference: result.reference,
+        authoring_context: focused.identity, next_calls: [focused.call] };
+    }
 
     if (resource.source_kind === KIND.RECORD_KIND) {
       if (!granted(KIND.RECORD_KIND, "input_contract")) return result;
@@ -161,7 +202,7 @@ export function createReadWikiTask({
     }
     if (typeof resource.unit !== "string" || !granted(resource.source_kind, "input_contract")) return result;
     const choices = await inputNavigation.jobChoices({ unit: resource.unit, reference: result.reference });
-    return choices.length === 0 ? result : { ...result, next_calls: [...result.next_calls, ...choices] };
+    return choices.length === 0 ? result : { ...result, next_calls: [...result.next_calls, ...choices.filter(choice => choice.job !== undefined)] };
   }
 
   const findingsSession = sessionRole === "reviewer" || sessionRole === "redteam";
@@ -206,6 +247,11 @@ export function createReadWikiTask({
   }
 
   function guidanceTopicRefusal(path, resolved) {
+    if (resolved.code === "record_authoring_operation_unavailable") return correctable(resolved.code,
+      { subject: { guidance: [...path] }, operation: resolved.operation, changed: false },
+      { subject: REQUIREMENT_GUIDANCE_SUBJECT },
+      "Compilation guidance is unavailable in this serving session; no schema was disclosed and nothing changed. Required meaning and applicability remain unchanged.",
+      "Read supported authoring information; reading repairs no capability and changes no required meaning or applicability.");
     const correctionSubject = resolved.code === "case_guidance_family_not_supported"
       ? { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: ["case_authoring"] } : REQUIREMENT_GUIDANCE_SUBJECT;
     return correctable("requirement_guidance_topic_not_found", { guidance: [...path], code: resolved.code,
@@ -218,15 +264,20 @@ export function createReadWikiTask({
     requireGrant(KIND.REQUIREMENT_GUIDANCE, "context");
     const topic = subject.topic ?? null;
     if (topic !== null) {
-      const resolved = resolveRequirementAuthoringGuidance(topic);
+      const resolved = resolveRequirementAuthoringGuidance(topic, registeredTier, exceptionPublication);
       if (!resolved.ok) throw guidanceTopicRefusal(topic, resolved);
     }
-    return { source_kind: KIND.REQUIREMENT_GUIDANCE, unit: null, value: REQUIREMENT_AUTHORING_GUIDANCE,
+    return { source_kind: KIND.REQUIREMENT_GUIDANCE, unit: null, value: sessionGuidance,
       subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, ...(topic === null ? {} : { topic: [...topic] }) },
-      revision: REQUIREMENT_AUTHORING_GUIDANCE_REVISION,
-      facts: { schema_version: REQUIREMENT_AUTHORING_GUIDANCE.schema_version,
-        overview: REQUIREMENT_AUTHORING_GUIDANCE.overview, ...(topic === null ? {} : { topic: [...topic] }),
-        topic_count: REQUIREMENT_AUTHORING_GUIDANCE_TOPICS.length } };
+      revision: sessionGuidanceRevision,
+      facts: { schema_version: sessionGuidance.schema_version,
+        overview: sessionGuidance.overview, ...(topic === null ? {} : { topic: [...topic] }),
+        topic_count: sessionGuidanceTopics.length } };
+  }
+
+  function searchHitBinding(population) {
+    return { tool: READ_WIKI_TOOL,
+      binding: `Choose one ${population}[i]; use {reference:{ref:${population}[i].source.reference},select:{field:"text"}} unchanged to read its complete source. No hit is selected by default.` };
   }
 
   async function resolveSubject(workspace, subject) {
@@ -253,8 +304,15 @@ export function createReadWikiTask({
       requireGrant(KIND.RECORD, "context");
       const loaded = await owners.readWorkRecordById({ dir: workspace.dir, id: workUnit[1] });
       if (!loaded.record) {
-        throw invalid("subject_not_found", { subject, repository: workspace.repo,
-          diagnostics: (loaded.diagnostics ?? []).map((item) => item.code) });
+        if (!(loaded.diagnostics ?? []).some(row => row.code === 'missing_json_record')) {
+          throw invalid('work_record_source_unavailable', { subject, diagnostics: loaded.diagnostics ?? [],
+            cause: `The saved source for ${subject} is invalid or unreadable.`,
+            recovery: { state: 'no_supported_route', actor: findingsSession ? 'coordinator_or_operator' : 'repository_owner',
+              reason: 'Repair the reported canonical source before reading it; a read cannot replace invalid or captured content.' } });
+        }
+        throw invalid("subject_not_found", { subject, diagnostics: loaded.diagnostics ?? [],
+          cause: `No saved work record exists for ${subject}.`,
+          ...(granted(KIND.SEARCH, 'context') ? { next_calls: [call({ search: { query: subject } })] } : {}) });
       }
       const slice = workUnit[2] === undefined ? null
         : (loaded.record.slices ?? []).find((candidate) => candidate.id === workUnit[2]) ?? null;
@@ -325,9 +383,12 @@ export function createReadWikiTask({
         cause: { code: error.code, message: error.message }, details: { ...error.details,
           schema_errors: groupCompleteSchemaDiagnostics(error.details.schema_errors) },
         next_calls: [], no_supported_route: true, recovery: { state: "no_supported_route",
+          caller_correctable: false, actor: findingsSession ? "coordinator_or_operator" : "repository_owner",
           missing_capability: "repair_invalid_canonical_obligation_carrier",
           missing_inputs: ["authenticated current authoring revision"],
-          reason: "The invalid source prevents acquiring a current write revision; no serving operation repairs invalid carrier bytes." },
+          reason: findingsSession
+            ? "Repair the invalid carrier, then dispatch a fresh frozen review; reads cannot repair captured bytes."
+            : "Repair the invalid carrier before acquiring its current revision." },
         effects: { reads: [KIND.RECORD], writes: [] }
       };
       throw error;
@@ -339,8 +400,17 @@ export function createReadWikiTask({
   }
 
   async function searchResource(workspace, request) {
-    const inventory = await owners.readSearchInventory({ dir: workspace.dir, repository: workspace.repo,
-      ...(request.query === null ? {} : { query: request.query }), history: request.history, ...request.where });
+    let inventory;
+    try {
+      inventory = await owners.readSearchInventory({ dir: workspace.dir, repository: workspace.repo,
+        ...(request.query === null ? {} : { query: request.query }), history: request.history, ...request.where });
+    } catch (error) {
+      if (error.envelope !== undefined) throw error;
+      throw invalid(error.code ?? 'search_source_unavailable', { subject: { search: request },
+        cause: { code: error.code ?? 'search_source_unavailable', message: error.message }, details: error.details,
+        recovery: { state: 'no_supported_route', actor: findingsSession ? 'coordinator_or_operator' : 'repository_owner',
+          reason: 'Repair the stated search source condition; no match population was established and this read repairs nothing.' } });
+    }
     return { source_kind: KIND.SEARCH, subject: request, unit: null, revision: inventory.source_signature, inventory };
   }
 
@@ -352,6 +422,8 @@ export function createReadWikiTask({
 
   const bindingFor = async (workspace, unit) => ({ route: READ_WIKI_TOOL, repository: workspace.repo,
     unit: unit ?? null, authority_identity: await sessionAuthority(workspace) });
+
+  const contextContent = createReadWikiContextDelivery({ env, jsonContent, bindingFor });
 
   async function retainResource(workspace, resource, descriptor = {}) {
     return retainSelectedResponseSource({
@@ -367,7 +439,8 @@ export function createReadWikiTask({
   function applicableSelections(resource, context = {}) {
     const selections = [];
     const add = (select, sourceKind = resource.source_kind) => {
-      if (granted(sourceKind, selectionName(select))) selections.push(select);
+      if (granted(sourceKind, selectionName(select)) &&
+          !selections.some(offered => JSON.stringify(offered) === JSON.stringify(select))) selections.push(select);
     };
     switch (resource.source_kind) {
       case KIND.RECORD:
@@ -379,11 +452,19 @@ export function createReadWikiTask({
         if (resource.facts.task_count > 0) add({ inventory: "tasks" });
         if (resource.scope === "record" && resource.facts.slice_count > 0) add({ inventory: "slices" });
         add({ inventory: "fields" });
+        if (resource.scope === "slice") add({ field: "sections.user_requirements" });
         if (resource.facts.entry_count === 0) add({ inventory: "entries" });
         if (resource.facts.task_count === 0) add({ inventory: "tasks" });
         if (resource.scope === "record" && resource.facts.slice_count === 0) add({ inventory: "slices" });
         add({ integrity: true });
         add({ currentness: true });
+        add({ contract: "requirements", view: "summary" });
+        add({ contract: "obligations", view: "associated" });
+        add({ contract: "obligations", view: "proofs" });
+        add({ contract: "cases" });
+        add({ contract: "obligations" });
+        add({ contract: "criteria" });
+        add({ contract: "references" });
         add({ contract: "coverage" });
         break;
       case KIND.CANONICAL_RECORD:
@@ -408,7 +489,7 @@ export function createReadWikiTask({
 
         const focused = resource.subject.topic === undefined ? [] : [resource.subject.topic];
         const listed = new Set(focused.map((topic) => JSON.stringify(topic)));
-        for (const topic of [...focused, ...REQUIREMENT_AUTHORING_GUIDANCE_TOPICS
+        for (const topic of [...focused, ...sessionGuidanceTopics
           .filter((candidate) => !listed.has(JSON.stringify(candidate)))]) add({ guidance: [...topic] });
         break;
       }
@@ -418,6 +499,9 @@ export function createReadWikiTask({
         break;
       case KIND.ASSIGNMENT:
         add({ field: "guidance" });
+        add({ field: "test_commands" });
+        add({ contract: "requirements", view: "summary" }, KIND.ASSIGNED_CONTRACT);
+        add({ contract: "cases" }, KIND.ASSIGNED_CONTRACT);
         add({ contract: "coverage" }, KIND.ASSIGNED_CONTRACT);
         break;
       case KIND.ENTRY:
@@ -437,13 +521,13 @@ export function createReadWikiTask({
       const navigation = projectWorkRecordNavigation({ loaded: resource.loaded,
         unit: parseWorkRecordSummaryUnit(resource.subject), repository: null,
         isToolVisible: () => false, isOrchestratorPresentation: () => true });
-      const { value, ...extent } = navigation.user_requirements;
+      const { value, source_digest: _digest, offset: _offset, ...extent } = navigation.user_requirements;
       requirements = { user_requirements: value, user_requirements_extent: extent };
     }
     const text = resource.owner.sections?.summary;
     const summary = typeof text === "string" ? Array.from(text) : [];
     return { ...requirements, ...(summary.length === 0 ? {} : { context: {
-      field: "sections.summary", unit: resource.subject, source_digest: resource.revision,
+      field: "sections.summary",
       value: summary.slice(0, 240).join(""), length: Math.min(summary.length, 240), total: summary.length
     } }) };
   }
@@ -451,26 +535,33 @@ export function createReadWikiTask({
   function contextResult(workspace, resource, reference, extra = {}) {
     const context = workContext(resource);
     const selections = applicableSelections(resource, context);
-
-    const expanded = resource.source_kind === KIND.RECORD || resource.source_kind === KIND.REQUIREMENT_GUIDANCE
+    const primary = [KIND.RECORD, KIND.REQUIREMENT_GUIDANCE, KIND.ASSIGNMENT].includes(resource.source_kind)
       ? selections.slice(0, 1) : selections;
-    return {
-      ...(workspace === null ? {} : { workspaceRepo: workspace.repo }),
-      source_kind: resource.source_kind,
-      subject: resource.subject,
-      revision: resource.authoring_revision ?? resource.revision ?? null,
-      ...(resource.authoring_revision === undefined ? {} : { source_revision: resource.revision }),
-      complete: false,
-      ...resource.facts === undefined ? {} : { facts: resource.facts },
-      transport_retention: { performed: false },
-      ...context,
-      ...extra,
-      reference,
-      selections,
-      effects: { reads: [resource.source_kind], writes: [] },
 
-      observed_facts: { "selected_response.query_valid": true },
-      ...followUps(expanded.map((select) => ({ reference, select })))
+    const nextCalls = primary.map((select, index) => call({ reference, select },
+      resource.source_kind !== KIND.RECORD && index === 0));
+    if (resource.source_kind === KIND.RECORD) {
+      const purposes = { requirements: 'saved_requirements_summary', obligations: 'associated_review_meaning', cases: 'case_authoring_readback' };
+      for (const select of selections.filter(select => select.view === 'summary' || select.view === 'associated' || select.contract === 'cases')) {
+        if (!primary.includes(select)) nextCalls.push({ ...call({ reference, select }), purpose: purposes[select.contract] });
+      }
+    }
+    const concrete = new Set(nextCalls.map(next => JSON.stringify(next.arguments.select)));
+    const choices = selections.filter(select => !concrete.has(JSON.stringify(select)));
+    const publicFacts = Object.fromEntries(Object.entries(resource.facts ?? {}).filter(([key, value]) =>
+      key === 'valid' && value === false ||
+      ['id', 'title', 'status', 'work_kind', 'record_kind', 'review_purpose', 'terminal_review_designation', 'assigned_unit'].includes(key)));
+    return {
+      source_kind: resource.source_kind, subject: resource.subject,
+      ...(resource.authoring_revision === undefined ? {} : { revision: resource.authoring_revision }),
+      ...(resource.scope === 'record' && resource.facts.slice_count > 0
+        ? { slice_design: { state: 'not_read', count: resource.facts.slice_count } } : {}),
+      complete: false, ...(Object.keys(publicFacts).length ? { facts: publicFacts } : {}),
+      ...context, ...extra, reference,
+      ...(choices.length ? { selections: choices,
+        selection_context: { tool: READ_WIKI_TOOL,
+          binding: "Choose one selections[i]; call {reference,select:selections[i]} with this answer's reference unchanged. Choices are optional, not continuations." } } : {}),
+      next_calls: nextCalls
     };
   }
 
@@ -479,8 +570,7 @@ export function createReadWikiTask({
     const resource = await boundSubject(workspace, args.subject);
     requireGrant(resource.source_kind, "context");
     const reference = await retainResource(workspace, resource);
-    return jsonContent(await withAuthoringChoices(contextResult(workspace, resource, reference, {
-      transport_retention: { performed: true, kind: "selected_resource_descriptor" } }), resource));
+    return contextContent(await withAuthoringChoices(contextResult(workspace, resource, reference), resource, args.select?.for_changes), workspace, resource);
   }
 
   async function acquireSavedUnitReference(unit) {
@@ -500,27 +590,37 @@ export function createReadWikiTask({
     const resource = assignmentResource();
     requireGrant(KIND.ASSIGNMENT, "context");
     const workspace = resolveWorkspaceRepo(workspaceRepos, undefined);
-    return jsonContent(contextResult(workspace, resource, await retainResource(workspace, resource),
-      { transport_retention: { performed: true, kind: "selected_resource_descriptor" } }));
+    return contextContent(contextResult(workspace, resource, await retainResource(workspace, resource)), workspace, resource);
+  }
+
+  const searchMember = (member, query) => searchChoice(member, query, subject => {
+    const kind = WORK_UNIT_PATTERN.test(subject) ? KIND.RECORD : KIND_RECORD_PATTERN.test(subject) ? KIND.CANONICAL_RECORD : KIND.DOCUMENT;
+    return granted(kind, 'context') ? call({ subject }) : undefined;
+  });
+
+  function searchInventory(resource) {
+    const { inventory } = resource;
+    return { inventory: 'matches', total_count: inventory.total_count,
+      history: inventory.history, members: inventory.members.map(member => searchMember(member, inventory.query)),
+      ...searchLimitations(inventory), selection_context: searchHitBinding('members') };
   }
 
   async function searchContext(args) {
     const workspace = resolveWorkspaceReadRepo({});
-    requireGrant(KIND.SEARCH, "context");
+    requireGrant(KIND.SEARCH, 'context');
     const resource = await searchResource(workspace, { query: args.search.query ?? null, where: args.search.where ?? {},
       history: args.search.history === true, inventory: args.search.inventory === true });
+    const reference = await retainResource(workspace, resource);
+    if (args.search.inventory === true) return deliver(reference, workspace, await bindingFor(workspace, null),
+      { inventory: 'matches' }, async () => searchInventory(resource));
     const { inventory } = resource;
-    const shown = inventory.members.slice(0, SEARCH_CONTEXT_LIMIT).map((member) => ({
-      relativePath: member.relativePath, id: member.id, title: member.title, heading: member.heading,
-      ...(member.score === undefined ? {} : { score: member.score }), source: {
-        kind: member.source.kind, scalar_length: member.source.scalar_length,
-        ...(member.source.source_id === undefined ? {} : { source_id: member.source.source_id }),
-        ...(member.source.unit === undefined ? {} : { unit: member.source.unit,
-          entry_id: member.source.entry_id, version_id: member.source.version_id }) } }));
-    return jsonContent(contextResult(workspace, resource, await retainResource(workspace, resource), {
-      total_count: inventory.total_count, returned_count: shown.length,
-      omitted_count: inventory.total_count - shown.length, filters: inventory.filters, results: shown,
-      transport_retention: { performed: true, kind: "selected_resource_descriptor" } }));
+    const shown = inventory.members.slice(0, SEARCH_CONTEXT_LIMIT).map(member => searchMember(member, inventory.query));
+    const navigation = applicableSelections(resource).filter(select => select.inventory !== 'matches' || shown.length < inventory.total_count);
+    return contextContent({ source_kind: KIND.SEARCH, complete: shown.length === inventory.total_count,
+      reference, total_count: inventory.total_count, returned_count: shown.length,
+      omitted_count: inventory.total_count - shown.length, history: inventory.history, results: shown,
+      ...searchLimitations(inventory), selection_context: searchHitBinding('results'),
+      next_calls: navigation.map(select => call({ reference, select })) }, workspace, resource);
   }
 
   function fieldNotApplicable(resource, field, fields, reference) {
@@ -540,35 +640,58 @@ export function createReadWikiTask({
     const name = selectionName(select);
     if (resource.source_kind === KIND.RECORD) {
       const { owner, scope, record, loaded } = resource;
-      const fields = workFields(scope);
+      const fields = readableWorkFields(scope);
       if (name === "inventory") {
         if (select.inventory === "fields") {
           const members = fields.map((entry) => ({ field: entry.field, kind: entry.kind,
-            present: valueAt(owner, entry.canonical_address) !== undefined }));
+            present: valueAt(entry.field === "sections.user_requirements" ? record : owner, entry.canonical_address) !== undefined,
+            ...(entry.field === "sections.user_requirements" ? { field_unit: record.id } : {}),
+            ...(granted(KIND.RECORD, 'field') && ['read_scope', 'write_scope'].includes(entry.field) ? {
+              navigation: call({ reference, select: { field: entry.field, directory: '.' } }) } : {}) }));
           return { inventory: "fields", total_count: members.length, members,
-            ...(members.length > 0 && granted(KIND.RECORD, "field") ? { selection_context: selectionContext(reference, "field",
+            ...(members.length > 0 && granted(KIND.RECORD, "field") ? { selection_context: selectionContext(reference,
               "Use this reference unchanged with select:{field:members[i].field}.") } : {}) };
         }
         if (select.inventory === "entries") {
           const members = (owner.sections?.entries ?? []).map((entry) => ({ entry: entry.id,
             current_version: entry.current_version, version_count: entry.versions.length,
             title: entry.versions.find((version) => version.id === entry.current_version)?.title ?? null,
-            kind: entry.versions.find((version) => version.id === entry.current_version)?.kind ?? null }));
+            kind: entry.versions.find((version) => version.id === entry.current_version)?.kind ?? null,
+            ...(granted(KIND.RECORD, 'entry') ? { navigation: call({ reference, select: { entry: entry.id, version: entry.current_version,
+              ...(entryJson(entry.versions.find(version => version.id === entry.current_version)?.content?.text ?? '').status === 'json'
+                ? { view: 'structure' } : {}) } }) } : {}) }));
           return { inventory: "entries", total_count: members.length, members,
             ...(members.length > 0 && granted(KIND.RECORD, "entry") ? {
-              selection_context: selectionContext(reference, "entry",
-                "Use this reference unchanged with select:{entry:members[i].entry}; optional version selects an exact saved version."),
-              ...followUps([{ reference, select: { entry: members[0].entry } }]) } : { next_calls: [] }) };
+              selection_context: { tool: READ_WIKI_TOOL, reference,
+                binding: 'For history choose members[i].entry; call {reference,select:{entry:members[i].entry,history:true}} unchanged. Current content uses that member’s navigation.' },
+              next_calls: [] } : { next_calls: [] }) };
         }
         if (select.inventory === "tasks") {
           const members = (owner.sections?.tasks ?? []).map((task, index) => ({ index, ...task }));
           return { inventory: "tasks", total_count: members.length, members };
         }
         if (select.inventory === "slices" && scope === "record") {
-          const members = (record.slices ?? []).map((slice) => ({ id: slice.id, unit: `${record.id}#${slice.id}`,
+          const slices = record.slices ?? [];
+          const titles = new Map();
+          for (const slice of slices) titles.set(slice.title ?? null, (titles.get(slice.title ?? null) ?? 0) + 1);
+
+          const choices = slices.map((slice) => ({ id: slice.id, unit: `${record.id}#${slice.id}`,
             title: slice.title ?? null, status: slice.status ?? null, work_kind: slice.work_kind ?? null,
+            ...(titles.get(slice.title ?? null) > 1 && slice.expected_edit_targets?.length
+              ? { targets: slice.expected_edit_targets } : {}),
+            ...(titles.get(slice.title ?? null) > 1 && /^\s*#{1,6}\s+([^\r\n]+)(?:\r?\n|$)/u.test(slice.sections?.summary ?? '')
+              ? { assignment_heading: /^\s*#{1,6}\s+([^\r\n]+)(?:\r?\n|$)/u.exec(slice.sections.summary)[1] } : {}),
             ...reviewPurposeFact(slice) }));
-          return { inventory: "slices", total_count: members.length, members };
+          const description = ({ id: _id, unit: _unit, ...meaning }) => canonicalJson(meaning);
+          const counts = new Map();
+          for (const choice of choices) counts.set(description(choice), (counts.get(description(choice)) ?? 0) + 1);
+          const members = choices.map(choice => ({ ...choice,
+            ...(counts.get(description(choice)) > 1 ? { choice_state: 'ambiguous' } : {}) }));
+          return { inventory: "slices", total_count: members.length, members,
+            ...(members.length > 0 && granted(KIND.RECORD, "context") ? {
+              selection_context: { tool: READ_WIKI_TOOL,
+                binding: "Use {subject:members[i].unit} unchanged to open each slice's context, then its returned reference and selections to read its contents." },
+              next_calls: [] } : { next_calls: [] }) };
         }
       }
       if (name === "field") {
@@ -577,6 +700,16 @@ export function createReadWikiTask({
           .find((candidate) => candidate.field === select.field);
         if (entry === undefined) throw fieldNotApplicable(resource, select.field, fields, reference);
         const value = valueAt(parentRequirements ? record : owner, entry.canonical_address);
+        if (select.directory !== undefined) {
+          const tree = scopeDirectory(value, select.directory, reason => correctable(reason,
+            { field: entry.field, directory: select.directory },
+            { reference, select: { field: entry.field, directory: '.' } },
+            'choose a directory returned by this scope tree',
+            'the call returns the root directory inventory without expanding the complete scope'));
+          return { field: entry.field, ...tree, complete: tree.directories.length === 0,
+            next_calls: tree.directories.map(child => call({ reference, select: { field: entry.field, directory: child.directory } })),
+            full_selection: call({ reference, select: { field: entry.field } }) };
+        }
         return { field: entry.field, present: value !== undefined, value: value === undefined ? null : value,
           ...(parentRequirements ? { field_unit: record.id } : {}) };
       }
@@ -598,13 +731,23 @@ export function createReadWikiTask({
         }
         return { text: select.text, total_count: choices.length, ambiguous: choices.length > 1, choices };
       }
-      if (name === "entry") return selectEntry(workspace, resource, select);
+      if (name === "entry") return selectEntry(workspace, resource, select, reference);
       if (name === "contract" || name === "obligation") return selectContract(workspace, resource.subject, select, reference, resource.source_kind);
     }
     if (resource.source_kind === KIND.ASSIGNMENT) {
+      if (name === 'field' && select.field === 'test_commands') {
+        const commands = resource.presentation.repository_test_binding?.commands ?? [];
+        return { field: 'test_commands', unit: resource.unit, total_count: commands.length,
+          commands: commands.map(command => ({ entrypoint: command.id, purpose: command.purpose,
+            ...(command.default_selection === undefined ? {} : { default_selection: command.default_selection }),
+            selections: command.selections.map(selection => ({ selection: selection.id,
+              harness: selection.harness, ...(selection.environment === undefined ? {} : { environment: selection.environment }) })) })),
+          ...(commands.length === 0 || requestContracts?.contractFor('workspace_run_test') == null ? {} : {
+            selection_context: { tool: 'workspace_run_test',
+              binding: 'Choose commands[i] and one of its selections[j]; call {entrypoint:commands[i].entrypoint,selection:commands[i].selections[j].selection}. No command is selected or executed by this read.' } }) };
+      }
       if (name === "field" && select.field === "guidance") {
-        return { field: "guidance", value: resource.presentation.guidance, identity: resource.presentation.identity,
-          scalar_length: scalars(resource.presentation.guidance) };
+        return { field: "guidance", value: resource.presentation.guidance };
       }
       if (name === "text") return selectText([{ field: "guidance", text: resource.presentation.guidance }], select.text);
       if (name === "contract" || name === "obligation") return selectContract(workspace, resource.unit, select, reference, KIND.ASSIGNED_CONTRACT);
@@ -671,37 +814,47 @@ export function createReadWikiTask({
       return { integrity: "repository", ...(await owners.lintRepo({ dir: workspace.dir, includeAllFindings: true })) };
     }
     if (resource.source_kind === KIND.REQUIREMENT_GUIDANCE && name === "guidance") {
-      const resolved = resolveRequirementAuthoringGuidance(select.guidance);
+      const resolved = resolveRequirementAuthoringGuidance(select.guidance, registeredTier, exceptionPublication);
       if (!resolved.ok) throw guidanceTopicRefusal(select.guidance, resolved);
 
       const returned = JSON.stringify(select.guidance);
+      const detailCalls = requirementGuidanceDetailNavigation(select.guidance)
+        .map(({ selection, recommended, ...facts }) => ({ ...call({ reference, select: selection }, recommended), ...facts }));
+      for (const detail of detailCalls) {
+        if (!(await inputSchema.safeParseAsync(detail.arguments)).success) {
+          throw new TypeError("requirement_guidance_detail_call_not_accepted: serving registrar rejected detail navigation");
+        }
+      }
       return { guidance: [...select.guidance], value: resolved.value, reference,
+        coverage: { selection: "complete for this named selection", detail: "only explicitly selected structural detail is delivered" },
+        ...(detailCalls.length ? { next_calls: detailCalls } : {}),
         selections: [...applicableSelections(resource).filter((offered) => JSON.stringify(offered.guidance) !== returned),
-          ...requirementCaseFamilySelections(select.guidance)] };
+          ...(registeredTier === "paid_cce" ? requirementCaseFamilySelections(select.guidance) : [])] };
     }
     if (resource.source_kind === KIND.SEARCH && name === "inventory" && select.inventory === "matches") {
-      const { inventory } = resource;
-      return { inventory: "matches", total_count: inventory.total_count, filters: inventory.filters,
-        query: inventory.query, history: inventory.history, members: inventory.members };
+      return searchInventory(resource);
     }
     throw invalid("selection_not_applicable", { source_kind: resource.source_kind, select,
       applicable: applicableSelections(resource) });
   }
 
-  async function selectEntry(workspace, resource, select) {
+  async function selectEntry(workspace, resource, select, reference) {
     const base = { dir: workspace.dir, repository: workspace.repo, callRepository: null, unit: resource.subject,
       entryId: select.entry };
     const refuse = (result) => invalid("entry_unavailable", { entry: select.entry, version: select.version ?? null,
-      code: result.diagnostics?.[0]?.code ?? null, message: result.diagnostics?.[0]?.message ?? null });
+      code: result.diagnostics?.[0]?.code ?? null, message: result.diagnostics?.[0]?.message ?? null,
+      diagnostics: result.diagnostics ?? [], effects: { writes: [], material_loaded: false } });
     if (select.history === true) {
       const versions = [];
       for (let offset = 0, digest; ;) {
         const page = await owners.readWorkRecordEntry({ ...base, view: "history", offset,
           ...(offset === 0 ? {} : { expectedSourceDigest: digest }) });
         if (page.ok !== true) throw refuse(page);
-        versions.push(...page.versions);
+        versions.push(...page.versions.map(({ next_call: _nativeCall, ...version }) => version));
         if (page.next_calls.length === 0) {
-          return { entry: select.entry, history: true, total_count: page.total_count, versions };
+          return { entry: select.entry, history: true, total_count: page.total_count, versions,
+            selection_context: { tool: READ_WIKI_TOOL, reference,
+              binding: `Choose versions[i].version_id; call {reference,select:{entry:${JSON.stringify(select.entry)},version:versions[i].version_id}} unchanged.` } };
         }
         offset = versions.length;
         digest = page.source_digest;
@@ -713,8 +866,41 @@ export function createReadWikiTask({
     const material = await owners.readWorkRecordEntry({ ...base, entryId: body.entry_id,
       version: body.version_id, referenceOnly: true });
     if (material.ok !== true) throw refuse(material);
-    const { next_calls: _calls, response_size: _size, ...entry } = body;
-    return { entry: select.entry, ...entry, reference: material.reference };
+    if (select.view === 'structure') {
+      const path = select.path ?? [];
+      const document = entryJson(body.body.value);
+      const refuseNode = (reason, facts = {}) => correctable(reason,
+        { entry: body.entry_id, version: body.version_id, ...facts },
+        { reference, select: { entry: body.entry_id, version: body.version_id } },
+        'this immutable entry must contain structured JSON with named members',
+        'the call returns the complete unchanged entry text');
+      const node = select.full === true
+        ? { path, value: entryNodeValue(document, path, refuseNode), complete: true }
+        : entryNode(document, path, refuseNode);
+      const selection = { entry: body.entry_id, version: body.version_id, view: 'structure', path };
+      return { entry: body.entry_id, version: body.version_id, reference: material.reference,
+        ...node,
+        next_calls: [],
+        ...(select.full === true || !node.members?.length ? {} : { selection_context: {
+          tool: READ_WIKI_TOOL, reference, select: selection,
+          binding: 'Choose members[i].name for the task; append that name to select.path and call this tool with reference and select unchanged otherwise. No member is selected by default.' } }),
+        ...(select.full === true || node.complete ? {} : { full_selection: call({ reference, select: { ...selection, full: true } }) }),
+        original: call({ reference: { ref: material.reference }, select: { field: 'text' } }) };
+    }
+    return { entry: select.entry, entry_id: body.entry_id, version_id: body.version_id,
+      body: { value: body.body.value }, reference: material.reference,
+      material_binding: { value: { ref: material.reference },
+        meaning: granted(KIND.RECORD, "input_contract")
+          ? "Exact immutable source for sections.material_refs; choose the target unit and acquire its current revision and input contract before saving."
+          : "Read-only immutable source; reopen through the returned call. This binding grants no authoring operation.",
+        ...(granted(KIND.RECORD, "input_contract") ? { authoring: {
+          complete: false, missing_inputs: ["caller-chosen target unit", "target's current revision"],
+          current_context: { tool: READ_WIKI_TOOL,
+            binding: "Use {subject:<caller-chosen target unit>,select:{context:true,for_changes:['material_refs']}}; follow its returned schema call before authoring.",
+            member: "material_refs", value_from: "material_binding.value" } } } : {}) },
+      next_calls: [call({ reference: { ref: material.reference }, select: { field: "text" } })],
+      ...(entryJson(body.body.value).status === 'json' ? { structure: call({ reference,
+        select: { entry: body.entry_id, version: body.version_id, view: 'structure' } }) } : {}) };
   }
 
   async function selectContract(workspace, unit, select, reference, grantKind) {
@@ -725,33 +911,88 @@ export function createReadWikiTask({
       context = await owners.resolveObligationCoverageQueryContext({ env, workspace });
       assertObligationCoverageQueryScope(context, { unit });
       return owners.queryControlledContractObligationCoverageOperation({ repoRoot: context.sourceRoot, wkId,
-        ...(unit === wkId ? {} : { selectedUnit: unit.split("#")[1] }), view: "complete", population: context.population,
+        ...(unit === wkId ? {} : { selectedUnit: unit.split("#")[1] }), view: "complete",
+        population: select.contract === "obligations" && select.view === "associated" ? "assigned" : context.population,
         ...(select.obligation === undefined ? {} : { obligationId: select.obligation,
           ...(select.parameters === true ? { parameterDetail: true } : {}) }) });
+    }).catch(error => {
+      if (error.code !== "obligation_coverage_obligation_not_found") throw error;
+      const { next_calls: _nativeCalls, ...facts } = error.details;
+      throw correctable(error.code, { ...facts, native_message: error.message },
+        { reference, select: { contract: "obligations" } }, "the obligation must belong to this authorized unit",
+        "select an obligation_id from the saved obligations returned for this unit");
     });
     if (stored?.ok === false) {
       throw Object.assign(new Error(stored.message ?? stored.code ?? "saved contract unavailable"),
         { code: stored.code, envelope: stored });
     }
+    if (select.obligation !== undefined && select.view === "row") return {
+      obligation: select.obligation, view: "row", unit: stored.unit,
+      scope: unit === wkId ? "record" : "slice",
+      population: { mode: stored.population.mode, obligation_id: select.obligation,
+        returned: { obligations: stored.obligations.length } },
+      extent: { kind: "obligation_row", returned: stored.obligations.length, total: 1 },
+      complete_contract: false, row: stored.obligations[0] };
 
     const saved = !Array.isArray(stored.cases) ? stored : { ...stored, cases: stored.cases.map((definition) =>
       definition.target === undefined ? definition
         : { ...definition, target: authorableNativeCaseTarget(definition.target) }) };
-    if (select.obligation !== undefined) return { obligation: select.obligation, population: context.population, ...saved };
+    if (select.obligation !== undefined) return { obligation: select.obligation, population: context.population, ...readWikiContractMeaning(saved) };
+    if (select.contract === "requirements" && select.view !== undefined) {
+      return projectRequirementDefinitionMeaning(readRequirementModel(saved, select, reference, { env,
+        refuseRow: row_id => correctable("requirement_row_not_found", { unit, row_id },
+          { reference, select: { contract: "requirements", view: "identities" } },
+          "the row must belong to this authorized saved requirements population",
+          "the call returns this population's complete saved row inventory; choose a returned row_id") }));
+    }
+    if (select.contract === 'obligations' && select.view === 'proofs') {
+      const members = saved.obligations.map(row => ({ obligation_id: row.obligation_id,
+        ...(row.statement === undefined ? {} : { statement: row.statement }),
+        ...(typeof row.selection?.proof_name === 'string' ? { proof_name: row.selection.proof_name }
+          : { proof_selection: row.proof_opt_out === true ? 'declined' : 'unselected' }) }));
+      return { contract: 'obligations', view: 'proofs', unit: saved.unit,
+        population: context.population, total_count: members.length, members,
+        ...(requestContracts?.contractFor('workspace_find_proofs') == null ? {} : {
+          selection_context: { tool: 'workspace_find_proofs',
+            binding: 'Read a known member proof with {proof_name:members[i].proof_name}; when none is selected, author your own query from the obligation meaning. Discovery grants no execution permission.' } }) };
+    }
+    const componentIds = new Set(saved.cases.map(definition => definition.component?.reference_id).filter(Boolean));
+    const componentReferences = saved.references.filter(row => componentIds.has(row.reference_id));
     const value = select.contract === "criteria" ? saved.acceptance_criteria
-      : select.contract === "coverage" ? saved : saved[select.contract];
-    return { contract: select.contract, population: context.population,
-      present: saved.status !== "source_absent",
+      : select.contract === "coverage" ? readWikiContractMeaning(saved) : saved[select.contract];
+    return projectRequirementDefinitionMeaning({ contract: select.contract, population: context.population, source_state: saved.status,
+      ...(unit !== wkId && saved.population.mode === 'all' ? {
+        requirements_scope: { kind: 'parent_requirements', unit: wkId, slice_applicability: 'not_established' } } : {}),
+      present: select.contract === "criteria" ? true : saved.status !== "source_absent",
       total_count: Array.isArray(value) ? value.length : value === undefined || value === null ? 0 : 1,
       members: value ?? null,
+      ...(select.contract === "obligations" && select.view === "associated" ? { associated_meaning: {
+        unit: saved.unit, population: saved.population, requirement_status: saved.requirement_status,
+        controlled_acceptance: saved.controlled_acceptance, requirements: saved.requirements,
+        definitions: saved.authored_requirements?.descriptions ?? null,
+        references: saved.references, cases: saved.cases, acceptance_criteria: saved.acceptance_criteria,
+        notes: saved.notes, residue: saved.residue, complete_contract: false },
+ } : {}),
+
+      ...(select.contract === "cases" ? { case_authoring: {
+        unit: stored.unit, scope: unit === wkId ? "record" : "slice",
+        revision: stored.content_digest,
+        population: saved.population, complete_contract: false,
+        obligations: saved.obligations,
+        acceptance_criteria: saved.acceptance_criteria,
+        references: componentReferences,
+        notes: saved.notes, residue: saved.residue,
+        extent: { obligations: saved.obligations.length, cases: saved.cases.length,
+          component_references: componentReferences.length }
+      } } : {}),
 
       ...(select.contract === "obligations" && Array.isArray(value) && value.length > 0 && granted(grantKind, "obligation")
-        ? { selection_context: selectionContext(reference, "obligation",
-          "Use this reference unchanged with select:{obligation:members[i].obligation_id}; optional parameters:true adds its parameter detail.") }
+        ? { selection_context: selectionContext(reference,
+          "Use {reference,select:{obligation:members[i].obligation_id}} unchanged for associated meaning. Add parameters:true for parameter detail or view:'row' for the exact row; these modifiers cannot combine.") }
         : {}),
 
       ...(select.contract === "requirements" && saved.authored_requirements !== undefined
-        ? { authored: saved.authored_requirements } : {}) };
+        ? { authored: saved.authored_requirements } : {}) });
   }
 
   function selectText(sources, literal) {
@@ -791,12 +1032,8 @@ export function createReadWikiTask({
 
   function deliver(reference, workspace, expected, select, projectValue, retainedHere = false) {
     return readSelectedResponseProjection(reference, { env, expected, project: async ({ carrier }) => ({
-      ...(workspace === null ? {} : { workspaceRepo: workspace.repo }),
-      source_kind: carrier.source_kind, subject: carrier.subject, select, complete: true, next_calls: [],
-      ...(await projectValue(carrier)),
-      effects: { reads: [carrier.source_kind], writes: [] },
-      transport_retention: { performed: retainedHere,
-        ...(retainedHere ? { kind: "selected_resource_descriptor" } : {}) }
+      source_kind: carrier.source_kind, complete: true, next_calls: [],
+      ...(await projectValue(carrier))
     }) });
   }
 
@@ -813,12 +1050,17 @@ export function createReadWikiTask({
           selected = await owners.readCompleteSearchSource({ dir: workspace.dir, repository: workspace.repo,
             reference: subject.ref });
         } catch (error) {
-          const path = error.envelope?.subject?.path;
+          const path = error.envelope?.subject?.path ??
+            (["search_source_changed", "search_source_reordered"].includes(error.code)
+              ? decodeSearchToken(subject.ref, 'source').path : undefined);
+          const currentSubject = typeof path === 'string' ? searchPathSubject(path) : null;
+          const currentKind = currentSubject === null ? null : WORK_UNIT_PATTERN.test(currentSubject) ? KIND.RECORD
+            : KIND_RECORD_PATTERN.test(currentSubject) ? KIND.CANONICAL_RECORD : KIND.DOCUMENT;
 
           if (!["search_source_changed", "search_source_reordered"].includes(error.code) ||
-              !DOCUMENT_PATH_PATTERN.test(path) || !granted(KIND.DOCUMENT, "context")) throw error;
-          throw correctable(error.code, { subject: error.envelope.subject,
-            cause: { code: error.code, message: error.message } }, { subject: path },
+              currentSubject === null || !granted(currentKind, "context")) throw error;
+          throw correctable(error.code, { subject: error.envelope?.subject ?? { path },
+            cause: { code: error.code, message: error.message } }, { subject: currentSubject },
           "the selected passage's source changed; inspect the current context of that source",
           "the call returns current source context and a fresh reference; the old passage is not replayed");
         }
@@ -829,7 +1071,7 @@ export function createReadWikiTask({
         repository: workspace.repo, dir: workspace.dir, loadWorkRecordById: owners.readWorkRecordById });
       if (resolved.ok !== true) {
         throw invalid("reference_unavailable", { code: resolved.diagnostic?.code ?? null,
-          message: resolved.diagnostic?.message ?? null });
+          message: resolved.diagnostic?.message ?? null, diagnostic: resolved.diagnostic ?? null });
       }
       return resolved;
     };
@@ -844,7 +1086,7 @@ export function createReadWikiTask({
     }
     const descriptor = await retainResource(workspace, resource);
     return deliver(descriptor, workspace, await bindingFor(workspace, null), select, async () => {
-      if (name === "field") return { field: "text", value: resolved.value, ...identity };
+      if (name === "field") return { field: "text", value: resolved.value };
       const decoded = decodeWorkRecordEntryReference(subject.ref);
 
       return decoded !== null && decoded.o === 0 && decoded.l === decoded.t
@@ -871,7 +1113,7 @@ export function createReadWikiTask({
     const owner = { repo: identity.owner_package };
     const descriptor = await retainResource(owner, resource);
     return deliver(descriptor, null, await bindingFor(owner, identity.path), select,
-      async () => ({ field: "text", value: text, ...identity }), true);
+      async () => ({ field: "text", value: text }), true);
   }
 
   function receiptRead(args, source, binding, workspace) {
@@ -884,20 +1126,21 @@ export function createReadWikiTask({
 
     const listing = read();
     requireGrant(KIND.RECEIPT, name);
-    const present = { reads: [KIND.RECEIPT], writes: [], checks_run: [] };
-    const frame = { workspaceRepo: workspace.repo, source_kind: KIND.RECEIPT, subject: binding.unit };
+    const frame = { source_kind: KIND.RECEIPT, subject: binding.unit };
+    const receiptMeaning = ({ observation: _observation, receipt: _receipt, next_calls: _calls, ...meaning }) => meaning;
     if (name === "context") {
-      return jsonContent({ ...frame, complete: listing.findings_omitted === 0, ...listing, reference: source,
-        present_read_effects: present, ...followUps(listing.findings.slice(0, listing.next_calls.length)
-          .map((item) => ({ reference: { ...source, finding_id: item.finding_id } }))) });
+      return jsonContent({ ...frame, complete: listing.findings_omitted === 0, ...receiptMeaning(listing), reference: source,
+        ...(listing.findings.length && granted(KIND.RECEIPT, 'finding') ? {
+          selection_context: { tool: READ_WIKI_TOOL, reference: source,
+            binding: 'Choose findings[i].finding_id; call {reference,select:{finding:findings[i].finding_id}} unchanged.' } } : {}),
+        next_calls: granted(KIND.RECEIPT, 'inventory') ? [call({ reference: source, select: { inventory: 'findings' } })] : [] });
     }
     if (!(name === "finding" || name === "inventory" && select.inventory === "findings")) {
       throw invalid("selection_not_applicable", { source_kind: KIND.RECEIPT, select });
     }
     return owners.readCompleteCloseoutReceipt({ repository: workspace.repo, unit: binding.unit, env,
       receipt: { ...source, ...(name === "finding" ? { finding_id: select.finding } : {}) },
-      project: original => ({ ...frame, select, complete: true, ...original,
-        present_read_effects: present, next_calls: [] }) });
+      project: original => ({ ...frame, complete: true, ...receiptMeaning(original), next_calls: [] }) });
   }
 
   async function receiptSelectionRefusal(source, stored, selection) {
@@ -964,35 +1207,36 @@ export function createReadWikiTask({
       const resource = await reopen(workspace, carrier);
       if ((carrier.revision === null || resource.revision === carrier.revision) &&
           (carrier.authoring_revision === undefined || resource.authoring_revision === carrier.authoring_revision)) {
-        return jsonContent(await withAuthoringChoices(contextResult(workspace, resource, source), resource));
+        return contextContent(await withAuthoringChoices(contextResult(workspace, resource, source), resource, select.for_changes), workspace, resource);
       }
 
-      return jsonContent(await withAuthoringChoices(contextResult(workspace, resource, await retainResource(workspace, resource),
-        { transport_retention: { performed: true, kind: "selected_resource_descriptor" },
-          recovered: { code: "source_moved", applied: "fresh_context_of_same_subject", attempts: 1,
+      return contextContent(await withAuthoringChoices(contextResult(workspace, resource, await retainResource(workspace, resource),
+        { recovered: { code: "source_moved", applied: "fresh_context_of_same_subject", attempts: 1,
           observed_revision: carrier.authoring_revision ?? carrier.revision,
-          current_revision: resource.authoring_revision ?? resource.revision, superseded_reference: source } }), resource));
+          current_revision: resource.authoring_revision ?? resource.revision, superseded_reference: source } }), resource, select.for_changes), workspace, resource);
     }
     return deliver(source, workspace, expected, select, async (carrier) => {
 
       if (name === "input_contract") {
 
-        return readInputContract({ carrier, select, requireGrant, reopen: () => reopen(workspace, carrier),
+        return readInputContract({ carrier, select, reference: source, requireGrant, reopen: () => reopen(workspace, carrier),
           readSavedContract: !granted(carrier.source_kind, "contract") ? null : async (unit) =>
             (await selectContract(workspace, unit, { contract: "coverage" }, source, carrier.source_kind)).members });
       }
-      requireGrant(grantKind(carrier), name);
-      if (name === "currentness" && carrier.source_kind === KIND.SEARCH) {
-        const entries = carrier.observed_records;
-        const compared = await compareObservedWorkRecords({ dir: workspace.dir, entries,
-          readRecord: owners.readWorkRecordById });
-        return { currentness: true, complete: compared.has_more === false, checked: compared.results, ...compared };
+      const kind = grantKind(carrier);
+      if (!policy.read_selections.some(row => row.source_kind === kind && row.selection === name) &&
+          granted(carrier.source_kind, 'context')) {
+        throw correctable('selection_not_applicable', { subject: carrier.subject, source_kind: kind, select },
+          { reference: source, select: { context: true } }, 'Choose a selection applicable to this source kind.',
+          'Returns the same source context and supported choices; it does not perform the refused selection.');
       }
-      if (name === "currentness" && carrier.source_kind === KIND.RECORD) {
-        const compared = await compareObservedWorkRecords({ dir: workspace.dir,
-          entries: [{ id: carrier.subject.split("#")[0], observed_source_digest: carrier.revision }],
-          readRecord: owners.readWorkRecordById });
-        return { currentness: true, complete: compared.has_more === false, checked: compared.results, ...compared };
+      requireGrant(kind, name);
+      if (name === 'currentness' && [KIND.SEARCH, KIND.RECORD].includes(carrier.source_kind)) {
+        const entries = carrier.source_kind === KIND.SEARCH ? carrier.observed_records
+          : [{ id: carrier.subject.split('#')[0], observed_source_digest: carrier.revision }];
+        return readWikiCurrentness({ dir: workspace.dir, entries, readRecord: owners.readWorkRecordById,
+          scope: carrier.source_kind === KIND.SEARCH ? 'observed_canonical_work_records_only' : 'observed_work_record',
+          contextCall: granted(KIND.RECORD, 'context') ? subject => call({ subject }) : null });
       }
       const resource = await reopen(workspace, carrier);
 
@@ -1002,17 +1246,42 @@ export function createReadWikiTask({
           carrier.authoring_revision !== undefined && resource.authoring_revision !== carrier.authoring_revision)) {
         throw sourceMoved(carrier, resource);
       }
-      return { revision: resource.authoring_revision ?? resource.revision ?? null,
-        ...(await selectValue(workspace, resource, select, source)) };
+      return selectValue(workspace, resource, select, source);
     });
   }
 
   const projectInputFailure = async ({ args, validationError, tool }) => {
+    const queryIssue = requirementChoiceQueryIssue(args?.select);
+    if (queryIssue) {
+      const replacement = { reference: args.reference, select: { contract: 'requirements', view: 'choices' } };
+      const knownQuery = queryIssue.code === 'requirement_query_not_applicable' &&
+        typeof args.select.query === 'string' && args.select.query.trim().length > 0;
+      const { query: _query, ...requestedView } = args.select;
+      const alternatives = knownQuery ? [
+        { arguments: { ...replacement, select: { ...replacement.select, query: args.select.query } }, purpose: 'search_authored_requirements' },
+        { arguments: { ...args, select: requestedView }, purpose: 'read_requested_view_without_query' }
+      ].filter(next => inputSchema.safeParse(next.arguments).success).map(next => ({ ...call(next.arguments), purpose: next.purpose })) : [];
+      return { terminal_result: errorContent(invalid(queryIssue.code, {
+        subject: args.reference ?? args.subject ?? { assignment: args.assignment }, cause: queryIssue.message,
+        requested_view: args.select.view,
+        ...(!knownQuery && inputSchema.safeParse(replacement).success ? { selection_context: requirementQuerySelection(args.reference) } : {}),
+        next_calls: alternatives,
+        recovery: { state: 'caller_choice', ...(knownQuery ? {
+          choice: 'Choose the query over requirements choices, or explicitly read the requested view without query. Neither was performed.'
+        } : { missing_inputs: ['nonblank caller query'],
+          reason: 'Choose caller words for requirements choices; no query was inferred and no inventory was read.' }) }
+      })) };
+    }
     const { select: _select, ...withoutSelect } = args !== null && typeof args === "object" ? args : {};
     const corrected = args?.select !== undefined && inputSchema.safeParse(withoutSelect).success
       ? [withoutSelect] : [];
-    return { terminal_result: errorContent(createToolInputValidationError({ tool, validationError,
-      nextCalls: corrected.map((item) => call(item, true)) })) };
+
+    const published = advertisedInputSchema.safeParse(args);
+    return { terminal_result: errorContent(createToolInputValidationError({ tool,
+      validationError: published.success ? validationError : published.error,
+      nextCalls: corrected.map((item) => ({ ...call(item, false),
+        purpose: "optional_context_discovery",
+        information: "Different read: returns source context without the refused selection. It is not a corrected request; the caller must choose how to express the original intent." })) })) };
   };
 
   return {
@@ -1020,6 +1289,7 @@ export function createReadWikiTask({
     config: {
       description: describeReadWikiTool(inputSchema),
       inputSchema,
+      advertisedInputSchema,
 
       publishedInputSchemaProjection: publishedReadWikiInputSchema,
       inputValidationErrorProjector: projectInputFailure
@@ -1034,6 +1304,28 @@ export function createReadWikiTask({
         if (args.assignment !== undefined) return await assignmentContext();
         throw invalid("source_not_available", { sources: Object.keys(args) });
       } catch (error) {
+        if (error.envelope?.schema_version === 'workspace-read-wiki-refusal.v1' && error.envelope.subject === undefined) {
+          error.envelope.subject = args.subject ?? args.reference ?? (args.assignment ? { assignment: true } : { search: args.search });
+        }
+
+        const filesystemFailure = isPlatformErrorCode(error?.code) &&
+          typeof error.path === "string" && typeof error.syscall === "string";
+        if ((error instanceof ControlledContractToolError || filesystemFailure) && error.envelope === undefined) {
+          error.envelope = {
+            schema_version: "workspace-read-wiki-source-refusal.v1", accepted: false,
+            code: filesystemFailure ? "workspace_read_wiki_source_unavailable" : error.code,
+            subject: args.subject ?? args.reference, cause: { code: error.code, message: error.message },
+            details: filesystemFailure ? { source_failure: { code: error.code, message: error.message,
+              path: error.path, operation: error.syscall, errno: error.errno } } : error.details,
+            next_calls: [], no_supported_route: true,
+            recovery: { state: "no_supported_route", caller_correctable: false,
+              actor: findingsSession ? "coordinator_or_operator" : "repository_owner",
+              reason: findingsSession
+                ? "The coordinator or operator must repair the reported source condition and dispatch a fresh frozen review. Reads cannot repair or replace captured content."
+                : "The repository owner must repair the reported source path, permissions or content before it can be read." },
+            effects: { writes: [] }
+          };
+        }
         return errorContent(error);
       }
     },

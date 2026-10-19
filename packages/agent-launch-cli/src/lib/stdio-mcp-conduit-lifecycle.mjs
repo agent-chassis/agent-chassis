@@ -1,6 +1,7 @@
 
 
 import { performance } from "node:perf_hooks";
+import { createStdioMcpStreamFailure } from "./stdio-mcp-conduit-errors.mjs";
 
 import {
   STDIO_MCP_CONDUIT_ERROR_CODES,
@@ -81,7 +82,7 @@ function compareToolSurfaces(expected, actual) {
 
 const LIFECYCLE_PHASES = STDIO_MCP_LIFECYCLE_PHASES;
 
-const SERVER_REGISTRATION_SCHEMA = "wiki-mcp-launcher-readiness.v2";
+const SERVER_REGISTRATION_SCHEMA = "wiki-mcp-launcher-readiness.v3";
 const LEGACY_SERVER_REGISTRATION_SCHEMA = "wiki-mcp-launcher-readiness.v1";
 const CLIENT_INITIALIZED_SCHEMA = "wiki-mcp-launcher-client-initialized.v1";
 const TOOLS_LISTED_SCHEMA = "wiki-mcp-launcher-tools-listed.v1";
@@ -152,11 +153,16 @@ function observeConduitLifecycle({
   serverStartupTimeoutMs,
   clientReadinessTimeoutMs,
   expectedToolNames,
+  expectedRegisteredTier,
+  connectionIdentity = null,
+  generation = null,
   getStderr = () => "",
   readinessMeasurements = null,
+  assignmentChangeBinding = null,
 
   termination = createChildTerminationLatch()
 }) {
+  const assignmentChangeRequested = deferred();
   const serverReady = deferred();
   const clientReady = deferred();
   const discoveryProbeClosed = deferred();
@@ -166,6 +172,7 @@ function observeConduitLifecycle({
   const serverExit = deferred();
   let buffer = "";
   let clientReadyResolved = false;
+  let firstStreamFailure = null;
 
   let clientProcessTerminal = false;
 
@@ -284,6 +291,7 @@ function observeConduitLifecycle({
   };
 
   const buildLifecycleFacade = (beginClientReadiness) => ({
+    assignmentChangeRequested: assignmentChangeRequested.promise,
     serverReady: serverReady.promise,
     clientReady: clientReady.promise,
     discoveryProbeClosed: discoveryProbeClosed.promise,
@@ -295,6 +303,7 @@ function observeConduitLifecycle({
     isClientTransportEof: () => clientTransportEof,
     isClientProcessTerminal: () => clientProcessTerminal,
     currentFailure: () => failure,
+    firstStreamFailure: () => firstStreamFailure,
     isClientReady: () => clientReadyResolved,
     currentPhase: () => phase,
     phaseHistory: () => Object.freeze([...phaseHistory]),
@@ -309,6 +318,19 @@ function observeConduitLifecycle({
   child.once?.("error", (error) => finalizeChild("error", null, null, error));
   child.once?.("exit", (code, signal) => finalizeChild("exit", code, signal, null));
   child.once?.("close", (code, signal) => finalizeChild("close", code, signal, null));
+
+  for (const [stream, fd, endpoint] of [
+    ["stdin", 0, child.stdin], ["stdout", 1, child.stdout],
+    ["stderr", 2, child.stderr], ["readiness", STDIO_MCP_READY_FD, child.stdio?.[STDIO_MCP_READY_FD]]
+  ]) {
+    endpoint?.on("error", (cause) => {
+      firstStreamFailure ??= createStdioMcpStreamFailure(cause,
+        { generation, stream, fd, phase });
+      if (failure !== null || phase === LIFECYCLE_PHASES.TERMINAL ||
+          termination.cleanupInitiated) return;
+      recordFailure(firstStreamFailure);
+    });
+  }
 
   const readyStream = child.stdio?.[STDIO_MCP_READY_FD];
   if (!readyStream) {
@@ -365,6 +387,23 @@ function observeConduitLifecycle({
         STDIO_MCP_LIFECYCLE_VALIDATION_RULES.SCHEMA_VERSION_NOT_STRING);
       return;
     }
+
+    if (event.schema_version === "wiki-mcp-launcher-assignment-change.v1") {
+      const keys = ["schema_version", "assigned_unit", "launch_ref", "run_id", "retry_id", "request_id"];
+      const rule = lifecycleEventRule(event, keys, keys, [e => role === "worker" &&
+        assignmentChangeBinding !== null &&
+        ["assigned_unit", "launch_ref", "run_id", "retry_id"].every(key => e[key] === assignmentChangeBinding[key]) &&
+        typeof e.request_id === "string" && /^[a-f0-9-]{36}$/u.test(e.request_id)]);
+      if (rule !== null || negotiatedProducerGeneration !== STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION) {
+        invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.MALFORMED_LIFECYCLE_EVENT,
+          "assignment-change terminal event does not match this authenticated worker attempt", event,
+          rule ?? STDIO_MCP_LIFECYCLE_VALIDATION_RULES.PHASE_NOT_PERMITTED);
+        return;
+      }
+      assignmentChangeRequested.resolve(Object.freeze({ ...event }));
+      return;
+    }
+    if (failure !== null) return;
     if (phase === LIFECYCLE_PHASES.TERMINAL ||
         (phase === LIFECYCLE_PHASES.CLIENT_CLOSED &&
           event.schema_version !== CLIENT_CLOSED_SCHEMA)) {
@@ -375,7 +414,7 @@ function observeConduitLifecycle({
     }
 
     if (event.schema_version === SERVER_REGISTRATION_SCHEMA ||
-        event.schema_version === LEGACY_SERVER_REGISTRATION_SCHEMA) {
+        event.schema_version === LEGACY_SERVER_REGISTRATION_SCHEMA || event.schema_version === "wiki-mcp-launcher-readiness.v2") {
       if (phase !== LIFECYCLE_PHASES.AWAITING_SERVER_REGISTRATION) {
         invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.DUPLICATE_SERVER_REGISTRATION,
           "host wiki-MCP server emitted duplicate server registration", event,
@@ -405,6 +444,17 @@ function observeConduitLifecycle({
       }
 
       negotiatedProducerGeneration = STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION;
+      const knownProfiles = ["free_local", "paid_cce"];
+      const invalidProfile = !knownProfiles.includes(event.registered_tier) || !knownProfiles.includes(expectedRegisteredTier);
+      if (invalidProfile || event.registered_tier !== expectedRegisteredTier) {
+        recordFailure(new StdioMcpConduitError(invalidProfile
+          ? STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_REGISTRATION_PROFILE_INVALID
+          : STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_REGISTRATION_PROFILE_MISMATCH,
+          "Host server session configuration is incompatible with this connection; operator: deploy a coherent build and restart the affected connection",
+          { connection: connectionIdentity, changed: false, child_started: false,
+            recovery: { actor: "operator", action: "restart the affected connection with coherent host configuration" }, ...retainedGenerations() }));
+        return;
+      }
       const mismatch = compareToolSurfaces(expectedToolNames, event.tools);
       if (mismatch) {
         recordFailure(new StdioMcpConduitError(
@@ -627,7 +677,6 @@ function observeConduitLifecycle({
         return;
       }
       handleEvent(event);
-      if (failure !== null) return;
     }
   });
   readyStream.on("end", finalizeReadinessStream);

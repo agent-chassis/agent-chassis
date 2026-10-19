@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { runProofPackAdequacy, canonicalDigest } from "../support/proof-pack-adequacy.mjs";
 import { runTestValidityCertification } from "../support/test-validity-certification.mjs";
 import { profileDigest } from "../../lib/profile-digest.mjs";
+import { validateCurrentProofDefinition } from "../../lib/test-validity-execution-definition.mjs";
 import { executableDependencyClosure } from "../support/executable-dependency-closure.mjs";
 import { assertComponentExclusionApplicability, loadExactAdmittedProofPack } from
   "../../lib/admitted-proof-packs.mjs";
@@ -95,7 +96,7 @@ test("current publication binds source-clean evaluator bytes to complete certifi
       readDefinitionDocument(pack, "adequacy.json"),
       readDefinitionDocument(pack, "certification-result.full-census.json")
     ]);
-    assert.equal(profile.schema_version, "controlled-contract-verification-profile.v2");
+    assert.equal(validateCurrentProofDefinition(profile), true);
     assert.equal(admission.profile_digest, profileDigest(profile));
     assert.equal(adequacy.profile_digest, admission.profile_digest);
     assert.equal(admission.certification.adequacy_declaration_digest, canonicalDigest(adequacy));

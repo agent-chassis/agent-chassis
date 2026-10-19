@@ -6,7 +6,8 @@ import { createWkPublicationSelectionSchema, validateWkPublicationSelection } fr
 import { captureDiagnosticEvidence } from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { parseToolProfile, shouldExposeTool } from "../tool-profile.mjs";
 import { resolveObligationCoverageQueryContext } from "../controlled-contract-query-context.mjs";
-import { guardToolHandler, jsonContent, describeRetentionFailure } from "../mcp-response.mjs";
+import { guardToolHandler, jsonContent, activeMcpInlineByteLimit, measureMcpInlineResultBytes } from "../mcp-response.mjs";
+import { SPILL_PERSISTENCE_FAILED_CODE } from "../mcp-response-shared.mjs";
 import { createToolInputValidationError, projectToolInputValidationFailure } from "../register-tool.mjs";
 import { registeredToolRequestContracts } from "../registered-tool-request-contracts.mjs";
 import { retainSelectedResponseSource, readSelectedResponseProjection, selectedResponseLocatorSchema } from "../selected-response-snapshot.mjs";
@@ -23,6 +24,7 @@ import {
 } from "../dispatch-tool-helpers.mjs";
 import { buildDispatchContinuation, recordOwnerRegisteredRequestSchema, registrarGuidanceAuthority,
   requestSchemaAuthorityForRegistration } from "../dispatch-tool-helpers.mjs";
+import { checkLandingAction, projectCheckLandingAnswer } from "./check-landing-response.mjs";
 
 export const CHECK_LANDING_TOOL_NAME = "workspace_check_landing";
 export const CHECK_LANDING_INPUT_SCHEMA = z.object({
@@ -65,15 +67,12 @@ const landingCause = (cause) => projectRecordedFailureDetail(cause,
 function checkLandingRecovery(cause, request, requestSchemaAuthority) {
   const detail = cause?.detail ?? cause;
   const recovery = producerEstablishedRecovery(detail, {
-    unchanged: "the specific landing observation prerequisite identified by this cause holds",
-    retryCondition: "observe the same publication only after that prerequisite changes",
-    unestablished: "the landing producer has not established a correction; its correction owner must supply one"
+    unchanged: detail?.operator_action,
+    retryCondition: "observe the same publication only after the stated correction",
+    unestablished: null
   });
+  if (recovery.responsible_actor === null) return { state: recovery.state, responsible_actor: null };
   return { ...recovery,
-    ...(recovery.responsible_actor === null ? {
-      missing_component: "landing_observation_correction",
-      owner: "launcher-owned handoff and landing observer"
-    } : {}),
     intended_request: buildCheckLandingRequest(request, { requestSchemaAuthority }) };
 }
 
@@ -98,9 +97,18 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
       unit: subject, authority_identity: context.identity };
   }
 
-  const present = (source, binding) => readSelectedResponseProjection(source, { env: responseEnv, expected: binding,
-    project: ({ carrier }) => ({ ...carrier, original: { source },
-      next_calls: [...(carrier.next_calls ?? []), ...(ownerCall === null ? [] : [ownerCall(source)])] }) });
+  function project(body, { source = null, detail = false } = {}) {
+    const action = checkLandingAction(body);
+    const later = !detail && body.state === "awaiting_human_landing" && body.selection_authenticated === true
+      ? buildCheckLandingRequest({ subject: body.subject.unit, selection: body.selection }, { requestSchemaAuthority })
+      : null;
+    return projectCheckLandingAnswer(body, { action, detail,
+      later: later?.callable === false ? null : later,
+      detailCall: !detail && action !== null && source !== null && ownerCall !== null ? ownerCall(source) : null });
+  }
+
+  const present = (source, binding, detail = false) => readSelectedResponseProjection(source,
+    { env: responseEnv, expected: binding, project: ({ carrier }) => project(carrier, { source, detail }) });
 
   function compositionFailure(request) {
     let role;
@@ -133,16 +141,19 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
   async function respond(input) {
     const request = parseLandingRequest(input);
     const failure = compositionFailure(request);
-    if (failure !== null) return { result: jsonContent(failure, { env: responseEnv }), source: null, originalRequest: null };
+    if (failure !== null) return { result: jsonContent(project(failure), { env: responseEnv }), source: null, originalRequest: null };
     const binding = await bindingFor(request.subject);
     let body;
     if (typeof wkLandingStatusAdapter !== "function") {
       body = checkLandingRefusal(request, { reason: "check_landing_observer_unavailable", workspace,
         authority: binding.authority_identity,
         cause: { stage: "composition", reason: "wk_landing_status_adapter_missing" },
-        recovery: { ...MISSING_OBSERVER_RECOVERY,
+        recovery: { ...ownedNoRouteRecovery({ responsibleActor: "operator",
+          prerequisite: "this server composes the launcher-owned landing observer",
+          missingComponent: "wk_landing_status_adapter",
+          operatorAction: "Start this server through the launcher with its canonical WIKI_MCP_WORKSPACE_DIR and configured launch backend." }),
           intended_request: buildCheckLandingRequest(request, { requestSchemaAuthority }),
-          retry_condition: "repeat the same check_landing request after the launcher composes the observer" } });
+          retry_condition: "Repeat workspace_check_landing with the same subject and selection only after the observer is composed." } });
     } else {
       try {
         const outcome = await wkLandingStatusAdapter({ assigned_unit: request.subject,
@@ -157,8 +168,9 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
           body = { schema_version: "workspace-check-landing.v1", accepted: true,
             subject: { repo: workspace.repo, unit: request.subject }, authority_identity: binding.authority_identity,
             request_mode: request.selection === undefined ? "current" : "explicit",
-            selection: landing.selection ?? null, selection_authenticated: landing.selection_authenticated === true,
+            selection: landing.selection ?? request.selection ?? null, selection_authenticated: landing.selection_authenticated === true,
             state: landing.state, transport: landing.transport, landing_authority: landing.landing_authority,
+            handoff: landing.handoff ?? null,
             observed_base: landing.observed_base, landed_publication: landing.landed_publication,
             effects: landing.effects, cause: landing.cause == null ? null : landingCause(landing.cause),
             observed_facts: { "landing.observation_available": landing.state !== "unavailable" },
@@ -178,35 +190,37 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
           effects_unavailable: "the adapter raised without an owner observation-effects carrier" } } };
       }
     }
-    let source = null;
+    const complete = () => ({ source: null, originalRequest: null,
+      result: jsonContent(project(body), { env: responseEnv }) });
+
+    if ((checkLandingAction(body) === null || ownerCall === null) &&
+        measureMcpInlineResultBytes(project(body)) <= activeMcpInlineByteLimit(responseEnv)) return complete();
+    let source;
     try {
       source = retainSelectedResponseSource({ binding: { ...binding, query_identity: request,
         observation_identity: { selection: body.selection ?? null,
           selection_authenticated: body.selection_authenticated === true, state: body.state ?? null,
           observed_base: body.observed_base ?? null, landed_publication: body.landed_publication ?? null } },
         carrier: { ...body, delivery: { transport_retention: "retained" } }, ownerCall, ownerRequestSchema }, { env: responseEnv });
-      const result = await present(source, binding);
-      return Object.freeze({ source, originalRequest: Object.freeze({ subject: request.subject, source }), result });
     } catch (error) {
+      if (error?.envelope?.code !== SPILL_PERSISTENCE_FAILED_CODE) throw error;
 
-      const delivery = landingCause(describeRetentionFailure(error,
-        { operation: "retain_check_landing_response", subject: request.subject }));
-      return { source: null, originalRequest: null,
-        result: jsonContent({ ...body, delivery: { state: "failed",
-          transport_retention: source === null ? "uncertain" : "retained", cause: delivery } }, { env: responseEnv }) };
+      return complete();
     }
+    const result = await present(source, binding);
+    return Object.freeze({ source, originalRequest: Object.freeze({ subject: request.subject, source }), result });
   }
 
   async function original(input) {
     const request = parseLandingRequest(input, CHECK_LANDING_ORIGINAL_INPUT_SCHEMA);
     const failure = compositionFailure({ subject: request.subject });
-    if (failure !== null) return jsonContent(failure, { env: responseEnv });
+    if (failure !== null) return jsonContent(project(failure), { env: responseEnv });
 
-    return present(Object.freeze({ ...request.source }), await bindingFor(request.subject));
+    return present(Object.freeze({ ...request.source }), await bindingFor(request.subject), true);
   }
 
   const handler = async (input) => (await respond(input)).result;
-  const config = Object.freeze({ description: "Observe the session WK's current or exactly selected publication landing through the existing landing owner. Orchestrator/operator only.",
+  const config = Object.freeze({ description: "Observe the session WK's current or exactly selected publication landing. Landed answers finish; pending answers offer human-action detail and an optional later exact observation. Never publishes, repairs, merges or closes work. Orchestrator/operator only.",
     inputSchema: CHECK_LANDING_INPUT_SCHEMA });
   return Object.freeze({ name: CHECK_LANDING_TOOL_NAME, config, inputSchema: CHECK_LANDING_INPUT_SCHEMA,
     respond, handler, call: guardToolHandler(handler, { name: CHECK_LANDING_TOOL_NAME, env: responseEnv }),
@@ -217,7 +231,7 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
 export async function projectCheckLandingInputFailure({ args, validationError, requestContract,
   registeredTools = null }) {
   const failure = await projectToolInputValidationFailure({ tool: CHECK_LANDING_TOOL_NAME, args,
-    validationError, requestContract });
+    validationError });
   if (!validationError.issues.some((issue) => issue.path.length === 2 &&
       issue.path[0] === "selection" && issue.path[1] === "version")) return failure;
   const current = { subject: args?.subject };
@@ -234,7 +248,7 @@ export async function projectCheckLandingInputFailure({ args, validationError, r
       not_a_correction: "this is not the requested pinned read and repairs no failed publication",
       call
     },
-    next_calls: call === null ? failure.next_calls : [call] };
+    next_calls: failure.next_calls };
 }
 
 export function registerCheckLandingTool({ registerTool, ...composition }) {

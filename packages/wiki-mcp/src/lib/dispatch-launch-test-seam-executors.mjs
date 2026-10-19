@@ -165,6 +165,8 @@ let delivered = prompt;
 let assignmentRead = null;
 const processConnection = JSON.parse(Buffer.from(process.argv[3], "base64").toString("utf8"));
 const scopeAuthority = JSON.parse(Buffer.from(process.argv[4], "base64").toString("utf8"));
+const correctionMode = process.argv[5];
+if (!["read", "request-change", "continue"].includes(correctionMode)) throw new Error("unknown confined assignment probe mode");
 let settled = false;
 function persist(value) {
   const bytes = JSON.stringify(value) + "\n";
@@ -199,9 +201,12 @@ function finish(extra) {
       has_later_material_marker: delivered.includes("WITNESS-LATER-MATERIAL-MARKER"),
       parent_material_index: delivered.indexOf("WITNESS-IMMUTABLE-MATERIAL-MARKER"),
       selected_material_index: delivered.indexOf("WITNESS-SELECTED-MATERIAL-MARKER"),
-      parent_material_occurrences: delivered.split("WITNESS-IMMUTABLE-MATERIAL-MARKER").length - 1
+      parent_material_occurrences: delivered.split("WITNESS-IMMUTABLE-MATERIAL-MARKER").length - 1,
+      ...(correctionMode === "read" ? {} : {
+        has_corrected_instruction: delivered.includes("Explicit coordinator revision: apply the required parent scope decision"),
+        has_unrelated_parent_decision: delivered.includes("Unrelated parent decision") })
     },
-    ...probeAssignedPhysicalAccess()
+    ...(correctionMode === "request-change" ? {} : probeAssignedPhysicalAccess())
   };
   persist(receipt);
   setInterval(() => {}, 1000);
@@ -218,10 +223,48 @@ function finish(extra) {
   }
   delivered = fixedProbeDeliveredText(prompt, assignment);
   // The complete guidance this read actually retrieved, continuations included.
-  assignmentRead = { reads: assignment.reads, source_digest: assignment.source_digest,
-    identity: assignment.identity,
+  assignmentRead = { reads: assignment.reads, reference: assignment.reference,
     guidance_sha256: "sha256:" + createHash("sha256").update(assignment.guidance).digest("hex") };
+  if (correctionMode !== "read") {
+    const bad = async args => (await mcp.callTool("workspace_read_wiki", args)).isError === true;
+    assignmentRead.missing_binding_refused = await bad({ select: { field: "guidance" } });
+    assignmentRead.altered_binding_refused = await bad({ reference: { ref_id: assignment.reference.ref_id + "altered" }, select: { field: "guidance" } });
+    if (!assignmentRead.missing_binding_refused || !assignmentRead.altered_binding_refused) throw new Error("assignment binding control admitted a dependent read");
+    if (correctionMode === "request-change" && (!assignment.guidance.includes("Apply the required parent scope decision") ||
+        assignment.guidance.includes("WITNESS-IMMUTABLE-MATERIAL-MARKER"))) {
+      finish({ ok: false, stage: "assignment_blocker_not_established" });
+      return;
+    }
+    if (correctionMode === "continue" && (!assignment.guidance.includes("WITNESS-IMMUTABLE-MATERIAL-MARKER") ||
+        !assignment.guidance.includes("Explicit coordinator revision: apply the required parent scope decision"))) {
+      finish({ ok: false, stage: "required_parent_decision_missing" });
+      return;
+    }
+  }
   finish({ ok: true, mcp: { protocol_version: mcp.initialized.protocolVersion || null, tool_count: mcp.tools === null ? null : mcp.tools.length, tools_sha256: "sha256:" + createHash("sha256").update(JSON.stringify(mcp.tools || [])).digest("hex") } });
+  if (correctionMode === "request-change") {
+    await new Promise(resolve => { const timer = setInterval(() => {
+      if (require("node:fs").readFileSync("src/worker-probe-receipt.json", "utf8") === "request-change\n") { clearInterval(timer); resolve(); }
+    }, 25); });
+    await mcp.callTool("request_assignment_change", {
+      assignment_fact: { kind: "missing", statement: "The selected assignment requires a parent decision whose content is absent." },
+      evidence: [{ description: "The frozen assignment was read completely and contains no required parent decision material.", references: [] }],
+      prevents: "Implementing the selected scope rule requires the authored decision.",
+      requested_change: "Attach the required parent decision as immutable material on this assignment.",
+      completed_work: ["Read the frozen assignment and checked its binding."],
+      remaining_work: ["Apply the supplied parent decision inside the selected confinement."]
+    });
+    throw new Error("accepted assignment correction unexpectedly returned a worker turn");
+  }
+  if (correctionMode === "continue") {
+    await new Promise(resolve => { const timer = setInterval(() => {
+      if (require("node:fs").readFileSync("src/worker-probe-receipt.json", "utf8") === "reread-assignment\n") { clearInterval(timer); resolve(); }
+    }, 25); });
+    const repeated = await mcp.callTool("workspace_read_wiki", { reference: assignment.reference, select: { field: "guidance" } });
+    const same = repeated.isError !== true && repeated.structuredContent.value === assignment.guidance;
+    persist({ ok: same, frozen_unchanged: same, assignment_read: assignmentRead,
+      guidance_sha256: "sha256:" + createHash("sha256").update(repeated.structuredContent.value).digest("hex") });
+  }
 })().catch(error => finish({ ok: false, stage: "mcp_handshake", error: error.message }));
 `;
 
@@ -250,10 +293,12 @@ function observePublishedAssignment(bwrapArgs) {
     prefix: MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX,
     maxBytes: MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES });
   if (artifact === null) throw new Error("the published assignment failed its identity checks");
-  const { identity, guidance } = JSON.parse(artifact.bytes.toString("utf8"));
+  const { identity, guidance, repository_test_binding } = JSON.parse(artifact.bytes.toString("utf8"));
   const snapshot = createManagedAssignmentReadSnapshot({ unit_address: identity.assigned_unit,
     role: identity.role, source_digest: identity.canonical_source_digest, run_id: identity.run_id,
-    assignment_guidance: guidance });
+    binding_run_id: identity.binding_run_id, retry_id: identity.retry_id,
+    monitor_handle: identity.launch_ref, worktree_path: identity.worktree_path,
+    assignment_guidance: guidance, repository_test_binding });
   if (snapshot.digest !== artifact.digest) {
     throw new Error("the published assignment is not the snapshot owner's serialization");
   }
@@ -276,8 +321,10 @@ function writeAssignmentObservation(directory, record) {
 }
 
 export function buildConfinedWorkerProbeCodexExecutorTestSeams({
-  assignmentObservationDirectory = null
+  assignmentObservationDirectory = null, assignmentCorrectionLoop = false
 } = {}) {
+  if (typeof assignmentCorrectionLoop !== "boolean") throw new TypeError("assignmentCorrectionLoop must be boolean");
+  let attempts = 0;
   if (assignmentObservationDirectory !== null &&
       (typeof assignmentObservationDirectory !== "string" ||
         !path.isAbsolute(assignmentObservationDirectory) || !existsSync(assignmentObservationDirectory) ||
@@ -313,7 +360,8 @@ export function buildConfinedWorkerProbeCodexExecutorTestSeams({
           finalMessagePath,
           Buffer.from(assignment, "utf8").toString("base64"),
           Buffer.from(JSON.stringify(processConnection), "utf8").toString("base64"),
-          Buffer.from(JSON.stringify(scopeAuthority), "utf8").toString("base64")
+          Buffer.from(JSON.stringify(scopeAuthority), "utf8").toString("base64"),
+          assignmentCorrectionLoop ? (attempts++ === 0 ? "request-change" : "continue") : "read"
         ]
       });
       const wikiChildEnv = captureDispatchCodexTestWikiChildEnv(childArgs);

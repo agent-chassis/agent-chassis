@@ -1205,6 +1205,8 @@ export {
   validateStableV1ContractFamily as validateNativeTestProofAuthoringContract
 };
 
+export { CLOSED_NODE_TEST_TARGET_SCHEMA, CLOSED_NODE_TEST_TARGET_STATEMENT,
+  isClosedNodeTestTarget } from "./test-proof-providers/node-test.mjs";
 export {
   TEST_PROOF_PROVIDER_SCHEMA_VOCABULARY,
   TEST_RUNTIME_ENVIRONMENT_ID_RE,

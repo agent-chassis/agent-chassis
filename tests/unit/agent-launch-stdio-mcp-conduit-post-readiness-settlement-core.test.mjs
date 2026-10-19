@@ -4,7 +4,7 @@ import { PassThrough } from "node:stream";
 import test from "node:test";
 
 import {
-  STDIO_MCP_CONDUIT_ERROR_CODES
+  STDIO_MCP_CONDUIT_ERROR_CODES, STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION
 } from "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-contract.mjs";
 import { __testing } from
   "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-core.mjs";
@@ -18,6 +18,7 @@ function createLifecycle(role = "worker") {
     role,
     serverStartupTimeoutMs: 5_000,
     clientReadinessTimeoutMs: 5_000,
+    expectedRegisteredTier: "free_local",
     expectedToolNames: ["commit"]
   });
   const emit = (event) => ready.write(`${JSON.stringify(event)}\n`);
@@ -26,9 +27,9 @@ function createLifecycle(role = "worker") {
 
 async function reachReadiness(fixture) {
   fixture.emit({
-    schema_version: "wiki-mcp-launcher-readiness.v2",
-    lifecycle_protocol_generation: "stdio-mcp-conduit-lifecycle-vocabulary.v2",
-    ready: true,
+    schema_version: "wiki-mcp-launcher-readiness.v3",
+    lifecycle_protocol_generation: STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION,
+    ready: true, registered_tier: "free_local",
     tools: ["commit"]
   });
   fixture.lifecycle.beginClientReadiness();

@@ -1,4 +1,4 @@
-
+import { resolveExceptionSourcePassages } from './contract-requirement-source-links.mjs';
 
 import { compileProofAuthoringCases } from './proof-authoring-case.mjs';
 import { planProofAuthoringRequirementRebinding } from './proof-authoring-requirement-rebinding.mjs';
@@ -15,6 +15,7 @@ import { acceptanceCriterionAssociationOwner, acceptanceCriterionInventory } fro
   './acceptance-criterion-coverage.mjs';
 import { prepareGrammarException } from './contract-requirement-projection.mjs';
 import { RECORD_AUTHORING_EXCEPTION_CODES } from '../../lib/record-authoring-exception.mjs';
+import { prepareProofAuthoringRefresh } from './proof-authoring-refresh.mjs';
 
 export const unitAddress = value => value.selectedUnit === null ? value.wkId : `${value.wkId}#${value.selectedUnit}`;
 const caseReferenceIds = (cases, obligations = []) => [...new Set([
@@ -57,7 +58,7 @@ function assertProspectiveCaseContract(pkg, candidate) {
     return [{ case_id: definition.case_id, verification_id: verificationId,
       authored_field_paths: authoredFieldPaths, uses }];
   }).sort((left, right) => left.case_id.localeCompare(right.case_id));
-  if (affectedCases.length === 0) return assertPackageValidContract(validation);
+  if (affectedCases.length === 0) return assertPackageValidContract(validation, candidate.contract);
   const authoredFieldPaths = [...new Set(affectedCases.flatMap(entry =>
     entry.authored_field_paths))].sort();
   const fieldNames = authoredFieldPaths.map(path => path.split('.').at(-1));
@@ -86,9 +87,11 @@ function assertProspectiveCaseContract(pkg, candidate) {
 }
 
 function exceptionInput({ initial, exception }) {
+  const sourcePassages = resolveExceptionSourcePassages({ wkId: initial.wkId,
+    text: initial.record?.sections?.user_requirements, passages: exception.source_passages });
   if (exception.kind === 'grammar') {
     const prepared = prepareGrammarException({ contract: initial.contract?.content ?? null, subject: exception.subject,
-      action: exception.action, ...(exception.action === 'apply' ? { rationale: exception.rationale } : {}) });
+      action: exception.action, ...(exception.action === 'apply' ? { rationale: exception.rationale, sourcePassages } : {}) });
     return { contractRequirements: prepared.answer };
   }
   if (exception.kind === 'controlled_acceptance') {
@@ -98,12 +101,14 @@ function exceptionInput({ initial, exception }) {
         changed: false, phase: 'request', path: 'exception.subject', kind: 'controlled_acceptance',
         subject: exception.subject, unit: unitAddress(initial), accepted_subject: initial.wkId });
     return { controlledAcceptance: exception.action === 'apply'
-      ? { disposition: 'opted_out', rationale: exception.rationale } : { disposition: 'required' } };
+      ? { disposition: 'opted_out', rationale: exception.rationale, sourcePassages } : { disposition: 'required' } };
   }
   return {};
 }
 
 export async function prepareProofAuthoringMutation({ pkg, initial, input, remove, now }) {
+  if (input.refreshProofs === true) return prepareProofAuthoringRefresh({ pkg, initial, now,
+    prepare: prepareProofAuthoringMutation });
   if (remove && !['selection', 'obligation'].includes(input.removalScope)) {
     throw new ControlledContractToolError('obligation_coverage_request_invalid',
       'Choose removal_scope selection or obligation; omitted removal scope is not supported', {
@@ -194,7 +199,8 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
 
   const requirementRetirements = contractInputs.requirementCompilation?.retirements ?? [];
   const retirement = requirementRetirements.length === 0 ? null : planProofAuthoringRequirementRetirement({
-    retirements: requirementRetirements, contract: initial.contract?.content ?? null });
+    retirements: requirementRetirements, contract: initial.contract?.content ?? null,
+    prospectiveContract: contractInputs.contract });
 
   const compileCases = editsObligations || initial.cases.length > 0 ||
     (rebinding?.selections.length ?? 0) > 0 || retirement !== null;
@@ -330,14 +336,22 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
       admission_digest: selection.admission_digest
     }), selection])).values()];
   const assertDefinitions = async () => {
-    for (const selection of distinctRepins) {
-      const pin = await pkg.pinProofSelection(selection.proof_name);
-      if (['proof_version', 'profile_digest', 'parameter_contract_digest', 'admission_digest'].some(key => pin[key] !== selection[key])) {
-        throw new ControlledContractToolError('obligation_coverage_final_compare_stale', 'Requested current definition moved before publication');
+    try {
+      for (const selection of distinctRepins) {
+        const pin = await pkg.pinProofSelection(selection.proof_name);
+        if (['proof_version', 'profile_digest', 'parameter_contract_digest', 'admission_digest'].some(key => pin[key] !== selection[key])) {
+          throw new ControlledContractToolError('obligation_coverage_final_compare_stale', 'Requested current definition moved',
+            { movement: 'definition', proof_name: selection.proof_name, proof_version: selection.proof_version });
+        }
       }
+      for (const definition of new Map(assessment.definition_identities.map(value =>
+        [controlledContractContentDigest(value), value])).values()) await pkg.loadPinnedProofSelection(definition);
+    } catch (error) {
+
+      const { changed: _changed, ...details } = error.details ?? {};
+      error.details = details;
+      throw error;
     }
-    for (const definition of new Map(assessment.definition_identities.map(value =>
-      [controlledContractContentDigest(value), value])).values()) await pkg.loadPinnedProofSelection(definition);
   };
   return { candidate, contractInputs, editsRequirements, editsPosture, requirementRetirements,
     retirement, assertDefinitions };

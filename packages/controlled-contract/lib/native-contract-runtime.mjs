@@ -1,3 +1,4 @@
+import { valueReferences, normalizeValueOperand } from './controlled-values-v1.mjs';
 import { resolveNativeContractDag } from "./native-contract-dag.mjs";
 
 const compareCodeUnits = (left, right) => {
@@ -607,7 +608,18 @@ function createNativeContractRuntime({
           reference_id: referenceId
         });
       }
+      for (const referenceId of valueReferences([proposition.for_each ?? [], proposition.within ?? null,
+        ...proposition.operands.filter(operand => operand.kind === 'value')])) {
+        if (!referenceById.has(referenceId)) diagnostics.push({ code: 'dangling_value_reference',
+          proposition_id: proposition.proposition_id, reference_id: referenceId });
+      }
       for (const operand of proposition.operands) {
+        if (operand.kind === 'value') {
+          const { kind: _kind, ...payload } = operand;
+          try { normalizeValueOperand(payload, proposition.proposition_id); }
+          catch (error) { if (!error.code?.startsWith('value_')) throw error;
+            diagnostics.push({ code: error.code, proposition_id: proposition.proposition_id, ...error.details }); }
+        }
         if (operand.kind === "reference" && !referenceById.has(operand.reference_id)) {
           diagnostics.push({
             code: "dangling_proposition_operand",

@@ -1,4 +1,5 @@
 import { sha256 } from "../../lib/exact-binding-common.mjs";
+import { ExactBindingError } from "../../lib/deterministic-projection-primitives.mjs";
 import { executeDeterministicProjection } from
   "../../lib/deterministic-projection.mjs";
 import {
@@ -149,6 +150,30 @@ const COMPLETE_TRAVERSAL_MUTANT_IDS = Object.freeze([
   ...Object.keys(functionalMutants), ...Object.keys(resourceMutants)
 ].sort());
 
+const expectedFunctionalRejections = Object.freeze({
+  "authenticated-population-omission": "complete_traversal_occurrence_extra",
+  "authenticated-population-substitution": "complete_traversal_occurrence_substitution",
+  "authentication-capture-substitution": "complete_traversal_source_authentication_mismatch",
+  "traversal-occurrence-omission": "complete_traversal_occurrence_missing",
+  "traversal-occurrence-duplication": "complete_traversal_returned_occurrence_duplicate",
+  "traversal-extra-member": "complete_traversal_occurrence_extra",
+  "within-page-reorder": "complete_traversal_order_mismatch",
+  "cross-page-reorder": "complete_traversal_order_mismatch",
+  "cursor-skip": "complete_traversal_cursor_skip",
+  "cursor-replay": "complete_traversal_cursor_replay",
+  "cursor-fork": "complete_traversal_cursor_fork",
+  "cursor-substitution": "complete_traversal_cursor_substitution",
+  "cursor-dangling": "complete_traversal_cursor_dangling",
+  "early-terminal": "complete_traversal_early_terminal",
+  "post-terminal-request": "complete_traversal_post_terminal_request",
+  "unknown-cursor": "complete_traversal_cursor_unknown",
+  "snapshot-drift": "complete_traversal_snapshot_drift",
+  "version-drift": "complete_traversal_version_drift",
+  "identifier-renaming-dependence": "complete_traversal_occurrence_identity_mismatch",
+  "equality-normalized-duplicate": "complete_traversal_equality_ambiguity",
+  "unknown-occurrence-identity": "complete_traversal_occurrence_identity_mismatch"
+});
+
 function executeCompleteTraversalMutant(mutantId) {
   const resource = resourceMutants[mutantId];
   if (resource) {
@@ -156,26 +181,29 @@ function executeCompleteTraversalMutant(mutantId) {
       completeTraversalResourceFixture(resource.resource);
     try {
       executeDeterministicProjection(transformerId, fixture.sources);
-      return { killed: false, code: null };
+      return { killed: false, code: null, expected_code: resource.code };
     } catch (error) {
+      if (!(error instanceof ExactBindingError) || error.code !== resource.code ||
+          error.details?.resource !== resource.resource ||
+          error.details?.observed !== expectedMeasure) throw error;
       return {
-        killed: error?.code === resource.code &&
-          error?.details?.resource === resource.resource &&
-          error?.details?.observed === expectedMeasure,
-        code: error?.code ?? null
+        killed: true, code: error.code, expected_code: resource.code
       };
     }
   }
   const mutant = functionalMutants[mutantId];
   if (!mutant) throw new TypeError(`unknown complete traversal mutant: ${mutantId}`);
+  const expectedCode = expectedFunctionalRejections[mutantId];
+  if (!expectedCode) throw new Error(`missing expected rejection for ${mutantId}`);
   const fixture = completeTraversalTraceFixture({ page_sizes: [2, 1, 1, 1] });
   mutant.mutate(fixture);
   rebuildCompleteSources(fixture, { reauthenticate: mutant.reauthenticate === true });
   try {
     executeDeterministicProjection(transformerId, fixture.sources);
-    return { killed: false, code: null };
+    return { killed: false, code: null, expected_code: expectedCode };
   } catch (error) {
-    return { killed: true, code: error.code };
+    if (!(error instanceof ExactBindingError) || error.code !== expectedCode) throw error;
+    return { killed: true, code: error.code, expected_code: expectedCode };
   }
 }
 

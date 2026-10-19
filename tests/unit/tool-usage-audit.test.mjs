@@ -103,7 +103,7 @@ async function withSyntheticAgentRunsFixture(callback) {
     await writeText(path.join(runDir, "context", "server.mjs"), "export const size = 1;\n");
 
     await writeJson(path.join(runDir, "trajectory.json"), {
-      schema_version: "deepswe.trajectory.v1",
+      schema_version: "codex.trajectory.v1",
       id: "trajectory-001",
       subject: "WK-1437#SLICE-007",
       tool_events: [
@@ -304,12 +304,12 @@ test("historical agent-runs baseline extracts source_kind, confidence, unsupport
       baseline.facts,
       (fact) =>
         fact.fact_kind === "event" &&
-        fact.source_kind === "historical_deepswe_trajectory" &&
+        fact.source_kind === "historical_codex_trajectory" &&
         fact.event?.tool_name === "workspace_search",
-      "DeepSWE trajectory structured tool event"
+      "Codex trajectory structured tool event"
     );
     assert.equal(trajectoryTool.confidence, "high");
-    assert.equal(trajectoryTool.evidence_basis, "structured_deepswe_or_codex_tool_event");
+    assert.equal(trajectoryTool.evidence_basis, "structured_codex_tool_event");
     assert.equal(trajectoryTool.event.args.category, "object");
     assert.equal(trajectoryTool.event.args.contains_sensitive_key, true);
     assert.equal(trajectoryTool.event.result.category, "object");
@@ -318,13 +318,13 @@ test("historical agent-runs baseline extracts source_kind, confidence, unsupport
       baseline.facts,
       (fact) =>
         fact.fact_kind === "event" &&
-        fact.source_kind === "historical_deepswe_session_jsonl" &&
-        fact.transport_kind === "historical_deepswe_session_jsonl" &&
+        fact.source_kind === "historical_codex_session_jsonl" &&
+        fact.transport_kind === "historical_codex_session_jsonl" &&
         fact.event?.tool_name === "functions.exec_command",
       "Codex session JSONL structured tool event"
     );
     assert.equal(codexSessionTool.confidence, "high");
-    assert.equal(codexSessionTool.evidence_basis, "structured_deepswe_or_codex_tool_event");
+    assert.equal(codexSessionTool.evidence_basis, "structured_codex_tool_event");
     assert.equal(codexSessionTool.event.args.contains_sensitive_key, true);
     assert.equal(codexSessionTool.event.args.path_reference_count, 1);
 
@@ -422,8 +422,8 @@ test("historical agent-runs baseline extracts source_kind, confidence, unsupport
     assert.match(serialized, /"path":"docs\/mcp-integration\.md"/);
     assert.match(serialized, /"path":"wiki\/work-records\/WK-1437\.json"/);
 
-    assert.equal(baseline.summary.by_source_kind.historical_deepswe_trajectory, 1);
-    assert.equal(baseline.summary.by_source_kind.historical_deepswe_session_jsonl >= 1, true);
+    assert.equal(baseline.summary.by_source_kind.historical_codex_trajectory, 1);
+    assert.equal(baseline.summary.by_source_kind.historical_codex_session_jsonl >= 1, true);
     assert.equal(baseline.summary.by_source_kind.historical_codex_stderr_shell >= 1, true);
     assert.equal(baseline.summary.by_source_kind.historical_apply_patch_text >= 1, true);
     assert.equal(baseline.summary.by_source_kind.historical_review_context_bundle, 2);

@@ -9,6 +9,39 @@ public repository selectors, old aliases, help/router delegates or generic
 spill-reader routes. Independently preserved operator-only tools keep their
 existing owner implementations and tier filters.
 
+## Standalone client configuration
+
+Managed role sessions receive launcher-authored client registration and a prepared
+backend. For an independent operator client, the following generic MCP client
+configuration is illustrative; adapt the surrounding configuration key to that
+client's own format and replace the absolute consumer path:
+
+```json
+{
+  "mcpServers": {
+    "wiki": {
+      "command": "node",
+      "args": ["/absolute/consumer/node_modules/@agent-chassis/core/bin/wiki-mcp"],
+      "env": {
+        "WIKI_MCP_WORKSPACE_DIR": "/absolute/consumer",
+        "WIKI_MCP_TOOL_PROFILE": "operator"
+      }
+    }
+  }
+}
+```
+
+The executable and Node must be installed and reachable by the client. The server
+requires an explicit supported role profile and one resolvable repository;
+starting a bare binary without these does not establish a working deployment.
+An operator profile exposes operator tasks, not managed agent start/execution.
+This configuration has not launched a model or demonstrated managed dispatch.
+No caller request may change the server's repository or grant a higher role.
+
+Managed Claude and Codex use the launcher's private Unix-domain socket admission
+service with a pinned stdio connector, not a standalone in-sandbox server or
+named-FIFO relay. See [conduit lifecycle](agent-launch-mcp-conduit-lifecycle.md).
+
 ## Registration conformance boundary
 
 [Operation reference](mcp-operation-reference.md#operations) names the exact
@@ -31,6 +64,13 @@ reports the selected row's actual member path and type, enum, pattern or require
 member constraint through the shared input projector. An inapplicable union
 branch cannot invalidate a valid unit or supported change member. Missing authored
 values remain caller choices; diagnosing a refusal does not relax the full validator.
+
+Creation registration uses the same bounded input projector for every validation
+refusal. A supported kind and object-shaped `initial` select the birth owner's
+diagnostics at exact `initial` member paths, including caller-defined segments
+and misplaced-member placement guidance. Other envelope failures retain the
+bounded validator diagnosis, alongside birth diagnostics when both apply.
+Invalid requests allocate nothing and execute no creation or maintenance.
 
 Workers receive read/native/proof/result/delivery tools; delivery is the closed
 empty `workspace_deliver_work` request authenticated by the launcher. Reviewer
@@ -84,14 +124,116 @@ rules. Malformed and stale saves do not silently rebase. Assessment shares its
 owner with authoring and executes no proof provider. Saved dispositions remain
 advisory input without integration effects.
 
+`save_record` acknowledges success or no change with the resulting same-unit
+write revision. Issued request-key bindings support dependent authoring directly;
+keyed requirement rows appear once in `bindings.requirement`, with unkeyed
+verification identities attached when needed. Unkeyed rows retain their identity
+receipt. New entry/version associations remain available. A successful save
+requires no current read, assessment or receipt retrieval. Automatic assessments,
+successful checks (including advisory warnings) and source/retention bookkeeping
+stay internal. Refusals retain actual publication effects without routine lists
+of operations the save never performs. Where a save
+issues bindings, an exception consequence or a consequential failure, its optional `saved_outcome` call
+reads the authenticated historical save meaning, not the stored execution carrier.
+That read repeats no mutation or checks and supplies no current write authority.
+An unavailable current reader is a specific limit on stale-write recovery.
+`save_record({unit,maintenance_observe:{save_result}})` observes the current
+maintenance of that authenticated original. It writes nothing and runs no checks.
+Busy responses offer this observation after progress, rather than another
+maintenance execution. A running intent without a recorded completion may still
+be active or interrupted; the reader does not invent a verdict.
+
+After an entire acknowledgment or issued mappings are lost, use
+`save_record({recover:{request:<exact original save request>}})`. The server
+correlates the original request with authenticated retained operation state;
+this request is never executed. Resulting identities and revisions come from
+that state, never from row order, prose or a current-record reconstruction.
+Multiple matching operations expose known subject/effect choices with exact
+observation calls where an issued unit identifies one operation. The optional
+`recover.unit` is that caller-selected issued subject. Multiple operations on
+the same subject can remain ambiguous. Missing, unreadable or unrecorded evidence
+does not establish nonpublication and never authorizes replay. This lookup does
+not recover operations that were never retained with a request binding.
+
+If necessary response detail exceeds ordinary delivery and no
+authentic retained source can be read, the response preserves publication and
+explicitly stops dependent authoring instead of returning a partial identity map
+as complete. Available diagnostic codes, subjects and causes remain immediate;
+unavailable complete detail is an explicit stopping condition. A retained
+operation outcome can supply complete delivery without a compulsory detail read.
+
+Persistence failures expose their specific diagnostics and actual partial
+effects: distinct participant publication states and artifacts already published,
+removed or unsuccessfully removed. Whole record snapshots, artifact census,
+successful retention checks and persistence execution traces stay internal in
+both immediate responses and historical reads.
+
 Production create and save both receive the existing wiki-core `generateAndLint`
 executor. Applicable publication runs repository generation and lint once after
 the canonical settlement, recording the check owner's actual captured source.
 A saved or created record remains published if checks fail or cannot run; the
 maintenance result preserves that cause separately. The returned
 `save_record({unit,maintenance_retry:{save_result}})` call uses the immutable
-producer receipt and runs only failed or not-run maintenance. It repeats no
-creation or save. Refusals, no-ops and retries of successful maintenance run no checks.
+producer receipt and runs only failed, unknown or not-run maintenance. It repeats
+no creation or save. Refusals, no-ops and retries of durably settled successful
+maintenance run no checks.
+
+Artifact cleanup that failed after canonical publication is a separate pending
+maintenance member when its retained subjects are known. A retry uses the same
+record-owned artifact cleanup and reference census under the same write lock.
+It attempts only retained unfinished subjects, respects current references and
+does not rewrite the record or rerun successful generate/lint checks. A completed
+cleanup is no longer presented as outstanding; its initial partial effects stay
+available in historical meaning.
+
+A completed check verdict can coexist with an executor exception after checks.
+Save responses preserve that exception separately from the completed verdict
+and known generated-view effects, including on inspection of a settled retry.
+The current maintenance carrier does not identify the failed post-check phase,
+so the response does not infer it from the exception's text. No supported call
+repairs that post-check failure; rerunning successful checks or replaying the
+save is not its recovery. A retry with no pending checks reports
+`no_retry_needed` without discarding a readable retained post-check failure.
+
+Maintenance reports execution independently of coordination persistence. Retained
+outcomes and observations can establish completed checks even when a coordination
+replacement was lost. Reading them runs nothing; retry reconstructs only necessary
+coordination and executes remaining work. It never repeats a known completed check.
+If all needed work completed, a coordination failure alone adds no agent recovery
+step. Where work or certainty remains missing, the public response preserves the
+specific failure, affected members, known effects, uncertainty and supported
+recovery calls. Captured-source facts or retained-result
+references appear only when needed to understand the failure or take the next
+step. Successful check inventories and server bookkeeping stay internal, including
+behind historical reads; additional task-relevant historical meaning remains
+readable through the save owner's supported original read. No partial success or
+distinct member failure is hidden. That attempt is not claimed durably settled.
+The authenticated original remains the explicit maintenance-only retry boundary;
+no automatic replay occurs. A missing index alone proves neither nonexecution nor
+failure: retained observations are consulted before any remainder execution. When
+no retained evidence establishes the completed work, recovery reports that limit
+instead of using another execution as observation.
+
+`check.ran` records executor invocation. An absent executor or an established
+failure before invocation reports `not_run`; an invoked executor that throws
+without phase facts reports an unknown outcome and unknown generated-view effects.
+The native executor carries its observed phases: completed generation remains
+`generated_views: "regenerated"` when lint subsequently throws. Lint then has an
+unavailable verdict, its original cause and no invented lint or proof success.
+Captured corpus identity identifies the input read, even when lint was unavailable;
+it does not establish successful validation. Historical observations remain immutable.
+
+The operator's current `generate_and_lint({dir,max_findings})` route accepts a
+nonnegative integer cap: omission keeps the compact 20-finding default, zero
+returns counts only, and a positive value returns that many findings in producer
+order, with exact full totals and truncation status. Follow the returned same-route
+`max_findings` recovery to request the full population. If the requested result
+exceeds ordinary inline transport capacity, a compact summary supplies a
+`generate_and_lint({dir,original:{ref_id}})` selected-full read of the retained
+result. That read authenticates the producer route and directory, works after
+restart and performs no generation or lint. It returns the complete historical
+result without the inline byte ceiling through the existing selected-response
+owner; it is not a fresh observation.
 
 `workspace_find_proofs` supplies the complete catalogue when called with no
 arguments, complete lexical matches for an optional query, and source-authenticated
@@ -280,8 +422,8 @@ client-surface proof.
 
 Lifecycle compatibility is established by the host wiki-MCP process that was
 actually spawned. Its initial launcher-only
-`wiki-mcp-launcher-readiness.v2` registration includes
-`lifecycle_protocol_generation: stdio-mcp-conduit-lifecycle-vocabulary.v2`,
+`wiki-mcp-launcher-readiness.v3` registration includes
+`lifecycle_protocol_generation: stdio-mcp-conduit-lifecycle-vocabulary.v3`,
 loaded from that process's conduit contract. The long-lived launcher compares
 the announcement with its own loaded generation. No request field, environment
 value, filesystem fingerprint, backend generation, or historical state supplies
@@ -370,13 +512,26 @@ empty, unknown or malformed selection and any reference it cannot follow. A
 group is navigation metadata, not a required sequence of reads, and each
 source member has exactly one group.
 
+The construction owner keeps the serving requirement batch concise: accepted
+type, relation and applicability terms use enums derived from the same owners;
+their complete definitions remain in requirement guidance. Shared obligation
+statement, criteria, claims, proof and case nodes are local definitions rather
+than repeated bodies. Exposure still returns the entire selected owner schema,
+with every reachable definition and constraint. A held schema stays usable
+across record revisions; optional job reads need not be repeated after saves.
+
 `save_record` declares its four per-variant `changes` sources (work item, work
 item slice, initiative, decision) through `save-record-input-exposure.mjs`; the
 variant's own source decides which members exist and apply. The registrar binds
 a declaration before the SDK registers the tool and retains the binding with
 the request contract only when registration succeeds, per registrar; a
 declaration that differs from the retained one is a conflicting registration.
-A source's digest is the identity of its whole schema, not a record revision.
+A source's digest includes its whole schema and any capability/guidance exposure
+metadata. It is independent of the record revision. Owner-published requirements
+capabilities scope both syntax and operators at construction; the generic helper
+selects their transitive local definitions and the matching guidance. Unscoped
+reads retain complete members, and the full validator is unchanged. See
+[requirement selections](mcp-selected-response-details.md#save-input-contract-selection).
 The binding keeps one reference graph per declared source and remembers no
 selection.
 
@@ -469,3 +624,5 @@ advisory review evidence and an authenticated configured policy decision remain
 separate. See [enforcement](enforcement-model.md),
 [launch and admission](mcp-dispatch-launch-and-admission.md) and
 [managed lifecycle](mcp-dispatch-managed-run-lifecycle.md).
+
+The current readiness registration requires `registered_tier` to name a known profile equal to the launcher’s captured host selection. Missing, unknown or mismatched profiles refuse that connection generation before readiness; the operator restarts the affected connection with coherent host configuration. Registration establishes no CCE admission or audit assurance.

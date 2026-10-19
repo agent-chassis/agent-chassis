@@ -50,19 +50,22 @@
         "docs/mcp-integration.md",
         "packages/wiki-core/src/lib/sidecar-query-context.mjs",
         "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
-        "packages/wiki-core/src/lib/sidecar-status.mjs"
+        "packages/wiki-core/src/lib/sidecar-status.mjs",
+        "packages/wiki-mcp/src/lib/code-index-query-meaning.mjs",
+        "packages/wiki-mcp/src/lib/code-index-query-selection.mjs"
       ],
-      "notes": "The one agent code read for the current repository; no argument selects a repository, root, cache or commit. Selectors choose the answer: exactly one of paths, patchText, diffRecords or liveGit:true asks change impact, which path and symbol narrow; symbol, or path with line and optional character, asks definition, references, callers and callees, which relationship narrows to one; path alone asks that file's committed context. status:true alone reports the published index passively. An ordinary question answers from the last published index without waiting, states indexed_commit, indexed_commit_short and current_head, and may request a background refresh that writes the ignored derived cache; status and detail reads write nothing and start no refresh. Every answer is a bounded summary of a complete original retained once; follow next_calls to read each collection completely through the shared pager, and read an oversized page or row through workspace_read_mcp_content_reference. CLI fallbacks: `npm run wiki -- code-index impact|context-for-path|status --json`.",
+      "notes": "Ask the code question directly for the bound repository: paths/patchText/diffRecords/liveGit:true select potential impact; symbol or path+line select navigation; relationship narrows to definition, references, callers or callees; path alone selects file context. Symbols are exact raw SCIP identities; locals require their document. Position resolution covers a whole line even with character. Small source is inline; returned calls read only task-relevant meaning from the same retained original without paging, decoding or reevaluation. Status:true alone passively answers availability and material limits. Ordinary questions preserve their existing background-refresh effects; status and detail request no refresh. Current index content does not establish alignment with an independently reviewed version.",
       "use_when": [
-        "Find affected files, relationships, tests and canonical records for known paths or a diff.",
-        "Read one file's committed context, or one symbol's definition, references, callers and callees.",
-        "Check which commit the published code index describes before relying on an answer."
+        "Find potential affected code and relationship meaning for known paths or a diff.",
+        "Inspect one file's source/context or a returned symbol's definition, references, callers or callees.",
+        "Answer an explicit question about index availability or coverage."
       ],
       "do_not_use_when": [
-        "You need to prepare the index: this route prepares nothing. Call status:true and follow the next_calls entry with purpose prepare_index when status offers one; otherwise preparation.missing_capability states that this session cannot prepare it."
+        "You need free-text code search or column-precise symbol resolution; this route provides neither.",
+        "The task is index maintenance: use only a registered, task-authorized preparation call. Reading status/detail never grants maintenance authority."
       ],
       "authoritative_for": [
-        "committed code questions, their documented selector precedence, and the published index status"
+        "published checkout code meaning within stated coverage and source limits, selector precedence and index availability"
       ],
       "recommended_first_call": {
         "operation": "query impact for known repo-relative paths",

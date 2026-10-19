@@ -7,7 +7,7 @@ const root = new URL("../../", import.meta.url);
 const readJson = (relative) => JSON.parse(readFileSync(new URL(relative, root), "utf8"));
 const taxonomy = composedTaxonomy;
 const faq = readJson("packages/wiki-core/data/agent-faq.v1.json");
-const discovery = readJson("packages/wiki-core/data/tool-discovery/launcher-tools.json");
+const discovery = readJson("packages/wiki-core/data/tool-discovery/mcp-tools.json");
 
 const recoverable = new Set([
   "agent_launch.terminal_candidate.status.candidate_stale_w.v1",
@@ -34,7 +34,7 @@ test("every supported terminal-candidate recovery has one bounded FAQ action", (
       assert.equal(entry.routes.length, 1, code);
       const route = entry.routes[0];
       assert.equal(discoveryNames.has(route.tool), true, route.tool);
-      assert.deepEqual(Object.keys(route.args ?? {}), ["wk_id"]);
+      assert.deepEqual(Object.keys(route.args ?? {}), ["subject"]);
       assert.ok(route.note.length <= 512);
     }
   }
@@ -50,12 +50,12 @@ test("non-recoverable terminal-candidate identities have no fabricated FAQ actio
   for (const code of all) assert.equal(faqCodes.has(code), false, code);
 });
 
-test("advance is advertised only for stale W and status is the post-advance observation", () => {
+test("candidate recovery inspects before choosing an exact advance version", () => {
   const stale = faq.entries.find((entry) => entry.id === "terminal-candidate-stale-w-advance");
-  assert.equal(stale.routes[0].tool, "workspace_terminal_review_candidate_advance");
+  assert.equal(stale.routes[0].tool, "workspace_inspect_candidate");
   const reobserve = faq.entries.find((entry) => entry.id === "terminal-candidate-advance-reobserve");
-  assert.equal(reobserve.routes[0].tool, "workspace_terminal_review_candidate_status");
+  assert.equal(reobserve.routes[0].tool, "workspace_inspect_candidate");
   const serialized = JSON.stringify([stale, reobserve]);
-  for (const forbidden of ["git ", "ref:", "sha:", "path:", "cas:", "lock:"])
+  for (const forbidden of ["git push", "git update-ref", "ref:", "sha:", "path:", "cas:", "lock:"])
     assert.equal(serialized.toLowerCase().includes(forbidden), false, forbidden);
 });

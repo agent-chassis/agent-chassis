@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 import { captureTestFailureDiagnostic } from
   "./workspace-agent-test-proof-error-diagnostic.mjs";
+import { nodeTestInstalledSourceBindingFailure, nodeTestInstalledSourceSelected, projectNodeTestInstalledCoverage } from
+  "./workspace-agent-test-proof-source-binding.mjs";
 
 const SCHEMA_VERSION = "workspace-agent-test-proof-node-events.v1";
 const EVENT_TYPES = new Set(["test:coverage", "test:fail", "test:pass", "test:summary"]);
@@ -79,6 +81,8 @@ function errorCodes(error, result = new Set(), seen = new Set()) {
 }
 
 const REPORT_ROOT = new URL(import.meta.url).searchParams.get("launcher_repository_root");
+const sourceBindingText = new URL(import.meta.url).searchParams.get("node_test_source_binding");
+const SOURCE_BINDING = sourceBindingText === null ? null : JSON.parse(sourceBindingText);
 
 function isFileProcessNode(data) {
   if (data.nesting !== 0 || typeof data.name !== "string") return false;
@@ -143,8 +147,11 @@ function projectEvent(event, nodes) {
     const cwd = REPORT_ROOT ?? event.data?.summary?.workingDirectory ?? process.cwd();
     return {
       type: event.type,
+      source_binding_failure: nodeTestInstalledSourceBindingFailure(SOURCE_BINDING),
+      installed_source_selected: nodeTestInstalledSourceSelected(SOURCE_BINDING),
       files: (event.data?.summary?.files ?? []).map((file) => ({
-        path: relativeRuntimeTestFile(file.path, cwd),
+        ...(projectNodeTestInstalledCoverage(file.path, SOURCE_BINDING) ?? {
+          path: relativeRuntimeTestFile(file.path, cwd) }),
         covered_line_count: file.coveredLineCount ?? 0,
         functions: (file.functions ?? []).map(({ name, count }) => ({ name, count }))
           .filter(({ name }) => typeof name === "string").sort(
@@ -183,7 +190,12 @@ function projectEvent(event, nodes) {
     ...(event.type === "test:fail"
       ? {
           error_codes: [...errorCodes(event.data?.details?.error)].sort(),
-          failure_diagnostic: captureTestFailureDiagnostic(event.data?.details?.error)
+          failure_diagnostic: captureTestFailureDiagnostic(event.data?.details?.error, {
+            ...(file !== null && Number.isSafeInteger(event.data?.line) && event.data.line > 0
+              ? { location: { file, line: event.data.line,
+                ...(Number.isSafeInteger(event.data.column) && event.data.column > 0
+                  ? { column: event.data.column } : {}) } } : {})
+          })
         }
       : {})
   };

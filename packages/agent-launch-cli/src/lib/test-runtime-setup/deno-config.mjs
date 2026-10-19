@@ -33,6 +33,29 @@ function parseJsonc(text) {
   return JSON.parse(json.replace(/,(\s*[}\]])/gu, "$1"));
 }
 
+export function readDenoConfig(text, manifest) {
+  try {
+    const config = parseJsonc(text);
+    if (config === null || typeof config !== "object" || Array.isArray(config)) {
+      throw new Error("Deno configuration must be an object");
+    }
+    if (config.workspace !== undefined && (!Array.isArray(config.workspace) || config.workspace.some(member =>
+      typeof member !== "string" || member.length === 0 || member.startsWith("/") ||
+      member.split("/").includes("..")))) {
+      throw new Error("Deno workspace must be an array of repository-relative member patterns");
+    }
+    return config;
+  } catch (error) {
+    throw Object.assign(new Error(`${manifest}: ${error.message}`), {
+      code: "test_runtime_manifest_invalid", detail: { manifest, error: error.message }
+    });
+  }
+}
+
+export function denoWorkspacePatterns(text, manifest) {
+  return readDenoConfig(text, manifest).workspace ?? null;
+}
+
 export function denoLockSelection(projectDir) {
   const selected = (name) => {
     const file = path.resolve(projectDir, name);

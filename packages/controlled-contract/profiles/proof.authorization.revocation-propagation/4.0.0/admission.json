@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "56b698798336234c9e50afaccfd3c436928a5cd3c240433dd6693240be10b0a9",
+  "parameter_contract_digest": "dd12d170375e90ce5a1394a5d63e297c04e0f9b9e54a4c5b1594b4f633edd80c",
   "profile_id": "proof.authorization.revocation-propagation",
   "profile_version": "4.0.0",
-  "profile_digest": "d7f1071210a8c578d973e7d8e3f4afccb3b2d03359f451b5571325fc50b085b2",
+  "profile_digest": "22b7b2fbb9a41c2990bbdcee8187ae33cd2d6ecd6c525cc395843eb5edc6a5ae",
   "guarantee": "For one declared authority and revocation event, one complete declared enforcement-consumer population applies the same revoked state during a finite declared propagation interval after revocation and before every member of one complete declared post-revocation attempt population; every such attempt uses that authority, targets that consumer population, is a member of an equal complete refused-attempt population, and neither writes nor mutates any member of one complete declared protected-effect population.",
   "guarantee_digest": "573f7757b9134bdcd7929c205b6e8aea8316944787432cea7a5fba7b45b5c718",
   "explicit_exclusions": [
@@ -16,8 +16,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "a4fd9322383a91f2e2857bc90116d247a250cfcad4b7e8df3a41e2eb39951e50",
-    "adequacy_result_digest": "bbe530501ec4af1ac09d1e76c2b9644dfe7fb0a663cf1b9323b60e82b0683764",
+    "adequacy_declaration_digest": "c2a7672d2b17bdbc2c8c14684f0d54d1258e915117911bdf35b0b7d5b22abe7f",
+    "adequacy_result_digest": "8bb6844f3f1d36d792d3344dab3ef034456dfd2e759df30f405efb8dedcde229",
     "executable_control_count": 43,
     "negative_fixture_count": 121,
     "coverage_witness_count": 121

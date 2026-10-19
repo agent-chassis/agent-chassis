@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "cli-commands.json",
   "summary": "wiki, agent-launch and agent-chassis setup CLI command rows.",
-  "tool_count": 11,
+  "tool_count": 12,
   "tools": [
     {
       "tool_name": "wiki-docs-policy-validate",
@@ -101,7 +101,7 @@
         "packages/wiki-cli/src/commands/search.mjs",
         "packages/wiki-cli/src/run.mjs"
       ],
-      "notes": "Compact CLI fallback for repo-scoped wiki and docs lookup. Results are bounded and preview-oriented; use the MCP `workspace_search_repo` route when you need the same compact search semantics from an agent session."
+      "notes": "Compact CLI for wiki and docs lookup. Agents use workspace_read_wiki with search:{query}, then its returned reference for complete results."
     },
     {
       "tool_name": "wiki-read",
@@ -133,7 +133,7 @@
         "packages/wiki-cli/src/commands/read.mjs",
         "packages/wiki-cli/src/run.mjs"
       ],
-      "notes": "Detailed CLI fallback for operator inspection. It prints full markdown or record JSON, so it is not the daily-use compact path; use `workspace_read_page` or `workspace_get_record` for compact agent retrieval."
+      "notes": "Operator inspection prints full Markdown or record JSON. Agents use workspace_read_wiki with a document or record subject, then its returned reference for selected content."
     },
     {
       "tool_name": "wiki-validate-dispatch",
@@ -166,7 +166,7 @@
         "packages/wiki-cli/src/commands/validate-dispatch.mjs",
         "packages/wiki-core/src/lib/work-record-dispatch.mjs"
       ],
-      "notes": "Compact CLI fallback for dispatch-readiness checks on a WK or slice. CLI behavior is unchanged; use the strict MCP `workspace_validate_dispatch` route for its sole lossless readiness response, returned selected-owner detail calls, and content-reference transport."
+      "notes": "Operator CLI for WK or slice readiness checks. Agents assess the exact saved unit using start_agent({subject,preview:true}) and follow its returned cause-specific guidance; preview starts nothing and grants no launch permission."
     },
     {
       "tool_name": "agent-launch-provenance",
@@ -380,7 +380,61 @@
         "packages/core/scripts/test-runtime-setup/cli.mjs",
         "packages/agent-launch-cli/src/lib/test-runtime-setup/index.mjs"
       ],
-      "notes": "Operator-run detection of the test environments workspace_verify_proof native proofs need. Without --runner it inventories every dependency environment the repository's own manifests declare (npm with workspace members, Python, Go, Cargo, Deno; ignored paths and test fixtures excluded) in every language; nothing is chosen from a list. Runners are those the toolchain provides (node-test, go-test, cargo-test, deno) or the environment declares (jest, vitest, mocha, ava, lib0-testing, pytest, stestr). It finds the toolchains and dependencies the operator installed (configured locations or PATH; node_modules, virtual environment, GOMODCACHE, Cargo vendor or registry, DENO_DIR), validates them against the repository's pins and manifests, verifies them in the launcher sandbox, then publishes .agent-launch/test-runtimes/readiness.json with one ID per environment (npm@., python@services/api) that workspace_verify_proof's optional environment names. It never downloads or installs anything; a missing component is reported for the operator to install. --runner detects only the named runners' environments. It never runs wiki bootstrap."
+      "notes": "Operator-run detection of the test environments verify_proof native proofs need. Without --runner it inventories every dependency environment the repository's own manifests declare (npm with workspace members, Python, Go, Cargo, Deno; ignored paths and test fixtures excluded) in every language; nothing is chosen from a list. Runners are those the toolchain provides (node-test, go-test, cargo-test, deno) or the environment declares (jest, vitest, mocha, ava, lib0-testing, pytest, stestr). It finds the toolchains and dependencies the operator installed (configured locations or PATH; node_modules, virtual environment, GOMODCACHE, Cargo vendor or registry, DENO_DIR), validates them against the repository's pins and manifests, verifies them in the launcher sandbox, then publishes .agent-launch/test-runtimes/readiness.json with one ID per environment (npm@., python@services/api) that verify_proof's optional environment names. It never downloads or installs anything; a missing component is reported for the operator to install. --runner detects only the named runners' environments. It never runs wiki bootstrap."
+    },
+    {
+      "tool_name": "wiki-feedback-add",
+      "display_name": "Record advisory feedback",
+      "kind": "cli_command",
+      "entrypoint": "wiki feedback add --stdin --new-session|--session <id> [--dir <repo>] --json",
+      "task_ids": [
+        "record-feedback"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 60,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/agent-feedback.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/agent-feedback.mjs",
+        "packages/wiki-cli/src/commands/feedback.mjs"
+      ],
+      "notes": "Append-only ignored runtime SQLite feedback, separate from canonical content. Explicit feedback sessions; versions supplied by runtime. Ambient local filesystem access; no MCP role enforcement or MCP startup.",
+      "use_when": [
+        "A direct implementation worker or local operator needs repository-local feedback without starting or calling MCP."
+      ],
+      "do_not_use_when": [
+        "Do not use feedback as a completion gate or canonical finding."
+      ],
+      "authoritative_for": [
+        "local advisory observations only"
+      ],
+      "recommended_first_call": {
+        "operation": "record one observation",
+        "arguments": {
+          "command": "wiki feedback add --stdin --new-session --json"
+        },
+        "omit_null_arguments": true
+      }
     }
   ]
 }

@@ -149,7 +149,7 @@
       ]
     },
     "falsification_provider_binding": {
-      "description": "Whether this proof declares a falsifier. Omitting the binding declares the incumbent meaning, provider mode, under which the proof declares at least one falsifier. registry_unsupported declares that the catalog lists no falsifier provider for it, and the proof then declares none; the selected test still executes and the absent falsification is reported as a capability limitation, never as a satisfied check.",
+      "description": "Whether this proof declares a falsifier. Omitting the binding declares the incumbent meaning, provider mode, under which the proof declares at least one falsifier. registry_unsupported explicitly declares no falsifier for this case, without separate permission, installation-wide provider absence or a prior failed mutation attempt; the selected test still executes and the absent falsification is reported as a capability limitation, never as a satisfied check.",
       "oneOf": [
         {
           "type": "object",

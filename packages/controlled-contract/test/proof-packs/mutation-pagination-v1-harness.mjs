@@ -1,4 +1,4 @@
-import { canonicalJsonBytes, sha256 } from
+import { ExactBindingError, canonicalJsonBytes, sha256 } from
   "../../lib/deterministic-projection-primitives.mjs";
 import {
   mutationPaginationOccurrenceId
@@ -122,12 +122,21 @@ function sources(fixture) {
   );
 }
 
-function oracle(fixture) {
+function oracle(fixture, expectedCode = null) {
+  const sourceBytes = sources(fixture);
   try {
-    executeMutationPaginationProjection(sources(fixture));
+    executeMutationPaginationProjection(sourceBytes);
     return { passed: true, code: null };
   } catch (error) {
-    return { passed: false, code: error.code ?? "untyped" };
+    if (expectedCode === null || !(error instanceof ExactBindingError) ||
+        error.code !== expectedCode) throw error;
+    return {
+      passed: false, code: error.code,
+      rejection: {
+        checker: "transformer", subject: "transformer_input",
+        expected_reason: expectedCode, actual_reason: error.code
+      }
+    };
   }
 }
 
@@ -240,12 +249,39 @@ const VERSIONED_MUTANTS = Object.freeze({
   }
 });
 
+const mutantRejections = Object.freeze({
+  snapshot: Object.freeze({
+    "duplicate-hidden-by-final-count": "projection_member_occurrence_sequence_mismatch",
+    "omission-hidden-by-final-count": "projection_member_occurrence_sequence_mismatch",
+    "mixed-source-versions": "projection_returned_page_version_mismatch",
+    "changed-snapshot-identity": "projection_snapshot_binding_inconsistent",
+    "constant-label-changed-captured-population": "projection_snapshot_state_changed",
+    "wrong-traversal-mutation": "projection_relevant_mutation_mismatch",
+    "reordered-occurrences": "projection_member_occurrence_sequence_mismatch",
+    "prefix-only-comparison": "projection_member_occurrence_sequence_mismatch"
+  }),
+  versioned: Object.freeze({
+    "stale-continuation-succeeds": "projection_stale_attempt_effect_observed",
+    "page-returned-before-error": "projection_stale_attempt_effect_observed",
+    "cursor-advances-before-refusal": "projection_stale_attempt_effect_observed",
+    "wrong-traversal-or-cursor-refused": "projection_refusal_identity_mismatch",
+    "wrong-mutation-treated-relevant": "projection_relevant_mutation_mismatch",
+    "protected-write-before-refusal": "projection_stale_attempt_effect_observed",
+    "unrelated-mutation-causes-false-refusal": "projection_unrelated_mutation_false_refusal",
+    "caller-selected-refusal-or-attempt": "projection_attempt_traversal_mismatch",
+    "identical-content-version-substitution": "projection_stale_version_content_equal",
+    "control-advances-wrong-cursor": "projection_control_success_incomplete"
+  }),
+});
+
 function executeMutant(policy, mutantId) {
+  const expectedCode = mutantRejections[policy]?.[mutantId];
+  if (!expectedCode) throw new Error(`missing transformer rejection for ${policy}/${mutantId}`);
   const fixture = policy === "snapshot" ? snapshotTraceFixture() : versionedCursorTraceFixture();
   const mutant = policy === "snapshot" ? SNAPSHOT_MUTANTS[mutantId] :
     VERSIONED_MUTANTS[mutantId];
   mutant(fixture);
-  return oracle(fixture);
+  return oracle(fixture, expectedCode);
 }
 
 export {

@@ -16,7 +16,7 @@ import {
 } from "./single-use-replay-refusal-harness.mjs";
 
 const PROFILE_DIGEST =
-  "989b34bb49141dac8d2780ef5564c6d0aa512f12f9a1c967b5196aa693227673";
+  "5de9a07bd035523b70c5c72c14dee106f991035916277893d176d496c9806d90";
 const GUARANTEE_DIGEST =
   "b555f4eace29c9d9054bbacd990817451c6a260db3e83ef887ef5bc0584507d2";
 

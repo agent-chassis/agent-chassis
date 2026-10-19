@@ -345,7 +345,7 @@ export function renderLauncherFamilyRoleContract(options = {}) {
     role === 'worker'
       ? `Role: implementation worker for ${subject}.`
       : `Subject: ${subject}.`,
-    renderAgentRoleGuideReadReference(role === 'worker' ? 'managed-worker' : 'reviewer'),
+    renderAgentRoleGuideReadReference(role === 'worker' ? 'managed-worker' : 'reviewer', undefined, { highPriority: input.guideDelivery?.highPriority }),
   ];
 
   if (role === 'worker' && workspaceDir) {
@@ -437,6 +437,7 @@ function renderOrchestratorContext({
   subjectPath,
   repo,
   workspaceDir,
+  registeredTier, publishControlledAcceptanceOptOut = true,
 }) {
   const context = [
     `role=${appName} orchestrator`,
@@ -451,7 +452,7 @@ function renderOrchestratorContext({
 
   return [
     `Context: ${context.join('; ')}.`,
-    renderAgentRoleGuideReadReference('orchestrator'),
+    renderAgentRoleGuideReadReference('orchestrator', registeredTier, { publishControlledAcceptanceOptOut }),
   ].join('\n');
 }
 
@@ -491,6 +492,7 @@ export function renderLauncherFamilyOrchestratorPrompt(options = {}) {
     subjectPath,
     repo,
     workspaceDir,
+    registeredTier: input.registeredTier, publishControlledAcceptanceOptOut: input.publishControlledAcceptanceOptOut,
   }));
 
   if (headless) {

@@ -1,6 +1,7 @@
 
 
 import readline from "node:readline/promises";
+import { ensureAgentChassisGitignore } from "@agent-chassis/wiki-core/src/lib/local-state-ignores.mjs";
 
 import { renderTestRuntimeSetupResult } from "./cli.mjs";
 import {
@@ -12,9 +13,10 @@ import {
   collectRepositoryManifests,
   discoverRuntimeEnvironments,
   environmentsForLanguage,
-  environmentsWithRunners,
   repositoryManifestReader
 } from "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/discovery.mjs";
+import { selectAutomaticTestEnvironments } from
+  "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/automatic-selection.mjs";
 
 const SETUP_MODULE = "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/index.mjs";
 
@@ -27,24 +29,29 @@ async function ask(input, output, question) {
   }
 }
 
-function unattended(output, lines) {
+function unattended(output, lines, failure) {
   for (const line of lines) output.write(`${line}\n`);
-  return { ok: false, status: "unresolved" };
+  return { ok: false, status: "unresolved", phase: "toolchain", failure,
+    correction: failure.detail.correction };
 }
 
 async function resolveMissingExecutable({ name, command, input, output, interactive, invocation }) {
   const option = `--executable ${name}=/absolute/path/to/${command}`;
+  const failure = { code: "test_runtime_toolchain_not_found",
+    message: `No ${command} was found on PATH, so the ${name} toolchain cannot be located.`,
+    detail: { toolchain: name, command,
+      correction: `agent-chassis ${invocation} ${option}` } };
   if (!interactive) {
     return unattended(output, [
       `No ${command} was found on PATH, so the ${name} toolchain cannot be located.`,
       "Rerun setup with its location, for example:",
       `  agent-chassis ${invocation} ${option}`
-    ]);
+    ], failure);
   }
   output.write(`No ${command} was found on PATH for the ${name} toolchain.\n`);
   const answer = await ask(input, output, `Absolute path to ${command} (blank to abort): `);
   if (answer === "") {
-    return unattended(output, [`Set it later with: agent-chassis ${invocation} ${option}`]);
+    return unattended(output, [`Set it later with: agent-chassis ${invocation} ${option}`], failure);
   }
   return { ok: true, executable: answer, source: "your answer" };
 }
@@ -57,7 +64,7 @@ function environmentLine({ id, language, members, runners, evidence }) {
   return `  ${id} (${facts.join("; ")})`;
 }
 
-function reportEnvironments({ output, environments, excluded, source }) {
+function reportEnvironments({ output, environments, excluded, source, automaticSelection = [] }) {
   output.write(`Test environments (from ${source}):\n`);
   for (const environment of environments) output.write(`${environmentLine(environment)}\n`);
   if (excluded.length > 0) {
@@ -65,6 +72,11 @@ function reportEnvironments({ output, environments, excluded, source }) {
     for (const { path: file, reason, environment } of excluded) {
       output.write(`  ${file} (${reason.replaceAll("_", " ")}${environment ? ` ${environment}` : ""})\n`);
     }
+  }
+  for (const decision of automaticSelection) {
+    output.write(`  automatic ${decision.selected ? "selected" : "omitted"}: ${decision.environment} ` +
+      `(${decision.reason}; ${decision.evidence.map(({ kind, path }) => `${kind}: ${path}`).join(", ")}; ` +
+      `${decision.evidence_count} evidence item(s))\n`);
   }
 }
 
@@ -108,7 +120,21 @@ export function explicitRunnerEnvironments(setup, runners, inventory) {
   });
 }
 
-export async function prepareRepositoryTestRuntimes({
+export async function prepareRepositoryTestRuntimes(options = {}) {
+  const setup = await import(SETUP_MODULE);
+  const context = { phase: "selection" };
+  try {
+    return await prepareRuntimes(options, context);
+  } catch (error) {
+    if (!(error instanceof setup.TestRuntimeSetupError) || options.locatePathToolchains === false) throw error;
+    (options.output ?? process.stdout).write(`${error.message}\n`);
+    return { ok: false, status: "failed", ...context,
+      failure: { code: error.code, message: error.message, detail: error.detail },
+      correction: error.detail.correction ?? null };
+  }
+}
+
+async function prepareRuntimes({
   repositoryRoot,
   runners = [],
   language = null,
@@ -123,7 +149,7 @@ export async function prepareRepositoryTestRuntimes({
   output = process.stdout,
   progressOutput = output,
   env = process.env
-} = {}) {
+} = {}, context) {
   const setup = await import(SETUP_MODULE);
   const asking = interactive === null ? input.isTTY === true : interactive;
   const catalog = setup.testRuntimeRunners();
@@ -135,37 +161,47 @@ export async function prepareRepositoryTestRuntimes({
   }
   const saved = runtimeConfig === null ? readRepositoryRuntimeConfig(repositoryRoot)
     : { present: true, ...runtimeConfig };
-  const collected = collectRepositoryManifests(repositoryRoot);
+  const named = runners.length > 0 ? runners
+    : saved.present && saved.runners.length > 0 && language === null ? saved.runners : [];
+  const collected = collectRepositoryManifests(repositoryRoot, { includeTestSources: named.length === 0 });
+  const readFile = repositoryManifestReader(repositoryRoot);
   const inventory = discoverRuntimeEnvironments({ manifests: collected.manifests, runners: catalog,
-    readFile: repositoryManifestReader(repositoryRoot) });
+    readFile });
 
   let environments;
   let source;
   let excluded = [];
-  const named = runners.length > 0 ? runners
-    : saved.present && saved.runners.length > 0 && language === null ? saved.runners : [];
+  let automaticSelection = [];
   if (named.length > 0) {
     environments = explicitRunnerEnvironments(setup, named, inventory.environments);
     source = runners.length > 0 ? "command line"
       : runtimeConfig === null ? "saved repository configuration" : "--runtime-config";
   } else {
-    const testable = environmentsWithRunners(
-      environmentsForLanguage(inventory.environments, language, catalog));
+    const testable = selectAutomaticTestEnvironments({ inventory: { ...inventory,
+      environments: environmentsForLanguage(inventory.environments, language, catalog) },
+    testSources: collected.testSources, readFile });
     environments = testable.environments;
+    automaticSelection = testable.decisions;
     source = `repository evidence${language === null ? "" : ` for ${language}`}`;
     excluded = [...collected.excluded, ...inventory.excluded, ...testable.excluded]
       .sort((left, right) => left.path.localeCompare(right.path));
   }
 
+  context.environments = environments;
+  context.automatic_selection = automaticSelection;
+
+  if (!dryRun) await ensureAgentChassisGitignore(repositoryRoot);
+
   if (environments.length === 0) {
     output.write("No test environment was found in this repository's own manifests " +
       "(go.mod, Cargo.toml, package.json, deno.json, pyproject.toml, requirements*.txt).\n");
-    if (excluded.length > 0) reportEnvironments({ output, environments, excluded, source });
+    reportEnvironments({ output, environments, excluded, source, automaticSelection });
     output.write(`Add one and rerun \`agent-chassis ${command.invocation}\`, or name a runner ` +
       "directly with --runner <name>[@<project>].\n");
-    return { ok: true, status: "no_test_project", environments: [], excluded };
+    return { ok: true, status: "no_test_project", phase: "selection", environments: [], excluded,
+      automatic_selection: automaticSelection };
   }
-  reportEnvironments({ output, environments, excluded, source });
+  reportEnvironments({ output, environments, excluded, source, automaticSelection });
 
   const required = [...new Set(environments.flatMap((environment) => [
     ...ecosystems[environment.ecosystem].toolchains,
@@ -173,6 +209,7 @@ export async function prepareRepositoryTestRuntimes({
   ]))].sort();
   const toolchains = {};
   for (const name of required) {
+    Object.assign(context, { phase: "toolchain", toolchain: name });
     const toolchainCommand = commands[name];
     let executable = executables[name] ?? null;
     let executableSource = "--executable";
@@ -194,7 +231,7 @@ export async function prepareRepositoryTestRuntimes({
     if (executable === null) {
       const answered = await resolveMissingExecutable({ name, command: toolchainCommand, input, output,
         interactive: asking, invocation: command.invocation });
-      if (!answered.ok) return answered;
+      if (!answered.ok) return { ...answered, environments, excluded, automatic_selection: automaticSelection };
       executable = answered.executable;
       executableSource = answered.source;
     }
@@ -208,6 +245,8 @@ export async function prepareRepositoryTestRuntimes({
   }
 
   const environmentSelections = saved.present ? saved.environments ?? {} : {};
+  context.phase = "selection";
+  delete context.toolchain;
   const result = await setup.runTestRuntimeSetup({ repositoryRoot, env, environmentSelections,
     environments: environments.map(({ ecosystem, project, members, runners: names }) =>
       ({ ecosystem, project, members, runners: names })),
@@ -218,7 +257,11 @@ export async function prepareRepositoryTestRuntimes({
       .filter(([, { version }]) => version !== null).map(([name, { version }]) => [name, version])),
     ...toolchainVersions },
     dryRun,
-    progress: (event) => progressOutput.write(`${progressLine(event)}\n`) });
+    progress: (event) => {
+      Object.assign(context, { phase: event.phase, toolchain: event.toolchain,
+        environment: event.environment, check: event.check });
+      progressOutput.write(`${progressLine(event)}\n`);
+    } });
 
   const components = result.components ?? [];
   const located = components.filter(({ kind }) => kind === "toolchain")
@@ -239,6 +282,9 @@ export async function prepareRepositoryTestRuntimes({
   }
   output.write(renderTestRuntimeSetupResult(result));
 
+  const failedComponent = components.find(({ status }) => status === "failed");
+  const correction = correctionFor(failedComponent, { configPath }) ??
+    failedComponent?.detail?.correction ?? result.failure?.detail?.correction ?? null;
   if (result.status === "ready") {
     const versions = components.filter(({ kind }) => kind === "toolchain")
       .map(({ name, version, source: toolchainSource }) => `${name} ${version} ` +
@@ -248,12 +294,56 @@ export async function prepareRepositoryTestRuntimes({
   } else if (result.status === "detected") {
     output.write("Dry run: everything was detected and validated; nothing was proved in the sandbox, saved or published.\n");
   } else {
-    const correction = correctionFor(
-      components.find(({ status }) => status === "failed"), { configPath });
     if (correction !== null) output.write(`${correction}\n`);
     output.write("Local test runtimes are NOT ready; install or repair what failed above yourself and rerun " +
       "setup. Nothing was installed and no usable runtime was published.\n");
   }
-  return { ok: result.ok, status: result.status, result, environments, excluded, toolchains,
+  const failedCheck = result.verification?.find(({ ok }) => !ok);
+  let phase = context.phase;
+  if (result.status === "ready") phase = "completed";
+  else if (failedComponent) phase = failedComponent.kind;
+  else if (failedCheck) phase = failedCheck.check === "runtime_inputs" ? "sandbox_plan" : "sandbox_check";
+  return { ok: result.ok, status: result.status, phase, failure: result.failure ?? null,
+    correction, result, environments, excluded, toolchains, automatic_selection: automaticSelection,
     selection: result.selection, configPath };
+}
+
+export const TEST_RUNTIME_REPORT_SCHEMA = "setup-test-runtime-report.v1";
+
+function diagnosticFact(fact) {
+  if (fact == null) return null;
+  const fields = ["kind", "name", "status", "ok", "code", "message", "environment",
+    "ecosystem", "project", "toolchain", "check", "provider_id", "version", "source",
+    "observed_version", "expected_version"];
+  const projected = Object.fromEntries(fields.filter((key) => fact[key] !== undefined)
+    .map((key) => [key, fact[key]]));
+
+  if (typeof fact.diagnostic === "string") projected.diagnostic = fact.diagnostic.slice(0, 4000);
+  if (fact.detail) {
+    const detail = fact.detail;
+    const keys = ["toolchain", "command", "executable", "root", "project", "environment",
+      "selected", "reported", "required", "correction", "valid_choices", "available_runners",
+      "available_toolchains", "module_cache", "workspace", "virtual_environment"];
+    projected.detail = Object.fromEntries(keys.filter((key) => detail[key] !== undefined)
+      .map((key) => [key, detail[key]]));
+    if (typeof detail.diagnostic === "string") projected.detail.diagnostic = detail.diagnostic.slice(0, 4000);
+    if (Array.isArray(detail.missing)) projected.detail.missing = detail.missing.map((item) =>
+      typeof item === "string" ? item : Object.fromEntries(["executable", "path"]
+        .filter((key) => item[key] !== undefined).map((key) => [key, item[key]])));
+  }
+  return projected;
+}
+
+export function testRuntimePreparationReport(prepared) {
+  return { schema_version: TEST_RUNTIME_REPORT_SCHEMA, ok: prepared.ok,
+    status: prepared.status, phase: prepared.phase,
+    ...(prepared.toolchain === undefined ? {} : { toolchain: prepared.toolchain }),
+    ...(prepared.environment === undefined ? {} : { environment: prepared.environment }),
+    ...(prepared.check === undefined ? {} : { check: prepared.check }),
+    environments: (prepared.environments ?? []).map(({ id, ecosystem, project, members, runners }) =>
+      ({ id, ecosystem, project, members, runners })),
+    automatic_selection: prepared.automatic_selection ?? [],
+    failure: diagnosticFact(prepared.failure), correction: prepared.correction ?? null,
+    components: (prepared.result?.components ?? []).map(diagnosticFact),
+    checks: (prepared.result?.verification ?? []).map(diagnosticFact) };
 }

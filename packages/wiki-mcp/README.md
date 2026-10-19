@@ -22,7 +22,7 @@ the docs are operator examples, not agent authority.
 
 ## Package Role
 
-This package is installed through `@agent-chassis/core` for normal use. It remains available as a granular package for consumers that need direct package control.
+Install `@agent-chassis/core` for supported consumer use. Individual surface packages are internal dependencies.
 
 ## Related Docs
 

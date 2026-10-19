@@ -1,17 +1,20 @@
 
 
-import { projectRecordedFailureDetail, DISPATCH_FAILURE_ORIGINALS } from "./dispatch-tool-helpers.mjs";
-import { selectedFullContent, measureMcpInlineResultBytes, activeMcpInlineByteLimit } from "./mcp-response.mjs";
-import { observeRunProofVerification, projectCompactRunProofVerification, projectListedItem,
+import { buildDispatchToolExceptionDetail, projectRecordedFailureDetail, DISPATCH_FAILURE_ORIGINALS } from "./dispatch-tool-helpers.mjs";
+import { jsonContent, selectedFullContent, measureMcpInlineResultBytes, activeMcpInlineByteLimit } from "./mcp-response.mjs";
+import { observeRunProofVerification, projectCompactRunProofVerification,
   projectPublicVerifyProofRefusal } from "./dispatch-run-proof-verification.mjs";
 import { readVerifyProofOriginal } from "./verify-proof-result-reader.mjs";
-import { projectVerifyProofSummary } from "./verify-proof-result-summary.mjs";
-import { projectVerifyProofSelectedDetail } from "./verify-proof-result-detail.mjs";
+import { selectedResponseDeliveryBound } from "./selected-response-snapshot.mjs";
+import { projectVerifyProofExecutionResponse, projectVerifyProofTestedSource } from "./verify-proof-execution-response.mjs";
 import { readVerifyProofRunRecord } from "./verify-proof-run-record-reader.mjs";
 import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import { z } from "zod";
+import { admitResultContinuations } from "./get-run-result-callability.mjs";
+import { integrationReadOutcome } from "./get-run-result-outcome-projection.mjs";
+import { readAssignmentChange } from "./task-request-assignment-change-result.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
@@ -33,7 +36,8 @@ import { isCurrentSelectedResponseLocator, readSelectedResponseSource, selectedR
   selectedResponseLocator, selectedResponseQueryInvalidError, SELECTED_RESPONSE_LOCATOR_NOT_CURRENT_REASON,
   SELECTED_RESPONSE_QUERY_INVALID_CODE } from "./selected-response-snapshot.mjs";
 import { INTEGRATION_ORIGINAL_PRODUCER, createIntegrationOriginals } from "./task-integrate-work-result.mjs";
-import { DELIVERY_ORIGINAL_PRODUCER, readDeliveryOriginalForSession, resolveDeliveryReceiptEnvironment } from "./task-deliver-work-result.mjs";
+import { DELIVERY_ORIGINAL_PRODUCER, readDeliveryOriginalForSession, resolveDeliveryReceiptEnvironment,
+  selectLogicalDeliveryAccounts } from "./task-deliver-work-result.mjs";
 import { VERIFY_PROOF_TOOL_NAME } from "./verify-proof-public-result.mjs";
 import { readRecordedVerification, readRetainedVerification, verifyProofRecordedInvocationInputSchema } from
   "./verify-proof-tool.mjs";
@@ -72,8 +76,8 @@ function proofReadCalls(request, original, evidence) {
   const common = (options, proof) => buildNextCall({ tool: GET_RUN_RESULT_TASK,
     recommended: options?.recommended ?? false,
     arguments: { ...request, ...(proof === undefined ? {} : { proof }) } });
-  const row = (subject) => subject === original.subject ? undefined : { subject };
-  return { ...shippedVerifyProofCalls, execution: verifyProofExecutionCall, evidence,
+  const row = (subject) => ({ subject });
+  return { ...shippedVerifyProofCalls, original: () => common({}, undefined), execution: verifyProofExecutionCall, evidence,
     retained: (repo, locator, subject, options) =>
       common(options, row(subject)),
     recorded: (subject, invocationId, options) =>
@@ -87,10 +91,10 @@ function proofReadCalls(request, original, evidence) {
 export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
   preparedDispatchBackend, dispatchSessionIdentity, requestContracts, receivingRole = null }) {
   const projectEvidence = evidence => projectVerifyProofRecoveryForRegisteredTools(evidence, {
-    requestContracts, receivingRole,
+    requestContracts, receivingRole, workspace, sessionEnv, responseEnv,
     resolveAuthoringSource: () => resolveObligationCoverageQueryContext({ workspace, env: sessionEnv }) });
   let nativeReader;
-  const delivery = createDeliveryResultPresentation({ workspace, sessionEnv, responseEnv });
+  const delivery = createDeliveryResultPresentation({ workspace, sessionEnv, responseEnv, requestContracts });
 
   function authenticateSession() {
     const state = resolveLauncherRunState(sessionEnv);
@@ -121,6 +125,16 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
     const state = authenticateSession();
     const parsed = parseRequest(GET_RUN_RESULT_RETAINED_INPUT_SCHEMA, request, "read_names_exactly_one_retained_result");
     const result = { ref_id: parsed.result.ref_id };
+    const assignmentOriginal = ["worker", "orchestrator"].includes(state.role)
+      ? readAssignmentChange({ workspace, sessionEnv, responseEnv, result, allowMissing: true }) : null;
+    if (assignmentOriginal !== null) {
+      if (parsed.proof !== undefined) refuse("proof_selection_requires_proof_original");
+      return parsed.detail !== undefined ? delivery.detail(assignmentOriginal.binding, parsed, assignmentOriginal.responseEnv)
+        : admitResultContinuations({ subject: assignmentOriginal.carrier.identity.unit, accepted: true,
+          request: assignmentOriginal.carrier.request,
+          next_calls: [...delivery.memberCalls(result, { assignment: assignmentOriginal.carrier.assignment }, assignmentOriginal.binding.route),
+            ...(state.role === "orchestrator" ? [buildNextCall({ tool: "workspace_read_wiki", arguments: { subject: assignmentOriginal.carrier.identity.unit } })] : [])] }, requestContracts);
+    }
     const routed = resolveDeliveryReceiptEnvironment({ workspace, sessionEnv, responseEnv, result });
     const { binding } = readSelectedResponseSource(routed.receipt?.result ?? result, { env: routed.env,
       expected: { repository: workspace.repo }, route: GET_RUN_RESULT_TASK });
@@ -129,7 +143,8 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
       refuse("detail_requires_delivery_original_without_proof");
     }
     if (binding.route !== RUN_TEST_TOOL_NAME && state.role !== "orchestrator" &&
-        !(binding.route === DELIVERY_ORIGINAL_PRODUCER && state.role === "worker")) {
+        !(binding.route === DELIVERY_ORIGINAL_PRODUCER && state.role === "worker") &&
+        !(binding.route === VERIFY_PROOF_TOOL_NAME && state.role === "reviewer")) {
       refuse("producer_role_ineligible", { role: state.role });
     }
     if (parsed.proof !== undefined && [RUN_TEST_TOOL_NAME, INTEGRATION_ORIGINAL_PRODUCER,
@@ -143,21 +158,38 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
         return readProof(result, binding, parsed.proof);
       case INTEGRATION_ORIGINAL_PRODUCER:
         return createIntegrationOriginals({ workspace, sessionEnv, responseEnv }).read({ result }, {
-          project: ({ binding: expected, carrier, summary }) => parsed.detail === undefined
-            ? { ...summary, next_calls: delivery.memberCalls(result, carrier) } : delivery.detail(expected, parsed) });
+          project: ({ binding: expected, carrier }) => parsed.detail === undefined
+            ? integrationReadOutcome({ carrier, result, responseEnv, role: state.role, requestContracts, subject: expected.unit })
+            : delivery.detail(expected, parsed) });
       case DELIVERY_ORIGINAL_PRODUCER:
         return delivery.read(parsed);
       case OBSERVATION_ORIGINAL_PRODUCER: {
         const original = createObservationOriginals({ workspace, sessionEnv, responseEnv }).read(result);
-        return parsed.detail === undefined ? presentRunObservation({ ...original.carrier, original_result: result },
-          delivery.detailCall, responseEnv) : delivery.detail(original.binding, parsed);
+        const answer = await delivery.detail(original.binding, parsed.detail === undefined
+          ? { result, detail: { member: "final_result" } } : parsed);
+        return parsed.detail === undefined ? answer.structuredContent : answer;
       }
       default:
         return refuse("producer_not_recognized");
     }
   }
 
-  async function recorded(request) {
+  async function deliverRetained(request) {
+    const value = await retained(request);
+    if (request.detail !== undefined) return value;
+    if (measureMcpInlineResultBytes(value) <= activeMcpInlineByteLimit(responseEnv)) {
+      return jsonContent(value, { env: responseEnv });
+    }
+    const routed = resolveDeliveryReceiptEnvironment({ workspace, sessionEnv, responseEnv, result: request.result });
+    const source = routed.receipt?.result ?? request.result;
+    const original = readSelectedResponseSource(source, { env: routed.env,
+      expected: { repository: workspace.repo }, route: GET_RUN_RESULT_TASK });
+    if (![DELIVERY_ORIGINAL_PRODUCER, INTEGRATION_ORIGINAL_PRODUCER, VERIFY_PROOF_TOOL_NAME, OBSERVATION_ORIGINAL_PRODUCER]
+      .includes(original.binding.route)) return jsonContent(value, { env: responseEnv });
+    return selectedFullContent({ source, retained: original, projection: value });
+  }
+
+  async function recorded(request, completeDelivery = false) {
     const state = resolveLauncherRunState(sessionEnv);
     const parsed = parseRequest(GET_RUN_RESULT_RECORDED_INPUT_SCHEMA, request, "read_names_exactly_one_assigned_recorded_invocation");
     return readRecordedVerification({
@@ -166,8 +198,9 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
       repoRoot: realpathSync(path.resolve(workspace.dir)),
       env: sessionEnv,
       deps: {},
-      jsonContent: (value) => value,
+      jsonContent: completeDelivery ? (value) => jsonContent(value, { env: responseEnv }) : (value) => value,
       errorContent: (error) => { throw error; },
+      completeDelivery,
       responseEnv,
       originalSelection: true,
       proofSelection: parsed.proof,
@@ -195,9 +228,15 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
       { subject: parsed.subject, attempt_id: parsed.attempt_id, stage: "journal_selection", ...page.refusal,
         ...(parsed.recorded_invocation === undefined ? {} : { requested_invocation_id: parsed.recorded_invocation.invocation_id }) });
     if (parsed.recorded_invocation === undefined) return selectedFullContent({ ...page.verified_source,
-      projection: { member: "proof_verifications", snapshot: page.snapshot,
-        value: page.items.map(item => projectListedItem({ subject: parsed.subject, attemptId: page.attempt_id,
-          item, readCall: invocationCall })) } });
+      projection: { member: "proof_verifications",
+        value: page.items.map(item => ({ invocation_id: item.invocation_id,
+          outcome: item.verification.outcome, status: item.verification.status,
+          ...(item.verification.reason_code == null ? {} : { reason_code: item.verification.reason_code }),
+          request: item.verification.request,
+          ...(projectVerifyProofTestedSource({ candidate_identity: item.verification.tested_source?.candidate }) === undefined ? {} : {
+            tested_source: projectVerifyProofTestedSource({ candidate_identity: item.verification.tested_source?.candidate }) }),
+          coverage_scope: item.verification.coverage_scope,
+          detail_call: invocationCall(parsed.subject, page.attempt_id, item) })) } });
     const verification = page.items[0].verification;
     let original;
     try { original = readVerifyProofRunRecord({ workspaceDir: workspace.dir, verification, includeVerifiedSource: true }); }
@@ -212,38 +251,34 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
       observation: { kind: "retained_prior_observation" } };
     const ownerCalls = { execution: calls.execution, detail: (proof, options) => calls.recorded(proof, null, options),
       source: source => calls.sourceRecorded(identity.subject, null, source) };
-    const evidence = original.kind === "refusal" ? original.record : await projectEvidence(original.record);
+    const evidence = await projectEvidence(original.record);
     const outcomeCall = buildNextCall({ tool: GET_RUN_RESULT_TASK,
       arguments: { ...readRequest, detail: { member: "outcome" } } });
     if (parsed.detail !== undefined) {
 
       const value = { ...(original.kind === "refusal" ? projectPublicVerifyProofRefusal(evidence, {
         readCall: ownerCalls.source, fits: () => true, executionCall: ownerCalls.execution, complete: true })
-        : { ...projectVerifyProofSummary(evidence, { detailCall: ownerCalls.detail }),
-        proof_details: evidence.proof_results.map(proof => projectVerifyProofSelectedDetail(evidence, proof.test_proof_id)),
-        }),
+        : projectVerifyProofExecutionResponse(evidence, { detailCall: ownerCalls.detail, population: true })),
         ...decoration };
       return selectedFullContent({ source: original.source, serializedBytes: original.serializedBytes,
         projection: { member: "outcome", value } });
     }
     const answer = original.kind !== "refusal" && parsed.proof === undefined
-      ? { kind: "answer", value: { ...projectVerifyProofSummary(evidence, {
+      ? { kind: "answer", value: { ...projectVerifyProofExecutionResponse(evidence, {
         detailCall: ownerCalls.detail,
         fits: candidate => measureMcpInlineResultBytes({ ...candidate, ...decoration,
           next_calls: [...(candidate.next_calls ?? []), outcomeCall] }) <= activeMcpInlineByteLimit(responseEnv)
       }), ...decoration } }
       : readVerifyProofOriginal({ original: { ...original, ...identity,
       record: evidence },
-      request: { ...identity, ...parsed.proof }, responseEnv,
+      request: { ...identity, ...parsed.proof }, responseEnv, selectedSubject: parsed.proof?.subject !== undefined,
       decoration, calls: ownerCalls,
       refuse: (reason, facts) => selectedResponseQueryInvalidError(GET_RUN_RESULT_TASK, reason,
         { subject: parsed.proof?.subject ?? identity.subject, invocation_id: parsed.recorded_invocation.invocation_id,
           stage: "subject_selection", ...facts }) });
     if (answer.kind === "refusal") throw Object.assign(new Error("recorded proof refusal"), {
       envelope: { ...answer.envelope, next_calls: [...(answer.envelope.next_calls ?? []), outcomeCall] } });
-    const permitted = answer.value.schema_version === "workspace-verify-proof-selected-detail.v1"
-      ? { ...answer.value, ...projectVerifyProofSelectedDetail(evidence, parsed.proof.subject) } : answer.value;
-    const value = { ...permitted, next_calls: [...(permitted.next_calls ?? []), outcomeCall] };
+    const value = { ...answer.value, next_calls: [...(answer.value.next_calls ?? []), outcomeCall] };
     return parsed.proof === undefined ? value : selectedFullContent({ source: original.source,
       serializedBytes: original.serializedBytes, projection: value });
   }
@@ -264,23 +299,67 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
           observedPage: managedObservationFailureFacts(page), status: { subject: request.subject,
             run_id: observation.run_id ?? observation.selected?.dispatch_tuple?.run_id ?? request.attempt_id }, readCall: inventoryCall })) };
     }
-    const receipts = observation.selected?.delivery_receipts ?? observation.delivery_receipts ?? [];
-    if (receipts.length === 0) return observation;
+    const receipts = observation.selected?.delivery_receipts ?? observation.delivery_receipts;
+
+    if (receipts === undefined) return observation;
+    if (receipts.length === 0) return { ...observation,
+      delivery: { available: false, references: [], state: "absent" } };
     const references = [];
+    const accounts = [];
     let nonCurrent = 0;
-    for (const { receipt } of receipts) {
+    for (const [index, { receipt }] of receipts.entries()) {
 
       if (!isCurrentSelectedResponseLocator(receipt.result)) { nonCurrent += 1; continue; }
       const result = selectedResponseLocator(receipt.result);
 
-      readDeliveryOriginalForSession({ workspace, sessionEnv, responseEnv, request: { result } });
-      references.push(result);
+      try {
+        const carrier = readDeliveryOriginalForSession({ workspace, sessionEnv, responseEnv, request: { result } });
+        accounts.push({ result, carrier });
+      }
+      catch (error) {
+
+        refuse("delivery_receipt_unreadable", {
+          subject: request.assigned === true ? resolveLauncherRunState(sessionEnv).assignedUnit : request.subject,
+          attempt_id: observation.run_id ?? observation.selected?.dispatch_tuple?.run_id ?? request.attempt_id,
+          receipt: { index, result },
+          cause: buildDispatchToolExceptionDetail(GET_RUN_RESULT_TASK, error,
+            { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION }),
+          effects: { executed: false, integrated: false, retained: false },
+          limitation: "The attempt's subordinate delivery receipt could not be read. No delivery success or integration is established; stop this dependent step." });
+      }
     }
+    let heads;
+    try { heads = selectLogicalDeliveryAccounts(accounts, { readAncestor: result =>
+      readDeliveryOriginalForSession({ workspace, sessionEnv, responseEnv, request: { result } }) }).heads; }
+    catch (error) { refuse('delivery_recovery_unavailable', {
+      subject: request.assigned === true ? resolveLauncherRunState(sessionEnv).assignedUnit : request.subject,
+      cause: buildDispatchToolExceptionDetail(GET_RUN_RESULT_TASK, error),
+      effects: { executed: false, integrated: false },
+      limitation: 'The delivery recovery relationship could not be authenticated. No logical delivery was selected; do not guess or replay delivery.' }); }
+    const choices = heads.map(({ result, carrier }) => {
+      references.push(result);
+      const response = carrier.outcome.response;
+      const paths = response.changed_paths ?? carrier.scope_verification?.result?.changed_paths;
+      return { commit: response.transaction.delivery_commit,
+        ...(paths === undefined ? {} : { changed_paths: paths }), checkout: response.checkout,
+        call: buildNextCall({ tool: GET_RUN_RESULT_TASK, arguments: { result } }) };
+    });
     return { ...observation, delivery: { available: references.length > 0, references,
+      ...(choices.length > 1 ? { choices } : {}),
       ...(nonCurrent === 0 ? {} : { cause: { code: SELECTED_RESPONSE_QUERY_INVALID_CODE,
         reason: SELECTED_RESPONSE_LOCATOR_NOT_CURRENT_REASON, receipts: nonCurrent } }) } };
   }
-  return Object.freeze({ retained, recorded, coordinator, observe,
-    presentObservation: (observation, request) => presentRunObservation(observation, delivery.detailCall, responseEnv,
-      request.assigned === true ? resolveLauncherRunState(sessionEnv).assignedUnit : request.subject, request) });
+  const presentObservation = (observation, request) => admitResultContinuations(presentRunObservation(observation, delivery.detailCall, responseEnv,
+    request.assigned === true ? resolveLauncherRunState(sessionEnv).assignedUnit : request.subject, request), requestContracts);
+  async function deliverObservation(observation, request) {
+    const value = await presentObservation(observation, request);
+    if (measureMcpInlineResultBytes(value) <= selectedResponseDeliveryBound(responseEnv)) return jsonContent(value, { env: responseEnv });
+    if (observation.verified_source !== undefined) return selectedFullContent({ ...observation.verified_source, projection: value });
+    return jsonContent({ subject: value.subject, attempt_id: value.attempt_id, complete: false,
+      code: 'authenticated_observation_source_unavailable', no_supported_route: true,
+      cause: 'The complete attempt or delivery choices exceed compact admission and this observation has no authenticated whole-selection source.',
+      recovery: 'Stop the dependent selection. No attempt or delivery was selected; do not guess a choice or repeat an effectful operation.', next_calls: [] }, { env: responseEnv });
+  }
+  return Object.freeze({ retained, deliverRetained, recorded, deliverRecorded: request => recorded(request, true), coordinator, observe, deliverObservation,
+    presentObservation });
 }

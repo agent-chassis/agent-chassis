@@ -1,10 +1,11 @@
-const APP_VOCABULARY = Object.freeze(["codex", "claude", "agy"]);
+export const APP_VOCABULARY = Object.freeze(["codex", "claude", "agy", "opencode"]);
 const APP_NAME_SET = new Set(APP_VOCABULARY);
 
-const BACKEND_BY_APP = Object.freeze({
+export const BACKEND_BY_APP = Object.freeze({
   codex: "codex",
   claude: "claude",
-  agy: "unsupported"
+  agy: "agy",
+  opencode: "opencode"
 });
 
 const NEUTRAL_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
@@ -180,6 +181,16 @@ export const MODEL_REGISTRY = Object.freeze([
     })
   ]),
   Object.freeze([
+    "vertex-gemini-4-argon",
+    Object.freeze({
+      app: "codex",
+      backend: "codex",
+      codex_profile: "orchestrator",
+      default_effort: "high",
+      vertex_model: "gemini-4-argon"
+    })
+  ]),
+  Object.freeze([
     "fable",
     Object.freeze({
       app: "claude",
@@ -214,7 +225,18 @@ export const MODEL_REGISTRY = Object.freeze([
       codex_profile: null,
       default_effort: "medium"
     })
-  ])
+  ]),
+  Object.freeze(["gemini-3.8-flash-low", Object.freeze({ app: "agy", backend: "agy", codex_profile: null, default_effort: "low" })]),
+  Object.freeze(["gemini-3.8-flash-medium", Object.freeze({ app: "agy", backend: "agy", codex_profile: null, default_effort: "medium" })]),
+  Object.freeze(["gemini-3.8-flash-high", Object.freeze({ app: "agy", backend: "agy", codex_profile: null, default_effort: "high" })]),
+
+  Object.freeze(["google-vertex-anthropic/claude-sonnet-5-5@default", Object.freeze({
+    app: "opencode", backend: "opencode", codex_profile: null, default_effort: "low"
+  })]),
+
+  Object.freeze(["google-vertex/gemini-3.8-flash", Object.freeze({
+    app: "opencode", backend: "opencode", codex_profile: null, default_effort: "medium"
+  })])
 ]);
 
 function assertSpecObject(model, spec) {

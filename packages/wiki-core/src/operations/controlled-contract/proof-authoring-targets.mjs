@@ -113,8 +113,12 @@ export async function settlePreparedRecordAuthoring({ input, initial, preparatio
     const current = birth ? initial : await resolveCurrent();
     if (current.authoringIdentity !== initial.authoringIdentity) throw new ControlledContractToolError(
       'obligation_coverage_final_compare_stale', 'Combined authoring revision changed before effects',
-      { changed: false, next_calls: coverageSelectorRecovery({ family: 'obligation', input: target }) });
-    await preparation.assertDefinitions();
+      { changed: false, movement: 'revision', next_calls: coverageSelectorRecovery({ family: 'obligation', input: target }) });
+
+    try { await preparation.assertDefinitions(); } catch (error) {
+      error.details = { ...error.details, changed: false, phase: 'pre_effect' };
+      throw error;
+    }
     const observe = async (snapshot) => typeof options.observeCommitted === 'function'
       ? { observed: await options.observeCommitted(snapshot) } : {};
     if (!recordChanged && !publishCarriers && candidate.sourceChanges.length === 0) {

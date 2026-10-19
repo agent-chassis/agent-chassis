@@ -143,6 +143,7 @@ import { NATIVE_CONTRACT_SCHEMA_V1 } from
   "@agent-chassis/controlled-contract/native-contract";
 import { DEFAULT_MANDATORY_MODALITIES } from
   "@agent-chassis/controlled-contract/native-contract-dag";
+import { publicValueDefinitions } from '../operations/controlled-contract/contract-requirement-native-values.mjs';
 import {
   CONTROLLED_CONTRACT_REQUIREMENT_INPUT_SHAPES,
   CONTROLLED_CONTRACT_REQUIREMENT_LIMITS,
@@ -158,7 +159,7 @@ const OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES = {
 };
 const draftRequest = (fields, required = []) => Object.freeze({
   type: "object", additionalProperties: false, required: ["unit", ...required],
-  $defs: OBLIGATION_DRAFT_SCHEMA.$defs,
+  $defs: { ...OBLIGATION_DRAFT_SCHEMA.$defs, ...publicValueDefinitions(NATIVE_CONTRACT_SCHEMA_V1, requirementReferent) },
   properties: { ...OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES, ...fields }
 });
 const obligationId = OBLIGATION_DRAFT_SCHEMA.$defs.obligation_id;
@@ -190,6 +191,7 @@ const requirementReferent = { oneOf: [
       properties: { type_term: semanticString(128), identity: typedRequirementIdentity } } } }
 ] };
 const requirementObject = { oneOf: [
+  ...publicValueDefinitions(NATIVE_CONTRACT_SCHEMA_V1, requirementReferent).value_operand.oneOf,
   { type: 'object', additionalProperties: false, required: ['referent'], properties: { referent: requirementReferent } },
   { type: 'object', additionalProperties: false, required: ['boolean'], properties: { boolean: { type: 'boolean' } } },
   { type: 'object', additionalProperties: false, required: ['number'], properties: { number: { type: 'number' } } },
@@ -225,7 +227,8 @@ const contractRequirements = { type: 'object', additionalProperties: false,
     retire_claim_ids: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { ...requirementClaimId } },
     requirements: { type: 'array', minItems: 1, maxItems: 8, items: {
       type: 'object', additionalProperties: false,
-      required: ['modality', 'subject', 'behavior'], properties: {
+      required: ['subject', 'behavior'], properties: {
+        definition: { const: true }, for_each: { $ref: '#/$defs/value_for_each' }, within: { $ref: '#/$defs/value_scope' },
         replace_claim_id: requirementClaimId,
         rebind_case_ids: { type: 'array', minItems: 1,
           maxItems: STABLE_TEST_PROOF_AUTHORING_LIMITS.replacement_operations, uniqueItems: true,
@@ -260,14 +263,14 @@ const exampleReferent = (typeTerm, identity) => Object.freeze({
   declare: Object.freeze({ type_term: typeTerm, identity: Object.freeze(identity) })
 });
 const exampleParser = exampleReferent("cc:operation", {
-  kind: "profile_term", term: "action-pinning configuration parser"
+  kind: "profile_term", term: "palette configuration parser"
 });
-const exampleInvalidLevel = exampleReferent("cc:configuration", {
-  kind: "profile_term", term: "configuration with an unknown action-pinning level"
+const exampleInvalidMode = exampleReferent("cc:configuration", {
+  kind: "profile_term", term: "configuration with an unknown palette mode"
 });
 const exampleVerifier = exampleReferent("cc:test", {
-  kind: "repository_path", repository: "example/go-actionlint",
-  path: "core/action_pin_test.go"
+  kind: "repository_path", repository: "example/palette-engine",
+  path: "tests/palette-mode.test.mjs"
 });
 
 const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL_NAME =
@@ -359,7 +362,9 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
         statement: "author the property that must hold",
         controlled_contract_node_ids: "link the current requirement and verification claims",
         mechanism: "optional {owner, kind, selector} naming the intended check",
-        proof_name: "optional exact executable route; absence does not erase complete meaning"
+        proof_name: "select a listed proof to account for the obligation's proof decision; without a " +
+          "selection the obligation remains an unfinished, undecided draft. Complete requirement " +
+          "meaning needs no runnable test; selecting a proof does not require an execution case"
       })
     }),
     gap_kinds: OBLIGATION_COVERAGE_GAP_KINDS,
@@ -485,24 +490,24 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     })
   ]),
   behavioral_example: Object.freeze({
-    purpose: "The parser MUST reject an unknown action-pinning level. The named test covers that parser and input, and accepting the invalid level falsifies the requirement.",
+    purpose: "The parser MUST reject an unknown palette mode. The named test covers that parser and input, and accepting the invalid mode falsifies the requirement.",
     contract_requirements: Object.freeze({ requirements: Object.freeze([
       Object.freeze({
         nature: "behavior",
         modality: "MUST",
         subject: exampleParser,
         behavior: Object.freeze({ relation: "reference:rejects",
-          objects: Object.freeze([Object.freeze({ referent: exampleInvalidLevel })]) }),
+          objects: Object.freeze([Object.freeze({ referent: exampleInvalidMode })]) }),
         verification: Object.freeze({
           method: "analysis",
           verifier: exampleVerifier,
           observes: Object.freeze({ relation: "reference:covers",
             objects: Object.freeze([
               Object.freeze({ referent: exampleParser }),
-              Object.freeze({ referent: exampleInvalidLevel })
+              Object.freeze({ referent: exampleInvalidMode })
             ]) }),
           fails_when: Object.freeze({ relation: "reference:accepts",
-            objects: Object.freeze([Object.freeze({ referent: exampleInvalidLevel })]) })
+            objects: Object.freeze([Object.freeze({ referent: exampleInvalidMode })]) })
         })
       })
     ]) })
@@ -520,7 +525,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     "authored. Accepted kinds and strategies are in native_runtime_test_vocabulary.",
   vocabulary: requirementVocabulary,
   observation_vocabulary: observationVocabulary,
-  cel_definitions: Object.freeze(celDefinitionIndex()),
+  get cel_definitions() { return Object.freeze(celDefinitionIndex()); },
   native_runtime_test_vocabulary: Object.freeze({
     schema_version: "controlled-contract-requirement-runtime-test-vocabulary.v1",
     required_for_verification_method:

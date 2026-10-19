@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 
-import { resolveClientConfig } from "@agent-chassis/wiki-core/src/lib/node-engine-api-client.mjs";
+import { resolveSessionProfileForEnv } from "@agent-chassis/wiki-core/src/lib/tool-discovery/session-profile.mjs";
 import {
   SESSION_ROLE_TOOL_ACCESS_POLICY_PATH,
   resolveRoleToolGrantsFromPolicy,
@@ -110,17 +110,5 @@ export function shouldExposeTool(toolProfile, name  ) {
 }
 
 export function resolveRegisteredTier(env = process.env) {
-  try {
-    const config = resolveClientConfig(env);
-    return config && config.apiKey ? REGISTERED_TIER_PAID_CCE : REGISTERED_TIER_FREE_LOCAL;
-  } catch {
-    return REGISTERED_TIER_FREE_LOCAL;
-  }
-}
-
-export function isToolTierRegistrable(registeredTier, name, paidOnlyToolNames) {
-  if (registeredTier === REGISTERED_TIER_PAID_CCE) {
-    return true;
-  }
-  return !(paidOnlyToolNames instanceof Set && paidOnlyToolNames.has(name));
+  return resolveSessionProfileForEnv(env).registeredTier;
 }

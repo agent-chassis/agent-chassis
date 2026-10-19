@@ -27,6 +27,59 @@ selected guide refuses the launch. For a worker, reviewer, or redteam, Claude's
 minted native permission settings allow `Read` for the same resolved directory
 subtree, and grant no edit there.
 
+## Agy confinement and native qualification
+
+Agy uses the existing shared authenticated assignment, frozen scope/result,
+closed conduit, isolation, supervision, cleanup, result and delivery owners.
+Production composition passes the closed managed conduit constructor and its
+environment into the family executor. Worker read-boundary eligibility is backed
+by native allowed-edit, denied-sibling-read/write and Git/retained-delivery-receipt
+fixtures. Read-only role mechanics demonstrate native reads, denied writes and
+free-prose output without running repository review passes.
+
+A fresh private home contains only launcher-generated MCP configuration and the
+complete selected role guide as native `.gemini/GEMINI.md`. The home is bound
+read-only. A separate writable native root contains conversation, project and
+cache state; only that root is retained on exact-ID resume. The existing OAuth
+token is a single read-only host leaf. Interactive initialization carries only
+existing native onboarding-completion booleans, then the operator answers Agy's
+native trust prompt for the confined workspace. Host settings and credentials
+are not modified. Host-token refresh requiring a write remains unqualified.
+
+The shared masks hide existing workspace `.agents`, `.agent` and `.gemini`
+configuration sources. Native configuration derives exclusively from the
+trusted channel projection. Hostile fixture MCP/hook entries cannot add effective
+servers or execute a sentinel. Agy's native noninteractive permission flag runs
+inside the unchanged kernel plan; settings-based permission policy or native
+hooks are not used as enforcement. Credential/config exposure does not widen
+worker scope or the read-only role posture.
+
+Agy 1.4.0 with Gemini 3.8 Flash low demonstrates ordinary and native
+schema-constrained workers, headless orchestrator start, interactive PTY startup
+and an operator wiki-MCP turn, and exact captured-conversation resume with a fresh
+conduit. The native initial interactive prompt can precede MCP discovery; an
+operator turn after discovery is the demonstrated path. The result decoder
+rejects native errors, malformed/incomplete/truncated output, identity conflicts,
+exit-zero permission denials and native print timeouts. Shared owners retain
+process failure, cancellation, conduit loss and cleanup outcomes. Headless start,
+exact-ID resume and managed launches explicitly disable Agy's independent native
+print timer with `--print-timeout 0s` (verified on Agy 1.4.2). Existing outer
+execution budgets and the managed shared 45-minute timeout, including explicit
+overrides, remain in force. Orchestrator completion consumes bounded stderr
+alongside stdout after stream drain, independently of optional usage capture;
+timeout warnings reject empty and nonempty partial `SUCCESS` envelopes as
+`agy_print_timeout` while retaining the native log and actual exit facts.
+
+Only explicit high-priority guide delivery is qualified. The entire guide must
+fit the native 24,000-byte rule-file limit. Startup delivery is verified; actual
+automatic compaction and `/clear` guide retention remain unverified. Native
+medium inference is additionally demonstrated on Agy 1.4.2 with a 95-second
+native operation followed by an authenticated wiki-MCP read, plus an intentionally
+short native timeout classified through the managed launcher. High-effort
+inference, full benchmark completion and downstream production dispatch/settlement
+remain outside the demonstrated fixtures. See [Agy runtime facts and operator
+commands](agent-launch-family-runtime-state.md#family-runtime-state).
+
 ## Related pages
 
 This page owns agent-session confinement, the role guide grant, Git metadata
@@ -42,7 +95,53 @@ topic:
 | [Conduit capture and probes](agent-launch-conduit-capture-and-probes.md) | Optional transcript capture, the metrics destination and the confined-worker probe composition. |
 | [Test-proof execution](test-proof-execution.md) | Host test and proof execution, which is not session confinement. |
 
-## Role guide after compaction
+## Role guide instructions
+
+The shared `[roles.<role>] high_priority_role_guide` boolean in
+`agent-launch.toml` selects native instruction delivery. It defaults to `true`
+for workers and `false` for reviewer, redteam and orchestrator roles. The setting
+is frozen with the launch selection and propagated as a role-independent
+`guideDelivery` descriptor containing the selected guide path and hook. Guide
+selection still belongs to `resolveLaunchRoleGuidePath`; client adapters consume
+the descriptor and do not select by role. The package guide prose is unchanged.
+
+Enabled Codex launches use a trusted synchronous `SessionStart` hook matching
+`^(startup|compact|clear)$`. Its command prints only the complete selected file
+with `/bin/cat`; there is no reminder introduction or `<role-guide>` wrapper.
+Codex puts that output in developer context before the next request. The existing
+`additionalContextLimit: 0`, normalized trust hash and usage-hook composition
+apply. Both confined and unenforced launch sites compose this hook, including
+LiteLLM routes. Resume retains the developer context from native session history;
+it does not append another copy on each resume. Clear and compaction restore it.
+Sessions created before high-priority delivery was enabled are not retrofitted
+on resume; start a new session or clear the old one to load the guide.
+
+Enabled Claude launches pass `--append-system-prompt-file <selected guide>` on
+startup and resume, preserving Claude's built-in system prompt and the existing
+read grant. The complete guide remains in system instructions through compaction,
+so these launches omit the old compaction reminder hook. Both startup renderers
+can omit their redundant guide-read reference for enabled delivery; launch plan
+composition also removes that exact reference from previously prepared startup
+text. Orchestrator vignette reads remain present.
+
+Gemini uses the same Codex developer delivery through the shared LiteLLM route.
+Pinned LiteLLM 1.105.1 translates Responses inputs into chat messages, applies
+its completion provider's developer-to-system mapping, and puts those messages
+alongside the Responses `instructions` field in Gemini `system_instruction`.
+The gateway declares `model_info.supports_system_messages: true` for registered
+Vertex Gemini routes, because the pinned catalog lacks some current model ids.
+This capability declaration preserves instruction priority without adding guide
+content, changing models or modifying library code. Rendered configuration is
+part of gateway reuse identity, so a gateway started without that declaration
+requires the existing explicit configuration-conflict recovery.
+Guide content stays in individual requests; the shared gateway has no guide
+content or role selection. Local native captures and the pinned conversion
+fixture test initial and post-compaction requests without provider inference.
+Set `AGENT_LAUNCH_TEST_LITELLM_PYTHON` to an interpreter with the pinned version
+when running `role-guide-instructions-native.test.mjs`; a missing prerequisite
+fails explicitly.
+
+### Roles with native instruction delivery disabled
 
 A confined Claude or Codex session gets its selected guide back after the client
 compacts the conversation, manually or automatically. The launcher adds one
@@ -71,7 +170,8 @@ before it prints anything, so the introduction never arrives without the guide.
   `additionalContextLimit` is `0`, so the guide is never replaced by a preview),
   and `hooks.state` with one entry that enables that handler and trusts its
   exact hash under the key `/<session-flags>/config.toml:session_start:0:0`.
-  The hash follows Codex 0.160.1's normalized hook identity. No other hook
+  The hash follows Codex's normalized hook identity (native qualification also
+  covers Codex 0.162.1). No other hook
   source, hook state, or trust setting is read or changed: a user, project, or
   plugin hook the operator has not trusted stays untrusted and does not run.
   Managed requirements keep their authority; under a managed-hooks-only policy
@@ -82,8 +182,8 @@ before it prints anything, so the introduction never arrives without the guide.
   interactive orchestrator launch or resume, which has no permission settings,
   launches with a settings file holding only the hook.
 
-The hook follows actual confinement. An operator direct-mode orchestrator and an
-unenforced plain launch get no hook and no hook-related refusal. A hook that
+For disabled delivery, the reminder hook follows actual confinement. An operator
+direct-mode orchestrator and an unenforced plain launch get no reminder hook and no hook-related refusal. A hook that
 cannot be composed refuses the confined launch before spawn and names the guide,
 the cause, and the operator repair. At run time a failed read exits nonzero with
 `/bin/cat: <file>: <cause>` on standard error and adds nothing to the context,
@@ -478,3 +578,113 @@ children's allowlists are unchanged. A saved runtime configuration and a
 published preparation keep their precedence over what detection would locate,
 and a command still runs with the location the runtime binding names, never
 with the launcher's variable itself.
+
+Orchestrator startup and supported resume use the complete host-selected generated guide and authoring vignette. The same captured configuration drives server registration, both families’ selected read grants, exact-file identity checks and compact-only reminders. Confined support mounts mask the unselected generated directories, including reachable bundled mirrors. Direct operator launches retain their no-wiki/isolation notice and read the configured pair without a conduit or confined hook. A configuration resolution failure selects no pair; file failures refuse rather than substitute another document.
+
+## OpenCode native configuration boundary
+
+OpenCode 1.19.3 has a managed executor using the existing assignment, authority,
+conduit, isolation, supervision and result owners. Its native configuration
+projects only the authenticated conduit channel's pinned command and argv;
+it creates no alternate MCP server or transport. Managed workers use the shared
+frozen sparse read/write boundary; reviewers and redteams use the shared
+read-only repository posture. Schema-constrained workers refuse before conduit
+allocation with `opencode_native_schema_unavailable`; ordinary workers retain
+fenced results and advisory roles retain free prose.
+
+OpenCode's native permissions project the same existing launcher authority.
+`workspace-agent-native-permission-facts.mjs` consumes the shared role/write
+posture, frozen worker membership, selected support-guide grants and the
+authenticated conduit's exact tool names. It interprets no live WK scope and
+grants no access through credentials, runtime binaries or caches. Only the
+OpenCode serializer currently consumes this projection; Claude and Codex
+configuration owners are unchanged.
+
+The OpenCode serializer emits worktree-relative read/edit rules plus the
+absolute parent-directory patterns its native external-directory check needs.
+Those traversal rules confer no edit grant. The existing kernel namespace and
+confidentiality masks remain in force. Reads outside approved support roots,
+unassigned edits and unlisted tools are denied without interactive approval.
+The orchestrator's response state is a separate exact read-only mount; its
+managed-worktree read root and exclusions come from the existing launcher
+owners. Selected guide grants carry the captured tier and opt-out publication
+setting through to both native configuration and sandbox planning.
+
+OpenCode start and resume generate fresh rules. Native session permission
+overrides that contain allow rules refuse resume before conduit allocation;
+empty or deny-only native rules cannot widen the current configuration.
+Glob/Grep require preinstalled ripgrep on an approved executable path, with its
+runtime roots projected by the existing executable resolver. The prepared image
+provisions ripgrep while building, and its offline UID-1000 probe executes it;
+the native client needs no runtime installer.
+
+Native configuration probes demonstrated that global, project, inline, and
+managed inputs can all add MCP servers despite `OPENCODE_CONFIG`. Project and
+managed inputs also widened native permissions. OpenCode loads Linux
+`/etc/opencode` after inline configuration. Both the managed-family and shared orchestrator builders accept family-provided
+configuration masks. OpenCode supplies `/etc/opencode` when it exists in the
+launching namespace; the shared builder forwards it to the existing tmpfs-mask
+owner. It also forwards immutable configuration roots and the closed environment
+policy. Existing callers that omit these inputs retain their prior plans.
+
+Managed native candidates authenticate using a read-only exact service-account
+credential file selected through provider configuration, private HOME/XDG roots,
+project-config disabling, `--pure`, and a precreated read-only native
+configuration directory. The shared environment policy filters
+`GOOGLE_APPLICATION_CREDENTIALS`, ambient inline configuration and permission
+overrides. A kernel witness confirms that the generated configuration cannot
+be written from the child. A competing project configuration is present in the
+native fixtures; it cannot widen their demonstrated kernel access. The operator fixtures additionally inject competing user configuration into a
+disposable HOME and managed configuration into a fixture-only `/etc` namespace;
+they never edit real system or operator configuration.
+
+The selected native provider owns the per-run project/location/authentication
+configuration. For `google-vertex/gemini-3.8-flash`, the key is `google-vertex`,
+location is `global`, and the project is read from the existing service-account
+credential. `googleAuthOptions.keyFilename` selects only its exact read-only
+leaf; no credential is copied into configuration or child environment. These
+are supported [Vertex SDK authentication options](https://ai-sdk.dev/providers/ai-sdk-providers/google-vertex).
+The main and auxiliary (`small_model`) selectors are pinned to the explicit
+model; no Codex/LiteLLM route or substitute model is configured.
+
+Gemini qualification uses OpenCode 1.19.3 with explicit variant `low`, different
+from the model's registered `medium` default. Native catalog variants are
+`low`, `medium`, and `high`; unsupported efforts refuse before conduit or child
+acquisition. Worker and reviewer candidates reach Vertex with the confined
+credential configuration and complete native inference through the production
+executor with disposable fixture registries. Both successfully read
+wiki material over the authenticated conduit. The worker reads an allowed file,
+edits two exact permitted files, receives `ENOENT`/`EROFS` for sibling read/write
+attempts and completes `workspace_deliver_work`. Independent Git and
+attempt-journal reads verify the delivery commit, exact paths, contents, retained
+receipt and unchanged sibling. The reviewer returns free prose; its native
+containment probe reads the allowed file and receives `EROFS` for a repository
+write. Routine reviewer/redteam kernel tests also deny delivery and retain free
+prose despite a conflicting raw schema-mode hint. These native observations are
+Gemini-specific; they do not infer support for other models or postures.
+
+The installed Google Vertex SDK/provider accepts the common boolean-literal
+publication projection, composed after each task tool's own declaration
+projection. It retains boolean type and literal meaning through negation, with
+local references for repeated simple constraints when smaller, keeping boolean
+types inline at each use. It preserves
+the `get_run_result` object-root projection and exact served/retained declaration
+agreement. The strict runtime validator, role authorization and handler remain
+unchanged; the tool stays registered. Native errors, including errors after
+apparent successful text, remain failures through the shared result owners.
+
+The Gemini fixtures use the resolved high-priority native agent guide and follow
+their assigned read/edit/delivery instructions. Lower-priority guide delivery
+refuses rather than changing the selection.
+Interactive TUI start, headless start and exact-session continuations from both
+postures demonstrate authenticated wiki-MCP reads with Gemini at `low` effort.
+Resume retains its native state/ID while the shared owners mint a fresh conduit
+and immutable configuration and re-deliver the host-selected guide. Native
+configuration inspection confirms the complete guide expansion, pinned
+main/auxiliary model and agent variant, and wiki-only registration. Competing
+project/user/managed configuration cannot replace those facts in the qualified
+fixtures; managed configuration exists only in a disposable mount namespace.
+Missing/ambiguous/stale/mismatched native identity refuses before child spawn.
+Retention through compaction/clear and coordinator-managed production settlement
+remain unverified.
+The adapter supplies no permission-policy exception or unconfined launch path.

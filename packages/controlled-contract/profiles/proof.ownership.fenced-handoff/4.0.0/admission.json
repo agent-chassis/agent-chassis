@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "cd71b2cfd7c3e07e69f8350a077865423b77d9267b1002520f74c4ecc3d879f2",
+  "parameter_contract_digest": "52acb3ff13ba705a1fe54177bf5a19b05f4c074fddafa9e1ff853eed63928345",
   "profile_id": "proof.ownership.fenced-handoff",
   "profile_version": "4.0.0",
-  "profile_digest": "599f9755af61ffb2b62d2d132f4f64e73d5ee8c26fd0d3587fa3d7139343c898",
+  "profile_digest": "d213337cf01ea3d81d73d6c69c5e4a1fbc87570b27ca8b49f581453ea97aa267",
   "guarantee": "For one declared resource and fence, complete declared predecessor attempt and effect populations precede the fence under one predecessor authority and epoch; successor activation and complete declared successor attempt and effect populations follow the fence under one distinct successor authority and epoch; every complete declared post-fence predecessor attempt is refused and writes or mutates no declared protected resource; the complete post-fence predecessor protected-effect and dual-active observation populations are empty; and distinct observations ordered around the fence record the corresponding predecessor and successor authority, epoch, and resource.",
   "guarantee_digest": "68c788f79b75254bb8600eb8805fb8bf6589052825cc26b243f482261641f975",
   "explicit_exclusions": [
@@ -17,8 +17,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "8aaf71b93b889dcc132a25fe6ef238e823c624d5773aa3b001c73ff8656aabe4",
-    "adequacy_result_digest": "997e4d39fb8f7747682d7f0de5c98c28fb2659d3b61f8f900e9e8d45e9334d27",
+    "adequacy_declaration_digest": "aaea693a6a772a5e850ec4977bfb1181a55d6861caf7ed0154c9cddc9684a4e2",
+    "adequacy_result_digest": "930578b5a880cf9c2e6a707533f055b18da88229b711da3aced8eebebdde90e0",
     "executable_control_count": 34,
     "negative_fixture_count": 218,
     "coverage_witness_count": 218

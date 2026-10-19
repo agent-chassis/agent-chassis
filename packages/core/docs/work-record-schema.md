@@ -351,10 +351,25 @@ criterion identity and saved coverage rows intact while still moving the
 acceptance-coverage source bindings that own staleness.
 
 `acceptance.validation` accepts human note strings,
-`{note, verification_ids}` relationship-bearing notes, and one executable shape:
+`{note, verification_ids}` relationship-bearing notes, repository commands, and proof bindings:
 `{operation: "node_test", target, verification_ids}`. The target is one canonical
 repository-relative `.mjs` test-module path. Strings never authorize execution.
-Command-bearing objects, unknown operations, extra fields, duplicate executable
+Repository commands are `{operation: "repository_test", id, purpose, selections,
+default_selection?}`. Each selection has an assignment-local `id`, a complete
+literal `harness: {cwd, argv}`, exact `definition_paths`, optional prepared
+`environment` and optional finite `additional_baseline_commits` (full commit IDs).
+Selections never interpolate caller arguments. Only an explicitly authored
+default allows omission of selection. Repository commands carry no
+`verification_ids`, proof targets or proof credit.
+
+`save_record changes.validation` and ready-slice `acceptance.validation` accept
+`{repository_tests: [...], notes?: [...]}` to replace the selected unit's entire
+command subsequence; an empty list removes it. Omitted notes are preserved;
+supplied notes replace notes. The note-array operation preserves commands and
+case-owned `node_test` entries, whose relative order is retained. Parent commands
+are context for slices and supply no slice execution authority.
+
+Unknown operations, extra fields, duplicate command IDs or executable
 verification bindings, and `sections.structured_validation` are invalid.
 
 Validation strings are part of the work contract. They do not by themselves
@@ -412,7 +427,10 @@ not change the canonical record schema.
 
 ## Review and Closure Evidence
 
-Implementation work requires findings-only review before it is treated as done.
+Repository coordinator policy requires findings-only review before implementation
+is treated as done. This conduct requirement is distinct from a local runtime
+integration gate: findings are advisory, and configured CCE policy owns any
+review-based admission decision.
 Worker reports and role results are evidence about what changed, which
 validation ran, and what blockers or follow-ups remain. The coordinator or a
 trusted ingestion path is responsible for incorporating that evidence into the
@@ -423,7 +441,7 @@ pointers should summarize the durable result. Remaining work should move into a
 new or existing WK or slice rather than staying as unchecked tasks on a closed
 unit.
 
-Review execution uses `workspace_agent_dispatch`; its original result is the
+Review execution uses `start_agent`; its original result is the
 review observation and the coordinator consumes its advisory text directly.
 Schema diagnostics never make captured text unusable. If the canonical selected
 result contract requests formal attestation, derivation and durable publication

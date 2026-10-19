@@ -1,3 +1,4 @@
+import { runFeedback } from "./commands/feedback.mjs";
 import { runAllocateId } from "./commands/allocate-id.mjs";
 import { runBootstrap } from "./commands/bootstrap.mjs";
 import { runCreate } from "./commands/create.mjs";
@@ -45,6 +46,7 @@ Commands:
   validate-dispatch   Validate a unit address against the dispatch-readiness contract
   node-engine        Consumer-facing Node Engine API-key checks (structural-only; validate-smoke)
   code-index         Repo code index status, build, impact, graph impact, symbol navigation, call graph, and context surfaces
+  feedback           Local advisory feedback: add --stdin --new-session|--session <id> (--dir, --json)
   help               Show this help text
 
 Examples:
@@ -84,7 +86,7 @@ Examples:
   wiki code-index status --json --dir /path/to/repo
 `;
 
-export async function run(argv) {
+export async function run(argv, { packageDocsCarrier = null } = {}) {
   const [command, ...rest] = argv;
 
   switch (command) {
@@ -93,6 +95,9 @@ export async function run(argv) {
     case "--help":
     case "-h":
       console.log(HELP_TEXT);
+      return;
+    case "feedback":
+      await runFeedback(rest, { packageDocsCarrier });
       return;
     case "bootstrap":
       await runBootstrap(rest);

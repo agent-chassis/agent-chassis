@@ -20,7 +20,8 @@ export const NODE_TEST_PROOF_LAUNCHER_ASSETS = Object.freeze([
   "./workspace-agent-test-proof-error-diagnostic.mjs",
   "./workspace-agent-test-proof-diagnostic-graph.cjs",
   "./workspace-agent-test-proof-module-fault-loader.mjs",
-  "./workspace-agent-test-proof-module-fault-contract.mjs"
+  "./workspace-agent-test-proof-module-fault-contract.mjs",
+  "./workspace-agent-test-proof-source-binding.mjs"
 ].map((relative) => fileURLToPath(new URL(relative, import.meta.url))));
 
 const REPORT_SCHEMA_VERSION = "workspace-agent-test-proof-node-events.v1";
@@ -39,9 +40,10 @@ export function launcherNodeTestReporterUrl() {
   return url.href;
 }
 
-export function launcherNodeTestRunReporterUrl(repositoryRoot) {
+export function launcherNodeTestRunReporterUrl(repositoryRoot, sourceBinding = null) {
   const url = new URL("./workspace-agent-test-proof-node-reporter.mjs", import.meta.url);
   url.searchParams.set("launcher_repository_root", repositoryRoot);
+  if (sourceBinding !== null) url.searchParams.set("node_test_source_binding", JSON.stringify(sourceBinding));
   return url.href;
 }
 
@@ -411,7 +413,17 @@ export function observeLauncherNodeTestRun({
   }
   const { events, summary, passEvents, failEvents, testEvents } = authenticated;
   const coverageFiles = events.filter(({ type }) => type === "test:coverage")
-    .flatMap(({ files }) => files ?? []).filter(({ covered_line_count: count }) => count > 0);
+    .flatMap(({ files }) => files ?? []);
+  if (expectation?.capability === "boundary_traversal") {
+
+    const refused = coverageFiles.find(({ source_binding: binding }) => binding?.status === "refused");
+    if (refused !== undefined) return { valid: false, code: "test_proof_installed_source_binding_invalid",
+      detail: { reason: refused.source_binding.reason, test: expectation.target } };
+    const bindingFailure = events.find((event) => event.type === "test:coverage" &&
+      typeof event.source_binding_failure === "string");
+    if (bindingFailure !== undefined) return { valid: false, code: "test_proof_installed_source_binding_invalid",
+      detail: { reason: bindingFailure.source_binding_failure, test: expectation.target } };
+  }
   const basePayload = {
     mechanism: "node_test_structured_events",
     exit_code: exitCode,
@@ -465,8 +477,16 @@ export function observeLauncherNodeTestRun({
     expectation, events, testEvents, inSelectedTree, basePayload, structuredArtifact,
     targetPassObserved, targetFailureObserved });
   if (expectation?.capability === "boundary_traversal") {
+    const invalid = coverageFiles.some(({ path, source_binding: binding }) => binding !== undefined &&
+      (binding.status !== "authenticated" || path !== expectation.module_path ||
+        binding.candidate_module_digest !== expectation.source_binding?.candidate_module_digest ||
+        binding.installed_module_digest !== binding.published_module_digest));
+    if (invalid) return { valid: false, code: "test_proof_installed_source_binding_invalid",
+      detail: { reason: "module_identity_mismatch", test: expectation.target } };
 
-    const observed = coverageFiles.some(({ path, functions }) =>
+    const installedSelected = events.some((event) => event.type === "test:coverage" && event.installed_source_selected === true);
+    const observed = coverageFiles.some(({ path, functions, source_binding: binding }) =>
+      (!installedSelected || binding?.status === "authenticated") &&
       path === expectation.module_path && (functions ?? []).some(
         ({ count }) => Number.isSafeInteger(count) && count > 0));
     const boundaryPayload = {
@@ -478,6 +498,8 @@ export function observeLauncherNodeTestRun({
       target_pass_observed: targetPassObserved,
       observed,
       covered_module_paths: coverageFiles.map(({ path }) => path).sort(),
+      installed_source_bindings: coverageFiles.flatMap(({ source_binding: binding }) =>
+        binding === undefined ? [] : [binding]),
       structured_event_digest: structuredArtifact.digest
     };
     return {

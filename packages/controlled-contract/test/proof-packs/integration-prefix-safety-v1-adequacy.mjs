@@ -6,7 +6,7 @@ import { PROOF_PACK_ADEQUACY_RUN_VERSION } from
 
 const GUARANTEE = "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.";
 const PROFILE_DIGEST =
-  "28d91a5f6f1e7af31d7ba606915884a58cf88a9633fa36e0a6cc2a829deaa5d2";
+  "4380c129a205bf9f62161ade73bc4f4b6d847aa354624f8649fa2f6e01b6458c";
 const GUARANTEE_DIGEST =
   "77ffbca9bd9a063e667d13d48668f30e21236d4da2f2eb612db07cd7dc40754e";
 

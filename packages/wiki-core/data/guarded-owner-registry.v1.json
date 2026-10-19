@@ -39,14 +39,14 @@
       "reference_id": "ref-wk2359-witness-dispatch-ergonomics",
       "reference_kind": "owner_proof",
       "path": "tests/integration/dispatch-tools-ergonomics.test.mjs",
-      "content_digest": "sha256:020dddee2800515e5e4371295b5a7f0711ac9b3aab30ba51effc52aa246d7937",
+      "content_digest": "sha256:22f084e8070f53d5ca18d17885cf59df5d8f22138c0248d41199d0c17d137ec1",
       "selector": "node --test tests/integration/dispatch-tools-ergonomics.test.mjs"
     },
     {
       "reference_id": "ref-wk2359-witness-backend-routing",
       "reference_kind": "owner_proof",
       "path": "tests/integration/workspace-agent-advisory-review-production-composition.test.mjs",
-      "content_digest": "sha256:91fe7ca4bc9c01508bf0a3cffe0d7653b1a926b4f5a07a4fc8fae50627afed13",
+      "content_digest": "sha256:99fcfd4c370d293c619ce692062ecaf7817910ae0bd43f9362e20b4ed2337fb9",
       "selector": "node --test tests/integration/workspace-agent-advisory-review-production-composition.test.mjs"
     },
     {
@@ -74,14 +74,14 @@
       "reference_id": "ref-wk2359-witness-settled-readiness",
       "reference_kind": "owner_proof",
       "path": "tests/unit/workspace-agent-dispatch-corrective-status-recovery.test.mjs",
-      "content_digest": "sha256:2a489d9025faacc1637fbc11b7e5e290681b390a341a3b620a41cc6ee682d24c",
+      "content_digest": "sha256:a4208d2844a424b68da1f4db17a3ba41abdbeef249c9a872387c167eca1c7df3",
       "selector": "node --test tests/unit/workspace-agent-dispatch-corrective-status-recovery.test.mjs"
     },
     {
       "reference_id": "ref-wk2382-witness-census",
       "reference_kind": "owner_proof",
       "path": "tests/unit/async-failure-census.test.mjs",
-      "content_digest": "sha256:65239a3bdaaeea533617c568484a2729efbd9f493aa3904bc9907a6984314c11",
+      "content_digest": "sha256:4613299566f5af5bb1f50895489809db53093ab2def4da7bfbad2901b34900df",
       "selector": "node --test tests/unit/async-failure-census.test.mjs"
     },
     {
@@ -102,14 +102,14 @@
       "reference_id": "ref-wk2405-findings-witness",
       "reference_kind": "owner_proof",
       "path": "tests/integration/workspace-agent-advisory-material.test.mjs",
-      "content_digest": "sha256:46da61e94a8214d3efda7024b90c2d1c244ea17ff606d28df8eb8788442f8955",
+      "content_digest": "sha256:36d6f995d1cb6115178183df66fb1312c7b3e492d4d7d3de2e03a9cf62c924d0",
       "selector": "node --test tests/integration/workspace-agent-advisory-material.test.mjs"
     },
     {
       "reference_id": "ref-wk2428-recovery-witness",
       "reference_kind": "owner_proof",
       "path": "tests/integration/dispatch-tools-ergonomics.test.mjs",
-      "content_digest": "sha256:020dddee2800515e5e4371295b5a7f0711ac9b3aab30ba51effc52aa246d7937",
+      "content_digest": "sha256:22f084e8070f53d5ca18d17885cf59df5d8f22138c0248d41199d0c17d137ec1",
       "selector": "node --test tests/integration/dispatch-tools-ergonomics.test.mjs"
     },
     {

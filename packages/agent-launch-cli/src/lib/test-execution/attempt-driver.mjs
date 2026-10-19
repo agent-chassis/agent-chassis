@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, openSync, readFileSync, closeSync, readSync,
+import { chmodSync, mkdirSync, openSync, readFileSync, closeSync, readSync,
   symlinkSync, writeFileSync, writeSync } from "node:fs";
 import path from "node:path";
 
@@ -86,6 +86,7 @@ try {
     const target = privatePath(file.path, "write", privateRoot);
     mkdirSync(path.dirname(target), { recursive: true });
     writeFileSync(target, Buffer.from(file.content_base64, "base64"), { mode: file.mode ?? 0o600 });
+    if (file.mode !== undefined) chmodSync(target, file.mode);
   }
   if (channel?.kind === "file") {
     writeFileSync(privatePath(channel.path, "channel", privateRoot), "", { mode: 0o600 });
@@ -141,7 +142,8 @@ child.on("error", (error) => {
   spawnError = error;
 });
 child.on("close", (code, signal) => {
-  if (spawnError !== null && code === null) {
+
+  if (spawnError !== null) {
     report({ phase: "spawn_failed", error: spawnError.code ?? spawnError.message, channel: null });
     exit(126);
   }

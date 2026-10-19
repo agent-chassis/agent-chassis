@@ -4,7 +4,7 @@ import nativeSchema from '../schema/controlled-acceptance-contract.v1.schema.jso
 import selectorSchema from '../schema/controlled-acceptance-test-proof-definitions.v1.schema.json' with { type: 'json' };
 import inputSchema from '../schema/controlled-contract-verification-profile-input.v2.schema.json' with { type: 'json' };
 import { compiledValidators } from './compiled-validator-cache.mjs';
-import { validateProfileSchemaV1 } from './verification-profile-schema-v1.mjs';
+import { validateCurrentProofDefinition } from './test-validity-execution-definition.mjs';
 import { profileDigest } from './profile-digest.mjs';
 import { deepFreeze } from './deterministic-projection-primitives.mjs';
 import { exactPopulation, inspectPackParameterCoverage, parameterFailure,
@@ -36,7 +36,7 @@ function resolvePointer(profile, pointer) {
 export function validatePackParameterContract(contract, profile) {
   if (!validateSchema(contract)) parameterFailure('schema_invalid', '/',
     'parameter contract must satisfy its closed schema', { diagnostics: structuredClone(validateSchema.errors) });
-  if (!validateProfileSchemaV1(profile)) parameterFailure('profile_invalid', '/profile',
+  if (!validateCurrentProofDefinition(profile)) parameterFailure('profile_invalid', '/profile',
     'bound profile must satisfy its incumbent schema');
   for (const [field, value] of Object.entries({ profile_id: profile.profile_id,
     profile_version: profile.profile_version, profile_digest: profileDigest(profile) })) {

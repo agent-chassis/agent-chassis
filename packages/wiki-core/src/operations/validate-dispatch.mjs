@@ -1,3 +1,5 @@
+import { integratedSliceDispatchRefusal } from "../lib/integrated-slice-dispatch.mjs";
+import { projectControlledAcceptanceDispatchFailure } from "../lib/controlled-acceptance-dispatch-recovery.mjs";
 import path from "node:path";
 import { access, readFile } from "node:fs/promises";
 import {
@@ -116,6 +118,11 @@ function selectedSlice(record, unitAddress) {
 
 export async function loadDispatchSubject(source = {}) {
   return (await loadDispatchSelection(source)).subject;
+}
+
+export async function loadIntegratedSliceDispatchRefusal(options) {
+  const selected = await loadDispatchSelection(options);
+  return integratedSliceDispatchRefusal(selected.subject, options.unitAddress);
 }
 
 export async function loadDispatchSelection({ dir = ".", unitAddress, recordStore = null } = {}) {
@@ -329,7 +336,7 @@ function attachCarrierDiagnostic(result, carrierRefusal) {
   };
 }
 
-async function controlledAcceptanceReadiness(options, dispatchRole) {
+async function controlledAcceptanceReadiness(options, dispatchRole, registeredTier) {
   if (dispatchRole !== "implementation") return null;
   const loaded = await loadDispatchRecord(options);
   if (!loaded?.valid) return null;
@@ -344,7 +351,7 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
       wkId: loaded.record.id,
       selectedUnit,
       record: loaded.record
-    });
+    }, { registeredTier });
   } catch (error) {
     const readiness = buildTerminalReadiness({
       recordId: loaded.record.id,
@@ -381,10 +388,7 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
   const admission = controlledAcceptanceState.semantic.admission;
   const decisionCode = admission.blocked_reason_code ??
     CONTROLLED_ACCEPTANCE_DECISION_CODES[controlledAcceptanceState.state];
-
-  const coverageExplanation = admission.deciding_causes.some(
-    (cause) => cause.cause === "acceptance_criteria_uncovered")
-    ? admission.recovery_explanation : null;
+  const controlledFailure = projectControlledAcceptanceDispatchFailure(controlledAcceptanceState, options.unitAddress);
   const readiness = buildTerminalReadiness({
     recordId: loaded.record.id,
     unit: options.unitAddress,
@@ -394,7 +398,7 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
       ? "the canonical proof posture has no controlled-acceptance disposition"
       : decisionCode === "controlled_acceptance_source_not_current"
         ? "the authenticated controlled-acceptance source moved during assessment"
-        : coverageExplanation ?? controlledAcceptanceState.recovery?.explanation ??
+        : controlledFailure.explanation ?? controlledAcceptanceState.recovery?.explanation ??
           "the current required controlled-acceptance contract is mechanically incomplete",
     dispatchRole
   });
@@ -421,6 +425,7 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
   });
   return { controlledAcceptanceState, refusal: { ...readiness,
     controlled_acceptance_state: controlledAcceptanceState,
+    controlled_acceptance_failure: controlledFailure,
     controlled_acceptance_recovery: recoveryContract,
     next_calls: typeof recovery?.tool === "string" ? [recovery] : [] } };
 }
@@ -517,7 +522,7 @@ function withoutTrustedSeams(options) {
   return rest;
 }
 
-export async function validateWorkRecordDispatch(options = {}) {
+export async function validateWorkRecordDispatch(options = {}, { registeredTier = null } = {}) {
   const picked = pickDispatchOptions(
     options,
     DISPATCH_STRICT_OPTION_KEYS,
@@ -528,7 +533,8 @@ export async function validateWorkRecordDispatch(options = {}) {
   if (axis.refusal) return axis.refusal;
   const controlledAcceptance = await controlledAcceptanceReadiness(
     snapshotOptions,
-    axis.dispatch_role
+    axis.dispatch_role,
+    registeredTier
   );
   if (controlledAcceptance?.refusal) return controlledAcceptance.refusal;
   const result = await validateWorkRecordDispatchById({
@@ -544,7 +550,7 @@ export async function validateWorkRecordDispatch(options = {}) {
   }, preflight);
 }
 
-export async function validateWorkRecordDispatchReport(options = {}) {
+export async function validateWorkRecordDispatchReport(options = {}, { registeredTier = null } = {}) {
   const picked = pickDispatchOptions(
     options,
     DISPATCH_REPORT_OPTION_KEYS,
@@ -553,7 +559,7 @@ export async function validateWorkRecordDispatchReport(options = {}) {
   const { mode: _unusedMode, ...rest } = withoutTrustedSeams(withSnapshotRecordStore(picked));
   const axis = await selectDispatchAxis(rest);
   if (axis.refusal) return { report_mode: true, readiness: axis.refusal };
-  const controlledAcceptance = await controlledAcceptanceReadiness(rest, axis.dispatch_role);
+  const controlledAcceptance = await controlledAcceptanceReadiness(rest, axis.dispatch_role, registeredTier);
   if (controlledAcceptance?.refusal) {
     return { report_mode: true, readiness: controlledAcceptance.refusal };
   }

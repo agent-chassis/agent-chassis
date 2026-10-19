@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -14,6 +14,21 @@ import { DISPATCH_FAILURE_ORIGINALS } from "../../packages/wiki-mcp/src/lib/disp
 import { selectedResponseRequestSchema } from "../../packages/wiki-mcp/src/lib/selected-response-snapshot.mjs";
 import { requestContractErrors } from "../../packages/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+import { projectCheckLandingCause } from "../../packages/wiki-mcp/src/lib/dispatch-tools/check-landing-response.mjs";
+
+test("landing diagnosis collapses repeated wrappers and preserves distinct underlying failures", () => {
+  const missing = { code: "ENOENT", message: "selected ref is absent", details: { ref: "refs/selected/one" } };
+  const other = { code: "ENOENT", message: "selected ref is absent", details: { ref: "refs/selected/two" } };
+  const denied = { code: "EACCES", message: "selected history cannot be read" };
+  const diagnostic = { stage: "selected_publication", reason: "publication_unobservable",
+    evidence: { cause_chain: [missing, other, denied] } };
+  assert.deepEqual(projectCheckLandingCause({ stage: "handoff", category: "indeterminate", detail: {
+    ...diagnostic, evidence: { cause_chain: [{ ...diagnostic, evidence: { cause_chain: [missing] } }, missing, other, denied] }
+  } }), { stage: diagnostic.stage, reason: diagnostic.reason, failures: [
+    { code: missing.code, message: missing.message, ref: missing.details.ref },
+    { code: other.code, message: other.message, ref: other.details.ref }, denied
+  ] });
+});
 
 test("check_landing rejects malformed or unauthorized input before observation", async () => {
   const subject = "WK-2739";
@@ -73,9 +88,9 @@ test("check_landing rejects malformed or unauthorized input before observation",
   assert.match(guided.invalid_fields[0].message, /exactly 64 lowercase hexadecimal characters identifying one publication version/u);
   assert.match(guided.correction, /COMPLETE selection the publication owner returned/u);
   assert.match(guided.correction, /worker or delivery commit or the literal "current"/u);
-  assert.deepEqual(guided.next_calls, [{ tool: "workspace_check_landing", arguments: { subject } }],
-    "the alternative is allowed, never the recommended repair");
-  assert.equal(guided.current_observation_alternative.call, guided.next_calls[0]);
+  assert.deepEqual(guided.next_calls, [], "a different question is not a correction continuation");
+  assert.deepEqual(guided.current_observation_alternative.call,
+    { tool: "workspace_check_landing", arguments: { subject } });
   assert.match(guided.current_observation_alternative.label, /^OPTIONAL ALTERNATIVE: observe CURRENT/u);
   assert.match(guided.current_observation_alternative.not_a_correction, /not the requested pinned read and repairs no failed publication/u);
   for (const unusable of [await project({ selection: pinned.selection }),
@@ -93,16 +108,18 @@ test("check_landing rejects malformed or unauthorized input before observation",
     const denied = await createCheckLandingTask({ env: { WIKI_MCP_TOOL_PROFILE: role },
       wkLandingStatusAdapter: adapter }).call({ subject, selection: local });
     assert.equal(denied.structuredContent.blocker.reason, "check_landing_role_forbidden");
+    assert.equal(denied.structuredContent.blocker.detail.role, role);
+    assert.deepEqual(denied.structuredContent.blocker.detail.required_roles, ["orchestrator", "operator"]);
     assert.equal(denied.structuredContent.subject.unit, subject);
-    assert.equal(denied.structuredContent.refusal.recovery.responsible_actor, "launcher");
+    assert.equal(denied.structuredContent.recovery.responsible_actor, "launcher");
   }
   const absent = await task.call({ subject });
   assert.equal(absent.structuredContent.blocker.reason, "check_landing_session_repository_missing");
-  assert.equal(absent.structuredContent.refusal.recovery.missing_component, "session_workspace");
+  assert.equal(absent.structuredContent.recovery.missing_component, "session_workspace");
   assert.equal(calls, 0);
 });
 
-test("check_landing delivers complete semantic causes and authenticates retained originals without observation", async (t) => {
+test("check_landing projects task causes and authenticates retained originals without observation", async (t) => {
 
   const scope = createTestResourceScope();
   t.after(() => scope.dispose());
@@ -111,7 +128,7 @@ test("check_landing delivers complete semantic causes and authenticates retained
   const subject = "WK-2739";
   const selection = { kind: "publication", version: "a".repeat(64), head: "b".repeat(40), destination: { transport: "local" } };
   const semantic = { stage: "handoff", reason: "fixture_authentication_unavailable",
-    message: "semantic multibyte 🧭🙂".repeat(2000), token: "genuine selected publication token fact",
+    message: "The exact publication ancestry lookup failed.", token: "SERVER-ONLY-TOKEN".repeat(2000),
     nested: Array.from({ length: 80 }, (_, id) => ({ id, facts: { message: `fact ${id}`, token: `token ${id}` } })) };
   let calls = 0;
   const env = { ...process.env, WIKI_MCP_TOOL_PROFILE: "orchestrator",
@@ -119,7 +136,7 @@ test("check_landing delivers complete semantic causes and authenticates retained
   const workspace = { repo: "fixture", dir: stateDir };
   const adapter = async () => {
     calls++;
-    return { accepted: true, landing: { state: "unavailable", selection, selection_authenticated: false,
+    return { accepted: true, landing: { state: "unavailable", selection_authenticated: false,
       transport: null, landing_authority: null, observed_base: null, landed_publication: null,
       effects: { object_cache_fetch: "uncertain" },
       cause: { ...semantic, stdout: "RAW-STDOUT", stderr: "RAW-STDERR", stack: "RAW-STACK" } } };
@@ -129,29 +146,46 @@ test("check_landing delivers complete semantic causes and authenticates retained
   const result = delivered.result;
   assert.equal(result.structuredContent.response_spilled, undefined);
   assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
-  assert.ok(Buffer.byteLength(result.content[0].text) > 8192);
-  const { retained_evidence, ...cause } = result.structuredContent.cause;
-  assert.deepEqual(cause, semantic);
-  assert.equal(retained_evidence.retained, false, "diagnostic projection itself remains a read");
+  assert.ok(Buffer.byteLength(result.content[0].text) < 2048);
+  assert.deepEqual(result.structuredContent.cause, { stage: semantic.stage, reason: semantic.reason, message: semantic.message });
+  for (const internal of ["SERVER-ONLY-TOKEN", "RAW-STDOUT", "RAW-STDERR", "RAW-STACK", "retained_evidence", "authority_identity"]) {
+    assert.equal(result.content[0].text.includes(internal), false, internal);
+  }
   assert.deepEqual(result.structuredContent.effects, { object_cache_fetch: "uncertain" });
-  assert.deepEqual(result.structuredContent.delivery, { transport_retention: "retained" });
+  assert.deepEqual(result.structuredContent.selection, selection, "an incomplete observation keeps the caller's exact selection");
+  assert.equal(result.structuredContent.delivery, undefined);
+  assert.equal(result.structuredContent.next_calls, undefined, "the complete answer needs no reread");
+  assert.equal(delivered.source, null);
+  assert.equal(delivered.originalRequest, null);
+  assert.deepEqual(readdirSync(stateDir), [], "a complete unavailable answer needs no retained server carrier");
+  const pending = await createCheckLandingTask({ workspace, env,
+    ownerCall: source => ({ tool: "workspace_read_wiki", arguments: { reference: source } }),
+    ownerRequestSchema: selectedResponseRequestSchema(z.object({ reference: z.object({ ref_id: z.string() }).strict() }).strict()),
+    wkLandingStatusAdapter: async () => { calls++; return { accepted: true, landing: {
+      state: "awaiting_human_landing", selection, selection_authenticated: true,
+      transport: "local", landing_authority: "human_git_actor",
+      handoff: { commit: selection.head, base_branch: "main", handoff_ref: "refs/fixture/handoff" }
+    } }; }
+  }).respond({ subject, selection });
   const bytes = () => Object.fromEntries(readdirSync(stateDir, { recursive: true }).map(String)
     .filter((name) => statSync(path.join(stateDir, name)).isFile())
     .map((name) => [name, readFileSync(path.join(stateDir, name))]));
   const retained = bytes();
   const cold = createCheckLandingTask({ workspace, env,
     wkLandingStatusAdapter: () => assert.fail("original read observed the live publication") });
-  const original = await cold.readOriginal(delivered.originalRequest);
-  assert.deepEqual(original.structuredContent, result.structuredContent);
-  for (const request of [{ ...delivered.originalRequest, subject: "WK-9999" },
-    { ...delivered.originalRequest, source: { ...delivered.source, sha256: "0".repeat(64) } }]) {
+  const original = await cold.readOriginal(pending.originalRequest);
+  assert.equal(original.structuredContent.state, "awaiting_human_landing");
+  assert.equal(original.structuredContent.landing_action.head, selection.head);
+  assert.equal(original.structuredContent.next_calls, undefined);
+  for (const request of [{ ...pending.originalRequest, subject: "WK-9999" },
+    { ...pending.originalRequest, source: { ...pending.source, sha256: "0".repeat(64) } }]) {
     const refused = await cold.readOriginal(request);
     assert.equal(refused.isError, true);
-    assert.equal(JSON.stringify(refused).includes(semantic.message), false);
+    assert.equal(JSON.stringify(refused).includes(selection.head), false);
   }
   const differentAuthority = createCheckLandingTask({ workspace,
     env: { ...env, WIKI_MCP_TOOL_PROFILE: "operator" } });
-  assert.equal((await differentAuthority.readOriginal(delivered.originalRequest)).isError, true);
+  assert.equal((await differentAuthority.readOriginal(pending.originalRequest)).isError, true);
   for (const [name, options, reason, stage] of [
     ["forbidden role", { workspace, env: { ...env, WIKI_MCP_TOOL_PROFILE: "worker" } },
       "check_landing_role_forbidden", "entitlement"],
@@ -163,17 +197,17 @@ test("check_landing delivers complete semantic causes and authenticates retained
     await t.test(`original read refuses ${name} before retrieving content`, async () => {
       const refused = await createCheckLandingTask({ ...options, responseEnv: env,
         wkLandingStatusAdapter: () => { calls++; assert.fail("original read invoked the observer"); }
-      }).readOriginal(delivered.originalRequest);
+      }).readOriginal(pending.originalRequest);
       assert.equal(refused.structuredContent.blocker?.reason, reason, JSON.stringify(refused.structuredContent));
       assert.equal(refused.structuredContent.blocker.detail.stage, stage);
       assert.equal(refused.structuredContent.subject.unit, subject);
-      assert.equal(JSON.stringify(refused).includes(semantic.message), false);
+      assert.equal(JSON.stringify(refused).includes(selection.head), false);
       assert.deepEqual(bytes(), retained);
-      assert.equal(calls, 1);
+      assert.equal(calls, 2);
     });
   }
   assert.deepEqual(bytes(), retained);
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
 });
 
 function harness(adapter, responseEnv = undefined) {
@@ -191,6 +225,58 @@ function harness(adapter, responseEnv = undefined) {
   });
   return { calls, tool };
 }
+
+test("complete answers need no storage recovery and preserve native observation failures", async t => {
+  const scope = createTestResourceScope();
+  t.after(() => scope.dispose());
+  const root = mkdtempSync(path.join(os.tmpdir(), "landing-storage-failure-"));
+  scope.add("response storage fixture", () => rmSync(root, { recursive: true, force: true }));
+  const blocked = path.join(root, "not-a-directory");
+  writeFileSync(blocked, "file");
+  const task = createCheckLandingTask({ workspace: { repo: "fixture", dir: root },
+    env: { ...process.env, WIKI_MCP_TOOL_PROFILE: "orchestrator", WIKI_MCP_RESPONSE_STATE_DIR: blocked },
+    wkLandingStatusAdapter: async () => ({ accepted: true, landing: { state: "landed",
+      effects: { object_cache_fetch: "not_attempted" } } }) });
+  const answer = (await task.call({ subject: "WK-2739" })).structuredContent;
+  assert.equal(answer.state, "landed");
+  assert.equal(answer.next_calls, undefined);
+  assert.equal(answer.saved_observation_unavailable, undefined);
+  assert.deepEqual(answer, { accepted: true, subject: { repo: "fixture", unit: "WK-2739" },
+    request_mode: "current", state: "landed" });
+  for (const thrown of [null, "native observation failure"]) {
+    const failing = createCheckLandingTask({ workspace: { repo: "fixture", dir: root },
+      env: { ...process.env, WIKI_MCP_TOOL_PROFILE: "orchestrator", WIKI_MCP_RESPONSE_STATE_DIR: path.join(root, "responses") },
+      wkLandingStatusAdapter: async () => { throw thrown; } });
+    const failure = (await failing.call({ subject: "WK-2739" })).structuredContent;
+    assert.equal(failure.accepted, false);
+    assert.equal(failure.effects, null, JSON.stringify(failure));
+    assert.deepEqual(failure.blocker.detail.failures, [{ value: thrown }]);
+  }
+});
+
+test("failed optional action navigation delivers the complete inline action without repeating observation", async t => {
+  const scope = createTestResourceScope();
+  t.after(() => scope.dispose());
+  const root = mkdtempSync(path.join(os.tmpdir(), "landing-reader-failure-"));
+  scope.add("reader failure fixture", () => rmSync(root, { recursive: true, force: true }));
+  let observations = 0;
+  const task = createCheckLandingTask({ workspace: { repo: "fixture", dir: root },
+    env: { ...process.env, WIKI_MCP_TOOL_PROFILE: "orchestrator", WIKI_MCP_RESPONSE_STATE_DIR: root },
+    ownerCall: () => { throw new Error("could not construct landing action reader"); },
+    ownerRequestSchema: selectedResponseRequestSchema(z.object({ reference: z.object({ ref_id: z.string() }).strict() }).strict()),
+    wkLandingStatusAdapter: async () => { observations++; return { accepted: true, landing: {
+      state: "awaiting_human_landing", transport: "local", landing_authority: "human_git_actor",
+      handoff: { commit: "b".repeat(40), base_branch: "main", handoff_ref: "refs/fixture/handoff" }
+    } }; } });
+  const result = await task.call({ subject: "WK-2739" });
+  assert.notEqual(result.isError, true);
+  assert.equal(result.structuredContent.state, "awaiting_human_landing");
+  assert.deepEqual(result.structuredContent.landing_action, { actor: "human_git_actor", action: "land_exact_handoff_head",
+    head: "b".repeat(40), base_branch: "main", ref: "refs/fixture/handoff" });
+  assert.equal(result.structuredContent.next_calls, undefined);
+  assert.equal(result.structuredContent.saved_observation_unavailable, undefined);
+  assert.equal(observations, 1);
+});
 
 test("the landing-status route is registered read-only with a closed input", () => {
   const { tool } = harness(null);

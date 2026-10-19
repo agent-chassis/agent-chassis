@@ -67,6 +67,7 @@ const jsonBytes = certificationJsonBytes;
 const keyOf = ({ profile_id: id, profile_version: version }) => `${id}@${version}`;
 import { exactProofEvaluatorIdentities } from "../../lib/proof-evaluator-registry.mjs";
 import { validatePackParameterContract } from "../../lib/pack-parameter-contract.mjs";
+import { validateCurrentProofDefinition } from "../../lib/test-validity-execution-definition.mjs";
 const currentCatalog = await readJson(path.join(profilesRoot, "catalog.json"));
 const expectedVersion = id => {
   const entry = currentCatalog.packs.find(pack => pack.profile_id === id);
@@ -109,7 +110,7 @@ function assertCatalogs(profileCatalog, intentCatalog) {
 }
 
 function admissionFor(profile, adequacy, result, parameterContract) {
-  if (profile.schema_version !== "controlled-contract-verification-profile.v2" ||
+  if (!validateCurrentProofDefinition(profile) ||
       profile.contract_schema_version !== "controlled-acceptance-contract.v1" ||
       profile.vocabulary_version !== "controlled-contract-vocabulary.v1" ||
       profile.profile_version !== expectedVersion(profile.profile_id) ||

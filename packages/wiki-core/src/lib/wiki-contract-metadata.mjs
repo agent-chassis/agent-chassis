@@ -11,6 +11,7 @@ import {
   resolveProfileName
 } from "./wiki-shared.mjs";
 import { resolvePackageRepositoryCoordinate } from "./wiki-package-provenance.mjs";
+import { resolveArtifactLintScope, validateArtifactLintSetting } from "./wiki-artifact-lint-scope.mjs";
 import {
   defaultDocsInferencePaths,
   getSharedTopics,
@@ -39,6 +40,10 @@ export async function writeContractMetadata(
   });
   const metadataPath = path.join(targetDir, "wiki", ".wiki-contract.json");
   const existing = await readContractMetadata(targetDir);
+  const artifactProblems = validateArtifactLintSetting(existing);
+  if (artifactProblems.length) {
+    throw Object.assign(new Error(artifactProblems[0].message), artifactProblems[0]);
+  }
   const metadata = {
     repo: expected.repo,
     profile: expected.profile,
@@ -49,7 +54,8 @@ export async function writeContractMetadata(
     sourceRepo: expected.sourceRepo,
     retrievalEntrypoint: expected.retrievalEntrypoint,
     vocab: normalizeTopicVocabulary(existing?.vocab, manifest),
-    inference: normalizeInferenceConfig(existing?.inference, expected.profile, manifest)
+    inference: normalizeInferenceConfig(existing?.inference, expected.profile, manifest),
+    ...(existing && Object.hasOwn(existing, "artifactLint") ? { artifactLint: existing.artifactLint } : {})
   };
   await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
   return { metadataPath, metadata };
@@ -64,10 +70,14 @@ export async function readContractMetadata(targetDir) {
   return JSON.parse(raw);
 }
 
-export function validateContractMetadataShape(metadata, manifest, profile) {
+export function validateContractMetadataShape(metadata, manifest, profile, { includeArtifactLint = true } = {}) {
   const problems = [];
   if (!metadata) {
     return problems;
+  }
+
+  if (includeArtifactLint) {
+    problems.push(...validateArtifactLintSetting(metadata).map(diagnostic => diagnostic.message));
   }
 
   const expectedSharedTopics = getSharedTopics(manifest);
@@ -165,6 +175,7 @@ export async function resolveContractContext(
     manifest,
     rawMetadata,
     metadata,
+    artifactLintScope: resolveArtifactLintScope(manifest, rawMetadata),
     profile: resolvedProfile,
     extensionNamespaces: resolvedExtensions,
     repo: repo || metadata?.repo || null

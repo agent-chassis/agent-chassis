@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.failure.cleanup-noninterference",
   "profile_version": "4.0.0",
-  "profile_digest": "359e6b9b95577d6704531174d599fbd3f17c72b6fe58643d7247dd0951811b4f",
+  "profile_digest": "cfcd00cfa7ab2af6ff82481f1423eec20d6607074edc461dfa98c9dd24943fea",
   "description": "After one declared failure, cleanup empties the complete declared residue population. A distinct complete protected-resource population is observed through the same bound population identity before failure and after settlement; both complete state populations have the protected-resource cardinality and the after-state population equals the before-state population. A separately selected authority, distinct from the failed attempt's authority, has equal state before and after settlement, is preserved by cleanup, later authorizes a valid attempt, and that attempt returns the expected successful result.",
   "parameters": [
     {

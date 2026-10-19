@@ -1,4 +1,4 @@
-
+import { bootstrapLauncherHostConfiguration } from "./launcher-host-session-profile.mjs";
 
 import { chmodSync, lstatSync, mkdirSync, mkdtempSync } from "node:fs";
 import os from "node:os";
@@ -29,10 +29,6 @@ import {
   failStdioMcpConduit as fail,
   projectStdioMcpChannelClientRegistration
 } from "./stdio-mcp-conduit-contract.mjs";
-import {
-  bootstrapNodeEngineEnvFromFile,
-  resolveNodeEngineEnvFilePath
-} from "@agent-chassis/wiki-core/src/lib/node-engine-env-bootstrap.mjs";
 
 export * from "./stdio-mcp-conduit-contract.mjs";
 
@@ -196,10 +192,7 @@ export function resolveTrustedStdioMcpConduitDependencies({
     spawnServer,
     makePrivateDirectory: () => makeLauncherPrivateDirectory(workspaceDir),
     resolveRoleToolNames: resolveLauncherRoleToolNamesForEnv,
-    bootstrapNodeEngineEnv: (env, workspaceDir) => bootstrapNodeEngineEnvFromFile({
-      env,
-      envFilePath: resolveNodeEngineEnvFilePath(workspaceDir)
-    }),
+    bootstrapNodeEngineEnv: bootstrapLauncherHostConfiguration,
     serverStartupTimeoutMs: STDIO_MCP_SERVER_STARTUP_TIMEOUT_MS,
     clientReadinessTimeoutMs: STDIO_MCP_CLIENT_READINESS_TIMEOUT_MS
   });

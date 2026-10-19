@@ -1,4 +1,5 @@
-
+import { resolveRoleGuideInstructions, withRoleGuideInstructionsPrompt } from "./role-guide-instructions.mjs";
+import { resolveLauncherHostSessionProfile, attachLauncherHostSessionProfile } from "./launcher-host-session-profile.mjs";
 
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
@@ -33,6 +34,7 @@ import {
 export async function buildOrchestratorPlan({ role, initiative, promptArgs, env, cwd, resolvedProfile = null, headless = false, logFile = null }) {
   assertId(initiative, /^IN-[0-9]+$/, "initiative id like IN-0004", role);
   const repo = await findRepoRoot(env.CODEX_ORCH_REPO || cwd);
+  const hostProfile = resolveLauncherHostSessionProfile({ workspaceDir: repo, role: "orchestrator" });
   const initiativePath = path.join(repo, "wiki", "initiatives", `${initiative}.md`);
   await assertFile(initiativePath, `${role}: missing initiative page`);
   const repoName = path.basename(repo);
@@ -72,9 +74,9 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
   const modelArgs = codexModelArgs(resolvedProfile);
 
   const isHeadless = headless === true && role !== "orch-resume";
-  const prompt = role === "orch-resume"
-    ? null
-    : orchestratorPrompt({ initiative, threadName, focus: promptArgs.join(" "), headless: isHeadless });
+  const guideDelivery = resolveRoleGuideInstructions({ role, selection: resolvedProfile?.model_selection, workspaceDir: repo, registeredTier: hostProfile.registeredTier, publishControlledAcceptanceOptOut: hostProfile.publishControlledAcceptanceOptOut });
+  const prompt = withRoleGuideInstructionsPrompt(orchestratorPrompt({ initiative, threadName, focus: promptArgs.join(" "), headless: isHeadless,
+    registeredTier: hostProfile.registeredTier, publishControlledAcceptanceOptOut: hostProfile.publishControlledAcceptanceOptOut }), guideDelivery);
   const execSubcommandArgs = isHeadless ? ["exec", "--ignore-rules"] : [];
   const codexArgs = role === "orch-resume"
     ? [
@@ -85,7 +87,8 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
         ...approvalArgs,
         "-p", profile,
         ...modelArgs,
-        threadName
+        threadName,
+        prompt
       ]
     : [
         "--disable", "shell_snapshot",
@@ -97,6 +100,8 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
         ...modelArgs,
         prompt
       ];
+
+  if (!isHeadless) codexArgs.unshift("--no-alt-screen");
 
   const orchEnv = {
     ...env,
@@ -124,7 +129,7 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
   const headlessLogTarget = isHeadless
     ? resolveHeadlessLogTarget({ runtimeDir, logFileOverride: logFile })
     : null;
-  return {
+  return attachLauncherHostSessionProfile({
     mode: isHeadless ? "orchestrator-headless" : "interactive",
     role,
     subject: initiative,
@@ -138,8 +143,9 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
     headlessLogTarget,
 
     model_selection: resolvedProfile?.model_selection ?? null,
+    guideDelivery,
     model_route_secret_dir: runtimeDir
-  };
+  }, hostProfile);
 }
 
 export function ensureRefusalDependencyEvidence(plan) {

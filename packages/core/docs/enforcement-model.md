@@ -11,7 +11,9 @@ enumeration.
 
 Ratification surface: `decision` / `decision` (enforcement posture + recording) and `decision` (separate
 authorization from controlled execution) are the accepted boundaries
-this model underlies.
+this model underlies. Decision records are repository-local provenance, not
+public installation prerequisites; the operational rules and exceptions are
+stated on this page and its linked public contracts.
 
 Session-contract trace only: the launcher-enforced consequence is that a child
 or host cannot become ready unless its launcher-minted session carrier validates
@@ -146,6 +148,28 @@ refusal message names the field and entry and tells the author to enumerate each
 required repository-relative file, including intended new write files, then retry.
 Nothing expands a selector or enumerates a directory on the author's behalf.
 
+`save_record` checks scope authoring before publishing any canonical participant:
+root and direct-slice scope edits, and slice creation or updates through
+`changes.slices` and `changes.ready_slices`. Existing selector syntax refusals
+remain in the editors. The save host composes the worker path validator and the
+same read-only prospective-base resolver used by preview: an allocated WK uses
+its tip; otherwise the resulting record's base selection applies, including a
+`base_branch` changed in that save. A file visible only in another checkout or
+as an uncommitted landing file does not establish base-tree existence. Exact
+canonical work-record reads retain the landing authority described above.
+
+At save time, `read_scope` must name existing individual files, including when
+the same path is also authored as an intended new output. `write_scope` may name
+existing files or exact intended new files beneath absent parents. The shared
+validator preserves symlink, gitlink and file/directory-conflict refusals; it
+checks authored paths without dropping excluded-family entries. Refusals name
+the field, offending path and cause with correction guidance, and publish none
+of the save's record or semantic changes. If the host or applicable source is
+unavailable, `save_record_scope_not_evaluated` reports that limitation and saves
+nothing. Authoring neither expands selectors nor creates files, directories or
+worktrees. Preview and launch still revalidate; a successful save establishes
+only the scope facts checked against that prospective source.
+
 The same base tree derives the ephemeral `resolved_scope` the authority carries
 beside its unchanged authored entries: the regular files that exist at the base,
 and the eligible exact missing writable files. No directory is ever a member, so
@@ -265,7 +289,11 @@ grant, and a call to either is refused as an unknown tool before any handler
 runs. The launcher-bound `verify_proof` registration is the worker's retained
 proof route; its registration is not evidence that a particular unit has an
 executable proof. `workspace_run_test` is the worker's bounded ordinary-test
-route. Neither route runs test code inside the worker's agent-session
+route, selecting only the finite entrypoint/selection IDs frozen in its
+launcher-authenticated assignment. Workers cannot supply argv, cwd, environment
+or source. Changed listed definitions require an authorized successor; ordinary
+application edits remain test inputs. The retired declared-test implementation
+and exports are removed. Neither route runs test code inside the worker's agent-session
 namespace. Launcher-internal candidate validation is not a public route, and no
 validation result carries admission, review, or closure authority.
 
@@ -551,32 +579,26 @@ minting / attestation) is never part of this local set — it is CCE or remote
   recorded-state contract. The enforcement-required posture is selected by a
   configured CCE key, not by backend availability and not
   by a service URL alone. With no CCE key, local/free structured role
-  dispatch may run unenforced when no backend can be used, and records that
-  loudly. With a configured CCE key, a local structured role run requires a
+  dispatch may run unenforced where the selected composition can function
+  without that backend, and records that loudly. Managed sessions still require
+  their namespace and host MCP conduit; a missing required capability refuses. With a configured CCE key, a local structured role run requires a
   working backend or refuses before plain spawn unless the operator explicitly
   opts out for that launch/configuration; that opt-out is also recorded loudly
   as unenforced.
 - which **commands** the agent may invoke → `no-raw-exec` / `structured_validation`.
   This is the **advisory, layered** dimension: a command-surface restriction is only
   as strong as the containment beneath it.
-- where it may **write** → write-scope. An out-of-scope write is **prevented before
-  it lands** for both families — a different mechanism at a different layer, with the
-  same outcome. The in-place Codex editor gets a **kernel exact-file bind**: only
-  the bound `write_scope` files
-  are writable, the containing directory stays read-only, so an out-of-scope write is
-  impossible at the kernel. Native-edit editors that need a writable parent directory
-  (Claude) get **native tool-use permissions**: the launcher mints a settings file
-  that grants `Edit` only within `write_scope` (an explicit path list) and runs the
-  editor in its default permission mode, so an allowed in-scope write applies with no
-  prompt while any unlisted/out-of-scope write is default-denied *before it executes*.
-  The settings are launcher-minted; ordinary launch does not empirically test
-  installed Claude. See [configuration and empirical testing](claude-native-permission-probe.md).
-  The launch is refused if settings cannot be minted or the returned artifact
-  is invalid. Settings are bound read-only so the worker cannot disable them; committed lower-scope editor
-  settings are masked so they cannot widen the grant. Underneath, the repo stays
-  read-only except the writable `write_scope` directories, and a post-run
-  `changed-files ⊆ write_scope` verifier refuses an invalid delivery as the backstop. Both paths
-  are default-on, not a future substrate.
+- where the **agent process may write** → exact write-scope mounts. Managed
+  Codex and Claude workers receive exact `W` writable files over a sparse
+  `R union W` repository namespace. Parent directories remain read-only.
+  Claude workers use `Bash` for in-place editing; an `Edit` allow-list is not
+  the boundary for arbitrary shell commands. Rename-based native repository
+  writes are disabled in managed Claude composition rather than widening mounts
+  to containing directories. Launcher-minted settings remain a separate native
+  tool permission layer, and changed-path containment is enforced by delivery.
+  A post-run observation alone is not kernel prevention. The explicit host test
+  capability below has host permissions and is outside this agent-process
+  filesystem guarantee.
 - *(future dimensions — egress policy, resource/time caps, secret access — do NOT
   slot in silently: adding one to the free tier is an operator decision recorded as
   a `decision` amendment)*
@@ -610,81 +632,26 @@ network behavior remains `shareNet: true` as described above.
 | Executor family | What it may write | Write-scope enforcement | What is sandboxed | What is not sandboxed / known caveats | Network posture |
 | --- | --- | --- | --- | --- | --- |
 | Codex | The assigned implementation `write_scope` for workers; reviewer/redteam subjects must have `write_scope: []`. | The outer bubblewrap plan mounts the repo read-only, then emits exact `--bind <file> <file>` entries for the declared scope's individual files; a declared scope never yields a writable directory bind. Launcher-owned `runtime_roots` are bound separately and are not declared scope. Paths are realpath-normalized and must remain inside the repo; repo root and `.git` writable roots fail closed. Codex CLI `-s workspace-write` / `--add-dir` records directory-level intent only, so the bwrap file bind is the file-level boundary. Worker launches keep the Codex `exec_command` tool inside that boundary. | The dispatched child runs under bwrap with system/read-only roots, env filtered through the launcher policy, and write binds derived from canonical record state. Workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. | The Codex CLI sandbox itself is not the file-level guarantee; do not read `--add-dir` as per-file enforcement. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
-| Claude | The assigned implementation `write_scope` for managed workers; reviewer/redteam are read-only and receive `Bash` with native edit tools denied so they can run read-only Git inspection. | Managed workers receive exact `W` writable mounts over a sparse `R union W` namespace. `Bash` is present in `permissions.allow` and `--allowedTools`, and absent from both deny layers. Native WebFetch/WebSearch and delegation/spawn tools remain denied. | The settings root is read-only, repository content visibility is exactly `R union W`, and workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. The real host OAuth credential leaf is writable for normal implementation workers so Claude can persist token refresh; exact findings roles bind it read-only. | Legacy non-managed native-edit composition may retain directory-scoped native editing, but managed-worker shell authority comes from bwrap, not command parsing or native edit permissions. Post-run changed-path containment remains a backstop. | `shareNet: true`; shell-visible network binaries may use the shared network. Native WebFetch/WebSearch denial is not network confinement. |
+| Claude | The assigned implementation `write_scope` for managed workers; reviewer/redteam are read-only and receive `Bash` with native edit tools denied so they can run read-only Git inspection. | Managed workers receive exact `W` writable mounts over a sparse `R union W` namespace. `Bash` is present in `permissions.allow` and `--allowedTools`, and absent from both deny layers. Native WebFetch/WebSearch and delegation/spawn tools remain denied. | The settings root is read-only, repository content visibility is exactly `R union W`, and workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. The real host OAuth credential leaf is writable for normal implementation workers so Claude can persist token refresh; exact findings roles bind it read-only. | Non-managed native-edit composition has a distinct directory-granular physical boundary; managed-worker shell authority comes from bwrap, not command parsing or native edit permissions. Post-run changed-path containment remains a backstop. | `shareNet: true`; shell-visible network binaries may use the shared network. Native WebFetch/WebSearch denial is not network confinement. |
 | Agy | Unsupported; no repository writes. | No executor or write-scope projection is created. | No role sandbox is spawned. | No Gemini state, credential, config, or wiki-MCP transport is mounted. | No launch; fails closed. |
 
-#### Why native-edit families use a directory bind
+#### Managed Claude editing and native-editor limits
 
-The write-enforcement class follows from the editor's write strategy. Claude's
-editor writes atomically: it creates a
-temporary sibling in the target's directory and `rename(2)`s it over the target.
-`rename(2)` mutates directory entries, so it needs write+execute on the
-**containing directory**, not on the file. An exact-file kernel bind — target
-file writable, parent directory read-only — is therefore *structurally
-incompatible* with a rename-atomic editor: the temp create or the rename fails
-`EROFS` and the agent cannot edit at all. Codex can take the exact-file
-bind precisely because they write in place.
+An atomic rename editor needs to mutate directory entries. An exact writable
+file mount over a read-only parent cannot support that operation. Current managed
+Claude workers therefore edit in place through `Bash`; the launcher disables the
+native repository-write mechanism for managed implementation. It does not grant
+writable parents to make native editing succeed. Shell commands remain confined
+by the same namespace, without a command classifier.
 
-So the directory-scoped writable parent is required by the editor's write
-strategy — that physical constraint stands. The **file-level boundary inside that
-directory is the editor's native tool-use permission gate**: the launcher mints a
-settings file that grants `Edit` only within `write_scope`, and the editor runs in
-its default permission mode, so an out-of-scope `Edit`/`Write` (including a sibling
-file in the writable directory) is default-denied before it executes while an
-in-scope write applies with no prompt. The in-place Codex editor reaches the same
-write-scope outcome through the kernel exact-file bind. The layer differs — kernel
-for in-place editors, native permissions for atomic-rename editors — but neither lets
-an out-of-scope write land. The post-run `changed-files ⊆ write_scope` verifier is
-the fail-closed backstop beneath the permission gate (on exception it fails closed; a
-baseline-capture failure degrades to judging the full changed set, still fail-closed).
-A genuine kernel exact-file bind for an atomic-rename editor would need a non-atomic
-write mode the editor does not expose; that finer kernel-layer variant is a deferred
-refinement. The layer difference is an implementation fact, not a claim that the
-editor resists hostile modification of its own permission settings.
-
-An earlier investigation concluded that the editor CLI could not enforce path-scoped
-writes by itself and that a custom per-action pre-execution adapter would be required
-for durable enforcement. That conclusion is **reversed**: a real headless run of the
-editor confirms that its default permission mode plus a positive `Edit(<path>)`
-allow-list *does* enforce path-scoped writes non-interactively — an allowed in-scope
-write applies with no prompt, and an unlisted or out-of-scope write (including through
-a symlink whose real path escapes the scope) is denied. So the file-level boundary is
-the editor's own permission gate on the bwrap floor, not a custom hook or an
-second authorization service. The write-scope enforcement path carries **no**
-launcher secret and needs no per-action service.
-
-Reproduce the spike (edit the `REPO`/`OUT` placeholders and point `CLAUDE` at the
-installed editor CLI):
-
-```sh
-CLAUDE=claude
-REPO=$(mktemp -d); OUT=$(mktemp -d)
-mkdir -p "$REPO/inscope"
-printf 'v=1\n' > "$REPO/inscope/target.txt"                 # in-scope real file
-ln -s "$OUT/escape.txt" "$REPO/inscope/link.txt"            # symlink escaping the repo
-printf 'v=1\n' > "$OUT/escape.txt"
-cat > "$REPO/settings.json" <<JSON
-{ "permissions": {
-    "allow": ["Bash", "Edit(inscope/**)", "Read(//${REPO#/}/**)"],
-    "deny": ["WebFetch","WebSearch","Task","Agent","Workflow","Skill","Monitor","mcp__*"],
-    "disableBypassPermissionsMode": "disable" } }
-JSON
-cd "$REPO"
-# (a) in-scope edit -> APPLIED, no prompt:
-"$CLAUDE" -p --permission-mode default --settings "$REPO/settings.json" \
-  "Change v=1 to v=2 in inscope/target.txt using Edit. Pre-authorized." </dev/null
-# (b) symlink-escape edit -> DENIED (falls to approval, no write headless):
-"$CLAUDE" -p --permission-mode default --settings "$REPO/settings.json" \
-  "Change v=1 to v=2 in inscope/link.txt using Edit. Pre-authorized." </dev/null
-grep -q '^v=2' "$REPO/inscope/target.txt" && echo "in-scope: APPLIED (expected)"
-grep -q '^v=1' "$OUT/escape.txt"          && echo "symlink escape: DENIED (expected)"
-```
-
-Expected result: `inscope/target.txt` becomes `v=2` (the in-scope edit applies), while
-the out-of-repo symlink target stays `v=1` (the escaping edit is denied). The same
-settings shape grants `Bash` while denying native WebFetch/WebSearch and delegation
-tools. Because the sandbox shares the model network, a shell-visible network binary
-can still connect; durable proxy/network confinement is separate work.
+A non-managed native-edit launch is a different composition. Its directory-level
+physical write boundary and any native permissions must be reported as such;
+a native `Edit` restriction does not prevent a `Bash` command writing a sibling
+in a writable directory. Do not claim exact-file prevention from that setting or
+from a post-run observation. The separate
+[Claude permission probe](claude-native-permission-probe.md) documents empirical
+native-tool checks; those checks neither run at ordinary launch nor establish
+managed-worker containment.
 
 ## The declaration as a positive, default-shipped artifact
 
@@ -736,14 +703,20 @@ Controlled-contract authoring and query tooling continues to validate test-proof
 references and report missing, duplicate, stale, cross-WK, non-test,
 commandless, invalid, mixed, downgrade, and provider-incompatibility facts.
 Those facts are non-authorizing evidence and possible CCE policy input under
-`decision`; implementation dispatch does not validate proof semantics or apply a
-local proof-completeness decision code. Managed provisioning may mechanically
+`decision`. Executable implementation contracts nevertheless require the explicit
+structural discriminant ratified by `decision`: a root proof posture selecting controlled acceptance, with complete current
+meaning for the selected unit, or an author-chosen root whole-work exemption
+with a nonempty rationale. Absent or incomplete disposition refuses locally;
+when acceptance is required, a parent's obligations never complete a slice. This is authored-contract validity, not an executed-proof or review gate.
+See [dispatch runtime](mcp-dispatch-runtime-contract.md). Managed provisioning may mechanically
 attach the complete authenticated same-WK carrier population under `decision`,
 but an absent population is a no-op and semantic incompleteness, staleness, or
 incompatibility does not prevent exact attachment or continued dispatch. With no
 configured CCE denial,
-absent, incomplete, stale, unsupported, incompatible, or unavailable proof
-material cannot prevent an otherwise mechanically sound dispatch. A configured
+missing executed results or unavailable execution support do not by themselves
+prevent an otherwise mechanically sound dispatch. Missing required authored
+meaning, an incomplete disposition or moved authenticated source are separate
+structural failures, not merely unavailable execution evidence. A configured
 CCE may still deny from the forwarded facts, and authenticity, integrity,
 identity, containment, corrupt or contradictory state, malformed input, and
 runtime prerequisites actually required to execute remain mechanical refusal
@@ -1048,7 +1021,8 @@ needs both layers to select the same local/free posture:
 - **dispatch-readiness** (this model / `decision`) — the gate runs *before*
   isolation, so this is the primary unblock; and
 - **containment** (`decision`) — no configured CCE key
-  means local/free structured dispatch does not require bwrap/Seatbelt before it
+  permits an unenforced launch only where its composition can function without
+  that backend; managed namespace/conduit prerequisites remain mandatory before it
   can do useful work.
 
 Containment alone cannot make the free product usable, because the dispatch-readiness gate
@@ -1064,7 +1038,9 @@ the backend id (`isolation_backend=bwrap` today on Linux; `seatbelt` is reserved
 for the future macOS backend).
 
 If no backend can be used and no CCE key is
-configured, local/free structured role dispatch may plain-spawn unenforced. That
+configured, a local/free role composition that can operate without the required
+namespace or conduit may plain-spawn unenforced. Managed Claude and Codex
+compositions cannot do so when their required conduit or namespace fails. That
 run uses the role's ordinary command, args, cwd, and launcher-minted env without
 the containment backend; it does not inherit the orchestrator direct-mode waiver
 or become a sandboxed run. The posture must be loud in plan/runtime output and
@@ -1190,10 +1166,13 @@ shared host runner, driver, and bounded capture. They do not use bubblewrap or a
 replacement sandbox. The ordinary run executes the exact authenticated checkout;
 normal host filesystem, Git/configuration, dependency, and network permissions
 apply, and test-created checkout changes are left in place. `HOME` and the
-temporary-directory variables point to owned scratch paths; literal `/tmp` is
-not a private namespace. The curated environment puts selected executable
-directories first in `PATH`, followed by absolute host `PATH` entries in their
-original order, and refuses an invalid selected executable. These capabilities
+temporary-directory variables retain their prepared values, including empty or
+absent values; launcher artifacts remain in owned `/tmp` execution roots.
+Literal `/tmp` is not a private namespace. The prepared environment retains
+repository settings after credential/authority filtering. `PATH` keeps every
+component and its order, including relative and empty entries. Only an explicitly
+configured executable binding adds a leading directory; an invalid selected
+executable is refused. These capabilities
 are explicit exceptions to the invoking agent's session confinement: they do
 not change that session's namespace, write scope, or tool grants, but the test
 processes they start are not confined by that namespace. Setup probes remain

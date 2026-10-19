@@ -73,6 +73,13 @@ function isBehaviorAffectingEnvKey(key) {
   return DEFAULT_BWRAP_ENV_BEHAVIOR_AFFECTING_DENY_NAMES.includes(key);
 }
 
+export function projectHostTestEnvironment(env) {
+  return Object.fromEntries(Object.entries(env).filter(([key, value]) =>
+    typeof value === "string" && !isSecretEnvKey(key) && !isPostureEnvKey(key) &&
+    !/^(?:WIKI_MCP_|AGENT_(?:LAUNCH|CHASSIS)_|NODE_ENGINE_)/u.test(key) &&
+    key !== "NODE_TEST_CONTEXT" && key !== "NODE_TEST_WORKER_ID"));
+}
+
 export function applyBwrapEnvPolicy(env, envPolicy = null) {
   if (typeof env !== "object" || env === null || Array.isArray(env)) {
     fail(

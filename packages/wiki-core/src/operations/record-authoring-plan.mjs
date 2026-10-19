@@ -17,8 +17,9 @@ import { prepareProofAuthoringRequirementBatch } from "./controlled-contract/pro
 import { projectAuthoredRequirements, requirementDescriptionEntities } from './controlled-contract/contract-requirement-projection.mjs';
 import { prepareRequirementDescriptionSources } from './controlled-contract/contract-requirement-description-sources.mjs';
 import { controlledContractIdentityScope } from './controlled-contract/contract-requirement-authoring.mjs';
-import { TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE } from "../lib/tool-discovery/gating.mjs";
+import { recordAuthoringAvailability, recordAuthoringOperationDiagnostic, requirementAuthoringAvailabilityDiagnostics } from "../lib/record-authoring-availability.mjs";
 import { prepareProofAuthoringMutation } from "./controlled-contract/proof-authoring-preparation.mjs";
+import { reconcileProofAuthoringCandidate } from './controlled-contract/proof-authoring-candidate-reconciliation.mjs';
 import { prospectiveProofAuthoringSource } from "./controlled-contract/proof-authoring-targets.mjs";
 import { controlledContractContentDigest } from "../lib/controlled-contract-tools.mjs";
 import { planWorkRecordDispositions } from "./work-record-dispositions.mjs";
@@ -427,15 +428,7 @@ function declareLabels(changes, labels) {
 
 function settleChainedCandidate({ pkg, captured, prepared, preparation }) {
   const candidate = preparation.candidate;
-  const digest = (content) => content === null || content === undefined ? null : controlledContractContentDigest(content);
-  candidate.sourceChanges = candidate.sources.flatMap((entry) => {
-    const prior = captured.sources.find((source) => source.selectedUnit === entry.selectedUnit)?.source ?? null;
-    if (digest(entry.content) === digest(prior?.content)) return [];
-    const validated = pkg.validateObligationCoverageDraft(entry.content);
-    if (!validated.valid) throw new Error("a chained semantic preparation produced an invalid source");
-    entry.content = validated.carrier;
-    return [{ selectedUnit: entry.selectedUnit, source: prior, content: validated.carrier }];
-  });
+  reconcileProofAuthoringCandidate({ pkg, captured, candidate });
   candidate.saved = prepared.reduce((total, step) => total + step.candidate.saved, 0);
   candidate.unchanged = prepared.reduce((total, step) => total + step.candidate.unchanged, 0);
   const checks = prepared.map((step) => step.assertDefinitions);
@@ -498,7 +491,7 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
     : { batch: null, input: { exception } };
   const steps = [...removals.map((removal) => ({ remove: true,
     input: { obligationId: removal.id, removalScope: removal.scope } })),
-  { remove: false, input: semantic.input }];
+  { remove: false, input: changes.refresh_proofs === true ? { refreshProofs: true } : semantic.input }];
   let stepInitial = { ...captured, record, unit: selectUnit(record, sliceId), sources };
   let preparation;
   const prepared = [];
@@ -511,6 +504,8 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
       rows: preparation.candidate.content?.obligations ?? [] };
   }
   if (prepared.length > 1) settleChainedCandidate({ pkg, captured, prepared, preparation });
+
+  if (!jsonEqual(captured.record.proof_posture, preparation.candidate.record.proof_posture)) changed.push('proof_posture');
 
   if (externalCaptures.length > 0) {
     const assertDefinitions = preparation.assertDefinitions;
@@ -623,22 +618,6 @@ export function planKindRecordAuthoringChange({ record, changes, actor, now, con
   return { ok: true, updatedRecord: current, changedFields: [...new Set(changed)], diagnostics: [] };
 }
 
-export const RECORD_AUTHORING_REQUIREMENT_TIER_CODE = "record_authoring_requirement_tier_required";
-
-export const RECORD_AUTHORING_REQUIREMENT_MEMBERS = Object.freeze(["requirements", "remove.requirements", "remove.requirement_rows"]);
-
-export function requirementAuthoringTierDiagnostics(changes, registeredTier) {
-  if (registeredTier === TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE) return [];
-  const present = RECORD_AUTHORING_REQUIREMENT_MEMBERS.filter((member) =>
-    member.split(".").reduce((value, key) => value?.[key], changes) !== undefined);
-  return present.map((member) => Object.freeze({ code: RECORD_AUTHORING_REQUIREMENT_TIER_CODE, severity: "error",
-    path: `changes.${member}`,
-    message: `changes.${member} compiles or retires controlled requirements, which this server's registered tier does not provide`,
-    details: { changed: false, member, required_tier: TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE,
-      registered_tier: typeof registeredTier === "string" ? registeredTier : null },
-    correction: `Omit changes.${member}; every other member of this change can be saved at this tier.` }));
-}
-
 export async function inspectRecordAuthoringInitiative({ repoRoot, changes }) {
   if (typeof changes?.initiative !== 'string' || !/^IN-[0-9]{4}$/u.test(changes.initiative)) return [];
   const assignable = await inspectInitiativeAssignmentTarget({ targetDir: repoRoot, initiative: changes.initiative });
@@ -656,13 +635,8 @@ export async function prepareRecordAuthoringException({ capturedSource, exceptio
     return { ok: false, diagnostics: [diagnostic(RECORD_AUTHORING_EXCEPTION_CODES.INVALID, "exception.rationale",
       `exception.rationale must be trimmed, nonempty and at most ${CONTROLLED_ACCEPTANCE_OPT_OUT_RATIONALE_MAX_BYTES} UTF-8 bytes`)] };
   }
-
-  if (exception.kind === "grammar" && owners.registeredTier !== TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE) {
-    return { ok: false, diagnostics: [Object.freeze({ code: RECORD_AUTHORING_REQUIREMENT_TIER_CODE, severity: "error",
-      path: "exception",
-      message: "a grammar exception is recorded on saved controlled requirements, which this server's registered tier does not author",
-      details: { changed: false, member: "exception", kind: "grammar", required_tier: TOOL_DISCOVERY_REGISTERED_TIER_PAID_CCE,
-        registered_tier: typeof owners.registeredTier === "string" ? owners.registeredTier : null } })] };
+  if (exception.kind === "grammar" && !recordAuthoringAvailability(owners.registeredTier).grammar_exception) {
+    return { ok: false, diagnostics: [recordAuthoringOperationDiagnostic("exception", "grammar_exception", "exception")] };
   }
   try {
     return await prepareWorkItemChange({ capturedSource, changes: {}, owners, exception });
@@ -687,7 +661,7 @@ export async function prepareRecordAuthoringChange({ capturedSource, changes, co
     ? RECORD_AUTHORING_SLICE_CONTEXT : context;
   const invalid = validateRecordAuthoringChanges(kind, applicability, changes);
   if (invalid.length > 0) return { ok: false, diagnostics: [...invalid] };
-  const tierRefusals = requirementAuthoringTierDiagnostics(changes, owners.registeredTier);
+  const tierRefusals = requirementAuthoringAvailabilityDiagnostics(changes, owners.registeredTier);
   if (tierRefusals.length > 0) return { ok: false, diagnostics: tierRefusals };
   if (context === 'birth') {
     const diagnostics = await inspectRecordAuthoringInitiative({ repoRoot: capturedSource.repoRoot, changes });

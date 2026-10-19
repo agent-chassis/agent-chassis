@@ -127,3 +127,28 @@ test('dependent uses retire only when their established support is entirely reti
   const reversed = reconcile([...sources].reverse());
   assert.deepEqual([reversed.retiredUses, reversed.conflicts], [result.retiredUses, result.conflicts]);
 });
+
+test('retained rows carry correction provenance independently of unrelated explicit removal', () => {
+  const contract = stored();
+  contract.authored_requirements = { rows: [
+    { row_id: 'corrected', claim_ids: ['claim-r-old', 'claim-r-kept'] },
+    { row_id: 'removed', claim_ids: ['claim-removed'] }] };
+  const plan = planProofAuthoringRequirementRetirement({ contract,
+    prospectiveContract: { authored_requirements: { rows: [{ row_id: 'corrected', claim_ids: ['claim-r-kept', 'claim-new'] }] } },
+    retirements: [
+      { claim_id: 'claim-r-old', retired_verification_ids: ['claim-v-only'] },
+      { claim_id: 'claim-removed', retired_verification_ids: ['claim-v-removed'] }] });
+  assert.deepEqual(plan.correctionRows, [{ row_id: 'corrected', prior_claim_ids: ['claim-r-old', 'claim-r-kept'],
+    retired_claim_ids: ['claim-r-old'], retired_verification_ids: ['claim-v-only'] }]);
+  assert.deepEqual([...plan.correctionIds], ['claim-r-old', 'claim-v-only']);
+  const corrected = { obligation_id: 'OBL-CORRECTED', controlled_contract_node_ids: ['claim-r-old'], case_id: 'case-old' };
+  const mixed = { obligation_id: 'OBL-MIXED', controlled_contract_node_ids: ['claim-r-old', 'claim-r-kept'] };
+
+  const verification = { obligation_id: 'OBL-VERIFICATION', controlled_contract_node_ids: ['claim-v-only'] };
+  const result = reconcileProofAuthoringRequirementRetirement(plan, {
+    sources: [{ selectedUnit: null, unit: 'WK-9000', amended: new Set(), content: { obligations: [corrected, mixed, verification] } }],
+    caseIds: ['case-old'], verificationIdForCase: () => 'claim-v-only' });
+  assert.deepEqual(result.contents.get(null).obligations, [corrected, mixed, verification]);
+  assert.deepEqual(result.retiredUses, []);
+  assert.deepEqual(result.conflicts.map(row => row.condition), Array(3).fill('row_correction_requires_amendment'));
+});

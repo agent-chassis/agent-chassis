@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 export const WIKI_PACKAGE_PROVENANCE_ERROR_CODES = Object.freeze({
   MANIFEST_UNREADABLE: "wiki_package_provenance.manifest_unreadable.v1",
   MANIFEST_INVALID_JSON: "wiki_package_provenance.manifest_invalid_json.v1",
+  IDENTITY_INVALID: "wiki_package_provenance.identity_invalid.v1",
   REPOSITORY_MISSING: "wiki_package_provenance.repository_missing.v1",
   REPOSITORY_URL_MISSING: "wiki_package_provenance.repository_url_missing.v1",
   REPOSITORY_URL_UNSUPPORTED: "wiki_package_provenance.repository_url_unsupported.v1"
@@ -34,7 +35,7 @@ function describePackage(manifest, packageManifestPath) {
   return `${name} (${packageManifestPath})`;
 }
 
-function readPackageManifest(packageManifestPath) {
+export function readPackageManifest(packageManifestPath) {
   let raw;
   try {
     raw = readFileSync(packageManifestPath, "utf8");
@@ -91,4 +92,14 @@ export function resolvePackageRepositoryCoordinate(
   }
 
   return `${match[1]}/${match[2]}`;
+}
+
+export function resolvePackageIdentity(packageManifestPath = WIKI_CORE_PACKAGE_MANIFEST_PATH) {
+  const manifest = readPackageManifest(packageManifestPath);
+  if (typeof manifest?.name !== "string" || !/^(@[a-z0-9-]+\/)?[a-z0-9][a-z0-9._-]*$/.test(manifest.name) ||
+      typeof manifest.version !== "string" || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(manifest.version)) {
+    throw new WikiPackageProvenanceError(WIKI_PACKAGE_PROVENANCE_ERROR_CODES.IDENTITY_INVALID,
+      `Invalid package name/version in ${packageManifestPath}`, { packageManifestPath, field: "name/version" });
+  }
+  return Object.freeze({ name: manifest.name, version: manifest.version });
 }

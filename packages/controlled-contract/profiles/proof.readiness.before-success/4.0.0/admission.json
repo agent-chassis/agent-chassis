@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "b5f04ff4114dac7f0941628ce9fc5594736b50f588dbf142968bfdcd34d2fd9d",
+  "parameter_contract_digest": "a96ba6e5290dc4015f40eebca029266156383735aec0b256ab9ea33b5e6d83b7",
   "profile_id": "proof.readiness.before-success",
   "profile_version": "4.0.0",
-  "profile_digest": "f92441c87ff956fff471e39afc1db41ee85eb81847581630d5b085afb25bf709",
+  "profile_digest": "03ced137778c9dc91d384a2f53422fd8d2a55b2c06f99bdb45ea22568031f653",
   "guarantee": "One grounded capability initialized by one attempt is exercised by a distinct readiness operation after initialization; the readiness result accepts the probe and its observed complete state equals a criterion-conforming expected ready state; and the declared completion report does not precede that readiness result.",
   "guarantee_digest": "c9482f026f92212d71a5c1674efd1de475659c8957bfc71db33bc1217ac08d58",
   "explicit_exclusions": [
@@ -17,8 +17,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "8e313bd02ac17c501f215e70fd825e39623ec936bbd6a5eeb7d9fbaa54f2c3af",
-    "adequacy_result_digest": "66b24e7bab06fb32732e884dc27aa1b252ee36ee1f51dc7f3a82aff21d6b475f",
+    "adequacy_declaration_digest": "bd8551dd12361cb00281e28e0359655ab0d12083d051bdb63bdfdd0801462234",
+    "adequacy_result_digest": "54cdb1f0bd5965e87017b5d80f664654890387fc19f397fd3f4d1f7d43d4c4d8",
     "executable_control_count": 63,
     "negative_fixture_count": 122,
     "coverage_witness_count": 122

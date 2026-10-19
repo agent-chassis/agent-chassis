@@ -1,7 +1,7 @@
 import { SIDECAR_DIRTY_DETAIL_FIELDS } from "./sidecar-schema.mjs";
 
-export const SIDECAR_CONTEXT_FRESHNESS_BASIS = "committed_artifact_head_anchor";
-export const SIDECAR_CONTEXT_GRAPH_BASIS = "committed_head_only";
+export const SIDECAR_CONTEXT_FRESHNESS_BASIS = "checkout_input_identity";
+export const SIDECAR_CONTEXT_GRAPH_BASIS = "working_checkout";
 export const SIDECAR_CONTEXT_DIRTY_DETAILS_COUNTING =
   "overlapping_categories_not_unique_file_total";
 
@@ -83,7 +83,7 @@ export function createSidecarContextTrustProjection(envelope) {
       dirty_source_path_count: overlayIncluded
         ? observedCount(overlayEvidence?.dirty_source_path_count)
         : null,
-      committed_semantic_graph_participation: "excluded"
+      checkout_semantic_graph_participation: "indexed_when_inputs_match"
     }
   };
 }

@@ -27,7 +27,7 @@ test("WK-1780: readiness producer exposes the shared immutable lifecycle generat
   assert.equal(LAUNCHER_READINESS_PROTOCOL_GENERATION,
     STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION);
   assert.equal(LAUNCHER_READINESS_SCHEMA_VERSIONS.SERVER_READY,
-    "wiki-mcp-launcher-readiness.v2");
+    "wiki-mcp-launcher-readiness.v3");
   assert.equal(LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_CLOSED,
     "wiki-mcp-launcher-client-closed.v1");
   assert.equal(Object.isFrozen(LAUNCHER_READINESS_SCHEMA_VERSIONS), true);
@@ -206,6 +206,7 @@ test("WK-1780: duplicate initialize before the initialized notification fails re
     role: "worker",
     serverStartupTimeoutMs: 5_000,
     clientReadinessTimeoutMs: 5_000,
+    expectedRegisteredTier: "free_local",
     expectedToolNames: ["commit"]
   });
   lifecycle.serverReady.catch(() => {});
@@ -213,7 +214,7 @@ test("WK-1780: duplicate initialize before the initialized notification fails re
   ready.write(`${JSON.stringify({
     schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.SERVER_READY,
     lifecycle_protocol_generation: STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION,
-    ready: true,
+    ready: true, registered_tier: "free_local",
     tools: ["commit"]
   })}\n`);
   await lifecycle.serverReady;

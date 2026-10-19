@@ -4,6 +4,7 @@ import { settleAndProjectRunStatus, buildRunStatusEnvelope, attachAdvisoryReview
 import { settleAndProjectAdvisoryProcess, projectAdvisoryProcess } from "./workspace-agent-advisory-result-settlement.mjs";
 import { deriveBackendReviewResult } from "./workspace-agent-dispatch-review-result.mjs";
 import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
+import { resolveAdvisoryReviewMaterialKind } from './workspace-agent-advisory-review-contract.mjs';
 
 const statusSettlementByRecord = new WeakMap();
 const completionByRecord = new WeakMap();
@@ -73,6 +74,7 @@ export function settleAndProjectRunRecord(record, {
   settleFormalReviewAttestation,
   publishManagedRunResult,
   assessManagedRunResult = null,
+  readManagedRunCompletion = null,
   projectRunRecord = null
 } = {}) {
   if (projectRunRecord !== null && record.producer_settlement_finished === true) {
@@ -87,7 +89,8 @@ export function settleAndProjectRunRecord(record, {
           captureSliceReviewTerminalResult,
           settleFormalReviewAttestation,
           publishManagedRunResult,
-          assessManagedRunResult
+          assessManagedRunResult,
+          readManagedRunCompletion
         })).finally(() => {
       if (statusSettlementByRecord.get(record) === settlement) {
         statusSettlementByRecord.delete(record);
@@ -103,7 +106,7 @@ export function projectCapturedRunRecord(record) {
   const envelope = record.advisory_process === true
     ? projectAdvisoryProcess(record)
     : buildRunStatusEnvelope(record, deriveBackendReviewResult(record));
-  return Object.freeze(attachAdvisoryReviewTarget(envelope, {
+  const observation = attachAdvisoryReviewTarget(envelope, {
     ...envelope, producer_pending: statusSettlementByRecord.has(record) || record.original_publication?.state === "pending",
     ...(record.original_publication === undefined ? {} : { original_publication: record.original_publication }),
     ...(record.original_result === undefined ? {} : { original_result: record.original_result }),
@@ -111,5 +114,14 @@ export function projectCapturedRunRecord(record) {
     ...(record.completion_settlement_failure === undefined ? {} : {
       completion_settlement_failure: record.completion_settlement_failure
     })
-  }));
+  });
+  const input = record.advisory_review_input;
+  if (REVIEW_ORIGINAL_ROLES.has(record.role) && input != null) {
+
+    Object.defineProperty(observation, "review_task", { enumerable: false,
+      value: Object.freeze({ brief: input.review_brief,
+        base_sha: input.base_sha, reviewed_sha: input.reviewed_sha,
+        material_kind: resolveAdvisoryReviewMaterialKind(input) }) });
+  }
+  return Object.freeze(observation);
 }

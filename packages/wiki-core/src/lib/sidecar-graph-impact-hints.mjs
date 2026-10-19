@@ -212,7 +212,7 @@ export function statusHints(status) {
       dimension: "staleness",
       state: status.staleness,
       message: `sidecar index staleness is ${status.staleness}`,
-      provenance: provenance({ evidenceBasis: status.index_tree ? "git_tree" : "unknown" })
+      provenance: provenance({ evidenceBasis: status.index_tree ? "working_checkout" : "unknown" })
     });
   }
   if (status.dirty_state !== "clean") {
@@ -221,7 +221,7 @@ export function statusHints(status) {
       dimension: "dirty_state",
       state: status.dirty_state,
       message: `repository dirty state is ${status.dirty_state}`,
-      provenance: provenance({ evidenceBasis: status.index_tree ? "git_tree" : "unknown" })
+      provenance: provenance({ evidenceBasis: status.index_tree ? "working_checkout" : "unknown" })
     });
   }
   return hints;

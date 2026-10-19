@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "9b07d139bab6ced95b0ace8ec88cbae25f88aeaca7b236504b88bd6dc6c05d81",
+  "parameter_contract_digest": "cf3f534333a24e1eb509271662e9f3ebfafbe490974bd71b83529f8eb834c9ca",
   "profile_id": "proof.cancellation.isolation",
   "profile_version": "4.0.0",
-  "profile_digest": "1d804848df3b18b1ff1f8f1c3740a957d3e78765483b1796fc7b70277eef13b9",
+  "profile_digest": "32db67d4f97e768160a26883823c5c325271dba3050cbe8d0eed06a638d8e925",
   "guarantee": "Two distinct grounded generations are exercised by two distinct grounded attempts of one grounded operation before a grounded cancellation operation targets one generation; after its cancellation result establishes that generation's criterion-conforming cancelled state, the other generation's selected resource state and authority remain preserved and that other attempt later produces a successful result equal to its criterion-conforming expected state.",
   "guarantee_digest": "20b89764350b8a5bd1a4c04f0ef63b2a648b72619515aa4fb174ce6d7e03b109",
   "explicit_exclusions": [
@@ -19,8 +19,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "7e9168a5f3086c3ec51a7a1bccb3137f7ef47dda93480b6e6dd00b37adf11c5c",
-    "adequacy_result_digest": "bc97d2dad45d30e823564da7127f6ff90195a656b984c95d7e0708bc4a26da94",
+    "adequacy_declaration_digest": "7525164b3de9cafc61e5a3f4d667d8bc202f25ac302e65442bc8eeb65c7633f1",
+    "adequacy_result_digest": "29a1522a2eae387feeaa1847d4d5fffac9d349d07d7d1455601c26e597a082e5",
     "executable_control_count": 104,
     "negative_fixture_count": 259,
     "coverage_witness_count": 259

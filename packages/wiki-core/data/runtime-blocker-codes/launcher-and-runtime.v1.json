@@ -478,6 +478,36 @@
       "consumer_notes": "Paired with client_readiness_timeout, which bounds the separate client phase."
     },
     {
+      "code": "stdio_mcp_conduit_stream_error",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A host wiki-MCP child stream failed during the connection lifecycle.",
+      "detail": "An error on child stdin, stdout, stderr or the readiness pipe records its generation, stream, file descriptor, native errno and lifecycle phase. A live stream failure refuses the affected connection; it is not evidence of process exit. An earlier failure stays primary, and errors during expected shutdown retain context without creating a new primary failure.",
+      "recovery": "Inspect and repair the named host stream failure, then restart the affected connection with coherent host configuration.",
+      "consumer_notes": "Preserve the first failure and separate stream context through cleanup. Do not treat a stream error as a process-exit observation or automatically replace the required active connection."
+    },
+    {
+      "code": "server_registration_profile_invalid",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The host registration or launcher expectation has a missing or unknown session profile.",
+      "detail": "The readiness pipe reported a compatible lifecycle generation, but the registered tier or expected tier is not free_local or paid_cce. The connection is refused before client start; no configuration was changed.",
+      "recovery": "Deploy a coherent build and restart the affected connection with coherent host configuration.",
+      "consumer_notes": "Preserve the connection identity, changed=false, child_started=false and operator recovery. This is distinct from two recognized profiles disagreeing."
+    },
+    {
+      "code": "server_registration_profile_mismatch",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The recognized host session profile disagrees with the launcher's expected profile.",
+      "detail": "The readiness pipe reported a compatible lifecycle generation and both profiles are recognized, but registered_tier differs from the expected tier. The connection is refused before client start; no configuration was changed.",
+      "recovery": "Deploy a coherent build and restart the affected connection with coherent host configuration.",
+      "consumer_notes": "Preserve the connection identity, changed=false, child_started=false and operator recovery. This is distinct from a missing or unknown profile."
+    },
+    {
       "code": "stdio_mcp_tool_surface_mismatch",
       "category": "role_policy",
       "actor_recovery": "operator",

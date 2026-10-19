@@ -17,6 +17,7 @@ import {
 } from "./test-proof-contract-v1.mjs";
 import { validateTestProofRuntimeEvidenceV2 } from "./test-proof-runtime-evidence-v2.mjs";
 import { classifyMutationOutcome } from "./test-proof-mutation-outcome.mjs";
+import { assessTestExecutionDefinition } from "./test-validity-execution-definition.mjs";
 
 const MAX_TEST_PROOF_ASSESSMENT_INDEX_BYTES = 4096;
 const SEMANTIC_JUDGMENT = "not_performed_coordinator_owned";
@@ -709,20 +710,7 @@ function assessTestProofContract(contract, options = undefined) {
 }
 
 function evaluateAdmittedTestValidity({ contract, evaluationInput, proofPack }) {
-  const evaluate = proofPack?.test_validity_evaluator?.evaluate;
-  if (typeof evaluate !== "function") throw new Error(
-    "the exact admitted test-validity evaluator was not resolved"
-  );
-  const result = evaluate({ contract, evaluation_input: evaluationInput });
-  return {
-    ...result,
-    profile: {
-      profile_id: proofPack.profile.profile_id,
-      profile_version: proofPack.profile.profile_version
-    },
-    admission: { profile_digest: proofPack.profile_digest },
-    pattern_results: []
-  };
+  return assessTestExecutionDefinition({ contract, evaluationInput, proofPack });
 }
 
 function compactAssessmentOutput(assessment) {

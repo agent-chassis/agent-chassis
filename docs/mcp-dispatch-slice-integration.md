@@ -770,19 +770,24 @@ losing or overwriting accumulated content.
 
 ## Managed worker completion and post-commit structured evidence
 
-A managed exact-slice implementation worker has exactly one completion sequence,
-and every supported family prompt states it once, in this order: successfully
-invoke the launcher-provided closed-input commit capability, then emit the
+A managed exact-slice implementation worker implements and validates on the
+launcher-created branch, leaving assigned changes uncommitted.
+`workspace_deliver_work({})` commits and delivers those changes and fulfills the
+assignment's commit requirement. Do not create another branch or make a separate
+Git commit before delivery; moving the assigned branch can cause delivery to
+refuse. The request is empty and integrates nothing.
+
+For delivery, every supported family prompt states this completion sequence once,
+in this order: successfully invoke `workspace_deliver_work({})`, then emit the
 `agent-role-result.v1` structured evidence, then terminate. The shared
 family-neutral terminal-result renderer is the single source of that ordered
 protocol. Family role contracts carry no parallel completion instruction of their
 own; in particular they no longer carry an independent commit-and-terminate
 sentence, and they do not claim that confirmed termination itself causes
-integration, whole-WK freezing, or review. After confirmed termination the
-launcher's post-worker lifecycle requests committed-slice integration for the
-exact delivered subject, with the exact-target, mechanical, configured-CCE, and
-CAS behavior defined on this page; a coordinator may also request it explicitly.
-Review is never a prerequisite: it remains available and advisory only as an
+integration, whole-WK freezing, or review. Confirmed termination captures the delivered result but requests no integration.
+Only the coordinator's explicit `integrate_work({delivery})` invokes integration
+for the exact authenticated delivery, with the mechanical, configured-CCE and
+CAS behavior defined on this page. Review is not a local runtime prerequisite: it remains available and advisory only as an
 explicit dispatch; see
 [managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md#post-worker-delivery-without-built-in-review).
 
@@ -802,9 +807,17 @@ The failure matrix follows from that split:
   Output failure after commit never erases delivery.
 - A process that exits without invoking commit is a missing delivery: the delta
   stays unpublished and does not enter integration.
-- An authenticated same-tree child commit is a valid zero-delta delivery.
+- A successful `workspace_deliver_work({})` with identical parent and child trees
+  is a valid no-change delivery; it does not authorize a separate Git commit first.
 - Repeated equivalent commit calls converge on the existing trusted-tool
   idempotency; the prompt adds no retry protocol of its own.
+
+An identified assignment gap instead uses
+[`request_assignment_change`](mcp-operation-reference.md#worker-assignment-change-requests).
+Acceptance immediately terminates the worker with completed and remaining work
+as the handoff, preserving partial work without a final report. Refused requests
+leave ordinary recovery available. These instructions govern managed workers;
+direct implementation workers retain their repository Git commit procedure.
 
 Structured worker-result collection itself is unchanged and still runs across
 families. One terminal-result mode governs each dispatch, and within a family the
@@ -1140,7 +1153,16 @@ publication.
 
 When the result states an integration and the WK commit it produced, and the
 retained original names the integrated subject, `next_calls` also carries one
-optional `verify_proof({subject, git_sha})` call. It is pinned to that WK commit
+`verify_proof({subject, git_sha})` call. Complete outstanding required
+selected-proof verification before treating the work as validated; already
+sufficient verification need not be rerun merely because integration occurred.
+The response does not look up verification completion or infer it from
+integration, checkout cleanliness, review, or a commit SHA. It recommends this
+call on a successful integration conditionally on required verification
+remaining outstanding. On partial results, including an approval refusal with
+confirmed integration effects, the retained read and any correction or recovery
+guidance keep priority and verification is not the recommended next action.
+The call is pinned to that WK commit
 (`delivery.integrated_sha`), never to the worker's delivery commit
 (`delivery.commit`) and never to a branch that may move later, and it follows
 the retained read and any recovery call. A refused or unconfirmed integration,
@@ -1441,13 +1463,27 @@ ref or moving-tip argument is accepted. The existing authenticated delivery
 reader and central integration entitlement admit the session before selection.
 The registered tool requires an authenticated orchestrator.
 
+A saved run-result reference is not a delivery reference. If an entitled
+caller submits one as `delivery`, the task preserves the delivery reader's
+refusal code and diagnostic cause and explains `run_result_is_not_delivery`.
+Only after the existing observation-original owner authenticates repository,
+launcher authority and subject does the refusal recommend
+`get_run_result({subject,attempt_id})` for that original's exact attempt. That
+call returns the attempt's delivery facts; an authenticated empty population
+states that nothing is available to integrate. A genuine single delivery still
+offers the exact explicit integration call. Foreign, unauthorized, missing or
+corrupt originals receive no subject/attempt correction. The refusal's retained
+original remains separately readable. Neither the refusal nor its observation
+continuation launches, verifies, delivers, integrates, retires an identity,
+changes authoring state or modifies earlier originals.
+
 The backend independently checks the selected binding and the literal minted
 commit chain, and compares the live delivery ref with the approved commit before
 any cache return or recovery. Record repair repeats the fence under the existing
 WK exclusion. Fresh admission must agree with the approved original base and
 commit; a differing merge base is not substituted silently. Existing primitive
 binding checks, ref CAS, compound record CAS and sibling completeness remain the
-effect owners. The task never prepares a terminal candidate or launches work.
+effect owners. On final integration, the registered composition invokes the shared terminal-candidate preparation owner before delivery finalization. An authenticated recovered final integration may restore that same candidate’s missing checkout; it refuses a different already-selected candidate. Preparation failure preserves confirmed integration and its specific cause, with recovery limited to unfinished effects. Observation reads prepare nothing and launch nothing.
 A failed current fence preserves any previously confirmed cached integration as
 a partial result with the refusal cause. Without authenticated historical facts,
 a cold fence refusal reports unconfirmed integration rather than invented absence.
@@ -1679,16 +1715,35 @@ integration as already applied and finishes only the outstanding finalization;
 it repeats no ref movement, record write, launch or integration execution.
 
 `integrate-work.v1` responses distinguish `integrated`, `partial`, `refused` and
-`unresolved`. Unconfirmed integration effects are explicit nulls; confirmed
-effects remain stated even when original storage fails. Responses
-state confirmed integration/record/retirement/checkout/slice-checkout effects, the consumed source state,
-revision and row count, policy posture and original availability. Complete rows,
-receipts and diagnostic causes remain in the automatically retained original.
-The bounded response supplies its exact result-read call. Partial completion
+`unresolved`. A settled answer acknowledges integration and preserves the
+selected delivery and integrated commit for dependent work. It omits successful
+record, checkout, retirement and authentication checks, disposition counts and
+revisions, policy bookkeeping, private artifact paths and routine diagnostics.
+The returned historical outcome read is optional and never recommended merely
+because evidence was retained. Conditional verification of the integrated WK
+commit is also optional: availability does not establish caller intent or
+outstanding proof work. Integration-only requests can finish immediately.
+
+Partial, refused and unresolved answers preserve specific causes, the
+authenticated subject when known, actual effects and uncertainty. Unconfirmed
+integration effects are explicit nulls; confirmed integration stands even if
+record reconciliation, checkout synchronization, identity retirement, slice
+cleanup or original storage fails. Remaining effects name their owners. Original
+storage failure alone offers no reintegration to recreate evidence. A superseded
+checkout offers no rewind or same-delivery checkout repair. A historical result
+read performs no synchronization, execution, retention or repair; the mutable WK
+checkout is not a guarantee of current exact-source availability.
+
+Partial completion
 with an outstanding record, retirement, checkout or slice cleanup correction also supplies the explicit
 same-selection recovery call and its condition. An immutable approval refusal
-suppresses that correction call while keeping the original read, cause and
-confirmed effects.
+suppresses that correction call while keeping the optional original read, cause
+and confirmed effects. A stale approval offers exact same-attempt observation
+only from the already authenticated delivery identity and only when that call is
+served and authorized. Observation may still return the rejected delivery; a
+reported current commit is never a substitute selection. An operator request
+stops before delivery reads or effects and explains that an authenticated
+orchestrator session is required. Caller arguments cannot provision that session.
 Transport interruption does not cancel an attempt or trigger another one.
 
 The production registration, role grant and returned result calls use these
@@ -1696,3 +1751,12 @@ same owners. Private source/installed compositions establish owner behavior only
 actual combined-server journeys establish public reachability. The delivery
 producer refuses a second distinct publication for one binding. A result read
 never repairs or recaptures the delivery or integration original.
+
+## Integration entitlement and delivery selection
+
+`integrate_work` is granted only to an authenticated orchestrator. Operator tool
+availability supplies no integration authority. Obtain the delivery locator from
+`get_run_result` observation and pass it unchanged; worker completion bookkeeping
+is not an alternative authenticated delivery source. Checkout and receipt
+recovery for one delivery describe one logical delivery. Distinct deliveries
+remain explicit choices, with no first-receipt default.

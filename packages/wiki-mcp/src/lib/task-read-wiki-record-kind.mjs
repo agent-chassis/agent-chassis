@@ -50,7 +50,8 @@ export function createReadWikiRecordKindSource({ requestContracts, invalid, read
   async function creationContractCall(kind, reference) {
     const source = bound(kind);
     const members = source.groups.find((group) => group.name === CREATE_RECORD_INITIAL_GROUP).members;
-    const argumentsValue = { reference, select: { input_contract: { tool: RECORD_KIND_CONTRACT_TOOL, members } } };
+    const argumentsValue = { reference, select: { input_contract: { tool: RECORD_KIND_CONTRACT_TOOL, members,
+      ...(Object.keys(source.branches).length ? { view: "choices" } : {}) } } };
     if (await requestContracts?.contractFor(readTool)?.acceptsArguments(argumentsValue) !== true) return null;
     return buildNextCall({ tool: readTool, arguments: argumentsValue, ...CREATE_RECORD_INITIAL_JOB });
   }

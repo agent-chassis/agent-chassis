@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import { highPriorityRoleGuideEnabled } from "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
+
 export const AGENT_LAUNCH_ROLE_CONFIG_FILENAME = "agent-launch.toml";
 
 const ROLE_ALIASES = Object.freeze({
@@ -165,8 +167,9 @@ function unsupportedKey(section, key, lineNumber, source, expected) {
 
 function parseTableValue(section, key, rawValue, { lineNumber, source }) {
   if (section.kind === "role") {
+    if (key === "high_priority_role_guide") return parseTomlBoolean(rawValue, { lineNumber, key });
     if (key !== "model" && key !== "effort") {
-      throw unsupportedKey(section, key, lineNumber, source, ["model", "effort"]);
+      throw unsupportedKey(section, key, lineNumber, source, ["model", "effort", "high_priority_role_guide"]);
     }
     const trimmed = parseTomlBasicString(rawValue, { lineNumber, key }).trim();
     if (key === "model" && trimmed === "") {
@@ -206,7 +209,7 @@ function parseTableValue(section, key, rawValue, { lineNumber, source }) {
   return text;
 }
 
-export function parseAgentLaunchRoleConfigSource(input, { source = null } = {}) {
+export function parseAgentLaunchRoleConfigSource(input, { source = null, rejectExplicitRouting = false } = {}) {
   const tables = new Map();
   let section = { kind: "other" };
   const lines = String(input ?? "").split(/\r?\n/);
@@ -249,6 +252,14 @@ export function parseAgentLaunchRoleConfigSource(input, { source = null } = {}) 
       );
     }
 
+    if (rejectExplicitRouting && ["app", "client", "provider", "backend", "family", "model_provider"].includes(assignmentMatch[1])) {
+      throw configError(
+        `explicit ${assignmentMatch[1]} on line ${lineNumber} conflicts with model-family routing; ` +
+        "remove the explicit routing setting or select a configuration using native role model selectors",
+        "role_config.explicit_routing_conflict",
+        { line_number: lineNumber, key: assignmentMatch[1], source }
+      );
+    }
     if (section.kind === "other") continue;
     if (section.kind === "roles_root") {
       throw configError(
@@ -288,6 +299,7 @@ export function parseAgentLaunchRoleConfigSource(input, { source = null } = {}) 
 
   const roles = {};
   const efforts = {};
+  const highPriorityRoleGuides = {};
   const models = {};
   let vertexai = null;
   for (const { section: owner, lineNumber, values } of tables.values()) {
@@ -300,6 +312,7 @@ export function parseAgentLaunchRoleConfigSource(input, { source = null } = {}) 
         );
       }
       roles[owner.role] = values.get("model");
+      if (values.has("high_priority_role_guide")) highPriorityRoleGuides[owner.role] = values.get("high_priority_role_guide");
       if (values.has("effort")) efforts[owner.role] = values.get("effort");
     } else if (owner.kind === "model") {
       models[owner.model] = Object.freeze({
@@ -319,6 +332,7 @@ export function parseAgentLaunchRoleConfigSource(input, { source = null } = {}) 
   return Object.freeze({
     roles: Object.freeze(roles),
     efforts: Object.freeze(efforts),
+    highPriorityRoleGuides: Object.freeze(highPriorityRoleGuides),
     models: Object.freeze(models),
     vertexai,
     source
@@ -362,4 +376,8 @@ export function readRoleEffort(role, { dir, readFileText } = {}) {
   const resolvedRole = canonicalRole(role);
   if (!resolvedRole || !KNOWN_ROLE_SET.has(resolvedRole)) return null;
   return roleEffortFromSnapshot(resolvedRole, readAgentLaunchConfigSnapshot({ dir, readFileText }));
+}
+
+export function roleGuideDeliveryFromSnapshot(role, snapshot) {
+  return highPriorityRoleGuideEnabled(role, snapshot?.highPriorityRoleGuides);
 }

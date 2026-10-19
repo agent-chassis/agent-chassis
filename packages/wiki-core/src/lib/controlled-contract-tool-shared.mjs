@@ -517,7 +517,7 @@ export function assertControlledContractAuthorableCarrierKind(carrierKind) {
 async function assertDirectoryNoSymlink(directory, code) {
   const entry = await lstat(directory);
   if (!entry.isDirectory() || entry.isSymbolicLink()) {
-    fail(code, "server-resolved directory is not a real directory");
+    fail(code, "server-resolved directory is not a real directory", { path: directory, operation: "lstat" });
   }
   return realpath(directory);
 }
@@ -543,8 +543,11 @@ export async function resolveControlledContractRepository(repoRoot) {
   } catch (error) {
     if (error instanceof ControlledContractToolError) throw error;
     fail("controlled_contract_repository_unavailable", "canonical contract store is unavailable", {
-      cause_code: error?.code ?? null
-    });
+      cause_code: error?.code ?? null,
+      source_failure: { code: error.code ?? null, message: error.message,
+        path: error.path ?? null, operation: error.syscall ?? null,
+        ...(error.errno === undefined ? {} : { errno: error.errno }) }
+    }, error);
   }
 }
 

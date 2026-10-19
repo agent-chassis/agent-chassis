@@ -40,7 +40,8 @@ function buildAttemptPlan(invocation, scratchRoot) {
   return {
     schema_version: ATTEMPT_PLAN_SCHEMA_VERSION,
     scratch_root: scratchRoot,
-    directories: [path.join(scratchRoot, "home"), ...(invocation.directories ?? [])],
+    directories: [...(invocation.executionRoot === undefined ? [path.join(scratchRoot, "home")] : []),
+      ...(invocation.directories ?? [])],
     copies: invocation.copies ?? [],
     links: invocation.links ?? [],
     writes: (invocation.writes ?? []).map(planFile),
@@ -308,9 +309,7 @@ async function runHostTestInvocation({ checkout, runtime, invocation, timeoutMs,
   try {
     executionRoot = assertExecutionRoot(invocation.executionRoot);
     plan = buildAttemptPlan(invocation, executionRoot.scratch);
-    env = { ...runtime.env, ...(invocation.env ?? {}),
-      HOME: path.join(executionRoot.scratch, "home"), TMPDIR: executionRoot.tmp,
-      TMP: executionRoot.tmp, TEMP: executionRoot.tmp };
+    env = { ...runtime.env, ...(invocation.env ?? {}) };
   } catch (error) {
     return { status: "plan_failed", error, code: error.code ?? "validation_plan_build_failed",
       executionRoot: invocation.executionRoot };

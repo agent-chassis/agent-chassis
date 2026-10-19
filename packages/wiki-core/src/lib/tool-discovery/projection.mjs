@@ -455,8 +455,8 @@ export async function loadToolDiscoveryEnvelope(options = {}) {
 
 export const TOOL_DOC_REFERENCE_SCOPE_PACKAGE = "package";
 export const TOOL_DOC_REFERENCE_SCOPE_WORKSPACE = "workspace";
-export const TOOL_DOC_PACKAGE_READ_TOOL = "workspace_read_tool_doc";
-export const TOOL_DOC_WORKSPACE_READ_TOOL = "workspace_read_page";
+export const TOOL_DOC_PACKAGE_READ_TOOL = "workspace_read_wiki";
+export const TOOL_DOC_WORKSPACE_READ_TOOL = "workspace_read_wiki";
 export const TOOL_DOC_OMITTED_SAMPLE_LIMIT = 3;
 
 export const TOOL_DOC_DOCUMENTATION_STATE_REASONS = Object.freeze({

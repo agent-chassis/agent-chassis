@@ -6,6 +6,7 @@ import { CONTRACT_ASSESSMENT_ROUTE } from "./controlled-contract-query-context.m
 import { errorContent } from "./mcp-response.mjs";
 import { createToolInputValidationError } from "./register-tool.mjs";
 import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
+import { recordOwnerRegisteredRequestSchema } from "./dispatch-tool-helpers.mjs";
 import { contractAssessmentCall, createContractAssessmentSurface } from "./task-assess-contract-surface.mjs";
 
 function sliceFocusCorrection(args, inputSchema) {
@@ -39,12 +40,13 @@ async function initiativeUnitCorrection(args, contracts) {
 }
 
 export function registerContractAssessmentTool({ registerTool, z, workspace,
-  sessionEnv = process.env, responseEnv = process.env, sourceDeps = {}, assessmentDeps = {} }) {
-  const surface = createContractAssessmentSurface({ workspace, z, sessionEnv, responseEnv, sourceDeps, assessmentDeps });
+  sessionEnv = process.env, responseEnv = process.env, sourceDeps = {}, assessmentDeps = {}, registeredTier }) {
+  const surface = createContractAssessmentSurface({ workspace, z, sessionEnv, responseEnv, sourceDeps, assessmentDeps, registeredTier,
+    requestContracts: () => registeredToolRequestContracts(registerTool) });
   registerTool(CONTRACT_ASSESSMENT_ROUTE, {
     description: "Assess one saved contract by unit, or read an authenticated original by its source locator. " +
-      "Reports semantic completeness separately from capability and source currentness. Executes and credits nothing. " +
-      "Fresh assessment retains one noncanonical original; original reads retain nothing.",
+      "Distinguishes missing meaning, invalid authored input and unavailable validation. " +
+      "Follow returned diagnosis and correction calls. Executes and credits no proofs.",
     ...surface.inputContract,
 
     inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: errorContent(
@@ -63,5 +65,7 @@ export function registerContractAssessmentTool({ registerTool, z, workspace,
       return errorContent(error?.envelope ? error : createControlledContractRefusal(error), { env: responseEnv });
     }
   });
+  recordOwnerRegisteredRequestSchema({ registerTool, toolName: CONTRACT_ASSESSMENT_ROUTE,
+    declaredInput: surface.inputContract.inputSchema._def.schema });
   return surface;
 }

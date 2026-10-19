@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.pagination.complete-traversal",
   "profile_version": "4.0.0",
-  "profile_digest": "1f6523c535285a6ad5ac65b84a2460284644493696281deb3be6326b4489af2f",
+  "profile_digest": "cf565c21027246ec10c325539d943df4ba54e9373efb5a1f4ecf747c382b50db",
   "description": "For one exact package-authenticated authoritative ordered-occurrence population and exact captured finite pagination trace, every occurrence is returned exactly once in authoritative order through one canonical initial state, one linear opaque cursor chain, one snapshot/version identity, and one terminal page, with equality-normalized completeness and fail-closed resource accounting.",
   "parameters": [
     {

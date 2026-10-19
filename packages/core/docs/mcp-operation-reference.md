@@ -19,30 +19,30 @@ Tool names are exact, with no aliases or deprecated forms.
 | Start or preview a canonical unit | `start_agent` | `subject`, optional configured selection; `preview:true` for action or role capabilities |
 | Observe or read execution results | `get_run_result` | Subject/attempt, assigned observation, retained original, or assigned recorded invocation |
 | Integrate a selected delivery | `integrate_work` | Exact returned `delivery:{ref_id}` |
-| Native test execution | `workspace_run_test` | File (or glob)/runner and native execution selectors, or native owner's read/retry modes |
+| Native test execution | `workspace_run_test` | Assigned worker entrypoint/selection or nonworker literal harness; retained read/retry modes |
 | Saved proof execution | `verify_proof` | `subject`, optional `source`, `branch` or `git_sha`, `environment`, `timeout` |
+| Request an assignment revision and end the worker attempt | `request_assignment_change` | Closed testimony; authenticated current worker assignment only |
 | Deliver a worker assignment | `workspace_deliver_work` | Empty object, launcher-authenticated assignment |
 | Inspect a candidate | `workspace_inspect_candidate` | WK `subject` and owner's optional historical selection |
 | Advance a candidate | `workspace_advance_candidate` | WK `subject` and exact immutable `version` |
 | Publish an exact candidate | `workspace_publish_work` | WK `subject` only |
 | Observe human landing | `workspace_check_landing` | WK `subject`, optional exact returned publication `selection` |
 
-These sixteen tools replace the displaced shared agent families. The ordinary
+These seventeen tools replace the displaced shared agent families. The ordinary
 help tree, intent router, generic spill reader, report routes and old family
 entrypoints grant no indirect access. Independently preserved operator-only
-operations remain role/tier filtered. Paid code-index access is configured
-separately from the free substrate.
+operations remain filtered by the session’s role and configured capabilities.
 
 ## Role authority
 
-Orchestrators have every task above except worker delivery. Workers have
+Orchestrators have every task above except worker delivery and assignment-change requests. Workers have
 `workspace_read_wiki`, `workspace_run_test`, `verify_proof`, `get_run_result` and
-`workspace_deliver_work`. Reviewers have read, code-index when granted, proof
+`workspace_deliver_work` and `request_assignment_change`. Reviewers have read, code-index when granted, proof
 discovery, assessment, native tests, proof execution and common result reads.
 Redteam sessions have read, code-index when granted, proof discovery and
 assessment. Redteam sessions have no execution or result tools. Operator task
 access excludes start, result, native execution, proof execution and delivery;
-its independently preserved maintenance routes remain available by tier.
+its independently preserved maintenance routes retain their authorization.
 
 The launcher resolves role authority. A requested child role, repository field,
 reference, version or subject never grants it. Workers read their frozen
@@ -60,6 +60,32 @@ the resource the first answer returned, under the same source and role grants.
 kind's creation context before any record exists; its reference reads the
 complete `initial` schema of the members a creation authors.
 It never grants arbitrary filesystem access.
+
+Search uses `search:{query,where?}` for ranked matches or
+`search:{inventory:true,where?,query?}` for the complete filtered population.
+The owner-derived `where` guidance is included in the tool declaration:
+
+- `kind` is the search content category: `issues` for work items, `decisions`,
+  `initiatives`, `sources`, `areas`, `docs`, `wiki` for top-level wiki pages,
+  or an enabled extension namespace such as `people`. Creation's `work_item`
+  is not a search category. Extension categories remain open.
+- `type`, `status`, `priority`, `owner`, `area` and `initiative` match record
+  metadata exactly, ignoring case. When `owner` is absent, `owner` matches any
+  member of `owners`. For example, `where:{kind:"issues",status:"todo"}`.
+- `retrieval_role` and `topic` match members of the resolved role and topic
+  lists, for example `record` and `tooling`.
+- `canonicality`, `maintenance_mode`, `knowledge_role`, `evidence_stage`,
+  `retrieval_visibility`, `lifecycle` and `sensitivity` match resolved facets,
+  for example `canonical`, `curated`, `reference`, `primary`, `support`,
+  `active` and `normal`, respectively. These examples add no filter validation.
+
+Omitting a filter or supplying `""` leaves that field unconstrained. Whitespace
+is not trimmed: `" "` is a literal value. Values are lowercased during
+normalization except `initiative`, which is preserved; comparisons ignore case.
+Omitted or empty `retrieval_visibility` still excludes suppressed sources;
+explicit `retrieval_visibility:"suppressed"` selects them. Null is not an
+accepted MCP filter value. Filtering changes neither the configured source
+population nor its role grants.
 
 Selecting an entry returns its complete body, exact `entry_id`/`version_id` and
 an owner-issued immutable `reference` string. Attach that string unchanged with
@@ -103,7 +129,15 @@ assess plausible candidates across tiers and abstain when evidence is absent,
 incomplete or ambiguous. A provider-only query may match nothing. Query provider
 recognition, listed family support, authored target validity and actual runtime
 availability are distinct facts. Discovery executes no provider and re-ranks no
-retained selection. Source movement refuses instead of mixing catalogues.
+retained selection. Movement during fresh acquisition refuses instead of mixing
+catalogues and supplies its supported refresh route. Authenticated retained reads
+return the original historical content, explicitly reporting changed or unavailable
+currentness; they never claim it describes the current source.
+When a retained discovery answer's current-source inspection fails, its
+`source.currentness` is `unavailable` and `source.inspection_failure` preserves
+the inspection code, message and details, including filesystem causes such as
+`EISDIR`. This observation is separate from the retained answer's readability;
+it supplies no new current-source assertion or historical-source policy.
 
 ## Start, result and explicit integration
 
@@ -151,6 +185,14 @@ outcome also supplies diagnoses for proof rows omitted by a bounded summary.
 The invocation selector comes from inventory, and every call remains pinned to
 that attempt and original. An outcome selection excludes `proof`.
 
+Reviewers may read their own standalone proof outcomes and selected diagnoses
+within the exact authenticated findings action that executed them. Retention binds
+the launcher's assigned unit, run and immutable review-source identity; another
+action, matching subject or guessed locator grants no read. Orchestrator and
+worker result routes retain their existing scope; redteam gains no execution or
+result access. This grants neither predecessor-review access nor whole-WK proof
+execution.
+
 A retained proof selector is one exact subject or authored source tuple. Detail
 selects delivery, integration or observation material through the shared
 selected-response owner. Default answers are bounded summaries, not complete
@@ -161,12 +203,34 @@ retains, repairs canonical state or integrates during a read. A known original
 remains readable after restart for its authenticated owner. Cold durable worker
 observations read the journal; cold state cannot perform a live wait.
 
+If a subordinate delivery receipt cannot be authenticated or read,
+`get_run_result` refuses with `delivery_receipt_unreadable`, naming the requested
+subject, selected attempt, failed receipt locator and its position. It preserves
+the delivery reader's specific cause inside that observation refusal. The
+failure is not a caller request for a ranged read, and no successful prefix of
+the receipt population establishes delivery or integration. The response states
+the unchanged execution, integration and retention effects and stops the
+dependent step without inventing a repair call.
+
 Only `integrate_work({delivery})` explicitly requests integration of the exact
 authenticated delivery. The delivery owner supplies subject, commit, base and
 attempt binding; callers supply no replacement authority. Integration fences
 moving/stale/foreign deliveries, uses saved dispositions as advisory input and
 preserves configured policy and native Git/record CAS. Repeats and cold recovery
 retain confirmed effects and original causes. Original reads perform no recovery.
+An unavailable launcher session returns the session owner's specific code and
+message, unchanged effects and an explicit stopping point before any delivery
+read, result retention or integration attempt. Request arguments cannot create
+or replace the launcher session.
+
+Integration continuations, including original reads, wrong-producer corrections,
+partial-completion retries and conditional verification, are published only
+when the current role permits the operation and its actual serving registration
+accepts the exact arguments. Unavailable continuations are stated as limitations;
+they do not erase confirmed integration or retained-original facts. An operator
+session receives no `get_run_result` or `verify_proof` call without their existing
+grants. A registered `integrate_work` recovery call can remain available when a
+dependent reader or verifier is unavailable.
 See [slice integration](mcp-dispatch-slice-integration.md).
 
 When `start_agent` refuses because the subject's committed delivery is not yet
@@ -214,15 +278,21 @@ contradictory and unavailable. Original candidate/publication/landing responses
 are read through returned `workspace_read_wiki` references. Their producer
 identities remain unchanged in retained bindings.
 
-Completion is an explicit `save_record` change with native checks and receipt
-semantics, after the applicable publication and landing facts. Advisory review
-results do not grant lifecycle authority. See
+For the forge route, the coordinator records applicable closure evidence and
+calls `workspace_publish_work` after the required review and disposition, then
+uses `workspace_check_landing` to observe landing. Publication carries the
+runtime-prepared closeout and completion commits. The completed status remains
+branch-local until confirmed merge makes the merged work record canonical.
+Advisory review results do not grant lifecycle authority. See
 [terminal review](mcp-dispatch-terminal-review.md).
 
 ## Response and failure boundaries
 
 Responses carry exact next calls admitted by the serving schema and role.
-`workspace_read_wiki` publishes selection navigation only in `next_calls`.
+`workspace_read_wiki` uses `next_calls` for concrete continuations. Choice
+populations may instead share `selections` and an explicit `selection_context`
+call template with common bindings; the same navigation is not published twice.
+See the owning [wiki reader contract](workspace-read-wiki.md).
 Complete entry inventories retain every member, order and version. Work context
 reports small literal prose and truthful extents; its recommendation adds granted
 information beyond prose already delivered. Initiative action selections return
@@ -237,3 +307,62 @@ the shared authenticated response class. Callers receive semantic structured
 values and plain Unicode text, never raw logs, public base64 or integrity and
 reassembly jobs. The native output exception is limited to the native tool.
 See [selected-response details](mcp-selected-response-details.md).
+
+## Local advisory feedback
+
+During work, all managed roles can use `workspace_record_feedback` for confusion, limitations and model token waste. Direct workers use `wiki feedback add --stdin --new-session|--session <id> --json`, without MCP. Feedback appends only repository-local runtime state and grants no canonical or lifecycle authority. See [Local agent feedback](agent-feedback.md) for sessions, carrier capacities, package provenance, and errors.
+
+## Worker assignment-change requests
+
+`request_assignment_change` takes the required closed object
+`{assignment_fact:{kind:"missing"|"contradictory",statement:string},evidence:[{description:string,references:string[]}],prevents:string,requested_change:string,completed_work:string[],remaining_work:string[]}`.
+Workers use it when required source, configuration, context, authority or
+instructions are inaccessible, missing or contradictory. Do not replace missing
+required context with a workaround in an accessible file. Include the missing
+context, evidence, what is prevented and the requested correction; completed and
+remaining work are the handoff even before implementation is complete. Acceptance
+immediately ends the worker and preserves partial work; the coordinator decides
+revisions. Ordinary failing tests and recoverable tool refusals alone do not
+establish an assignment gap.
+Source-snapshot symlink recovery uses this route when the authenticated worker
+cannot change the affected path. It supplies known refusal evidence and a
+schema-validated call with explicitly incomplete work testimony; the worker must
+supply its own `completed_work` and `remaining_work` before choosing to submit.
+Verification and recorded reads never submit it automatically. Missing route,
+authenticated binding, frozen assignment or unused completion authority is named
+as a capability limitation, with no uncallable request or unchanged retry.
+
+Empty typed testimony is accepted as incomplete testimony. References are inert
+evidence descriptions. The request cannot supply repository, unit, attempt,
+retry, worktree, scope or approval authority.
+
+Acceptance retains the exact request and frozen assignment through the existing
+retained-original owner, then links them under the attempt journal's partition
+lock. That link consumes only this attempt's completion authority. Repeated identical requests retain one acceptance; different content conflicts.
+The accepted worker call remains pending under launcher shutdown, so the worker
+has no retry or next call. Delivery
+claims its informational intent through the same owner before materialization,
+so the two completion alternatives cannot both obtain authority.
+
+Before acceptance the host requires the private launcher terminal capability
+for the authenticated attempt. Missing capability is a zero-acceptance refusal.
+After durable acceptance the trusted host sends an assignment-change terminal
+event over that private lifecycle pipe. The shared isolated-launch owner sends
+SIGKILL immediately to its already-owned confined worker; the namespace boundary
+also stops native descendants. The accepted call never returns ordinary success.
+`completed_work` and `remaining_work` are the handoff: there is no final report,
+additional model turn, polling or subsequent tool execution. Refusals leave the
+worker able to continue. Acceptance proves no death; failed channel writes or
+signal delivery retain the request and consumed authority with the actual cause.
+Cleanup follows real process termination, not journal publication. No OS-atomic
+cancellation of actions already running is promised. Ordinary failing tests and recoverable refusals
+keep their ordinary recovery. The request edits no canonical assignment or status
+and grants no integration, proof, publication or successor authority.
+
+`get_run_result` returns pending termination while no terminal result has been
+published, then the semantic outcome `assignment_change_requested` after producer
+settlement. Process status, exit facts and genuine publication failures remain
+separate. Follow the returned original/member calls for complete request and
+assignment detail. The coordinator reads current authoring state with
+`workspace_read_wiki({subject:<bound unit>})`, explicitly authors any revision
+with `save_record`, and decides any subsequent start separately.

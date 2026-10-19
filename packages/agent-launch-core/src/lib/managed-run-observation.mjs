@@ -95,7 +95,8 @@ export function isManagedAttemptSelectionRefusal(observation) {
 
 export function managedObservationFailureFacts(observation) {
   if (observation === null || typeof observation !== "object" || observation.ok !== false) return observation;
-  const { events: _events, attempts: _attempts, prefix: _prefix, repository: _repository, ...facts } = observation;
+  const { events: _events, attempts: _attempts, prefix: _prefix, repository: _repository,
+    verified_source: _verifiedSource, ...facts } = observation;
   return facts;
 }
 
@@ -428,5 +429,8 @@ export function selectReviewOriginalBinding({ repository, subject, events, attem
   }
   if (validated.bindings.length === 1) return { ok: true, review: validated.bindings[0] };
   return { ok: false, code: validated.bindings.length > 1 ? "attempt_selection_ambiguous"
-    : "attempt_observation_unavailable" };
+    : "attempt_observation_unavailable",
+
+    ...(validated.bindings.length > 1 ? { candidates: validated.bindings.map(({ run_id, role, original_result }) =>
+      ({ attempt_id: run_id, role, original_result })) } : {}) };
 }

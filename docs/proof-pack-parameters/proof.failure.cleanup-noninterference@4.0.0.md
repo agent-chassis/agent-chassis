@@ -4,9 +4,9 @@
 
 After one declared failure, cleanup empties the complete declared residue population. A distinct complete protected-resource population is observed through the same bound population identity before failure and after settlement; both complete state populations have the protected-resource cardinality and the after-state population equals the before-state population. A separately selected authority, distinct from the failed attempt's authority, has equal state before and after settlement, is preserved by cleanup, later authorizes a valid attempt, and that attempt returns the expected successful result.
 
-Profile digest: 359e6b9b95577d6704531174d599fbd3f17c72b6fe58643d7247dd0951811b4f. Parameter digest: b8105cc04ec501635b0f16106ba3b547547b45c1d50ba6c9d65baef7bd4822b9.
+Profile digest: cfcd00cfa7ab2af6ff82481f1423eec20d6607074edc461dfa98c9dd24943fea. Parameter digest: 9fcaa59b6df38e35a17e7eb56aaadf6f005eed0ff27e5fb3734d006914f9813a.
 
-Admission digest: 930efd999e319d37c527629519a4564272a7043567bbfc5f8a093b6399d0cb85.
+Admission digest: 723b282893162301f28ac985db9b2fe64ebb39d148281ee1d5f9f687dad45869.
 
 Roles: 33/33 accounted; 2 owned gaps. Semantic parameters: 29; internal roles: 4.
 

@@ -14,7 +14,7 @@ import {
 } from "./failed-attempt-nonconsumption-harness.mjs";
 
 const PROFILE_DIGEST =
-  "af916599cda1778afbea46717ab16bc45ac5789beef97dbe08da79037e05cf3b";
+  "1e459d71fa6d0525c1ee36d6c109a1f37653cf8f0494369f5b670c22518c28d3";
 const GUARANTEE_DIGEST =
   "fd5a53f0f0357bbbce255cd8b6cdbfe60be577a653b099c3c136f4f5c59fbf0f";
 

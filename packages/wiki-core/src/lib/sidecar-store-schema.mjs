@@ -1,6 +1,7 @@
+import { configureWritableSqlite } from "./sqlite-runtime.mjs";
 import { randomUUID } from "node:crypto";
 
-export const SIDECAR_STORE_SCHEMA_VERSION = "repo-code-store.v6";
+export const SIDECAR_STORE_SCHEMA_VERSION = "repo-code-store.v7";
 export const SIDECAR_LIFECYCLE_SCHEMA_VERSION = "repo-code-lifecycle.v1";
 export const SIDECAR_STORE_GRAPH_FILE = "graph.sqlite";
 export const SIDECAR_STORE_LIFECYCLE_FILE = "lifecycle.sqlite";
@@ -12,6 +13,7 @@ export const SIDECAR_STORE_STRING_REFERENCES = Object.freeze([
   Object.freeze(["resolution_candidates", "candidate_sid"]),
   Object.freeze(["provider_documents", "document_sid"]),
   Object.freeze(["provider_document_refs", "sid"]),
+  Object.freeze(["provider_document_definitions", "sid"]),
   Object.freeze(["provider_symbols", "symbol_sid"]),
   Object.freeze(["provider_symbols", "raw_sid"]),
   Object.freeze(["provider_symbol_edges", "from_sid"]),
@@ -125,6 +127,14 @@ CREATE TABLE IF NOT EXISTS provider_document_refs (
   PRIMARY KEY (did, sid)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS provider_document_refs_sid_idx ON provider_document_refs(sid);
+CREATE TABLE IF NOT EXISTS provider_document_definitions (
+  pid INTEGER NOT NULL REFERENCES providers(pid) ON DELETE CASCADE,
+  sid INTEGER NOT NULL REFERENCES strings(sid),
+  did INTEGER NOT NULL REFERENCES provider_documents(did) ON DELETE CASCADE,
+  PRIMARY KEY (sid, pid, did)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS provider_document_definitions_did_idx
+  ON provider_document_definitions(did);
 CREATE TABLE IF NOT EXISTS provider_symbols (
   symbol_sid INTEGER NOT NULL REFERENCES strings(sid),
   pid INTEGER NOT NULL REFERENCES providers(pid) ON DELETE CASCADE,
@@ -159,21 +169,6 @@ function scalar(db, sql) {
   return statement.get();
 }
 
-export function configureWritableSqlite(db) {
-  db.exec("PRAGMA busy_timeout = 0");
-  db.exec("PRAGMA foreign_keys = ON");
-  const mode = String(db.prepare("PRAGMA journal_mode = DELETE").get().journal_mode).toLowerCase();
-  if (mode !== "delete") throw new Error(`sidecar SQLite journal mode is '${mode}', expected 'delete'`);
-  db.exec("PRAGMA synchronous = FULL");
-}
-
-export function configureReadableSqlite(db) {
-  db.exec("PRAGMA busy_timeout = 0");
-  db.exec("PRAGMA foreign_keys = ON");
-  const mode = String(db.prepare("PRAGMA journal_mode").get().journal_mode).toLowerCase();
-  if (mode !== "delete") throw new Error(`sidecar SQLite journal mode is '${mode}', expected 'delete'`);
-}
-
 export function initializeLifecycleSchema(db) {
   configureWritableSqlite(db);
   db.exec("BEGIN IMMEDIATE");
@@ -198,13 +193,19 @@ export function assertLifecycleSchema(db) {
   }
 }
 
-export function initializeGraphSchema(db, { graphSchemaVersion }) {
+export function initializeGraphSchema(db, { graphSchemaVersion, reset = false }) {
   if (typeof graphSchemaVersion !== "string" || graphSchemaVersion.length === 0) {
     throw new TypeError("graphSchemaVersion must be a non-empty string");
   }
-  configureWritableSqlite(db);
+  configureWritableSqlite(db, { journalMode: "wal" });
+  if (reset) db.exec("PRAGMA foreign_keys = OFF");
   db.exec("BEGIN IMMEDIATE");
   try {
+    if (reset) {
+      for (const { name } of db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all()) {
+        db.exec(`DROP TABLE "${name.replaceAll('"', '""')}"`);
+      }
+    }
     db.exec(GRAPH_SCHEMA_SQL);
     db.prepare(`INSERT INTO store_schema(singleton, store_schema_version, graph_schema_version)
       VALUES (1, ?, ?) ON CONFLICT(singleton) DO NOTHING`)
@@ -220,6 +221,8 @@ export function initializeGraphSchema(db, { graphSchemaVersion }) {
   } catch (error) {
     if (db.isTransaction) db.exec("ROLLBACK");
     throw error;
+  } finally {
+    if (reset) db.exec("PRAGMA foreign_keys = ON");
   }
 }
 
@@ -240,7 +243,9 @@ export function assertGraphSchema(db, { graphSchemaVersion }) {
     row?.store_schema_version !== SIDECAR_STORE_SCHEMA_VERSION ||
     row?.graph_schema_version !== graphSchemaVersion
   ) {
-    const error = new Error("sidecar graph store schema marker is missing or incompatible");
+    const error = new Error(`sidecar graph store schema incompatible: observed ${row?.store_schema_version ?? "missing"} / ${row?.graph_schema_version ?? "missing"}; required ${SIDECAR_STORE_SCHEMA_VERSION} / ${graphSchemaVersion}`);
+    error.observed_store_schema_version = row?.store_schema_version ?? null;
+    error.observed_graph_schema_version = row?.graph_schema_version ?? null;
     error.code = "sidecar_graph_structural_unusable";
     throw error;
   }
@@ -250,6 +255,8 @@ export function assertGraphSchema(db, { graphSchemaVersion }) {
   } catch (cause) {
     if (/no such table: publication/i.test(cause?.message ?? "")) {
       const error = new Error("sidecar graph store publication is absent", { cause });
+      error.observed_store_schema_version = row.store_schema_version;
+      error.observed_graph_schema_version = row.graph_schema_version;
       error.code = "sidecar_graph_structural_unusable";
       throw error;
     }
@@ -257,6 +264,8 @@ export function assertGraphSchema(db, { graphSchemaVersion }) {
   }
   if (!publication || publication.sequence < 0n) {
     const error = new Error("sidecar graph store publication marker is missing or invalid");
+    error.observed_store_schema_version = row.store_schema_version;
+    error.observed_graph_schema_version = row.graph_schema_version;
     error.code = "sidecar_graph_structural_unusable";
     throw error;
   }

@@ -53,6 +53,12 @@ function lockDirectory(value) {
 
 export function npmManifestFacts(text) {
   const manifest = typeof text === "string" ? parseJsonObject(text) : null;
+  const scriptsValid = manifest?.scripts === undefined || (manifest.scripts !== null &&
+    typeof manifest.scripts === "object" && !Array.isArray(manifest.scripts) &&
+    Object.values(manifest.scripts).every((command) => typeof command === "string"));
+  const dependenciesValid = NPM_DEPENDENCY_FIELDS.every((field) => manifest?.[field] === undefined ||
+    (manifest[field] !== null && typeof manifest[field] === "object" && !Array.isArray(manifest[field]) &&
+      Object.values(manifest[field]).every((specifier) => typeof specifier === "string")));
 
   const optionalPeers = new Set(Object.entries(manifest?.peerDependenciesMeta ?? {})
     .filter(([, meta]) => meta?.optional === true).map(([name]) => name));
@@ -65,6 +71,11 @@ export function npmManifestFacts(text) {
     ? manifest.packageManager : "")?.[1] ?? null;
   return Object.freeze({
     valid: manifest !== null,
+    scriptsValid,
+    dependenciesValid,
+    testScripts: Object.freeze(Object.entries(scriptsValid ? manifest?.scripts ?? {} : {})
+      .filter(([name, command]) => /^test(?:$|[:-].+)/u.test(name) && command.trim() !== "")
+      .map(([name]) => name).sort()),
     name: typeof manifest?.name === "string" ? manifest.name : null,
     declared: Object.freeze(declared),
     declaresDependencies: declared.length > 0,

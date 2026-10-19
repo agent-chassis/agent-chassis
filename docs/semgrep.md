@@ -1,9 +1,9 @@
 # Semgrep
 
 This repository runs [Semgrep](https://semgrep.dev/) through one process
-adapter, `tools/semgrep-run.mjs`, and ships one consumer of it: the test lint,
-`tools/semgrep-test-lint.mjs`, which reviews test sources for bypassed shared
-helpers and avoidable repeated work.
+adapter, `tools/semgrep-run.mjs`. The test lint, `tools/semgrep-test-lint.mjs`,
+reviews test sources for bypassed shared helpers and avoidable repeated work.
+The separate agent recovery rule pack runs directly through that same adapter.
 
 Both run only when someone invokes them. No launcher, test runner, CI job or
 admission check calls them, and neither installs Semgrep, contacts a rule
@@ -220,8 +220,32 @@ The selected sources are passed to Semgrep by explicit path and reconciled with
 the paths Semgrep reports as scanned. A selected source that is missing from
 that list, reported as skipped, only partly parsed, duplicated, or an unselected
 path that appears in it, makes the report `incomplete`. Semgrep 1.180.0 does not
-analyse `.mts` or `.cts` files passed by explicit path, so such a file is
-reported as not scanned.
+analyse `.mts` or `.cts` files passed by explicit path, including positive,
+negative and suppression controls. Its language table identifies TypeScript by
+`.ts` and `.tsx`; missing module-extension targets can appear in neither native
+`paths.scanned` nor `paths.skipped`, with no native error. The test lint records
+every original path as `coverage.missing` with reason `not_reported_scanned`,
+names the executable's reported version and omitted `.mts/.cts` count in its
+coverage diagnostic, and exits 2 with `incomplete` status. It never treats those
+unscanned controls as passing negative examples.
+
+The installed engine exposes no tested config-based TypeScript routing that
+closes this gap while preserving rule-language applicability. `--lang` requires
+a command-line pattern and is rejected with the config-based invocation.
+`--experimental` still omits these extensions. `--scan-unknown-extensions`
+admits unknown explicit targets to every configured rule language: a mixed
+TypeScript/Python probe applied Python rules to `.mts`/`.cts` and produced
+partial-parsing errors. The shared runner therefore does not enable that flag,
+rename/copy targets, edit their bytes, or reinterpret unknown extensions.
+
+This is an explicit remaining engine limitation. A routing correction needs a
+real native regression proving positive matches, negative controls, suppression
+and language isolation at original `.mts`/`.cts` paths. The existing extension
+regression exercises all eight JS/TS extensions, includes a wrong-language rule
+and an unknown-extension control, and requires either proven native coverage
+or explicit consumer incompleteness for the two module extensions. Native-result
+status from `runSemgrep` remains distinct from test-lint audit completeness; a
+native `clean` result alone does not establish selected-source coverage.
 
 ### Rules
 
@@ -387,6 +411,131 @@ The lint's own diagnostic classes are `test_lint.invalid_argument.v1`,
 `test_lint.source_unreadable.v1`,
 `test_lint.suppression_population_unavailable.v1` and
 `test_lint.native_status_unexplained.v1`.
+
+## Agent recovery rules
+
+`.semgrep/agent-recovery-rules.yaml` contains five JavaScript/TypeScript syntax
+rules, paired with `.semgrep/agent-recovery-rules.js`. They run on explicit
+invocation through the shared runner. There is no additional scanner, registry,
+CI/admission hook, suppression baseline, or product recovery change.
+
+```sh
+node tools/semgrep-run.mjs test --config .semgrep/agent-recovery-rules.yaml --target .semgrep/agent-recovery-rules.js --output-dir <existing-empty-runtime-directory> --semgrep-bin <executable>
+node tests/run-tests.mjs integration tests/integration/agent-recovery-semgrep.test.mjs
+node tools/semgrep-run.mjs scan --config .semgrep/agent-recovery-rules.yaml --target <production-source.mjs> --output-dir <existing-empty-runtime-directory> --semgrep-bin <executable> --sarif
+```
+
+The integration test uses `SEMGREP_BIN` when set, otherwise `semgrep` on `PATH`.
+It fails when the real engine is unavailable; it never skips or substitutes a
+text search. It consumes `runSemgrep.fixture_tests.checks`, requires a positive
+witness for every ID read by the existing `readRuleIds`, and compares
+`expected_lines` with `reported_lines` exactly. Complete public-refusal parity
+inputs also go through `validatePublicMechanicalRefusal`: each structural
+defect fails for the intended validator clause and its corrected control passes.
+Private/unknown syntax controls are not claims of valid public envelopes.
+
+### Structural defects (Class A, ERROR)
+
+These rules mirror clauses owned by
+`packages/wiki-core/src/lib/refusal-recovery-contract.mjs`, invoked through
+`packages/wiki-core/src/lib/refusal-payload.mjs`. A finding identifies a
+structural defect in the recognized literal, subject to the syntax limits below.
+The existing validator owns semantic validity; lint does not replace it.
+
+| Rule | Observed pattern and existing validator clause | Correction and limits |
+| --- | --- | --- |
+| `agent-refusal-empty-deciding-facts` | Literal `deciding_facts: []`; `validateRefusalRecoveryContract`: “a public refusal must carry at least one deciding fact”. | Supply the actual owner-observed deciding fact. No inference about an identifier, computed array, missing field, or the adequacy of nonempty facts. |
+| `agent-refusal-contradictory-route` | Literal `no_supported_route: true` with a nonempty literal `next_calls`; `validateRefusalRecoveryContract`: “a public refusal cannot both offer next calls and declare no supported route”. | Have the producer choose the truthful continuation limb. Arrays with spreads are conservatively excluded; no call effectiveness or argument validity is established. |
+| `agent-refusal-guidance-outcome` | Literal `recovery.state: "guidance"` with `success_predicate`, `success_condition`, or `blocker_unchanged: false`; `validateGuidanceRecovery` forbids corrective outcomes and requires `blocker_unchanged:true`. | Remove the outcome claim and preserve the blocker. Does not check every guidance requirement, including omitted `blocker_unchanged`, registration, subjects, or information quality. |
+
+Class A recognizes named ESM imports of `buildPublicMechanicalRefusal`, including
+renamed bindings, from the owner's relative `refusal-payload.mjs`/`lib/` paths,
+relative `packages/wiki-core/src/lib/` path, and published
+`@agent-chassis/wiki-core/src/lib/refusal-payload.mjs` specifier. It also recognizes
+object literals explicitly tagged `schema_version: "public-mechanical-refusal.v1"`.
+This is syntax recognition of owner specifiers, not filesystem resolution or
+cross-file data flow. Namespace/default imports, require/dynamic imports,
+re-exports, wrapper functions, and identifier-held envelopes are outside coverage.
+Same-named unbound functions, private error imports, comments, strings and
+untagged internal error literals are negative controls.
+
+Spreads, computed properties and duplicate relevant fields in the envelope are
+conservatively excluded. The guidance rule also excludes those shapes in the
+recovery object. Unknown content is not evidence of absence or contradiction;
+these exclusions can miss defects that runtime validation would reject.
+
+### Advisory review leads (Class B, WARNING)
+
+| Rule | Observed pattern and correction owner | Investigation and limits |
+| --- | --- | --- |
+| `agent-recovery-generic-owner-fallback` | In `attachOwnerProducedRecovery`, a checked owner/upstream `next_calls` ternary falls back to `[authoringStateRecovery(input)]`. Owner: `packages/wiki-core/src/operations/controlled-contract/coverage-recovery-guidance.mjs` and its owning resolvers. | Investigate a potential specificity gap: can the resolver supply a targeted recovery, the missing capability/system change plus responsible owner, or the actual caller choice and how to resolve it? A generic read can be appropriate. Only this named producer/helper and ternary shape are recognized; arbitrary guidance reads and other fallback forms are outside coverage. |
+| `agent-recovery-selected-diagnosis-subjects` | `assessmentAuthoringGuidance` inside `projectAssessmentDiagnosis` or `projectSelectedDiagnosisGuidance` receives empty `subjects: []` or a closed literal omitting `subjects`. Owner: `packages/wiki-mcp/src/lib/task-assess-contract-corrections.mjs`. | Investigate whether the selected owner's subjects and constraints should be carried, or why none apply. Recognizes the local helper name and renamed named imports from relative owner paths. Projection names identify context syntactically; there is no inference of runtime selection. Spreads, computed options and duplicate subjects are unknown. Identifier-held subjects are not checked for emptiness. |
+
+Summary projection in `projectAssessmentGuidance` and explicit `summary`,
+`catalog`, `applicability`, or `criterion_coverage` purposes are negative controls.
+Neither advisory rule asserts that every guidance read is wrong. Unsupported-route
+controls name the missing focused-write capability and the `save_record` owner;
+missing-choice controls name the unresolved choice and how the caller resolves it.
+Those meanings are explicit fixture content, not semantic facts inferred by lint.
+This distinction follows decision; decision identities are not rule messages.
+
+### Exploratory production population and native output
+
+Use the existing population owners rather than introducing another root list:
+
+```sh
+node --input-type=module <<'JS'
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { listGuardedOwnerTrackedPaths } from "./tools/guarded-owner-lint.mjs";
+import { isGuardedOwnerProductionPath } from "./packages/wiki-core/src/lib/guarded-owner-exception-adapter.mjs";
+import { resolveSemgrepExecutable, runSemgrep } from "./tools/semgrep-run.mjs";
+const cwd = process.cwd();
+const targets = (await listGuardedOwnerTrackedPaths(cwd)).filter(isGuardedOwnerProductionPath);
+const outputDir = await mkdtemp(path.join(tmpdir(), "agent-recovery-production-"));
+console.log(outputDir);
+await writeFile(path.join(outputDir, "selected-paths.json"), JSON.stringify(targets, null, 2));
+try {
+  const result = await runSemgrep({ mode: "scan", cwd, targets, outputDir, sarif: true,
+    configs: [".semgrep/agent-recovery-rules.yaml"],
+    executable: resolveSemgrepExecutable({ explicit: process.env.SEMGREP_BIN }).path });
+  await writeFile(path.join(outputDir, "runner-result.json"), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify({ native: result.native, errors: result.errors,
+    findings: result.output.results.length, paths: result.output.paths }));
+} catch (error) {
+  await writeFile(path.join(outputDir, "runner-failure.json"), JSON.stringify({
+    diagnostic: error.diagnostic, facts: error.facts, cleanup: error.cleanup,
+    message: error.message }, null, 2));
+  throw error;
+}
+JS
+```
+
+This selects tracked production `.mjs` paths as defined by the guarded-owner
+predicate. It excludes tests, generated/fixture paths, other languages, and
+untracked sources; it is not an exhaustive population of agent-facing failures.
+Artifacts are runtime evidence outside `docs/` and `wiki/`, not canonical records.
+Keep native `semgrep.json`, SARIF when requested, findings, `output.paths`
+(including skipped paths), native errors and runner diagnostics. Native `clean`
+means no native findings, not independently reconciled source coverage or full
+semantic recovery conformance. No private test-lint reconciliation is copied here.
+Findings provide no evidence that a recovery works when followed, and the pack
+does not inventory every failure, infer caller intent, redact data, or duplicate
+guarded-owner swallowed-catch, raw-throw, or placeholder-code checks.
+
+### Extending recovery fixtures
+
+Add a `// ruleid: <exact-id>` witness immediately before each new matched site
+in `.semgrep/agent-recovery-rules.js`, and pair it with `// ok: <exact-id>` before
+its corrected counterpart. Keep comment/string, unrelated/private, alias,
+spread/computed and summary/selected controls when expanding a pattern. New
+structural clauses need complete bad/corrected parity inputs checked through
+the existing validator in `agent-recovery-semgrep.test.mjs`; syntax negatives
+need not be valid public envelopes. Add new rule IDs to that test's intended-ID
+list and document the observed syntax, existing correction owner and limits.
+Rerun the real-engine integration command above; fixture text is never imported
+or executed, and its annotations are consumed by Semgrep itself.
 
 ## Ignore file
 

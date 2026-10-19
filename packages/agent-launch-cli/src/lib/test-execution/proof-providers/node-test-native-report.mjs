@@ -1,9 +1,6 @@
 
 
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-import { nativeRecordFailureDiagnostic } from "../../workspace-agent-test-proof-error-diagnostic.mjs";
+import { nativeRecordFailureDiagnostic, reportedTestFailureLocation } from "../../workspace-agent-test-proof-error-diagnostic.mjs";
 
 export const NODE_TEST_STARTUP_FAILURE_ORIGIN = Object.freeze({ kind: "condition",
   name: "uncaught_exception" });
@@ -18,40 +15,12 @@ const TERMINATOR_RE = /^Node\.js v\d+\.\d+\.\d+\S*$/u;
 const HEADER_RE = /^([A-Za-z_$][\w$.]*)(?: \[([^\]\s]+)\])?(?:: (.*))?$/u;
 const CODE_RE = /^[A-Z][A-Z0-9_]*$/u;
 const FRAME_RE = /^ {4}at /u;
-const FRAME_LOCATION_RE = /(?:^ {4}at (?:async )?|\()((?:file:\/\/)?\/[^()]*):(\d+):(\d+)\)?(?: \{)?$/u;
-const CONTEXT_RE = /^(.+):(\d+)$/u;
 const PROPERTY_RE = /^ {2}(\[?[A-Za-z_$][\w$]*\]?): (.*)$/u;
 const QUOTED_RE = /^'([^'\\]*)'$/u;
 const UNREAD_GRAPH_KEYS = Object.freeze({ "[cause]": "cause", "[errors]": "aggregate_errors" });
 
 const unreadable = (member = "") => ({ path: `/native_report${member}`, reason: "native_report_unreadable" });
 const overBudget = (member) => ({ path: `/native_report${member}`, reason: "capture_budget_exceeded" });
-
-function checkoutFile(specifier, workRoot) {
-  let file = specifier;
-  if (specifier.startsWith("file://")) {
-    try { file = fileURLToPath(specifier); } catch { return undefined; }
-  }
-  if (!path.isAbsolute(file)) return undefined;
-  const relative = path.relative(workRoot, file);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
-  return relative.split(path.sep).join("/");
-}
-
-function reportedLocation(context, frames, workRoot) {
-  const sites = frames.map((frame) => FRAME_LOCATION_RE.exec(frame)).filter((site) => site !== null);
-  const site = CONTEXT_RE.exec(context ?? "");
-  const file = site === null ? undefined : checkoutFile(site[1], workRoot);
-  if (file !== undefined) {
-    const frame = sites.find(([, specifier, line]) => specifier === site[1] && line === site[2]);
-    return { file, line: Number(site[2]), ...(frame === undefined ? {} : { column: Number(frame[3]) }) };
-  }
-  for (const [, specifier, line, column] of sites) {
-    const frameFile = checkoutFile(specifier, workRoot);
-    if (frameFile !== undefined) return { file: frameFile, line: Number(line), column: Number(column) };
-  }
-  return undefined;
-}
 
 function reportedProperties(lines, issues) {
   const facts = { details: [] };
@@ -121,7 +90,7 @@ function reportDiagnosis({ context, lines: collected, overflow }, workRoot) {
   if (header[3] === undefined && code === undefined && firstFrame < 0) {
     return unavailable([unreadable()]);
   }
-  const location = reportedLocation(context, firstFrame < 0 ? [] : lines.slice(firstFrame, lastFrame + 1),
+  const location = reportedTestFailureLocation(context, firstFrame < 0 ? [] : lines.slice(firstFrame, lastFrame + 1),
     workRoot);
   return nativeRecordFailureDiagnostic({ origin: NODE_TEST_STARTUP_FAILURE_ORIGIN, issues,
     records: [{ name: header[1], message: text, ...(code === undefined ? {} : { code }),

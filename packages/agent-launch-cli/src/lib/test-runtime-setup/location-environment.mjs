@@ -1,6 +1,7 @@
 
 
 export const DEPENDENCY_LOCATION_ENVIRONMENT = Object.freeze({
+  npm: Object.freeze(["PNPM_HOME", "XDG_DATA_HOME", "LOCALAPPDATA"]),
   deno: Object.freeze(["DENO_DIR", "XDG_CACHE_HOME"]),
   go_modules: Object.freeze(["GOPATH", "GOMODCACHE", "GOENV", "XDG_CONFIG_HOME"]),
   cargo: Object.freeze(["CARGO_HOME"])

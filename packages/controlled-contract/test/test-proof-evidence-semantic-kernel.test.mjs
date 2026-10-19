@@ -9,7 +9,7 @@ import {
   evaluateTestProofEvidenceSemantics
 } from "../lib/test-proof-evidence-semantic-kernel.mjs";
 import { evaluateExecutionTestValidity as evaluateCurrent } from
-  "../profiles/proof.verification.test-validity/11.0.0/evaluator.mjs";
+  "../profiles/proof.verification.test-validity/12.0.0/evaluator.mjs";
 
 const digest = (character) => `sha256:${character.repeat(64)}`;
 const selectedTestId = `test-${"1".repeat(64)}`;

@@ -6,7 +6,7 @@
   "fragments": [
     {
       "file": "mcp-tools.json",
-      "tool_count": 27,
+      "tool_count": 29,
       "summary": "MCP discovery, router, the ordinary selected canonical reader, search, package-scoped tool-doc read, wiki hygiene, docs-policy, contract-manifest, compact authoring-ergonomics report/query, ordinary test-file run, and worker-delivery (commit, submit-for-review) tools."
     },
     {
@@ -76,7 +76,7 @@
     },
     {
       "file": "cli-commands.json",
-      "tool_count": 11,
+      "tool_count": 12,
       "summary": "wiki, agent-launch and agent-chassis setup CLI command rows."
     },
     {
@@ -90,7 +90,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 63,
+  "expected_tool_count": 66,
   "agent_tool_conformance_debt": {
     "owner": "tool-discovery manifest/test family",
     "target_wk": "WK-2194",

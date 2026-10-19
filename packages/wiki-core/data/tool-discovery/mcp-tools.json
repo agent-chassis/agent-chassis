@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "mcp-tools.json",
   "summary": "Canonical task reads, authoring, execution, original outcomes and explicit lifecycle actions.",
-  "tool_count": 27,
+  "tool_count": 29,
   "tools": [
     {
       "tool_name": "bootstrap_repo",
@@ -255,7 +255,7 @@
         "Operator is using the direct-directory read contract."
       ],
       "do_not_use_when": [
-        "A configured workspace alias is available; use workspace_read_page."
+        "Read the current session's repository through workspace_read_wiki with the document or record subject, then its returned reference."
       ],
       "authoritative_for": [
         "direct-directory canonical page reads"
@@ -307,7 +307,7 @@
         "Operator is using the direct-directory record-read contract."
       ],
       "do_not_use_when": [
-        "A configured workspace alias is available; use workspace_get_record."
+        "Read the current session's repository through workspace_read_wiki with the document or record subject, then its returned reference."
       ],
       "authoritative_for": [
         "direct-directory durable-record reads"
@@ -515,7 +515,7 @@
         "Operator explicitly requested the direct-directory persisted-index writer."
       ],
       "do_not_use_when": [
-        "The task only needs search; use workspace_search_repo, which reads through a missing index."
+        "The task needs ordinary search in the current repository; use workspace_read_wiki with search:{query}."
       ],
       "authoritative_for": [
         "direct-directory persisted search-index build"
@@ -567,7 +567,7 @@
         "Operator is using the direct-directory search contract."
       ],
       "do_not_use_when": [
-        "A configured workspace alias is available; use workspace_search_repo."
+        "The task needs ordinary search in the current repository; use workspace_read_wiki with search:{query}."
       ],
       "authoritative_for": [
         "direct-directory canonical content search"
@@ -616,7 +616,7 @@
         "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
         "packages/wiki-core/src/operations/build-search-index.mjs"
       ],
-      "notes": "Write-capable MCP route that builds or refreshes the lexical wiki/docs search index for a configured workspace repository \u2014 the explicit index-builder companion to workspace_search_repo. Pass reindex:true for a full rebuild. Resolves the repository through configured aliases and accepts no caller-supplied filesystem root. CLI fallback: `npm run wiki -- build-search-index`.",
+      "notes": "Operator-requested lexical wiki/docs index build for a configured workspace repository. reindex:true requests a full rebuild. Ordinary agent search uses workspace_read_wiki with search:{query}; the configured repository is session-bound.",
       "use_when": [
         "An operator explicitly refreshes the configured repository's lexical search cache."
       ],
@@ -634,7 +634,7 @@
     },
     {
       "tool_name": "workspace_run_test",
-      "display_name": "Run one ordinary test file",
+      "display_name": "Run repository tests",
       "kind": "mcp_tool",
       "entrypoint": "workspace_run_test",
       "task_ids": [
@@ -668,33 +668,26 @@
         "packages/agent-launch-cli/src/lib/test-execution/ordinary-run.mjs",
         "packages/agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs"
       ],
-      "notes": "Runs one repository-relative test file, or the files one glob pattern in file matches, with the prepared runtime runner against the server-authenticated source and reports the native process outcome with no proof credit. A glob answers with counts and one file's outcome, never a file list. Every response is at most 1,024 UTF-8 bytes; stdout and stderr are clipped tails, and the settled result is retained for this route's own read calls; retry reruns a refused request.",
+      "notes": "Runs one exact repository command once, with literal cwd/argv and no inferred test counts or proof credit. Workers select only frozen assigned entrypoint/selection IDs and timeout; orchestrators/reviewers retain harness execution. All executable retries re-enter current schema, session binding and listed-definition checks before source/runtime work. Responses remain at most 1,024 UTF-8 bytes; retained reads execute nothing. Public file/runner/selector execution is removed; native internal proof/regression consumers retain their own contract.",
       "use_when": [
-        "An authenticated orchestrator, worker or reviewer needs the native outcome of one repository test file (optionally one native selector) in its prepared runtime environment; an orchestrator names source {kind:current_main} or {kind:exact_sha,value}.",
-        "A failing run should be compared once with the same request on the source parent that an owned checkout already holds (compare_parent:true).",
-        "An earlier answer named omitted output or a retained view: copy its returned read call exactly; each read names the view that follows it, and reads never execute.",
-        "A refusal returned a retry call (for example a worker's source cleared, or an orchestrator's source named): invoke that exact call to run the corrected request as a new execution."
+        "A worker runs one assigned entrypoint/selection, exactly as its frozen assignment lists it.",
+        "An orchestrator/reviewer runs an actual repository harness command; orchestrators name source, reviewers use their bound source.",
+        "An earlier answer supplies a retained read or explicit corrected retry; copy the exact returned call."
       ],
       "do_not_use_when": [
-        "The question is whether saved proofs hold; use verify_proof, which owns proof credit.",
-        "The task needs a command, arguments, environment variables, a root, a directory, a list of files or another session's source; none is an input.",
-        "A worker or reviewer wants to name a source or an exact commit; their launcher-bound source is implicit."
+        "The question is whether saved proofs hold; use verify_proof.",
+        "A worker needs an unassigned focus or changed listed definition; request_assignment_change is the supported route.",
+        "The request names public file, runner, selector, environment variables, another root or forged role; those controls are not worker inputs."
       ],
       "authoritative_for": [
-        "the native outcome of one ordinary test-file run in a prepared runtime against an authenticated source, with at most one parent comparison, and the retained settled result"
+        "Native command outcome, at most one authorized parent comparison, and retained current native results; no proof credit."
       ],
       "recommended_first_call": {
         "routing_intents": [
           "ordinary_test_run"
         ],
-        "operation": "run one repository test file",
-        "arguments": {
-          "file": "$repository_relative_test_file_or_glob",
-          "runner": "$runtime_runner",
-          "selector": "$optional_native_selector",
-          "compare_parent": "$optional_compare_parent",
-          "source": "$orchestrator_source_current_main_or_exact_sha"
-        },
+        "operation": "run the assigned selection or role-authorized repository harness",
+        "arguments": {},
         "omit_null_arguments": true
       }
     },
@@ -834,7 +827,14 @@
       ],
       "docs_refs": [
         "docs/mcp-operation-reference.md",
-        "docs/orchestrator-authoring-vignette.md"
+        "packages/agent-launch-core/data/role-guides/orchestrator/01/guide.md",
+        "packages/agent-launch-core/data/role-guides/orchestrator/01/authoring-vignette.md",
+        "packages/agent-launch-core/data/role-guides/orchestrator/02/guide.md",
+        "packages/agent-launch-core/data/role-guides/orchestrator/02/authoring-vignette.md",
+        "packages/agent-launch-core/data/role-guides/orchestrator/03/guide.md",
+        "packages/agent-launch-core/data/role-guides/orchestrator/03/authoring-vignette.md",
+        "packages/agent-launch-core/data/role-guides/orchestrator/04/guide.md",
+        "packages/agent-launch-core/data/role-guides/orchestrator/04/authoring-vignette.md"
       ],
       "source_files": [
         "packages/wiki-mcp/src/lib/task-save-record-tools.mjs"
@@ -945,18 +945,18 @@
       "source_files": [
         "packages/wiki-mcp/src/lib/proof-discovery-tools.mjs"
       ],
-      "notes": "Browse the complete proof catalogue with no arguments, then select and read plausible proofs completely before choosing; a property query is optional.",
+      "notes": "Read a known proof by proof_name; search by query when its name is unknown; browse with no arguments when discovery is needed. A uniquely identified family is neither a selected proof nor execution authorization.",
       "use_when": [
-        "Browse the complete proof catalogue with no arguments, then select and read plausible proofs completely before choosing; a property query is optional."
+        "Read a known proof by proof_name, search by query, or browse when discovery is needed."
       ],
       "do_not_use_when": [
         "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "Browse the complete proof catalogue with no arguments, then select and read plausible proofs completely before choosing; a property query is optional."
+        "Proof discovery and complete selected proof meaning; discovery does not authorize execution."
       ],
       "recommended_first_call": {
-        "operation": "Browse the complete proof catalogue with no arguments, then select and read plausible proofs completely before choosing; a property query is optional.",
+        "operation": "Read by proof_name when known; search by query otherwise; use no arguments to browse when discovery is needed.",
         "arguments": {},
         "omit_null_arguments": true
       }
@@ -1059,6 +1059,65 @@
       "recommended_first_call": {
         "operation": "Deliver the authenticated worker assignment with an empty request; never integrates.",
         "arguments": {},
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "request_assignment_change",
+      "display_name": "request_assignment_change",
+      "kind": "mcp_tool",
+      "entrypoint": "request_assignment_change",
+      "task_ids": [
+        "worker-assignment-change"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/task-request-assignment-change.mjs"
+      ],
+      "notes": "Request a correction to your frozen assignment and end this worker immediately. Include completed and remaining work as the handoff; acceptance permits no final report or follow-up call. The coordinator decides revisions.",
+      "use_when": [
+        "Request a correction to your frozen assignment and end this worker immediately. Include completed and remaining work as the handoff; acceptance permits no final report or follow-up call. The coordinator decides revisions."
+      ],
+      "do_not_use_when": [
+        "The request needs an ungranted role, caller-selected repository or another task."
+      ],
+      "authoritative_for": [
+        "Request a correction to your frozen assignment and end this worker immediately. Include completed and remaining work as the handoff; acceptance permits no final report or follow-up call. The coordinator decides revisions."
+      ],
+      "recommended_first_call": {
+        "operation": "Request a correction to your frozen assignment and end this worker immediately. Include completed and remaining work as the handoff; acceptance permits no final report or follow-up call. The coordinator decides revisions.",
+        "arguments": {
+          "assignment_fact": {
+            "kind": "missing",
+            "statement": "$assignment_fact"
+          },
+          "evidence": [],
+          "prevents": "$prevents",
+          "requested_change": "$requested_change",
+          "completed_work": [],
+          "remaining_work": []
+        },
         "omit_null_arguments": true
       }
     },
@@ -1302,21 +1361,21 @@
       "source_files": [
         "packages/wiki-mcp/src/lib/task-advance-candidate.mjs"
       ],
-      "notes": "Explicitly advance one immutable candidate version to observed W; no integration or publication.",
+      "notes": "Advance a stale candidate to the observed workspace base. Use the exact version_identity from workspace_inspect_candidate as version, then review the updated candidate before publication.",
       "use_when": [
-        "Explicitly advance one immutable candidate version to observed W; no integration or publication."
+        "The selected candidate is stale against the workspace base."
       ],
       "do_not_use_when": [
-        "The request needs an ungranted role, caller-selected repository or another task."
+        "The current candidate is already reviewed and ready for handoff; use workspace_publish_work."
       ],
       "authoritative_for": [
-        "Explicitly advance one immutable candidate version to observed W; no integration or publication."
+        "Advancing the explicitly selected candidate version."
       ],
       "recommended_first_call": {
-        "operation": "Explicitly advance one immutable candidate version to observed W; no integration or publication.",
+        "operation": "Advance the explicitly inspected candidate version",
         "arguments": {
           "subject": "$wk",
-          "version": "$version"
+          "version": "$returned_version_identity"
         },
         "omit_null_arguments": true
       }
@@ -1355,18 +1414,18 @@
       "source_files": [
         "packages/wiki-mcp/src/lib/task-publish-work.mjs"
       ],
-      "notes": "Publish the current exact WK candidate through configured handoff; no merge or completion.",
+      "notes": "Hand off the current exact reviewed candidate to the configured pull request or local/Git destination; publication neither merges nor completes work.",
       "use_when": [
-        "Publish the current exact WK candidate through configured handoff; no merge or completion."
+        "The current exact candidate has completed review and disposition."
       ],
       "do_not_use_when": [
-        "The request needs an ungranted role, caller-selected repository or another task."
+        "The candidate is stale; inspect it and explicitly advance before reviewing the updated version."
       ],
       "authoritative_for": [
-        "Publish the current exact WK candidate through configured handoff; no merge or completion."
+        "Publication of the current reviewed candidate to the configured destination."
       ],
       "recommended_first_call": {
-        "operation": "Publish the current exact WK candidate through configured handoff; no merge or completion.",
+        "operation": "Publish the current reviewed candidate to the configured destination",
         "arguments": {
           "subject": "$wk"
         },
@@ -1421,6 +1480,65 @@
         "operation": "Observe current or selected publication landing without publishing, merging or completing.",
         "arguments": {
           "subject": "$wk"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_record_feedback",
+      "display_name": "Record advisory feedback",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_record_feedback",
+      "task_ids": [
+        "record-feedback"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 70,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/agent-feedback.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/agent-feedback.mjs",
+        "packages/wiki-mcp/src/lib/feedback-tools.mjs"
+      ],
+      "notes": "Reuse a retained feedback session across observations, compaction and resume; otherwise explicitly start one. Reporting grants no new authority and does not gate unrelated work.",
+      "use_when": [
+        "Useful confusion, limitation or model input/output token waste arises during assigned work."
+      ],
+      "do_not_use_when": [
+        "Do not use feedback as a completion gate or canonical finding."
+      ],
+      "authoritative_for": [
+        "local advisory observations only"
+      ],
+      "recommended_first_call": {
+        "operation": "record one observation",
+        "arguments": {
+          "new_session": true,
+          "report": {
+            "category": "confusion",
+            "observation": "$observation",
+            "location": "$location",
+            "attempted_action": "$attempted_action"
+          }
         },
         "omit_null_arguments": true
       }

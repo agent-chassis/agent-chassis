@@ -109,10 +109,10 @@ export function sample(operator, { operands = 1, mode = null, contexts = null, p
 }
 export const population = (operator) => operator.population_semantics.kind !== "not_applicable";
 
-export function authored(owner, { entities, requirement }, label) {
-  const result = owner.author({ entities, requirements: [requirement] });
+export function authored(owner, { entities, requirement, supportingRequirements = [] }, label) {
+  const result = owner.author({ entities, requirements: [requirement, ...supportingRequirements] });
   assert.notEqual(result.status, "refused", `${label}: ${json(result.findings)}`);
-  assert.deepEqual([result.statements.map((row) => row.state), result.needed], [["complete"], []], label);
+  assert.deepEqual([result.statements.map((row) => row.state), result.needed], [["complete", ...supportingRequirements.map(() => "complete")], []], label);
   const read = owner.author({ specification: result.specification });
   assert.deepEqual(storedMeaning(read.statements[0]), expectedMeaning(entities, requirement), label);
 

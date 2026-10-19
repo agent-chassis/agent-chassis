@@ -1,3 +1,4 @@
+import { fixture as executionFixture } from './support/test-validity-definition-controls.mjs';
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -61,71 +62,11 @@ function request(intents, packs) {
 }
 
 async function testValidityFixture() {
-  const [base, template] = await Promise.all([
-    readFile(new URL("../examples/minimal-controlled-acceptance-contract.v1.json",
-      import.meta.url), "utf8").then(JSON.parse),
-    readFile(new URL(
-      "../profiles/proof.verification.test-validity/11.0.0/evaluation-input.template.json",
-      import.meta.url), "utf8").then(JSON.parse)
-  ]);
-
-  const input = { ...template.stable_evaluation.test_validity[0] };
-  input.verification_id = "claim-suite-covers-component";
-  input.test_proof_id = "test-proof-suite-covers-component";
-  input.falsifier_executions[0].failure_proposition_id = "prop-component-absent";
-  input.falsifier_executions[0].mutation.target_verification_id = input.verification_id;
-  const modulePath = "packages/controlled-contract/lib/test-proof-contract.mjs";
-  const provider = (provider_id, capability) => ({
-    provider_id, capability, provider_version: TEST_PROOF_PROVIDER_CATALOG.providers.find(
-      ({ provider_id: id }) => id === provider_id).provider_version
-  });
-  const testValidity = input;
-  return {
-    contract: ({ ...base, test_proofs: [{
-        test_proof_id: input.test_proof_id,
-        verification_claim_id: input.verification_id,
-        system_under_test_boundary: {
-          boundary_id: input.candidate_execution.observed_boundary_id, kind: "module",
-          runtime_module_path: modulePath, subject_reference_ids: ["ref-component"]
-        },
-        observable_result: {
-          observable_id: input.candidate_execution.observed_observable_id,
-          kind: "return_value", proposition_id: "prop-suite-covers-component"
-        },
-        candidate_execution_provider: provider("launcher.node-test", "candidate_execution"),
-        falsifiers: [{
-          falsifier_id: input.falsifier_executions[0].falsifier_id,
-          strategy: "dependency_failure", proposition_id: "prop-component-absent",
-          expected_outcome: "verification_fails",
-          mutation: {
-            mutation_id: input.falsifier_executions[0].mutation.mutation_id,
-            mechanism: "module_substitution", target_kind: "module", module_path: modulePath
-          },
-          execution_provider: provider(
-            "launcher.node-test-module-fault", "falsifier_execution")
-        }],
-        traversal_provider: {
-          mode: "provider", ...provider(
-            "launcher.node-test-v8-coverage", "boundary_traversal"),
-          boundary_kind: "module", observation_mechanism: "node_test_v8_coverage",
-          observation_seam: "node_test_structured_assertion",
-          evidence_artifact_type: "boundary_trace"
-        },
-        test_selector: { name: "package result is returned for the covered component",
-          nesting: 0 },
-        prohibited_shortcuts: ["source_text_inspection"]
-      }]
-    }),
-    input: {
-      input_version: "controlled-contract-verification-profile-input.v2",
-      reference_bindings: [
-        { role: "component", reference_ids: ["ref-component"] },
-        { role: "suite", reference_ids: ["ref-suite"] }
-      ],
-      number_bindings: [], claim_pattern_bindings: [], resolver_facts: [],
-      delivered_evidence: [], stable_evaluation: { test_validity: [testValidity] }
-    }
-  };
+  return { contract: executionFixture().contract, input: {
+    input_version: "controlled-contract-verification-profile-input.v2",
+    reference_bindings: [], number_bindings: [], claim_pattern_bindings: [],
+    resolver_facts: [], delivered_evidence: [], stable_evaluation: {}
+  } };
 }
 
 function namespaceFixture(fixture, prefix) {
@@ -239,7 +180,7 @@ test("compiler builds a stable pre-dispatch test-validity plan without runtime s
       contract: fixture.contract,
       request: request(["controlled-proof-intent.test-verification-validity"], [{
         profile_id: "proof.verification.test-validity",
-        profile_version: "11.0.0",
+        profile_version: "12.0.0",
         evaluation_input_path: evaluationPath
       }]),
       evaluationInputs: { [evaluationPath]: fixture.input }
@@ -255,7 +196,7 @@ test("compiler builds a stable pre-dispatch test-validity plan without runtime s
         ...V1,
         evaluation_input_path: "legacy-v0.2-only.json"
       }]),
-      evaluationInputs: { "legacy-v0.2-only.json": fixture.input }
+      evaluationInputs: { "legacy-v0.2-only.json": { ...fixture.input, input_version: "unknown" } }
     }), (error) => error.code === "proof_plan_request_evaluation_input_invalid");
     const partial = structuredClone(fixture.contract);
     delete partial.test_proof_version;
@@ -263,13 +204,14 @@ test("compiler builds a stable pre-dispatch test-validity plan without runtime s
       contract: partial,
       request: request(["controlled-proof-intent.test-verification-validity"], [{
         profile_id: "proof.verification.test-validity",
-        profile_version: "11.0.0",
+        profile_version: "12.0.0",
         evaluation_input_path: evaluationPath
       }]),
       evaluationInputs: { [evaluationPath]: fixture.input }
     }), (error) => error.code === "proof_plan_compiler_contract_invalid" &&
       error.details.diagnostics.diagnostics.length > 0);
   });
+
 
 test("property, intent, pack, and binding-map order cannot change output bytes", async () => {
   const refusal = namespaceFixture(stabilizeFixture(buildRefusalBeforeEffectsFixture()), "refusal");
@@ -393,6 +335,8 @@ test("swapped or invalid evaluation inputs fail before a plan is emitted", async
   ].includes(error.code));
 });
 
+
+
 test("file compiler binds relative request paths and CLI emits the same canonical plan", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-plan-compiler-cli-"));
   try {
@@ -435,6 +379,7 @@ test("CLI help exposes only genuine caller choices and explicit non-selection", 
   assert.doesNotMatch(stdout, /--catalog|--profile-path|--output/u);
 });
 
+
 test("compiler rejects caller substrate overrides and bounds malformed requests", async () => {
   const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
   await assert.rejects(() => buildProofPlan({
@@ -449,6 +394,7 @@ test("compiler rejects caller substrate overrides and bounds malformed requests"
     request: request(excessive, [])
   }), expectCode("proof_plan_request_schema_invalid"));
 });
+
 
 test("compiler validates large contracts without materializing binding assistance", async () => {
   const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());

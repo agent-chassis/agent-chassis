@@ -37,6 +37,7 @@ import {
 import { withDeclaredCrossFieldRules } from "./zod-request-constraint-declarations.mjs";
 import { advanceRequest as ownerAdvanceRequest } from "./task-advance-candidate.mjs";
 import { createCandidateInspectionDelivery } from "./task-inspect-candidate-delivery.mjs";
+import { candidateDifferenceMeaning } from "./task-inspect-candidate-meaning.mjs";
 
 export const CURRENT_CANDIDATE_REOBSERVATION_KIND = "reobserve_current_once";
 
@@ -285,7 +286,11 @@ export function createCandidateInspectionTask({
   const responder = createCandidateInspectionResponder({
     requestSchemaAuthority, advanceRequest, responseEnv
   });
-  const respond = async (request) => responder.prepare(await inspect(request));
+  const respond = async (request) => {
+    const selection = await inspect(request);
+    return { ...responder.prepare(selection),
+      semanticDetail: candidateDifferenceMeaning({ mainRepo, wkId: selection.subject.unit, selection, requestSchemaAuthority }) };
+  };
 
   return Object.freeze({ inputSchema: CANDIDATE_INSPECTION_INPUT_SCHEMA, inspect, respond });
 }

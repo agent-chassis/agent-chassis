@@ -16,6 +16,7 @@ import {
 import {
   maybeWrapExecutorWithWorktreeProvisioning
 } from "../../packages/agent-launch-cli/src/lib/backend-worktree-binding.mjs";
+import { createLauncherOwnedManagedAttemptStateAuthority } from "../../packages/agent-launch-cli/src/lib/backend-provisioning-state.mjs";
 import { computeWorkRecordSourceDigest } from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
 import {
   assertNoForbiddenTokens,
@@ -196,7 +197,10 @@ test("WK-0755 exit-without-close child terminates the flush gate instead of hang
   assert.match(probe.final_result.findings.text, /packages\/z\.mjs:1/);
 });
 
-test("WK-2261 executor consumes one launcher-private provisioning ticket without leaking it", async () => {
+function provisioningTicketFixture({
+  execute = null, beforeBinding = null, afterResult = null,
+  transformProvisioning = value => value, transformInput = value => value
+} = {}) {
   const ticket = Object.freeze({});
   const selectedUnit = Object.freeze({
     kind: "slice",
@@ -275,7 +279,7 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     base_ref: "refs/heads/wk/IN-0038/WK-2261",
     base_sha: "a".repeat(40)
   });
-  const provisioning = Object.freeze({
+  const provisioning = transformProvisioning(Object.freeze({
     complete: true,
     initiative: "IN-0038",
     unit_address: authority.unit_address,
@@ -283,10 +287,14 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     slice_id: "SLICE-004",
     worktree_path: "/tmp/wk2261-slice",
     slice_binding: sliceBinding
-  });
+  }));
   let consumed = false;
   const events = [];
   const provisioningAuthority = {
+    markExecutorEntered({ ticket: candidate }) {
+      assert.equal(candidate, ticket);
+      assert.equal(consumed, true);
+    },
     resolve({ ticket: candidate, input, app, consume }) {
       events.push("consume-ticket");
       assert.equal(candidate, ticket);
@@ -302,15 +310,26 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
       };
     }
   };
+  const realAuthority = createLauncherOwnedManagedAttemptStateAuthority();
   const attemptStateAuthority = {
-    recordProvisioned() { events.push("record-provisioned"); },
-    recordProvisioningBinding() { events.push("record-binding"); },
-    recordExecutorResult() { events.push("record-result"); }
+    ...realAuthority,
+    recordProvisioned(identity) { events.push("record-provisioned"); realAuthority.recordProvisioned(identity); },
+    recordProvisioningBinding(binding) {
+      events.push("record-binding");
+      beforeBinding?.();
+      realAuthority.recordProvisioningBinding(binding);
+    },
+    recordExecutorResult(result) {
+      events.push("record-result");
+      realAuthority.recordExecutorResult(result);
+      afterResult?.();
+    }
   };
   let spawnCalls = 0;
   const executor = async (input) => {
     spawnCalls += 1;
     events.push("spawn");
+    if (execute !== null) return execute(input);
     assert.equal(Object.hasOwn(input, "frozen_worker_scope_snapshot"), false);
     assert.equal(JSON.stringify(input).includes("managed_provisioning_ticket"), false);
     assert.equal(input.worktree_provisioning, provisioning);
@@ -330,7 +349,7 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     assert.equal(input.worker_assignment.monitor_handle, "wkmh_WK2261");
     assert.equal(input.worker_assignment.worktree_path, "/tmp/wk2261-slice");
 
-    assert.match(input.worker_assignment.prompt, /workspace_read_page/);
+    assert.match(input.worker_assignment.prompt, /workspace_read_wiki with arguments \{"assignment":true\}/);
     assert.equal(input.worker_assignment.assignment_delivery, "read_page");
     assert.match(input.worker_assignment.assignment_guidance, /WK2261_SLICE_CRITERION/);
     assert.match(input.worker_assignment.assignment_guidance, /WK2261_SLICE_NOTES/);
@@ -374,6 +393,12 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     })
   };
 
+  return { wrapped, input: transformInput(input), events, authority: realAuthority,
+    identity: { unitAddress: authority.unit_address, launchRef: input.monitor_handle, runId: input.run_id, retryId: 0 },
+    spawnCalls: () => spawnCalls };
+}
+test("WK-2261 executor consumes one launcher-private provisioning ticket without leaking it", async () => {
+  const { wrapped, input, events, spawnCalls } = provisioningTicketFixture();
   const launched = await wrapped(input);
   assert.equal(launched.accepted, true, JSON.stringify(launched.refusal ?? launched));
   assert.deepEqual(events, [
@@ -384,5 +409,111 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
   const replay = await wrapped(input);
   assert.equal(replay.accepted, false);
   assert.equal(replay.refusal.detail.reason, "launcher_private_provisioning_unavailable");
-  assert.equal(spawnCalls, 1, "a consumed ticket must never provision or spawn twice");
+  assert.equal(spawnCalls(), 1, "a consumed ticket must never provision or spawn twice");
+});
+
+async function confirmsTermination(fixture) {
+  const { identity } = fixture;
+  const next = { role: "worker", subject: fixture.input.subject, initiative: "IN-0038",
+    launchRef: "next-launch", runId: "next-run" };
+  const state = await fixture.authority.resolve(next);
+  assert.equal(state.disposition, "reissue");
+  return state.livenessDeps.confirmPriorWorkerTerminated({ unitAddress: identity.unitAddress,
+    launchRef: next.launchRef, runId: next.runId, retryId: 1, priorIdentity: state.priorIdentity });
+}
+
+test("every pre-executor preparation exit settles the exact recorded attempt", async t => {
+  for (const stage of ["binding", "git binding", "result mode", "presentation", "mint arguments", "mint validation", "executor input"]) {
+    await t.test(stage, async () => {
+      const original = new Error(`fixture ${stage} preparation failure`);
+      const getterFailure = (object, field) => Object.defineProperty({ ...object }, field, {
+        enumerable: true, get() { throw original; }
+      });
+      const options = {
+        ...(stage === "binding" ? { beforeBinding() { throw original; } } : {}),
+        transformProvisioning(value) {
+          if (stage === "git binding") return getterFailure(value, "provisionedWorktreeGitBinding");
+          if (stage === "result mode") return getterFailure(value, "worktree_path");
+          if (stage === "mint arguments") return { ...value, slice_binding: getterFailure(value.slice_binding, "run_id") };
+          if (stage === "mint validation") return { ...value, worktree_path: "" };
+          return value;
+        },
+        transformInput(input) {
+          if (stage === "presentation") return { ...input, frozen_worker_scope_snapshot: {
+            ...input.frozen_worker_scope_snapshot, record: null } };
+
+          if (stage === "executor input") return getterFailure(input, "workspace_alias");
+          return input;
+        }
+      };
+      const fixture = provisioningTicketFixture(options);
+      if (["presentation", "mint arguments", "mint validation"].includes(stage)) {
+        const failed = await fixture.wrapped(fixture.input);
+        assert.equal(failed.accepted, false);
+        assert.equal(failed.refusal.reason, stage === "mint validation"
+          ? "worker_assignment_binding_mismatch" : "worker_assignment_projection_invalid");
+        if (stage === "mint arguments") assert.equal(failed.refusal.detail.message, original.message);
+      } else {
+        await assert.rejects(fixture.wrapped(fixture.input), error => error === original);
+      }
+      assert.equal(fixture.spawnCalls(), 0);
+      assert.equal(fixture.events.filter(event => event === "record-result").length, 1);
+      assert.equal(await confirmsTermination(fixture), true);
+      if (stage !== "binding") assert.equal(fixture.authority.resolveProvisioningBinding({
+        subject: fixture.input.subject, run_id: fixture.identity.runId, monitor_handle: fixture.identity.launchRef
+      }).complete, true, "settlement retains the provisioned binding");
+    });
+  }
+});
+
+test("executor refusal, throw, terminal and running results each record once without inventing death", async t => {
+  for (const [name, result, terminated] of [
+    ["refused", { accepted: false, refusal: { code: "fixture_executor_refused" } }, true],
+    ["threw", new Error("executor threw"), true],
+    ["terminal", { accepted: true, status: "failed" }, true],
+    ["completed probe", { accepted: true, status: "launching", probe: async () => ({ status: "succeeded" }) }, true],
+    ["running", { accepted: true, status: "running", probe: async () => ({ status: "running" }) }, false],
+    ["missing result", null, false],
+    ["uncertain", { accepted: true, status: "launching" }, false],
+    ["probe throws", { accepted: true, status: "running", probe: async () => { throw new Error("probe unavailable"); } }, false]
+  ]) await t.test(name, async () => {
+    const fixture = provisioningTicketFixture({ execute: () => {
+      if (result instanceof Error) throw result;
+      return result;
+    } });
+    if (result instanceof Error) await assert.rejects(fixture.wrapped(fixture.input), error => error === result);
+    else assert.equal(await fixture.wrapped(fixture.input), result);
+    assert.equal(fixture.spawnCalls(), 1);
+    assert.equal(fixture.events.filter(event => event === "record-result").length, 1);
+    assert.equal(await confirmsTermination(fixture), terminated);
+    const status = { subject: fixture.input.subject, run_id: fixture.identity.runId,
+      monitor_handle: fixture.identity.launchRef };
+    assert.equal(fixture.authority.resolveProvisioningBinding(status).complete, true);
+    for (const field of ["unitAddress", "launchRef", "runId", "retryId"]) {
+      assert.throws(() => fixture.authority.recordExecutorResult({ ...fixture.identity,
+        [field]: field === "retryId" ? 99 : "foreign", result: { accepted: false } }), /identity changed/u);
+    }
+    assert.equal(await confirmsTermination(fixture), terminated, "foreign settlement cannot change liveness");
+    fixture.authority.recordProvisioned({ ...fixture.identity, launchRef: "new-launch", runId: "new-run", retryId: 1 });
+    assert.throws(() => fixture.authority.recordExecutorResult({ ...fixture.identity,
+      result: { accepted: false } }), /identity changed/u, "superseded settlement refuses");
+  });
+});
+
+test("result recording failure cannot settle a running executor a second time", async () => {
+  const original = new Error("result observer failed after recording");
+  const fixture = provisioningTicketFixture({
+    execute: () => ({ accepted: true, status: "running", probe: async () => ({ status: "running" }) }),
+    afterResult: () => { throw original; }
+  });
+  await assert.rejects(fixture.wrapped(fixture.input), error => error === original);
+  assert.equal(fixture.events.filter(event => event === "record-result").length, 1);
+  assert.equal(await confirmsTermination(fixture), false);
+});
+
+test("an already-stranded recorded attempt without a probe remains unconfirmed", async () => {
+  const fixture = provisioningTicketFixture();
+  fixture.authority.recordProvisioned(fixture.identity);
+  assert.equal(await confirmsTermination(fixture), false);
+  assert.equal(fixture.spawnCalls(), 0);
 });

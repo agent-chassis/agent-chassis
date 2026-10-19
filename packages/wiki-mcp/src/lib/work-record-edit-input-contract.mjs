@@ -15,6 +15,7 @@ import { projectZodRequestContract } from "./zod-request-contract-projection.mjs
 import {
   readyAcceptanceCriterion,
   readyValidationEntry,
+  repositoryTestReplacement,
   workRecordEntryContent
 } from "./work-record-write-tool-schema-vocabulary.mjs";
 
@@ -133,7 +134,8 @@ function listValueSchema(z, entry, action) {
   if (action === "replace") {
     let result = z.array(item);
     if (Number.isSafeInteger(schema.max_items)) result = result.max(schema.max_items);
-    return result;
+    return schema.replacement_shape === "repository_tests"
+      ? z.union([result, repositoryTestReplacement(z)]) : result;
   }
   if (action === "append") return item;
   coverageFailure("unsupported_registry_action", entry, `unsupported list action ${action}`);

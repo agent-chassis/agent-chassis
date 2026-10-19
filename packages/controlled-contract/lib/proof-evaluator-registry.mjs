@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 const PROOF_EVALUATOR_REGISTRY_ID = "controlled-contract-proof-evaluator-registry";
-const PROOF_EVALUATOR_REGISTRY_VERSION = "2.0.0";
+const PROOF_EVALUATOR_REGISTRY_VERSION = "3.0.0";
 const entries = Object.freeze({
-  "proof.verification.test-validity\u000011.0.0": Object.freeze({
-    module_path: "profiles/proof.verification.test-validity/11.0.0/evaluator.mjs",
+  "proof.verification.test-validity\u000012.0.0": Object.freeze({
+    module_path: "profiles/proof.verification.test-validity/12.0.0/evaluator.mjs",
     export_name: "evaluateExecutionTestValidity",
     implementation_id: "proof.verification.test-validity.execution-evaluator",
     implementation_version: "9.0.0",

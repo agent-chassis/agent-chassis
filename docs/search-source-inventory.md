@@ -3,12 +3,36 @@
 `readSearchInventory` is an internal operation of
 `packages/wiki-core/src/operations/search.mjs`. It returns the complete
 population of one captured search generation, unpaged, with an exact total. It
-is not a registered MCP route and has no CLI entrypoint; `workspace_search_repo`
-remains the registered ranked search.
+is not a registered MCP route and has no CLI entrypoint. The public MCP reading
+route is `workspace_read_wiki` with `search`, when the connected session's
+advertised schema offers it.
+
+## Public reading route
+
+For query-based search, supply `search.query`. Use `search.inventory:true` to
+request the filtered population with an optional query; it is required when
+the query is omitted. With a query, matches are ranked; without one, the
+inventory contains every filter-matching member in corpus order.
+
+Put supported filters under `search.where`, using the names and string values
+accepted by the session's schema. Set `search.history:true` to include
+superseded entry versions as well as current ones; omitted or false, it includes
+only current entry versions. The server binds the repository and source root.
+
+The first answer is compact context with exact counts, not the complete
+matches. Follow its exact returned `workspace_read_wiki` call with the returned
+`reference` and `select:{inventory:"matches"}` to read every match and its
+complete text. Do not construct a reference or combine `select` with `search`.
+This route needs no pagination.
+
+See [MCP Operation Reference](mcp-operation-reference.md#compact-first-reads-and-authoring)
+for the public read boundary and [MCP repository model](mcp-repository-model.md#agent-facing-repository-model)
+for repository binding, source ownership and complete selected delivery.
 
 ## Request
 
-`readSearchInventory(options)` accepts:
+The following table describes the internal `readSearchInventory(options)`
+function, not public MCP inputs:
 
 | Field | Meaning |
 | --- | --- |
@@ -19,13 +43,18 @@ remains the registered ranked search.
 | `query` | Optional. When supplied it must be a nonempty string. |
 | filters | Any member of `FILTER_KEYS`. |
 
-`FILTER_KEYS` and `normalizeFilters`, exported from the same module, are the
-one filter vocabulary and normalizer. `searchRepo` and `readSearchInventory`
-both normalize through `normalizeFilters`, and the MCP `SEARCH_FILTER_FIELDS`
-list is `FILTER_KEYS` plus the route's `history`, `profile`,
-`extensionNamespaces` and `limit` controls. Every value is lowercased except
-`initiative`; absent and `null` values are not filters. Without an explicit
-`retrieval_visibility` filter, suppressed sources are excluded.
+Internal callers pass filter members as flat options. `FILTER_KEYS` and
+`normalizeFilters`, exported from the same module, own that filter vocabulary
+and normalization for both `searchRepo` and `readSearchInventory`. Every filter
+value is lowercased except `initiative`; absent and `null` values are not
+filters. Without an explicit `retrieval_visibility` filter, suppressed sources
+are excluded.
+
+The public MCP schema places those filters under `search.where` and history
+under `search.history`. The internal `dir`, `repository`, `profile` and
+`extensionNamespaces` options, and the ranked `searchRepo` function's `limit`,
+are not public MCP search inputs. Use the advertised `workspace_read_wiki`
+schema and its returned calls for that contract.
 
 ## Population
 

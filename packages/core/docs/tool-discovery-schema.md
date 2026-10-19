@@ -118,7 +118,7 @@ Each result entry describes one discoverable tool or command.
 | `priority` | yes | Curated integer used for deterministic ranking. |
 | `side_effects` | yes | Controlled side-effect vocabulary. |
 | `authority` | yes | Controlled authority vocabulary describing which source governs the tool. |
-| `tier_visibility` | yes | Controlled registered-tier exposure vocabulary (`free_local`, `paid_cce`, `operator_only`). See [Registered-Tier Exposure And Projection](tool-discovery-tiers.md#registered-tier-exposure-and-projection). |
+| `tier_visibility` | yes | Controlled registered-tier exposure vocabulary (`free_local`, `paid_cce`, `operator_only`). See [Registered-Tier Exposure And Projection](tool-discovery-tiers.md#registered-tiers). |
 | `tier_text` | no | Optional per-tier prose overrides (`notes`/`summary`) keyed by registered tier; the base body is the free/local common text and CCE detail lives only under `tier_text.paid_cce`. This projection is product routing, not a minimum-disclosure or confidentiality policy. |
 | `docs_refs` | yes | Durable docs that explain the tool or contract. In the CHECKED-IN descriptor this is source metadata: it records what the tool is documented by. In RUNTIME verbose output it is filtered to the references the current server session can actually serve. See [Documentation Reference Scope](#documentation-reference-scope). |
 | `docs_ref_scopes` | no | Optional per-reference scope override keyed by logical path. Only `workspace` is meaningful; everything else stays package-scoped. |
@@ -170,8 +170,8 @@ what the operation actually returns and does not claim that behavior is an
 authorized or supported contract.
 
 Caller guidance that a budgeted surface omits stays reachable in every role and
-tier that can see the tool, through verbose or selected
-`workspace_tools_describe` output or a `docs_refs` entry that session can read.
+tier that can see the tool, through selected `workspace_read_wiki` input
+contracts or a `docs_refs` entry that session can read.
 Size limits are met by editing source text, never by truncating it during
 projection.
 
@@ -202,7 +202,8 @@ happens to contain the relative path:
   `{reference:{tool_name,path}}`, served from the documentation bundle the
   launching package supplies.
 - A row may name individual references as **workspace-scoped** through
-  `docs_ref_scopes`. Those keep `workspace_read_page` as their route.
+  `docs_ref_scopes`. Those use `workspace_read_wiki` with `subject` to select
+  the document, then its returned reference and selection.
 - When the same logical path exists in both places the declared owner wins
   deterministically. A workspace file can never shadow a package-owned built-in
   reference, and a package-owned reference never reads the consuming workspace.
@@ -312,9 +313,7 @@ An operation route in `tool-routing-intents.v1` normally renders the selected
 descriptor's `recommended_first_call.arguments`, and its `operation` must equal
 that descriptor's `recommended_first_call.operation`. When one registry-driven
 facade owns several operations, a route may instead carry its own nonempty
-`arguments` template; for example, `operation: "task"` names
-`workspace_work_record_edit` with `kind: "task"`, `field: "sections.tasks"`, and
-`action: "mark_done"`. The router renders that template in place of the
+`arguments` template. The router renders that template in place of the
 descriptor template, using the same known-state substitution and canonical
 next-call validation, and the descriptor operation check does not apply to that
 route. Routes without `arguments` keep the descriptor template and the operation
@@ -378,7 +377,7 @@ durable documentation projection, not an independent registry.
 | `lint-repo` | Validate a repository against the shared wiki contract (read-only). Optional `max_findings` (omit for the bounded compact default, `0` for counts only, or a positive integer with no hard upper bound) controls how many lint findings the response returns; responses carry `finding_count_total`/`findings_returned`/`findings_truncated`/`max_findings`. |
 | `validate-docs-policy` | Validate agent-facing docs for non-MCP role-dispatch drift with audience-scoped operator/internal sections. |
 | `summarize-work-record` | Return a compact work-record summary view (dependencies, write_scope, acceptance, slices, validation, owners, review state, blockers). Tracker WK-level defaults intentionally omit detailed `done`, `cancelled`, and `parked` slice bodies and WK-level agent note bodies; selected-slice summaries and explicit full/debug opt-ins recover selected or complete detail. |
-| `summarize-initiative-status` | Adopted compact read-only coordinator action lens for initiative or selected-unit triage. Use it to identify the next durable coordinator action, then route actual operations to the owning structured tools (`workspace_work_record_summary`, `workspace_validate_dispatch`, `workspace_agent_dispatch`, `workspace_agent_run_status`, `workspace_lint_repo`, and the work-record setter routes). |
+| `summarize-initiative-status` | Adopted compact read-only coordinator action lens for initiative or selected-unit triage. This descriptor task label is not a registered agent endpoint. Use the production task inventory: `workspace_read_wiki`, `start_agent`, `get_run_result`, `save_record` and explicit `integrate_work`, within session grants. |
 | `coordination-preflight` | Compose the coordinator/orchestrator preflight envelope (role, write surfaces, repo/docs/wiki writability, structured routes, runtime blockers). |
 | `describe-runtime-blocker-taxonomy` | Read the schema-backed runtime blocker taxonomy (codes, categories, graph-impact degraded-state mapping, bootstrap subset). |
 | `contract-edit` | Edit the pre-dispatch contract of a work record: upsert or delete tracker-local slices, set list-valued contract fields, set acceptance criteria and validation, or shape a unit into a findings-only review unit. |

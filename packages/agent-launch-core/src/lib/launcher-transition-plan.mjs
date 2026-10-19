@@ -43,6 +43,11 @@ export const LAUNCHER_TRANSITION_FAILURES = Object.freeze({
   DEPENDENCY_IDENTITY_UNRESOLVED: Object.freeze({
     code: "launcher_transition.dependency_identity_unresolved.v1",
     authority_limb: "mechanical_failure",
+    next_action: "discover_dependency_identities_and_author_the_intended_correction_then_retry_start_agent"
+  }),
+  DEPENDENCY_UNAVAILABLE: Object.freeze({
+    code: "launcher_transition.dependency_unavailable.v1",
+    authority_limb: "mechanical_failure",
     next_action: "publish_or_integrate_the_exact_dependency_then_retry_workspace_agent_dispatch"
   }),
 

@@ -19,6 +19,7 @@ export const ADVISORY_REVIEW_INPUT_SCHEMA_VERSION =
 
 const trustedDescriptors = new WeakSet();
 const trustedInputs = new WeakSet();
+const materialKindsByInput = new WeakMap();
 
 const inputRunBindings = new WeakMap();
 
@@ -108,6 +109,7 @@ export function createAdvisoryReviewInput({ descriptor, checkoutRoot, toolProfil
     descriptor_digest: descriptor.descriptor_digest
   });
   trustedInputs.add(input);
+  materialKindsByInput.set(input, descriptor.material_kind);
   return input;
 }
 
@@ -134,6 +136,7 @@ export function bindAdvisoryReviewInputToRun(input, runId) {
   }
   const bound = Object.freeze({ ...input, run_id: runId });
   trustedInputs.add(bound);
+  materialKindsByInput.set(bound, materialKindsByInput.get(input));
   inputRunBindings.set(input, bound);
   inputRunBindings.set(bound, bound);
   return bound;
@@ -143,6 +146,10 @@ export function resolveAdvisoryReviewInputRun(input) {
   return trustedInputs.has(input) && inputRunBindings.get(input) === input
     ? input.run_id
     : null;
+}
+
+export function resolveAdvisoryReviewMaterialKind(input) {
+  return trustedInputs.has(input) ? materialKindsByInput.get(input) : undefined;
 }
 
 export function resolveAdvisoryReviewGitMetadataProjection(input) {
@@ -181,8 +188,26 @@ export function renderFamilyNeutralAdvisoryReviewInput(input) {
     renderAgentRoleGuideReadReference("reviewer"),
     `Canonical role: ${input.role}`,
     `Canonical subject: ${input.subject}`,
-    `Reviewed range: ${input.base_sha}..${input.reviewed_sha}`,
-    `Reviewed tree: ${input.reviewed_tree_sha}`,
+    ...(input.role === "redteam" ? [
+      "Challenge the proposed design before implementation. " +
+        "Examine the user requirements, proposed assignments, obligations, assumptions, interactions and planned checks. " +
+        "Compare the obligations with the complete user request and relevant source, not just the saved requirements. " +
+        "Identify missing, weakened or unsupported interpretations. " +
+        "Return findings only; the orchestrator evaluates them and owns any saved-contract updates before implementation dispatch. " +
+        "Check that the proposed obligations cover the user’s requirements, including interactions and failure cases, and that their planned checks would fail if the required behavior were wrong. " +
+        "Report missing coverage and weak checks. " +
+        "For each gap, propose the smallest concrete correction to the assignment, requirement, obligation or planned check. " +
+        "Explain which missing behavior it covers and how the check would detect an incorrect implementation. " +
+        "If a correction requires an unresolved user decision, identify that decision rather than inventing an answer. " +
+        "This reviews obligation design; do not execute proofs or claim that the implementation satisfies the obligations. " +
+        "Implementation commits are not required. Their absence is not a finding or a reason to request implementation before completing the design challenge. " +
+        "An explicitly supplied SHA can select supporting checkout context; it never changes redteam into an implementation review.",
+      `Supporting source context checkout: ${input.reviewed_sha}`,
+      `Supporting source context tree: ${input.reviewed_tree_sha}`
+    ] : [
+      `Reviewed range: ${input.base_sha}..${input.reviewed_sha}`,
+      `Reviewed tree: ${input.reviewed_tree_sha}`
+    ]),
     `Review descriptor: ${input.descriptor_digest}`,
     [
       "Your assignment is not included in this startup text. Before reviewing, first call " +

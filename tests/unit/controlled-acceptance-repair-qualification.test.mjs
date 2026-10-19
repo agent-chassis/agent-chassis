@@ -5,6 +5,7 @@ import test from "node:test";
 
 import {
   CONTROLLED_ACCEPTANCE_REPAIR_QUALIFICATIONS,
+  bindControlledAcceptanceEvaluatedSnapshot,
   deriveControlledAcceptanceEvaluatedSnapshot
 } from
   "../../packages/wiki-core/src/operations/controlled-contract/controlled-acceptance-evaluated-snapshot.mjs";
@@ -176,3 +177,98 @@ test("an incomplete population with no actionable row has no repair available",
       "controlled_contract_repair_no_mechanical_candidate");
     assert.equal(published.gap_class, null);
   });
+
+test("source accounting alone leaves contract currentness unbound, including opted-out work", () => {
+  for (const disposition of ["required", "opted_out"]) {
+    for (const [measurement_performed, accounting_status] of [[true, 'complete'], [true, 'incomplete'], [false, 'unknown']]) {
+      const subject = classified([], {}, { mechanicallyComplete: true });
+      const accounting = { scope: "parent_work_record", parent_unit: "WK-9999",
+        accounting_status, measurement_performed };
+      const snapshot = deriveControlledAcceptanceEvaluatedSnapshot({ ...subject,
+        workbench: { ...subject.workbench,
+          subject: { ...subject.workbench.subject, selected_unit: "WK-9999#SLICE-001" },
+          parent_source_accounting: accounting },
+        ownerInput: { proofPosture: { disposition }, parentSourceAccounting: accounting } });
+      assert.equal(snapshot.currentness.state, "unbound");
+      assert.equal(snapshot.currentness.claimed_count, 0);
+      assert.equal(snapshot.currentness.stale_count, 0);
+      assert.equal(snapshot.currentness.owner_count, disposition === "opted_out" ? 1 : 4);
+      assert.deepEqual(snapshot.currentness.reason_codes, []);
+      assert.equal(snapshot.parent_source_accounting, accounting,
+        "parent accounting remains separately visible with its own verdict");
+      assert.equal(snapshot.source.selected_unit, "WK-9999#SLICE-001");
+      const source = snapshot.currentness.bindings.find(({ owner }) => owner === "requirement_source");
+      assert.equal(source.current, measurement_performed ? true : null);
+      assert.equal(source.claims, false);
+
+      const matching = bindControlledAcceptanceEvaluatedSnapshot(snapshot,
+        { expectedRecordSourceDigest: RECORD_SOURCE_DIGEST });
+      assert.equal(matching.currentness.state, "unbound", "a matching consumer cannot mint a claim either");
+      const moved = bindControlledAcceptanceEvaluatedSnapshot(snapshot,
+        { expectedRecordSourceDigest: `sha256:${"c".repeat(64)}` });
+      assert.equal(moved.currentness.state, "stale");
+      assert.equal(moved.currentness.claimed_count, 0);
+      assert.equal(moved.currentness.stale_count, 1);
+      assert.deepEqual(moved.currentness.reason_codes, ["controlled_acceptance_record_source_moved"]);
+    }
+  }
+});
+
+test("each evaluated owner can establish currentness independently of source completeness", () => {
+  const owners = [
+    { contractAssessment: { source_current: true } },
+    { obligationCoverage: { source: {}, sourceCurrent: true } },
+    { acceptanceCoverage: { carrier: {}, changed_bindings: [] } }
+  ];
+  for (const owner of owners) {
+    for (const measurement_performed of [true, false]) {
+      const snapshot = deriveControlledAcceptanceEvaluatedSnapshot({
+        ...classified([], {}, { mechanicallyComplete: true }),
+        ownerInput: { ...owner, parentSourceAccounting: { measurement_performed } } });
+      assert.equal(snapshot.currentness.state, "current");
+      assert.equal(snapshot.currentness.claimed_count, 1);
+      assert.equal(snapshot.currentness.stale_count, 0);
+      assert.equal(snapshot.currentness.owner_count, 4);
+      assert.deepEqual(snapshot.currentness.reason_codes, []);
+      assert.equal(bindControlledAcceptanceEvaluatedSnapshot(snapshot,
+        { expectedRecordSourceDigest: RECORD_SOURCE_DIGEST }).currentness.state, "current");
+      const moved = bindControlledAcceptanceEvaluatedSnapshot(snapshot,
+        { expectedRecordSourceDigest: `sha256:${"c".repeat(64)}` });
+      assert.equal(moved.currentness.state, "stale", "a moved consumer binding wins over a current owner");
+      assert.equal(moved.currentness.claimed_count, 1);
+      assert.equal(moved.currentness.stale_count, 1);
+      assert.deepEqual(moved.currentness.reason_codes, ["controlled_acceptance_record_source_moved"]);
+    }
+  }
+});
+
+test("stale owner evidence wins over current owners and fully accounted prose", () => {
+  const currentOwners = { contractAssessment: { source_current: true },
+    obligationCoverage: { source: {}, sourceCurrent: true },
+    acceptanceCoverage: { carrier: {}, changed_bindings: [] } };
+  const staleOwners = [
+    [{ contractAssessment: { source_current: false } }, ["assessment_source_stale"]],
+    [{ obligationCoverage: { source: {}, sourceCurrent: false, staleReasons: ["source_moved"] } },
+      ["obligation_coverage_not_current", "source_moved"]],
+    [{ acceptanceCoverage: { carrier: {}, changed_bindings: ["contract"] } },
+      ["acceptance_coverage_source_bindings_changed"]]
+  ];
+  for (const [staleOwner, reasons] of staleOwners) {
+    for (const measurement_performed of [true, false]) {
+      const snapshot = deriveControlledAcceptanceEvaluatedSnapshot({
+        ...classified([], {}, { mechanicallyComplete: true }),
+        ownerInput: { ...currentOwners, ...staleOwner, parentSourceAccounting: { measurement_performed } } });
+      assert.equal(snapshot.currentness.state, "stale");
+      assert.equal(snapshot.currentness.claimed_count, 3);
+      assert.equal(snapshot.currentness.stale_count, 1);
+      assert.deepEqual(snapshot.currentness.reason_codes, reasons);
+      const moved = bindControlledAcceptanceEvaluatedSnapshot(snapshot,
+        { expectedRecordSourceDigest: `sha256:${"c".repeat(64)}` });
+      assert.equal(moved.currentness.state, "stale");
+      assert.equal(moved.currentness.stale_count, 2);
+      assert.equal(moved.currentness.claimed_count, 3);
+      assert.deepEqual(moved.currentness.reason_codes,
+        [...reasons, "controlled_acceptance_record_source_moved"].sort());
+    }
+  }
+});

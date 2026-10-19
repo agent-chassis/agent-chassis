@@ -1,5 +1,10 @@
+import { inputContractChoices } from '../../packages/wiki-mcp/src/lib/task-read-wiki-input-contract-choices.mjs';
 
-
+import { admit } from '../../packages/wiki-core/src/lib/controlled-requirement-authoring-schema.mjs';
+import { relationCapability } from '../../packages/wiki-core/src/lib/requirement-schema-exposure.mjs';
+import { CONTROLLED_VOCABULARY } from '@agent-chassis/controlled-contract/vocabulary';
+import { requirementSchemaBranch, requirementSchemaDetail, requirementSchemaIdentity, inferredRequirementCapabilities } from '../../packages/wiki-mcp/src/lib/requirement-authoring-schema-guidance.mjs';
+import { REQUIREMENT_AUTHORING_GUIDANCE, requirementGuidanceRevision, resolveRequirementAuthoringGuidance } from '../../packages/wiki-mcp/src/lib/requirement-authoring-guidance.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
@@ -28,9 +33,17 @@ const refusedWith = (code, at = null) => (error) => {
 
 const VARIANTS = ["WK-0001", "WK-0001#SLICE-001", "IN-0001", "DEC-0001"].map(unit => saveRecordUnitVariant(unit));
 const realDeclaration = (changeSchemas = createSaveRecordInputContract(z).changeSchemas) =>
-  createSaveRecordInputExposure({ changeSchemas, variants: VARIANTS });
+  createSaveRecordInputExposure({ changeSchemas, variants: VARIANTS, registeredTier: "paid_cce" });
+const sourceIdentity = (schema, variant = "work_item") => {
+  const declaration = realDeclaration({ ...createSaveRecordInputContract(z).changeSchemas, [variant]: schema }).sources[variant];
+  return { schema, branches: Object.fromEntries(Object.entries(declaration.branches ?? {}).map(([member, branch]) => [member, branch.metadata])), guidance: declaration.guidance ?? {} };
+};
 const sha256 = value => `sha256:${createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex")}`;
 const pick = (object, names) => Object.fromEntries(names.map(name => [name, object[name]]));
+const ACCEPTANCE_MEMBERS = Object.freeze({
+  work_item: ["criteria", "requirements", "obligations", "controlled_acceptance", "refresh_proofs"],
+  work_item_slice: ["criteria", "requirements", "obligations", "controlled_acceptance"]
+});
 
 const syntheticSource = () => ({
   type: "object", additionalProperties: false, minProperties: 1,
@@ -91,19 +104,23 @@ test("selected input contracts preserve authoritative variant schemas", async (t
     const record = binding.source("work_item");
     const prose = record.select({ members: ["notes"] });
     assert.deepEqual(prose.schema, { type: "object", additionalProperties: false, minProperties: 1,
+      if: before.work_item.if, then: before.work_item.then,
+      $defs: { content_carrier: before.work_item.$defs.content_carrier },
       properties: { notes: before.work_item.properties.notes } });
     assert.deepEqual(prose.guidance, []);
 
-    const acceptance = record.select({ groups: ["acceptance"] });
-    const members = ["criteria", "requirements", "obligations", "controlled_acceptance"];
-    assert.deepEqual(acceptance.members, members);
-    assert.deepEqual(acceptance.schema.properties, pick(before.work_item.properties, members));
-    assert.deepEqual(acceptance.guidance.map(({ member }) => member), ["requirements", "obligations"]);
-    assert.ok(acceptance.guidance.every(({ topics }) => topics.length > 0 && topics.every(topic => topic.length > 0)));
+    for (const [variant, members] of Object.entries(ACCEPTANCE_MEMBERS)) {
+      const source = binding.source(variant);
+      const acceptance = source.select({ groups: ["acceptance"] });
+      assert.deepEqual(acceptance.members, members, variant);
+      assert.deepEqual(acceptance.schema.properties, pick(before[variant].properties, members));
+      assert.deepEqual(acceptance.guidance.map(({ member }) => member), ["requirements", "obligations"]);
+      assert.ok(acceptance.guidance.every(({ topics }) => topics.length > 0 && topics.every(topic => topic.length > 0)));
 
-    const bundle = record.select({ groups: ["acceptance", "tasks"], members: ["title", "criteria"] });
-    assert.deepEqual(bundle.members, ["title", "tasks", ...members]);
-    assert.deepEqual(bundle.schema.properties, pick(before.work_item.properties, bundle.members));
+      const bundle = source.select({ groups: ["acceptance", "tasks"], members: ["title", "criteria"] });
+      assert.deepEqual(bundle.members, ["title", "tasks", ...members]);
+      assert.deepEqual(bundle.schema.properties, pick(before[variant].properties, bundle.members));
+    }
 
     for (const name of ["initiative", "decision"]) {
       const whole = binding.source(name).select({ groups: [SAVE_RECORD_WHOLE_RECORD_GROUP] });
@@ -130,18 +147,20 @@ test("selected input contracts preserve authoritative variant schemas", async (t
     const combined = ["criteria", "requirements", "obligations", "controlled_acceptance"];
     for (const name of ["work_item", "work_item_slice"]) {
       const source = binding.source(name), owner = changeSchemas[name];
-      const shared = ["obligation_case", "case_component", "case_target", "case_falsification", "ready_slice_edit_targets"];
+      const shared = ["obligation_case", "obligation_statement", "obligation_criteria", "obligation_claims", "obligation_proof", "case_component", "case_target", "case_falsification", "ready_slice_edit_targets",
+        "content_carrier", "edit_target_provenance"];
 
-      const batch = Object.keys(workItemRequirementBatchSchema().$defs);
+      const batchInventory = Object.keys(workItemRequirementBatchSchema().$defs);
+      const batch = reached(owner, ["requirements"]);
       assert.deepEqual(Object.keys(owner.$defs).slice(-shared.length), shared, name);
-      assert.deepEqual(Object.keys(owner.$defs).slice(-shared.length - batch.length, -shared.length), batch, name);
+      assert.deepEqual(Object.keys(owner.$defs).slice(-shared.length - batchInventory.length, -shared.length), batchInventory, name);
       for (const [members, expected] of [
         [["requirements"], batch],
-        [["obligations"], ["obligation_case", "case_component", "case_target", "case_falsification"]],
-        [["ready_slices"], ["ready_slice_edit_targets"]],
-        [["criteria"], []], [["notes"], []], [["title", "tasks"], []], [["slices"], []], [["controlled_acceptance"], []],
+        [["obligations"], shared.slice(0, 8)],
+        [["ready_slices"], ["ready_slice_edit_targets", "content_carrier", "edit_target_provenance"]],
+        [["criteria"], []], [["notes"], ["content_carrier"]], [["title", "tasks"], []], [["slices"], []], [["controlled_acceptance"], []],
 
-        [combined, [...batch, ...shared.slice(0, -1)]], [[...combined.slice(1), "ready_slices"], [...batch, ...shared]]]) {
+        [combined, [...batch, ...shared.slice(0, 8)]], [[...combined.slice(1), "ready_slices"], [...batch, ...shared]]]) {
         const selected = source.select({ members });
         const defined = Object.keys(selected.schema.$defs ?? {});
         assert.deepEqual(defined, reached(owner, members), `${name}: ${members}`);
@@ -154,12 +173,14 @@ test("selected input contracts preserve authoritative variant schemas", async (t
           .map(reference => JSON.parse(`{${reference}}`).$ref);
         assert.ok(references.every(reference => Object.hasOwn(selected.schema.$defs ?? {}, reference.slice("#/$defs/".length))),
           `${name}: ${members} is self-contained`);
-        assert.equal(selected.digest, sha256(owner), `${name}: the digest is of the whole source, whatever is selected`);
+        assert.equal(selected.digest, sha256(sourceIdentity(owner, name)), `${name}: the digest is of the whole source, whatever is selected`);
       }
 
       const { schema } = source.select({ members: combined });
       assert.deepEqual(schema.properties.requirements.properties.requirements.items,
-        { oneOf: [{ $ref: "#/$defs/requirement" }, { $ref: "#/$defs/membership_requirement" }] });
+        { oneOf: [{ $ref: "#/$defs/requirement" }, { $ref: "#/$defs/membership_requirement" }, { $ref: "#/$defs/definition_requirement" }] });
+      assert.equal(schema.$defs.definition_requirement.properties.verification, undefined,
+        'a pure definition has no verification claim');
       assert.deepEqual([schema.$defs.requirement, schema.$defs.membership_requirement].map(row => row.properties.verification),
         [{ $ref: "#/$defs/requirement_verification" }, { $ref: "#/$defs/requirement_verification" }]);
       assert.deepEqual(schema.properties.obligations.items.oneOf.map(row => row.properties.case),
@@ -194,7 +215,7 @@ test("selected input contracts preserve authoritative variant schemas", async (t
 
     assert.equal(properties.validation.items.anyOf.length, before.work_item_slice.properties.validation.items.anyOf.length);
     assert.equal(properties.validation.items.anyOf[1].additionalProperties, true);
-    assert.equal(labelled.properties.proof.properties.parameters.additionalProperties, true);
+    assert.equal(definitions.obligation_proof.properties.parameters.additionalProperties, true);
     assert.equal(properties.slices.items.oneOf[0].properties.sections.additionalProperties, true);
   });
 
@@ -333,21 +354,24 @@ test("schema exposure is deterministic and retains bounded state", async (t) => 
   const { changeSchemas } = createSaveRecordInputContract(z);
 
   await t.test("cold, warm and reordered selections of one set agree", () => {
-    const cold = bindInputSchemaExposure(realDeclaration(changeSchemas)).source("work_item_slice");
-    const warm = bindInputSchemaExposure(realDeclaration(changeSchemas)).source("work_item_slice");
-    warm.select({ groups: ["content"] });
-    const forms = [cold.select({ members: ["obligations", "title", "criteria", "requirements", "controlled_acceptance"] }),
-      warm.select({ members: ["controlled_acceptance", "requirements", "criteria", "obligations", "title"] }),
-      warm.select({ groups: ["acceptance"], members: ["title"] }),
-      warm.select({ members: ["title", "criteria"], groups: ["acceptance"] })];
-    const [first, ...rest] = forms.map(selected => JSON.stringify(selected));
-    for (const other of rest) assert.equal(other, first);
-    assert.deepEqual(forms[0].members, ["title", "criteria", "requirements", "obligations", "controlled_acceptance"]);
+    for (const [variant, acceptance] of Object.entries(ACCEPTANCE_MEMBERS)) {
+      const cold = bindInputSchemaExposure(realDeclaration(changeSchemas)).source(variant);
+      const warm = bindInputSchemaExposure(realDeclaration(changeSchemas)).source(variant);
+      warm.select({ groups: ["content"] });
+      const explicit = [cold.select({ members: ["obligations", "title", "criteria", "requirements", "controlled_acceptance"] }),
+        warm.select({ members: ["controlled_acceptance", "requirements", "criteria", "obligations", "title"] })];
+      assert.equal(JSON.stringify(explicit[0]), JSON.stringify(explicit[1]), variant);
+      assert.deepEqual(explicit[0].members, ["title", "criteria", "requirements", "obligations", "controlled_acceptance"]);
+      const grouped = [cold.select({ groups: ["acceptance"], members: ["title"] }),
+        warm.select({ members: ["title", "criteria"], groups: ["acceptance"] })];
+      assert.equal(JSON.stringify(grouped[0]), JSON.stringify(grouped[1]), variant);
+      assert.deepEqual(grouped[0].members, ["title", ...acceptance]);
+    }
   });
 
-  await t.test("the digest identifies the whole owner source and nothing else", () => {
+  await t.test("the digest identifies the whole owner source and exposure metadata", () => {
     const source = bindInputSchemaExposure(realDeclaration(changeSchemas)).source("work_item");
-    assert.equal(source.digest, sha256(changeSchemas.work_item));
+    assert.equal(source.digest, sha256(sourceIdentity(changeSchemas.work_item)));
     assert.equal(source.select({ members: ["title"] }).digest, source.digest, "a selection carries its source's identity");
     assert.equal(source.select({ groups: ["acceptance"] }).digest, source.digest);
     assert.notEqual(source.digest, bindInputSchemaExposure(realDeclaration(changeSchemas)).source("work_item_slice").digest);
@@ -386,7 +410,7 @@ test("schema exposure is deterministic and retains bounded state", async (t) => 
     assert.notEqual(again[0].schema, again[1].schema);
     assert.equal(again[0].schema.properties.obligations, again[1].schema.properties.obligations);
     assert.ok(Object.isFrozen(binding) && Object.isFrozen(source) && Object.isFrozen(again[0]) && Object.isFrozen(again[0].schema));
-    assert.deepEqual(Object.keys(source), ["name", "members", "groups", "select", "digest"]);
+    assert.deepEqual(Object.keys(source), ["name", "members", "groups", "select", "branches", "digest"]);
   });
 
   await t.test("only a successful registration lends a binding, to its own registrar", () => {
@@ -462,7 +486,7 @@ test("compact advertisements defer composite members and only widen", async (t) 
     assert.deepEqual(snapshot(changeSchemas), before, "projecting changes no source");
 
     const bound = bindInputSchemaExposure(realDeclaration(changeSchemas)).source("work_item");
-    assert.equal(bound.digest, sha256(changeSchemas.work_item));
+    assert.equal(bound.digest, sha256(sourceIdentity(changeSchemas.work_item)));
     assert.equal(bound.select({ members: ["obligations"] }).schema.properties.obligations, changeSchemas.work_item.properties.obligations);
   });
 
@@ -507,4 +531,132 @@ test("compact advertisements defer composite members and only widen", async (t) 
       assert.throws(() => compactInputSchemaAdvertisement(invalid), /declared members/u, JSON.stringify(invalid));
     }
   });
+});
+
+const declarations = () => createSaveRecordInputExposure({ changeSchemas: createSaveRecordInputContract(z).changeSchemas,
+  variants: [saveRecordUnitVariant('WK-0001')], registeredTier: 'paid_cce' });
+const scoped = requested => bindInputSchemaExposure(declarations()).source('work_item').select({
+  members: ['criteria', 'requirements', 'obligations'], branches: { requirements: requested } });
+const literal = value => ({ value: { literal: { int64Value: String(value) } } });
+const scalarBatch = { entities: { amount: 'cc:state', result: 'cc:state', check: 'cc:test' }, requirements: [
+  { subject: 'amount', definition: true, behavior: { relation: 'value:equals', objects: [literal(3)] } },
+  { subject: 'result', modality: 'MUST', behavior: { relation: 'value:equals', objects: [{ value: { referent: 'amount' } }] },
+    verification: { method: 'analysis', verifier: 'check', observes: { relation: 'reference:covers', objects: [{ referent: 'result' }] },
+      fails_when: { relation: 'value:not_equals', objects: [{ value: { referent: 'amount' } }] } } }
+] };
+
+test('requirements capability exposure preserves owner semantics and complete dependency closure', () => {
+  const full = workItemRequirementBatchSchema();
+  for (const requested of [['relationships'], ['relationships', 'scalar_values'], ['relationships', 'typed_values']]) {
+    const selection = scoped(requested), schema = selection.schema;
+    assert.ok(Buffer.byteLength(JSON.stringify(schema)) > 0);
+    const checkRefs = node => {
+      if (!node || typeof node !== 'object') return;
+      if (node.$ref) assert.ok(schema.$defs[node.$ref.slice('#/$defs/'.length)], node.$ref);
+      Object.values(node).forEach(checkRefs);
+    };
+    checkRefs(schema);
+    const scope = selection.branches?.requirements;
+    const guidance = resolveRequirementAuthoringGuidance(['authoring_vocabulary', 'capabilities', ...requested]).value;
+    assert.deepEqual(guidance.relation_details.map(row => row.term).sort(), requirementSchemaBranch("existing").select({ properties: { requirements: {} } }, requested).terms);
+    assert.ok(guidance.relation_details.some(row => row.term === 'number:has_cardinality'));
+    assert.deepEqual(guidance.relation_details.find(row => row.term === 'reference:covers').positions, ['observes']);
+    if (requested.includes('typed_values')) {
+      assert.deepEqual(workItemRequirementBatchSchema('existing', requested), full, 'capability union reconstructs the owner grammar');
+      assert.equal(scope, undefined, 'complete capability union uses the whole route without duplicate metadata');
+      const whole = bindInputSchemaExposure(declarations()).source('work_item').select({ members: selection.members });
+      assert.deepEqual(selection, whole, 'whole-equivalent schema and instructions have exactly one disclosure');
+    } else {
+      assert.equal(schema.$defs.requirement.properties.for_each, undefined);
+      assert.equal(schema.$defs.value_binding, undefined);
+      assert.equal(schema.$defs.membership_clause.oneOf.length, 1);
+    }
+  }
+  assert.deepEqual(admit(full, scalarBatch), []);
+  const scalar = scoped(['relationships', 'scalar_values']).schema;
+  assert.deepEqual(admit(scalar, scalarBatch, scalar.properties.requirements), [], 'primitive definition and its normative independent falsifier are complete');
+  const ordinary = scoped(['relationships']).schema;
+  assert.ok(admit(ordinary, scalarBatch, ordinary.properties.requirements).length);
+  const structured = structuredClone(scalarBatch);
+  structured.requirements[0].behavior.objects = [{ value: { list: { element_type: 'int', items: [{ literal: { int64Value: '3' } }] } } }];
+  assert.deepEqual(admit(full, structured), []);
+  assert.ok(admit(scalar, structured, scalar.properties.requirements).length, 'structured feature withheld stops before a write');
+  assert.deepEqual(inferredRequirementCapabilities(scalarBatch), ['relationships', 'scalar_values']);
+  assert.equal(inferredRequirementCapabilities(structured), undefined, 'typed job uses the complete route');
+  assert.equal(inferredRequirementCapabilities({ requirements: [{ behavior: { relation: 'invented:unknown' } }] }), null);
+  for (const requested of [[], ['unknown'], ['relationships', 'relationships']]) assert.throws(() => scoped(requested), /requirements_capability_selection_invalid/);
+  const unclassified = CONTROLLED_VOCABULARY.operators.find(row => row.term === 'value:add');
+
+  assert.throws(() => relationCapability({ ...unclassified, signature: { ...unclassified.signature, type_rule: 'new_unclassified_rule' } }), /requirements_capability_unclassified_operator/);
+});
+
+test('instruction views defer schemas and selected details retain complete transitive constraints', () => {
+  const batch = REQUIREMENT_AUTHORING_GUIDANCE.save_record_inputs.requirement_batch;
+  assert.equal(batch.schema, undefined);
+  assert.equal(batch.accepted_definitions, undefined);
+  assert.equal(batch.compact_record_comparison, undefined);
+  assert.ok(batch.source_link.matching && batch.row_addressing && batch.correction && batch.batching);
+  for (const name of Object.keys(workItemRequirementBatchSchema().$defs)) {
+    const selected = requirementSchemaDetail(['existing', name]);
+    assert.equal(selected.ok, true);
+    assert.equal(selected.value.$ref, `#/$defs/${name}`);
+    assert.deepEqual(selected.value.$defs[name], workItemRequirementBatchSchema().$defs[name]);
+    const visit = node => {
+      if (!node || typeof node !== 'object') return;
+      if (node.$ref) assert.ok(selected.value.$defs[node.$ref.slice('#/$defs/'.length)], `${name}: ${node.$ref}`);
+      Object.values(node).forEach(visit);
+    };
+    visit(selected.value);
+  }
+  assert.equal(requirementSchemaDetail(['existing', 'unknown']).ok, false);
+  const identity = requirementSchemaIdentity();
+  const before = requirementGuidanceRevision('paid_cce', identity);
+  const hidden = structuredClone(identity);
+  hidden.existing.$defs.value_type.oneOf[0].enum.push('invented');
+  assert.notEqual(requirementGuidanceRevision('paid_cce', hidden), before);
+  const metadata = structuredClone(identity);
+  metadata.exposure.capabilities.typed_values.description += ' changed';
+  assert.notEqual(requirementGuidanceRevision('paid_cce', metadata), before);
+  const original = declarations();
+  const drifted = { ...original, sources: { work_item: { ...original.sources.work_item, schema: structuredClone(original.sources.work_item.schema) } } };
+  drifted.sources.work_item.schema.$defs.requirement.properties.unclassified_new_feature = { type: 'string' };
+  assert.throws(() => bindInputSchemaExposure(drifted), /requirements_capability_source_drift/);
+  const declaration = declarations(), bound = bindInputSchemaExposure(declaration).source('work_item');
+  const changed = declarations();
+  changed.sources.work_item.branches.requirements.metadata = { ...changed.sources.work_item.branches.requirements.metadata, revision: 2 };
+  assert.notEqual(bound.digest, bindInputSchemaExposure(changed).source('work_item').digest);
+});
+
+test('schema choices retain a callable whole-member route when no requirement branch is selected', () => {
+  const source = bindInputSchemaExposure(declarations()).source('work_item');
+  const choices = inputContractChoices({ source, tool: 'save_record', reference: { ref_id: 'AAAAAAAA' },
+    members: ['title'], readTool: 'workspace_read_wiki' });
+  assert.deepEqual(choices.map(call => call.arguments), [{ reference: { ref_id: 'AAAAAAAA' },
+    select: { input_contract: { tool: 'save_record', members: ['title'] } } }]);
+});
+
+test('schema navigation omits the more expensive full-equivalent scoped twin', () => {
+  const source = bindInputSchemaExposure(declarations()).source('work_item');
+  const choices = inputContractChoices({ source, tool: 'save_record', reference: { ref_id: 'AAAAAAAA' },
+    members: ['criteria', 'requirements'], readTool: 'workspace_read_wiki' });
+  assert.equal(choices.length, 3);
+  assert.deepEqual(choices.slice(0, 2).map(call => call.arguments.select.input_contract.branches.requirements),
+    [['relationships'], ['relationships', 'scalar_values']]);
+  assert.equal(choices.at(-1).arguments.select.input_contract.branches, undefined);
+  assert.match(choices.at(-1).purpose, /typed relationships/u);
+});
+
+test('ready-slice selections disclose complete incumbent create and update variants', () => {
+  const source = bindInputSchemaExposure(realDeclaration()).source('work_item');
+  const whole = source.select({ members: ['ready_slices'] });
+  for (const [index, mode] of ['create', 'update'].entries()) {
+    const selected = source.select({ members: ['ready_slices'], branches: { ready_slices: [mode] } });
+    const { 'x-record-authoring-row': _tag, oneOf, ...constraints } = whole.schema.properties.ready_slices.items;
+    assert.deepEqual(selected.schema.properties.ready_slices.items, { ...constraints, ...oneOf[index] });
+    assert.deepEqual(selected.branches.ready_slices, { effective: [mode], excluded: [index === 0 ? 'update' : 'create'] });
+    assert.deepEqual(selected.schema.$defs, whole.schema.$defs, 'each variant reaches the same complete definitions');
+  }
+  for (const requested of [[], ['create', 'create'], ['unknown']]) assert.throws(() =>
+    source.select({ members: ['ready_slices'], branches: { ready_slices: requested } }), /selection_invalid/);
+  assert.deepEqual(source.select({ members: ['ready_slices'], branches: { ready_slices: ['update', 'create'] } }), whole);
 });

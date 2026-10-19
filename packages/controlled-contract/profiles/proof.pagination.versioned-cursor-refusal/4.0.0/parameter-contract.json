@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.pagination.versioned-cursor-refusal",
   "profile_version": "4.0.0",
-  "profile_digest": "6abe6b7f1e73b35898ebeb4c76d94b1ca08a958a2bc0d34b8122c7a6137cd770",
+  "profile_digest": "519c2f9e5a73b026667333279df255785b33248c36aa92a4524dc802d6a0188b",
   "description": "Every cursor and successful returned page in the complete declared traversal populations resolves to its traversal source version; after a relevant mutation the current version differs in identity and captured content from the selected stale cursor version, the exact next-page attempt using that cursor is refused, and before refusal and throughout that stale-attempt scope no page artifact or page-return event is returned, no cursor-advance event is emitted, and no complete declared protected effect is written or mutated; a non-stale control proves an unrelated-source mutation does not cause refusal.",
   "parameters": [
     {

@@ -1,6 +1,8 @@
 
 
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { recordManagedCompletion } from "../../../agent-launch-cli/src/lib/managed-run-process-identity-store.mjs";
 import { createSubmitForReviewResponse } from "./server-composition-helpers.mjs";
 import { createToolInputValidationError } from "./register-tool.mjs";
 import { describeRetentionFailure, measureMcpInlineResultBytes } from "./mcp-response.mjs";
@@ -411,6 +413,7 @@ export function createWorkspaceCommitExecution({
       const bindingResolution = { threw: false, error: undefined };
       const progress = { stage: null, ref: null, materialized: null, sliceCodes: null };
 
+      let deliveryIntent = null;
       const capture = { originals: null, observations: null, assignedUnit: null, settled: false, outcome: null };
 
       const outputOptions = () => ({ deliveryObservation: {
@@ -483,6 +486,13 @@ export function createWorkspaceCommitExecution({
               try {
                 ({ identityStoreBinding, verified: rawBinding } =
                   resolveCommitBindingFromCredential(value, mainRepo, rawAssignedUnit));
+                const intent = { alternative: "delivery", intent_id: randomUUID(),
+                  phase: "before_materialization", known_effects: "no commit/ref/status effect at intent acquisition" };
+                const claimed = recordManagedCompletion({ mainRepo, subject: rawAssignedUnit,
+                  sliceBinding: identityStoreBinding, completion: intent });
+                if (!claimed.ok) throw Object.assign(new Error(claimed.cause ?? claimed.refusal?.reason ?? claimed.code),
+                  { code: claimed.code ?? claimed.refusal?.code, completion: claimed });
+                deliveryIntent = intent;
               } catch (error) {
                 bindingResolution.threw = true;
                 bindingResolution.error = error;
@@ -551,6 +561,13 @@ export function createWorkspaceCommitExecution({
         });
         observations.scope_verification = { state: "returned", result: scope };
         if (scope.contained !== true) {
+
+          const released = recordManagedCompletion({ mainRepo, subject: rawAssignedUnit,
+            sliceBinding: identityStoreBinding, completion: { alternative: "delivery",
+              intent_id: `release-${deliveryIntent.intent_id}`, released_intent_id: deliveryIntent.intent_id,
+              phase: "released_zero_effects", known_effects: "delivery ref unchanged; canonical review not attempted" } });
+          if (!released.ok) throw Object.assign(new Error("zero-effect delivery intent release refused"),
+            { code: released.code ?? released.refusal?.code, cause: released });
           progress.stage = null;
           return settle(
             createCommitRefusal("commit.write_scope_refused.v1", [

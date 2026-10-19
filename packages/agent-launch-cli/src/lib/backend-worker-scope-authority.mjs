@@ -70,15 +70,15 @@ function scopePathRefusal(message, { field, path: entry, component = null, cause
 const boundedScopeFact = (value) =>
   typeof value === "string" && value.length > 0 && value.length <= SCOPE_PATH_FACT_LIMIT ? value : null;
 
-export function readWorkerScopePathRefusal(error) {
+export function readWorkerScopePathRefusal(error, { bounded = true } = {}) {
   if (!mintedScopePathRefusals.has(error)) return null;
   const { field, path: entry, component, cause } = error.detail;
-  if (!SCOPE_FIELDS.has(field) || !CAUSE_VALUES.has(cause) || boundedScopeFact(entry) === null) return null;
+  if (!SCOPE_FIELDS.has(field) || !CAUSE_VALUES.has(cause) || (bounded && boundedScopeFact(entry) === null)) return null;
   return Object.freeze({
     code: WORKER_SCOPE_PATH_REFUSED,
     field,
     path: entry,
-    component: boundedScopeFact(component),
+    component: bounded ? boundedScopeFact(component) : component,
     cause
   });
 }
@@ -209,6 +209,45 @@ function openScopeExistenceBase({ mainRepo, scopeBase, deps }) {
   });
 }
 
+export function validateWorkerScopePathsAtBase({ mainRepo, scopeBase, readScope, repoPaths = [], writeScope,
+  deps = {}, requireExistingReads = false,
+  exclusions = Object.freeze([CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]) }) {
+  const reader = openScopeExistenceBase({ mainRepo, scopeBase, deps });
+
+  const validateReadable = (entry, label, coveredOutput) => (
+    LANDING_AUTHORITY_WORK_RECORD_RE.test(entry)
+      ? validateScopePathType(mainRepo, entry, label, { allowMissingLeaf: coveredOutput })
+      : validateScopePathTypeInTree(reader, entry, label, { output: coveredOutput })
+  );
+  for (const entry of writeScope) validateScopePathTypeInTree(reader, entry, "write_scope", { output: true });
+
+  const writable = resolveWritableScopeCoverage(reader, writeScope, { exclusions });
+
+  const [conflict] = writable.conflicts;
+  if (conflict !== undefined) {
+    throw scopePathRefusal(
+      `write_scope has a path-type conflict at ${JSON.stringify(conflict.component)}: it is declared as an output file and as a parent of ${JSON.stringify(conflict.path)}`,
+      { field: "write_scope", path: conflict.path, component: conflict.component, cause: CAUSES.TYPE_CONFLICT }
+    );
+  }
+  const writableCovers = writable.covers;
+
+  for (const [label, entries] of [["read_scope", readScope], ["repo_paths", repoPaths]]) {
+    for (const entry of entries) {
+      validateReadable(entry, label, requireExistingReads && label === "read_scope" ? false : writableCovers(entry));
+    }
+  }
+  return { reader, writable, exclusions };
+}
+
+export function validateWorkerScopeEntries(entries, field) {
+  if (!Array.isArray(entries)) throw new Error(`${field} must be an array`);
+  for (const entry of entries) {
+    const parts = splitValidatedScopeComponents(entry, field);
+    if (parts.includes(".git")) scopeInvalid("", { field, path: entry, kind: "git_metadata" });
+  }
+}
+
 export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, slice, scopeBase, deps = {} }) {
   const match = typeof subject === "string" ? subject.match(EXACT_IMPLEMENTATION_SLICE_RE) : null;
   if (!match || record?.id !== match[1] || slice?.id !== match[2] || slice.work_kind !== "implementation") {
@@ -234,32 +273,10 @@ export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, s
     slice.repo_paths, "repo_paths", recordPath, { ...scopeOptions, required: false });
   const writeScope = deriveCanonicalUnitScope(
     slice.write_scope, "write_scope", recordPath, scopeOptions);
-  const reader = openScopeExistenceBase({ mainRepo: repo, scopeBase, deps });
-
-  const validateReadable = (entry, label, coveredOutput) => (
-    LANDING_AUTHORITY_WORK_RECORD_RE.test(entry)
-      ? validateScopePathType(repo, entry, label, { allowMissingLeaf: coveredOutput })
-      : validateScopePathTypeInTree(reader, entry, label, { output: coveredOutput })
-  );
-  for (const entry of writeScope) validateScopePathTypeInTree(reader, entry, "write_scope", { output: true });
-
-  const exclusions = Object.freeze([CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]);
-  const writable = resolveWritableScopeCoverage(reader, writeScope, { exclusions });
-
-  const [conflict] = writable.conflicts;
-  if (conflict !== undefined) {
-    throw scopePathRefusal(
-      `write_scope has a path-type conflict at ${JSON.stringify(conflict.component)}: it is declared as an output file and as a parent of ${JSON.stringify(conflict.path)}`,
-      { field: "write_scope", path: conflict.path, component: conflict.component, cause: CAUSES.TYPE_CONFLICT }
-    );
-  }
+  const { reader, writable, exclusions } = validateWorkerScopePathsAtBase({
+    mainRepo: repo, scopeBase, readScope, repoPaths, writeScope, deps
+  });
   const writableCovers = writable.covers;
-
-  for (const [label, entries] of [["read_scope", readScope], ["repo_paths", repoPaths]]) {
-    for (const entry of entries) {
-      validateReadable(entry, label, writableCovers(entry));
-    }
-  }
   const readableScope = deriveCanonicalReadableScope(readScope, repoPaths);
   const readable = reader.resolveMembership(
     readableScope.filter((entry) => !LANDING_AUTHORITY_WORK_RECORD_RE.test(entry)), { exclusions });

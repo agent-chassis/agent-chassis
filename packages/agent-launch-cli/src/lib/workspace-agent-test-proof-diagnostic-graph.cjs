@@ -654,22 +654,77 @@ const serializedBytes = (value) => Buffer.byteLength(JSON.stringify(value), "utf
 
 function boundedDiagnostic(diagnostic, maxBytes) {
   if (serializedBytes(diagnostic) <= maxBytes) return diagnostic;
-  if (diagnostic.status === "captured" && diagnostic.values.length > 0) {
-    const issues = [...diagnostic.issues];
-    const errors = diagnostic.errors.map((entry, index) => {
-      const kept = { ...entry };
-      for (const field of ["expected", "actual", "value"]) {
-        if (kept[field] === undefined) continue;
-        delete kept[field];
-        issues.push({ path: `/errors/${index}/${field}`, reason: "capture_budget_exceeded" });
-      }
-      return kept;
-    });
-    const withoutValues = { ...diagnostic, errors, values: [], issues };
-    if (serializedBytes(withoutValues) <= maxBytes) return withoutValues;
+  const issues = [...diagnostic.issues];
+  const errors = diagnostic.errors.map((entry, index) => {
+    const kept = { ...entry };
+    for (const field of ["expected", "actual", "value"]) {
+      if (kept[field] === undefined) continue;
+      delete kept[field];
+      issue(issues, `/errors/${index}/${field}`, "capture_budget_exceeded");
+    }
+    return kept;
+  });
+  const withoutValues = { ...diagnostic, errors, values: [], issues };
+  if (serializedBytes(withoutValues) <= maxBytes) return withoutValues;
+
+  const keptErrors = errors.slice(0, 32);
+  const ids = new Set(keptErrors.map(({ id }) => id));
+  const compact = { ...withoutValues, errors: keptErrors.map(({ id }) => ({ id })),
+    issues: issues.filter(({ path }) => Buffer.byteLength(path, "utf8") <= 1024).slice(0, 64) };
+  const omitted = (at) => issue(compact.issues, at, "capture_budget_exceeded");
+  if (compact.origin !== undefined && serializedBytes(compact.origin) > 1024) {
+    delete compact.origin;
+    omitted("/origin");
   }
+  if (errors.length > keptErrors.length) omitted("/errors");
+  if (issues.length > compact.issues.length) omitted("/issues");
+  const prefix = (text, bytes) => {
+    let end = Math.min(text.length, bytes);
+    while (end > 0 && (Buffer.byteLength(text.slice(0, end), "utf8") > bytes ||
+      /[\uD800-\uDBFF]/u.test(text[end - 1]))) end--;
+    return text.slice(0, end);
+  };
+  for (const [index, source] of keptErrors.entries()) {
+    const target = compact.errors[index];
+    for (const [field, value] of Object.entries(source)) {
+      if (field === "id") continue;
+      const at = `/errors/${index}/${field}`;
+      let kept = value;
+      if (typeof value === "string") {
+
+        const limit = field === "message" ? 1024 : field === "stack" ? 4096 : 160;
+        if (Buffer.byteLength(value, "utf8") > limit) {
+          kept = field === "message" || field === "stack" ? prefix(value, limit) : undefined;
+          omitted(at);
+        }
+      } else if (field === "aggregate_errors") {
+        kept = value.filter((id) => ids.has(id));
+        if (kept.length !== value.length) omitted(at);
+      } else if (field === "location" && Buffer.byteLength(value.file, "utf8") > 4096) {
+        kept = undefined;
+        omitted(at);
+      } else if (field === "native_details") {
+
+        kept = value.slice(0, 4).map(({ label, text }, detailIndex) => {
+          if (Buffer.byteLength(text, "utf8") > 4096) omitted(`${at}/${detailIndex}/text`);
+          if (Buffer.byteLength(label, "utf8") > 160) omitted(`${at}/${detailIndex}/label`);
+          return { label: prefix(label, 160), text: prefix(text, 4096) };
+        });
+        if (value.length > 4) omitted(at);
+      }
+      if (field === "cause" && !ids.has(value)) { kept = undefined; omitted(at); }
+      if (kept === undefined) continue;
+      target[field] = kept;
+
+      if (serializedBytes(compact) + Math.min(8192, Math.floor(maxBytes / 8)) > maxBytes) {
+        delete target[field];
+        omitted(at);
+      }
+    }
+  }
+  if (serializedBytes(compact) <= maxBytes && ids.has(compact.root_error)) return compact;
   return unavailableTestFailureDiagnostic([{ path: "/error", reason: "capture_budget_exceeded" }],
-    { origin: diagnostic.origin });
+    { origin: compact.origin });
 }
 
 function captureTestFailureDiagnostic(error, native = {}) {

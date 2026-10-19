@@ -139,34 +139,34 @@ function structuredEvidenceForPath(_filePath, parsed) {
   const schema = String(parsed?.schema_version ?? parsed?.schemaVersion ?? "").toLowerCase();
   const provenance = structuredProvenanceText(parsed);
   if (
-    (/\b(?:deepswe|codex)\b/.test(schema) && schema.includes("trajectory")) ||
-    /\b(?:deepswe|codex)[-_ ]?trajectory\b/.test(provenance)
+    (/\bcodex\b/.test(schema) && schema.includes("trajectory")) ||
+    /\bcodex[-_ ]?trajectory\b/.test(provenance)
   ) {
     return {
-      source_kind: "historical_deepswe_trajectory",
-      transport_kind: "historical_deepswe_trajectory",
+      source_kind: "historical_codex_trajectory",
+      transport_kind: "historical_codex_trajectory",
       confidence: "high",
-      evidence_basis: "structured_deepswe_or_codex_tool_event"
+      evidence_basis: "structured_codex_tool_event"
     };
   }
-  if (schema.includes("deepswe") || schema.includes("codex") || /(?:deepswe|codex)-?session/.test(schema)) {
+  if (schema.includes("codex")) {
     return {
-      source_kind: "historical_deepswe_session_jsonl",
-      transport_kind: "historical_deepswe_session_jsonl",
+      source_kind: "historical_codex_session_jsonl",
+      transport_kind: "historical_codex_session_jsonl",
       confidence: "high",
-      evidence_basis: "structured_deepswe_or_codex_tool_event"
+      evidence_basis: "structured_codex_tool_event"
     };
   }
-  if (/\b(?:deepswe|codex)\b/.test(provenance) && /\b(?:session|jsonl|tool|event|trajectory)\b/.test(provenance)) {
+  if (/\bcodex\b/.test(provenance) && /\b(?:session|jsonl|tool|event|trajectory)\b/.test(provenance)) {
     return {
       source_kind: provenance.includes("trajectory")
-        ? "historical_deepswe_trajectory"
-        : "historical_deepswe_session_jsonl",
+        ? "historical_codex_trajectory"
+        : "historical_codex_session_jsonl",
       transport_kind: provenance.includes("trajectory")
-        ? "historical_deepswe_trajectory"
-        : "historical_deepswe_session_jsonl",
+        ? "historical_codex_trajectory"
+        : "historical_codex_session_jsonl",
       confidence: "high",
-      evidence_basis: "structured_deepswe_or_codex_tool_event"
+      evidence_basis: "structured_codex_tool_event"
     };
   }
   if (schema === "agent-run-provenance.v1") {
@@ -526,8 +526,7 @@ async function extractJsonArtifactFacts({ filePath, text, sourceArtifact, facts 
     basename === "meta.json" ||
     basename === "state.json" ||
     basename === "run.json" ||
-    schema === "agent-run-provenance.v1" ||
-    schema === "deepswe.container-runner.run.v1"
+    schema === "agent-run-provenance.v1"
   ) {
     const run = runIdentityFromObject(parsed);
     facts.push(
@@ -602,7 +601,7 @@ function appendStructuredToolEventFact({
   source_kind,
   transport_kind = source_kind,
   confidence = "high",
-  evidence_basis = "structured_deepswe_or_codex_tool_event",
+  evidence_basis = "structured_codex_tool_event",
   unsupported_gap_code = undefined,
   event,
   line,
@@ -663,7 +662,7 @@ async function extractJsonlArtifactFacts({ filePath, text, sourceArtifact, facts
       facts,
       sourceArtifact,
       run: gapRun,
-      source_kind: gapSourceKind ?? "historical_deepswe_session_jsonl",
+      source_kind: gapSourceKind,
       evidence_basis: "historical_jsonl_without_structured_mcp_transcript"
     });
   }

@@ -234,8 +234,8 @@ entry refuses with `proof_pack_not_found`. No pin is rewritten automatically.
 
 ### Saved-application verification cutover (work record)
 
-The sole current supported test-validity identity is 11.0.0 (see the mutation
-limitation cutover below). Runtime and intent catalogs agree with its single
+The sole current supported test-validity identity is 12.0.0 (see the bounded
+execution definition below). Runtime and intent catalogs agree with its single
 evaluator registry entry.
 Exact admission first compares the requested version with the unique catalog
 entry, refusing historical pins with `proof_pack_exact_version_not_current`.
@@ -304,6 +304,26 @@ registry and the test-proof definitions schema, the cutover regenerates their
 certification closure digests, results and admissions through the incumbent
 full-census generator. Their profiles, parameter companions and guarantees are
 unchanged.
+
+### Bounded test-execution definition
+
+`proof.verification.test-validity@12.0.0` is the sole current definition. The
+closed `controlled-contract-test-execution-profile.v1` schema describes the
+existing authenticated execution mechanism, replacing the unrelated existence,
+coverage and verification graph patterns. It requires no fixed behavioral or
+falsifying proposition. Native case authoring preserves substantive authored
+requirements, verification meaning and falsification meaning.
+
+The evaluator implementation remains 9.0.0 with unchanged bytes and checks.
+The exact registry advances to 3.0.0 and selects only 12.0.0. Definition
+assessment reports execution pending, while runtime evaluation continues through
+the existing authenticated evidence kernel and evaluator. Assertion-to-requirement
+adequacy is explicitly excluded and grants no requirement-satisfaction credit.
+The execution certification retains its complete 14-control population and
+binds the new definition, guarantee, parameter companion and source closure.
+The retired 11.0.0 runtime definition and certificate are removed. Historical
+results stay unchanged; saved 11.0.0 selections refuse until their owners
+explicitly refresh them. No saved proof pin is rewritten automatically.
 
 ### Mutation limitation cutover
 
@@ -395,3 +415,31 @@ no certificate transfers to a changed definition and no consumer silently
 substitutes a version. The complete census and certification contract is in the
 `@agent-chassis/controlled-contract` package README, "Current proof definition
 format and certification (work record)".
+
+The current readiness registration requires `registered_tier` to name a known profile equal to the launcher’s captured host selection. Missing, unknown or mismatched profiles refuse that connection generation before readiness; the operator restarts the affected connection with coherent host configuration. Registration establishes no CCE admission or audit assurance.
+
+### Behavioral-preservation and report-comparison bounds
+
+`proof.compatibility.behavioral-preservation@4.0.0` keeps its original broad
+requirement, including captured full-report byte equality. The shared generic
+evaluator now reports that guarantee as unsupported with zero credit and bounded
+authored-declaration matches; combined assessments continue. This corrects the
+unsupported result without rewriting the immutable requirement or transferring
+its credit to another definition.
+
+`proof.result-shape.cross-representation-parity@5.0.0` replaces 4.0.0 with an
+explicit declaration-only guarantee: complete declared typed-descriptor
+populations, exact counts, one selected canonical-value pair and associated
+read/complement verification structure. It compares no report data, captured
+bytes or implementation behavior. Selection is independent of the unchanged
+behavioral-preservation intent. The old definition/certification is retired;
+there is no alias, automatic saved-pin refresh or credit transfer.
+
+`verifyBehavioralPreservationReports` remains a separate package-owned supplied
+report checker. Its `controlled-contract-behavioral-preservation-verification.v2`
+result retains its actual bounded `comparison_matches` outcome and adds `comparison_scope`:
+descriptor populations, consistent exact counts, selection identity and one
+selected canonical value pair. Unselected values are not compared. Captured-byte
+equality and implementation behavioral preservation are explicitly unsupported,
+with reasons and zero credit, including when the bounded checks match. No capture
+acquisition, provenance verification or runtime-completeness mechanism is added.

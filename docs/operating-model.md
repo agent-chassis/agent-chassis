@@ -29,6 +29,12 @@ delete expectations that require the old behavior. Historical records remain
 historical evidence; their existence does not create a runtime or tooling
 support obligation.
 
+Decision references on these pages explain this source repository's policy
+provenance. Its decision records and work roadmaps are not packaged public
+prerequisites. A consumer follows the public operational contracts and its own
+repository's accepted decisions; an unavailable source-repository record does
+not supply compatibility authority.
+
 ## Scope doctrine: no additional security profile
 
 AgentChassis does not define an additional security profile for agents. It aims
@@ -296,6 +302,13 @@ Missing, unsupported, unavailable, broken, or unusable local sandbox backends do
 not by themselves block useful local/free structured work, but the launcher must
 record a loud warning and honest unenforced provenance.
 
+This general posture does not supply missing runtime capabilities. Managed
+Codex and Claude sessions still require their sparse namespace and launcher-owned
+host MCP conduit. A failure to construct either refuses before spawn, including
+with no key or an operator unsandboxed opt-out. The separate host test capability
+uses host permissions under its explicit exception; agent-session isolation does
+not confine that execution. See [enforcement model](enforcement-model.md).
+
 When a CCE key is configured, enforcement is
 required by default. A worker, reviewer, or redteam launch must use a working
 enforcement backend or refuse before plain spawn unless the operator explicitly
@@ -510,3 +523,11 @@ That means:
 - MCP clients should launch the command directly when a session needs wiki functionality
 
 For this repository, agents should think of MCP as command-line ingress to the shared wiki tooling, not as a network service.
+
+## Documentation artifact ownership
+
+The [consumer documentation ownership boundary](consumer-owned-docs.md#artifact-policy-and-byte-ownership)
+distinguishes shared storage artifact checks from structural validation and
+consumer-owned documentation bytes. Native documentation stays outside artifact
+scope unless the repository explicitly adds directories through
+[`artifactLint.additionalRoots`](wiki-contract-metadata.md#artifactlint).

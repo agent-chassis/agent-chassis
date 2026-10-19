@@ -124,20 +124,23 @@ export async function exactWkBoundContract({
 export const CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES = Object.freeze({
   REPOSITORY_ROOT_NOT_CANONICAL: "canonical_repository_root_not_canonical",
   RECORD_UNREADABLE: "canonical_record_unreadable",
+  RECORD_ABSENT: "canonical_record_absent",
+  RECORD_MALFORMED: "canonical_record_malformed",
   RECORD_IDENTITY_DISAGREES: "canonical_record_identity_disagrees",
   TERMINAL_REVIEW_UNIT_UNPROJECTABLE: "terminal_review_unit_unprojectable",
   REVIEW_SUBJECT_MOVED: "canonical_review_subject_moved",
   REVIEW_CONTRACT_DIGEST_MOVED: "canonical_review_contract_digest_moved"
 });
 
-function canonicalCurrentTerminalReviewFailure(code, projectionCause = null) {
+function canonicalCurrentTerminalReviewFailure(code, projectionCause = null, failure = null) {
   return Object.freeze({
     ok: false,
     cause: Object.freeze({
       code,
       projection_code: projectionCause?.code ?? null,
       missing_facts: projectionCause?.missing_facts ?? NO_LIFECYCLE_FACTS,
-      ambiguous_facts: projectionCause?.ambiguous_facts ?? NO_LIFECYCLE_FACTS
+      ambiguous_facts: projectionCause?.ambiguous_facts ?? NO_LIFECYCLE_FACTS,
+      ...(failure === null ? {} : { failure })
     })
   });
 }
@@ -151,23 +154,34 @@ export function canonicalWorkRecordIdentity({ mainRepo, recordId }) {
       return canonicalCurrentTerminalReviewFailure(
         CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL);
     }
-  } catch {
+  } catch (error) {
     return canonicalCurrentTerminalReviewFailure(
-      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL);
+      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL, null,
+      { code: error.code, message: error.message, path: error.path, operation: error.syscall });
   }
-  let record;
+  let text;
   try {
-    record = JSON.parse(readFileSync(
+    text = readFileSync(
       path.join(requested, "wiki", "work-records", `${recordId}.json`),
       "utf8"
-    ));
-  } catch {
+    );
+  } catch (error) {
     return canonicalCurrentTerminalReviewFailure(
-      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_UNREADABLE);
+      error.code === "ENOENT" ? CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_ABSENT
+        : CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_UNREADABLE, null,
+      { code: error.code, message: error.message, path: error.path, operation: error.syscall });
+  }
+  let record;
+  try { record = JSON.parse(text); }
+  catch (error) {
+    return canonicalCurrentTerminalReviewFailure(
+      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_MALFORMED, null,
+      { name: error.name, message: error.message, path: `wiki/work-records/${recordId}.json`, operation: "JSON.parse" });
   }
   if (record?.id !== recordId || !/^IN-\d{4}$/u.test(record?.initiative ?? "")) {
     return canonicalCurrentTerminalReviewFailure(
-      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_IDENTITY_DISAGREES);
+      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_IDENTITY_DISAGREES, null,
+      { expected_id: recordId, observed_id: record?.id ?? null, initiative: record?.initiative ?? null });
   }
   return Object.freeze({ ok: true, record, initiative: record.initiative });
 }

@@ -4,6 +4,22 @@ This document defines how saved semantic proof meaning becomes one exact runtime
 verification. Authoring and validation do not execute code. The public
 `verify_proof` operation owns execution.
 
+The current `proof.verification.test-validity@12.0.0` definition uses the closed
+`controlled-contract-test-execution-profile.v1` representation. Its nonempty
+execution expression names the existing exact evaluator and authenticated
+semantic-facts schema. It requires no fixed claim, relation or falsifier graph:
+the caller's requirement, verification and falsification meanings stay unchanged.
+Definition assessment reports execution pending and recognizes no behavioral
+claims; it does not match declarations into execution success. Native case
+authoring and other selected proof assessments remain available.
+
+The exact execution evaluator checks the bound candidate, selected-test
+inventory, supported mutation outcomes, required traversal and prohibited
+shortcuts. Assertion-to-requirement behavioral adequacy remains unsupported.
+Passing execution and mutation/traversal observations remain visible and grant
+no automatic requirement-satisfaction credit. See
+[Test-proof results](test-proof-results.md) for the separate result axes.
+
 The production `task-verify-proof.mjs` composition registers execution-only
 `verify_proof`. Its closed schema accepts `{subject}` with optional
 `source:{unit,focus?}`, `branch`, `git_sha`, `environment` and `timeout`; repository selection
@@ -16,9 +32,10 @@ when the subject or `source` names the WK) or a canonical WK or slice branch
 name. It resolves once, through the unit branch-naming owners and the
 initiative of the WK's canonical record, to the commit that branch names, and
 that commit executes exactly as a `git_sha` request does. The result names
-both: `subject_binding.candidate_identity.resolved_branch` holds the selector,
-the branch, its ref and the resolved commit, beside the commit and tree that
-ran. A branch is how the commit was chosen and is not evidence of particular
+both: the initiating answer's
+`subject_binding.candidate_identity.resolved_branch` holds the selector,
+branch and resolved commit, beside the commit that ran. The internal binding
+also preserves the ref and tree. A branch is how the commit was chosen and is not evidence of particular
 bytes: it may move afterwards, so a later `branch` request names the commit it
 selects then, while `git_sha` keeps naming one exact candidate. A selection
 that names no existing canonical WK or slice branch refuses with
@@ -37,8 +54,10 @@ current canonical authoring, captured once per invocation (see
 [Exact-commit proof definitions](#exact-commit-proof-definitions)). `workspace_run_test` resolves its `{kind:"branch"}` source
 through the same resolver.
 
-Responses use incumbent bounded summary and diagnosis owners and retain complete
-recorded originals without another execution. `get_run_result({result})` reads a
+The initiating answer reports the execution outcome without timing/generation
+bookkeeping or duplicate diagnosis frames; see [Test-proof results](test-proof-results.md#initiating-execution-answer).
+It reuses the existing selection/diagnosis owners and retains complete recorded
+originals without another execution. `get_run_result({result})` reads a
 standalone original, optionally selecting a proof subject or authored source.
 `get_run_result({assigned:true,recorded_invocation:{invocation_id}})` reads a
 worker's recorded invocation with its original source. Stored producer/schema
@@ -82,8 +101,11 @@ does not implement is refused with
 `obligation_coverage_case_falsification_unsupported`, which carries that
 family's selector kind, the requested strategy and the strategies the family
 implements, and nothing is saved. The save never substitutes another runner or
-another strategy; a case whose family runs no falsifier for it declares
-`falsification.support: "registry_unsupported"` instead.
+another strategy. Falsification is optional: a case may explicitly declare
+`falsification.support: "registry_unsupported"` without separate permission,
+installation-wide provider absence or a prior failed mutation attempt. This
+declares no falsifier for that case, leaves acceptance required and supplies no
+detection evidence.
 
 A `test_execution` verification claim can also be saved with no stable proof
 definition at all. Its meaning — verifier, observed proposition and falsifying
@@ -157,8 +179,29 @@ forced-invocation providers scope coverage the same way to their declared
 mutation module and, for forced invocation, its operation module. This explicit
 inclusion replaces Node's default exclusion of test-like paths, so a declared
 module under `tests/` or named `test-*.mjs` or `*.test.mjs` is observable.
-`node_modules` remains excluded. Module paths are matched literally, and no
-caller or environment value selects the coverage population.
+Other `node_modules` remain outside the population. For an installed-artifact
+journey, the selecting local-tarball installation owner invokes the private
+Node source-binding hook while the installation exists. The stage binds its
+exact root and package identity to the declared raw candidate-module digest.
+The incumbent publication filter establishes the expected published-module
+digest (its comment stripping can legitimately change bytes). The stage measures
+that filter's output and compares the installed file with it; the installed
+process loader independently compares the source it loads with the expected
+published digest. No alternate caller digest or module path supplies authority.
+Once an installation is selected, source-copy calls cannot substitute for its
+installed counterpart's native function coverage.
+Only that authenticated installed counterpart can be named as the declared
+module in native coverage. Another installation, changed bytes, or missing
+binding returns `test_proof_installed_source_binding_invalid` with its specific
+reason and zero traversal credit. Module paths are matched literally; public
+caller paths and environment values supply no binding authority.
+
+The loader adds an identity source map with the authenticated source content.
+Node's native coverage reader uses its own source-map cache after fixture
+cleanup; no executable code, function counts or acceptance meaning changes.
+This stage-local capture lives beside the existing reporter channel and is
+included in its authenticated observation, with no installation registry or
+separate retention service.
 
 A traversal is proven only when the selected test passes and native coverage
 reports at least one executed function defined in the declared module.
@@ -168,7 +211,9 @@ function therefore cannot prove traversal through this provider. Node reports
 one coverage count per function for the whole process, so a function the
 declared module calls from its own top-level evaluation is counted the same
 way as a call made by the selected test. A passing candidate, import presence,
-or a detected falsifier never substitutes for that observation.
+or a detected falsifier never substitutes for that observation. Registration
+that executes a function in the declared module satisfies this module-level
+meaning; it establishes no execution of other callables in that module.
 
 ### Provider witness validators
 
@@ -294,7 +339,17 @@ core that findings review shares for its frozen design inputs, and supplies
 them to the private materialization of the commit before any proof context
 resolves: the WK record, the selected contract generation with its manifests
 and members, the parent and slice obligation sources, the acceptance carriers,
-and the related mapping contracts. Assignment entry material is review input
+and the related mapping contracts. When no compiled contract population exists,
+the same capture core selects standalone saved obligation and case sources
+through the saved-authoring owner. Parent-owned cases and slice uses keep their
+source paths and bytes; standalone authoring is never labeled a compiled
+generation. A malformed compiled population refuses capture rather than
+selecting standalone sources. Capture does not compile or complete a draft:
+verification reports its existing authoring prerequisites and recovery with
+zero execution and zero proof credit. Only an actually unsaved obligation
+source receives the missing-source diagnosis.
+
+Assignment entry material is review input
 only: review resolves it on top of the shared capture, proof execution never
 resolves it, and a material reference that does not resolve cannot refuse a
 proof. The
@@ -444,8 +499,37 @@ exactly, whatever sensitive values its producer declared; the verifier's
 `diagnostic_redactions` list is therefore empty. The generic MCP error
 boundary and the dispatch exception projection use the same owner and publish
 the same original. A source-snapshot symlink
-refusal names its validated source-relative `path`. The source snapshot does
-not refuse or measure a project's verified dependency mapping (the
+refusal names its validated source-relative `path`. Recovery is projected through
+one shared producer/read presentation seam for the authenticated receiving
+session. It preserves the deciding cause, source identity, `not_executable`
+status and zero proof credit. A managed-worker refusal binds `refused_source`
+to the authenticated worktree, selected unit, frozen source digest and attempt
+credential; this is provenance, never a grant to a result reader.
+
+A worker may correct a symlink only when both the verified frozen binding and
+the authenticated session write scope cover that path, using the shared scope
+matcher, and the refused source is that same attempt's live mutable assigned
+worktree. A private snapshot or exact candidate is not made editable by scope
+membership. For an unauthorized path, recovery says: “Proof execution is blocked
+by `<path>`. Your assignment does not authorize changing it. Request a coordinator
+correction.” Reviewers and other readers receive coordinator-owned correction
+with the specific missing worker capability, never inherited producer authority.
+
+When the worker's authenticated binding, frozen assignment and unused completion
+authority are available, recovery offers `request_assignment_change` only if its
+registered request schema accepts the supplied call. It includes the known
+refusal evidence and explicitly incomplete testimony: `completed_work` and
+`remaining_work` must come from the worker. The request is never submitted by
+verification or a read. Acceptance consumes this attempt's completion authority;
+the worker finishes its diagnostic report as `blocked` and terminates without
+committing or delivering unfinished work. It neither expands scope nor repairs
+the source. Missing route, binding, matching assignment or completion authority
+is named specifically without an uncallable request or unchanged retry.
+Recorded and selected reads only project recovery for their authenticated reader;
+they execute nothing and leave source and retained originals unchanged.
+
+The source snapshot does not refuse or measure a project's verified dependency
+mapping (the
 `node_modules` link the dependency-mapping owner verifies against the selected
 npm installation, with the one workspace generation it publishes), so mapping
 dependencies for a test never moves the snapshot digest; every other link

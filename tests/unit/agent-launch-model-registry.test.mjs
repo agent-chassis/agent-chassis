@@ -109,6 +109,11 @@ test("registry exports the array source and model-name set used by the DEC-0114 
     [
       "codex-5.3-spark",
       "fable",
+      "gemini-3.8-flash-low",
+      "gemini-3.8-flash-medium",
+      "gemini-3.8-flash-high",
+      "google-vertex-anthropic/claude-sonnet-5-5@default",
+      "google-vertex/gemini-3.8-flash",
       "gpt-5.3-codex",
       "gpt-5.4",
       "gpt-5.4-mini",
@@ -125,17 +130,24 @@ test("registry exports the array source and model-name set used by the DEC-0114 
       "vertex-claude-opus-5-5",
       "vertex-claude-sonnet-5-5",
       "vertex-gemini-3.8-flash",
+      "vertex-gemini-4-argon",
       "opus",
       "sonnet"
     ].sort()
   );
 });
 
-test("Vertex-served models are Codex-client entries with declared Vertex mappings", () => {
+test("Codex Vertex mappings and native OpenCode Vertex registration stay separate", () => {
+  assert.equal(resolveModel("google-vertex/gemini-3.8-flash").app, "opencode");
+  assert.equal(resolveModel("google-vertex/gemini-3.8-flash").backend, "opencode");
+  assert.equal(resolveModel("google-vertex/gemini-3.8-flash").vertex_model, null);
+  assert.equal(resolveModel("vertex-gemini-4-argon").backend, "codex");
+  assert.equal(resolveModel("vertex-gemini-4-argon").default_effort, "high");
   for (const [model, vertexModel, profile] of [
     ["vertex-claude-opus-5-5", "claude-opus-5-5", "orchestrator"],
     ["vertex-claude-sonnet-5-5", "claude-sonnet-5-5", "worker"],
-    ["vertex-gemini-3.8-flash", "gemini-3.8-flash", "worker"]
+    ["vertex-gemini-3.8-flash", "gemini-3.8-flash", "worker"],
+    ["vertex-gemini-4-argon", "gemini-4-argon", "orchestrator"]
   ]) {
     assert.equal(resolveModel(model).app, "codex");
     assert.equal(resolveModel(model).codex_profile, profile);

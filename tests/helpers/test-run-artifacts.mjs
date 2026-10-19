@@ -50,7 +50,7 @@ function readRunMetadata(runDir) {
   }
 }
 
-async function inheritedParent(problemOrContext, currentRoots) {
+async function inheritedParent(problemOrContext, currentRoots, preserveArtifacts) {
   if (problemOrContext.problem) {
     throw createFailure(`inherited run context is unusable: ${problemOrContext.problem}`, {});
   }
@@ -74,6 +74,18 @@ async function inheritedParent(problemOrContext, currentRoots) {
     throw createFailure(`inherited run directory ${runDir} does not belong to run ${runId}`,
       { path: runDir });
   }
+  const storageBase = metadata.artifact_base?.storage_base;
+  if (typeof storageBase !== "string" || !path.isAbsolute(storageBase) ||
+      typeof metadata.preserve_artifacts !== "boolean") {
+    throw createFailure(`inherited run directory ${runDir} has invalid artifact retention metadata`,
+      { path: runDir });
+  }
+  await refuseDisposable(storageBase, currentRoots, "inherited artifact storage base");
+
+  if (preserveArtifacts && !metadata.preserve_artifacts) {
+    return { base: storageBase, storageBase,
+      parent: Object.freeze({ run_id: runId, run_dir: runDir }) };
+  }
   const nested = path.join(runDir, NESTED_DIRECTORY);
   await mkdir(nested, { mode: 0o700 }).catch((error) => {
     if (error?.code !== "EEXIST") throw error;
@@ -82,41 +94,47 @@ async function inheritedParent(problemOrContext, currentRoots) {
   if (nestedProblem !== null) {
     throw createFailure(`nested run parent ${nested} is ${nestedProblem}`, { path: nested });
   }
-  return { base: nested, parent: Object.freeze({ run_id: runId, run_dir: runDir }) };
+  return { base: nested, storageBase, parent: Object.freeze({ run_id: runId, run_dir: runDir }) };
 }
 
 export async function allocateTestRunArtifacts({
-  explicitBase = null, env = process.env, defaultBase, currentRoots = [], cwd = process.cwd()
+  explicitBase = null, env = process.env, defaultBase, currentRoots = [], cwd = process.cwd(),
+  preserveArtifacts = false, onAllocate = () => {}
 }) {
   const inherited = readTestRunContext(env);
   let base;
   let baseSource;
   let parent = null;
+  let storageBase;
   try {
     if (explicitBase !== null) {
       base = path.resolve(cwd, explicitBase);
+      storageBase = base;
       baseSource = "explicit";
       await refuseDisposable(base, currentRoots, "--test-artifacts-dir");
       await mkdir(base, { recursive: true, mode: 0o700 });
       if (inherited?.context) parent = Object.freeze({ run_id: inherited.context.runId,
         run_dir: inherited.context.runDir });
     } else if (inherited !== null) {
-      ({ base, parent } = await inheritedParent(inherited, currentRoots));
+      ({ base, parent, storageBase } = await inheritedParent(inherited, currentRoots, preserveArtifacts));
       baseSource = "inherited";
     } else {
       if (typeof defaultBase !== "string" || !path.isAbsolute(defaultBase)) {
         throw createFailure("no absolute caller temporary directory was captured", {});
       }
       base = path.resolve(defaultBase);
+      storageBase = base;
       baseSource = "default";
       await refuseDisposable(base, currentRoots, "artifact base");
     }
     const runDir = await mkdtemp(path.join(base, RUN_DIRECTORY_PREFIX));
+    onAllocate(runDir);
     await chmod(runDir, 0o700);
     const problem = inspectPrivateDirectory(runDir);
     if (problem !== null) throw createFailure(`allocated run directory ${runDir} is ${problem}`, { path: runDir });
     await mkdir(path.join(runDir, TEST_RUN_COMPONENTS_DIR), { mode: 0o700 });
-    return Object.freeze({ runId: randomUUID(), runDir, base, baseSource, parent });
+    return Object.freeze({ runId: randomUUID(), runDir, base, baseSource, parent,
+      storageBase });
   } catch (error) {
     if (error?.code === TEST_TIMING_CODES.ARTIFACT_CREATE_FAILED) throw error;
     throw createFailure(`artifact directory could not be created under ${base}: ${error.message}`,

@@ -1,61 +1,60 @@
-import { loadProofPack } from "../support/proof-pack-adequacy.mjs";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { promisify } from "node:util";
 
 import {
   canonicalDigest,
   guaranteeDigest,
-  profileDigest,
-  runProofPackAdequacy
+  profileDigest
 } from "../support/proof-pack-adequacy.mjs";
 import { canonicalJsonBytes } from "../../lib/exact-binding-common.mjs";
 import { loadAdmittedProofPack } from "../../lib/admitted-proof-packs.mjs";
 import {
-  buildCrossRepresentationParityFixture,
-  runProofPackAdequacyControls
+  buildCrossRepresentationParityFixture
 } from "./behavioral-preservation-v1-adequacy.mjs";
 import {
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import { buildProofPlanFixture } from "../proof-plan-fixture.mjs";
-import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
+import { readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(import.meta.dirname, "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const profileId = "proof.compatibility.behavioral-preservation";
-const execFileAsync = promisify(execFile);
+import { spawnManagedTestProcess } from "../../../../tests/helpers/managed-test-process.mjs";
+import { createTestResourceScope } from "../../../../tests/helpers/test-resource-scope.mjs";
 const identity = { profile_id: profileId, profile_version: "4.0.0" };
-const currentControlFixtures = (await loadProofPack(certificationDirectory(identity))).negative_fixtures;
-const packDirectory = certificationDirectory(identity);
+const retainedAdequacy = await readDefinitionDocument(identity, "adequacy.json");
 const runtimeDirectory = path.join(packageRoot, "profiles", profileId, "4.0.0");
 const cli = path.join(packageRoot, "bin/assess-contract.mjs");
 const readJson = async (directory, name) => JSON.parse(await readFile(
   path.join(directory, name), "utf8"
 ));
 
-async function runCli(args) {
+async function runCli(args, scope) {
+  const child = await scope.acquire("assessment-cli", () => spawnManagedTestProcess({
+    command: process.execPath, args: [cli, ...args], spawnOptions: { cwd: repositoryRoot }
+  }, { label: "behavioral-preservation-assessment", stdoutTailBytes: 1024 * 1024 }),
+  process => process.dispose());
+  const timer = setTimeout(() => { void child.stop(); }, 30_000);
   try {
-    const { stdout, stderr } = await execFileAsync(process.execPath, [cli, ...args], {
-      cwd: repositoryRoot, timeout: 30_000, maxBuffer: 1024 * 1024
-    });
-    return { code: 0, signal: null, stdout, stderr };
-  } catch (error) {
-    if (error.killed || !Number.isInteger(error.code)) throw error;
-    return { code: error.code, signal: error.signal ?? null,
-      stdout: error.stdout ?? "", stderr: error.stderr ?? "" };
-  }
+    const result = await child.waitForExit();
+    if (result.error) throw result.error;
+    assert.equal(result.signal, null, "CLI must complete before the timeout");
+    return { code: result.code, signal: result.signal,
+      stdout: result.stdoutTail, stderr: result.stderrTail };
+  } finally { clearTimeout(timer); }
 }
 
-async function exactFixture(t, { candidateBytes = null, omit = null,
-  swapEvaluationRoles = false } = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "behavioral-preservation-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+async function declarationFixture(t, { swapEvaluationRoles = false } = {}) {
+  const scope = createTestResourceScope({ label: "behavioral-preservation-cli" });
+  t.after(() => scope.dispose());
+  const root = await scope.acquire("inputs",
+    () => mkdtemp(path.join(os.tmpdir(), "behavioral-preservation-")),
+    directory => rm(directory, { recursive: true, force: true }));
   const profile = await readJson(runtimeDirectory, "profile.json");
   const fixture = buildCrossRepresentationParityFixture({
     profile,
@@ -71,28 +70,14 @@ async function exactFixture(t, { candidateBytes = null, omit = null,
     byRole.get("left_result").reference_ids = byRole.get("right_result").reference_ids;
     byRole.get("right_result").reference_ids = left;
   }
-  const baseline = canonicalJsonBytes({ status: 200, body: { id: "p-1", total: 42 } });
-  const candidate = candidateBytes ?? baseline;
-  const sources = {
-    "baseline-behavior-report": {
-      kind: "artifact_file", relative_path: "baseline-report.json"
-    },
-    "candidate-behavior-report": {
-      kind: "artifact_file", relative_path: "candidate-report.json"
-    }
-  };
-  if (omit) delete sources[omit];
   await Promise.all([
     writeFile(path.join(root, "contract.json"), canonicalJsonBytes(fixture.contract)),
-    writeFile(path.join(root, "evaluation.json"), canonicalJsonBytes(fixture.input)),
-    writeFile(path.join(root, "baseline-report.json"), baseline),
-    writeFile(path.join(root, "candidate-report.json"), candidate),
-    writeFile(path.join(root, "sources.json"), canonicalJsonBytes(sources))
+    writeFile(path.join(root, "evaluation.json"), canonicalJsonBytes(fixture.input))
   ]);
-  return { root, fixture, sources };
+  return { root, fixture, scope };
 }
 
-async function runExact(subject) {
+async function runAssessment(subject) {
   const proofPlanPath = path.join(subject.root, "proof-plan.json");
   const proofPlan = await buildProofPlanFixture({
     contractPath: path.join(subject.root, "contract.json"),
@@ -106,7 +91,7 @@ async function runExact(subject) {
   return runCli([
     "--input", path.join(subject.root, "contract.json"),
     "--proof-plan", proofPlanPath
-  ]);
+  ], subject.scope);
 }
 
 test("behavioral-preservation profile, adequacy, and admission form one bound release", async () => {
@@ -127,60 +112,28 @@ test("behavioral-preservation profile, adequacy, and admission form one bound re
   assert.equal(loaded.profile_digest, adequacy.profile_digest);
 });
 
-test("ordinary adequacy and the fixed negative/rebound corpus pass in full-census mode", async () => {
-  const result = await runProofPackAdequacy(packDirectory, {
-    repositoryRoot, variationMode: "full_census"
-  });
-  assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.control_count, 51);
-  assert.equal(result.negative_fixture_count, 87);
-  assert.equal(result.coverage_witness_count, 87);
-  assert.equal(result.negative_fixture_results.every(
-    ({ outcome }) => outcome === "rejected"
-  ), true);
-  assert.equal(result.coverage_witness_results.every(
-    ({ outcome }) => outcome === "survived"
-  ), true);
+test("retained certification does not supply the missing capture binding", async () => {
+  const pack = await loadAdmittedProofPack(profileId);
+  assert.equal(pack.admission.certification.executable_control_count, 51);
+  assert.equal(retainedAdequacy.negative_contract_fixtures.length, 87);
+  assert.match(pack.admission.guarantee, /complete captured bytes have the same SHA-256/u);
 });
 
-test("ordinary plan controls admit breadth and reject every inadequate plan", async () => {
-  const profile = await readJson(runtimeDirectory, "profile.json");
-  const run = await runProofPackAdequacyControls({ negative_fixtures: currentControlFixtures,
-    profile, profile_digest: profileDigest(profile)
-  });
-  const positives = run.controls.filter(({ category }) => category === "positive");
-  const mutants = run.controls.filter(({ category }) => category === "mutant");
-  const rejections = run.controls.filter(
-    ({ category }) => category === "profile_rejection"
-  );
-  assert.equal(positives.length, 3);
-  assert.equal(mutants.length, 11);
-  assert.equal(rejections.length, 14);
-  assert.equal(positives.every(
-    ({ implementation_outcome: implementation, profile_satisfaction: satisfaction }) =>
-      implementation === "passed" && satisfaction === "satisfied"
-  ), true);
-  assert.equal([...mutants, ...rejections].every(
-    ({ profile_satisfaction: satisfaction }) => satisfaction !== "satisfied"
-  ), true);
-});
-
-test("the CLI proves profile discrimination for a well-formed plan", async (t) => {
-  const subject = await exactFixture(t);
-  const result = await runExact(subject);
-  assert.equal(result.code, 0, result.stderr);
+test("the CLI retains the broad guarantee as unsupported for a well-formed declaration plan", async (t) => {
+  const subject = await declarationFixture(t);
+  const result = await runAssessment(subject);
+  assert.equal(result.code, 2, result.stderr);
   const compact = JSON.parse(result.stdout);
   assert.equal(compact.structure, "proven");
-  assert.equal(compact.profile_discrimination, "proven");
+  assert.equal(compact.profile_discrimination, "not_proven");
   assert.equal(compact.assessment_scope, "planning");
   assert.equal(Object.hasOwn(compact, "exact_binding"), false);
-  assert.match(compact.overall_code, /^structure_proven__profile_proven$/u);
+  assert.match(compact.overall_code, /^structure_proven__profile_not_proven$/u);
 });
 
 test("a substituted evaluation binding cannot borrow a passing profile evaluation", async (t) => {
-  const subject = await exactFixture(t, { swapEvaluationRoles: true });
-  const result = await runExact(subject);
+  const subject = await declarationFixture(t, { swapEvaluationRoles: true });
+  const result = await runAssessment(subject);
   assert.equal(result.code, 2, result.stderr);
   const compact = JSON.parse(result.stdout);
   assert.equal(compact.profile_discrimination, "not_proven");

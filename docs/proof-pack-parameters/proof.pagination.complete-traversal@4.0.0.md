@@ -4,9 +4,9 @@
 
 For one exact package-authenticated authoritative ordered-occurrence population and exact captured finite pagination trace, every occurrence is returned exactly once in authoritative order through one canonical initial state, one linear opaque cursor chain, one snapshot/version identity, and one terminal page, with equality-normalized completeness and fail-closed resource accounting.
 
-Profile digest: 1f6523c535285a6ad5ac65b84a2460284644493696281deb3be6326b4489af2f. Parameter digest: 9de8e258b538eb785d41ab612fd1c57bb2b79faf67975bcba580647d93588e46.
+Profile digest: cf565c21027246ec10c325539d943df4ba54e9373efb5a1f4ecf747c382b50db. Parameter digest: 0bdb55709efe1d264475fa91601c0f5c0a71cd8617c8e1101f2735fc732bebc3.
 
-Admission digest: 0bb4eb264239fcf008083af7bdc2bd171676c6f81a10597722b4b144f9c8f25a.
+Admission digest: e0d724dbbc86ca2cce2d215aea7f62e84d3f191a5b4c92a746f674262528785d.
 
 Roles: 35/35 accounted; 7 owned gaps. Semantic parameters: 28; internal roles: 7.
 

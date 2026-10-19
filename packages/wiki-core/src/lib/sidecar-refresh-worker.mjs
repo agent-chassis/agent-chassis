@@ -1,8 +1,8 @@
 
 
 import { ensureSidecarIndex } from "./sidecar-ensure.mjs";
+import { projectFailureDiagnosis } from "./diagnostic-projection.mjs";
 
-const MESSAGE_LIMIT = 500;
 const controller = new AbortController();
 const cancel = (reason) => {
   if (!controller.signal.aborted) controller.abort(new Error(reason));
@@ -30,7 +30,8 @@ process.once("message", async (request) => {
     const envelope = error?.envelope ?? null;
     report({ type: "failed",
       code: typeof error?.code === "string" ? error.code : "sidecar_refresh_failed",
-      message: String(error?.message ?? error).slice(0, MESSAGE_LIMIT),
+      message: projectFailureDiagnosis(error).message,
+      diagnosis: projectFailureDiagnosis(error),
       cause_code: typeof envelope?.cause_code === "string" ? envelope.cause_code : null,
       publication_outcome: envelope?.publication_outcome ?? error?.publication_outcome ?? null }, 1);
   }

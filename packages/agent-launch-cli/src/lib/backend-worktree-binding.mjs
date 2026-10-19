@@ -1,4 +1,4 @@
-
+import { settleFailedManagedPreparation } from "./worktree-provisioning-dispatch-managed.mjs";
 
 import path from "node:path";
 import {
@@ -25,6 +25,7 @@ import {
 import {
   WORKER_ASSIGNMENT_DIAGNOSTICS,
   WorkerAssignmentError,
+  freezeWorkerRepositoryTestBinding,
   mintManagedWorkerAssignment
 } from "./worker-assignment-authority.mjs";
 
@@ -94,6 +95,8 @@ export function createManagedWorktreeProvisioningAuthority({
   attemptStateAuthority
 } = {}) {
   const prepared = new WeakMap();
+  const settlementStates = new WeakMap();
+  const executorEntries = new WeakSet();
 
   function admitEstablished({ input = {}, app, state } = {}) {
     if (!isPlainObject(state) || state.provisioning?.complete !== true ||
@@ -106,6 +109,7 @@ export function createManagedWorktreeProvisioningAuthority({
     }
     const ticket = Object.freeze({});
     prepared.set(ticket, Object.freeze({ ...state }));
+    settlementStates.set(ticket, state.provisioning);
     return Object.freeze({ ok: true, ticket });
   }
 
@@ -127,7 +131,17 @@ export function createManagedWorktreeProvisioningAuthority({
   const resolveAttemptState = ({ input, initiative }) =>
     resolveProvisioningAttemptState({ attemptStateAuthority, input, initiative });
 
-  return Object.freeze({ admitEstablished, resolve, resolveAttemptState });
+  const settleFailed = async ({ ticket }) => {
+    const provisioning = settlementStates.get(ticket);
+    if (!provisioning) return { state: "not_started" };
+    settlementStates.delete(ticket);
+    if (executorEntries.has(ticket)) return { state: "retained",
+      limitation: "executor_entered_preparation_ownership_transferred",
+      subject: provisioning.unit_address, run_id: provisioning.slice_binding.run_id };
+    return settleFailedManagedPreparation({ provisioning });
+  };
+  const markExecutorEntered = ({ ticket }) => executorEntries.add(ticket);
+  return Object.freeze({ admitEstablished, resolve, resolveAttemptState, settleFailed, markExecutorEntered });
 }
 
 export function maybeWrapExecutorWithWorktreeProvisioning(
@@ -190,85 +204,87 @@ export function maybeWrapExecutorWithWorktreeProvisioning(
       });
     }
 
-    attemptStateAuthority.recordProvisioned({
+    const attemptIdentity = Object.freeze({
       unitAddress: frozenScopeAuthority.unit_address,
       launchRef: input.monitor_handle,
       runId: input.run_id,
       retryId: provisioningRetryId
     });
-    attemptStateAuthority.recordProvisioningBinding({
-      unitAddress: frozenScopeAuthority.unit_address,
-      launchRef: input.monitor_handle,
-      runId: input.run_id,
-      retryId: provisioningRetryId,
-      provisioning
-    });
-    const provisionedWorktreeGitBinding = deriveProvisionedWorktreeGitBinding(provisioning);
-
-    const terminalResultMode = resolveTerminalStructuredRoleResultMode({
-      schemaConstrained: resolveLauncherSchemaConstrainedTierIsPaid({
-        workspaceDir: provisioning.worktree_path
-      }) === true,
-      role: input.role
-    });
-
-    const assignedUnitAddress = frozenScopeAuthority.selected_unit?.address ?? null;
-    let workerAssignment;
+    attemptStateAuthority.recordProvisioned(attemptIdentity);
+    let preparedExecutorInput;
     try {
-      const presentation = prepareWorkerAssignmentPresentation({
-        role: input.role,
-        unitAddress: assignedUnitAddress,
-        record: frozenScopeSnapshot.record,
-        readiness: input.readiness ?? null,
-        sourceDigest: frozenScopeAuthority.source_digest,
-        entryMaterial: frozenScopeSnapshot.assignment_capture?.entry_material ?? null,
-        supplementalInstructions: [],
-        terminalStructuredRoleResultMode: terminalResultMode,
-        scopeMode: "managed_resolved",
-        resolvedScope: frozenScopeAuthority.resolved_scope,
-        scopeExclusions: frozenScopeAuthority.scope_exclusions ?? [],
+      attemptStateAuthority.recordProvisioningBinding({
+        ...attemptIdentity,
+        provisioning
+      });
+      const provisionedWorktreeGitBinding = deriveProvisionedWorktreeGitBinding(provisioning);
 
-        assignmentDelivery: LAUNCH_ASSIGNMENT_DELIVERY_MODES.READ_PAGE
+      const terminalResultMode = resolveTerminalStructuredRoleResultMode({
+        schemaConstrained: resolveLauncherSchemaConstrainedTierIsPaid({
+          workspaceDir: provisioning.worktree_path
+        }) === true,
+        role: input.role
       });
-      workerAssignment = mintManagedWorkerAssignment({
-        presentation,
-        role: input.role,
-        subject: assignedUnitAddress,
-        runId: input.run_id ?? null,
-        monitorHandle: input.monitor_handle ?? null,
-        worktreePath: provisioning.worktree_path,
-        terminalResultMode
-      });
-    } catch (error) {
-      const failure = error instanceof WorkerAssignmentError
-        ? error
-        : new WorkerAssignmentError(
-            WORKER_ASSIGNMENT_DIAGNOSTICS.PROJECTION_INVALID,
-            error?.message ?? String(error)
-          );
-      return {
-        accepted: false,
-        refusal: {
-          code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-          reason: failure.code,
-          detail: {
-            role: input.role,
-            subject: assignedUnitAddress,
-            authority_limb: "mechanical_failure",
-            message: failure.message,
-            ...(failure.detail ? { diagnostic: failure.detail } : {})
+
+      const assignedUnitAddress = frozenScopeAuthority.selected_unit?.address ?? null;
+      let workerAssignment;
+      try {
+        const presentation = prepareWorkerAssignmentPresentation({
+          role: input.role,
+          unitAddress: assignedUnitAddress,
+          record: frozenScopeSnapshot.record,
+          readiness: input.readiness ?? null,
+          sourceDigest: frozenScopeAuthority.source_digest,
+          entryMaterial: frozenScopeSnapshot.assignment_capture?.entry_material ?? null,
+          supplementalInstructions: [],
+          terminalStructuredRoleResultMode: terminalResultMode,
+          scopeMode: "managed_resolved",
+          resolvedScope: frozenScopeAuthority.resolved_scope,
+          scopeExclusions: frozenScopeAuthority.scope_exclusions ?? [],
+
+          assignmentDelivery: LAUNCH_ASSIGNMENT_DELIVERY_MODES.READ_PAGE
+        });
+        workerAssignment = mintManagedWorkerAssignment({
+          presentation,
+          role: input.role,
+          subject: assignedUnitAddress,
+          runId: input.run_id ?? null,
+          monitorHandle: input.monitor_handle ?? null,
+          worktreePath: provisioning.worktree_path,
+          terminalResultMode,
+          retryId: provisioningRetryId,
+          bindingRunId: provisioning.slice_binding.run_id,
+          repositoryTestBinding: freezeWorkerRepositoryTestBinding({ presentation,
+            root: provisioning.worktree_path, launchBaseSha: provisioning.slice_binding.base_sha })
+        });
+      } catch (error) {
+        const failure = error instanceof WorkerAssignmentError
+          ? error
+          : new WorkerAssignmentError(
+              WORKER_ASSIGNMENT_DIAGNOSTICS.PROJECTION_INVALID,
+              error?.message ?? String(error)
+            );
+        return {
+          accepted: false,
+          refusal: {
+            code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+            reason: failure.code,
+            detail: {
+              role: input.role,
+              subject: assignedUnitAddress,
+              authority_limb: "mechanical_failure",
+              message: failure.message,
+              ...(failure.detail ? { diagnostic: failure.detail } : {})
+            }
           }
-        }
-      };
-    }
+        };
+      }
 
-    let executorResult;
-    try {
       const {
         frozen_worker_scope_snapshot: _frozenWorkerScopeSnapshot,
         ...executorInput
       } = input;
-      executorResult = await executor({
+      preparedExecutorInput = {
         ...executorInput,
         workspace_dir: provisioning.worktree_path,
 
@@ -286,26 +302,31 @@ export function maybeWrapExecutorWithWorktreeProvisioning(
               provisioned_worktree_git_binding: provisionedWorktreeGitBinding
             }
           : {})
-      });
-      attemptStateAuthority.recordExecutorResult({
-        unitAddress: frozenScopeAuthority.unit_address,
-        launchRef: input.monitor_handle,
-        runId: input.run_id,
-        retryId: provisioningRetryId,
-        result: executorResult
-      });
-      return executorResult;
+      };
+    } finally {
+
+      if (preparedExecutorInput === undefined) {
+        attemptStateAuthority.recordExecutorResult({
+          ...attemptIdentity, result: null, threw: true
+        });
+      }
+    }
+
+    let executorResult;
+    authority.markExecutorEntered({ ticket });
+    try {
+      executorResult = await executor(preparedExecutorInput);
     } catch (error) {
       attemptStateAuthority.recordExecutorResult({
-        unitAddress: frozenScopeAuthority.unit_address,
-        launchRef: input.monitor_handle,
-        runId: input.run_id,
-        retryId: provisioningRetryId,
-        result: null,
-        threw: true
+        ...attemptIdentity, result: null, threw: true
       });
       throw error;
     }
+
+    attemptStateAuthority.recordExecutorResult({
+      ...attemptIdentity, result: executorResult
+    });
+    return executorResult;
   };
 }
 

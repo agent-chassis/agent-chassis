@@ -11,7 +11,7 @@ export const LAUNCHER_READINESS_PROTOCOL_GENERATION =
   LAUNCHER_READINESS_PRODUCER_DESCRIPTOR.protocol_generation;
 
 export const LAUNCHER_READINESS_SCHEMA_VERSIONS = Object.freeze({
-  SERVER_READY: "wiki-mcp-launcher-readiness.v2",
+  SERVER_READY: "wiki-mcp-launcher-readiness.v3",
   CLIENT_INITIALIZED: "wiki-mcp-launcher-client-initialized.v1",
   TOOLS_LISTED: "wiki-mcp-launcher-tools-listed.v1",
   CLIENT_RESTARTED: "wiki-mcp-launcher-client-restarted.v1",

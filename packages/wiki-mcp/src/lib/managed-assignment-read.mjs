@@ -38,8 +38,8 @@ export const MANAGED_ASSIGNMENT_READ_TOOL = "workspace_read_page";
 export const MANAGED_ASSIGNMENT_READ_REFUSAL_SCHEMA_VERSION = "managed-assignment-read-refusal.v1";
 
 const ASSIGNMENT_REQUEST_KEYS = Object.freeze(new Set(["assignment", "member", "members", "expected_source_digest"]));
-const PRESENTATION_KEYS = Object.freeze(["guidance", "identity", "schema_version"]);
-const IDENTITY_KEYS = Object.freeze(["assigned_unit", "canonical_source_digest", "role", "run_id"]);
+const PRESENTATION_KEYS = Object.freeze(["guidance", "identity", "repository_test_binding", "schema_version"]);
+const IDENTITY_KEYS = Object.freeze(["assigned_unit", "binding_run_id", "canonical_source_digest", "launch_ref", "retry_id", "role", "run_id", "worktree_path"]);
 
 function trimmed(value) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -214,6 +214,11 @@ function loadBoundAssignment({ env, resolveSessionContract }) {
       "the published assignment is bound to a different unit or role than this session", {
         assignedUnit
       });
+  }
+  const pins = session.minting_provenance.trusted_source_bindings.filter(binding => binding.kind === "worker_assignment");
+  if (pins.length !== 1 || pins[0].id !== assignedUnit || pins[0].digest !== artifact.digest) {
+    refuse(MANAGED_ASSIGNMENT_READ_REFUSAL_CODES.BINDING_MISMATCH,
+      "the assignment artifact is not pinned by this authenticated launcher session", { assignedUnit });
   }
   return { assignedUnit, digest: artifact.digest, presentation,
     authority_identity: { session_contract_digest: digestLauncherAgentSessionContract(session),

@@ -116,6 +116,49 @@ export function projectDiagnostic(value) {
   });
 }
 
+export function projectProcessDiagnosticLine(line) {
+  const match = /^\s*(fatal|error):\s*(.+)$/u.exec(line);
+  return match ? { severity: match[1], reason: match[2] } : null;
+}
+
+export function projectFailureDiagnosis(error, seen = new Set()) {
+  if (error === null || typeof error !== "object") return { message: String(error) };
+  if (seen.has(error)) return { cause_cycle: true };
+  seen.add(error);
+  const processFailure = ["stdout", "stderr", "output"].some(key => safeRead(error, key) !== undefined);
+  const originalMessage = String(safeRead(error, "message") ?? error);
+  const captures = ["stdout", "stderr", "output"].flatMap(key => {
+    const value = safeRead(error, key);
+    return (Array.isArray(value) ? value : [value]).flatMap(entry =>
+      typeof entry === "string" || Buffer.isBuffer(entry) ? [String(entry)] : []);
+  });
+  const embedsCapture = captures.some(value => value.trim().length > 0 && originalMessage.includes(value.trim()));
+  const diagnosis = { ...Object.fromEntries(["name", "code", "path", "syscall", "status", "signal", "spawnargs"]
+    .flatMap(key => {
+      const value = safeRead(error, key);
+      return value !== undefined && isJsonDiagnostic(value) ? [[key, cloneJsonDiagnostic(value)]] : [];
+    })), message: processFailure && embedsCapture
+    ? "The selected process failed; exit facts and explicit error diagnostics describe this attempt."
+    : originalMessage };
+  if (processFailure) {
+    const stderr = safeRead(error, "stderr");
+    const messages = typeof stderr === "string" || Buffer.isBuffer(stderr) ? String(stderr).split(/\r?\n/u)
+      .flatMap(line => {
+        const diagnostic = projectProcessDiagnosticLine(line);
+        return diagnostic === null ? [] : [diagnostic];
+      }) : [];
+    diagnosis.errors = [...new Map(messages.map(row => [JSON.stringify(row), row])).values()];
+  }
+  const cause = safeRead(error, "cause");
+  if (cause !== undefined) {
+    diagnosis.cause = projectFailureDiagnosis(cause, seen);
+    const original = safeRead(cause, "message");
+    if (typeof original === "string" && original.length > 0 && typeof diagnosis.cause.message === "string" &&
+        original !== diagnosis.cause.message) diagnosis.message = diagnosis.message.replaceAll(original, diagnosis.cause.message);
+  }
+  return diagnosis;
+}
+
 export function captureStructuredDiagnostic(value, { sensitiveValues = [] } = {}) {
   const diagnosticValue = safeDiagnosticValue(value);
   if (!isJsonDiagnostic(diagnosticValue)) {

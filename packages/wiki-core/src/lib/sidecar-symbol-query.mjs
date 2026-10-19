@@ -1,3 +1,4 @@
+import { layerFromStore, providerDescriptorsForLayer, createScipUnavailableState } from "./sidecar-query-layers.mjs";
 import path from "node:path";
 import { Parser } from "web-tree-sitter";
 import { loadTreeSitterProvider, providerDescriptorForLanguage } from "./sidecar-graph-import-facts.mjs";
@@ -16,7 +17,6 @@ import { fitNavigationSummary, projectNativeNavigation } from "./sidecar-navigat
 import { nativePositionSymbols, resolveNativeNavigation } from "./sidecar-navigation-resolution.mjs";
 import { assembleNativeNavigationResult } from "./sidecar-navigation-source-query.mjs";
 
-const SCIP_STATUS_NOT_CONFIGURED = "scip_not_configured";
 const SCIP_CALL_GRAPH_UNAVAILABLE = "scip_call_graph_unavailable";
 const SYMBOL_QUERY_EXPLICIT_UNRESOLVED = "symbol_not_resolved";
 export const MCP_SYMBOL_QUERY_RESULT_LIMIT = 20;
@@ -32,10 +32,6 @@ function provenance({ evidenceBasis = "scip", sourceKind = "scip" } = {}) {
     canonicality: "derived",
     evidence_basis: evidenceBasis
   };
-}
-
-function isPlainObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function compactSymbolStatusReason(result, resolutionState) {
@@ -62,7 +58,7 @@ function compactSymbolNextAction(result, queryKind, resolutionState) {
     .filter(Boolean).join(" ") || null;
 
   return action !== null && result?.staleness === "stale"
-    ? `${action} This answer describes graph_snapshot.repository_commit, not freshness.current_head; ` +
+    ? `${action} This answer describes the selected graph_snapshot checkout inputs and publication; ` +
       "a symbol added since then appears after the refresh publishes."
     : action;
 }
@@ -78,7 +74,7 @@ function unresolvedNextAction(result, queryKind, resolutionState) {
       "they produce; a project whose provider is not installed, or that could not be indexed while its " +
       "dependencies were missing, is listed with its reason in " +
       "graph_snapshot.provider_coverage.inactive_projects. Provision the provider or make the " +
-      "dependencies available, then prepare again. When no SCIP provider applies to the committed " +
+      "dependencies available, then prepare again. When no SCIP provider applies to the checkout " +
       "sources, symbol results stay unavailable. Status is read-only. Unsupported call " +
       "attribution is not repaired by provisioning; use definition or reference results.";
   }
@@ -111,55 +107,6 @@ export function projectSidecarSymbolQueryForMcp(result, { verbose = false, fits 
     },
     next_action: compactSymbolNextAction(result, queryKind, resolutionState)
   }, { limit });
-}
-
-function layerFromStore(selection) {
-  const coverage = selection.publication.provider_coverage ?? {};
-  return {
-    scip_available: coverage.scip_available === true,
-    graph_available: coverage.graph_available === true,
-    call_graph_available: coverage.call_graph_available === true,
-    status_reason: coverage.status_reason ?? SCIP_STATUS_NOT_CONFIGURED,
-    ...(coverage.error_reason ? { error_reason: coverage.error_reason } : {}),
-    coverage: cloneJson(coverage),
-    provider_descriptors: selection.providers.map(({ descriptor }) => cloneJson(descriptor)),
-    graph_edges: selection.symbol_edges.map(({ payload }) => cloneJson(payload))
-  };
-}
-
-function providerDescriptorsForLayer(layer) {
-  if (Array.isArray(layer?.provider_descriptors)) {
-    return layer.provider_descriptors.map(cloneJson);
-  }
-  if (isPlainObject(layer?.provider_descriptor)) {
-    return [cloneJson(layer.provider_descriptor)];
-  }
-  return [];
-}
-
-function createScipUnavailableState(layer, statusReason = SCIP_STATUS_NOT_CONFIGURED) {
-  const scipAvailable = layer?.scip_available === true;
-  const callGraphAvailable = layer?.call_graph_available ?? layer?.coverage?.call_graph_available;
-  const callGraphStatusReason =
-    layer?.call_graph_status_reason ?? layer?.coverage?.call_graph_status_reason;
-  const callGraphUnavailableReason =
-    layer?.call_graph_unavailable_reason ?? layer?.coverage?.call_graph_unavailable_reason;
-  const state = {
-    scip_available: scipAvailable,
-    graph_available: scipAvailable && layer?.graph_available !== false,
-    status_reason: layer?.status_reason || statusReason,
-    ...(layer?.error_reason ? { error_reason: layer.error_reason } : {})
-  };
-  if (typeof callGraphAvailable === "boolean") {
-    state.call_graph_available = callGraphAvailable;
-  }
-  if (typeof callGraphStatusReason === "string" && callGraphStatusReason.length > 0) {
-    state.call_graph_status_reason = callGraphStatusReason;
-  }
-  if (typeof callGraphUnavailableReason === "string" && callGraphUnavailableReason.length > 0) {
-    state.call_graph_unavailable_reason = callGraphUnavailableReason;
-  }
-  return state;
 }
 
 function createCallGraphUnavailableState(layer, statusReason = SCIP_CALL_GRAPH_UNAVAILABLE) {

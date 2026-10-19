@@ -32,12 +32,13 @@ const SUBJECT = "WK-9999#SLICE-001";
 
 const occurrences = (text, needle) => text.split(needle).length - 1;
 
-const GUIDE_WORD_CAPS = Object.freeze({ orchestrator: 1070, "managed-worker": 600, reviewer: 600 });
+const GUIDE_WORD_CAPS = Object.freeze({ "managed-worker": 600, reviewer: 600 });
 const words = (text) => text.split(/\s+/u).filter(Boolean).length;
 
-function managedWorkerPrompt({ assignmentDelivery = "inline" } = {}) {
+function managedWorkerPrompt({ assignmentDelivery = "inline", guideDelivery = null } = {}) {
   return buildLaunchPrompt({
     assignmentDelivery,
+    guideDelivery,
     role: "worker",
     unit: { address: SUBJECT },
     canonicalSummary: {
@@ -67,10 +68,10 @@ function managedWorkerPrompt({ assignmentDelivery = "inline" } = {}) {
   });
 }
 
-function advisoryPrompt(role) {
+function advisoryPrompt(role, subject = SUBJECT) {
   const descriptor = createAdvisoryReviewDescriptor({
     role,
-    subject: SUBJECT,
+    subject,
     repository: "example",
     materialKind: "implementation",
     diffBaseSha: "a".repeat(40),
@@ -79,7 +80,7 @@ function advisoryPrompt(role) {
     immutableSourceIdentity: "source",
     reviewBrief: renderAdvisoryReviewBrief({
       role,
-      subject: SUBJECT,
+      subject,
       parent: { id: "WK-9999" },
       selected: { id: "SLICE-001" }
     })
@@ -89,147 +90,146 @@ function advisoryPrompt(role) {
   );
 }
 
-test("role guides resolve from the owning package and stay concise", () => {
+test("role guides resolve from the owning package and preserve unchanged role size limits", () => {
   assert.deepEqual([...AGENT_ROLE_GUIDES], ["orchestrator", "managed-worker", "reviewer"]);
 
   assert.equal(resolveAgentRoleGuideDirectory(), GUIDE_DIR);
   for (const guide of AGENT_ROLE_GUIDES) {
-    const guidePath = resolveAgentRoleGuidePath(guide);
-    assert.equal(guidePath, path.join(resolveAgentRoleGuideDirectory(), `${guide}.md`));
+    const guidePath = resolveAgentRoleGuidePath(guide, "free_local");
+    assert.equal(guidePath, path.join(resolveAgentRoleGuideDirectory(), guide === "orchestrator" ? "orchestrator/01/guide.md" : `${guide}.md`));
     assert.ok(existsSync(guidePath), `${guide} guide must ship in agent-launch-core data/`);
-    const text = readAgentRoleGuide(guide);
+    const text = readAgentRoleGuide(guide, "free_local");
     assert.equal(text, readFileSync(guidePath, "utf8").trim());
     assert.match(text, /^# /u);
-    assert.ok(words(text) <= GUIDE_WORD_CAPS[guide],
+    if (GUIDE_WORD_CAPS[guide] !== undefined) assert.ok(words(text) <= GUIDE_WORD_CAPS[guide],
       `${guide} guide must stay within ${GUIDE_WORD_CAPS[guide]} words; got ${words(text)}`);
   }
-  assert.throws(() => resolveAgentRoleGuidePath("worker"), /unknown agent role guide/u);
+  assert.throws(() => resolveAgentRoleGuidePath("worker", "free_local"), /unknown agent role guide/u);
 });
 
+function requiresInstructions(text, instructions) {
+  for (const instruction of instructions) assert.equal(occurrences(text, instruction), 1, instruction);
+}
+
 test("orchestrator guide owns blocked-validation recovery and accurate result reporting", () => {
-  const orchestrator = readAgentRoleGuide("orchestrator");
-  for (const instruction of [
-    "Never bypass controls or fabricate evidence.",
-    "When a worker reports that required validation is blocked, repair the assignment’s execution prerequisites and retry.",
-    "Do not waive or weaken the requirement merely to unblock delivery, or substitute narrower passing checks for it.",
-    "If recovery requires changing requirements, explain the proposed change and obtain user direction.",
-    "Keep task instructions, acceptance criteria, and validation consistent.",
-    "Missing fixtures establish an execution-environment problem, not a passing regression result.",
-    "A test that ran and failed must not be reported as ‘not run.’"
-  ]) {
-    assert.equal(occurrences(orchestrator, instruction), 1, instruction);
-  }
-
-  assert.ok(!orchestrator.includes("fabricate evidence or weaken requirements"));
-
-  for (const [anchor, addition] of [
-    ["Report the exact blocker with its supported or missing recovery route.", "When a worker reports that required validation is blocked"],
-    ["Missing shell commands do not establish provider unavailability.", "Missing fixtures establish an execution-environment problem"],
-    ["State what passed, failed or did not run with exact identities and actionable corrections.", "A test that ran and failed must not be reported"]
-  ]) {
-    assert.ok(orchestrator.includes(`${anchor} ${addition}`), addition);
-  }
+  requiresInstructions(readAgentRoleGuide("orchestrator", "free_local"), [
+    "When validation is blocked, follow the returned recovery within your authority.",
+    "Delegate any required repository changes.",
+    "If a worker reports missing access or context through `request_assignment_change`, correct the assignment.",
+    "Follow the run result's recovery instructions and launch a replacement as directed.",
+    "Retry validation when its prerequisite is restored; otherwise report the specific blocker.",
+    "Do not weaken requirements or substitute narrower passing checks.",
+    "Changing requirements needs user direction.",
+    "Report failures, skipped checks and execution blockers accurately.",
+    "Assign defects and missing evidence for repair.",
+    "Run repaired checks even if they previously passed with inadequate assertions.",
+    "Rerun other failed checks and required regressions on the repaired delivery.",
+    "If repair or validation cannot proceed, leave the requirement unresolved and report its blocker.",
+    "A review exemption does not waive repair."
+  ]);
 });
 
 test("orchestrator guide explains the read-only checkout and the supported test route", () => {
-  const orchestrator = readAgentRoleGuide("orchestrator");
-  const route = [
-    "In the managed environment, the product checkout is read-only apart from authorized coordination writes.",
-    "Run native tests with workspace_run_test and saved proofs with verify_proof; never modify the checkout, dependencies or configuration to make direct shell tests work.",
-    "A direct shell test’s environment failure does not establish that the supported test runtime is broken; use that route and diagnose its actual result."
-  ];
-  for (const instruction of route) {
-    assert.equal(occurrences(orchestrator, instruction), 1, instruction);
-  }
-
-  assert.ok(orchestrator.includes(`${route.join(" ")} verify_proof executes saved proofs against tested source;`));
-
-  assert.doesNotMatch(orchestrator, /\bava\b|npm test/iu);
+  const guide = readAgentRoleGuide("orchestrator", "free_local");
+  requiresInstructions(guide, [
+    "Delegate assigned implementation and documentation changes; do not make them yourself.",
+    "Follow user direction and repository policy for dispatch.",
+    "After delivery, run native validation with `workspace_run_test` and selected saved proofs with `verify_proof`.",
+    "Do not change checkout files, dependencies or configuration to bypass a validation failure or refusal.",
+    "Use the delivery and validation calls returned by the tools."
+  ]);
+  assert.doesNotMatch(guide, /\bava\b|npm test/iu);
 });
 
-test("orchestrator guide decomposes the request before dispatch and bounds completion claims by evidence", () => {
-  const orchestrator = readAgentRoleGuide("orchestrator");
-
-  for (const [anchor, addition] of [
-    ["Clarify ambiguity, narrowing or added scope with the user.",
-      "Before dispatch, decompose the request into precise, independently checkable requirements, accounting for " +
-      "every behavior-bearing clause, including the defaults, exceptions, options and interactions it states or " +
-      "necessarily implies. Keep ambiguity that is not yet clarified explicit; never silently narrow the request or " +
-      "invent requirements. Derive acceptance, contracts, obligations and assignments from these requirements,"],
-    ["Saved proofs are primary acceptance checks: map every material requirement to the assertions or other " +
-      "evidence that would establish it.",
-    "Evidence may be shared where it genuinely establishes each requirement it is mapped to; this needs no " +
-      "criterion, obligation or test per clause, no exhaustive combinations and no separate tracking document."],
-    ["validity and passing checks establish neither semantic coverage nor discriminating assertions.",
-      "Before accepting delivery, revisit that mapping against the delivered source and its actual assertions, and " +
-      "bind evidence to source. Distinguish supported, unmet and unverified requirements; completion claims must " +
-      "not exceed the evidence."]
-  ]) {
-    assert.equal(occurrences(orchestrator, `${anchor} ${addition}`), 1, addition);
-  }
-
-  assert.ok(!orchestrator.includes("map every material requirement to evidence."));
-  assert.ok(!orchestrator.includes("Check delivered source and tests against requirements"));
+test("orchestrator guide decomposes the request and bounds completion claims by evidence", () => {
+  const guide = readAgentRoleGuide("orchestrator", "free_local");
+  for (const pattern of [
+    /Save the complete current request through `changes.user_requirements` in `save_record`/u,
+    /superseded instructions through `changes.entries`/u,
+    /append a version under its returned ID/u,
+    /Keep the current instruction clear in `sections.user_requirements`/u,
+    /Follow the unit's entry schema and inventory reads/u,
+    /Map each independently checkable requirement to evidence that would establish it/u,
+    /which incorrect behavior they must reject/u,
+    /do not assume that every clause needs a separate record or test/u,
+    /Run checks and inspect files from the delivery being evaluated/u,
+    /Check that test results and inspected files identify that same delivery/u,
+    /Inspect the delivered implementation and test assertions against every requirement/u,
+    /A passing test or detected fault supports only what the check observes/u,
+    /Report supported requirements with their evidence/u
+  ]) assert.match(guide, pattern);
 });
 
-test("orchestrator guide selects slice regressions and reads their outcomes beside the proofs", () => {
-  const orchestrator = readAgentRoleGuide("orchestrator");
-
-  for (const [anchor, addition] of [
-    ["Limit write_scope independently to intended changes.",
-      "When shaping a slice, select relevant existing regression test files and save them as its regression_tests; " +
-      "prefer tests outside its write_scope, as advice rather than a gate."],
-    ["prefer tests outside its write_scope, as advice rather than a gate.",
-      "Use query_code_index references and impact information to identify affected callers and relevant existing " +
-      "tests, including consumers outside the edit scope. Inspect candidates, assign appropriate regression_tests " +
-      "to the relevant workers, and include necessary supporting context in read_scope. Account for incomplete " +
-      "index coverage; absence from results does not establish irrelevance."],
-    ["completion claims must not exceed the evidence.",
-      "A slice verify_proof also runs each declared regression file once, on the host, even outside the worker's " +
-      "read_scope and without widening access; an omitted list runs none and claims no regression pass, and a file " +
-      "whose project configures no single runner is reported, never guessed. Inspect both proof and regression " +
-      "outcomes before claiming verification succeeded."]
-  ]) {
-    assert.equal(occurrences(orchestrator, `${anchor} ${addition}`), 1, addition);
-  }
-
-  assert.equal(occurrences(orchestrator, "regression_tests"), 2);
-
-  assert.doesNotMatch(orchestrator, /full (?:existing )?(?:test )?suite|entire (?:test )?suite|benchmark/iu);
-  assert.doesNotMatch(orchestrator, /regression[^.]*\b(?:runner:|command|must not overlap|cannot be modified)/iu);
-
-  assert.equal(occurrences(orchestrator, "Run native tests with workspace_run_test and saved proofs with verify_proof;"), 1);
+test("orchestrator guide resolves authoring gaps without demanding execution before delivery", () => {
+  const guide = readAgentRoleGuide("orchestrator", "paid_cce");
+  for (const pattern of [
+    /link each criterion to its requirement claims and selected proof through `obligations`/u,
+    /then call `workspace_assess_contract`/u,
+    /For each slice requiring controlled acceptance, create obligations for its own criteria and assess it before dispatch/u,
+    /Do this even if assessment reports no problems/u,
+    /Follow the returned corrections and assess again/u,
+    /Read the user’s request and the saved requirements side by side/u,
+    /Check implementation evidence after delivery/u,
+    /do not claim that authoring or assessment has tested the implementation/u,
+    /Check that their planned checks would fail when the required behavior is wrong/u,
+    /Follow repository authorization and review requirements/u
+  ]) assert.match(guide, pattern);
+  assert.ok(guide.indexOf("returned corrections and assess again") < guide.indexOf("Delegate assigned implementation"));
 });
 
-test("orchestrator guide orders WK closeout before final publication", () => {
-  const orchestrator = readAgentRoleGuide("orchestrator");
-  const closeout = "Complete applicable WK closeout writes before final publication. If you change the WK after publication but before landing, refresh it with workspace_publish_work before exiting. Publication does not establish landing.";
-  assert.equal(occurrences(orchestrator, closeout), 1);
+test("orchestrator guide selects regressions without treating declarations as access", () => {
+  const guide = readAgentRoleGuide("orchestrator", "free_local");
+  requiresInstructions(guide, [
+    "Select relevant existing files as `regression_tests`; prefer tests of unchanged dependencies outside `write_scope`.",
+    "Do not use a regression declaration as an access grant or protection against edits.",
+    "Inspect validation, proof and declared regression outcomes."
+  ]);
+  assert.equal(occurrences(guide, "regression_tests"), 1);
+  assert.doesNotMatch(guide, /full (?:existing )?(?:test )?suite|entire (?:test )?suite|benchmark/iu);
+});
 
-  assert.ok(!orchestrator.includes("close explicitly through save_record"));
+test("orchestrator guide distinguishes delivery stages and follows publication recovery", () => {
+  requiresInstructions(readAgentRoleGuide("orchestrator", "free_local"), [
+    "Follow the returned calls to integrate the selected delivery, inspect or advance a candidate, and publish the work.",
+    "Check integration confirmation before dependent work starts.",
+    "Do not report landing from publication alone.",
+    "Record required validation, review and closure evidence before publication.",
+    "Use `workspace_check_landing` to check whether published work has landed.",
+    "If supported record changes remain unpublished and the work has not landed, follow the publication call to include them.",
+    "Follow returned recovery for refusals; do not alter records to bypass them."
+  ]);
+});
+
+test("orchestrator guide binds the user-selected initiative and uses current revisions", () => {
+  for (const tier of ["free_local", "paid_cce"]) requiresInstructions(readAgentRoleGuide("orchestrator", tier), [
+    "Read the unit's current revision before saving.",
+    "Pass it to `save_record`, save related changes together, and refresh the revision after changes.",
+    "Before dispatch, read the existing initiative selected by the user and set the parent WK's `changes.initiative` to its returned identity.",
+    "If that choice is missing, ask the user; do not infer it."
+  ]);
 });
 
 test("the authoring vignette ships beside the guides and the startup line requires it", () => {
-  const orchestrator = readAgentRoleGuide("orchestrator");
-  const reference = { tool_name: "save_record", path: "docs/orchestrator-authoring-vignette.md" };
+  const orchestrator = readAgentRoleGuide("orchestrator", "free_local");
+  const reference = { tool_name: "save_record", path: "packages/agent-launch-core/data/role-guides/orchestrator/01/authoring-vignette.md" };
 
-  assert.equal(occurrences(orchestrator, "vignette"), 0);
+  assert.equal(occurrences(orchestrator, "Before preparing acceptance and assignments, read the authoring vignette:"), 1);
 
-  assert.equal(occurrences(orchestrator, "workspace_read_wiki initially returns compact context. When you need a " +
-    "selected document or guidance topic, follow its returned read call to obtain the content; the summary is not " +
-    "the selected content."), 1);
+  requiresInstructions(orchestrator, [
+    "Follow returned calls to read complete content, consult input schemas and recover from refusals."
+  ]);
 
-  const vignettePath = resolveOrchestratorAuthoringVignettePath();
-  assert.equal(vignettePath, path.join(GUIDE_DIR, path.basename(reference.path)));
-  assert.equal(path.dirname(vignettePath), resolveAgentRoleGuideDirectory());
-  const canonical = readFileSync(path.join(REPO_ROOT, reference.path));
+  const vignettePath = resolveOrchestratorAuthoringVignettePath("free_local");
+  assert.equal(vignettePath, path.join(GUIDE_DIR, "orchestrator/01/authoring-vignette.md"));
+  assert.equal(path.dirname(vignettePath), path.join(resolveAgentRoleGuideDirectory(), "orchestrator/01"));
+  const canonical = readFileSync(path.join(REPO_ROOT, "packages/core/docs/_refs/packages/agent-launch-core/data/role-guides/orchestrator/01/authoring-vignette.md"));
   assert.ok(readFileSync(vignettePath).equals(canonical), "the shipped vignette is the canonical document");
-  assert.equal(renderAgentRoleGuideReadReference("orchestrator"),
-    `Read your orchestrator guide at ${resolveAgentRoleGuidePath("orchestrator")} and the authoring vignette at ` +
+  assert.equal(renderAgentRoleGuideReadReference("orchestrator", "free_local"),
+    `Read your orchestrator guide at ${resolveAgentRoleGuidePath("orchestrator", "free_local")} and the authoring vignette at ` +
     `${vignettePath} before authoring.`);
 
   for (const guide of ["managed-worker", "reviewer"]) {
-    assert.equal(renderAgentRoleGuideReadReference(guide).includes("vignette"), false, guide);
+    assert.equal(renderAgentRoleGuideReadReference(guide, "free_local").includes("vignette"), false, guide);
   }
 
   const json = (relative) => JSON.parse(readFileSync(path.join(REPO_ROOT, relative), "utf8"));
@@ -239,63 +239,91 @@ test("the authoring vignette ships beside the guides and the startup line requir
   const entry = json("packages/core/docs/public-docs-manifest.json").entries
     .find((candidate) => candidate.logical_path === reference.path);
   assert.deepEqual([entry?.available, entry?.advertised_by_built_in_descriptor, entry?.bundle_path],
-    [true, true, reference.path]);
+    [true, true, `docs/_refs/${reference.path}`]);
 });
 
-test("managed worker guide stops on a scope or access blocker and keeps tests to assigned verification", () => {
-  const paragraphs = readAgentRoleGuide("managed-worker").split("\n\n");
-  const managed = paragraphs.join("\n\n");
-  const scope = [
-    "Read and write only within the session's declared scopes.",
-    "STOP IMMEDIATELY if completing the assignment requires missing information, additional access, broader scope, or an assignment correction.",
-    "Report the specific blocker and what the coordinator must supply or change, then end the attempt as blocked.",
-    "Do not continue implementation, guess the missing information, or find another route around the restriction.",
-    "A tool's ability to perform an operation does not authorize it."
-  ];
-  const testUse = [
-    "Use tests only to implement the verification described by your assignment: checking assigned behavior and required regressions.",
-    "Do not create or repurpose tests as an information-gathering channel—for example, to inspect inaccessible source, enumerate unrelated files, read coordination records, or dump their contents through test output.",
-    "If you need that information, STOP IMMEDIATELY and report the missing access to the coordinator; do not obtain it indirectly through test execution."
-  ];
-  for (const instruction of [...scope, ...testUse]) {
-    assert.equal(occurrences(managed, instruction), 1, instruction);
+test("guides explain each scope, writable-file readability and assignment freezing", () => {
+  const ordinary = readAgentRoleGuide("orchestrator", "free_local");
+  const index = readAgentRoleGuide("orchestrator", "paid_cce");
+  for (const text of [ordinary, index]) {
+    for (const pattern of [
+      /`read_scope`: additional code, types, callers, helpers, fixtures and configuration the worker needs to read/u,
+      /`write_scope`: exact existing or new files the worker may change/u,
+      /These files are also readable/u,
+      /`repo_paths`: files being changed and other likely affected source, tests, documentation or fixtures for retrieval and review/u,
+      /Put files needed only for background reading in `read_scope`/u,
+      /Name intended changes within those files in `expected_edit_targets`/u,
+      /Put all required context in the saved assignment/u,
+      /Editing the saved assignment does not update an active worker/u,
+      /Resolve missing context and scope before dispatch/u
+    ]) assert.match(text, pattern);
+    assert.doesNotMatch(text, /paid_cce|free_local|paid tier|free tier/u);
   }
+  assert.doesNotMatch(ordinary, /query_code_index|SCIP/u);
+  assert.match(index, /Start code investigation with `query_code_index` for change impact/u);
+  assert.match(index, /do not infer that missing results mean no other code depends on the change/u);
+  assert.match(readAgentRoleGuide("managed-worker"), /Before editing, check \*\*Readable Paths\*\* and \*\*Writable Paths\*\*/u);
+});
 
-  const scopeIndex = paragraphs.indexOf(scope.join(" "));
-  const testUseIndex = paragraphs.indexOf(testUse.join(" "));
-  assert.ok(scopeIndex > 0, "scope and blocker paragraph");
-  assert.ok(paragraphs[testUseIndex - 1]?.startsWith("Run tests through authorized structured execution."),
-    "test-use paragraph sits beside the test-execution guidance");
+test("managed worker guide requests needs with evidence and distinguishes request acceptance from refusal", () => {
+  const managed = readAgentRoleGuide("managed-worker", "free_local");
+  for (const instruction of [
+    "If a required change needs a file you cannot edit, call request_assignment_change IMMEDIATELY. If a required file is outside **Readable Paths**, request read access through the same tool IMMEDIATELY. If required instructions or context are missing or contradictory, call request_assignment_change immediately.",
+    "Describe the gap, supporting evidence, the affected requirement and what you need to implement it.",
+    "For scope gaps, name each path, whether you need read or write access, and why.",
+    "Request what you need; don’t give instructions.",
+    "Do not guess missing assignment facts.",
+    "Include `completed_work` and `remaining_work` in the request, even if implementation is incomplete; there will be no final report or subsequent tool call.",
+    "When `request_assignment_change` is accepted, this worker ends immediately and partial work is preserved.",
+    "A refused request does not end the worker; follow any supported recovery within your authority.",
+    "A request grants no access or assignment revision."
+  ]) assert.equal(occurrences(managed, instruction), 1, instruction);
+  assert.doesNotMatch(managed,
+    /requested correction|work around missing required context in an accessible file|report the exact cause|Refusals allow recovery/u);
+  assert.doesNotMatch(managed, /finish blocked|terminate normally|Acceptance does not prove process termination/u);
+  const prompt = managedWorkerPrompt();
+  assert.match(prompt, /An accepted request_assignment_change immediately ends this worker through the launcher/u);
+  assert.match(prompt, /no final report, additional model turn, polling or subsequent tool call/u);
+});
 
-  for (const replaced of ["If you encounter a blocker", "Do not invent missing requirements", "work around access limits"]) {
-    assert.ok(!managed.includes(replaced), replaced);
-  }
-
-  for (const preserved of [
-    "Run tests through authorized structured execution. Shell access alone does not authorize test execution.",
+test("managed worker guide preserves authorized validation and delivery mechanics", () => {
+  const managed = readAgentRoleGuide("managed-worker", "free_local");
+  for (const instruction of [
+    "Managed Claude workers have native editors disabled. Edit permitted files through `Bash`, writing in place when replacing a file by rename is unavailable.",
+    "Run tests through the authorized test tools. Shell access alone does not authorize running tests.",
+    "A missing shell command does not mean the test tools are unavailable.",
     "Do not weaken requirements or reshape production code to fit a proof mechanism.",
-    "Use workspace_run_test for native tests, verify_proof for saved proof execution and get_run_result for returned or assigned results.",
-    "Finish the implementation with workspace_deliver_work({}), the closed empty request bound to your launcher assignment, and use the runtime's result format."
-  ]) {
-    assert.equal(occurrences(managed, preserved), 1, preserved);
-  }
+    "A test failure or recoverable tool refusal alone does not establish missing assignment information or access.",
+    "Follow supported tool recovery within your authority.",
+    "Do not dispatch agents, edit work-record state, integrate or land deliveries.",
+    "The launcher has already created your working branch.",
+    "Implement and validate there, leaving assigned changes uncommitted.",
+    "Do not create another branch or make a separate Git commit before delivery; moving the assigned branch can cause delivery to refuse.",
+    "Deliver completed implementation with its required validation through workspace_deliver_work({}), which commits and delivers the changes and fulfills the assignment's commit requirement. Then follow the runtime's diagnostic final-report and termination instructions.",
+    "Report actual tests, proof results, remaining gaps and blockers accurately; completion claims must not exceed the evidence."
+  ]) assert.equal(occurrences(managed, instruction), 1, instruction);
+  assert.equal(occurrences(managed, "workspace_deliver_work({})"), 1);
+  assert.ok(managed.indexOf("call request_assignment_change") < managed.indexOf("Deliver completed implementation"));
+  assert.doesNotMatch(managed, /Use tests only to check assigned behavior and required regressions/u);
+  const prompt = managedWorkerPrompt();
+  assert.match(prompt, /for delivery, \(1\) successfully invoke workspace_deliver_work/u);
 });
 
 test("each guide carries only its own role's workflow", () => {
-  const managed = readAgentRoleGuide("managed-worker");
-  const reviewer = readAgentRoleGuide("reviewer");
+  const managed = readAgentRoleGuide("managed-worker", "free_local");
+  const reviewer = readAgentRoleGuide("reviewer", "free_local");
   assert.doesNotMatch(managed, /\bpush\b|target branch|AGENTS\.md/iu);
 
   assert.doesNotMatch(managed, /workspace_verify_proof|then commit/u);
   assert.doesNotMatch(reviewer, /\bcommit\b|\bpush\b|workspace_agent_dispatch|AGENTS\.md/iu);
-  for (const guide of [managed, readAgentRoleGuide("orchestrator")]) {
-    assert.match(guide, /Missing shell (commands|tools) do not establish (structured-)?provider unavailability/u);
-  }
+  assert.match(managed, /A missing shell command does not mean the test tools are unavailable/u);
+  assert.match(readAgentRoleGuide("orchestrator", "free_local"),
+    /Use the delivery and validation calls returned by the tools/u);
 });
 
 test("orchestrator startup prompts name the resolved guide path once without inlining it", () => {
-  const guidePath = resolveAgentRoleGuidePath("orchestrator");
-  const guide = readAgentRoleGuide("orchestrator");
+  const guidePath = resolveAgentRoleGuidePath("orchestrator", "free_local");
+  const guide = readAgentRoleGuide("orchestrator", "free_local");
   for (const appName of ["Claude", "Codex"]) {
     for (const headless of [true, false]) {
       const prompt = renderLauncherFamilyOrchestratorPrompt({
@@ -303,7 +331,7 @@ test("orchestrator startup prompts name the resolved guide path once without inl
         initiative: "IN-0016",
         threadName: "IN-0016",
         workspaceDir: "/work/repo",
-        headless
+        headless, registeredTier: "free_local"
       });
       assert.equal(occurrences(prompt, guidePath), 1, `${appName} headless=${headless}`);
       assert.equal(occurrences(prompt, readLine("orchestrator")), 1, `${appName} headless=${headless}`);
@@ -317,20 +345,20 @@ test("orchestrator startup prompts name the resolved guide path once without inl
 
 function readLine(guide) {
   return guide === "orchestrator"
-    ? `Read your orchestrator guide at ${resolveAgentRoleGuidePath(guide)} and the authoring vignette at ` +
-      `${resolveOrchestratorAuthoringVignettePath()} before authoring.`
-    : `Read your ${guide} guide before acting: ${resolveAgentRoleGuidePath(guide)}`;
+    ? `Read your orchestrator guide at ${resolveAgentRoleGuidePath(guide, "free_local")} and the authoring vignette at ` +
+      `${resolveOrchestratorAuthoringVignettePath("free_local")} before authoring.`
+    : `Read your ${guide} guide before acting: ${resolveAgentRoleGuidePath(guide, "free_local")}`;
 }
 
 test("one shared helper renders every role's guide read reference", () => {
   for (const guide of AGENT_ROLE_GUIDES) {
-    assert.equal(renderAgentRoleGuideReadReference(guide), readLine(guide), guide);
+    assert.equal(renderAgentRoleGuideReadReference(guide, "free_local"), readLine(guide), guide);
   }
-  assert.throws(() => renderAgentRoleGuideReadReference("worker"), /unknown agent role guide/u);
+  assert.throws(() => renderAgentRoleGuideReadReference("worker", "free_local"), /unknown agent role guide/u);
 });
 
 function guideBodyLines(guide) {
-  return readAgentRoleGuide(guide).split("\n").filter((line) => line.trim().length > 0);
+  return readAgentRoleGuide(guide, "free_local").split("\n").filter((line) => line.trim().length > 0);
 }
 
 function assertNoGuideBody(prompt, label) {
@@ -360,8 +388,8 @@ test("managed worker prompt names the managed-worker guide path once before the 
   }
   assert.ok(inline.indexOf(readLine("managed-worker")) < inline.indexOf("## Canonical Record"));
 
-  const guide = readAgentRoleGuide("managed-worker");
-  for (const forbidden of [/\bCodex\b/u, /\bClaude\b/u, /\bBash\b/u, /bwrap|namespace|mounts?\b/iu, /reviewer/iu]) {
+  const guide = readAgentRoleGuide("managed-worker", "free_local");
+  for (const forbidden of [/bwrap|namespace|mounts?\b/iu, /reviewer/iu]) {
     assert.doesNotMatch(guide, forbidden);
   }
 });
@@ -378,6 +406,58 @@ test("managed reviewer and redteam inputs name the reviewer guide path once", ()
   }
 });
 
+test("redteam guide unconditionally challenges design and discovers parent slice assignments", () => {
+  const guide = readAgentRoleGuide("reviewer", "free_local");
+  requiresInstructions(guide, [
+    "Redteam challenges the proposed design before implementation.",
+    "Compare the proposed assignments with the complete user request and relevant source.",
+    "Compare the obligations with the complete user request and relevant source, not just the saved requirements.",
+    "Identify missing, weakened or unsupported interpretations.",
+    "Return findings only; the orchestrator evaluates them and owns any saved-contract updates before implementation dispatch.",
+    "Check that the proposed obligations cover the user’s requirements, including interactions and failure cases, and that their planned checks would fail if the required behavior were wrong.",
+    "Report missing coverage and weak checks.",
+    "For each gap, propose the smallest concrete correction to the assignment, requirement, obligation or planned check.",
+    "Explain which missing behavior it covers and how the check would detect an incorrect implementation.",
+    "If a correction requires an unresolved user decision, identify that decision rather than inventing an answer.",
+    "This reviews obligation design; do not execute proofs or claim that the implementation satisfies the obligations.",
+    "For a parent WK, use workspace_read_wiki and its returned references and selections to discover and read the proposed slice assignments, their requirements, obligations and planned checks.",
+    "An empty parent summary does not establish that no design exists.",
+    "Missing design material remains reportable; missing implementation is expected.",
+    "Implementation commits are not required; their absence is not a finding or a reason to request implementation before completing the design challenge."
+  ]);
+  assert.doesNotMatch(guide, /For a design redteam/u);
+});
+
+test("root and slice redteam startup always names a design challenge with supporting checkout context", () => {
+  for (const subject of ["WK-9999", SUBJECT]) {
+    const prompt = advisoryPrompt("redteam", subject);
+    requiresInstructions(prompt, [
+      "Challenge the proposed design before implementation.",
+      "Examine the user requirements, proposed assignments, obligations, assumptions, interactions and planned checks.",
+      "Compare the obligations with the complete user request and relevant source, not just the saved requirements.",
+      "Identify missing, weakened or unsupported interpretations.",
+      "Return findings only; the orchestrator evaluates them and owns any saved-contract updates before implementation dispatch.",
+      "Check that the proposed obligations cover the user’s requirements, including interactions and failure cases, and that their planned checks would fail if the required behavior were wrong.",
+      "Report missing coverage and weak checks.",
+      "For each gap, propose the smallest concrete correction to the assignment, requirement, obligation or planned check.",
+      "Explain which missing behavior it covers and how the check would detect an incorrect implementation.",
+      "If a correction requires an unresolved user decision, identify that decision rather than inventing an answer.",
+      "This reviews obligation design; do not execute proofs or claim that the implementation satisfies the obligations.",
+      "Implementation commits are not required. Their absence is not a finding or a reason to request implementation before completing the design challenge.",
+      "An explicitly supplied SHA can select supporting checkout context; it never changes redteam into an implementation review.",
+      `Supporting source context checkout: ${"b".repeat(40)}`,
+      `Supporting source context tree: ${"c".repeat(40)}`
+    ]);
+    assert.doesNotMatch(prompt, /Reviewed range|Reviewed tree/u);
+    assert.equal(prompt.includes(`${"a".repeat(40)}..${"b".repeat(40)}`), false);
+    assert.ok(prompt.includes(JSON.stringify({ subject })));
+  }
+  const reviewer = advisoryPrompt("reviewer");
+  assert.ok(reviewer.includes(`Reviewed range: ${"a".repeat(40)}..${"b".repeat(40)}`));
+  assert.ok(reviewer.includes(`Reviewed tree: ${"c".repeat(40)}`));
+  assert.doesNotMatch(reviewer, /Challenge the proposed design|Supporting source context|proposed obligations|For each gap/u);
+});
+
 test("generic launcher role contracts name the role's guide path once", () => {
   const cases = [
     ["worker", "managed-worker"],
@@ -392,5 +472,43 @@ test("generic launcher role contracts name the role's guide path once", () => {
       assertNoGuideBody(contract, `${appName} ${role}`);
       assert.ok(!contract.includes("AGENTS.md"));
     }
+  }
+});
+
+test("complete orchestrator guidance preserves acceptance policy and owns exception lookups in the vignette", () => {
+  for (const tier of ["free_local", "paid_cce"]) {
+    const guide = readAgentRoleGuide("orchestrator", tier);
+    for (const pattern of [
+      /under user direction and repository policy/u,
+      /Unavailable capability, difficulty, risk, scope or time does not authorize changing them/u,
+      /Save the complete written request, criteria, validation and planned scopes/u,
+      /stop before dispatch/u,
+      /Delegate assigned implementation and documentation changes; do not make them yourself/u,
+      /tool_name:"workspace_record_feedback",path:"docs\/agent-feedback.md"/u
+    ]) assert.match(guide, pattern);
+    const vignette = readFileSync(resolveOrchestratorAuthoringVignettePath(tier), "utf8");
+    assert.match(`${guide}\n${vignette}`, /Do not report the written acceptance or exception as evidence that tests or proofs passed|do not claim that authoring or assessment has tested the implementation/u);
+    if (tier === "free_local") {
+      assert.match(vignette, /operator has explicitly selected ordinary acceptance under applicable repository policy, independently of the authoring limitation/u);
+      assert.match(vignette, /"operation": "exception"/u);
+      assert.match(vignette, /"kind": "controlled_acceptance"/u);
+      assert.match(vignette, /Complete the required native validation and review/u);
+    }
+  }
+  const ordinary = readAgentRoleGuide("orchestrator", "free_local");
+  assert.match(ordinary, /Use your source tools to inspect relevant code, callers, dependencies/u);
+  assert.doesNotMatch(ordinary, /query_code_index|paid_cce|free_local/u);
+});
+
+ test("both startup renderers omit only the reference when the guide is injected", () => {
+  for (const highPriority of [true, false]) {
+    const guideDelivery = { highPriority };
+    for (const assignmentDelivery of ["inline", "read_page"]) {
+      const prompt = managedWorkerPrompt({ assignmentDelivery, guideDelivery });
+      assert.equal(prompt.includes("Read your managed-worker guide"), !highPriority);
+      assert.ok(prompt.includes(SUBJECT));
+    }
+    const prompt = renderLauncherFamilyRoleContract({ role: "worker", subject: SUBJECT, guideDelivery });
+    assert.equal(prompt.includes("Read your managed-worker guide"), !highPriority);
   }
 });

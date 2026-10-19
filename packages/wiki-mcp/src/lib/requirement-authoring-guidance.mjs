@@ -1,4 +1,7 @@
-
+import { DEFAULT_EXCEPTION_PUBLICATION } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
+import { REQUIREMENT_SCHEMA_TOPIC, REQUIREMENT_SCHEMA_METADATA, requirementSchemaDetail, requirementSchemaIdentity, requirementSchemaBranch } from "./requirement-authoring-schema-guidance.mjs";
+import { COMPACT_RECORD_PATTERN, PLANNED_OPERATION_PATTERN } from './requirement-authoring-patterns.mjs';
+import { recordAuthoringAvailability } from "@agent-chassis/wiki-core/src/lib/record-authoring-availability.mjs";
 
 import {
   CONTROLLED_CONTRACT_REQUIREMENT_FIELD_GUIDANCE,
@@ -9,7 +12,7 @@ import { RECORD_AUTHORING_LABEL_PATTERN, workItemRequirementBatchSchema } from
   "@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs";
 import { REQUIREMENT_SOURCE_FIELD, REQUIREMENT_SOURCE_LOCATION_UNIT } from
   "@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-source-links.mjs";
-import { RECORD_AUTHORING_REQUIREMENT_MEMBERS } from "@agent-chassis/wiki-core/src/operations/record-authoring-plan.mjs";
+import { RECORD_AUTHORING_REQUIREMENT_MEMBERS } from "@agent-chassis/wiki-core/src/lib/record-authoring-availability.mjs";
 import { selectCelDefinition } from
   "@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-vocabulary.mjs";
 
@@ -69,7 +72,8 @@ const REQUIRED_OBJECT_SHAPES = Object.freeze({
     rule: "A statement, a closed membership and a verification name an entity by its id; none selects or declares a " +
       "referent in place. A type may be left out only where the relations using the entity admit exactly one; " +
       "otherwise the entity's type is unfinished and every row naming it is saved incomplete. An entity a saved " +
-      "requirement row already binds keeps that binding: a declaration that agrees is accepted and one that differs is refused."
+      "requirement row already binds keeps that binding without redeclaration: a declaration that agrees is accepted and one that differs is refused. " +
+      "For verifier-only aliases not held by a saved row, include a matching declaration in each batch using them, including its type and identity; no extra save is needed."
   }),
   closed_membership: Object.freeze({
     required_fields: Object.freeze([...membershipRow.required]),
@@ -90,7 +94,7 @@ const REQUIRED_OBJECT_SHAPES = Object.freeze({
       `${requirementField("id")} or authored by a ${BATCH} row in the same save. A save carries ` +
       `${BATCH}, ${REMOVE_REQUIREMENTS} or both, and a supplied list is never empty. A claim that is one of several ` +
       `a saved requirement row emits together is retired with its whole row through ${REMOVE_REQUIREMENT_ROWS}.`,
-    dependent_uses: "A parent or slice obligation whose explicit links and case support only retired requirements " +
+    dependent_uses: "For explicit removal only, a parent or slice obligation whose explicit links and case support only retired requirements " +
       "is deleted. An affected obligation that also supports a remaining requirement, or that the same save amends, " +
       `is refused with its unit, obligation, case and identities; amend its ${obligationField("claims")} or case in ` +
       "the same save to keep the remaining meaning. Obligations with no retired link or case are unchanged.",
@@ -99,8 +103,16 @@ const REQUIRED_OBJECT_SHAPES = Object.freeze({
   })
 });
 
+const guidanceRead = (...topic) => buildNextCall({ tool: READ_TOOL,
+  arguments: { subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic } } });
+
 const REQUIREMENT_BATCH = Object.freeze({
   field: BATCH,
+  compact_pattern_read: guidanceRead("compact_record_comparison"),
+  compact_pattern_applicability: COMPACT_RECORD_PATTERN.applicability,
+  schema_read: guidanceRead(REQUIREMENT_SCHEMA_TOPIC, "existing"),
+  schema_selection: REQUIREMENT_SCHEMA_METADATA.selection,
+  batching: "Append new rows in successive saves; restate saved rows by row_id only to correct them. The request bound is eight requirement rows and claim retirements counted together, with whole-row retirements bounded separately. Group only identical applicability, observation boundary and comparison semantics. Include declarations used in this batch: saved row-bound bindings need no redeclaration; verifier-only aliases need a matching typed declaration in every batch using them. Preserve exact source links and unresolved meaning. Select compact_record_comparison for the example rather than reading the full schema.",
   members: Object.freeze(Object.keys(batchSchema.properties)),
   entities: REQUIRED_OBJECT_SHAPES.referent.rule,
   requirements: `1-${batchSchema.properties.requirements.maxItems} rows, each one statement (subject, behavior, and its strength) or one closed membership ` +
@@ -113,15 +125,22 @@ const REQUIREMENT_BATCH = Object.freeze({
     "omitted, the saved list stays. It keeps the saved meaning incomplete and is never compiled.",
   row_addressing: Object.freeze({ selectors: ROW_SELECTORS, rule: "A row carries at most one of them.",
     key: "A new row, labelled for this request.",
-    row_id: "A saved requirement row as a whole: its meaning, or only its source passage, is restated.",
+    row_id: "A saved requirement row requires a complete restatement of its authored meaning, even when the intent is to change only provenance. Omitted row fields are not a patch. For saved-meaning reads and source-passage repair, select source_link.repair in this requirement_batch guidance.",
     id: "One saved requirement claim to correct, as before. A claim that is one of several its row emits is corrected through row_id." }),
   emitted_identities: "A complete statement row emits one canonical constraint and one native claim per object where its relation is a " +
     "set of pairs, otherwise one of each. A closed membership emits one constraint and no claim. An incomplete row emits none. " +
     "A save answer's requirement_rows and bindings.requirement state row_id, state, constraint_ids and claim_ids as full arrays. " +
     "\"$key\" in changes.obligations[].claims is every claim the row emits; a row that emits none is refused there.",
   correction: "Restating a row keeps every claim both declarations emit, with its links; a claim only the old declaration " +
-    "emitted retires under the retirement rules, and a claim only the new one emits is new. Nothing is rebound from an old " +
-    "member to a new one.",
+    "emitted retires, and a claim only the new one emits is new. Correction-induced retirement cannot delete obligations or cases: " +
+    "a remaining dependent use refuses the entire save with affected row, claim, verification, obligation and case identities. " +
+    "For a single-claim row choose id and explicit rebind_case_ids. For grouped corrections, first save the intended " +
+    "verification on unchanged requirement meaning. Explicitly amend existing dependencies to that saved verification, " +
+    "restate the original row, then restore intended claim associations from its saved bindings. Shared-case uses may " +
+    "retain old and chosen verification links while being amended across units; select case.verification through its " +
+    "target owner, then remove changed old links. Without a replacement verification, explicitly clear changed claim " +
+    "associations before correction and restore them afterwards; retained bound cases need valid test_execution " +
+    "verifications. Nothing is mapped or granted proof credit automatically.",
   source_link: Object.freeze({ members: Object.freeze(["user_requirement", "user_requirement_occurrence"]),
     source: `the work item's ${REQUIREMENT_SOURCE_FIELD} as this same save leaves it`,
     matching: "The passage is compared exactly: no trimming, case folding or normalization. Occurrences are counted from 1, " +
@@ -133,12 +152,18 @@ const REQUIREMENT_BATCH = Object.freeze({
     currentness: "A link is current while the source text is unchanged. After the text changes it is reported stale, as saved, " +
       "until the row is restated with user_requirement. Omitting user_requirement keeps a saved link and creates none.",
     meaning: "Provenance only. It changes no identity and no generated expression, and does not establish that the passage " +
-      "and the compiled meaning say the same thing." }),
+      "and the compiled meaning say the same thing.",
+    repair: Object.freeze({
+      intent: "Changing only provenance still requires a complete row restatement through row_id. Copy all saved authored meaning, including modality, behavior, applicability, lexical scopes and membership where present. Omitting modality can save an incomplete row and retire its former claims; incomplete drafts remain supported.",
+      read: `Read the current unit with ${READ_TOOL} {subject:<unit>} for its revision and reference. With that reference, select {contract:\"requirements\",view:\"row\",row_id:<saved row_id>} for row.input, its bound entities, identities and source link. This row read does not include verification; follow its emitted {contract:\"requirements\",view:\"verifications\",row_id:<saved row_id>} call for the native verifications, requirement-to-verification identities and referenced entities with type_term and identity.`,
+      payload: "Use row.input with bound entity objects replaced by their ids, preserving every other field. Declare each named entity under changes.requirements.entities with its returned type_term and identity. Recover verification method, verifier, observes, fails_when and runtime_test when present from the native verification meaning; resolve every select and runtime boundary subject reference through the returned references and declare it under an entity id. The runtime read's falsifiers.items holds each saved falsifier with its strategy and mutation details; author the intended falsifier without its read-only selector, mutation_id and proposition_id. A verifier-only entity needs its matching declaration in this batch. Do not substitute a case target for verification meaning.",
+      save: "Restate the saved row_id with that full payload and the intended exact user_requirement and explicit user_requirement_occurrence where repeated. Use the current revision. A stale revision requires rereading the current unit and saved meaning before rebuilding the request. Read back the row, its verifications, cases and each affected unit's obligations and criteria to check identities, verification relationships and acceptance mappings.",
+      limit: "If a supported read refuses or omits required saved meaning or verification, report that exact gap and stop the repair. Do not guess fields, omit missing verification, or claim a faithful repair. Reading and saving execute no proof."
+    }) }),
   generated: "Canonical constraints, renderings, generated CEL and its typed bindings are derived from the saved rows. No member " +
     "takes an expression, and saving evaluates none.",
-  tier: Object.freeze({ members: Object.freeze(RECORD_AUTHORING_REQUIREMENT_MEMBERS.map((member) => `changes.${member}`)),
-    rule: "These members compile, restate or retire controlled requirements and are provided by the paid tier only. The tier is " +
-      "the serving host's own configuration; no request member states it. Every other member saves at any tier." }),
+  authorization: Object.freeze({ members: Object.freeze(RECORD_AUTHORING_REQUIREMENT_MEMBERS.map(member => `changes.${member}`)),
+    rule: "The serving host authorizes requirement compilation and retirement; no request member can authorize an operation." }),
   remove_rows: Object.freeze({ field: REMOVE_REQUIREMENT_ROWS,
     rule: "Removes whole saved requirement rows, or saved collections, by the row identity a save issued. A claim only a removed " +
       "row emitted retires under the retirement rules; a collection that still lists a removed row refuses the save." })
@@ -195,7 +220,8 @@ const ASSOCIATIONS = Object.freeze([
   { from: "changes.obligations[].proof.name", to: `a proof ${FIND_TOOL} lists`,
     meaning: "Selects the checking route of the obligation: " +
       `${OWNER.unresolved_coverage.record.obligation_fields.proof_name}. The selected proof's own authoring ` +
-      "answer states whether it requires a case and which inputs remain the author's." },
+      "answer separates selection inputs from the complete case needed for execution. Omit an " +
+      "unknown case rather than supply an incomplete one; supplied case defects remain authoring defects." },
   { from: "changes.obligations[].case", to: "the requirement's verification",
     meaning: "Supplies the test details when the selected proof requires them, and is omitted for a proof that " +
       "requires no case. The case is the test of the verification its obligation makes eligible. " +
@@ -210,7 +236,7 @@ const ASSOCIATIONS = Object.freeze([
 const SAVE_RECORD_INPUTS = Object.freeze({
   request: `${SAVE_TOOL} {unit, revision, changes}. revision is the unit's current revision: the revision of ` +
     `${READ_TOOL} {subject:<unit>} or of a prior save answer. Omitted changes members are preserved.`,
-  labels: `A new row states key, a label matching ${RECORD_AUTHORING_LABEL_PATTERN}; an existing row states id. ` +
+  labels: `A new row states key, a label matching ${RECORD_AUTHORING_LABEL_PATTERN}. A saved requirement row uses row_id, including grouped and incomplete rows, with its complete authored meaning. A single-claim requirement may instead use id for its saved claim; a claim from a grouped row requires row_id. A saved obligation uses id; a reused case uses case.id. ` +
     "Only the label_references members name a new row as $<key>; the reference resolves to the identity its " +
     "owner issued, never to the row's text. A saved answer's bindings map every key to that identity; a " +
     "requirement row's key maps to its row_id with the full constraint_ids and claim_ids it emits.",
@@ -256,18 +282,17 @@ const FIELDS = Object.freeze({
     shape: verificationShape.field_shapes.observes }),
   fails_when: Object.freeze({ save_record_field: requirementField("verification.fails_when"),
     shape: verificationShape.field_shapes.fails_when }),
-  shapes: "required_object_shapes holds each named shape; authoring_vocabulary states every behavior, fails_when and observes relation with its exact allowed positions and complete definitions."
+  shapes: "required_object_shapes holds each named shape; authoring_vocabulary supplies the selected relation signatures and their exact allowed positions; follow its shared selected-definition route for canonical meaning."
 });
 
 const { next_calls: _ownerNavigation, record: ownerRecord, ...unresolvedCoverage } = OWNER.unresolved_coverage;
 const ownerObligationFields = ownerRecord.obligation_fields;
-const guidanceRead = (...topic) => buildNextCall({ tool: READ_TOOL,
-  arguments: { subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic } } });
+
 const UNRESOLVED_COVERAGE = Object.freeze({
   applies_when: unresolvedCoverage.applies_when,
 
   record: Object.freeze({ controlled_acceptance: ownerRecord.controlled_acceptance,
-    obligation_fields: Object.freeze({ statement: ownerObligationFields.statement,
+    obligation_fields: Object.freeze({ statement: ownerObligationFields.statement + " Use a faithful trimmed single-line statement: no surrounding whitespace, CR or LF. Leave user_requirements and exact source links unchanged.",
       claims: ownerObligationFields.controlled_contract_node_ids, mechanism: ownerObligationFields.mechanism,
       "proof.name": ownerObligationFields.proof_name }) }),
   gap_kinds: unresolvedCoverage.gap_kinds,
@@ -280,13 +305,16 @@ const UNRESOLVED_COVERAGE = Object.freeze({
     query: OWNER.unresolved_coverage.next_calls.discover.arguments.query })
 });
 
-export const REQUIREMENT_BATCH_SCHEMA_TOPIC = "requirement_batch_schema";
-const REQUIREMENT_BATCH_SCHEMA = workItemRequirementBatchSchema("birth");
+function withRelationDefinitionReads(vocabulary) {
+  return Object.freeze({ ...vocabulary,
+    relation_definition_read: guidanceRead("cel_definitions"),
+    relation_definition_selection: "Use the returned reference with select:{guidance:['cel_definitions','relations',row.term]} to read the selected row's complete canonical definition, semantic references, observations and lowering." });
+}
 
 export const REQUIREMENT_AUTHORING_GUIDANCE = Object.freeze({
   schema_version: "requirement-authoring-guidance.v1",
   overview: `Author contract requirements through ${SAVE_TOOL} ${BATCH}, one batch of entities, requirement rows, ` +
-    "collections and unresolved meaning; save_record_inputs.requirement_batch states its members, row addressing and " +
+    "collections and unresolved meaning. Select compact_record_comparison.planned_operation for typed result relationships; compact_record_comparison projects only protected fields with shared applicability and observation boundaries. save_record_inputs.requirement_batch states its members, row addressing and " +
     `exact source links. ${CONTROLLED_CONTRACT_REQUIREMENT_FIELD_GUIDANCE} Select one topic at a time: fields explains subject, ` +
     "behavior, observes and fails_when; required_object_shapes holds the referent, statement and verification " +
     "shapes; authoring_vocabulary holds the complete job vocabulary, sharing signatures and stating their allowed " +
@@ -298,11 +326,13 @@ export const REQUIREMENT_AUTHORING_GUIDANCE = Object.freeze({
     "holds common semantics and the complete explicitly chosen family's instructions. Proof discovery offers that call " +
     "when target_family is explicit. unresolved_coverage explains what to author when a proof, " +
     "family or falsifier is missing, which is never a reason to leave controlled authoring; " +
-    `${REQUIREMENT_BATCH_SCHEMA_TOPIC} is the complete declaration of a new record's requirement batch. Reading guidance ` +
+    "['requirement_schema','birth'] is the complete declaration of a new record's requirement batch. Reading guidance " +
     "and saving execute no proof and establish no readiness.",
   save_record_inputs: SAVE_RECORD_INPUTS,
-  [AUTHORING_VOCABULARY_TOPIC]: deriveAuthoringJobVocabulary({ behavior: OWNER.vocabulary,
-    fails_when: OWNER.vocabulary, observes: OWNER.observation_vocabulary }),
+  compact_record_comparison: COMPACT_RECORD_PATTERN,
+  [REQUIREMENT_SCHEMA_TOPIC]: { kind: "index", contexts: ["existing", "birth"], read: "Select [requirement_schema, context] for one complete batch, or append a definition name for its complete transitive closure." },
+  [AUTHORING_VOCABULARY_TOPIC]: withRelationDefinitionReads(deriveAuthoringJobVocabulary({ behavior: OWNER.vocabulary,
+    fails_when: OWNER.vocabulary, observes: OWNER.observation_vocabulary })),
   fields: FIELDS,
   cel_definitions: Object.freeze({ ...OWNER.cel_definitions,
     read: "Select ['cel_definitions','operations',<returned key>] or ['cel_definitions','relations',<returned term>] with this reference, or request that exact topic to obtain its selected context.",
@@ -311,25 +341,73 @@ export const REQUIREMENT_AUTHORING_GUIDANCE = Object.freeze({
       guidanceRead("cel_definitions", "relations", "reference:supports")
     ]) }),
   unresolved_coverage: UNRESOLVED_COVERAGE,
-  [REQUIREMENT_BATCH_SCHEMA_TOPIC]: REQUIREMENT_BATCH_SCHEMA,
   ...Object.fromEntries(OWNER_MEMBERS.map((member) => [member, member === "required_object_shapes"
-    ? REQUIRED_OBJECT_SHAPES : member === "case_authoring" ? CASE_AUTHORING : OWNER[member]]))
+    ? REQUIRED_OBJECT_SHAPES : member === "case_authoring" ? CASE_AUTHORING
+      : ["vocabulary", "observation_vocabulary"].includes(member)
+        ? withRelationDefinitionReads(OWNER[member]) : OWNER[member]]))
 });
 
 export const REQUIREMENT_AUTHORING_GUIDANCE_TOPICS = Object.freeze(Object.keys(REQUIREMENT_AUTHORING_GUIDANCE)
   .filter((member) => !["schema_version", "overview"].includes(member)).map((member) => Object.freeze([member])));
 
-export const REQUIREMENT_BATCH_SCHEMA_ENTRY_STATEMENT =
-  `${READ_TOOL} ${JSON.stringify({ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [REQUIREMENT_BATCH_SCHEMA_TOPIC] } })}`;
+export const REQUIREMENT_BIRTH_SCHEMA_ENTRY_STATEMENT =
+  `${READ_TOOL} ${JSON.stringify({ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [REQUIREMENT_SCHEMA_TOPIC, 'birth'] } })}`;
 
-export const REQUIREMENT_AUTHORING_GUIDANCE_REVISION = inputContractSourceDigest(REQUIREMENT_AUTHORING_GUIDANCE);
+export const REQUIREMENT_AUTHORING_GUIDANCE_REVISION = requirementGuidanceRevision();
+export function requirementGuidanceRevision(registeredTier = "paid_cce", detail = requirementSchemaIdentity(), exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
+  return inputContractSourceDigest({ instructions: sessionRequirementAuthoringGuidance(registeredTier, exceptionPublication),
+    ...(recordAuthoringAvailability(registeredTier).compile_requirements ? { detail, planned_operation: PLANNED_OPERATION_PATTERN } : {}) });
+}
 
 export function requirementCaseFamilySelections(path) {
   return path[0] === "case_authoring" ? caseFamilySelections(CASE_AUTHORING)
     .filter(selection => JSON.stringify(selection.guidance) !== JSON.stringify(path)) : [];
 }
 
-export function resolveRequirementAuthoringGuidance(path) {
+export function resolveRequirementAuthoringGuidance(path, registeredTier = "paid_cce", exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
+  if (!recordAuthoringAvailability(registeredTier).compile_requirements) {
+    const selected = resolveToolInputGuidancePath(sessionRequirementAuthoringGuidance(registeredTier, exceptionPublication), path);
+    if (!selected.ok && Object.hasOwn(REQUIREMENT_AUTHORING_GUIDANCE, path[0])) return {
+      ok: false, code: "record_authoring_operation_unavailable", operation: "compile_requirements", changed: false };
+    return selected;
+  }
+  if (path[0] === 'compact_record_comparison' && path[1] === 'planned_operation') {
+    return resolveToolInputGuidancePath({ compact_record_comparison: { planned_operation: PLANNED_OPERATION_PATTERN } }, path);
+  }
+  if (path[0] === REQUIREMENT_SCHEMA_TOPIC && path.length > 1) return requirementSchemaDetail(path.slice(1));
+  if (path[0] === 'required_object_shapes' && path[1] === 'capabilities') {
+    const projection = resolveRequirementAuthoringGuidance([AUTHORING_VOCABULARY_TOPIC, ...path.slice(1)], registeredTier, exceptionPublication);
+    if (!projection.ok) return projection;
+    if (!projection.value.scope) return { ok: true, value: REQUIRED_OBJECT_SHAPES };
+    const schema = workItemRequirementBatchSchema('existing', path.slice(2));
+    const shapes = Object.fromEntries(Object.entries(REQUIRED_OBJECT_SHAPES).map(([name, value]) => {
+      const definition = schema.$defs[name === 'closed_membership' ? 'membership_requirement' : name];
+      if (!definition?.properties || !value.optional_fields) return [name, value];
+      return [name, { ...value, optional_fields: value.optional_fields.filter(field => Object.hasOwn(definition.properties, field)) }];
+    }));
+    return { ok: true, value: { ...shapes, scope: projection.value.scope } };
+  }
+  if (path[0] === AUTHORING_VOCABULARY_TOPIC && path[1] === "capabilities") {
+    const requested = path.slice(2);
+    let projection;
+    try {
+      projection = requirementSchemaBranch("existing").select({ properties: { requirements: {} } }, requested);
+    } catch (error) {
+      if (error.code !== 'requirements_capability_selection_invalid') throw error;
+      return { ok: false, code: error.code, resolved_path: [AUTHORING_VOCABULARY_TOPIC], segment_index: 2,
+        expected: 'nonempty distinct published requirement capability keys' };
+    }
+    const scoped = projection.scope;
+    const vocabulary = REQUIREMENT_AUTHORING_GUIDANCE[AUTHORING_VOCABULARY_TOPIC];
+    if (scoped === null) return { ok: true, value: vocabulary };
+    const allowed = new Set(projection.terms);
+    const rows = vocabulary.relation_details.filter(row => allowed.has(row.term));
+    const accounting = Object.fromEntries(vocabulary.positions.map(position => {
+      const count = rows.filter(row => row.positions.includes(position)).length;
+      return [position, { ...vocabulary.relation_accounting[position], total: count, returned: count }];
+    }));
+    return { ok: true, value: { ...vocabulary, scope: scoped, relation_accounting: accounting, relation_details: rows } };
+  }
   if (path[0] === "case_authoring" && path[1] === CASE_FAMILY_TOPIC) {
     const family = path[2];
     if (path.length !== 3 || !Object.hasOwn(CASE_AUTHORING.families, family)) return { ok: false,
@@ -338,12 +416,9 @@ export function resolveRequirementAuthoringGuidance(path) {
     return { ok: true, value: deriveCaseFamilyGuidance(CASE_AUTHORING, family,
       familyAuthoringFacts(CASE_AUTHORING, family)) };
   }
-  if (path[0] === "cel_definitions" && path.length >= 3) {
+  if (path[0] === "cel_definitions" && path.length >= 3 && ["operations", "relations"].includes(path[1])) {
     const [, group, key, ...rest] = path;
     const index = OWNER.cel_definitions;
-    if (!["operations", "relations"].includes(group)) return { ok: false,
-      code: "cel_definition_selection_not_found", segment_index: 1, resolved_path: ["cel_definitions"],
-      expected: `operations or relations; missing ${JSON.stringify(group)}` };
     const exists = group === "operations" ? Object.hasOwn(index.operations, key)
       : group === "relations" && index.relations.includes(key);
     if (!exists) return { ok: false, code: "cel_definition_selection_not_found", segment_index: 2,
@@ -355,13 +430,55 @@ export function resolveRequirementAuthoringGuidance(path) {
     return result.ok ? result : { ...result, segment_index: result.segment_index + 3,
       resolved_path: [...path.slice(0, 3), ...result.resolved_path] };
   }
-  return resolveToolInputGuidancePath(REQUIREMENT_AUTHORING_GUIDANCE, path);
+  const resolved = resolveToolInputGuidancePath(REQUIREMENT_AUTHORING_GUIDANCE, path);
+  if (!resolved.ok || path[0] !== 'save_record_inputs') return resolved;
+
+  const immediateBatch = batch => {
+    const { correction: _correction, source_link: sourceLink, ...common } = batch;
+    const { repair: _repair, ...source } = sourceLink;
+    return { ...common, source_link: source };
+  };
+  if (path.length === 1) {
+    const { slice_coverage: _slice, ...common } = resolved.value;
+    return { ...resolved, value: { ...common, requirement_batch: immediateBatch(common.requirement_batch) } };
+  }
+  if (path.length === 2 && path[1] === 'requirement_batch') return { ...resolved, value: immediateBatch(resolved.value) };
+  return resolved;
 }
 
-export function requirementGuidanceRecoveryCall(ownerPath) {
+export function requirementGuidanceRecoveryCall(ownerPath, registeredTier = "paid_cce", exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
+  if (!recordAuthoringAvailability(registeredTier).compile_requirements) return null;
 
-  if (!Array.isArray(ownerPath) || ![...OWNER_MEMBERS, AUTHORING_VOCABULARY_TOPIC, "unresolved_coverage", "save_record_inputs"].includes(ownerPath[0]) ||
-      !resolveRequirementAuthoringGuidance(ownerPath).ok) return null;
+  if (!Array.isArray(ownerPath) || ![...OWNER_MEMBERS, REQUIREMENT_SCHEMA_TOPIC, AUTHORING_VOCABULARY_TOPIC, "unresolved_coverage", "save_record_inputs", "compact_record_comparison"].includes(ownerPath[0]) ||
+      !resolveRequirementAuthoringGuidance(ownerPath, registeredTier, exceptionPublication).ok) return null;
   return buildNextCall({ tool: READ_TOOL, recommended: true,
     arguments: { subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [...ownerPath] } } });
+}
+
+export function sessionRequirementAuthoringGuidance(registeredTier, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
+  if (recordAuthoringAvailability(registeredTier).compile_requirements) return REQUIREMENT_AUTHORING_GUIDANCE;
+  return Object.freeze({ schema_version: REQUIREMENT_AUTHORING_GUIDANCE.schema_version,
+    overview: "Preserve the full user request as user_requirements prose. Author criteria, validation, exact scopes and slices through save_record. Reading and saving establish no implementation readiness or proof credit.",
+    ordinary_authoring: Object.freeze({
+      request: "save_record {unit, revision, changes}. Read the current unit with workspace_read_wiki {subject:<unit>} and select the supported input_contract members together.",
+      members: ["user_requirements", "criteria", "validation", "read_scope", "write_scope", "repo_paths", "slices", "ready_slices"],
+      required_work: "Required controlled acceptance retains its full meaning and required disposition when compilation is unavailable; record the limitation and do not describe it as ready.",
+      applicability: exceptionPublication.applicability("The author independently chooses whether controlled acceptance applies. A deliberate opt-out states a nonempty unassessed rationale, earns zero proof credit and waives no native tests, review or repository policy. Missing capability never chooses exemption."),
+      saved_meaning: "Read saved requirements, obligations and cases through the unit's saved contract selections. Unavailable compilation does not remove or censor saved meaning."
+    }) });
+}
+
+export function requirementGuidanceDetailNavigation(path) {
+  if (path[0] === "save_record_inputs") return [
+    { selection: { guidance: ["compact_record_comparison"] }, recommended: true },
+    { selection: { guidance: [REQUIREMENT_SCHEMA_TOPIC, "existing"] }, recommended: path.length > 1 },
+    ...((path.length === 1 || path.length === 2 && path[1] === 'requirement_batch') ? [
+      { selection: { guidance: ['save_record_inputs', 'requirement_batch', 'correction'] },
+        information: 'Correct saved requirement meaning and migrate existing verification, case and obligation dependencies explicitly.' },
+      { selection: { guidance: ['save_record_inputs', 'requirement_batch', 'source_link', 'repair'] },
+        information: 'Repair a saved source link through complete authored-row and verification reads; preserve the saved meaning.' },
+      { selection: { guidance: ['save_record_inputs', 'slice_coverage'] },
+        information: 'Author slice-local coverage using an applicable saved parent requirement and case; no coverage is inherited.' }
+    ] : [])];
+  return [];
 }

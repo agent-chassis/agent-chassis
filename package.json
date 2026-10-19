@@ -1,6 +1,6 @@
 {
   "name": "agent-chassis",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "workspaces": [
     "packages/controlled-contract",
@@ -17,7 +17,7 @@
   "scripts": {
     "wiki": "node packages/wiki-cli/src/index.mjs",
     "wiki:mcp": "node packages/wiki-mcp/src/server.mjs",
-    "agent-launch": "node packages/agent-launch-cli/src/index.mjs",
+    "agent-launch": "node packages/core/bin/agent-launch",
     "test": "node tests/run-tests.mjs unit",
     "test:integration": "node tests/run-tests.mjs integration",
     "test:all": "node tests/run-tests.mjs all",
@@ -36,14 +36,20 @@
     "web-tree-sitter": "0.26.9"
   },
   "devDependencies": {
-    "@agent-chassis/agent-launch-cli": "^0.11.0",
-    "@agent-chassis/agent-launch-core": "^0.11.0",
-    "@agent-chassis/controlled-contract": "^0.11.0",
-    "@agent-chassis/core": "^0.11.0",
-    "@agent-chassis/wiki-cli": "^0.11.0",
-    "@agent-chassis/wiki-core": "^0.11.0",
-    "@agent-chassis/wiki-mcp": "^0.11.0",
-    "@sourcegraph/scip-python": "^0.6.6",
-    "@sourcegraph/scip-typescript": "^0.4.0"
+    "@agent-chassis/agent-launch-cli": "^0.12.0",
+    "@agent-chassis/agent-launch-core": "^0.12.0",
+    "@agent-chassis/controlled-contract": "^0.12.0",
+    "@agent-chassis/core": "^0.12.0",
+    "@agent-chassis/wiki-cli": "^0.12.0",
+    "@agent-chassis/wiki-core": "^0.12.0",
+    "@agent-chassis/wiki-mcp": "^0.12.0",
+    "@sourcegraph/scip-python": "0.6.6",
+    "@sourcegraph/scip-typescript": "0.4.0",
+    "js-tiktoken": "1.0.21"
+  },
+  "overrides": {
+    "@sourcegraph/scip-python": {
+      "@iarna/toml": "3.0.0"
+    }
   }
 }

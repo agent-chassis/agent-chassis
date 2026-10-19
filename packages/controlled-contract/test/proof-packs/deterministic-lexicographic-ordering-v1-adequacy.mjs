@@ -15,7 +15,7 @@ import { buildLexicographicDocuments } from
 
 const GUARANTEE = "For exact captured input, complete result, ordering policy, and item-key/comparator evidence artifacts, the package-owned deterministic-lexicographic-conformance.v1 transformer validates complete mutually inclusive item populations and exact counts, at least two typed keys with explicit precedence and direction, first-unequal-key ordering, equal-key fallthrough to one stable item-identity tie-breaker, non-equality for every distinguishable pair, the complete captured result, and observed input, declaration, and equivalent-serialization permutation invariance; it emits one exact digest-bound conformance report containing the complete typed fact set and derived declared-item, result-item, and policy-key populations, and the profile retains its own population, count, claim, falsifier, and verifies spine.";
 const PROFILE_DIGEST =
-  "dae2d1e16dd572ca09d64759e113dbc18b7d627f0932790902ca234268652103";
+  "523a42609448c77a0a28a8ba13938f11dd76aa94507e78b86ec5b8ea06bfbf1e";
 const GUARANTEE_DIGEST =
   "93cd1b6fdab1f2173ab1d256c99f7b56f3ddf568dc9554596cee2dabf9e6a62c";
 

@@ -242,6 +242,7 @@ export function createLaunchFlow(deps = {}) {
     proveAssignedSourceReadable = null,
     captureSliceReviewTerminalResult = null,
     settleFormalReviewAttestation = null,
+    readManagedRunCompletion = null,
     publishManagedRunResult = null,
     assessManagedRunResult = null,
     projectRunRecord = null,
@@ -297,10 +298,20 @@ export function createLaunchFlow(deps = {}) {
     try {
       result = await startLaunchWithSubjectReservation(input, reservationHolder);
     } catch (error) {
+      if (reservationHolder.preparationTicket && typeof freezeWorkerScopeSnapshot?.settleFailedPreparation === "function") {
+        error.preparation_settlement = await freezeWorkerScopeSnapshot.settleFailedPreparation(reservationHolder.preparationTicket);
+      }
       await releaseSubjectReservation(reservationHolder);
       throw error;
     }
-    if (result?.accepted !== true) await releaseSubjectReservation(reservationHolder);
+    if (result?.accepted !== true) {
+      if (reservationHolder.preparationTicket && typeof freezeWorkerScopeSnapshot?.settleFailedPreparation === "function") {
+        const settlement = await freezeWorkerScopeSnapshot.settleFailedPreparation(reservationHolder.preparationTicket);
+        result = { ...result, refusal: { ...result.refusal,
+          detail: { ...result.refusal?.detail, preparation_settlement: settlement } } };
+      }
+      await releaseSubjectReservation(reservationHolder);
+    }
     return result;
   }
 
@@ -615,10 +626,116 @@ export function createLaunchFlow(deps = {}) {
     const run_id = runIdFactory();
     const monitor_handle = monitorHandleFactory();
     let managedWkLifecycleTicket = null;
+    if (role === "worker" && typeof freezeWorkerScopeSnapshot?.preflight === "function") {
+      const checked = await freezeWorkerScopeSnapshot.preflight({ input, app, role, subject, run_id, monitor_handle });
+      if (!checked.ok) return postBootstrapRefusal(checked.refusal.code, checked.refusal.reason, checked.refusal.detail);
+      frozenWorkerScopeSnapshot = checked.snapshot;
+    }
+    const validateFrozenWorkerScope = async (consumer, result = null) => {
+      if (frozenWorkerScopeSnapshot === null || typeof validateWorkerScopeSnapshot !== "function") {
+        return null;
+      }
+      let validation;
+      try {
+        validation = await validateWorkerScopeSnapshot({
+          snapshot: frozenWorkerScopeSnapshot,
+          consumer,
+          result
+        });
+      } catch (error) {
+        return postBootstrapRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "worker_scope_snapshot_validation_threw",
+          { consumer, ...serializeManagedBootstrapFailure(error) }
+        );
+      }
+      if (validation?.ok) return null;
+      const refusal = validation?.refusal ?? {};
+      return postBootstrapRefusal(
+        refusal.code ?? BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+        refusal.reason ?? "worker_scope_snapshot_validation_failed",
+        refusal.detail ?? { consumer }
+      );
+    };
+
+    let workerAdmissionDiagnostic = null;
+    const validateWorkerInputs = async () => {
+      if (role === "worker" && typeof evaluateWorkerAdmission === "function") {
+        let admissionOutcome;
+        try {
+          admissionOutcome = await evaluateWorkerAdmission({
+            workspaceDir: workspace_dir ?? null,
+            subject,
+
+            canonical_work_record: frozenWorkerScopeSnapshot?.record ?? null,
+            canonical_selected_unit: frozenWorkerScopeSnapshot?.selected_unit_contract ?? null,
+            source_record_digest: frozenWorkerScopeSnapshot?.authority?.source_digest ?? null,
+            worker_scope_authority: frozenWorkerScopeSnapshot?.authority ?? null
+          });
+        } catch (error) {
+          return postBootstrapRefusal(
+            BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+            "worker_admission_threw",
+            serializeManagedBootstrapFailure(error)
+          );
+        }
+        if (!admissionOutcome || typeof admissionOutcome !== "object") {
+          return postBootstrapRefusal(
+            BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+            "worker_admission_no_result",
+            null
+          );
+        }
+        const admissionSnapshotRefusal = await validateFrozenWorkerScope(
+          "worker_admission",
+          admissionOutcome
+        );
+        if (admissionSnapshotRefusal) return admissionSnapshotRefusal;
+        if (!admissionOutcome.allowed) {
+
+          const refusalDetail = admissionOutcome.remote_admission
+            ? { ...(admissionOutcome.detail ?? {}), remote_admission: admissionOutcome.remote_admission }
+            : (admissionOutcome.detail ?? null);
+          return postBootstrapRefusal(
+            BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+            admissionOutcome.reason ?? "worker_admission_refused",
+            refusalDetail
+          );
+        }
+        workerAdmissionDiagnostic = admissionOutcome.remote_admission ?? null;
+      }
+
+      const sourceAccessResult = await resolveWorkerSourceAccess({
+        app,
+        role,
+        subject,
+        workspace_dir,
+        familyExecutorRegistryEntry,
+        proveAssignedSourceReadable,
+
+        scopeExistence: frozenWorkerScopeSnapshot?.scope_existence ?? null
+      });
+      if (!sourceAccessResult.ok) {
+        return postBootstrapRefusal(
+          sourceAccessResult.refusal.code,
+          sourceAccessResult.refusal.reason,
+          sourceAccessResult.refusal.detail
+        );
+      }
+      const sourceSnapshotRefusal = await validateFrozenWorkerScope(
+        "source_preparation",
+        sourceAccessResult
+      );
+      if (sourceSnapshotRefusal) return sourceSnapshotRefusal;
+      return null;
+    };
+    const inputRefusal = await validateWorkerInputs();
+    if (inputRefusal) return inputRefusal;
     if (!findingsLifecycle && bootstrapManagedWkLifecycle !== null) {
       let bootstrap;
       try {
         bootstrap = await bootstrapManagedWkLifecycle({
+          validatedInputs: frozenWorkerScopeSnapshot,
           input: {
             ...input,
             launcher_transition_plan: activeTransitionPlan,
@@ -647,6 +764,7 @@ export function createLaunchFlow(deps = {}) {
         );
       }
       managedWkLifecycleTicket = bootstrap.worker_provisioning_ticket ?? null;
+      reservationHolder.preparationTicket = managedWkLifecycleTicket;
       managedWkAllocation = bootstrap.readiness_allocation ?? null;
       managedBootstrapComplete = managedWkAllocation !== null;
     }
@@ -694,101 +812,8 @@ export function createLaunchFlow(deps = {}) {
       }
     }
 
-    const validateFrozenWorkerScope = async (consumer, result = null) => {
-      if (frozenWorkerScopeSnapshot === null || typeof validateWorkerScopeSnapshot !== "function") {
-        return null;
-      }
-      let validation;
-      try {
-        validation = await validateWorkerScopeSnapshot({
-          snapshot: frozenWorkerScopeSnapshot,
-          consumer,
-          result
-        });
-      } catch (error) {
-        return postBootstrapRefusal(
-          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-          "worker_scope_snapshot_validation_threw",
-          { consumer, ...serializeManagedBootstrapFailure(error) }
-        );
-      }
-      if (validation?.ok) return null;
-      const refusal = validation?.refusal ?? {};
-      return postBootstrapRefusal(
-        refusal.code ?? BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-        refusal.reason ?? "worker_scope_snapshot_validation_failed",
-        refusal.detail ?? { consumer }
-      );
-    };
-
-    let workerAdmissionDiagnostic = null;
-    if (role === "worker" && typeof evaluateWorkerAdmission === "function") {
-      let admissionOutcome;
-      try {
-        admissionOutcome = await evaluateWorkerAdmission({
-          workspaceDir: workspace_dir ?? null,
-          subject,
-
-          canonical_work_record: frozenWorkerScopeSnapshot?.record ?? null,
-          canonical_selected_unit: frozenWorkerScopeSnapshot?.selected_unit_contract ?? null,
-          source_record_digest: frozenWorkerScopeSnapshot?.authority?.source_digest ?? null,
-          worker_scope_authority: frozenWorkerScopeSnapshot?.authority ?? null
-        });
-      } catch (error) {
-        return postBootstrapRefusal(
-          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-          "worker_admission_threw",
-          serializeManagedBootstrapFailure(error)
-        );
-      }
-      if (!admissionOutcome || typeof admissionOutcome !== "object") {
-        return postBootstrapRefusal(
-          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-          "worker_admission_no_result",
-          null
-        );
-      }
-      const admissionSnapshotRefusal = await validateFrozenWorkerScope(
-        "worker_admission",
-        admissionOutcome
-      );
-      if (admissionSnapshotRefusal) return admissionSnapshotRefusal;
-      if (!admissionOutcome.allowed) {
-
-        const refusalDetail = admissionOutcome.remote_admission
-          ? { ...(admissionOutcome.detail ?? {}), remote_admission: admissionOutcome.remote_admission }
-          : (admissionOutcome.detail ?? null);
-        return postBootstrapRefusal(
-          BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-          admissionOutcome.reason ?? "worker_admission_refused",
-          refusalDetail
-        );
-      }
-      workerAdmissionDiagnostic = admissionOutcome.remote_admission ?? null;
-    }
-
-    const sourceAccessResult = await resolveWorkerSourceAccess({
-      app,
-      role,
-      subject,
-      workspace_dir,
-      familyExecutorRegistryEntry,
-      proveAssignedSourceReadable,
-
-      scopeExistence: frozenWorkerScopeSnapshot?.scope_existence ?? null
-    });
-    if (!sourceAccessResult.ok) {
-      return postBootstrapRefusal(
-        sourceAccessResult.refusal.code,
-        sourceAccessResult.refusal.reason,
-        sourceAccessResult.refusal.detail
-      );
-    }
-    const sourceSnapshotRefusal = await validateFrozenWorkerScope(
-      "source_preparation",
-      sourceAccessResult
-    );
-    if (sourceSnapshotRefusal) return sourceSnapshotRefusal;
+    const outputSnapshotRefusal = await validateFrozenWorkerScope("prepared_outputs");
+    if (outputSnapshotRefusal) return outputSnapshotRefusal;
 
     const reviewerLaunchIdentity = typeof deriveReviewerLaunchIdentity === "function"
       ? deriveReviewerLaunchIdentity({ role, subject, workspace_dir })
@@ -844,6 +869,22 @@ export function createLaunchFlow(deps = {}) {
       }
     }
 
+    const refusePreExecutorSettlement = async (reason, detail = null) => {
+      const cleanup = await discardPendingManagedRunIdentity({
+        pending: pendingManagedRunIdentity,
+        reservationHolder,
+        releaseSubjectReservation,
+        subject,
+        reason
+      });
+      pendingManagedRunIdentity = null;
+      return withManagedIdentityCleanupResidue(postBootstrapRefusal(
+        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+        reason,
+        detail
+      ), cleanup, reservationHolder);
+    };
+
     let executorResult;
     let sessionContract = null;
     try {
@@ -865,28 +906,12 @@ export function createLaunchFlow(deps = {}) {
         );
       }
     } catch (error) {
-      return postBootstrapRefusal(
-        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+      return refusePreExecutorSettlement(
         "compiled_validator_cache_preparation_failed",
         serializeManagedBootstrapFailure(error)
       );
     }
 
-    const refusePreExecutorSettlement = async (reason, detail = null) => {
-      const cleanup = await discardPendingManagedRunIdentity({
-        pending: pendingManagedRunIdentity,
-        reservationHolder,
-        releaseSubjectReservation,
-        subject,
-        reason
-      });
-      pendingManagedRunIdentity = null;
-      return withManagedIdentityCleanupResidue(postBootstrapRefusal(
-        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-        reason,
-        detail
-      ), cleanup, reservationHolder);
-    };
     if (managedBootstrapComplete) {
       let authenticatedWkTip;
       try {
@@ -918,7 +943,15 @@ export function createLaunchFlow(deps = {}) {
         activeTransitionPlan = projected;
         let freshBootstrap;
         try {
+          if (role === "worker" && typeof freezeWorkerScopeSnapshot?.preflight === "function") {
+            const current = await freezeWorkerScopeSnapshot.preflight({ input, app, role, subject, run_id, monitor_handle });
+            if (!current.ok) return refusePreExecutorSettlement(current.refusal.reason, current.refusal.detail);
+            frozenWorkerScopeSnapshot = current.snapshot;
+            const refused = await validateWorkerInputs();
+            if (refused) return refusePreExecutorSettlement(refused.refusal.reason, refused.refusal.detail);
+          }
           freshBootstrap = await bootstrapManagedWkLifecycle({
+            validatedInputs: frozenWorkerScopeSnapshot,
             input: {
               ...input,
               launcher_transition_plan: activeTransitionPlan,
@@ -978,6 +1011,7 @@ export function createLaunchFlow(deps = {}) {
           );
         }
         managedWkLifecycleTicket = freshBootstrap.worker_provisioning_ticket ?? null;
+        reservationHolder.preparationTicket = managedWkLifecycleTicket;
         managedWkAllocation = freshBootstrap.readiness_allocation ?? managedWkAllocation;
 
         if (role === "worker") {
@@ -1155,6 +1189,7 @@ export function createLaunchFlow(deps = {}) {
       runs,
       captureSliceReviewTerminalResult,
       settleFormalReviewAttestation,
+      readManagedRunCompletion,
       publishManagedRunResult,
       assessManagedRunResult,
       projectRunRecord,

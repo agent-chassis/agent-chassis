@@ -33,7 +33,7 @@ const refuse = (code, message, details) => {
 };
 
 function parseOriginalRequest(request) {
-  assertControlledContractOperationInput(request, ["unit", "source", "diagnosis_id", "obligation_id"]);
+  assertControlledContractOperationInput(request, ["unit", "source", "diagnosis_id", "obligation_id", "view"]);
   const { unit, source } = request;
   const keys = source !== null && typeof source === "object" ? Object.keys(source).sort() : [];
   if (keys.length !== 1 || keys[0] !== "ref_id") {
@@ -43,6 +43,11 @@ function parseOriginalRequest(request) {
   }
 
   const selectors = {};
+  if (Object.hasOwn(request, "view") && (request.view !== "diagnoses" ||
+      request.diagnosis_id !== undefined || request.obligation_id !== undefined)) {
+    refuse("obligation_coverage_request_invalid", "view selects diagnoses exclusively of diagnosis_id and obligation_id",
+      { phase: "request", failed_condition: "diagnoses_view_selection_invalid", rejected_arguments: ["view"] });
+  }
   for (const [key, name] of [["diagnosis_id", "diagnosisId"], ["obligation_id", "obligationId"]]) {
     if (!Object.hasOwn(request, key)) continue;
     if (typeof request[key] !== "string" || request[key].length === 0) {
@@ -62,13 +67,16 @@ function parseOriginalRequest(request) {
     ...selectors };
 }
 
-function selectRetainedDiagnosis(carrier, { unit, diagnosisId, obligationId }) {
+function selectRetainedDiagnosis(carrier, { unit, source, diagnosisId, obligationId }) {
   const { diagnosis_inventory: inventory, selection } = carrier;
   const subject = { unit, diagnosis_id: diagnosisId, original_selection: selection,
     ...(obligationId === undefined ? {} : { obligation_id: obligationId }) };
+  const inventoryCall = { tool: CONTRACT_ASSESSMENT_ROUTE, arguments: { original: { source, view: 'diagnoses' } } };
   const notFound = (failedCondition, message, details = {}) => refuse(
     "obligation_coverage_diagnostic_group_not_found", message,
-    { phase: "retained_selection", failed_condition: failedCondition, subject, next_calls: [], ...details });
+    { phase: "retained_selection", failed_condition: failedCondition, subject,
+      next_calls: ['retained_diagnosis_inventory_incomplete', 'original_has_no_selectable_diagnoses',
+        'diagnosis_unknown_in_complete_inventory'].includes(failedCondition) ? [inventoryCall] : [], ...details });
   const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
   if (!isRecord(inventory) || !Array.isArray(inventory.diagnoses) || !isRecord(inventory.families) ||
       !isRecord(inventory.corrections) || !Array.isArray(inventory.population?.obligation_ids) ||
@@ -78,14 +86,10 @@ function selectRetainedDiagnosis(carrier, { unit, diagnosisId, obligationId }) {
   }
   const outside = (failedCondition, message) => refuse("obligation_coverage_obligation_not_found", message,
     { phase: "retained_selection", failed_condition: failedCondition, subject, obligation_id: obligationId,
-      next_calls: [] });
+      next_calls: [inventoryCall] });
   if (obligationId !== undefined && !inventory.population.obligation_ids.includes(obligationId)) {
     outside("obligation_outside_original_population",
       "The obligation is outside the population this original assessed; a read never changes its population");
-  }
-  if (inventory.group_selectable !== true) {
-    notFound("original_has_no_selectable_diagnoses",
-      "This original assessed no saved obligations; its findings name no selectable diagnosis");
   }
   const matches = inventory.diagnoses.filter((entry) => entry?.diagnostic_group_id === diagnosisId);
   if (matches.length === 0 && !inventory.complete) {
@@ -95,6 +99,10 @@ function selectRetainedDiagnosis(carrier, { unit, diagnosisId, obligationId }) {
       { unavailable_families: Object.entries(inventory.families)
         .filter(([, family]) => family?.status !== "complete")
         .map(([family, state]) => ({ family, status: state?.status, failure: state?.failure })) });
+  }
+  if (inventory.group_selectable !== true) {
+    notFound("original_has_no_selectable_diagnoses",
+      "This original holds no selectable diagnoses; its findings remain available in the diagnosis inventory view");
   }
   if (matches.length !== 1) {
     notFound(matches.length === 0 ? "diagnosis_unknown_in_complete_inventory" : "retained_diagnosis_identity_ambiguous",
@@ -184,7 +192,7 @@ export function createContractAssessmentResults({ workspace, sessionEnv = proces
   }
 
   async function deliver({ binding, read, retentionError }, project, { selectedMeaning }) {
-    const payload = project(read);
+    const payload = await project(read);
     const bytes = measureMcpInlineResultBytes(payload);
     const bound = selectedResponseDeliveryBound(responseEnv);
     if (bytes <= bound) return jsonContent(payload, { env: responseEnv });

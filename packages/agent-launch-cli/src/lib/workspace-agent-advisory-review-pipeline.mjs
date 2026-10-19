@@ -166,6 +166,8 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
 
   async function resolveMaterial(input = {}) {
     const { subject, diff_base_sha: diffBaseSha, reviewed_sha: reviewedSha } = input;
+    const role = input.role ?? 'reviewer';
+    if (!['reviewer', 'redteam'].includes(role)) fail('advisory_review_role_invalid');
     if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
         typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot)) {
       fail("review_repository_unavailable");
@@ -205,7 +207,7 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
       }
       selectedBase = selection.candidate.diff_base_sha;
       selectedReviewed = selection.candidate.reviewed_sha;
-    } else if (context.slice_id !== null &&
+    } else if (role !== 'redteam' && context.slice_id !== null &&
         Array.isArray(context.selected.write_scope) && context.selected.write_scope.length > 0) {
       selector = "canonical_implementation_slice";
       reviewUnit = Object.freeze({
@@ -240,6 +242,8 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
     });
     const frozenInputPaths = designCapture.files.map(({ path: inputPath }) => inputPath);
     const resolved = Object.freeze({
+      role,
+      subject,
       context,
       normalized_target: normalized,
       design_capture: designCapture,
@@ -258,6 +262,9 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
     if (!resolvedMaterials.has(resolvedMaterial) ||
         resolvedMaterial?.context === undefined) {
       fail("resolved_material_untrusted");
+    }
+    if (resolvedMaterial.role !== role || resolvedMaterial.subject !== subject) {
+      fail('resolved_material_assignment_mismatch');
     }
     const descriptor = createAdvisoryReviewDescriptor({
       role,

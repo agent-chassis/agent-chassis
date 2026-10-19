@@ -1,4 +1,6 @@
-
+import { INTEGRATED_SLICE_REDISPATCH_CODE } from "@agent-chassis/wiki-core/src/lib/integrated-slice-dispatch.mjs";
+import { MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES } from "./worktree-provisioning-dispatch-managed.mjs";
+import { controlledAcceptanceDispatchGuidance } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-dispatch-recovery.mjs";
 
 import path from "node:path";
 
@@ -149,6 +151,12 @@ function unsettledCanonicalWkContentRecovery() {
 
 export function projectProvisioningRefusal(error, serialized, { requestedRepositoryAlias = null } = {}) {
   const { cause, diagnostic } = serialized;
+  if (error?.code === INTEGRATED_SLICE_REDISPATCH_CODE) {
+    return { accepted: false, refusal: { code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+      reason: INTEGRATED_SLICE_REDISPATCH_CODE,
+      detail: { cause, diagnostic, integrated_slice: { code: error.code, reason: error.message, detail: error.detail } } } };
+  }
+
   const missingBase = missingRequiredBaseRefDiagnostic(error);
   if (missingBase !== null) {
     const selectionMissing = missingBase.failure_kind === "required_base_selection_missing";
@@ -224,6 +232,8 @@ export function projectProvisioningRefusal(error, serialized, { requestedReposit
       }
     };
   }
+  const controlled = Object.values(MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES).includes(error?.code)
+    ? error.detail?.controlled_acceptance_failure ?? null : null;
   const unsettled = exhaustedCanonicalWkContentRefresh(error);
   return {
     accepted: false,
@@ -233,13 +243,18 @@ export function projectProvisioningRefusal(error, serialized, { requestedReposit
       detail: Object.freeze(unsettled === null ? {
         cause,
         diagnostic,
-        recovery: Object.freeze({
+        ...(error?.preparation_settlement === undefined ? {} : { preparation_settlement: error.preparation_settlement }),
+        ...(error?.preparation_cleanup === undefined ? {} : { preparation_cleanup: error.preparation_cleanup }),
+        ...(controlled === null ? {} : { controlled_acceptance_failure: controlled }),
+        recovery: controlled === null ? Object.freeze({
           state: "no_supported_route",
           route: null
-        })
+        }) : controlledAcceptanceDispatchGuidance(controlled)
       } : {
         cause,
         diagnostic,
+        ...(error?.preparation_settlement === undefined ? {} : { preparation_settlement: error.preparation_settlement }),
+        ...(error?.preparation_cleanup === undefined ? {} : { preparation_cleanup: error.preparation_cleanup }),
 
         failure_stage: unsettled.stage,
         source_kind: unsettled.source_kind,

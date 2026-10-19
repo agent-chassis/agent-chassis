@@ -1,3 +1,6 @@
+import { INTEGRATED_SLICE_REDISPATCH_CODE } from "@agent-chassis/wiki-core/src/lib/integrated-slice-dispatch.mjs";
+import { servedGuidanceRead, servedControlledAcceptanceRecovery, servedControlledAcceptanceFailure, projectControlledFailureFacts } from "./task-start-agent-guidance.mjs";
+export { servedGuidanceRead } from "./task-start-agent-guidance.mjs";
 import { readRecordAuthoringRevision, saveRecord } from "@agent-chassis/wiki-core/src/operations/save-record.mjs";
 import { WK_BASE_SELECTION } from
   "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate-exact-unit-identity.mjs";
@@ -38,22 +41,63 @@ export async function saveStartAgentDefaultBase({ wkId, branch, workspace }) {
       cause: { code: error?.code ?? null, message: String(error?.message ?? error).slice(0, 512) } };
   }
 }
-
-export async function servedGuidanceRead(call, requestContracts) {
-  try {
-    const contract = requestContracts?.contractFor(call.tool);
-    return !contract || await contract.acceptsArguments(call.arguments) !== true
-      ? { limitation: { code: "readiness_guidance_full_contract_rejected", tool: call.tool } } : { call };
-  } catch (error) {
-    return { limitation: { code: "readiness_guidance_validation_failed", tool: call.tool,
-      cause: { code: error.code ?? null, message: error.message } } };
-  }
-}
 export async function startAgentRefusal(value, { workspace, request, responseEnv, correction = null,
-  requestContracts = null }) {
+  requestContracts = null, beforeLaunch = false }) {
   const refusal = value?.refusal ?? value?.blocker ?? value;
+  const completed = value?.code === INTEGRATED_SLICE_REDISPATCH_CODE ? value
+    : value?.blocker?.detail?.originating_detail?.integrated_slice ??
+      value?.refusal?.detail?.integrated_slice ?? null;
+  if (completed !== null && completed.detail.subject === request.subject) {
+    const { parent, assignment_authoring: authoring, integrated_delivery_sha } = completed.detail;
+    const served = await servedGuidanceRead({ kind: "guidance", tool: "workspace_read_wiki",
+      arguments: { subject: parent }, information: `Read ${parent} and its current revision, then author a new slice through save_record changes.ready_slices with caller-chosen contents. Start the newly saved slice.` }, requestContracts,
+    { unavailableCode: "integrated_slice_parent_read_unavailable" });
+    return { outcome: "refused", repository: workspace.repo, subject: request.subject, role: request.role ?? "worker",
+      code: INTEGRATED_SLICE_REDISPATCH_CODE, reason: completed.reason,
+      integrated_delivery_sha, assignment_authoring: authoring,
+      failure: projectDispatchFailureDetail(value, { env: responseEnv }),
+      authority_limb: "mechanical_failure", next_calls: served.call ? [served.call] : [],
+      ...(served.limitation ? { readiness_guidance_limitation: served.limitation } : {}),
+      effects: { child_started: false, runtime_prepared: false, canonical_written: false, integration_requested: false } };
+  }
+
+  const definition = value?.blocker?.reason === "repository_test_definition_unavailable"
+    ? value.blocker : refusal?.reason === "repository_test_definition_unavailable" ? refusal : null;
+  if (definition !== null) {
+    const served = await servedGuidanceRead({ kind: "guidance", tool: "workspace_read_wiki",
+      arguments: { subject: request.subject }, information: "Read this assignment and its current revision. " +
+        "Correct changes.validation.repository_tests through save_record with caller-authored declarations whose definition files exist at the selected Git source, then retry this slice." }, requestContracts);
+    return { outcome: "refused", repository: workspace.repo, subject: request.subject, role: "worker",
+      code: value?.blocker?.code ?? refusal.code, failure: projectDispatchFailureDetail(value, { env: responseEnv }),
+      assignment_authoring: { unit: request.subject, save_tool: "save_record",
+        placement: "changes.validation.repository_tests", values: "caller_authored" },
+      next_calls: served.call ? [served.call] : [],
+      ...(served.limitation ? { readiness_guidance_limitation: served.limitation } : {}),
+      effects: { child_started: false, runtime_prepared: false, canonical_written: false } };
+  }
   const nextCalls = [];
   let guidanceLimitation = null;
+  const controlledFailure = value?.blocker?.detail?.controlled_acceptance_failure ??
+    value?.blocker?.detail?.originating_detail?.controlled_acceptance_failure ?? null;
+  let controlledProjection = controlledFailure;
+  if (controlledFailure !== null) {
+    const served = controlledFailure.requested_unit === request.subject
+      ? await servedControlledAcceptanceRecovery(controlledFailure, requestContracts)
+      : { limitation: { code: "controlled_acceptance_requested_unit_mismatch" } };
+    controlledProjection = servedControlledAcceptanceFailure(controlledFailure, served);
+    if (served.limitation) guidanceLimitation = served.limitation;
+    else {
+
+      const offered = (refusal.next_calls ?? []).some(call => call.kind === "guidance" &&
+        call.tool === served.call.tool && JSON.stringify(call.arguments) === JSON.stringify(served.call.arguments));
+      if (offered) nextCalls.push(served.call);
+      else guidanceLimitation = value?.blocker?.detail?.readiness_guidance_limitation ?? {
+        code: "controlled_acceptance_navigation_not_offered", tool: served.call.tool,
+        ...(value?.blocker?.detail?.schema_rejected?.length > 0 ? {
+          rejected_fields: value.blocker.detail.schema_rejected } : {}),
+        ...(refusal.carried?.guidance_unavailable === undefined ? {} : { cause: refusal.carried.guidance_unavailable }) };
+    }
+  }
 
   const authoringUnit = value?.blocker?.reason === "canonical_dispatch_intent_unresolved"
     ? value.blocker.detail?.assignment_authoring?.unit
@@ -62,8 +106,8 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
   const authoring = authoringUnit !== undefined && typeof request.subject === "string" &&
     [request.subject, request.subject.split("#", 1)[0]].includes(authoringUnit);
   const guidanceSubject = correction?.root_unit ?? (authoring ? authoringUnit : request.subject);
-  if (correction !== null || refusal?.recovery?.state === "guidance" && (authoring ||
-      value?.readiness?.dispatchable === false && value?.blocker?.reason === "work_record_not_dispatchable")) {
+  if (controlledFailure === null && (correction !== null || refusal?.recovery?.state === "guidance" && (authoring ||
+      value?.readiness?.dispatchable === false && value?.blocker?.reason === "work_record_not_dispatchable"))) {
     for (const call of refusal.next_calls ?? []) {
       if (call.kind !== "guidance" || call.tool !== "workspace_read_wiki" ||
           call.arguments?.subject !== guidanceSubject || Object.keys(call.arguments).length !== 1) continue;
@@ -73,12 +117,27 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
     }
   }
 
-  const classified = value?.refusal?.carried?.launcher_backend_refusal !== undefined;
+  const classified = controlledFailure === null && value?.refusal?.carried?.launcher_backend_refusal !== undefined;
   let correctionLimitation = null;
 
   let observationLimitation = null;
   const observes = classified && value.refusal.recovery?.state === "guidance";
-  if (observes) {
+  const dependencyDetail = value.blocker?.detail?.originating_detail ?? value.blocker?.detail;
+  const identityCorrection = classified ? dependencyDetail?.identity_correction : null;
+  const assignmentCorrection = classified ? dependencyDetail?.assignment_correction : null;
+  const correctionParent = identityCorrection?.unit === request.subject ? identityCorrection.parent
+    : assignmentCorrection?.requested_unit === request.subject ? assignmentCorrection.unit : null;
+  if (observes && correctionParent === request.subject?.split('#')[0]) {
+    const proposal = dependencyDetail.recovery;
+    const offered = (value.refusal.next_calls ?? []).find(call => call.kind === 'guidance' &&
+      call.tool === 'workspace_read_wiki' && call.arguments?.subject === correctionParent &&
+      Object.keys(call.arguments).length === 1);
+    if (proposal?.route === 'workspace_read_wiki' && offered) {
+      const served = await servedGuidanceRead(offered, requestContracts);
+      if (served.limitation) guidanceLimitation = served.limitation;
+      else nextCalls.push(served.call);
+    }
+  } else if (observes) {
     const offered = (value.refusal.next_calls ?? []).filter(call => call.kind === "guidance" && call.tool === RESULT_TOOL);
     const limit = code => { observationLimitation = { code, tool: RESULT_TOOL }; };
     if (offered.length !== 1) limit("existing_attempt_read_not_offered");
@@ -94,7 +153,7 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
         else nextCalls.push(call);
       }
     }
-  } else if (value?.refusal?.carried?.guidance_unavailable !== undefined) {
+  } else if (controlledFailure === null && value?.refusal?.carried?.guidance_unavailable !== undefined) {
     observationLimitation = { code: "existing_attempt_read_not_offered", tool: RESULT_TOOL };
   }
   if (classified && !observes && value.refusal.carried.guidance_unavailable === undefined) {
@@ -135,38 +194,75 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
   return { outcome: "refused", repository: workspace.repo,
     subject: request.subject ?? null, role: request.role ?? null,
     code: value?.blocker?.code ?? refusal?.code ?? refusal?.reason ?? "start_agent_refused",
+    ...(controlledProjection === null ? {} : { controlled_acceptance_failure: controlledProjection }),
     ...(recovery === null ? {} : { recovery }),
-    failure: projectDispatchFailureDetail(value, { env: responseEnv }),
+    failure: controlledProjection === null ? projectDispatchFailureDetail(value, { env: responseEnv })
+      : projectControlledFailureFacts(projectDispatchFailureDetail(value, { env: responseEnv }), controlledProjection),
     authority_limb: value?.authority_limb ?? value?.transition_failure?.authority_limb ??
       refusal?.authority_limb ?? "mechanical_failure",
     source: null, enforcement: unknown("no accepted launcher observation"),
-    effects: { child_started: unknown("the refusal owner's evidence remains in failure"),
+
+    effects: { child_started: beforeLaunch || request.preview === true || refusal?.effects_started === false ? false
+      : unknown("the refusal owner's evidence remains in failure"),
       integration_requested: false }, ...(correction === null ? {} : { correction }),
     ...(guidanceLimitation === null ? {} : { readiness_guidance_limitation: guidanceLimitation }),
     ...(correctionLimitation === null ? {} : { correction_limitation: correctionLimitation }),
     ...(observationLimitation === null ? {} : { observation_limitation: observationLimitation }),
-    next_calls: nextCalls, allowed_next_calls: nextCalls };
+    next_calls: nextCalls };
 }
 
-export async function startAgentAccepted({ launch, workspace, buildResultCall, requestContracts, responseEnv }) {
-  if (launch.launch_observation?.child_started !== true) return startAgentRefusal({
-    code: launch.exit?.error_code ?? "launcher_child_start_unestablished",
-    reason: "the launcher did not establish a child start", detail: launch.final_result?.missing_result ?? null,
-    run_id: launch.run_id, status: launch.status, exit: launch.exit
-  }, { workspace, request: { subject: launch.subject, role: launch.role }, responseEnv });
-  const observation = launch.producer_observation;
+async function startAgentResultCall({ args, buildResultCall, requestContracts, responseEnv, requireAttempt = false }) {
   let call = null, continuationFailure = null;
   if (buildResultCall !== null) {
     try {
-      const candidate = await buildResultCall({ subject: launch.subject, attempt_id: launch.run_id });
+      if (requireAttempt && (typeof args.attempt_id !== "string" || args.attempt_id.length === 0)) {
+        throw new TypeError("start_agent exact-attempt observation identity is unavailable");
+      }
+      const candidate = await buildResultCall(args);
       const contract = requestContracts?.contractFor?.(candidate?.tool);
-      if (!contract || await contract.acceptsArguments(candidate.arguments) !== true ||
-          Object.hasOwn(candidate.arguments, "repo")) throw new TypeError("start_agent result continuation lacks its enforced consumer contract");
+      if (candidate?.tool !== RESULT_TOOL || candidate.arguments?.subject !== args.subject ||
+          candidate.arguments?.attempt_id !== args.attempt_id || !contract ||
+          await contract.acceptsArguments(candidate.arguments) !== true ||
+          Object.keys(candidate.arguments).some(key => !["subject", "attempt_id"].includes(key))) {
+        throw new TypeError("start_agent result continuation lacks its enforced exact-attempt consumer contract");
+      }
       call = candidate;
     } catch (error) {
 
       continuationFailure = buildDispatchToolExceptionDetail("start_agent", error, { env: responseEnv });
     }
+  }
+  return { call, continuationFailure };
+}
+
+export async function startAgentProblemObservation(value, { launch = null, request, buildResultCall,
+  requestContracts, responseEnv }) {
+  const args = { subject: request.subject,
+    ...(typeof launch?.run_id === "string" ? { attempt_id: launch.run_id } : {}) };
+  const { call, continuationFailure } = await startAgentResultCall({ args, buildResultCall, requestContracts, responseEnv });
+  return { ...value, ...(launch === null ? {} : { attempt_id: launch.run_id, status: launch.status,
+    effects: { ...value.effects, child_started: launch.launch_observation?.child_started === true ? true
+      : unknown("the launch owner did not establish whether a child started") } }),
+  next_calls: call === null ? [] : [call],
+  ...(continuationFailure === null ? {} : { continuation_failure: continuationFailure }),
+  ...(call === null ? { serving_dependency: "subject_attempt_result_consumer_not_composed" } : {}) };
+}
+
+export async function startAgentAccepted({ launch, workspace, buildResultCall, requestContracts, responseEnv }) {
+  const observation = launch.producer_observation;
+  const { call, continuationFailure } = await startAgentResultCall({
+    args: { subject: launch.subject, attempt_id: launch.run_id }, buildResultCall, requestContracts, responseEnv,
+    requireAttempt: true });
+  if (launch.launch_observation?.child_started !== true) {
+    const refused = await startAgentRefusal({
+      code: launch.exit?.error_code ?? "launcher_child_start_unestablished",
+      reason: "the launcher did not establish a child start", detail: launch.final_result?.missing_result ?? null,
+      status: launch.status, exit: launch.exit
+    }, { workspace, request: { subject: launch.subject, role: launch.role }, responseEnv, requestContracts });
+    return { ...refused, attempt_id: launch.run_id, status: launch.status,
+      next_calls: call === null ? [] : [call],
+      ...(continuationFailure === null ? {} : { continuation_failure: continuationFailure }),
+      ...(call === null ? { serving_dependency: "subject_attempt_result_consumer_not_composed" } : {}) };
   }
   const material = launch.advisory_review_material;
   const source = material ? { material_kind: material.material_kind, base_sha: material.base_sha,
@@ -185,7 +281,7 @@ export async function startAgentAccepted({ launch, workspace, buildResultCall, r
     cleanup: launch.exit?.managed_identity_settlement_failure === undefined
       ? unknown("cleanup remains producer-owned")
       : projectDispatchFailureDetail(launch.exit.managed_identity_settlement_failure, { env: responseEnv }),
-    next_calls: call === null ? [] : [call], allowed_next_calls: call === null ? [] : [call],
+    next_calls: call === null ? [] : [call],
     ...(continuationFailure === null ? {} : { continuation_failure: continuationFailure }),
     ...(call === null ? { serving_dependency: "subject_attempt_result_consumer_not_composed" } : {}) };
 }

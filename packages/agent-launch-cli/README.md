@@ -1,22 +1,24 @@
 # @agent-chassis/agent-launch-cli
 <!-- Generated file — edit the source area record and regenerate; do not edit by hand. -->
 
-`packages/agent-launch-cli` is the consolidated launcher CLI package. Its
-published `package.json` `bin` surface installs only `agent-launch`;
-human/operator launch, resume, dispatch, setup, and cleanup actions go through
-that command. Agents do not invoke this operator entrypoint. The package
+`packages/agent-launch-cli` is the internal launcher engine installed through
+`@agent-chassis/core`. It exports no npm command. Core alone owns the public
+`agent-launch` forwarding bin; human/operator launch, resume, dispatch, setup,
+and cleanup actions go through that command. Agents do not invoke this operator entrypoint. The package
 composes the `agent-launch-core` substrate with the `wiki-core` and `wiki-mcp`
-surfaces a launched session needs. Confined role launches use one launcher-owned
-host wiki-MCP process through the shared named-FIFO stdio conduit.
+surfaces a launched session needs. Confined Claude and Codex roles use a launcher-pinned stdio connector over a
+private Unix-domain socket admission service. Each admitted connection receives
+one launcher-owned host wiki-MCP process; server code and dependencies stay on
+the host. Named-FIFO relays are not supported.
 
 ## Entry Points
 
 Entry points:
-- `packages/agent-launch-cli/src/index.mjs` — the `agent-launch` command bin.
+- `packages/core/bin/agent-launch` — the sole public launcher command; binds core documentation for managed commands.
+- `packages/agent-launch-cli/src/index.mjs` — internal engine imported by core.
 - Historical family-named files, including `codex-orch`, `claude-orch`, and
   `*-resume` forms, are not retained under `packages/agent-launch-cli/bin/`
-  unless they are explicitly declared in `package.json` `bin`; they are not
-  installed public/operator entrypoints for the published package.
+  and are not installed public/operator entrypoints.
 - `packages/agent-launch-cli/config/` — launcher config assets.
 
 Human / operator entrypoints here are operator actions; an agent in a worker or coordinator
@@ -24,7 +26,7 @@ session does not invoke them.
 
 ## Package Role
 
-This package is installed through `@agent-chassis/core` for normal use. It remains available as a granular package for consumers that need direct package control.
+Install `@agent-chassis/core` for supported consumer use. Individual surface packages are internal dependencies.
 
 ## Related Docs
 

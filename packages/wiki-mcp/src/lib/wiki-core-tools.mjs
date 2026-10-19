@@ -1,4 +1,5 @@
 import { shouldExposeTool } from "./tool-profile.mjs";
+import path from "node:path";
 
 import {
   allocateId,
@@ -23,6 +24,7 @@ import { getManifestRecordTypeVocabulary } from "@agent-chassis/wiki-core/src/li
 import { readSearchSource } from "@agent-chassis/wiki-core/src/operations/read-search-source.mjs";
 import {
   buildNextCall,
+  activeMcpInlineByteLimit,
   measureMcpInlineResultBytes,
   readSpilledMcpContentReference
 } from "./mcp-response.mjs";
@@ -41,6 +43,7 @@ import {
   selectedResponseQueryInvalidError,
   selectedResponseRequestSchema
 } from "./selected-response-snapshot.mjs";
+import { readSelectedResponseFull, retainSelectedResponseSource, selectedResponseLocatorSchema } from "./selected-response-snapshot.mjs";
 import {
   getSearchSelectedReadValidationIssues,
   getWorkspaceSearchValidationIssues,
@@ -186,6 +189,7 @@ export function registerWikiCoreTools({
   resolveWorkspaceRepo,
   section = "all",
   isToolVisible = toolVisibleToSession,
+  responseEnv = process.env,
 
   searchSelection = null
 }) {
@@ -816,21 +820,46 @@ export function registerWikiCoreTools({
     }
   );
 
+  const generateAndLintSchema = z.object({
+    dir: z.string(),
+    profile: z.string().optional(),
+    extensionNamespaces: extensionNamespacesSchema,
+    max_findings: z.number().int().min(0).optional(),
+    original: selectedResponseLocatorSchema(z).optional()
+  }).strict().superRefine((args, context) => {
+    if (args.original !== undefined && ["profile", "extensionNamespaces", "max_findings"].some(key => args[key] !== undefined)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["original"],
+        message: "An original read accepts only dir and original; it executes no generation or lint." });
+    }
+  });
+
+  const lintBinding = (dir) => ({ route: "generate_and_lint", repository: path.resolve(dir), unit: null,
+    authority_identity: { role: "operator", directory: path.resolve(dir) } });
+  const lintOriginalCall = (dir, original) => buildNextCall({ tool: "generate_and_lint",
+    arguments: { dir, original }, recommended: true });
   registerTool(
     "generate_and_lint",
     {
       writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Generate standard wiki views, then validate the repository against the shared wiki contract.",
-      inputSchema: {
-        dir: z.string(),
-        profile: z.string().optional(),
-        extensionNamespaces: extensionNamespacesSchema
-      }
+        "Generate standard wiki views, then validate the repository against the shared wiki contract. max_findings controls the ordered prefix (0 returns counts only); original reads one retained result without execution.",
+      inputSchema: generateAndLintSchema
     },
     async (args) => {
       try {
-        return jsonContent(await generateAndLint(args));
+        if (args.original !== undefined) return readSelectedResponseFull(args.original,
+          { env: responseEnv, expected: lintBinding(args.dir) });
+        const result = await generateAndLint(args);
+        if (measureMcpInlineResultBytes(result) <= activeMcpInlineByteLimit(responseEnv)) return jsonContent(result);
+        const source = retainSelectedResponseSource({ binding: { ...lintBinding(args.dir), query_identity: args },
+          carrier: result, ownerCall: source => lintOriginalCall(args.dir, source),
+          ownerRequestSchema: selectedResponseRequestSchema(z.object({ dir: z.string(),
+            original: selectedResponseLocatorSchema(z) }).strict()) }, { env: responseEnv });
+        const { findings: _findings, warnings: _warnings, checked_corpus: _corpus, ...counts } = result;
+        return jsonContent({ ...counts, complete: false, findings_returned: 0,
+          findings_truncated: result.finding_count_total > 0,
+          original: source, next_calls: [lintOriginalCall(args.dir, source)],
+          next_action: "read the retained original for this complete historical lint result; this call executes no checks" });
       } catch (error) {
         return errorContent(error);
       }

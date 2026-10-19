@@ -30,6 +30,30 @@ export function goModuleCacheFromEnvironment(env) {
   return gopath ? path.join(gopath, "pkg", "mod") : null;
 }
 
+export function parseGoQuotedDiagnostic(text) {
+  if (typeof text !== "string" || text[0] !== '"' || text.at(-1) !== '"') {
+    throw new SyntaxError("Go diagnostic is not a quoted string");
+  }
+  let json = '"';
+  for (let index = 1; index < text.length - 1; index++) {
+    const character = text[index];
+    if (character !== "\\") { json += character; continue; }
+    const escape = text[++index];
+    if (escape === "a" || escape === "v") json += escape === "a" ? "\\u0007" : "\\u000b";
+    else if (["x", "u", "U"].includes(escape)) {
+      const count = { x: 2, u: 4, U: 8 }[escape];
+      const digits = text.slice(index + 1, index + 1 + count);
+      if (digits.length !== count || !/^[0-9a-f]+$/iu.test(digits)) throw new SyntaxError("invalid Go diagnostic escape");
+      const point = Number.parseInt(digits, 16);
+      if (point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) throw new SyntaxError("invalid Go diagnostic code point");
+      json += JSON.stringify(String.fromCodePoint(point)).slice(1, -1);
+      index += count;
+    } else if (['"', "\\", "b", "f", "n", "r", "t"].includes(escape)) json += `\\${escape}`;
+    else throw new SyntaxError("invalid Go diagnostic escape");
+  }
+  return JSON.parse(`${json}"`);
+}
+
 function unquote(token) {
   if (token.length >= 2 && ((token[0] === "\"" && token.at(-1) === "\"") ||
       (token[0] === "`" && token.at(-1) === "`"))) {

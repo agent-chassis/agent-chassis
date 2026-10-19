@@ -98,7 +98,7 @@ function declaredStatement(statement, referent, structuralReferent, vocabulary) 
   const signatures = new Map();
   for (const detail of vocabulary.relation_details) {
     const key = JSON.stringify([detail.operand_kind, detail.minimum_operands, detail.maximum_operands,
-      [...admittedModes(detail)].sort()]);
+      detail.positional_payloads ?? null, [...admittedModes(detail)].sort()]);
     signatures.set(key, { detail, terms: [...(signatures.get(key)?.terms ?? []), detail.term] });
   }
   return anyOf([...signatures.values()].map(({ detail, terms }) => ({
@@ -110,7 +110,9 @@ function declaredStatement(statement, referent, structuralReferent, vocabulary) 
       applies: appliesFor(admittedModes(detail)),
       objects: { ...statement.properties.objects, minItems: detail.minimum_operands,
         ...(detail.maximum_operands === null ? {} : { maxItems: detail.maximum_operands }),
-        items: objectFor(detail.operand_kind) }
+        items: detail.operand_kind === 'value' ? { oneOf: objects.filter(branch => ['value', 'type', 'observation', 'scope'].some(key => branch.required.includes(key))) } : objectFor(detail.operand_kind),
+        ...(detail.positional_payloads ? { prefixItems: detail.positional_payloads.map(kind => kind === 'binding'
+          ? objects.find(branch => branch.required.includes('scope')) : objects.find(branch => branch.required.includes(kind))) } : {}) }
     }
   })));
 }
@@ -232,7 +234,12 @@ export function declareControlledContractObligationCoverageUpsertInputSchema({
   const listItems = (name, field, values) => ({ ...structural.properties[name],
     items: objectWith(structural.properties[name].items, { [field]: enumOf(values) }) });
   const contractRequirements = objectWith(structural, {
-    requirements: { ...structural.properties.requirements, items: { anyOf: requirements } },
+    requirements: { ...structural.properties.requirements, items: { anyOf: [...requirements.map(node => ({ ...node,
+      required: [...new Set([...node.required, 'modality'])], properties: Object.fromEntries(Object.entries(node.properties).filter(([key]) => key !== 'definition')) })),
+      { type: 'object', additionalProperties: false, required: ['definition', 'subject', 'behavior'], properties: {
+        definition: { const: true }, subject: referent, within: requirement.properties.within,
+        behavior: anyOf((() => { const node = declaredStatement(requirement.properties.behavior, referent, requirement.properties.subject, { ...vocabulary, relation_details: vocabulary.relation_details.filter(row => row.authoring_roles?.includes('definition')) }); return (node.anyOf ?? [node]).map(branch => without(branch, 'applies')); })()) }
+      }] } },
     unrepresentable_meaning: listItems("unrepresentable_meaning", "reason", vocabulary.residue_reasons),
     notes: listItems("notes", "kind", vocabulary.note_kinds)
   });

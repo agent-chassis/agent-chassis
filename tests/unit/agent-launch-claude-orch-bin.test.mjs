@@ -11,12 +11,6 @@ async function readPackageJson() {
 
 test("package.json bin map omits the deleted Claude orchestrator shim entrypoints", async () => {
   const pkg = await readPackageJson();
-  assert.ok(pkg.bin && typeof pkg.bin === "object", "package.json must declare a bin map");
-
-  for (const name of ["claude-orch", "claude-orch-resume"]) {
-    assert.ok(
-      !Object.prototype.hasOwnProperty.call(pkg.bin, name),
-      `${name} must not be registered in package.json bin; use agent-launch orchestrator/resume --model opus`
-    );
-  }
+  assert.equal(Object.hasOwn(pkg, "bin"), false,
+    "internal launcher exports no bins, including retired Claude orchestrator shims");
 });

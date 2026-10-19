@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "5e01624605dd7699c79cf0bc8644f22acc8d19c98c11e3d943b3e8e758bcf61b",
+  "parameter_contract_digest": "a0e4004a4541b53322d55525d9591d0bac938901960aae7fdd390290d0ed7c90",
   "profile_id": "proof.policy.declared-limit-propagation",
   "profile_version": "4.0.0",
-  "profile_digest": "faf875026c614c47bc3a6cc8199364eb9178c1c5dccf150511125b351f3e8f4e",
+  "profile_digest": "a6f5c27d290bab66daaf33ff66ef14206871027b4ae230c4f1292a395b5025e6",
   "guarantee": "For one exact closed declared policy and one exact raw UTF-8 guidance artifact, the package-owned transformer associates every required policy key with exactly one plain decimal value and exact unit token, refuses missing, duplicate, stale, conflicting, substituted, wrong-unit, and unrelated-number guidance, and emits complete policy-key and association populations, exact counts, associations, and one canonical report bound to the exact source-set digest.",
   "guarantee_digest": "5892b6dbb347a027318369b35707d59b1e5cd9be14731d3862eee02e2e7736af",
   "explicit_exclusions": [
@@ -19,8 +19,8 @@
   ],
   "certification": {
     "method": "executable_semantic_adequacy",
-    "adequacy_declaration_digest": "7c4ca6559568a8b9cecb567cd39a0a5360f30763b0763ea318aa664d477cafa5",
-    "adequacy_result_digest": "f309a09a38f9d9063477984a972aec715a3ec92a97c5e16af880e962215db470",
+    "adequacy_declaration_digest": "5b7e4d5137b6fedf349ffd45c1e35c3e3099698ecc266eab3330a9c15c6d8c8e",
+    "adequacy_result_digest": "e16c513e0c59f33b66e4307a3397c2d0ea517c3d70838802a4a3dc58b0a1a629",
     "executable_control_count": 25,
     "negative_fixture_count": 0,
     "coverage_witness_count": 0

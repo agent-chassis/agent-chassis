@@ -24,21 +24,125 @@ Internal byte storage, hashing, pager and codec machinery is server-owned.
 Public task responses do not expose raw logs, public base64 or agent integrity
 and reconstruction jobs. There is no generic public spill-reader bypass.
 
-## Delivery bound
+## Delivery classes
 
-Ordinary summaries use
-`min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES,activeMcpInlineByteLimit())`.
-Admission measures the larger compact structured value or delivered text,
-including escaping and calls. Physical serialized wire size carries both
-representations and is a distinct measurement. The bound is no content cap:
-complete explicitly selected meaning uses the shared selected-full class.
-Native test answers alone preserve the 1,024 UTF-8 byte total response exception.
+Compact discovery, summaries, ordinary results, refusals and recovery frames keep
+their existing admission bounds. Compact selected-response discovery uses
+`min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES,activeMcpInlineByteLimit())`, at
+most 8,192 admission bytes. Ordinary responses use the active inline limit,
+128 KiB by default. Admission measures the larger compact structured value or
+delivered text, including escaping and calls, plus nonmirrored content and
+protocol metadata. Physical serialized wire size carries both representations
+and is a distinct measurement. Native test answers preserve the 1,024 UTF-8 byte
+total response exception.
 
-A summary discloses original availability and the next semantic selection. A
-selected-full answer delivers that complete selected meaning as one structured
-result, even above the ordinary inline limit. It preserves the privately minted
-response object through final transport admission rather than rewrapping it as
-an ordinary response or spilling it to a retired reader.
+An ordinary overflow retains its original internally and returns no public byte
+reader or reconstruction instructions. When its producer registered a semantic
+read, recovery names that exact call. Otherwise the response states
+`complete:false`, `no_supported_route:true` and missing capability
+`authorized_semantic_selection`; retention alone does not establish delivery.
+Never repeat an effectful producer to retrieve its earlier output.
+
+Validation preserves every issue, nested union constraint and long deciding
+message. Delivery, integration, retention and material failures preserve their
+causes, subjects and known effects. Structured process diagnoses carry exit and
+error facts rather than raw stdout/stderr. Refresh workers preserve every
+distinct explicit error line separately from their bounded internal debug capture.
+Long delivery and integration summaries, including retained `get_run_result`
+reads, use the same authenticated whole-selection delivery. Complete diagnostic
+selections use their authenticated original owners; arbitrary prose or issue-count cutoffs do
+not replace correction meaning. Missing caller choices stay incomplete, and a
+read-only guidance alternative is not an executable corrected mutation.
+
+Compact saves preserve every issued key-to-identity mapping, including saves
+containing only obligations and cases. Unkeyed rows retain their row receipts; keyed rows are delivered once in
+`bindings`, alongside the current revision. When those essential mappings exceed the compact admission bound,
+the existing authenticated whole-selection class delivers them together; no
+coverage read, statement matching or positional correlation is required.
+
+Explicitly requested authenticated complete reads use the existing selected-full
+delivery class without a byte ceiling, even above the ordinary inline limit.
+They deliver the complete canonical value with one generated text mirror in the
+same response. No truncation, spill-reader detour, pagination or agent assembly
+is required. Reads retain no replacement original and rerun no producer.
+
+Only the authenticated selected owner's private provenance grants this delivery
+class. The guard remembers the canonical selected bytes and result identity;
+its normalization preserves authentication, while copying the outer result or
+replacing or mutating selected content uses ordinary admission. Handler text
+is regenerated from the canonical value. Protocol metadata and non-text blocks
+are preserved and must serialize. Nonnumeric serialization failures remain
+errors. Arbitrary handler output, copied values and caller flags such as
+`complete:true` grant no exemption. Authentication, source integrity, currentness
+and role/repository/unit/session authorization remain required before projection.
+
+## Case-authoring readback
+
+Before authoring or checking cases, follow the saved-unit context's
+`case_authoring_readback` call. It selects the existing `{contract:"cases"}`
+population. `members` contains every case used by that selected unit;
+`case_authoring.obligations` contains every obligation in the same authorized
+population, including obligations without a case. Match `case_id` to `case_id`;
+no case is selected for the caller. `case_authoring.references` defines each
+referenced case component once. Criteria, source notes and residue accompany
+those mappings. The context names its unit, record/slice scope and combined
+revision, and reports complete population counts.
+
+Check the unit and revision before using the mappings for a save. A slice read
+keeps the slice's obligations and linked parent-owned cases; parent coverage
+supplies no slice coverage. If a read refuses because its source changed, follow
+the returned current-context call and select case readback again. Do not reuse
+an old revision or infer missing identities. Readback executes no test or proof
+and grants no credit.
+
+This selection is complete for case authoring, not for the whole specification:
+`complete_contract` is false. Full requirement meaning, generated CEL and the
+complete coverage selection remain available through their own existing reads.
+The server's complete coverage response is not a guarantee that a native client
+can deliver an arbitrarily large value whole. A finite successful case-selection
+witness establishes only the tested populations, not unlimited delivery.
+
+## Focused review meaning
+
+Saved-unit contexts offer `associated_review_meaning`, selecting
+`{contract:"obligations",view:"associated"}` through their existing reference.
+The result keeps the unit's obligation rows in `members` and returns their
+associated requirement meaning, definition graph, reference definitions, cases,
+criteria, notes and residue once in `associated_meaning`. It uses the query
+owner's associated closure; unrelated parent requirements do not enter a slice
+selection. Distinct claim, reference, definition and case identities stay distinct.
+This is review material for the selected unit, not complete parent coverage.
+
+The ordinary `{contract:"obligations"}` inventory remains row-only. The existing
+single-obligation associated read, parameter read and row read also retain their
+meanings. `{contract:"coverage"}` still returns complete coverage with all parent
+requirement meaning. Parent obligation reads do not include slice obligations:
+use the returned slice inventory and its all-member binding for the requested
+review population. Empty parent fields leave slice design explicitly unread.
+
+Read assignment, scope, dependencies, criteria and planned validation through
+each slice's field inventory. It includes saved planning facts independently of
+the editing registry, and names the shared parent user-requirements field.
+All these reads retain the existing role grants and frozen source binding.
+
+## Saved obligation row readback
+
+`workspace_read_wiki` accepts a returned saved-unit reference with
+`select:{obligation:<saved id>,view:"row"}`. It authenticates the same repository,
+role, assigned population and frozen source as the associated-context obligation
+read, then selects the exact saved row from that query owner. The result states
+`unit`, record/slice `scope`, source identity, `revision`, `content_digest`, and an
+`obligation_row` extent of one. `row` preserves statement, claim and criterion
+identities, case/selection pins and explicit exception facts. `complete_contract`
+is false: this observation establishes no specification or proof verdict.
+
+Omitting `view` keeps the existing associated-context read. Its `parameters:true`
+modifier remains unchanged; combining it with `view:"row"` is refused by the
+closed request variants. Both explicitly selected views deliver their complete
+authenticated content through selected-full delivery without a byte ceiling.
+Unknown identities keep the native not-found cause
+and a callable public recovery; source movement and foreign references keep the
+incumbent authentication/currentness refusals.
 
 ## Retained source
 
@@ -97,12 +201,52 @@ invoke no projector and return no carrier content.
 Expected binding includes producer route, repository, unit and authority
 identity. Missing authority refuses. `selectedFullContent` verifies the retained
 serialization against its locator and privately brands the returned result. The
-final response guard recognizes that exact object and regenerates its text from
-the same canonical value. Cloning or JSON-wrapping it loses this delivery class.
+final response guard recognizes the unchanged selected content and regenerates
+its text from the same canonical value. Complete reads bypass compact and
+ordinary inline admission; mutations of the selected value use ordinary admission.
+The exemption requires both the authenticated result object and its unchanged
+selected value. Copying the outer result while retaining its payload reference
+does not transfer the private result authentication.
+
+A compact save receipt preserves the save owner's complete requirement-row,
+claim and verification mappings in `requirement_rows` and `bindings`. Counts
+describe populations; they do not replace those mappings. If these essential
+facts exceed ordinary inline admission, the save owner authenticates its retained
+observation (or original save facts) and delivers the compact projection through
+this same whole-selection class. Assessment, maintenance detail and full authored
+meaning remain separately readable; `complete:false` still names omitted detail.
+
+Assessment diagnosis inventories use this same authenticated projection and
+complete selected delivery. `workspace_assess_contract` accepts
+`{original:{source:{ref_id},view:"diagnoses"}}`, exclusively of nested diagnosis
+or obligation selectors. The view returns diagnostic identities, native
+meanings, affected populations and targeted diagnosis reads from the already
+retained assessment, including oversized inventories. Complete delivery does
+not repair fresh assessment navigation or establish that the owner captured
+every diagnosis. Equivalent semantic observations share one choice only when
+all caller facts agree, including subjects, evidence and recovery; owner and row
+identities alone do not require repeated inspection. `equivalent_diagnoses`
+preserves the other retained identities and owners, which remain independently
+readable. Choice counts describe this menu; `retained_diagnoses_total` and
+`equivalent_diagnoses` counts disclose consolidation when present. Same-label
+choices with different facts carry `choice.differences`, naming concrete affected
+fields and values before selection. Retained originals are unchanged.
+It exposes no compiler output, full subject bodies or schemas, creates no new retained source
+and reruns no assessment. Owner-family
+incompleteness and unavailability remain explicit. Fresh assessments reserve
+compact navigation independently of large issue bodies, under the unchanged
+compact and active inline bounds. Source movement and restart change only the
+reported currentness observation, never the retained diagnosis facts.
 
 The production reader, code-index selections, candidate/publication/landing
-originals and common-result semantic detail use this same owner. They add no
-parallel store, schema table, fallback parser or public owner router.
+originals and common-result semantic detail use this same delivery class and owner.
+Create/save receipts, proof discovery, run-result selections and closeout receipts
+also cross this boundary. Where their owners permit a complete selection,
+records, entry bodies, histories, documents, schemas, assessment
+originals/inventories and these consumers deliver their complete authenticated
+values without a byte ceiling.
+Existing semantic selectors remain available; no new selector is implied.
+They add no parallel store, schema table, fallback parser or public owner router.
 
 ## Wiki selections
 
@@ -138,6 +282,23 @@ checkout is being edited is not guaranteed an unchanged answer; a selected
 source that is malformed when it is read refuses with its owner's own
 diagnostic.
 
+Saved parent and slice planning contexts remain readable when no controlled
+contract was authored. They retain the save owner's combined revision and its
+currentness checks; the launcher prepares the empty private store before any
+read. Contract selections report that captured absence with `present:false`.
+An unavailable or invalid store is a source failure, never an empty contract.
+
+Native controlled-contract failures during context or selected reads use
+`workspace-read-wiki-source-refusal.v1` with their owner code, message and
+details. Filesystem failures retain the deciding cause, source path and
+operation where available in `details.source_failure`; an unwrapped filesystem
+error uses `workspace_read_wiki_source_unavailable` and preserves its native
+cause. These failures are not `mcp_response.handler_exception.v1`. No read
+repairs a source or switches to live content. When no authorized corrective
+call exists, `next_calls` is empty and recovery names the responsible actor:
+the coordinator or operator repairs the reported condition and dispatches a
+fresh frozen review, or the repository owner repairs a live source.
+
 `workspace_assess_contract` computes a findings session's fresh assessment
 over the same bound checkout. Every authored source the assessment reads comes
 from the files captured into it: the selected WK's contract,
@@ -169,33 +330,65 @@ exact saved version. At most one fully expanded primary call is published in
 no member-by-member repetition of the locator, duplicate navigation array or
 pagination of the requested population.
 
+A complete `select:{inventory:"slices"}` population preserves every slice in
+source order with its unchanged `id`, complete `unit` and descriptive facts.
+When nonempty and the session can read work contexts, it returns one exact
+recommended `workspace_read_wiki({subject:members[0].unit})` call and one shared
+`selection_context` with `tool:"workspace_read_wiki"` and the binding rule:
+`Use {subject:members[i].unit} unchanged to open each slice's context, then its returned reference and selections to read its contents.`
+This is the existing subject read; a parent reference does not select a child.
+Each child context supplies its own reference and selections. Its complete
+field inventory declares how to select saved assignment/planning fields,
+scopes, acceptance criteria and planned validation, and its existing
+`{contract:"coverage"}` selection returns saved requirements and obligations.
+The inventory carries no child contents or repeated field/contract menus.
+Empty inventories and sessions without context grants offer no child call or
+binding. Authentication, frozen-source selection, currentness and complete
+retrieval remain with their existing owners; navigation grants no authority and
+performs no canonical write.
+
 A selected entry body also returns `reference`, the entry owner's immutable
 reference string for the exact returned `entry_id` and `version_id`, including
 when the request selected the current version. Pass it unchanged as
 `save_record`'s `changes.material_refs:[{ref:reference}]`, or read it with
 `workspace_read_wiki({reference:{ref:reference},select:{field:"text"}})`.
+The answer also supplies an immutable reopen call and `material_binding.value`.
+Authoring-capable readers receive an explicitly incomplete target-context binding;
+the caller chooses the target and acquires its current revision and schema.
+Findings readers receive read-only reuse guidance. No target, revision or write
+authority comes from the material reference.
 It pins the complete returned body after later versions are appended. It is
 distinct from the context's retained `{ref_id}` locator and grants no
 source visibility: reads and assignment preparation still authenticate the
 repository, source and role or frozen scope through their existing owners.
 
 A WK root or slice context returns one `reference` and the complete ordered
-`selections` it offers under the session's grants. At most one fully expanded
-call is published in `next_calls`: the recommended selection, which is the
-first member of `selections`; a context with no granted selection publishes
-none. Every other choice is read by passing that `reference` unchanged with one
+`selections` it offers under the session's grants. The recommended selection is the first member of `selections`. Task-relevant
+associated review, saved-requirement summary and case-authoring reads may also
+be offered explicitly; a context with no granted selection publishes none. Every other choice is read by passing that `reference` unchanged with one
 returned selector unchanged, as `{reference, select: selections[i]}`. The
 reference is stated once beside the expanded call instead of once per choice,
 and there is no per-selection call list, second navigation array or derived
 selector. Selection order, grants, authentication, currentness and refusals are
 those of the expanded form. Other contexts keep one expanded call per selection.
 
+The root's slice inventory contains assignment choices rather than summary
+bodies: unit, title, status, work kind and applicable review purpose. Repeated
+titles may also carry complete authored edit targets and the authored leading
+Markdown `assignment_heading`. Identical public descriptions retain every slice
+with `choice_state:"ambiguous"`. The common selection binding opens the chosen
+slice context; its returned summary selection preserves the complete assignment.
+Neither list order nor a matching label establishes applicability or selects a
+slice for the caller.
+
 A requirement-guidance context is read the same way, and its one `reference`
 serves every topic it offers. A complete topic answer returns that `reference`
 unchanged with `selections`, the other offered topics in the context's order
 without the topic just returned, so another topic is read as
 `{reference, select: selections[i]}` with no further context request. The
-answer is complete and publishes an empty `next_calls`. An optional
+answer is complete for the named instruction selection. The save instruction topic
+promotes callable compact-example and complete-schema selections in `next_calls`;
+its deferred schemas are absent from the instruction value. An optional
 `subject.topic` only chooses the context's recommended selection.
 
 `authoring_vocabulary` is one complete authoring-job selection: common vocabulary
@@ -205,6 +398,21 @@ applicability modes and their definitions remain local to that answer. Position
 membership is explicit; an observation-only relation is unavailable wherever
 the owner forbids it. This answer and its recommendations are derived from the
 existing vocabulary owners, while separate position-topic reads remain complete.
+Relation rows carry compact identities and signatures. The single shared
+`relation_definition_read` call opens the existing CEL definition reader. Use its
+returned reference with
+`select:{guidance:["cel_definitions","relations",<selected row.term>]}` to read
+the complete canonical definition, semantic references, observations and lowering.
+The selected answer links callable reads of the applicable pinned upstream
+operations. Local application constraints retain their own attribution.
+For example, `value:add` links CEL list concatenation; `value:contains` links
+exact string substring semantics; `value:equal_to` explains complete typed
+comparison while `value:equals` remains a subject-value equation. Selected
+permission guidance explains active positive permissions and negative-only
+prohibitions with a concrete empty-search counterexample. Separate and combined
+initial answers share this route without repeating full calls or definitions in
+every row. The meaning remains reachable without implementation-source reads.
+A detail read writes nothing, executes no proof and grants no proof credit.
 
 `['case_authoring','family',<explicit family>]` selects common case semantics and
 the complete chosen family's instructions, targets, constraints, falsifiers and
@@ -216,6 +424,113 @@ or further fragmented family selection refuses with the actual selector and a
 call to guidance context; it substitutes no family. These selections reuse the
 ordinary guidance grants and selected-full transport, retaining every selected
 instruction without a size cap, pager or separate registry.
+
+### Saved requirement model selections
+
+Record contexts with the requirements read grant offer
+`{contract:"requirements",view:"summary"}` through `next_calls`, with purpose
+`saved_requirements_summary`, as optional saved-meaning inspection before full
+coverage. Requirements-focused contexts retain it; notes-only focused contexts
+do not recommend it. The compact summary contains unit/source/currentness,
+compilation and definition states and exact row/unresolved counts. Its
+`selection_context` supplies the requirements `choices` template: reuse the
+returned reference and select, then supply the caller's own nonblank `query`.
+The summary contains no row previews or generated CEL. A requirement save receipt
+supplies keyed issued bindings and its current write revision directly. The
+summary's optional `requirement_identities` call inspects missing saved-row
+information; no coverage read is needed solely
+for identities. Historical row order cannot recover lost caller-local keys.
+Returned row identities have exact calls for these strict selections:
+
+- `{contract:"requirements",view:"choices",query:<caller words>}`: every matching
+  row choice in source order. Each whitespace-separated term must occur literally,
+  ignoring case, within a scalar of the row's own authored statement; terms may
+  match different values. Punctuation is literal. Metadata, rendered vocabulary
+  and transitive definitions are not searched. A defining row's own body is
+  searched even though its choice description leaves that body to the selected
+  row read. The response preserves the query, matching rule,
+  `matching.population_count` and complete `matching.matched_count`. A lexical
+  no-match response establishes no applicability and offers the query template
+  for refinement plus a concrete complete-inventory call. Absent source, empty
+  present population and unavailable source remain distinct from no match.
+- `{contract:"requirements",view:"choices"}`: explicit complete row inventory using exact
+  structured `authored_statement` fields and source state, plus pending fields for
+  incomplete rows. Rendered meanings and definition expansions stay in selected
+  reads. Defining rows retain `definition:true`, omit their defining
+  `behavior.objects` from choices and declare `definition_body:"selected_row"`.
+  Normative constraint operands remain available to distinguish constraints.
+  Indistinguishable descriptions keep every row with `choice_state:"ambiguous"`.
+  The shared selection binding opens the exact row, verifications or dependencies.
+- `{contract:"requirements",view:"identities"}`: every authorized row's `row_id`,
+  state, complete `constraint_ids` and `claim_ids`, the native
+  claim-to-verification mappings and collection identities/members. No row preview
+  cutoff applies. `row_id` addresses an authored row; individual claim IDs address
+  claim associations. This identity inventory omits full authored meaning and
+  compilation; it does not supply a current write revision. Its `next_calls`
+  offers current unit context before a new save, including after source movement.
+- `{contract:"requirements",view:"row",row_id:<returned id>}`: the complete saved
+  input, canonical meaning, source link, identities and pending fields of one row.
+- `{contract:"requirements",view:"verifications",row_id:<returned id>}`: the existing
+  native verification meanings linked to that row, their requirement associations
+  and referenced entities. The row read emits this exact call for faithful restatement.
+- `{contract:"requirements",view:"dependencies",row_id:<returned id>}`: that row's
+  transitive description roots/nodes, including lexical scopes and shared definitions.
+- `{contract:"requirements",view:"compiled"}`: the existing compiled representation.
+- `{contract:"requirements",view:"unresolved"}`: the complete saved unresolved population.
+- `{contract:"requirements"}`: the existing full selected population.
+
+Only choices accepts `query`; blank, non-string and wrong-view queries refuse
+without selecting an implicit full inventory. Only row/verification/dependency
+views take and require `row_id`; other contract populations reject modifiers.
+Queries issue no write revision. The query owner resolves the authorized
+population before the small route presentation helper selects it. An unknown or
+out-of-population row refuses without exposing sibling rows. Source freshness, frozen references and
+worker assignment bindings are checked by the existing reader. Selection never
+assesses proofs, writes, compiles into storage or executes anything. Selected
+response retention and delivery remain with `selected-response-snapshot`.
+
+The compact example is selected by literal guidance path
+`["compact_record_comparison"]`. Its applicability is explicit: group only fields
+sharing applicability, observation boundary and comparison semantics. The default
+recommended `save_record_inputs` read preserves common batch, identity, exact
+source-link matching, draft and association instructions and links this example.
+That initial answer recommends the compact example and keeps the complete schema
+available without recommending it. Explicit topic contexts keep their requested
+selection recommended. It embeds neither the example nor schema/definition copies.
+
+Saved requirement rows use `row_id` with their complete authored meaning,
+including grouped and incomplete rows. A single-claim requirement may use its
+claim `id`; a claim from a grouped row requires `row_id`. Saved obligations use
+`id`, and case reuse uses `case.id`. These are different row kinds, not aliases.
+
+The default input and requirement-batch selections offer labelled, optional
+specialized jobs instead of delivering their tutorials during initial authoring:
+`["save_record_inputs","requirement_batch","correction"]` explains correction
+and dependency migration; appending `["source_link","repair"]` to the batch
+path explains faithful source-link repair; `["save_record_inputs","slice_coverage"]`
+explains slice-local coverage using saved parent meaning. Each explicit selection
+returns its complete existing instructions. Basic matching, current revision,
+authoring permission and save validation remain unchanged.
+
+Assessment diagnosis calls retain native cause codes for authoring and definition
+choices and render semantic cause labels in readable words. They retain subject
+counts and available recovery/category facts within the surrounding assessment's
+unit and selected population. Semantic choices state cause labels
+with their owner recovery classification, distinguishing inspection from authored correction before
+the dossier is opened. The shared controlled-contract namespace is omitted from
+the label; exact codes and full owner
+explanations remain in the selected diagnosis. Compact choice populations still
+state exact omissions; labels do not expand the response budget or certify
+unoffered diagnoses.
+
+`["requirement_schema","existing"]` serves the complete saved-row batch schema;
+`["requirement_schema","birth"]` serves its creation form. Append one definition
+name to obtain a schema rooted at that definition with its entire local reference
+closure, once. A correction identifying one row definition uses that focused root;
+one that needs several row roots keeps a complete combined batch read. The birth
+form has only this address, also advertised by the creation declaration. The `requirement_schema`
+topic itself is an index. Guidance revision includes hidden structural children
+and exposure metadata, so detail changes invalidate held references.
 
 ### Save input contract selection
 
@@ -231,7 +546,36 @@ workspace_read_wiki({reference:<returned record reference>,
 ```
 
 The selector is strict: the literal tool `save_record` and a nonempty list of
-member names, each once. It takes no repository, kind, variant, role, digest or
+member names, each once. Optional `branches:{requirements:[...]}` selects
+owner-published capabilities in one coherent read: `relationships`,
+`scalar_values`, `typed_values`. `typed_values` declares `scalar_values` as a
+dependency. The relationship scope retains ordinary reference, boolean and
+numeric statements, named membership and complete independent verification.
+Scalar values add primitive named definitions, literals, references, observations
+and scalar operators; typed values add recursive structure, nested selection,
+bindings, lexical scopes and typed membership domains. Retained alternatives
+keep their owner's constraints. The answer states requested/effective scope,
+dependency additions, families, exact terms and exclusions. Guidance signatures
+use the same scope and keep separate position permissions.
+
+`{tool,view:"choices",members:[...]}` returns the relationship and scalar job
+choices and the whole-member alternative. The typed relationship union retains
+the entire grammar, so it uses the complete route: there is no scoped twin with
+extra metadata or longer guidance routes. An explicitly selected capability union
+that excludes nothing also returns the whole schema and whole guidance identity.
+The compact batch instructions publish `schema_selection.whole_for` from that
+same capability owner. Contexts keep their existing first recommendation.
+Gather all known upcoming needs before the first read and select them together.
+Use the whole route when later needs are unsettled; reuse held schema and semantic
+instructions across saves and correctable refusals. A genuinely unforeseen need
+outside a held narrow scope requires one complete union read; the earlier reply
+remains part of the journey cost. The returned opaque `identity` binds the subject, source,
+metadata, member population and effective scope. A disclosure grants no write
+permission and is never a prerequisite for saving. Unknown or repeated capability
+keys refuse with a callable choices route; malformed or unknown refused save
+intent also routes to choices rather than guessing a narrower scope.
+
+Without branches, the selection returns complete members. It takes no repository, kind, variant, role, digest or
 field path. One read names every member the job needs and returns them
 together; there is no read per member or per definition. The role's request
 schema declares the selector, and any members of the unit's variant may be
@@ -250,7 +594,8 @@ a session with no registered `save_record` binding is refused with no supported
 route, and the refusal names the missing registration.
 
 The answer states, as separate facts, the unit, the derived variant, the
-selected members in the owner's order, the digest of the whole variant schema,
+selected members in the owner's order, the digest of the whole variant schema and
+its capability/guidance exposure metadata,
 the complete selected schema, and the record's current authoring revision. The
 digest identifies the schema and does not change with the record; the revision
 identifies the record. `coverage` states that the schema is structurally
@@ -259,9 +604,9 @@ complete for the selected members and that semantic rules are decided by
 topic paths for the selected members, and `next_calls` holds the
 requirement-guidance reads for those paths that the serving registrar accepts.
 The answer never contains a `save_record` call. Proof-specific input stays with
-`workspace_find_proofs`. The selected schema is delivered whole in one result
-through the selected-full class, on both carriers, above the ordinary inline
-limit.
+`workspace_find_proofs`. An explicitly selected schema is delivered whole on
+both carriers without compact or ordinary inline byte admission. Every selected
+member and its complete reachable definitions stay intact, regardless of size.
 
 A held schema stays usable after saves: reading it is never required before a
 save, grants nothing, and yields no token a save takes. When only the record's
@@ -300,6 +645,34 @@ The choices appear only for a role granted the selection, over a live
 `save_record` binding, and only when the serving reader accepts each exact
 call. A document, repository, assignment, search or receipt context, and a
 role that cannot author, is offered none.
+
+For a known correction, `workspace_read_wiki({subject: unit, select:
+{context:true, for_changes:["controlled_acceptance"]}})` returns the same
+current context and write revision with navigation for the requested members.
+This is a compact context selection, not a full read without a reference.
+The same selection works with a returned reference; a moved source is reopened
+once and disclosed under the existing context-currentness rule. Source and
+selection grants are unchanged. Every requested member is validated by the
+save exposure owner; unknown or repeated members are refused, never dropped.
+
+The focused context retains the complete granted `selections` and current
+authored context. Its `next_calls` recommends one complete schema read for all
+requested members together and offers ordinary context discovery through the
+same reference. Ordinary contexts keep the complete job menu. A changed need
+can therefore acquire a whole coherent job without walking member-by-member.
+The focus changes navigation only; it restricts neither accepted writes nor
+the granted semantic selections.
+
+`authoring_context` identifies the tool, unit, variant, owner-ordered members
+and `owner_schema_digest`. A caller holding the complete, unbranched selected
+schema and its instructions may reuse them only when all those values match.
+A missing or different identity, different members, another unit or a scoped
+schema requires the appropriate schema read. These are the exposure owner's
+existing identities, not a cache inferred from conversation history. Reuse
+never supplies a write revision: each correction still reads the current unit,
+and `save_record` still checks the supplied revision. An independently selected
+diagnosis includes its own instruction and schema route without assuming any
+held information.
 
 A refused `save_record` offers the same selection sized to the request. When
 the unit is a saved unit, `changes` is a nonempty object and every one of its
@@ -362,6 +735,14 @@ explicit `missing_inputs`; absent effect capabilities are explicit
 `missing_capability` facts. Information-acquisition calls are distinguished from
 the requested effect. Reading a graph or record never persists graph-impact
 evidence, supplies an authored title or fabricates a write revision.
+
+An initiative's `validate_dispatch` recommendation requests
+`start_agent({subject:<exact-unit>,preview:true})` through the serving request
+contract. A missing exact unit remains a missing selection; an unavailable
+role capability remains unavailable. `validate_record` separately requests
+`workspace_assess_contract({unit})`; contract assessment does not substitute
+for dispatch preview. Previews launch nothing, grant no launch permission and
+report unchecked conditions as unchecked.
 
 Canonical carrier validation failures preserve the native cause code, affected
 subject, schema errors and diagnostics in a declared source refusal delivered
@@ -465,8 +846,9 @@ concrete requests and need no form.
 
 ## Proof discovery and code-index selections
 
-`workspace_find_proofs` called with no arguments browses the catalogue, and
-that is the normal first call: it returns every listed proof once, in the
+`workspace_find_proofs` called with no arguments browses the catalogue when
+catalogue discovery is the task. A held name/query goes directly to its read/search
+without preliminary browsing. A browse returns every listed proof once, in the
 catalogue owner's order, or a bounded count with one exact call
 (`next_calls.catalogue`) to the complete retained list. Two request forms
 follow and are never mixed. A fresh read of the current catalogue is
@@ -476,12 +858,13 @@ part?}}`. Top-level `proof_name` and `part` belong to a fresh read;
 `target_family` belongs to a fresh `proof_name` or `query` request and never
 to a retained selection. The tool description and each field's description
 state this distinction, because a client may render the fields without their
-dependencies. A complete catalogue or index carries one executable call,
-`next_calls.select`, and `next_calls.selection` says how to use it: copy the
-complete supplied arguments, keep `result` unchanged, and replace only
-`selection.proof_name` with the listed proof wanted. The call names the first
-listed proof only as an example and recommends none; a later part goes inside
-`selection`, as `selection.part`. `tools/list`
+dependencies. A nonempty catalogue or index carries an incomplete
+`next_calls.select` form with `executable:false`, `known_arguments` preserving
+`result`, and `missing_caller_input:["selection.proof_name"]`. It has no executable
+`arguments` and chooses no default proof. The caller chooses a listed identity,
+copies the known arguments and adds `selection.proof_name`; an optional later
+part is `selection.part`. Once explicitly selected, a proof's own next calls
+can name it executably. `tools/list`
 publishes these request forms on the one flat declaration, derived from the
 enforced union: each field's dependency names what it requires and which
 fields it excludes. The dependency is one-way: `selection` requires `result`,
@@ -498,8 +881,8 @@ for exactly the listed proofs, keyed by proof name and empty when nothing
 matched. The sentences are navigation prose for comparing candidates; they are
 retained verbatim with the original, never searched or ranked, and add no
 guarantee or execution capability. Complete selections
-return assertion, exclusions, capability and applicable authoring facts. The
-overview and combined answer also carry the exact catalogue `short_description`
+default to the overview: assertion, exclusions, capability and fit limits,
+with an exact optional authoring call. The overview also carries the exact catalogue `short_description`
 and `usage` prerequisites and fit/misuse scenarios with their admitted boundary.
 These inline illustrations do not establish source applicability or turn every
 unsuitable case into an evaluator refusal. Catalogue/index rows remain unchanged.
@@ -509,28 +892,45 @@ strategy by its `required` and `not_allowed` authored fields, its field
 patterns and its target constraint, without the mechanism name or the fields
 the save derives. These
 facts are selected semantic meaning, not paged byte reconstruction. Every stored
-discovery selection checks the owner's current catalogue identity without
-re-ranking. Source movement refuses rather than mixing populations.
+retained discovery selection observes the owner's current catalogue identity
+without re-ranking or replacing its historical content. Movement during fresh
+acquisition refuses the mixed population and supplies the supported fresh read.
+An authenticated retained read stays historical and reports changed currentness,
+or unavailable currentness with its exact inspection failure.
 
 Authoring a proof that a test case verifies needs the family that runs the
 test. `target_family` is an input of `workspace_find_proofs`, never of
 `save_record`. When an answer carrying authoring has no selected family,
 `authoring.family` names the missing input and its task, and
-`next_calls.primary` is `choose_family`. `next_calls.choose_family.choices`
-lists every family of the case-authoring owner by `family_id` and `runner`,
+`next_calls.choose_family.choices` lists the case-authoring owner's families
+(recognized alternatives only for an ambiguous query), by `family_id`, `runner`,
+`source_suffixes` and `selector_fields`,
 each with one exact call: `{proof_name, target_family, part: {kind:
 "authoring"}}`. `runner`, there and in a selected family's
-`authoring.family.runner`, is the runtime runner name `workspace_run_test`
-takes as `runner`, for example `deno` or `go-test`; a command label such as
-`deno test` is query vocabulary and never a runner identifier. Each call is a
+`authoring.family.runner`, identifies the proof family's runtime, for example
+`deno` or `go-test`. It is not a `workspace_run_test` argument. For ordinary
+test execution, workers supply the assigned `entrypoint` and a `selection`
+(omit `selection` only when that entrypoint declares a default). Orchestrators
+and reviewers supply `harness:{cwd,argv}` from the intended command;
+orchestrators also supply the explicit `source` required by their tool schema.
+Use the current role's `workspace_run_test` declaration and
+[local test runtime setup](local-test-runtime-setup.md); do not invent a command
+from a family name. A command label such as `deno test` is query vocabulary,
+not a runner identifier. Each call is a
 fresh read of the current catalogue that
 returns a new result. `target_family` is no selection of a retained result,
 so the earlier original is unchanged and stays without a family. No family is
-inferred, defaulted or read ahead, and a choice carries no family's authoring
-detail. Until a family is chosen, `save.awaits_family` names the case target
+defaulted or read ahead. A query that unambiguously names a family selects it
+without choosing a proof or authorizing execution. A conflicting explicit family
+is explained; routine selection-origin bookkeeping is omitted. An ambiguous query
+offers discriminating fresh query-context choices. A family choice carries no
+strategy tutorial or target/provider detail. Until a family is chosen, `save.awaits_family` names the case target
 and falsification fields instead of listing the family among
-`save.missing_inputs`. `next_calls.select` and `parts` remain the secondary
-reads of the same result's parameters and constraints. A selected or
+`save.missing_inputs`. `next_calls.parts` offers the optional overview call and
+explicitly incomplete parameter/constraint forms of the same retained result,
+naming the missing parameter name or constraint ref. No first member is selected.
+A parameter read offers exact calls for its constraints; a constraint read can
+finish without returning to the overview. A selected or
 query-identified family, and a proof that declares no test execution, gain no
 choice step.
 
@@ -563,8 +963,8 @@ caller's own (`save.missing_inputs`). A proof that declares no test execution
 lists no case input, family or case member, so nothing in its answer leads
 into case authoring. Required configurable proof parameters in
 `save.missing_inputs` come from retained source policies/cardinality, with schemas
-left to parameter parts. The checklist describes a new complete selection, not
-missing values in an existing WK; incomplete drafts remain savable. Selected
+left to parameter parts. The checklist is explicitly `executable:false` and describes a new complete
+selection, not missing values in an existing WK; incomplete drafts remain savable. Selected
 family target constraints include inline supported/rejected strategy snippets
 chosen from the family’s existing languages, authored once per mechanism and
 language variant. Retained reads preserve both guidance and examples. The answer
@@ -578,17 +978,20 @@ reruns the original query merely to recover an original.
 
 Default code-index status keeps availability, indexed commit, observed HEAD,
 freshness, dirty state, base/SCIP usability and coverage qualifications,
-without the store's own incarnation and publication sequence: the
+without the store's own incarnation and publication sequence (available only in
+the complete selected `graph_snapshot`): the
 project, inactive-project, project-document, covered and uncovered document
 counts and every scalar base, provider and SCIP fact, with unknown counts left
 unknown. Deep provider and provenance populations remain exact in
 authenticated status selections. File context leads with the requested file
 and recommends its complete `source`. Both summaries carry concise
-`selected_detail.choices`, sharing `source` and `snapshot_identity`. Each choice
-is composed as `{detail:{source:selected_detail.source,
-snapshot_identity:selected_detail.snapshot_identity,...choice}}` on the same
+`selected_detail.choices`, sharing `source`. Each choice
+is composed as `{detail:{source:selected_detail.source,...choice}}` on the same
 route. Status retains its evidence once without indexing or requesting refresh;
-selected reads retain nothing further.
+selected reads retain nothing further. Passive same-HEAD status keeps freshness
+`unknown` with `checkout_freshness_unverified` until checkout inputs have been
+verified by their existing owner; usability and exact publication identity remain
+separate facts.
 
 What status recommends follows what the index needs. A fresh usable index
 lists `supported_questions`, the selectors of each code question, and
@@ -616,15 +1019,26 @@ route adds no pager, retention store or public reader.
 
 `get_run_result` default answers are compact live/durable or retained summaries.
 Standalone/recorded proof results keep their incumbent summary and diagnosis
-owners. Native originals use the native outcome reader and its strict bound;
+owners. A compact diagnosis may show a message prefix; its exact proof selection
+reads the complete retained message, native cause/aggregate relationships and
+captured issue facts through that same owner. Capture loss remains explicit;
+readback never fabricates missing capture. A required standalone proof projection
+that exceeds ordinary admission is delivered whole from its authenticated original.
+Recorded worker selections use their authenticated journal/cache original for the
+same complete delivery. Oversized modeled refusals likewise deliver the permitted public diagnosis from
+the producer's existing retained diagnostic original, excluding private exception
+capture; this creates no generic byte-reading route and replays no producer. Native originals use the native outcome reader and its strict bound;
 that owner retains its read/continue/retry vocabulary and source checks.
 
 Coordinators discover recorded proofs through the selected run's compact
-`proof_verification`: `none_recorded` describes a healthy empty population,
-`recorded` carries its exact count and inventory call, and `unavailable` carries
-the actual evidence failure. Following the inventory call returns all invocation
-rows from one validated journal prefix, including their subject, tested source,
-result identity and exact original read calls. A later append does not alter
+`proof_verification`: `recorded` carries its exact count and inventory call, and
+`unavailable` carries the actual evidence failure. Healthy empty proof bookkeeping
+is omitted. An absent journal that cannot select the requested attempt reports
+that selection failure, without inventing a proof population. Following the
+inventory call returns all invocation rows from one validated journal prefix,
+including their requested subject, outcome, any tested candidate commit/branch
+and exact original read calls. Capture digests and source-construction carriers
+remain internal. A later append does not alter
 those invocation selections. Authentication uses the prepared backend's
 visibility owner and durable attempt selection; a hot denial cannot retry cold.
 
@@ -661,9 +1075,15 @@ schema. Recovery reports the exact saved source and obligation, missing
 capability and correction boundary; it substitutes neither assignment observation
 nor an invented reference. An entitled coordinator's nonfocused current-source
 read stays callable. Focused or unknown authoring intent and frozen or unavailable
-review sources retain their specific acquisition boundaries. Reviewer recovery
-coverage grants no proof-original read route: role/attempt refusals precede
-projection and disclose no evidence. Source movement or later successful proofs
+review sources retain their specific acquisition boundaries. Reviewer authoring recovery grants no foreign proof-original read route.
+A reviewer may inspect the immutable standalone proof result its own authenticated
+findings action executed, including failed and unproven outcomes. Retention binds
+the existing native authority identity (assigned unit, action run, immutable review
+source); the result reader requires that exact identity before projection. Another
+action with identical inputs, a guessed locator or the same repository grants no
+read. Foreign, forged, missing and corrupt bindings refuse before content is
+returned. Predecessor-review reads and whole-WK execution are separate boundaries;
+redteam receives no execution or result privilege. Source movement or later successful proofs
 do not repin or replace a historical failure. Reading a permitted authoring
 context may retain its ordinary selected-resource descriptor; that transport
 effect neither re-retains proof evidence nor mutates authoring or proof state.
@@ -687,6 +1107,13 @@ and availability, not internal publication/journal/result carriers. Producer
 settlement captures the permitted terminal original once independently of reads.
 A read never settles, captures, integrates, writes canonical/Git state or reruns.
 
+A failed subordinate delivery original refuses the whole attempt observation
+with `delivery_receipt_unreadable`. Its details identify the subject, selected
+attempt and failed receipt by locator and zero-based position, preserving the
+underlying reader diagnostic. Missing and corrupt originals remain distinct,
+regardless of their position among valid receipts. The refusal states that no
+execution, integration or retention occurred and offers no speculative recovery.
+
 Producer pending spans settlement, retained-original capture and durable worker
 binding while the child
 can already be terminal. `original_publication` distinguishes `pending`,
@@ -702,7 +1129,8 @@ without replaying a timeout. Available originals instead return their
 authenticated member call. Successful bounded waits preserve the immediate
 read's original locator. Failed publication preserves its actual cause, stage
 and responsible owner; observation does not retry publication or offer a retry
-promise. The complete frame still uses the shared summary bound.
+promise. Observation summaries keep the shared summary bound; authenticated
+complete original selections use selected-full delivery without a byte ceiling.
 
 Known originals survive restart under their original session/source binding.
 For a bound managed worker, the existing subject/attempt observation authenticates
@@ -730,7 +1158,17 @@ delivery and observation additionally bind their stored launcher identity. A
 foreign repository/role/attempt/source refuses before selected material is
 returned. Worker delivery originals remain available to their authenticated
 worker; integration/observation originals require the orchestrator owner. Native
-results remain available to their authenticated execution role.
+results remain available to their authenticated execution role. Reviewer standalone
+proof results require the same authenticated action identity as their producer.
+
+An integration response distinguishes an original's retained availability from
+the current session's ability to read it. Every offered read, correction,
+recovery and verification call is checked against the existing role grant and
+the serving registrar's current request contract. `continuation_limitations`
+names withheld operations and whether the role, registration or exact arguments
+make them unavailable; confirmed effects and retained originals are unchanged.
+Missing launcher-session authentication is reported with its owner's specific
+cause and an explicit stop before reading a delivery or retaining an original.
 
 Optional proof selectors name one exact subject or authored source tuple within
 a proof original; they select no native, delivery, integration or observation
@@ -758,3 +1196,86 @@ refreshes a proof pin, advances a candidate, publishes or integrates. Unavailabl
 originals, live-state loss after restart and contradictory identity remain explicit.
 Original and current observations can disagree because they address distinct
 resources; each response preserves its own source identity and certainty.
+
+Wiki context delivery preserves its authorized resource identity and semantic
+selection calls even when context facts exceed ordinary response admission.
+Document/work contexts, assignments and search contexts use their already retained
+resource descriptor and the reader's exact repository/unit/session binding for
+whole context projection. This transport step neither reopens a source nor
+replays an operation or retains another descriptor. Missing/foreign descriptors
+refuse rather than acquiring broader authority. Arbitrary payloads without a
+semantic owner remain explicit incomplete-delivery failures.
+
+## Scope and structured-entry navigation
+
+A work unit’s fields inventory offers `navigation` for `read_scope` and
+`write_scope`: `{field,directory:"."}` opens the directory tree. Each answer
+returns every direct path, the complete child-directory inventory with counts,
+and exact child calls. A child selects a repository directory, never a byte
+range or a page. The `full_selection` still reads the complete original field.
+This does not change assignment construction or expand a scope.
+
+An entry inventory’s `navigation` selects structured JSON when its inline text
+is JSON (optionally preceded by a provenance paragraph); ordinary entries keep
+the complete entry read. `{entry,version,view:"structure"}` returns named members
+and one shared selection binding within the same immutable version. Object keys and unique `id` or
+`*_id` row values are semantic path segments, never array positions. `path`
+comes from these calls; `full:true` reads the complete selected node. Atomic
+values and arrays without unique named rows remain whole. Each answer preserves
+the provenance paragraph, root scalar context, version and immutable original reference; `original`
+reopens the exact original text. Invalid JSON or missing members refuse with an
+exact full-entry recovery. No source is rewritten or recaptured.
+
+A complete entry read retains an optional, nonrecommended immutable reopen call.
+It recommends no duplicate acquisition. Structured navigation and complete reads
+share the reader’s existing source authorization, retained descriptor and
+selected-full delivery owner. Navigation reduces irrelevant acquisition; it
+provides no universal guarantee that an arbitrary complete selection fits every
+native client. Native receipt must be checked at the outgoing model request,
+separately from server delivery, relevance and completion.
+
+## Complete proof outcome selections
+
+Standalone, worker-recorded and coordinator reads preserve the selected test
+outcome, execution state, relationship result and deciding causes separately.
+A passing test can remain unproven when behavioral coverage is unestablished.
+The issuing result or invocation reference binds subsequent reads; internal
+result digests, checker provenance and projection inventories are not readback
+requirements. Distinct authored final texts remain available, with duplicate
+text represented once by a reference.
+
+When compact proof rows omit part of the selected population, the returned
+`proof_population` call reads every selected outcome through the existing
+`get_run_result` proof selector. That authenticated whole selection supplies
+proof and obligation identities and usable diagnosis calls, without execution
+or a new discovery API. A coordinator's complete outcome uses one proof list,
+including selected diagnoses, instead of a second parallel detail population.
+
+An immutable maintenance receipt remains historical. Busy maintenance has no
+public forward-observation selector; replaying a mutation is not observation.
+A lost creation acknowledgment has no operation-bound recovery identity, and
+an inventory cannot reconstruct lost caller-local keys by row order. These
+routes remain blocked at those missing mechanisms; stop dependent work rather
+than infer success or repeat creation.
+
+## Focused choices in existing reads
+
+The obligations population offers `view:"proofs"` for obligation meaning and
+saved proof names. Reuse its declared common proof-read arguments instead of
+reading full coverage to discover a selected proof. Unselected and declined
+proofs stay explicit, and discovery grants no execution permission.
+
+A frozen assignment offers `field:"test_commands"` through its returned
+reference. The complete selection states each entrypoint's purpose, selection
+identities, command meaning and authored default when present. The caller chooses
+a selection and uses the declared common run arguments. Definition digests,
+base captures and provenance stay private. The read executes nothing and does
+not grant a missing command.
+
+Oversized durable attempt or delivery choices, and authored final results without
+a separate original binding, use the authenticated journal source for
+whole-selection delivery. A journal-backed final result is preserved before
+transport admission; compact presentation must not discard it first. That
+source's bytes never enter a public
+failure diagnosis. A live observation without an authenticated source remains
+explicitly incomplete when required choices cannot fit; no choice is guessed.

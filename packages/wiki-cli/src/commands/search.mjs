@@ -69,7 +69,7 @@ export async function runSearch(argv) {
   if (options.help) {
     console.log(
       "Usage: wiki search (--query <text> [--limit <1..50>] [--profile <standard|research>] [--extensions a,b,c] [--kind docs|issues|decisions|initiatives|sources|areas|wiki|<extension>] [--retrieval-role <entrypoint|hub|inventory|record>] [--canonicality <canonical|noncanonical>] [--maintenance-mode <curated|generated|operational>] [--knowledge-role <evidence|synthesis|decision|work|reference>] [--evidence-stage <primary|derived>] [--retrieval-visibility <default|support|suppressed>] [--lifecycle <active|stable|historical>] [--sensitivity <normal|restricted>] [--topic <value>] [--type <type>] [--status <status>] [--priority <priority>] [--owner <owner>] [--area <area>] [--initiative <id>] | --continuation <token>) [--dir <path>]\n\n" +
-        "Entry history search needs a registered repository identity and is available through the repository-bound workspace_search_repo route."
+        "Entry history search needs a registered repository identity and is available through the workspace_read_wiki search selector; follow its returned reference for complete results."
     );
     return;
   }

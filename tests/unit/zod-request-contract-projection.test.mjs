@@ -508,3 +508,36 @@ test("WK-2589 termination-serialization", () => {
     reason === "max_depth_exceeded").length, 2);
   assert.notEqual(projected.unprojected[0].path, projected.unprojected[1].path);
 });
+
+test('recursive shapes and positional operands publish finite resolvable contracts', async () => {
+  const { requestSchema } = await import('../../packages/wiki-mcp/src/lib/proof-request-schema.mjs');
+  const { servedAccepts } = await import('../helpers/served-request-contract.mjs');
+  const defs = { node: { type: 'object', additionalProperties: false, required: ['value'], properties: {
+    value: { type: 'integer' }, children: { type: 'array', items: { $ref: '#/$defs/node' } }
+  } } };
+  for (const memoize of [false, true]) {
+    const schema = requestSchema(z, { $ref: '#/$defs/node' }, defs, { memoize });
+    for (const shareIdenticalProjections of [false, true]) {
+      const projected = projectZodRequestContract(schema, { shareIdenticalProjections });
+      assert.doesNotThrow(() => JSON.stringify(projected));
+      assert.equal(projected.unprojected, undefined);
+      assert.ok(Object.keys(projected.$defs).length > 0);
+      for (const [value, accepted] of [
+        [{ value: 1, children: [{ value: 2, children: [{ value: 3 }] }] }, true],
+        [{ value: 1, children: [{ value: 'wrong' }] }, false],
+        [{ value: 1, children: [{ extra: true }] }, false]
+      ]) {
+        assert.equal(schema.safeParse(value).success, accepted);
+        assert.equal(servedAccepts(projected, projected.contract, value), accepted);
+      }
+    }
+  }
+  const tuple = z.tuple([z.string(), z.number().int()]).rest(z.boolean());
+  const projected = projectZodRequestContract(tuple);
+  assert.equal(projected.unprojected, undefined);
+  assert.deepEqual(projected.contract.prefixItems, [{ type: 'string' }, { type: 'integer' }]);
+  for (const [value, accepted] of [[['a', 2], true], [['a', 2, false], true], [['a'], false], [[2, 'a'], false], [['a', 2, 0], false]]) {
+    assert.equal(servedAccepts(projected, projected.contract, value), accepted);
+    assert.equal(tuple.safeParse(value).success, accepted);
+  }
+});

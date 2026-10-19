@@ -1,6 +1,8 @@
 import { readNonSecretWorkspaceEnvValue } from "@agent-chassis/wiki-core/src/lib/node-engine-env-bootstrap.mjs";
 
 import {
+  APP_VOCABULARY,
+  BACKEND_BY_APP,
   MODEL_NAME_SET,
   MODEL_REGISTRY_BY_NAME,
   resolveModel
@@ -10,7 +12,8 @@ import {
   readRoleDefaultModel,
   readRoleEffort,
   roleDefaultModelFromSnapshot,
-  roleEffortFromSnapshot
+  roleEffortFromSnapshot,
+  roleGuideDeliveryFromSnapshot
 } from "./agent-launch-role-config.mjs";
 import {
   resolveModelRoute,
@@ -61,6 +64,13 @@ export const AGENT_LAUNCH_NEUTRAL_EFFORTS = Object.freeze([
 
 const NEUTRAL_EFFORT_SET = new Set(AGENT_LAUNCH_NEUTRAL_EFFORTS);
 
+export const OPENCODE_NATIVE_MODEL_CAPABILITIES = Object.freeze({
+  "google-vertex/gemini-3.8-flash": Object.freeze({ provider: "google-vertex", location: "global",
+    variants: Object.freeze(["low", "medium", "high"]) }),
+  "google-vertex-anthropic/claude-sonnet-5-5@default": Object.freeze({ provider: "google-vertex-anthropic", location: "global",
+    variants: Object.freeze(["low", "medium", "high", "xhigh", "max"]) })
+});
+
 function freezeEffortMap(entries) {
   return Object.freeze(Object.fromEntries(
     Object.entries(entries).map(([level, value]) => [
@@ -74,6 +84,13 @@ function freezeEffortMap(entries) {
 }
 
 export const AGENT_LAUNCH_FAMILY_EFFORT_MAP = Object.freeze({
+  opencode: freezeEffortMap({
+    low: { variant: "low" },
+    medium: { variant: "medium" },
+    high: { variant: "high" },
+    xhigh: { variant: "xhigh" },
+    max: { variant: "max" }
+  }),
   codex: freezeEffortMap({
     low: { model_reasoning_effort: "low", backend_profile_key: null },
     medium: { model_reasoning_effort: "medium", backend_profile_key: null },
@@ -89,6 +106,11 @@ export const AGENT_LAUNCH_FAMILY_EFFORT_MAP = Object.freeze({
       backend_profile_key_scope: "orchestrator_existing_tier",
       clamped_from: "max"
     }
+  }),
+  agy: freezeEffortMap({
+    low: { effort: "low" },
+    medium: { effort: "medium" },
+    high: { effort: "high" }
   }),
   claude: freezeEffortMap({
     low: { output_config: { effort: "low" } },
@@ -454,6 +476,7 @@ export function resolveRoleModelSelection({
       effort: effort.effort,
       effort_source: effort.effort_source,
       config_effort: effort.config_effort,
+      high_priority_role_guide: roleGuideDeliveryFromSnapshot(role, snapshot),
       route: resolveModelRoute({ model, snapshot, registry })
     })
   };
@@ -631,23 +654,14 @@ const PROFILE_ALIAS_MAP = Object.freeze({
   "worker-fast": "worker_fast"
 });
 
-const APP_VOCABULARY = Object.freeze(["codex", "claude", "agy"]);
-const BACKEND_VOCABULARY = Object.freeze([
-  "codex",
-  "claude",
-  "unsupported"
-]);
-
-const APP_TO_BACKEND = Object.freeze({
-  codex: "codex",
-  claude: "claude",
-  agy: "unsupported"
-});
+const BACKEND_VOCABULARY = Object.freeze(["codex", "claude", "agy", "opencode", "unsupported"]);
+const APP_TO_BACKEND = BACKEND_BY_APP;
 
 const APP_TO_VALIDATION_TRANSPORT = Object.freeze({
   codex: "stdio_mcp_conduit",
   claude: "stdio_mcp_conduit",
-  agy: "unsupported"
+  agy: "stdio_mcp_conduit",
+  opencode: "stdio_mcp_conduit"
 });
 
 const ROLE_DEFAULT_PROFILE = Object.freeze({
@@ -698,7 +712,8 @@ function buildRoleBindings({ codexBackendKey, registryRole }) {
   return {
     codex: buildCodexBinding({ backendProfileKey: codexBackendKey }),
     claude: buildRegistryBinding({ app: "claude", registryRole }),
-    agy: buildRegistryBinding({ app: "agy", registryRole })
+    agy: buildRegistryBinding({ app: "agy", registryRole }),
+    opencode: buildRegistryBinding({ app: "opencode", registryRole })
   };
 }
 
@@ -708,7 +723,7 @@ const PROFILE_DEFINITIONS = {
     authority_role: "worker",
     prompt_policy_id: "worker",
     permission_policy_id: "worker",
-    allowed_apps: ["codex", "claude", "agy"],
+    allowed_apps: ["codex", "claude", "agy", "opencode"],
     app_bindings: buildRoleBindings({ codexBackendKey: "worker", registryRole: "worker" })
   },
   worker_spark: {
@@ -728,7 +743,7 @@ const PROFILE_DEFINITIONS = {
     authority_role: "reviewer",
     prompt_policy_id: "reviewer",
     permission_policy_id: "reviewer",
-    allowed_apps: ["codex", "claude", "agy"],
+    allowed_apps: ["codex", "claude", "agy", "opencode"],
     app_bindings: buildRoleBindings({ codexBackendKey: "reviewer", registryRole: "code_review" })
   },
   redteam: {
@@ -736,7 +751,7 @@ const PROFILE_DEFINITIONS = {
     authority_role: "redteam",
     prompt_policy_id: "redteam",
     permission_policy_id: "redteam",
-    allowed_apps: ["codex", "claude", "agy"],
+    allowed_apps: ["codex", "claude", "agy", "opencode"],
     app_bindings: buildRoleBindings({ codexBackendKey: "redteam", registryRole: "redteam" })
   },
 
@@ -745,8 +760,10 @@ const PROFILE_DEFINITIONS = {
     authority_role: "orchestrator",
     prompt_policy_id: "orchestrator",
     permission_policy_id: "orchestrator",
-    allowed_apps: ["codex"],
+    allowed_apps: ["codex", "agy", "opencode"],
     app_bindings: {
+      agy: buildRegistryBinding({ app: "agy", registryRole: "orchestrator" }),
+      opencode: buildRegistryBinding({ app: "opencode", registryRole: "orchestrator" }),
       codex: buildCodexBinding({ backendProfileKey: "orchestrator" })
     }
   },
@@ -969,7 +986,7 @@ export function resolveAppBinding({ profileName, app } = {}) {
   if (!APP_VOCABULARY.includes(selectedApp)) {
     return refusal(
       "unsupported_app_binding",
-      `app ${selectedApp} is not a recognized launcher app (codex|claude|agy)`,
+      `app ${selectedApp} is not a recognized launcher app (codex|claude|agy|opencode)`,
       "app"
     );
   }
@@ -1167,7 +1184,7 @@ export function resolveLauncherProfile({
   if (!APP_VOCABULARY.includes(selectedApp)) {
     return refusal(
       "unsupported_app_binding",
-      `app ${selectedApp} is not a recognized launcher app (codex|claude|agy)`,
+      `app ${selectedApp} is not a recognized launcher app (codex|claude|agy|opencode)`,
       "app"
     );
   }

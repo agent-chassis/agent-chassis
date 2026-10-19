@@ -7,39 +7,25 @@ This page documents how the launcher resolves a declared `write_scope` entry
 that does not yet exist on disk, the `bubblewrap` isolation that owns the real
 write boundary, and the dry-run surface that reports the prepared write roots.
 
-A WK may legitimately declare a `write_scope` entry that does not yet exist on
-disk, for example a brand-new tool subtree such as
-`tools/in0012-swebench-smoke` or a versioned subtree such as
-`tools/example.v1`. The codex worker launcher resolves the declared scope to
-its target directory (the entry itself for directory-shaped scopes, the parent
-directory for file-shaped scopes) and pre-creates only the exact authorized
-missing subtree before the Codex sandbox starts.
+A managed unit may name an exact output file whose parent directories do not
+yet exist, for example `tools/example.v1/new-tool.mjs`. It does not declare a
+directory as scope. The shared resolver checks the authenticated base Git tree;
+the shared planner prepares the frozen missing parent prefixes and exact file
+before constructing the namespace. Codex and Claude use that same derivation.
 
-For Codex, the active launch mechanism is `-s workspace-write` plus
-explicit `--add-dir <absolute-directory>` entries for each declared writable
-root. The older `permissions.worker_scope.filesystem` / `:project_roots`
-config is not the active enforcement path because current Codex no longer
-recognizes that per-entry read/write table. This restores worker writability,
-but it degrades enforcement granularity: `workspace-write` makes the whole
-`-C <repo>` workspace writable, while `--add-dir` records the declared writable
-directory intent and can extend the writable set with additional directories.
-The launcher therefore cannot enforce file-level write_scope through
-the Codex CLI alone.
+The file-level boundary is bubblewrap's sparse `R union W` repository namespace
+and exact `W` writable mounts. Codex `workspace-write` and `--add-dir` do not
+supply a file-level guarantee. Managed Claude uses in-place edits through `Bash`;
+rename-based native editing cannot widen the mounts to writable parents.
 
-Launcher-owned `bubblewrap` isolation replaces that degraded boundary. Local
-role launches require a usable `bwrap` binary; missing or unusable `bwrap` is a
-launch refusal, not a reason to fall back to repo-wide `workspace-write`.
-
-Human/operator orchestrator entrypoints are the exception authorized by
-decision. When `bubblewrap` is unavailable or unsupported, an operator shell
-orchestrator launch may use an explicit direct mode only if the launcher emits a
-loud warning and dry-run JSON records that OS-level bwrap isolation is
-unavailable. Direct mode is not sandboxed write-scope enforcement: normal host
-OS permissions apply. For structured roles, a no-CCE-key local/free launch may
-use the documented unenforced plain-spawn path when no supported backend can be
-used. A CCE-key launch requires the backend unless the operator explicitly
-selects the recorded unenforced opt-out. These outcomes describe launcher
-mechanics and policy validity, not a security-safe default.
+Managed sessions need a usable backend and the launcher-owned host MCP conduit.
+Missing required namespace/conduit capabilities refuse before spawn. The general
+no-key unenforced posture applies only to a composition that can actually run
+without those capabilities, and carries honest unenforced provenance. A CCE-key
+operator opt-out bypasses neither missing runtime prerequisites nor other gates.
+An operator orchestrator may use the documented direct-mode exception with a
+loud warning; that mode has ordinary host permissions. See
+[enforcement model](enforcement-model.md).
 
 Bubblewrap-isolated orchestrators receive one additional read-only repository-data
 mount: the launcher derives the owning repository's managed-worktree root as
@@ -140,7 +126,7 @@ including intended new write files (see
 frozen `resolved_scope`, whose directory members are always empty. Only an
 explicitly named missing writable file is prepared. That file may sit beneath
 parents that are absent at the authenticated base, for example
-`testdata/projects/action_pinning/workflow.yml`. Those parents are frozen in the
+`testdata/projects/palette_preview/settings.yml`. Those parents are frozen in the
 authority's `scope_preparation.directories` as preparation facts. They are not
 scope members and grant nothing.
 

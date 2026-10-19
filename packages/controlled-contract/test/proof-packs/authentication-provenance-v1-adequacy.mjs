@@ -1,3 +1,4 @@
+import { ExactBindingError } from "../../lib/deterministic-projection-primitives.mjs";
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from
   "../support/proof-pack-adequacy-constants.mjs";
 import { profileDigest, evaluateStableProofPackFixtureV1 } from
@@ -8,7 +9,7 @@ import {
   buildAuthenticationProvenanceSources
 } from "./authentication-provenance-v1-fixture.mjs";
 
-const PROFILE_DIGEST = "b258c0f95aca2a1652c3484c6ce49fd6d66fbb211afaadf7793ecbc20feef3ef";
+const PROFILE_DIGEST = "ddefa79856a8e9c7c14de924e7b4234c0d05ee204a014c83379e5c9e72bd21bf";
 const GUARANTEE_DIGEST = "4f01a730acc440a7b32445445b8119e3f2a70f868bf3563fefbbee327b45eb81";
 
 const EXCLUSIONS = Object.freeze([
@@ -211,12 +212,32 @@ const captureAttackControls = Object.freeze({
     }})
 });
 
-function captureAttackKilled(make) {
+const captureAttackRejections = Object.freeze({
+  "reusable-artifact-substituted-for-occurrence": ["occurrence_capture_role_invalid", "evidence_occurrence"],
+  "caller-invented-occurrence-identity": ["occurrence_capture_role_splice", "evidence_occurrence_mint"],
+  "identical-bytes-replayed-under-another-attempt": ["occurrence_capture_role_splice", "attempt"],
+  "correct-bytes-wrong-target": ["occurrence_capture_role_splice", "target"],
+  "correct-target-wrong-source": ["occurrence_capture_role_splice", "source"],
+  "source-capture-substitution": ["occurrence_capture_proof_claim_mismatch", "source.authentication_proof"],
+  "stale-digest-attack": ["authentication_witness_binding_mismatch", "target_resolution_witness_sha256"],
+  "derived-evidence-as-direct": ["derived_evidence_refused_by_direct_source_capture"],
+  "self-authored-unrelated-source-key": ["occurrence_capture_source_authority_mismatch"],
+  "fabricated-target-resolution-proof": ["occurrence_capture_proof_claim_mismatch", "target.verification_proof"],
+  "fabricated-source-authentication-proof": ["occurrence_capture_proof_claim_mismatch", "source.authentication_proof"],
+  "fabricated-source-of-record-proof": ["occurrence_capture_proof_claim_mismatch", "source_of_record.assignment_proof"],
+  "fabricated-attempt-binding-proof": ["occurrence_capture_proof_claim_mismatch", "attempt.attempt_binding_proof"],
+  "fabricated-aggregate-authentication-proof": ["occurrence_capture_proof_claim_mismatch", "authentication.authentication_proof"]
+});
+
+function captureAttackKilled(controlId, make) {
+  const [expectedCode, field] = captureAttackRejections[controlId];
   try {
     make();
-    return false;
-  } catch {
-    return true;
+    return { killed: false, code: null, expected_code: expectedCode };
+  } catch (error) {
+    if (!(error instanceof ExactBindingError) || error.code !== expectedCode ||
+        (field !== undefined && error.details.field !== field)) throw error;
+    return { killed: true, code: error.code, expected_code: expectedCode };
   }
 }
 
@@ -347,12 +368,19 @@ function positiveControls(profile) {
 
 function mutantControls(profile) {
   const controls = [];
-  for (const [controlId, make] of Object.entries(captureAttackControls)) controls.push({
-    control_id: controlId,
-    category: "mutant",
-    implementation_outcome: captureAttackKilled(make) ? "killed" : "passed",
-    profile_satisfaction: "unsatisfied"
-  });
+  for (const [controlId, make] of Object.entries(captureAttackControls)) {
+    const execution = captureAttackKilled(controlId, make);
+    controls.push({
+      control_id: controlId,
+      category: "mutant",
+      implementation_outcome: execution.killed ? "killed" : "survived",
+      profile_satisfaction: "not_evaluated",
+      rejection: {
+        checker: "transformer", subject: "transformer_input",
+        expected_reason: execution.expected_code, actual_reason: execution.code
+      }
+    });
+  }
   for (const [controlId, make] of Object.entries(rejectionFixtures)) {
     const fixture = make();
     fixture.profile = profile;

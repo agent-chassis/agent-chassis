@@ -116,14 +116,21 @@ function candidateFacts(nodeId, expectation) {
   const separator = nodeId.indexOf("::");
   return { test_id: nativeRuntimeTestId({ provider_id: expectation.provider_id,
     provider_version: expectation.provider_version, path: nodeId.slice(0, separator),
-    node_id: nodeId }), file: nodeId.slice(0, separator), name: nodeId, nesting: null,
-  status: "skipped", error_codes: [] };
+    node_id: nodeId }), file: nodeId.slice(0, separator), name: nodeId, nesting: null };
 }
 
-function selectedIdentityNotObserved(expectation, discovered) {
-  const candidates = [...discovered].sort().map((nodeId) => candidateFacts(nodeId, expectation));
+function selectedIdentityNotObserved(expectation, discovered, lifecycle, sessionEnded) {
+  const candidates = [...discovered].sort().map((nodeId) => {
+    const result = lifecycle.get(nodeId)?.result;
+    return { ...candidateFacts(nodeId, expectation), ...(result === undefined || result === null ? {} : {
+      status: result.outcome, error_codes: [] }) };
+  });
   return refusal("test_proof_selected_identity_not_observed", {
     expected_test_id: expectation.target_test_id,
+    selected_node_id: expectation.node_id,
+    provider: { provider_id: expectation.provider_id, provider_version: expectation.provider_version },
+    selection_status: discovered.has(expectation.node_id) ? "collected_not_observed"
+      : sessionEnded ? "not_collected" : "unknown",
     target: expectation.target,
     observed_count: candidates.length,
     returned_count: candidates.length,
@@ -399,7 +406,7 @@ export function openNativeObservation({ expectation }) {
     const selectedState = lifecycle.get(selected);
     if (selectedState === undefined || (!selectedState.started && selectedState.result === null)) {
       if (!discovered.has(selected) || exitCode === 0 || expectation.completion === "session_end") {
-        return selectedIdentityNotObserved(expectation, discovered);
+        return selectedIdentityNotObserved(expectation, discovered, lifecycle, sessionEnded);
       }
       return inventoryIncomplete("selected_test_start");
     }

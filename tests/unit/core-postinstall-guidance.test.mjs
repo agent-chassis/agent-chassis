@@ -77,8 +77,8 @@ test("postinstall guidance prints no launch commands when neither supported CLI 
 
   assertTerseSetupPointer(guidance);
   assertNoInlineSetupInstructions(guidance);
-  assert.match(guidance, /No supported agent CLI was detected on PATH \(checked: claude, codex\)\./);
-  assert.match(guidance, /After installing one, rerun setup or pass --agent claude\|codex\./);
+  assert.match(guidance, /No supported agent CLI was detected on PATH \(checked: claude, codex, opencode, agy\)\./);
+  assert.match(guidance, /After installing one, rerun setup or pass --agent claude\|codex\|opencode\|agy\./);
 });
 
 test("postinstall guidance is non-mutating and does not throw when detection fails", async () => {
@@ -110,4 +110,27 @@ test("postinstall guidance is non-mutating and does not throw when detection fai
   assertTerseSetupPointer(output);
   assertNoInlineSetupInstructions(output);
   assert.match(output, /No supported agent CLI was detected/);
+});
+
+for (const [command, label] of [["opencode", "OpenCode"], ["agy", "Agy"]]) {
+  test(`postinstall detects ${label} without running setup`, () => {
+    const probed = [];
+    let guidance = "";
+    printPostinstallGuidance({ commandAvailable(executable) {
+      probed.push(executable);
+      return executable === command;
+    }, stdout: { write(chunk) { guidance += chunk; } } });
+    assert.deepEqual(probed, ["claude", "codex", "opencode", "agy"]);
+    assertTerseSetupPointer(guidance);
+    assertNoInlineSetupInstructions(guidance);
+    assert.ok(guidance.includes(`Detected agent CLIs: ${label}.`));
+  });
+}
+
+test("postinstall offers detected new families for noninteractive selection", () => {
+  const guidance = renderDetectedGuidance(["opencode", "agy"]);
+  assertTerseSetupPointer(guidance);
+  assertNoInlineSetupInstructions(guidance);
+  assert.match(guidance, /Detected agent CLIs: OpenCode, Agy\./);
+  assert.match(guidance, /Use --agent opencode or --agent agy to choose non-interactively\./);
 });

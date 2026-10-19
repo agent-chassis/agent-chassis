@@ -21,7 +21,7 @@ import { registeredToolRequestContracts } from './registered-tool-request-contra
 import { caseFamilyGuidanceCall } from './requirement-authoring-job-guidance.mjs';
 import { measureMcpInlineResultBytes } from './mcp-response.mjs';
 import { authoringSchemaMembers, familyAuthoringFacts, familyChoiceFacts, projectIndex, projectIndexSummary, projectProof,
-  projectProofSummary } from './proof-discovery-response.mjs';
+  projectProofSummary, proofDiscoveryAlternatives } from './proof-discovery-response.mjs';
 import { createToolInputValidationError } from './register-tool.mjs';
 import { readSelectedResponseProjection, retainSelectedResponseSource, scalarRangeBytesWithinDeliveryBound,
   selectedResponseCorrectableError, selectedResponseDeliveryBound, selectedResponseDetailSchema,
@@ -398,10 +398,11 @@ export function createFindProofsInputContract(z) {
   const proofName = meaning => z.string().min(PROOF_NAME_INPUT_SCHEMA.minLength).describe(meaning);
   const part = z.union([
     z.object({ kind: z.literal('overview') }).strict(),
+    z.object({ kind: z.literal('comparisons') }).strict(),
     z.object({ kind: z.literal('authoring') }).strict(),
     z.object({ kind: z.literal('parameter'), name: nonEmpty() }).strict(),
     z.object({ kind: z.literal('constraint'), ref: nonEmpty() }).strict()
-  ]).describe('Fresh read: one semantic part of proof_name; omitted, the combined answer. ' +
+  ]).describe('Fresh read: one semantic part of proof_name; omitted, the overview. ' +
     'For a returned result use selection.part.');
   const fields = {
 
@@ -416,7 +417,7 @@ export function createFindProofsInputContract(z) {
 
     selection: z.object({
       proof_name: proofName('A proof listed in the result beside this selection.').optional(),
-      part: part.describe('One semantic part of the selected proof; omitted, the combined answer.').optional()
+      part: part.describe('One semantic part of the selected proof; omitted, the overview.').optional()
     }).strict().describe('Reads within a returned original: requires result beside it. ' +
       'Takes no top-level proof_name, part, query or target_family.')
   };
@@ -555,9 +556,22 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
       });
     };
     const parameters = [];
-    try {
-      for (const candidate of result.candidates) parameters.push(await parametersFor(candidate));
-    } catch (error) { throw discoveryRefusal(error, request); }
+    for (const candidate of result.candidates) {
+      try { parameters.push(await parametersFor(candidate)); }
+      catch (error) {
+        const failure = discoveryRefusal(error, request);
+        failure.details = { ...failure.details,
+          subject: failure.details?.subject ?? { proof_name: candidate.proof_name,
+            proof_version: candidate.profile_version },
+          effects: failure.details?.effects ?? 'none: no result retained and no canonical source written',
+          ...(failure.details?.stopping_condition || failure.details?.supported_action ? {} : {
+            stopping_condition: 'The required parameter definition cannot be supplied. This acquisition returns no ' +
+              'proof choices; discovery has no call to repair the definition. Do not treat this failure as no matches.'
+          }) };
+        throw createControlledContractRefusal(failure, { operation: FIND_PROOFS_TASK,
+          stage: 'parameter_definition' });
+      }
+    }
     const carrier = {
       request, mode: queried ? 'search' : browsing ? 'browse' : 'detail', query: result.query ?? null,
       population: queried ? { matches: result.candidates.length, catalogue: result.candidate_count }
@@ -577,13 +591,22 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
         assertion: candidate.assertion, exclusions: candidate.exclusions,
         constraints: candidate.constraints, refinements: parameters[index],
         observations: candidate.observations, capabilities: candidate.capabilities,
-        provenance: candidate.provenance, associations: candidate.associations,
-        comparisons: comparisonClauses(candidate).map(clause => clause.comparison),
+        provenance: candidate.provenance,
+
+        comparisons: comparisonClauses(candidate).map(({ comparison }) => ({
+          explanation: comparison.explanation,
+          alternatives: intentsById.get(comparison.from_intent_id).capable_packs
+            .filter(pack => pack.profile_id !== candidate.proof_name).map(pack => ({
+            name: pack.profile_id, version: pack.profile_version
+          }))
+        })).filter(comparison => comparison.alternatives.length > 0),
         verification_capability: verificationCapability(candidate.proof_name)
       }))
     };
 
-    const after = observedSources((await currentSourceIdentity()).discovery);
+    let after;
+    try { after = observedSources((await currentSourceIdentity()).discovery); }
+    catch (error) { throw discoveryRefusal(error, request); }
     if (!isDeepStrictEqual(after, carrier.source)) {
       throw discoveryRefusal(Object.assign(new Error('proof definitions moved while the answer was composed'),
         { code: 'proof_discovery_source_changed', details: { changed: false } }), request);
@@ -601,10 +624,30 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
     const details = { ...(error?.details ?? {}) };
     if (code === 'proof_discovery_identity_unknown') Object.assign(details, {
       subject: request.proof_name, effects: 'none', capable_actor: 'caller',
-      recovery: { task: FIND_PROOFS_TASK, missing_input: 'query',
-        accepted: PROOF_INTENT_DISCOVERY_QUERY_POLICY.accepted_form,
-        meaning: 'no proof has this exact name; a search needs the property the caller wants established' } });
-    else if (code === 'proof_discovery_source_changed') Object.assign(details, SOURCE_CHANGED_FACTS);
+      recovery: { meaning: 'No proof has this exact name. Browse, supply the property to search, or correct the name; no proof is substituted.',
+        next_calls: proofDiscoveryAlternatives(request) } });
+    else if (code === 'proof_discovery_source_changed') {
+
+      delete details.source_identity;
+      delete details.changed;
+      Object.assign(details, SOURCE_CHANGED_FACTS);
+    }
+    else if (['proof_intent_metadata_missing', 'proof_intent_metadata_unreadable'].includes(code)) {
+      delete details.rebuild_command;
+      Object.assign(details, { subject: details.path,
+        effects: 'none: no result retained and no canonical source written',
+        stopping_condition: 'The catalogue metadata cannot be read. Discovery has no call that restores it; ' +
+          'this is unavailable evidence, not an empty catalogue or a negative search result.' });
+    }
+    else if (['proof_pack_exact_version_unavailable', 'proof_pack_exact_version_not_current'].includes(code)) {
+      const exact = code === 'proof_pack_exact_version_not_current' ? details.requested : details;
+      Object.assign(details, {
+        subject: { proof_name: exact.profile_id, proof_version: exact.profile_version },
+        effects: 'none: no result retained and no canonical source written',
+        stopping_condition: 'This acquisition cannot supply the required exact definition. Stop conclusions that depend on it; ' +
+          'discovery has no call that restores unavailable or retired definitions, and another definition is not a substitute.'
+      });
+    }
     else return error;
     return new ControlledContractToolError(code, error.message, details);
   }
@@ -613,7 +656,16 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
     try {
       return isDeepStrictEqual(observedSources((await currentSourceIdentity()).discovery),
         binding.observation_identity) ? 'current' : 'changed';
-    } catch { return 'unavailable'; }
+    } catch (error) {
+      if (['proof_intent_metadata_missing', 'proof_intent_metadata_unreadable'].includes(error.code)) {
+        return { status: 'unavailable', failure: { code: error.code, subject: error.details.path,
+          cause: error.details.cause,
+          stopping_condition: 'The retained meaning remains readable, but its currentness is unknown. ' +
+            'Discovery has no call that restores the unreadable catalogue metadata.' } };
+      }
+      return { status: 'unavailable', failure: { code: error.code ?? null,
+        message: error.message, details: error.details ?? null } };
+    }
   }
 
   const selected = (locator, selection) => readSelectedResponseProjection(locator, { env: responseEnv,
@@ -713,18 +765,17 @@ export function registerFindProofsTool({ defineTool, z, jsonContent, errorConten
       { requestSchema: session.requestSchema, registeredTools: [FIND_PROOFS_TASK] })] : [] });
   };
   defineTool(FIND_PROOFS_TASK, {
-    description: 'Browse the proof catalogue: call with no arguments first for every proof name with its ' +
-      'short description. Two request forms follow; never mix them. ' +
+    description: 'Browse with no arguments; use a held name or property query directly. Never mix request forms. ' +
       'Fresh read of the CURRENT catalogue: {proof_name, part?, target_family?}, or {query, target_family?} ' +
       'to search by the property to establish. ' +
       'Read from a returned original: {result, selection?: {proof_name?, part?}}. ' +
       'selection requires the returned result beside it; result alone is valid. Top-level proof_name and ' +
       'part belong to a fresh read. target_family belongs to a fresh proof_name or query request, never ' +
       'to a selection. ' +
-      'A search returns every lexical match in rank order and selects none. A proof answer carries its ' +
-      'exact admitted assertion, exclusions, parameter and constraint index, and the save changes it ' +
-      `establishes. Query limit: ${PROOF_INTENT_DISCOVERY_QUERY_POLICY.maximum_bytes} UTF-8 bytes. ` +
-      'Read-only for canonical sources; executes and credits nothing.',
+      'Search returns lexical candidates, never selections. Proof reads return admitted assertions, exclusions and fit limits; ' +
+      'authoring and comparisons are optional. ' +
+      `Query limit: ${PROOF_INTENT_DISCOVERY_QUERY_POLICY.maximum_bytes} UTF-8 bytes. ` +
+      'Reads only; executes and credits nothing.',
     inputSchema,
     advertisedInputSchema,
     publishedInputSchemaProjection,
@@ -737,7 +788,8 @@ export function registerFindProofsTool({ defineTool, z, jsonContent, errorConten
 
       return selected ?? jsonContent(payload);
     } catch (error) {
-      return errorContent(error?.envelope ? error : createControlledContractRefusal(error));
+      return errorContent(error?.envelope ? error : createControlledContractRefusal(error,
+        { operation: FIND_PROOFS_TASK, stage: Object.hasOwn(args, 'result') ? 'retained_read' : 'acquisition' }));
     }
   }, { losslessDelivery: true });
   return session;

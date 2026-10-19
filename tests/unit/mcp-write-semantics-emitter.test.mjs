@@ -9,73 +9,22 @@ import {
   MCP_WRITE_SEMANTICS_VALUES,
   createRegisterTool
 } from "../../packages/wiki-mcp/src/lib/register-tool.mjs";
-import { registerWorkRecordWriteTools } from "../../packages/wiki-mcp/src/lib/work-record-write-tools.mjs";
-import { registerWikiCoreTools } from "../../packages/wiki-mcp/src/lib/wiki-core-tools.mjs";
-import { registerControlledContractTools } from "../../packages/wiki-mcp/src/lib/controlled-contract-tools.mjs";
-import { registerKindRecordWriteTools } from "../../packages/wiki-mcp/src/lib/kind-record-write-tools.mjs";
-import { errorContent, jsonContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import { registerSaveRecordTools } from "../../packages/wiki-mcp/src/lib/task-save-record-tools.mjs";
+import { registerCreateRecordTools } from "../../packages/wiki-mcp/src/lib/task-create-record.mjs";
 import { loadToolDiscoveryDescriptor } from "../../packages/wiki-core/src/lib/tool-discovery.mjs";
-import { WORK_RECORD_STATUS_VALUES } from "../../packages/wiki-core/src/lib/work-record-schema-constants.mjs";
 
-const REGISTRATION_MODULES = [
-  "work-record-write-tools.mjs",
-  "wiki-core-tools.mjs",
-  "controlled-contract-tools.mjs",
-
-  "kind-record-write-tools.mjs"
-];
+const REGISTRATION_MODULES = ["task-save-record-tools.mjs", "task-create-record.mjs"];
 
 function registerAllModules(registerTool) {
   const registrations = [];
-  const moduleDependencies = (module) => ({
-    registerTool(name, config, handler) {
+  for (const [module, register] of [[REGISTRATION_MODULES[0], registerSaveRecordTools],
+    [REGISTRATION_MODULES[1], registerCreateRecordTools]]) {
+    register({ registerTool(name, config, handler) {
       registrations.push({ module, name, config });
       return registerTool(name, config, handler);
-    },
-    workspaceRepos: [{ repo: "demo", dir: "/tmp/wk2167-write-semantics" }],
-    z,
-    jsonContent,
-    errorContent,
-    resolveWorkspaceRepo: (workspaceRepos) => workspaceRepos[0]
-  });
-
-  registerWorkRecordWriteTools({
-    ...moduleDependencies("work-record-write-tools.mjs"),
-    shapeWriteResponse: (response) => response,
-    createCompactWorkRecordEditResponse: (_repo, result) => result,
-    createCompactContractEditResponse: (_repo, result) => result,
-    validateOptionalExpectedSourceDigest: () => ({ ok: true, value: null }),
-    runWorkspaceWorkRecordAdmissionRefreshRoute() {
-      throw new Error("unexpected admission refresh route invocation");
-    },
-    constants: {
-      WORK_RECORD_STATUS_VALUES,
-      WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME: "workspace_work_record_set_status",
-      WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME:
-        "workspace_work_record_refresh_admission_metrics",
-      WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME:
-        "workspace_work_record_refresh_target_resolution_evidence"
-    }
-  });
-
-  registerWikiCoreTools({
-    ...moduleDependencies("wiki-core-tools.mjs"),
-    emptySchema: z.object({}),
-    extensionNamespacesSchema: z.array(z.string()).optional()
-  });
-
-  registerControlledContractTools({
-    ...moduleDependencies("controlled-contract-tools.mjs"),
-    resolveControlledContractGenerationBinding: () => {
-      throw new Error("unexpected generation binding resolution");
-    },
-    persistControlledContractGeneration: () => {
-      throw new Error("unexpected generation persistence");
-    }
-  });
-
-  registerKindRecordWriteTools(moduleDependencies("kind-record-write-tools.mjs"));
-
+    }, z, workspace: { repo: "demo", dir: "/tmp/wk2167-write-semantics" }, registeredTier: "paid_cce",
+      sessionEnv: { WIKI_MCP_TOOL_PROFILE: "operator" }, responseEnv: {} });
+  }
   return registrations;
 }
 
@@ -96,7 +45,7 @@ function captureRegistrations() {
         descriptorLoaded: true,
         descriptorToolNames,
         registrationEligibleToolNames: descriptorToolNames,
-        freeLocalToolNames: descriptorToolNames
+        toolDescriptors: new Map([...descriptorToolNames].map(name => [name, { tool_name: name, kind: "mcp_tool", tier_visibility: ["free_local", "paid_cce"] }]))
       },
       toolUsageAuditBoundary: { wrapHandler: (_name, handler) => handler },
       registeredToolNames: new Set(),
@@ -255,28 +204,32 @@ test("WK-2167: the boundary emits the declared statement exactly once and no rou
     if (statement) emitted.add(config.writeSemantics);
   }
 
-  assert.ok(
-    emitted.size >= 2,
-    "the population must exercise more than one emitted statement; a single statement across all " +
-      "routes would be the flat carry-or-don't flag this WK exists to avoid"
-  );
+  assert.equal(emitted.size, 0, "current coherent authoring declares no generic replacement sentence");
 });
 
-test("WK-2167: the current editor declares action-dependent list semantics", () => {
+test("current authoring routes publish their coherent changes contract without retired mode/action envelopes", () => {
   const { authored, published } = captureRegistrations();
+  assert.deepEqual(authored.map(row => row.name), ["save_record", "workspace_create_record"]);
   for (const { name, config } of authored) {
-    if (config.writeSemantics === undefined) continue;
-    const properties = inputPropertyNames(published.get(name)?.inputSchema);
-    assert.equal(properties.includes("mode"), false,
-      `${name} must not publish the retired adapter's mode vocabulary`);
-    if (name === "workspace_work_record_edit") {
-      assert.equal(properties.includes("action"), true);
-      assert.equal(
-        config.writeSemantics,
-        MCP_WRITE_SEMANTICS.ACTION_REPLACE_OR_APPEND
-      );
-      assert.match(published.get(name).description, /append actions add one item/iu);
-      assert.equal(published.get(name).description.includes("mode 'append'"), false);
-    }
+    assert.equal(config.writeSemantics, MCP_WRITE_SEMANTICS.NONE);
+    assert.equal(published.get(name).description, config.description);
+    assert.equal(inputPropertyNames(config.advertisedInputSchema).includes("mode"), false);
+    assert.equal(inputPropertyNames(config.advertisedInputSchema).includes("action"), false);
+  }
+});
+
+test("the registrar emits every declared semantics once and consumes the declaration", () => {
+  for (const writeSemantics of MCP_WRITE_SEMANTICS_VALUES) {
+    let published;
+    const name = "save_record";
+    const boundary = createRegisterTool({ server: { registerTool(_name, config) { published = config; } },
+      toolProfile: "operator", registeredTier: "paid_cce", mcpToolTierRegistrationPolicy: {
+        descriptorLoaded: true, descriptorToolNames: new Set([name]), registrationEligibleToolNames: new Set([name]),
+        toolDescriptors: new Map([[name, { kind: "mcp_tool", tier_visibility: ["paid_cce"] }]]) },
+      registeredToolNames: new Set(), structuredLog() {}, toolUsageAuditBoundary: { wrapHandler: (_name, fn) => fn } });
+    boundary(name, { description: "Authored intent.", inputSchema: z.object({}), writeSemantics }, async () => ({ content: [] }));
+    const statement = statementFor(writeSemantics);
+    assert.equal(published.description, `Authored intent.${statement ? ` ${statement}` : ""}`);
+    assert.equal(Object.hasOwn(published, "writeSemantics"), false);
   }
 });

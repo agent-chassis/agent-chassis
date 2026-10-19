@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.lifecycle.bounded-state-stability",
   "profile_version": "4.0.0",
-  "profile_digest": "4d3c0633d235478ec0a8936feb30a00be61aadfef94588ae2aeab39db59579fc",
+  "profile_digest": "017a9a56027e11644186c3ea3c4d83422dba71b330302504bce8e549658a5e62",
   "description": "For one subject, without asserting terminality, with one elected baseline state at a start boundary and a distinct later end boundary, the complete nonempty observation population lies strictly inside the bounded interval; every observation reads that same subject and records the baseline state, and the complete observed-state population equals the complete singleton baseline-state population.",
   "parameters": [
     {

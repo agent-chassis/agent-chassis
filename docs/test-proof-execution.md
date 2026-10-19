@@ -8,11 +8,13 @@ runtime binding and the provider family catalog are in
 
 ## Shared test execution
 
-`workspace_verify_proof` is `workspace_run_test` plus proof evaluation. Every
+`verify_proof` shares the native execution substrate with ordinary repository
+commands. Its saved native proof targets remain a separate internal input
+contract; public worker command selections grant no proof authority. Every
 test execution of a proof attempt (the unchanged candidate and each falsifier
 and traversal stage, for every family) is one run of the owner an ordinary test
 run uses (`test-execution/ordinary-test-runner.mjs`), and proof evaluation
-consumes what that run settled. For both tools that owner alone:
+consumes what that run settled. For native proof and regression stages that owner alone:
 
 - resolves the runtime as it is now, routing the target to its published
   environment or to the project the checkout declares when no record exists
@@ -27,9 +29,11 @@ consumes what that run settled. For both tools that owner alone:
   execution budget (the shorter applies; no stage has a timeout or ceiling of
   its own), and settles the captured run. The request's MCP cancellation and
   its deadline share that one launcher-minted budget, and the executor accepts
-  only a minted budget. The budget starts with the request's execution, once
-  its input is valid: for `workspace_verify_proof` that is before canonical
-  resolution, which therefore consumes it.
+  only a minted budget. For `verify_proof`, the execution budget starts after
+  the selected population and runtime bindings resolve. Provider preparation,
+  proof attempts and declared regressions share that one budget. Cancellation
+  during resolution remains cancellation before execution; it grants no fresh
+  attempt or credit.
 
 A provider builds no command and launches nothing. It contributes only what its
 checks need and an ordinary run does not supply: the exact selected test and
@@ -137,7 +141,9 @@ declared file once, as an ordinary test run of that file, in declared order:
   own. The caller's `environment` selection is passed to it unchanged. The
   runner is selected as described in
   [Runtime Environments](test-proof-runtime-environments.md#regression-file-runner-selection);
-  no command is composed here.
+  the owning project's explicit choice overrides its single recorded default.
+  Missing or multiple runners refuse with the file, project, available names
+  and the setup/configuration-owner action. No command is composed here.
 - Before each file the invocation's currentness check runs. A source that
   moved, a budget that expired and a cancelled request stop later files from
   starting; each of those files is reported as not started, and nothing is
@@ -177,16 +183,24 @@ separate from two confinements that are unchanged:
 Every run has this shape:
 
 - **Execution root.** One launcher-minted `/tmp/agent-chassis-execution-*`
-  host directory per run, with mode-0700 `tmp/` and `scratch/` children. `TMPDIR`,
-  `TMP` and `TEMP` name `tmp/` and `HOME` names `scratch/home`. The observer
+  host directory per run, with mode-0700 `tmp/` and `scratch/` children for
+  launcher artifacts. `HOME`, `TMPDIR`, `TMP` and `TEMP` keep their prepared
+  values, including empty or absent values. The observer
   configuration, observation channel, instrumented source and any proof copy are
   files of `scratch/`. A literal `/tmp` path is the host's `/tmp`, not a private
   namespace.
-- **Environment.** Curated by the launcher: `PATH` is the selected executables'
-  directories followed by the absolute host `PATH` entries in their order
-  (relative entries are omitted), with `LANG=C.UTF-8`, `CI=true`, the routed
-  ecosystem's own variables and the stage's additions. An invalid selected
-  executable is refused, never replaced.
+- **Environment.** The prepared host environment crosses the existing
+  credential/posture filter, with coordinator authority and parent test-runner
+  context withheld. Supplied `HOME`, `CI`, locale, cache and repository settings
+  stay supplied through public CLI bootstrap and host handoff, including Node
+  options and compile-cache settings; absent values are not manufactured.
+  Prepared `PATH` keeps all
+  components and their order, including relative and empty entries. Only an
+  explicit configured executable binding adds a leading directory; discovery
+  never reorders it. The selected dependency installation and the stage's instrumentation
+  additions keep their existing owners. Host execution does not impose the
+  confined setup/agent environment. An invalid selected executable is refused,
+  never replaced.
 - **Driver.** The launcher's own Node runs the attempt driver
   (`attempt-driver.mjs`) with one closed, launcher-built plan on stdin. The
   driver creates files only below `scratch/`, starts the single runner process
@@ -337,6 +351,17 @@ the snapshot owner's code as its cause), `proof_source_entry_unsupported`,
 `proof_source_copy_parity_failed`. The copy isolates the source transformation,
 not host permissions: a test can still reach the original checkout by path. It
 is removed with its execution root.
+
+Pytest uses the same source-binding startup adapter for ordinary execution and
+all proof stages. Local editable source paths and supported editable finders
+point to the selected candidate before pytest or project plugins import the
+application. The proof entry retains isolated Python mode; third-party
+installation paths, project cwd and pytest options remain available. The
+falsifier resolves through that same binding before substituting the declared
+source. Missing candidate source and unsupported editable mechanisms refuse
+explicitly; loading the original checkout never supplies candidate evidence.
+See [Python runtime inputs](test-proof-runtime-environments.md#native-provider-runtime-inputs)
+for supported mechanisms and startup limitations.
 
 Setup's probe copies are a different mechanism with different contents. An npm
 runner probe runs in a private copy of only the project source Git selects:
@@ -492,14 +517,30 @@ npm runner has one.
   overridden, and the built-in plugin set) from instances it creates through
   `createVitest`
   with the module cache off and closes without running anything, then starts
-  the one instance that runs. A Vitest without a native module cache runs every
-  stage with the cache off. The launcher always passes `fsModuleCache: false`,
-  which the root and every test project inherit. Only its own Vite plugin, in the
+  the one instance that runs. That existing cache-off resolution also checks
+  whether the selected runner supplies a callable `defineCacheKeyGenerator`
+  and successfully registers the launcher's invalidation generator. Without
+  that capability (including a runner that never calls `configureVitest`),
+  every proof stage executes uncached and reports
+  `cache_key_generator_unavailable`. An available API that throws keeps its
+  original error and fails the stage; it is never treated as capability absence
+  or retried. The experimental API name is not used.
+  The launcher always passes `fsModuleCache: false`,
+  which the root and every test project inherit; its plugin also clears any
+  experimental cache request the project supplied in the earlier `config`
+  hook, before Vitest normalizes its cache options. After capability is
+  established, only its own Vite plugin, in the
   `configResolved` hook of the instance that runs, turns the module cache on at
   the persistent path, and only when the resolved plugins are exactly those
   Vitest resolves with no configuration file (compared by name and hook code)
-  and no test projects are declared. Any other configuration (a plugin, test
-  projects or Vite devtools) runs with the cache off; plugins are never
+  and no test projects are declared. Vitest snapshots the setting when it
+  initializes native module fetchers, before `configureVitest`: enabling the
+  flag only in that later hook would leave those fetchers uncached. The
+  running instance registers its own generator in that hook, before proof
+  modules load. A custom VCS module that Vitest imports before the hook stays
+  uncached (`configured_vcs_provider`). Any other configuration (a plugin, test
+  projects or Vite devtools) runs with the cache off (`configured_plugins` or
+  `configured_projects`); plugins are never
   stripped, named or trusted. Vitest's own key covers a module's id and content,
   part of the resolved Vite configuration, the modules the configuration file
   imports and the lockfile. Through Vitest's supported

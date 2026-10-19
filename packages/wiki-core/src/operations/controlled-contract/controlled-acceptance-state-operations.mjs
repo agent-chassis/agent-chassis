@@ -24,6 +24,7 @@ function fail(code, message, details = {}) {
 export async function classifyControlledAcceptanceStateOperation({
   repoRoot, wkId, selectedUnit = null, record = null
 } = {}, {
+  registeredTier = null,
   loadRecord = loadWorkRecordById,
   inspectWorkbench = inspectControlledContractDesignWorkbenchOperation
 } = {}) {
@@ -51,7 +52,7 @@ export async function classifyControlledAcceptanceStateOperation({
         }) });
   try {
     return deriveControlledAcceptanceStateProjection({ wkId, selectedUnit, posture,
-      workbench });
+      workbench, registeredTier });
   } catch (error) {
     fail(CONTROLLED_ACCEPTANCE_DECISION_CODES.invalid, error.message, {
       source_code: error.code ?? null

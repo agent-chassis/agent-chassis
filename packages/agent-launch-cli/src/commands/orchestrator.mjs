@@ -51,7 +51,7 @@ function evaluateOrchestratorIdentity(env) {
   });
 }
 
-export { ORCHESTRATOR_AGY_UNSUPPORTED_REASON } from "../lib/orchestrator-launch-dispatch.mjs";
+export { ORCHESTRATOR_APP_UNREGISTERED_REASON } from "../lib/orchestrator-launch-dispatch.mjs";
 
 const HELP_TEXT = `agent-launch orchestrator <IN-####> [options] [focus...]
 agent-launch orchestrator list [--json]
@@ -72,7 +72,7 @@ planner and host-server conduit.
 Options:
   --profile <profile>    Canonical launcher profile (default: orchestrator;
                          orchestrator_xhigh for xhigh dispatch)
-  --app codex|claude     Override the profile's default app binding
+  --app codex|claude|opencode     Override the profile's default app binding
   --model <model>        Override the selected binding's default model
   --effort <effort>      Neutral effort flag; xhigh selects orchestrator_xhigh
   --dry-run-json         Emit the launch plan without spawning
@@ -161,6 +161,7 @@ export function resolveOrchestratorCommandProfile({ parsed, role, env = process.
     profileName: parsed.profileName,
     app: parsed.app,
     model: parsed.model ?? envModel,
+    effort: parsed.effort,
     env,
     dir: cwd
   });

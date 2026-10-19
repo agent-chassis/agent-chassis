@@ -1,7 +1,7 @@
 
 import {
   chmodSync, closeSync, constants as fsConstants, existsSync, fstatSync,
-  lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync,
+  lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync,
   rmSync, writeFileSync
 } from "node:fs";
 import path from "node:path";
@@ -12,7 +12,7 @@ function errorMessage(error) {
 
 const TEST_TEMP_PARENT = "/tmp";
 const RUNNER_ROOT_MARKER = ".agent-chassis-runner-owned.json";
-const RUNNER_ROOT_MARKER_SCHEMA = "agent-chassis-test-runner-root.v2";
+const RUNNER_ROOT_MARKER_SCHEMA = "agent-chassis-test-runner-root.v3";
 const RUNNER_ROOT_REPOSITORY = "agent-chassis/agent-chassis";
 const RUNNER_ROOT_SPECS = Object.freeze({
   home: Object.freeze({
@@ -83,6 +83,20 @@ function readLinuxBootId() {
   return bootId.length > 0 ? bootId : null;
 }
 
+function inspectLinuxProcessView() {
+  if (process.platform !== "linux") return { state: "unknown", reason: "non-linux host" };
+  try {
+    const namespace = readlinkSync("/proc/self/ns/pid");
+    const procPid = readFileSync("/proc/self/stat", "utf8").split(" ", 1)[0];
+    if (procPid !== String(process.pid)) {
+      return { state: "unknown", reason: "/proc describes another pid namespace" };
+    }
+    return { state: "known", namespace };
+  } catch (error) {
+    return { state: "unknown", reason: errorMessage(error) };
+  }
+}
+
 function parseLinuxProcessStartTicks(statText, pid) {
   const closeParen = statText.lastIndexOf(") ");
   if (closeParen < 0) throw new Error(`malformed /proc/${pid}/stat: missing command terminator`);
@@ -109,11 +123,13 @@ function inspectLinuxProcess(pid) {
 function currentRunnerOwnerIdentity() {
   const uid = typeof process.getuid === "function" ? process.getuid() : null;
   const bootId = readLinuxBootId();
+  const view = inspectLinuxProcessView();
   const processIdentity = inspectLinuxProcess(process.pid);
   return Object.freeze({
     pid: process.pid,
     uid,
     boot_id: bootId,
+    pid_namespace: view.state === "known" ? view.namespace : null,
     process_start_ticks: processIdentity.state === "present"
       ? processIdentity.startTicks
       : null
@@ -353,6 +369,8 @@ function inspectRunnerRootOwnership(rootPath, directoryHandle) {
     marker.owner.pid <= 0 ||
     typeof marker.owner.boot_id !== "string" ||
     marker.owner.boot_id.length === 0 ||
+    typeof marker.owner.pid_namespace !== "string" ||
+    !/^pid:\[\d+\]$/u.test(marker.owner.pid_namespace) ||
     typeof marker.owner.process_start_ticks !== "string" ||
     !/^\d+$/u.test(marker.owner.process_start_ticks)
   ) {
@@ -368,9 +386,12 @@ function inspectRunnerRootOwnership(rootPath, directoryHandle) {
   return { state: "proven", bounded, marker, markerText, markerIdentity };
 }
 
-function inspectRunnerRootLiveness(proof, currentBootId) {
+function inspectRunnerRootLiveness(proof, currentBootId, processView) {
   if (proof.marker.owner.boot_id !== currentBootId) {
-    return { state: "inactive", reason: "owner boot no longer active" };
+    return { state: "unknown", reason: "owner boot is outside the current boot view" };
+  }
+  if (processView.state !== "known" || proof.marker.owner.pid_namespace !== processView.namespace) {
+    return { state: "unknown", reason: "owner pid is outside the current process view" };
   }
   const processIdentity = inspectLinuxProcess(proof.marker.owner.pid);
   if (processIdentity.state === "absent") {
@@ -394,7 +415,8 @@ function sameRunnerRootProof(first, second) {
 
 export function recoverInactiveRunnerRoots() {
   const currentBootId = readLinuxBootId();
-  if (currentBootId === null) {
+  const processView = inspectLinuxProcessView();
+  if (currentBootId === null || processView.state !== "known") {
     return Object.freeze({ removed: Object.freeze([]), failures: Object.freeze([]) });
   }
   const removed = [];
@@ -413,11 +435,11 @@ export function recoverInactiveRunnerRoots() {
     try {
       const firstProof = inspectRunnerRootOwnership(rootPath, directoryHandle);
       if (firstProof.state !== "proven") continue;
-      if (inspectRunnerRootLiveness(firstProof, currentBootId).state !== "inactive") continue;
+      if (inspectRunnerRootLiveness(firstProof, currentBootId, processView).state !== "inactive") continue;
 
       const secondProof = inspectRunnerRootOwnership(rootPath, directoryHandle);
       if (!sameRunnerRootProof(firstProof, secondProof)) continue;
-      if (inspectRunnerRootLiveness(secondProof, currentBootId).state !== "inactive") continue;
+      if (inspectRunnerRootLiveness(secondProof, currentBootId, processView).state !== "inactive") continue;
       try {
         removeBoundedRunnerRoot(rootPath, directoryHandle);
         removed.push(rootPath);

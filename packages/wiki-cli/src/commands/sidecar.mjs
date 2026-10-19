@@ -152,6 +152,7 @@ async function runStatus(argv) {
 
   const targetDir = path.resolve(String(options.dir || "."));
   const status = await getSidecarIndexStatus({
+    verifyCheckout: false,
     dir: targetDir,
     cacheDir: optionalOption(options, "cache-dir") || undefined
   });

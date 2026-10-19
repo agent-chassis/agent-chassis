@@ -1,3 +1,10 @@
 #!/usr/bin/env node
+import { createCorePackageDocsCarrier } from "../lib/package-docs-carrier.mjs";
+import { run } from "@agent-chassis/wiki-cli/src/run.mjs";
 
-await import("@agent-chassis/wiki-cli/src/index.mjs");
+try {
+  await run(process.argv.slice(2), { packageDocsCarrier: await createCorePackageDocsCarrier() });
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+}

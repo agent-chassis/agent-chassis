@@ -348,7 +348,25 @@ test("slice contract members are declared and accepted for an existing slice uni
   }
 
   assert.deepEqual(Object.keys(slice.properties).filter((member) => !WORK_ITEM_SLICE_CONTRACT_MEMBERS.includes(member)),
-    Object.keys(recordAuthoringChangeSchema("work_item", "existing").properties));
+    Object.keys(recordAuthoringChangeSchema("work_item", "existing").properties).filter(member => member !== 'refresh_proofs'));
+  assert.equal(Object.hasOwn(slice.properties, 'refresh_proofs'), false);
+  const refresh = recordAuthoringChangeSchema('work_item', 'existing').properties.refresh_proofs;
+  assert.deepEqual([refresh.type, refresh.const], ['boolean', true]);
+  assert.deepEqual(invalid('work_item', { refresh_proofs: true }), []);
+  for (const value of [false, 'true', 1, null]) {
+    const issues = invalid('work_item', { refresh_proofs: value });
+    assert.ok(issues.length > 0 && issues.every(([code, at]) => code === INVALID && at === 'changes.refresh_proofs'),
+      JSON.stringify({ value, issues }));
+  }
+  assert.ok(invalid('work_item', { refresh_proofs: true, title: 'Mixed' }).some(([code, at]) =>
+    code === INVALID && at === 'changes'), 'refresh remains exclusive');
+  for (const context of ['existing_slice', 'birth']) {
+    assert.equal(Object.hasOwn(recordAuthoringChangeSchema('work_item', context).properties, 'refresh_proofs'), false);
+    assert.deepEqual(invalid('work_item', { refresh_proofs: true }, context), [[NOT_APPLICABLE, 'changes.refresh_proofs']]);
+  }
+  for (const kind of ['initiative', 'decision']) {
+    assert.equal(Object.hasOwn(recordAuthoringChangeSchema(kind, 'existing').properties, 'refresh_proofs'), false);
+  }
 
   assert.deepEqual(Object.keys(slice.properties).filter((member) =>
     slice.properties[member].description === WORK_ITEM_SLICE_CONTRACT_MEMBER_NOTE), [...WORK_ITEM_SLICE_CONTRACT_MEMBERS]);
@@ -556,7 +574,9 @@ test("work-item declarations separate criterion label references from literal sl
     const variants = (items) => items.oneOf ?? [items];
     assert.equal(properties.criteria.description, WORK_ITEM_CRITERION_NOTES.criteria, context);
     for (const row of variants(properties.obligations.items)) {
-      assert.equal(row.properties.criteria.description, WORK_ITEM_CRITERION_NOTES.obligation_criteria, context);
+      const schema = recordAuthoringChangeSchema('work_item', context);
+      const criteria = row.properties.criteria.$ref ? schema.$defs.obligation_criteria : row.properties.criteria;
+      assert.equal(criteria.description, WORK_ITEM_CRITERION_NOTES.obligation_criteria, context);
     }
     for (const row of variants(properties.ready_slices.items)) {
       assert.equal(row.properties.acceptance.properties.criteria.description, acceptanceText.description, context);
@@ -599,9 +619,12 @@ test("shared verification and case definitions keep every request's outcome and 
 
     assert.deepEqual([schema.properties.requirements.type, Object.keys(schema.properties.requirements.properties)], ["object", BATCH_MEMBERS], context);
     assert.deepEqual(schema.properties.requirements.properties.requirements.items,
-      { oneOf: [{ $ref: "#/$defs/requirement" }, { $ref: "#/$defs/membership_requirement" }] }, context);
+      { oneOf: [{ $ref: "#/$defs/requirement" }, { $ref: "#/$defs/membership_requirement" },
+        { $ref: "#/$defs/definition_requirement" }] }, context);
     assert.deepEqual([schema.$defs.requirement, schema.$defs.membership_requirement].map(row => row.properties.verification),
       [{ $ref: "#/$defs/requirement_verification" }, { $ref: "#/$defs/requirement_verification" }], context);
+    assert.deepEqual(schema.$defs.definition_requirement.properties.definition, { const: true }, context);
+    assert.equal(Object.hasOwn(schema.$defs.definition_requirement.properties, "verification"), false, context);
     assert.deepEqual(schema.properties.obligations.items.oneOf.map(row => row.properties.case),
       [{ $ref: "#/$defs/obligation_case" }, { $ref: "#/$defs/obligation_case" }], context);
 
@@ -610,6 +633,7 @@ test("shared verification and case definitions keep every request's outcome and 
       batch([{ id: "claim-saved", ...requirement, verification }]),
       batch([{ row_id: `row-${"a".repeat(40)}`, ...requirement }]),
       batch([{ ...requirement }]),
+      batch([{ key: "named-definition", subject: "unit", definition: true, behavior: statement }]),
 
       batch([{ key: "closed", subject: "unit", membership: [{ member: "suite", modality: "MAY" }] }]),
       batch([{ subject: "unit", behavior: { relation: "boolean:exists" } }]),
@@ -717,7 +741,7 @@ test("nested shared definitions keep the caller's member paths, constraints and 
     for (const name of ["behavior", "entity_id", "entities", "pending", "requirement", "membership_requirement", "requirement_verification", "collection",
       "case_component", "case_target", "case_falsification", "ready_slice_edit_targets"]) assert.ok(Object.hasOwn(schema.$defs, name), `${context}: ${name}`);
     const resolve = node => node.$ref ? schema.$defs[node.$ref.slice('#/$defs/'.length)] : node;
-    const relationsAt = name => schema.$defs[name].oneOf.flatMap(node => resolve(node).properties.relation.oneOf.map(option => option.const));
+    const relationsAt = name => schema.$defs[name].oneOf.flatMap(node => resolve(node).properties.relation.enum);
     const RELATIONS = relationsAt('behavior');
     const OBSERVATION_RELATIONS = relationsAt('observation');
     for (const valid of [batch([{ key: "r", ...requirement, verification: { key: "v", ...verification } }]),
@@ -748,8 +772,7 @@ test("nested shared definitions keep the caller's member paths, constraints and 
           [`${caseAt}.component.type_term`, missing("type_term")], [`${caseAt}.component.identity`, missing("identity")],
           [`${caseAt}.component`, noAlternative]]],
       [{ obligations: [{ id: "OBL-A", case: { id: "case-a", target: { path: 7 } } }] },
-        [[`${caseAt}.target.path`, { keyword: "type", type: "string" }], [`${caseAt}.target.provider`, missing("provider")],
-          [`${caseAt}.target.selector`, missing("selector")], [`${caseAt}.target`, noAlternative]]],
+        [[`${caseAt}.target.path`, { keyword: "type", type: "string" }]]],
       [{ obligations: [{ key: "o", case: { falsification: { strategy: "nope" } } }] },
         [[`${caseAt}.falsification.strategy`, { keyword: "enum", allowedValues: ["dependency_failure", "forced_invocation", "result_inversion"] }],
           [`${caseAt}.falsification`, { keyword: "type", type: "null" }]]],
@@ -761,6 +784,28 @@ test("nested shared definitions keep the caller's member paths, constraints and 
       assert.deepEqual(issues.map(({ path, constraint }) => [path, constraint]), expected, `${context}: ${JSON.stringify(changes)}`);
       assert.equal(JSON.stringify(issues).includes("$defs"), false, "no definition path reaches the caller");
       assert.ok(issues.every(issue => issue.code === INVALID && issue.message.startsWith(`${issue.path} `)));
+    }
+  }
+});
+
+test('case target diagnostics follow provider presence without inferring provider identity', () => {
+  for (const context of ['existing', 'existing_slice', 'birth']) {
+    const diagnose = target => validateRecordAuthoringChanges('work_item', context,
+      { obligations: [{ key: 'obligation', case: { key: 'case', target } }] });
+    for (const provider of ['vitest', null, {}, { provider_id: 3 }]) {
+      const result = diagnose({ provider, path: 'tests/clamp.test.ts', selector: { test: 'clamp' } });
+      assert.ok(result.some(row => row.path.endsWith('.provider') || row.path.includes('.provider.')), JSON.stringify(result));
+      assert.ok(result.some(row => row.path.endsWith('.selector.test')), JSON.stringify(result));
+      assert.ok(!result.some(row => row.path.endsWith('.path')), 'native path must not receive the node:test restriction');
+    }
+    const target = { provider: { provider_id: 'launcher.vitest', provider_version: '1.0.0' },
+      path: 'tests/clamp.test.ts', selector: { title_path: ['clamp', 'bounded input'] } };
+    assert.deepEqual(diagnose(target), []);
+    assert.ok(diagnose({ path: target.path, selector: { name: 'clamp', nesting: 0 } })
+      .some(row => row.path.endsWith('.path') && row.constraint.keyword === 'pattern'));
+    for (const selector of [{ title_path: ['clamp'] }, { name: 'clamp', title_path: ['clamp'] }, { test: 'clamp' }]) {
+      const result = diagnose({ path: target.path, selector });
+      assert.ok(result.some(row => row.path.endsWith('.target') && row.constraint.members?.includes('provider_qualified')), JSON.stringify(result));
     }
   }
 });

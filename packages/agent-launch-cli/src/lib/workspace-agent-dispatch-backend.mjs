@@ -77,6 +77,7 @@ import {
   readManagedRunObservation,
   recordManagedLifecycleFailure,
   recordManagedRunResult,
+  readManagedCompletion,
   recordManagedRunOriginal,
   recordManagedReviewOriginal,
   readManagedReviewOriginal,
@@ -416,6 +417,7 @@ function assembleDispatchBackend(options, createLifecycle) {
     resolveCanonicalAdmissionReviewRecord,
     settleFormalReviewAttestation: options.settleFormalReviewAttestation ?? null,
     publishManagedRunResult,
+    readManagedRunCompletion: managedRunIdentityRoot === null ? null : request => readManagedCompletion({ ...request, mainRepo: managedRunIdentityRoot }),
     assessManagedRunResult,
     publishManagedRunOriginal,
     publishManagedReviewOriginal,
@@ -566,6 +568,9 @@ function assembleDispatchBackend(options, createLifecycle) {
     resolveRetainedFindingsSource: lifecycle.resolveRetainedFindingsSource,
     planLaunch: lifecycle.planLaunch,
     resolveWorkerTargetRefusal: backendContext.resolveWorkerTargetRefusal,
+    preflightWorkerInputs: input => backendContext.freezeWorkerScopeSnapshot.preflight({
+      input, role: input.role, subject: input.subject, app: input.app
+    }),
     getManagedLifecycleCapabilityAuthorityFacts,
     getSelectedBackendCapabilityFacts,
     getDispatchModelCapabilityFacts,

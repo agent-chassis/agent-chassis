@@ -23,8 +23,6 @@ import { readSelectedResponseEvidence, readSelectedResponseSource, retainSelecte
 
 export const DELIVERY_ORIGINAL_PRODUCER = "workspace_deliver_work";
 
-const ORIGINAL_DIAGNOSTIC_PATH = `${DELIVERY_ORIGINAL_PRODUCER}.original`;
-
 const RUN_FIELDS = Object.freeze(["launch_ref", "run_id", "retry_id"]);
 
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -115,6 +113,63 @@ export function publishDeliveryReceiptForSession({ workspace, sessionEnv, respon
   return { state: "published", appended: recorded.appended, result };
 }
 
+export function selectLogicalDeliveryAccounts(accounts, { readAncestor = null } = {}) {
+  const indexed = new Map(accounts.map(account => [account.result.ref_id, account]));
+  const parents = new Map();
+  const comparable = carrier => {
+    const { checkout: _checkout, ...transaction } = carrier.outcome?.response?.transaction ?? {};
+    return { identity: carrier.identity, transaction,
+      committed: carrier.outcome?.response?.committed,
+      submitted: carrier.outcome?.response?.submitted_for_review };
+  };
+  const invalid = (reason, result) => { throw selectedResponseQueryInvalidError(
+    DELIVERY_ORIGINAL_PRODUCER, reason, { result }); };
+  const visit = (account, active = new Set()) => {
+    const id = account.result.ref_id;
+    if (!isRecord(account.carrier.identity?.binding) || typeof account.carrier.identity?.unit !== 'string' ||
+        typeof account.carrier.identity?.repository !== 'string') invalid('delivery_recovery_identity_missing', account.result);
+    if (active.has(id)) invalid('delivery_recovery_cycle', account.result);
+    if (parents.has(id)) return;
+    const prior = account.carrier.checkout_retry?.continues;
+    if (prior === undefined) { parents.set(id, null); return; }
+    const parentResult = readResult({ result: prior });
+    let parent = indexed.get(parentResult.ref_id);
+    if (parent === undefined) {
+      if (readAncestor === null) invalid('delivery_recovery_predecessor_unavailable', parentResult);
+      parent = { result: parentResult, carrier: readAncestor(parentResult), current: true };
+      indexed.set(parentResult.ref_id, parent);
+    }
+    if (!isDeepStrictEqual(comparable(account.carrier), comparable(parent.carrier))) {
+      invalid('delivery_recovery_identity_mismatch', account.result);
+    }
+    visit(parent, new Set([...active, id]));
+    parents.set(id, parentResult.ref_id);
+  };
+  for (const account of accounts) visit(account);
+  const continued = new Set([...parents.values()].filter(id => id !== null));
+  const heads = [...indexed.values()].filter(account => !continued.has(account.result.ref_id));
+  const current = new Map();
+  for (const head of heads) {
+    for (let id = head.result.ref_id; id !== null; id = parents.get(id)) {
+      if (current.has(id)) invalid('delivery_recovery_chain_ambiguous', { ref_id: id });
+      current.set(id, head);
+    }
+  }
+  return { heads, current };
+}
+
+export function currentDeliveryAccountForSession({ workspace, sessionEnv, responseEnv, carrier, result }) {
+  const observed = readManagedRunObservation({ mainRepo: path.resolve(workspace.dir),
+    subject: carrier.identity.unit, sliceBinding: carrier.identity.binding });
+  if (!observed.ok) throw Object.assign(new Error(observed.refusal?.reason ?? observed.code),
+    { code: observed.code ?? observed.refusal?.code, cause: observed });
+  const read = locator => readDeliveryOriginalForSession({ workspace, sessionEnv, responseEnv, request: { result: locator } });
+  const accounts = observed.selected.delivery_receipts.map(({ receipt }) => ({
+    result: { ref_id: receipt.result.ref_id }, carrier: read({ ref_id: receipt.result.ref_id }) }));
+  if (!accounts.some(account => account.result.ref_id === result.ref_id)) accounts.push({ result, carrier });
+  return selectLogicalDeliveryAccounts(accounts, { readAncestor: read }).current.get(result.ref_id);
+}
+
 export function pendingDeliveryReceiptForSession({ workspace, sessionEnv, responseEnv }) {
   const state = resolveLauncherRunState(sessionEnv);
   const credential = state.credential;
@@ -125,9 +180,7 @@ export function pendingDeliveryReceiptForSession({ workspace, sessionEnv, respon
   if (!observed.ok) throw Object.assign(new Error(observed.refusal?.reason ?? observed.code),
     { code: observed.code ?? observed.refusal?.code, cause: observed });
   const committed = originals.sources().filter(({ carrier }) => carrier.outcome?.response?.committed === true);
-  const continued = new Set(committed.map(({ carrier }) => carrier.checkout_retry?.continues?.ref_id)
-    .filter((refId) => typeof refId === "string"));
-  const pending = committed.filter(({ result }) => !continued.has(result.ref_id));
+  const pending = selectLogicalDeliveryAccounts(committed).heads;
   if (pending.length > 1 || new Set(committed.map(({ carrier }) =>
     carrier.outcome.response.transaction?.delivery_commit)).size > 1) {
     throw selectedResponseQueryInvalidError(DELIVERY_ORIGINAL_PRODUCER,
@@ -197,7 +250,7 @@ export function readDeliveryOriginalForSession({ workspace, sessionEnv = process
 }
 
 export function createDeliveryOriginals({ workspace, binding, credential, assignedUnit,
-  responseEnv = process.env }) {
+  responseEnv = process.env, producer = DELIVERY_ORIGINAL_PRODUCER }) {
   if (!isRecord(workspace) || typeof workspace.repo !== "string" || workspace.repo.length === 0 ||
       typeof workspace.dir !== "string" || !isRecord(credential)) {
     throw new TypeError("delivery originals require the configured workspace and the launcher credential");
@@ -213,7 +266,7 @@ export function createDeliveryOriginals({ workspace, binding, credential, assign
 
   const { subject, ...launcherBinding } = JSON.parse(JSON.stringify(verified));
   const retainedBinding = deepFreeze({
-    route: DELIVERY_ORIGINAL_PRODUCER,
+    route: producer,
     repository: workspace.repo,
     unit: subject,
     query_identity: Object.fromEntries(RUN_FIELDS.map((field) => [field, launcherBinding[field]])),
@@ -234,7 +287,7 @@ export function createDeliveryOriginals({ workspace, binding, credential, assign
       if (!isRecord(original)) {
         throw new TypeError("a delivery original is one JSON object");
       }
-      const carrier = serializeWorkRecordDiagnosticValue(original, { path: ORIGINAL_DIAGNOSTIC_PATH });
+      const carrier = serializeWorkRecordDiagnosticValue(original, { path: `${producer}.original` });
       stage = "original_retention";
       return retainSelectedResponseSource({ carrier, binding: retainedBinding }, { responseOwner });
     } catch (error) {

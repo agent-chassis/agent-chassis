@@ -14,6 +14,7 @@ import { createTestResourceScope } from "./helpers/test-resource-scope.mjs";
 import { parseTestRunnerOptions, TestRunnerOptionError } from "./helpers/test-runner-options.mjs";
 import { createRunnerOutput } from "./helpers/test-runner-output.mjs";
 import { beginTestRunRecording } from "./helpers/test-run-recording.mjs";
+import { createTestRunArtifactResources } from "./helpers/test-run-artifact-resources.mjs";
 import { renderSlowest } from "./helpers/test-timing-summary.mjs";
 import { TEST_TIMING_CODES, timingFailure, timingNextAction } from "./helpers/test-timing-diagnostics.mjs";
 import { TEST_RUNNER_OBSERVER_URL } from "./helpers/test-runner-observer.mjs";
@@ -129,8 +130,8 @@ function describeWatchdogFailure(emit, error, fileTimeoutMs, phaseTimeoutMs) {
       `budget=${detail.budgetMs}ms. Operator: inspect global setup/reporter teardown; ` +
       `increase --test-runner-phase-timeout=${phaseTimeoutMs} deliberately if needed.\n`);
   } else {
-    emit("[run-tests] runner maintainer: inspect the observer protocol and retained " +
-      "Node diagnostic; a partial reporter artifact is not a pass.\n");
+    emit("[run-tests] runner maintainer: inspect the observer protocol; use " +
+      "--preserve-test-artifacts on a diagnostic rerun. A partial reporter artifact is not a pass.\n");
   }
 }
 
@@ -150,7 +151,7 @@ function listCorpus(unit, integration) {
   for (const file of integration) process.stdout.write(`  ${file}\n`);
 }
 
-async function main(output) {
+async function main(output, artifactResources) {
   const emit = (text) => output.message(text);
 
   const callerTempDir = os.tmpdir();
@@ -268,7 +269,7 @@ async function main(output) {
     try {
       recording = await beginTestRunRecording({ repoRoot: REPO_ROOT, mode, options,
         selectedFiles: options.files, callerTempDir, currentRoots: roots.map((root) => root.path),
-        output });
+        output, artifactResources });
     } catch (error) {
       const code = error?.code ?? TEST_TIMING_CODES.ARTIFACT_CREATE_FAILED;
       emit(`[run-tests] ${code}: ${errorMessage(error)}\n[run-tests] ${timingNextAction(code) ??
@@ -278,7 +279,9 @@ async function main(output) {
       throw error;
     }
     for (const failure of pendingRecordingFailures.splice(0)) recording.recordFailure(failure);
-    emit(`[run-tests] artifacts=${recording.runDir} run=${recording.runId}\n`);
+    emit(`[run-tests] artifacts=${recording.runDir} run=${recording.runId} ` +
+      `preserve=${options.preserveArtifacts}; ` +
+      "use --preserve-test-artifacts to keep diagnostics after exit\n");
     const env = buildClampedEnv(home.path, temp.path, recording.contextEnv);
     watchdog = createTestRunnerWatchdog({
       files: options.files, fileTimeoutMs: options.fileTimeoutMs,
@@ -390,7 +393,6 @@ async function main(output) {
 
   async function finish() {
     const watchdogFailure = watchdogSecondary ? null : watchdog?.failure ?? null;
-    const disposeLogs = () => recording?.closeLogs();
     if (managed && (settlementError !== null || result === null)) {
       emit(`[run-tests] ${TEST_RUNNER_WATCHDOG_CODES.TERMINATION_FAILED}: ` +
         `${errorMessage(settlementError)}; suite group settlement unconfirmed. ` +
@@ -398,7 +400,7 @@ async function main(output) {
         "Operator: inspect the group and roots before recovery.\n");
       recording?.writeFinal({ status: "settlement_unconfirmed", native: null,
         summary: { recording: { status: "incomplete" } } });
-      return { exitCode: 1, drain: options.phaseTimeoutMs, disposeLogs, recording };
+      return { exitCode: 1, drain: options.phaseTimeoutMs, recording };
     }
     const cleanupFailures = cleanupRunnerOwnedRoots(roots);
     reportCleanupFailures(emit, cleanupFailures,
@@ -434,16 +436,17 @@ async function main(output) {
       recordingComplete = summary.recording.status === "complete";
       emit(renderSlowest(summary));
       emit(`[run-tests] run status=${status} recording=${summary.recording.status} ` +
-        `artifacts=${recording.runDir}\n`);
+        `artifacts=${recording.runDir} preserve=${options.preserveArtifacts}\n`);
       if (!recordingComplete) {
         const first = summary.recording.failures[0];
         emit(`[run-tests] ${first?.code ?? TEST_TIMING_CODES.TIMING_INCOMPLETE}: timing capture is ` +
           `incomplete (${first?.message ?? "unfinished or unreadable records"}); see ` +
-          `${path.join(recording.runDir, "summary.json")}. ` +
+          `${path.join(recording.runDir, "summary.json")} while running; ` +
+          "use --preserve-test-artifacts to inspect after exit. " +
           `${timingNextAction(first?.code ?? TEST_TIMING_CODES.TIMING_INCOMPLETE)}\n`);
       }
     }
-    const base = { drain: options.phaseTimeoutMs, disposeLogs, recording };
+    const base = { drain: options.phaseTimeoutMs, recording };
     if (requestedSignal) return { ...base, signal: requestedSignal };
     if (!watchdogFailure && outputLost === null && result?.signal) {
       return { ...base, signal: result.signal };
@@ -456,9 +459,10 @@ async function main(output) {
 
 async function run() {
   const output = createRunnerOutput();
+  const artifactResources = createTestRunArtifactResources();
   let outcome;
   try {
-    outcome = await main(output);
+    outcome = await main(output, artifactResources);
   } catch (error) {
     output.message(`[run-tests] runner failed: ${errorMessage(error)}\n`);
     outcome = { exitCode: 1, drain: 30_000 };
@@ -467,12 +471,27 @@ async function run() {
     outcome.list();
     return;
   }
-  const drained = await output.drain(outcome.drain ?? 30_000);
-  outcome.disposeLogs?.();
-  if (!drained) {
-    outcome.recording?.markOutputDrainExhausted(outcome.drain ?? 30_000);
-    process.exit(1);
+  let drained = false;
+  try {
+    drained = await output.drain(outcome.drain ?? 30_000);
+    if (!drained) outcome.recording?.markOutputDrainExhausted(outcome.drain ?? 30_000);
+  } catch (error) {
+    outcome.exitCode = 1;
+    output.message(`[run-tests] final recording failed: ${errorMessage(error)}\n`);
+  } finally {
+    output.detachLogs();
+    try {
+      await artifactResources.dispose();
+    } catch (error) {
+      outcome.exitCode = 1;
+      for (const failure of error.errors ?? [error]) {
+        output.message(`[run-tests] artifact cleanup failed: ` +
+          `${errorMessage(failure.cause ?? failure)}\n`);
+      }
+      await output.drain(outcome.drain ?? 30_000);
+    }
   }
+  if (!drained) process.exit(1);
   if (outcome.signal) {
     process.kill(process.pid, outcome.signal);
     return;

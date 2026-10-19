@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/controlled-contract",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "type": "module",
   "license": "Elastic-2.0",
   "repository": {
@@ -189,10 +189,10 @@
     "profiles/proof.compatibility.behavioral-preservation/4.0.0/evaluation-input.template.json",
     "profiles/proof.compatibility.behavioral-preservation/4.0.0/parameter-contract.json",
     "profiles/proof.compatibility.behavioral-preservation/4.0.0/profile.json",
-    "profiles/proof.completeness.lossless-projection/4.0.0/admission.json",
-    "profiles/proof.completeness.lossless-projection/4.0.0/evaluation-input.template.json",
-    "profiles/proof.completeness.lossless-projection/4.0.0/parameter-contract.json",
-    "profiles/proof.completeness.lossless-projection/4.0.0/profile.json",
+    "profiles/proof.completeness.lossless-projection/5.0.0/admission.json",
+    "profiles/proof.completeness.lossless-projection/5.0.0/evaluation-input.template.json",
+    "profiles/proof.completeness.lossless-projection/5.0.0/parameter-contract.json",
+    "profiles/proof.completeness.lossless-projection/5.0.0/profile.json",
     "profiles/proof.concurrency.single-winner-effect/4.0.0/admission.json",
     "profiles/proof.concurrency.single-winner-effect/4.0.0/evaluation-input.template.json",
     "profiles/proof.concurrency.single-winner-effect/4.0.0/parameter-contract.json",
@@ -294,10 +294,10 @@
     "profiles/proof.result-shape.conformance/4.0.0/evaluation-input.template.json",
     "profiles/proof.result-shape.conformance/4.0.0/parameter-contract.json",
     "profiles/proof.result-shape.conformance/4.0.0/profile.json",
-    "profiles/proof.result-shape.cross-representation-parity/4.0.0/admission.json",
-    "profiles/proof.result-shape.cross-representation-parity/4.0.0/evaluation-input.template.json",
-    "profiles/proof.result-shape.cross-representation-parity/4.0.0/parameter-contract.json",
-    "profiles/proof.result-shape.cross-representation-parity/4.0.0/profile.json",
+    "profiles/proof.result-shape.cross-representation-parity/5.0.0/admission.json",
+    "profiles/proof.result-shape.cross-representation-parity/5.0.0/evaluation-input.template.json",
+    "profiles/proof.result-shape.cross-representation-parity/5.0.0/parameter-contract.json",
+    "profiles/proof.result-shape.cross-representation-parity/5.0.0/profile.json",
     "profiles/proof.single-use.replay-refusal/4.0.0/admission.json",
     "profiles/proof.single-use.replay-refusal/4.0.0/evaluation-input.template.json",
     "profiles/proof.single-use.replay-refusal/4.0.0/parameter-contract.json",
@@ -312,6 +312,7 @@
     "validators/proof-intent-discovery-result/validators.cjs",
     "schema/acceptance-coverage-gap-warning.v1.schema.json",
     "schema/controlled-acceptance-contract.v1.schema.json",
+    "schema/controlled-acceptance-proposition-definitions.v1.schema.json",
     "schema/controlled-acceptance-requirement-definitions.v1.schema.json",
     "schema/controlled-acceptance-test-proof-definitions.v1.schema.json",
     "schema/controlled-contract-admitted-proof-pack.v3.schema.json",
@@ -353,16 +354,29 @@
     "lib/proof-executable-map.mjs",
     "lib/proof-executable-map.d.mts",
     "lib/proof-parameter-refinements.mjs",
-    "profiles/proof.verification.test-validity/11.0.0/profile.json",
-    "profiles/proof.verification.test-validity/11.0.0/evaluation-input.template.json",
-    "profiles/proof.verification.test-validity/11.0.0/evaluator.mjs",
-    "profiles/proof.verification.test-validity/11.0.0/parameter-contract.json",
-    "profiles/proof.verification.test-validity/11.0.0/admission.json",
+    "profiles/proof.verification.test-validity/12.0.0/profile.json",
+    "profiles/proof.verification.test-validity/12.0.0/evaluation-input.template.json",
+    "profiles/proof.verification.test-validity/12.0.0/evaluator.mjs",
+    "profiles/proof.verification.test-validity/12.0.0/parameter-contract.json",
+    "profiles/proof.verification.test-validity/12.0.0/admission.json",
     "vendor/cel-spec/langdef.md",
     "vendor/cel-spec/LICENSE",
     "vendor/cel-java/extensions.md",
     "vendor/cel-java/LICENSE",
-    "vendor/cel-reference-sources.json"
+    "vendor/cel-reference-sources.json",
+    "schema/controlled-acceptance-value-definitions.v1.schema.json",
+    "vendor/cel-spec/value.proto",
+    "vendor/cel-spec/checked.proto",
+    "vendor/kubernetes-cel/lists.go",
+    "vendor/kubernetes-cel/LICENSE",
+    "vocabulary/controlled-value-operators.v1.mjs",
+    "lib/controlled-values-v1.mjs",
+    "lib/controlled-value-definitions-v1.mjs",
+    "lib/controlled-duration-v1.mjs",
+    "lib/cel-value-lowering.mjs",
+    "lib/cel-scope-lowering.mjs",
+    "lib/test-validity-execution-definition.mjs",
+    "schema/controlled-contract-test-execution-profile.v1.schema.json"
   ],
   "exports": {
     ".": {
@@ -472,7 +486,13 @@
       "types": "./lib/pack-parameter-contract.d.mts",
       "default": "./lib/pack-parameters.mjs"
     },
-    "./cel-definition-reference": "./lib/cel-definition-reference.mjs"
+    "./cel-definition-reference": "./lib/cel-definition-reference.mjs",
+    "./controlled-values-v1": "./lib/controlled-values-v1.mjs",
+    "./controlled-value-definitions-v1": "./lib/controlled-value-definitions-v1.mjs",
+    "./controlled-duration-v1": "./lib/controlled-duration-v1.mjs",
+    "./cel-value-lowering": "./lib/cel-value-lowering.mjs",
+    "./cel-scope-lowering": "./lib/cel-scope-lowering.mjs",
+    "./controlled-value-operators": "./vocabulary/controlled-value-operators.v1.mjs"
   },
   "bin": {
     "controlled-contract": "bin/assess-contract.mjs",
@@ -494,7 +514,8 @@
     "docs:parameters": "node bin/proof-pack-parameter-docs.mjs"
   },
   "dependencies": {
-    "ajv": "8.18.0"
+    "ajv": "8.18.0",
+    "@bufbuild/protobuf": "^2.11.0"
   },
   "engines": {
     "node": ">=24.20.0"

@@ -4,7 +4,7 @@ import { pinProofSelection, loadPinnedProofSelection } from '@agent-chassis/cont
 import { resolveProofAuthoring } from '@agent-chassis/controlled-contract/proof-authoring';
 import { loadCurrentParameterPopulation, validatePackParameterContract, describePackParameters } from '@agent-chassis/controlled-contract/pack-parameters';
 import { canonicalDigest } from '../../packages/controlled-contract/lib/deterministic-projection-primitives.mjs';
-import { occurrenceRecoveryFacts, OCCURRENCE_CORRECTION_CLAUSES } from '../../packages/controlled-contract/lib/proof-executable-map.mjs';
+import { occurrenceRecoveryFacts } from '../../packages/controlled-contract/lib/proof-executable-map.mjs';
 const context = { source_digest: `sha256:${'a'.repeat(64)}` };
 const SELECTED_FAMILIES = Object.freeze([
   'proof.authentication.direct-source-provenance',
@@ -35,7 +35,8 @@ test('every current catalog and evaluator descriptor retains owner constraints a
     const detail = describePackParameters(contract);
     assert.equal(detail.total, detail.returned); assert.equal(detail.omitted, 0);
     const row = result.rows.find(r => r.definition.proof_name === contract.profile_id && r.definition.proof_version === contract.profile_version);
-    assert.ok(row.diagnostics.some(d => d.code === 'obligation_coverage_dependencies_unresolved'));
+    assert.equal(row.diagnostics.some(d => d.code === 'obligation_coverage_dependencies_unresolved'),
+      contract.dependencies.state === 'unresolved');
     assert.ok(row.diagnostics.some(d => ['obligation_coverage_construction_unavailable', 'obligation_coverage_construction_sources_missing'].includes(d.code)));
   }
   assert.equal(Object.isFrozen(result.dependencies), true);
@@ -111,9 +112,10 @@ test('a real current selection resolves without locator, selector, nodes or plan
   assert.equal(result.counts.resolved_selections, 1);
   assert.equal(result.status, 'invalid');
   const codes = result.rows[0].diagnostics.map(d => d.code);
-  assert.ok(codes.includes('obligation_coverage_parameter_missing'));
+  assert.equal(codes.includes('obligation_coverage_parameter_missing'), false);
+  assert.ok(codes.includes('obligation_coverage_authored_case_missing'));
   assert.ok(codes.includes('obligation_coverage_construction_unavailable'));
-  assert.ok(codes.includes('obligation_coverage_dependencies_unresolved'));
+  assert.equal(codes.includes('obligation_coverage_dependencies_unresolved'), false);
   assert.ok(!codes.some(code => /mapping_unavailable|nodes_missing|mechanism_missing/.test(code)));
   assert.ok(!('proof' in result.mapping.obligations[0]));
   const stale = structuredClone(draft); stale.obligations[0].selection.proof_version = '999.0.0';
@@ -248,8 +250,10 @@ test('WK-2567 exact selected definitions own test and non-test prerequisites', a
   });
   assert.equal(testRow.selected_proof_assessment.stages.authored_inputs.status,
     'incomplete');
+  assert.equal(testRow.diagnostics.some(diagnostic =>
+    diagnostic.code === 'obligation_coverage_parameter_missing'), false);
   assert.ok(testRow.diagnostics.some(diagnostic =>
-    diagnostic.code === 'obligation_coverage_parameter_missing'));
+    diagnostic.code === 'obligation_coverage_authored_case_missing'));
   for (const row of nonTestRows) {
     assert.equal(row.input_status, 'valid', row.definition.proof_name);
     assert.equal(row.selected_proof_assessment.execution_family,
@@ -357,7 +361,7 @@ async function completeTestRoutes(count) {
   return { population, obligations, testDeclarations, executableDeclarations, selectedContext };
 }
 
-test('WK-2567 eight complete selected test routes retain two generic limitations without blocking', async () => {
+test('eight complete selected test routes retain their generic construction limitation without blocking', async () => {
   const { population, obligations, testDeclarations, executableDeclarations, selectedContext } =
     await completeTestRoutes(8);
   const result = await resolveProofAuthoring({ ...source([]), obligations }, selectedContext);
@@ -367,10 +371,9 @@ test('WK-2567 eight complete selected test routes retain two generic limitations
     dependency_nodes: 8 });
   assert.equal(result.mapping.obligations.length, 8);
   const retained = result.rows.flatMap(row => row.diagnostics);
-  assert.equal(retained.length, 16);
-  assert.deepEqual([...new Set(retained.map(row => row.code))].sort(), [
-    'obligation_coverage_construction_unavailable',
-    'obligation_coverage_dependencies_unresolved'
+  assert.equal(retained.length, 8);
+  assert.deepEqual([...new Set(retained.map(row => row.code))], [
+    'obligation_coverage_construction_unavailable'
   ]);
   assert.ok(retained.every(row =>
     row.problem.route_assessment.effect === 'nonblocking' &&
@@ -415,7 +418,7 @@ test('WK-2567 eight complete selected test routes retain two generic limitations
       const generic = row.diagnostics.filter(diagnostic =>
         ['obligation_coverage_construction_unavailable',
           'obligation_coverage_dependencies_unresolved'].includes(diagnostic.code));
-      assert.equal(generic.length, 2, code);
+      assert.equal(generic.length, 1, code);
       assert.ok(generic.every(diagnostic =>
         diagnostic.problem.route_assessment.effect === 'nonblocking' &&
         diagnostic.problem.route_assessment.recovery.status === 'not_required'), code);
@@ -428,8 +431,7 @@ test('WK-2567 eight complete selected test routes retain two generic limitations
         [], code);
       assert.deepEqual(assessment.stages.system_capability.blockers, [], code);
       assert.deepEqual(assessment.stages.system_capability.nonblocking_diagnostic_codes, [
-        'obligation_coverage_construction_unavailable',
-        'obligation_coverage_dependencies_unresolved'
+        'obligation_coverage_construction_unavailable'
       ], code);
       assert.equal(assessment.stages.system_capability.satisfied_by, null, code);
       assert.equal(assessment.readiness_status, 'incomplete', code);
@@ -478,7 +480,7 @@ test('WK-2567 eight complete selected test routes retain two generic limitations
       profile_id: population.contract.profile_id,
       profile_version: population.contract.profile_version,
       profile_digest: population.contract.profile_digest, applicability_refs: [],
-      input_mappings: [], output_uses: [population.contract.role_producers[0].role] }] }
+      input_mappings: [], output_uses: [] }] }
   }, population.pack.profile);
   const required = await resolveProofAuthoring({ ...source([]), obligations },
     selectedContext, { loadContract: () => cyclic });
@@ -499,157 +501,40 @@ test('WK-2567 eight complete selected test routes retain two generic limitations
   }
 });
 
-test('WK-2653 missing binding-derived parameters name their authored prerequisite, not a canonical failure', async () => {
-  const { population, obligations, testDeclarations, selectedContext } = await completeTestRoutes(2);
+test('native binding failures remain distinct without invented graph parameter gaps', async () => {
+  const { obligations, testDeclarations, selectedContext } = await completeTestRoutes(2);
   const draft = { ...source([]), obligations };
   const resolve = changes => resolveProofAuthoring(draft, { ...selectedContext, ...changes });
   const complete = await resolve({});
   assert.equal(complete.status, 'valid');
-  assert.ok(complete.rows.every(row => !row.diagnostics.some(diagnostic =>
-    diagnostic.code.startsWith('obligation_coverage_parameter_'))));
-  assert.deepEqual(await resolve({}), complete, 'complete identities are unchanged');
-  const parameters = row => row.diagnostics.filter(diagnostic =>
-    diagnostic.code === 'obligation_coverage_parameter_missing');
-
-  const assertAttributed = (row, expected, label, authoring = 'complete') => {
-    const missing = parameters(row);
-    assert.deepEqual(missing.map(diagnostic => diagnostic.problem.cause.parameter).sort(),
-      Object.keys(expected).sort(), label);
-    for (const diagnostic of missing) {
-      const { parameter, authored_prerequisite: fact } = diagnostic.problem.cause;
-      assert.equal(diagnostic.problem.category, 'author_input', label);
-      assert.equal(diagnostic.problem.cause.kind, 'derived_parameter_prerequisite_missing', label);
-      assert.deepEqual(fact, expected[parameter], label);
-      assert.match(diagnostic.reason, new RegExp(`${fact.prerequisite} is ${fact.status}`, 'u'), label);
-      const route = diagnostic.problem.route_assessment;
-      assert.deepEqual([route.effect, route.stage, route.unavailable_operation, route.recovery.status],
-        ['blocking', 'authored_inputs', null, 'operator_action'], label);
-      assert.equal(route.recovery.supported_next_call, null, label);
-      assert.match(route.recovery.operator_action,
-        /^Read the current unit through workspace_read_wiki, then through save_record with its returned revision /u, label);
-      assert.doesNotMatch(route.recovery.operator_action, /obligation_coverage_(?:query|upsert)|content digest/u, label);
-      assert.match(route.recovery.operator_action, /never edit the binding or supply the parameter directly/u, label);
-      assert.doesNotMatch(`${route.reason} ${route.recovery.explanation}`,
-        /No supported recovery|cannot repair canonical sources|system capabilit/u, label);
-      assert.doesNotMatch(route.recovery.operator_action, /OBL-|case-wk2553/u, label);
+  assert.deepEqual(await resolve({}), complete);
+  const variants = [
+    ['obligation_coverage_native_binding_missing', []],
+    ['obligation_coverage_native_binding_ambiguous', testDeclarations.flatMap(binding => [binding, structuredClone(binding)])],
+    ['obligation_coverage_native_binding_case_incomplete', testDeclarations.map(binding => {
+      const changed = structuredClone(binding); delete changed.test_selector; return changed;
+    })],
+    ['obligation_coverage_native_binding_provider_unresolved', testDeclarations.map(binding => {
+      const changed = structuredClone(binding); changed.candidate_execution_provider.provider_id = 'launcher.unknown'; return changed;
+    })]
+  ];
+  for (const [code, test_declarations] of variants) {
+    const result = await resolve({ test_declarations });
+    assert.equal(result.status, 'invalid', code);
+    for (const row of result.rows) {
+      assert.ok(row.diagnostics.some(diagnostic => diagnostic.code === code), JSON.stringify(row.diagnostics));
+      assert.equal(row.diagnostics.some(diagnostic => diagnostic.code.startsWith('obligation_coverage_parameter_')), false);
+      assert.equal(row.semantic_status, 'valid');
+      assert.equal(row.selected_proof_assessment.readiness_status, 'incomplete');
+      assert.equal(row.selected_proof_assessment.prevents_selected_route, true);
+      assert.deepEqual([row.selected_proof_assessment.stages.execution_evidence.status,
+        row.selected_proof_assessment.stages.execution_evidence.credit_granted], ['not_started', 0]);
     }
-    const assessment = row.selected_proof_assessment;
-    assert.equal(assessment.stages.canonical_sources.status, 'current', label);
-    assert.deepEqual(assessment.stages.canonical_sources.blocking_diagnostic_codes, [], label);
-    assert.equal(assessment.stages.system_capability.status, 'available', label);
-    assert.equal(assessment.stages.authored_inputs.status, 'incomplete', label);
-    assert.ok(assessment.stages.authored_inputs.blocking_diagnostic_codes
-      .includes('obligation_coverage_parameter_missing'), label);
-    assert.deepEqual([assessment.readiness_status, assessment.prevents_selected_route,
-      assessment.stages.execution_evidence.credit_granted], ['incomplete', true, 0], label);
-
-    assert.equal(row.semantic_status, 'valid', label);
-    assert.equal(row.authoring_status, authoring, label);
-    assert.equal(row.status, authoring === 'complete' ? 'valid' : 'invalid', label);
-  };
-  const componentSource = { binding_field: 'system_under_test_boundary.subject_reference_ids',
-    authored_case_field: 'component' };
-  const suiteSource = { binding_field: 'test_selector', authored_case_field: 'target' };
-  const bindingFact = (status, count) => ({ prerequisite: 'native_test_binding', status, binding_count: count });
-
-  const missing = await resolve({ test_declarations: [] });
-  for (const row of missing.rows) {
-    assert.ok(row.diagnostics.some(diagnostic => diagnostic.code === 'obligation_coverage_native_binding_missing'));
-    assertAttributed(row, { component: { ...bindingFact('missing', 0), ...componentSource },
-      suite: { ...bindingFact('missing', 0), ...suiteSource } }, 'missing binding');
-    assert.match(parameters(row)[0].problem.route_assessment.recovery.operator_action,
-      /link this obligation to one authored case/u);
   }
-  const ambiguous = await resolve({ test_declarations: testDeclarations.flatMap(binding =>
-    [binding, structuredClone(binding)]) });
-  for (const row of ambiguous.rows) assertAttributed(row, {
-    component: { ...bindingFact('ambiguous', 2), ...componentSource },
-    suite: { ...bindingFact('ambiguous', 2), ...suiteSource } }, 'ambiguous binding');
-
-  const withoutCaseFields = structuredClone(testDeclarations);
-  delete withoutCaseFields[0].system_under_test_boundary.subject_reference_ids;
-  delete withoutCaseFields[1].test_selector;
-  const partial = await resolve({ test_declarations: withoutCaseFields });
-
-  const caseFact = index => ({ prerequisite: 'authored_case', status: 'incomplete',
-    case_id: obligations[index].case_id });
-  assert.ok(obligations.every(row => typeof row.case_id === 'string'));
-  assertAttributed(partial.rows[0], { component: { ...caseFact(0), ...componentSource } },
-    'no component', 'incomplete');
-  assertAttributed(partial.rows[1], { suite: { ...caseFact(1), ...suiteSource } },
-    'no target selector', 'incomplete');
-
-  const typed = row => parameters(row).map(diagnostic => occurrenceRecoveryFacts(diagnostic));
-  assert.deepEqual(typed(partial.rows[0]),
-    [{ corrections: ['prerequisite_component'], case_id: obligations[0].case_id }]);
-  assert.deepEqual(typed(partial.rows[1]),
-    [{ corrections: ['prerequisite_target'], case_id: obligations[1].case_id }]);
-  for (const row of [...missing.rows, ...ambiguous.rows]) {
-    assert.deepEqual(typed(row), [{ corrections: ['prerequisite_case'] }, { corrections: ['prerequisite_case'] }]);
-  }
-  assert.deepEqual([OCCURRENCE_CORRECTION_CLAUSES.prerequisite_component.field,
-    OCCURRENCE_CORRECTION_CLAUSES.prerequisite_target.field, OCCURRENCE_CORRECTION_CLAUSES.prerequisite_case.field,
-    OCCURRENCE_CORRECTION_CLAUSES.prerequisite_case.operation],
-  ['obligations[].case.component', 'obligations[].case.target', 'obligations[].case', 'link_one_case']);
-  for (const key of ['prerequisite_component', 'prerequisite_target', 'prerequisite_case']) {
-    assert.match(OCCURRENCE_CORRECTION_CLAUSES[key].constraint, /derived from the authored case; supply neither directly/u);
-  }
-  assert.equal(occurrenceRecoveryFacts({ code: 'obligation_coverage_node_unknown', problem: { cause: {} } }), null);
-  assert.match(parameters(partial.rows[0])[0].problem.route_assessment.recovery.operator_action,
-    /author the 'component' field of the case this obligation uses/u);
-  assert.match(parameters(partial.rows[1])[0].problem.route_assessment.recovery.operator_action,
-    /author the 'target' field of the case this obligation uses/u);
-
-  for (const changes of [{ test_target_declarations: { status: 'valid', executable_declarations: [] } },
-    { test_declarations: testDeclarations.map(binding => {
-      const { candidate_execution_provider: omitted, ...rest } = binding; return rest; }) }]) {
-    const blocked = await resolve(changes);
-    assert.ok(blocked.rows.every(row =>
-      row.selected_proof_assessment.readiness_status === 'incomplete' &&
-      parameters(row).length === 0));
-  }
-
-  const assertCanonical = (row, label) => {
-    const missingParameters = parameters(row);
-    assert.ok(missingParameters.length > 0, label);
-    for (const diagnostic of missingParameters) {
-      assert.equal(diagnostic.problem.category, 'canonical_source', label);
-      assert.equal(diagnostic.problem.cause.kind, 'parameter_source', label);
-      assert.equal(Object.hasOwn(diagnostic.problem.cause, 'authored_prerequisite'), false, label);
-      assert.deepEqual([diagnostic.problem.route_assessment.stage, diagnostic.problem.route_assessment.recovery.status],
-        ['canonical_sources', 'unavailable'], label);
-    }
-    assert.equal(row.selected_proof_assessment.stages.canonical_sources.status, 'unresolved', label);
-    assert.equal(row.selected_proof_assessment.readiness_status, 'incomplete', label);
-  };
-  const unknownReference = await resolve({ contract_references: [] });
-  for (const row of unknownReference.rows) assertCanonical(row, 'unknown boundary reference');
-  const suppliedCanonical = await resolve({ canonical_parameters: { [obligations[0].obligation_id]: {} } });
-  assertCanonical(suppliedCanonical.rows[0], 'supplied canonical source');
-  assert.equal(suppliedCanonical.rows[1].status, 'valid');
-  const nodeLinked = obligations.map(({ case_id: omitted, ...row }, index) => ({ ...row,
-    controlled_contract_node_ids: [testDeclarations[index].verification_claim_id] }));
-  const nonCaseBindings = structuredClone(testDeclarations);
-  for (const binding of nonCaseBindings) delete binding.test_selector;
-  const nonCase = await resolveProofAuthoring({ ...draft, obligations: nodeLinked },
-    { ...selectedContext, test_declarations: nonCaseBindings, contract_nodes: nonCaseBindings.map(binding => binding.verification_claim_id) });
-  for (const row of nonCase.rows) assertCanonical(row, 'non-case native binding');
-
-  const mixedBindings = structuredClone(testDeclarations);
-  mixedBindings[1].system_under_test_boundary.subject_reference_ids = [`ref-${'e'.repeat(40)}`];
-  const mixed = await resolve({ test_declarations: mixedBindings.slice(1) });
-  assertAttributed(mixed.rows[0], { component: { ...bindingFact('missing', 0), ...componentSource },
-    suite: { ...bindingFact('missing', 0), ...suiteSource } }, 'mixed attributed');
-  assertCanonical(mixed.rows[1], 'mixed canonical');
-
-  const definitionRoute = { ...population.pack, profile: { ...population.pack.profile,
-    stable_capabilities: { ...population.pack.profile.stable_capabilities, test_validity: 'none' } } };
-  const evaluated = await resolveProofAuthoring(draft, { ...selectedContext, test_declarations: [] },
-    { loadExact: async () => definitionRoute, loadContract: () => population.contract });
-  for (const row of evaluated.rows) {
-    assert.equal(row.selected_proof_assessment.execution_family, 'definition_evaluation');
-    assertCanonical(row, 'definition evaluation route');
-  }
+  const noTarget = await resolve({ test_target_declarations: { status: 'valid', executable_declarations: [] } });
+  assert.ok(noTarget.rows.every(row => row.diagnostics.some(diagnostic =>
+    diagnostic.code === 'obligation_coverage_declared_test_target_undeclared')));
+  assert.deepEqual(draft.obligations, obligations);
 });
 
 const REGISTERED_PREREQUISITE_CODES = Object.freeze({

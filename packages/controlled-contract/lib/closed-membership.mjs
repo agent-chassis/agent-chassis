@@ -1,5 +1,6 @@
 
 
+import { normalizeValue, valueCanonicalKey } from './controlled-values-v1.mjs';
 export const MODALITIES = Object.freeze(['MUST', 'MAY']);
 export const CLOSURE = 'closed';
 export const GOVERNS = 'membership';
@@ -11,6 +12,21 @@ const byMember = (left, right) => left.member < right.member ? -1 : left.member 
 export function normalizeClauses(value, field, refuse) {
   if (!Array.isArray(value) || !value.length) refuse(field, 'must be a nonempty list of MUST/MAY clauses',
     '[{ modality: "MUST" | "MAY", member }]');
+  if (value.some(row => row && typeof row === 'object' && Object.hasOwn(row, 'domain'))) {
+    const seen = new Set();
+    const clauses = value.map((row, index) => {
+      const at = `${field}[${index}]`;
+      if (!row || typeof row !== 'object' || Array.isArray(row) || !Object.hasOwn(row, 'domain') || Object.keys(row).some(key => !['domain', 'modality'].includes(key))) {
+        refuse(at, 'one row uses only typed domain clauses', ['domain', 'modality']);
+      }
+      if (!MODALITIES.includes(row.modality)) refuse(`${at}.modality`, 'must be MUST or MAY', MODALITIES);
+      const domain = normalizeValue(row.domain, `${at}.domain`), key = valueCanonicalKey(domain);
+      if (seen.has(key)) refuse(`${at}.domain`, 'domain already has a clause', null, 'state each domain once');
+      seen.add(key);
+      return { domain, modality: row.modality };
+    });
+    return { closure: CLOSURE, governs: GOVERNS, clauses: clauses.sort((a, b) => valueCanonicalKey(a.domain) < valueCanonicalKey(b.domain) ? -1 : 1) };
+  }
   const seen = new Map();
   const clauses = value.map((clause, index) => {
     const at = `${field}[${index}]`;
@@ -51,13 +67,23 @@ export function normalizeMembers(value, field, refuse) {
 }
 
 export function derive(specification) {
+  if (specification.clauses.some(row => Object.hasOwn(row, 'domain'))) return { required: null, permitted: null,
+    relation: 'not_computed', reason: 'runtime typed domains are unavailable' };
   return { required: specification.clauses.filter(row => row.modality === 'MUST').map(row => row.member),
     permitted: specification.clauses.map(row => row.member) };
 }
 
 const literal = members => `[${members.map(member => JSON.stringify(member)).join(', ')}]`;
 
-export function conformityExpression(specification, present, { memberLiteral = JSON.stringify, permittedPredicate = null } = {}) {
+export function conformityExpression(specification, present, { memberLiteral = JSON.stringify, permittedPredicate = null,
+  domainExpression = null, typedEquality = null } = {}) {
+  if (specification.clauses.some(row => Object.hasOwn(row, 'domain'))) {
+    if (!domainExpression || !typedEquality) throw new TypeError('dynamic membership requires resolved domains and typed equality');
+    const required = specification.clauses.filter(row => row.modality === 'MUST').map(row => domainExpression(row.domain));
+    const permitted = specification.clauses.map(row => domainExpression(row.domain));
+    return [...required.map(domain => `${domain}.all(r, ${present}.exists(o, ${typedEquality('r', 'o')}))`),
+      `${present}.all(o, ${permitted.map(domain => `(${domain}.exists(p, ${typedEquality('o', 'p')}))`).join(' || ') || 'false'})`].join(' && ');
+  }
   const { required, permitted } = derive(specification);
   const list = values => `[${values.map(memberLiteral).join(', ')}]`;
   return `${list(required)}.all(m, m in ${present}) && ${present}.all(m, ${permittedPredicate ?? `m in ${list(permitted)}`})`;
@@ -66,6 +92,7 @@ export const requiredExpression = (members, present) => `${literal(members)}.all
 export const memberListLiteral = literal;
 
 export function assessMembership(specification, present) {
+  if (specification.clauses.some(row => Object.hasOwn(row, 'domain'))) return { conforms: null, relation: 'not_computed', reason: 'runtime typed domains are unavailable' };
   const { required, permitted } = derive(specification);
   const violations = [...required.filter(member => !present.includes(member))
     .map(member => ({ kind: 'must_member_absent', member })),
@@ -75,6 +102,9 @@ export function assessMembership(specification, present) {
 }
 
 export function clauseDifferences(required, described) {
+  if ([required, described].some(specification => specification.clauses.some(row => Object.hasOwn(row, 'domain')))) {
+    return [{ relation: 'not_computed', reason: 'runtime typed domains are unavailable' }];
+  }
   const before = new Map(required.clauses.map(row => [row.member, row.modality]));
   const after = new Map(described.clauses.map(row => [row.member, row.modality]));
   const rows = [];
@@ -96,6 +126,7 @@ export function clauseDifferences(required, described) {
 export const renderClauses = specification => specification.clauses.map(row => `${row.modality} ${row.member}`).join(', ');
 
 export function allowedMemberSets(specification) {
+  if (specification.clauses.some(row => Object.hasOwn(row, 'domain'))) return null;
   const { required } = derive(specification);
   const optional = specification.clauses.filter(row => row.modality === 'MAY').map(row => row.member);
   if (optional.length > MAY_LIMIT) return null;
@@ -107,6 +138,9 @@ export function allowedMemberSets(specification) {
 }
 
 export function membershipEffect(original, changed) {
+  if ([original, changed].some(specification => specification.clauses.some(row => Object.hasOwn(row, 'domain')))) {
+    return { relation: 'not_computed', reason: 'runtime typed domains are unavailable' };
+  }
   const before = allowedMemberSets(original);
   const after = allowedMemberSets(changed);
   if (before === null || after === null) return { relation: 'not_computed', reason: 'too many MAY members to enumerate' };

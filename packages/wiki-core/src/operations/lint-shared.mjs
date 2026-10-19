@@ -25,19 +25,25 @@ export function createLintFindings() {
   return { findings, problems, warnings, addFinding };
 }
 
-export async function* walkFilesUnder(dirPath) {
+export async function* walkFilesUnder(dirPath, { onFailure, readDirectory = readdir } = {}) {
   let entries;
   try {
-    entries = await readdir(dirPath, { withFileTypes: true });
-  } catch {
+    entries = await readDirectory(dirPath, { withFileTypes: true });
+  } catch (error) {
+    if (!onFailure) throw error;
+    onFailure("artifact-read-failed", dirPath, error);
     return;
   }
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      yield* walkFilesUnder(fullPath);
+      yield* walkFilesUnder(fullPath, { onFailure, readDirectory });
     } else if (entry.isFile()) {
       yield fullPath;
+    } else {
+      const code = entry.isSymbolicLink() ? "artifact-path-symlink" : "artifact-path-kind-invalid";
+      if (!onFailure) throw new Error(`${code}: ${fullPath}`);
+      onFailure(code, fullPath, new Error(entry.isSymbolicLink() ? "symbolic link is unsupported" : "expected a regular file or directory"));
     }
   }
 }

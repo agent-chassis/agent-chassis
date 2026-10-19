@@ -142,26 +142,31 @@ project's or `CARGO_HOME`'s configuration, or the `CARGO_HOME` registry, offline
 
 A saved proof names its runner. A declared regression file
 ([Test Proof Execution](test-proof-execution.md#declared-regression-files))
-names only a file, so its runner is selected from the repository's saved
-runtime configuration, `agent-chassis-runtime.json`, read from the landing
-repository:
+names only a file. Selection reads explicit choices from the landing repository's
+`agent-chassis-runtime.json` and recorded defaults through the existing
+execution-configuration reader:
 
-1. Only the explicit `runners` selections count.
-2. The containing project is the longest `project` any selection names that
-   contains the file, whatever ecosystem its runner belongs to.
-3. The runner is selected only when that project names exactly one.
+1. The longest containing project among explicit choices and recorded
+   environments owns the file, across runner ecosystems.
+2. That project's explicit `runners` selection takes precedence. Otherwise
+   use its recorded runner inventory.
+3. Select only when that project's chosen population names exactly one runner.
+   A preparing or failed setup retains the preceding configuration through the
+   same reader; it creates no execution gate. An invalid runtime record supplies
+   no default. Automatic inventory is never saved as explicit operator choices.
 
 The selected runner then runs the file as any ordinary run does, in the
 environment that routing selects for it. A selection that fails runs nothing
 for that file and reports the file, the configuration file, the containing
 project, the runners configured there and the correction:
 
-- No selection contains the file (including a repository with no saved
-  configuration): the configuration owner declares the runner for the file's
-  project.
+- No runner is selected for the file's project: the configuration owner runs
+  `agent-chassis setup --test-runtimes` from the repository root to record the
+  declared environment, or explicitly selects its runner through setup.
 - The containing project names several runners: a file-only entry cannot
-  choose among them. The configuration owner leaves exactly one. No runner is
-  guessed from the file's name, a manifest or what setup proved, the single
+  choose among them. The configuration owner selects exactly one with
+  `agent-chassis setup --test-runtimes --runner <runner>@<project>`. No runner is
+  guessed from the file's name, the single
   runner of an ancestor project is not borrowed, and the caller cannot name
   one.
 - The saved configuration is refused by its owner: that refusal is reported
@@ -171,6 +176,31 @@ A configured name that is not a catalog runner is selected as configured, and
 the run that receives it refuses it with the executor's own code.
 
 ## Native provider runtime inputs
+
+Ordinary pytest and every pytest proof stage use one shared Python source
+binding adapter around their existing invocation. Before pytest or its plugins
+load the application, it maps local-project import locations below the landing
+repository to their corresponding candidate locations. It handles path-based
+editable installations (including src layouts) and setuptools' generated
+`MAPPING` and `NAMESPACES` in memory. Paths come from the interpreter's actual
+startup search path and editable finders, not an assumed source directory.
+Third-party site directories and the selected virtual environment retain their
+installed locations, including an environment inside the original checkout.
+Runtime discovery and execution disable bytecode writes to that installation.
+Project cwd and pytest options remain the project's own.
+
+The proof entry keeps `-I`; the adapter rebinds startup paths explicitly rather
+than relying on `PYTHONPATH`, which isolated mode ignores. Candidate, scalar
+falsifier and traversal resolve the same candidate source, and the falsifier
+respects the shared binding and editable finders. No package is reinstalled,
+no shared installation is changed and no source is copied into the landing
+checkout. Missing or escaping candidate source refuses with
+`python_candidate_source_missing` or `python_candidate_source_escapes` instead
+of resolving back to the installation. Unsupported local editable mechanisms
+report `python_editable_mechanism_unsupported` with the distribution, origin
+and observed mechanism or finder/loader. A startup hook that already imported
+original application code is unsupported and reports that module and origin;
+the adapter cannot undo code that Python executed during site startup.
 
 The pytest provider runs with the interpreter of the environment the shared
 runtime resolution routes its target to (see

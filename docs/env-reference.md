@@ -49,8 +49,11 @@ not a general dotenv loader:
 ## 1. Hosted Chassis Control Engine service keys (repo-local `.env`)
 
 An optional, private-beta hosted Chassis Control Engine adds remote admission and
-signed run attestation. **The local substrate works fully without it** — these
-keys matter only if you have been onboarded to the beta, and the configuration
+signed run attestation. The free/local mechanical substrate works without it. Controlled requirement
+compilation and agent code-index queries are paid capabilities; ordinary prose,
+criteria, scopes, validation and slices remain free. See the
+[registered-tier reference](tool-discovery-tiers.md). These keys matter only
+if you have been onboarded to the beta, and the configuration
 details are provided to onboarded users separately. `NODE_ENGINE_API_KEY` is a
 secret and must never be committed or logged. Thresholds, defaults, and admission
 outcomes are the hosted service's, not local product policy.
@@ -66,6 +69,7 @@ role is a `[roles.<role>]` sub-table:
 [roles.worker]
 model = "gpt-5.6-luna"
 effort = "medium"   # optional: low | medium | high | xhigh | max
+high_priority_role_guide = true # optional; workers default true, other roles false
 
 [roles.reviewer]
 model = "gpt-5.6-sol"
@@ -79,6 +83,10 @@ effort = "high"
 model = "gpt-5.6-sol"
 effort = "high"
 ```
+
+`high_priority_role_guide` is a per-role boolean controlling complete guide
+delivery in native developer/system instructions. Its selection is frozen with
+the launch plan. See [role guide instructions](agent-launch-confinement-mcp-conduit.md#role-guide-instructions).
 
 `model` is required; `effort` is optional (`low | medium | high | xhigh | max`).
 The app/backend are derived from the neutral model registry (`decision`), not
@@ -143,12 +151,21 @@ The Vertex AI model that serves a routed model is a registry fact
 derived from the registered name. A mapping is declared only for a model id
 Vertex AI actually publishes. The routable models are the Codex-client entries
 `vertex-claude-opus-5-5` (Vertex `claude-opus-5-5`),
-`vertex-claude-sonnet-5-5` (Vertex `claude-sonnet-5-5`), and
-`vertex-gemini-3.8-flash` (Vertex `gemini-3.8-flash`): Codex drives Anthropic
+`vertex-claude-sonnet-5-5` (Vertex `claude-sonnet-5-5`),
+`vertex-gemini-3.8-flash` (Vertex `gemini-3.8-flash`), and
+`vertex-gemini-4-argon` (Vertex `gemini-4-argon`): Codex drives Anthropic
 and Gemini models on Vertex through the gateway. `use_litellm = true` on any
 other model refuses with `model_route_vertex_model_undeclared`. The Claude Code tokens
 `opus`/`sonnet`/`haiku`/`fable` still launch the `claude` CLI and are not
 LiteLLM-routable.
+
+The packaged LiteLLM runtime is pinned to `1.105.1`. Argon `medium` and `high`
+efforts translate through streaming Responses to Vertex thinking levels, without
+token budgets. See [Argon runtime qualification](vertex-ai-inference.md#gemini-4-argon-runtime-boundary)
+for the local fake-upstream checks and package refresh boundary.
+
+Interactive Codex orchestrators and resume include `--no-alt-screen` to retain
+terminal scrollback. Headless Codex and Claude launch arguments are unchanged.
 
 Each launch reads `agent-launch.toml` once. The resolved model, effort and route
 are frozen and every Codex renderer consumes that value; a later edit applies to
@@ -238,6 +255,24 @@ full precedence and resolution rules.
 | `WIKI_MCP_WORKSPACE_DIR` | Workspace directory the server operates on |
 | `WIKI_MCP_TOOL_PROFILE` | Session role: `operator`, `orchestrator`, `worker`, `reviewer` or `redteam`; any other value refuses startup |
 
+`AGENT_CHASSIS_PUBLISH_CONTROLLED_ACCEPTANCE_OPT_OUT` is a launcher host
+presentation setting. Unset or `true` retains whole-unit opt-out publication;
+`false` omits its discovery choices, selected request schema, templates,
+authoring instructions and recovery recipes. Only the exact strings `true` and
+`false` are valid; other values refuse startup with
+`controlled_acceptance_publication_config_invalid`. Set it in the environment
+of the launcher (or a directly started MCP host), then restart the session/server.
+The launcher captures it with its host session profile and forwards the captured
+value through the existing host configuration carrier, including managed child
+hosts. It is not loaded from the Node Engine credential `.env` allowlist.
+
+This setting changes publication only. It grants or removes no permission,
+changes no save validation or acceptance policy, and rewrites no saved record.
+A valid request supplied directly has the same result in either mode. Proof and
+grammar exceptions retain their existing tier behavior, and saved opt-out facts
+and successful receipts remain truthful. Hiding instructions does not prevent
+submission of an already-known request or hide arbitrary repository files.
+
 Response-shaping tuning (optional, non-secret): `WIKI_MCP_RESPONSE_STATE_DIR`,
 `WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT`, `WIKI_MCP_RESPONSE_PREVIEW_BYTE_LIMIT`,
 `WIKI_MCP_RESPONSE_REFERENCE_READ_BYTE_LIMIT`.
@@ -249,7 +284,7 @@ repo-local `.env` keys.
 
 | Key | Purpose |
 |---|---|
-| `AGENT_LAUNCH_RUNTIME_STATE_DIR` | Root for mutable launcher runtime state (nonces, token state). Must resolve outside the repo / `HOME` / `XDG` roots; defaults to an OS-tmpdir location when unset (`packages/agent-launch-core/src/lib/config.mjs`). |
+| `AGENT_LAUNCH_RUNTIME_STATE_DIR` | Root for mutable launcher runtime state (nonces, token state). Must resolve outside the repo / `HOME` / `XDG` roots. Explicit absolute values take precedence; relative values are refused. Defaults to `/tmp/agent-launch-runtime/<workspace-digest>`, independent of harness `TMPDIR` / `TMP` / `TEMP` (`packages/agent-launch-core/src/lib/launcher-runtime-state-dir.mjs`). |
 | `AGENT_CHASSIS_MCP_METRICS_ROOT` | Optional host-only **destination** for anonymous MCP metric files. Unset (the default) disables collection with no writer, timer, or file. When set it must be an absolute path to an existing real directory this uid owns at mode `0700`; an invalid value collects nothing and emits one path-free `invalid_config` diagnostic without refusing startup. Launcher-managed host servers receive only the launcher-resolved root, and every receiving host revalidates it. It is not accepted from tool arguments or worker environments, is independent of transcript capture, and is not repo-local `.env` configuration. See [Anonymous MCP metrics](mcp-telemetry.md). |
 | `AGENT_CHASSIS_MCP_TRANSCRIPT_ROOT` | Optional observability **destination** that arms the launcher's dormant stdio-MCP transcript capture. Unset (the default) means the conduit spawns the host wiki-MCP server exactly as it always did and records nothing. When set it must be an absolute path to an existing real directory this uid owns at mode `0700`; the launcher re-validates it and mints every per-session directory itself, and anything else disables capture with a diagnostic rather than refusing the launch. It selects no policy, transport, tool surface, or authority, and it is not repo-local `.env` configuration. See [Conduit capture and probes](agent-launch-conduit-capture-and-probes.md#optional-stdio-mcp-transcript-capture). |
 

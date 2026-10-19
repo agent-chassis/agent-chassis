@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.authorization.failed-attempt-nonconsumption",
   "profile_version": "4.0.0",
-  "profile_digest": "af916599cda1778afbea46717ab16bc45ac5789beef97dbe08da79037e05cf3b",
+  "profile_digest": "1e459d71fa6d0525c1ee36d6c109a1f37653cf8f0494369f5b670c22518c28d3",
   "description": "A declared failed attempt using one legitimate authority is refused; that authority complete declared state observed after refusal equals its complete declared state observed before the attempt; and a later distinct authorized attempt using the same authority reaches a declared expected successful result state.",
   "parameters": [
     {

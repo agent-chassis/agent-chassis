@@ -38,7 +38,7 @@ repo.
   and [local-package-install.md](local-package-install.md).
 - Shared-substrate vs. consuming-repo boundary:
   [operating-model.md](operating-model.md).
-- Free/source-available local tier vs. hosted Chassis Control Engine:
+- Admission authority and enforcement facts:
   [enforcement-model.md](enforcement-model.md).
 - Versioning and migration posture: [versioning.md](versioning.md).
 - MCP setup and agent-facing tool model:
@@ -56,38 +56,35 @@ repo.
   [consumer-owned-docs.md](consumer-owned-docs.md), and
   [wiki-contract-metadata.md](wiki-contract-metadata.md).
 
-## Package README roadmaps
+## Public packages and repository-local coordination
 
-Package README roadmaps are generated from canonical work records. Use them for
-per-package open-work orientation, then open the underlying `WK-*` records before
-acting.
+The installed core package carries public `docs/` and selected package-owned
+references. This source repository's `wiki/decisions/`, work records, generated
+views and `internal/` material are not bundled public guidance. A decision ID
+may explain provenance, but an installed consumer cannot be required to open
+that private decision or a source-repository roadmap to complete setup.
 
-- `packages/wiki-core/README.md`
-- `packages/wiki-mcp/README.md`
-- `packages/wiki-cli/README.md`
-- `packages/agent-launch-core/README.md`
-- `packages/agent-launch-cli/README.md`
+For this source checkout, generated package README roadmaps and wiki views are
+navigation into canonical records. For an installed consumer, use the public
+[documentation index](index.md), the session's supplied role guide and its own
+canonical records.
 
-For the cross-cutting repo view, use the generated `wiki/now.md` and
-`wiki/backlog.md` views as navigation, then read the canonical records they
-point to.
+## How to navigate a managed session
 
-## How to navigate this repo
+1. Read known records with `workspace_read_wiki({subject})`; use its `search`
+   input for unknown identities. Follow the returned selection to read the
+   chosen document or guidance completely.
+2. Use the selected record's current combined revision and input contract for
+   `save_record`; use `workspace_create_record` for allocation.
+3. Read the host-selected guide and authoring vignette named at startup. Use this session’s supported selected schemas and authoring information. Preserve full written requirements, criteria, validation and scope. Missing capability chooses no exemption and establishes no readiness.
 
-1. Use `workspace_search_repo` for docs/wiki questions.
-2. Open the selected canonical page with `workspace_read_page`.
-3. Use generated views only as navigation into canonical docs and wiki records.
-4. Load known `WK-*` records with `workspace_work_record_summary` or
-   `workspace_get_record`.
-5. Call a known agent-facing tool directly. When the tool choice is uncertain,
-   ask `workspace_tool_router_recommend`; when the capability itself or its
-   complete contract is unknown, use `workspace_tools_list` (filtered by
-   `task_id` when the task is known), then `workspace_tools_describe` for
-   targeted detail.
-6. Use code-index and graph-impact tools before moving from docs/records into
-   implementation files.
-7. Inspect package source only after the canonical docs or records identify the
-   relevant implementation surface.
+4. Inspect implementation with the family's repository read/search tools within
+   its entitlement; use `query_code_index` only when actually granted. Record
+   incomplete evidence rather than treating an empty search as complete coverage.
+5. Start with `start_agent`, observe through `get_run_result`, and integrate
+   explicitly through `integrate_work`. The [operation reference](mcp-operation-reference.md)
+   owns the registered inventory. Retired help/router, shared reader and dispatch
+   names are not indirect routes to a missing capability.
 
 ## Authority boundaries
 
@@ -107,8 +104,8 @@ Agents use structured MCP tools for repo/wiki work when those tools are
 available. Do not infer support from package manifests, wrapper filenames,
 executable bits, generated examples, or historical work records.
 
-Worker, reviewer, and redteam dispatch goes through `workspace_agent_dispatch`.
-Observe those runs by canonical subject with `workspace_agent_run_status`.
+Worker, reviewer, and redteam dispatch goes through `start_agent`.
+Observe those runs by canonical subject and returned attempt with `get_run_result`.
 Operator shell wrappers and package-file-only role
 shims are inventory/debug surfaces, not agent dispatch authority.
 
@@ -124,6 +121,6 @@ start or resume orchestrators from inside an agent session.
   area records.
 - After structural wiki changes, use the structured generate/lint route so
   generated views stay aligned.
-- If a task changes launcher behavior, dispatch authority, local/hosted tier
+- If a task changes launcher behavior, dispatch authority, session capability
   semantics, or work-record protocol, update the durable docs in the same
   change.

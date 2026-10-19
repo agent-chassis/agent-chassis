@@ -13,7 +13,9 @@ resume mode, which reuses the repo-disambiguated thread name, refreshes the
 meta.env last_action/last_used fields, and re-applies the narrow orchestrator
 permissions profile. The \`orchestrator_claude\` profile routes through the
 launcher-owned Claude planner and host-server conduit. resume sends no instructions;
-the resumed session carries its prior context.
+the resumed session carries its prior context. OpenCode resumes the exact
+captured session in retained private state, with fresh wiki-MCP configuration
+and re-delivered instructions. It requires the selected high-priority guide.
 
 Options:
   --profile <profile>    Canonical launcher profile (default: orchestrator;
@@ -21,6 +23,8 @@ Options:
   --app codex|claude     Override the profile's default app binding
   --model <model>        Override the selected binding's default model
   --effort <effort>      Neutral effort flag; xhigh selects orchestrator_xhigh
+  --headless            Run an OpenCode continuation without a terminal
+  --log-file <path>      Headless log target
   --dry-run-json         Emit the launch plan without spawning
 
 Set CODEX_ORCH_THREAD_NAME=... to override the default repo-disambiguated

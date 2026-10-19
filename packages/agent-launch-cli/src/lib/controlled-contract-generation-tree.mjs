@@ -448,98 +448,82 @@ export function createControlledContractGenerationTreeOperations({
     }
   }
 
-  async function authenticationObservationsFromTree({ runGit, binding, treeish }) {
-    const listing = await runGitOrFailAsync(runGit, {
-      repo: binding.repository, gitDir: binding.git_dir
-    }, [
+  async function authenticationObservationsFromTree({ runGit, binding, treeish, sourceObservation = null }) {
+    sourceObservation ??= await generationSourceObservationFromTree({ runGit, binding, treeish, treeOnly: true });
+    const context = { repo: binding.repository, gitDir: binding.git_dir };
+    const listing = await runGitOrFailAsync(runGit, context, [
       "--no-replace-objects", ...gitInertConfig,
       "ls-tree", "-r", "-z", "--full-tree", treeish, "--",
       "wiki/contracts", `wiki/work-records/${binding.record_id}.json`
     ], "stored controlled-contract authentication population could not be enumerated");
-    const selectedManifestPaths = new Set(
-      (binding.resolved_generation.manifest_selection ?? []).map(({ focus }) =>
-        canonicalManifestPath(binding.record_id, focus)));
-    const carrierObservations = [];
+    const entries = new Map(parseLsTree(stdoutBytes(listing)).map(entry => [entry.path, entry]));
+    const read = async repositoryPath => {
+      const entry = entries.get(repositoryPath);
+      if (entry?.type !== "blob" || entry.mode !== "100644") {
+        fail(codes.STORED_GENERATION_INVALID,
+          "selected controlled-contract authentication member is missing or not an ordinary Git blob", {
+            path: repositoryPath, commit: treeish
+          });
+      }
+      return stdoutBytes(await runGitOrFailAsync(runGit, context,
+        ["--no-replace-objects", "cat-file", "blob", entry.oid],
+        "selected controlled-contract authentication blob could not be read"));
+    };
+    const observe = (repositoryPath, bytes) => ({ path: repositoryPath,
+      content_digest: sha256(bytes), byte_length: bytes.byteLength,
+      bytes_base64: bytes.toString("base64") });
+    const recordPath = `wiki/work-records/${binding.record_id}.json`;
+    const recordObservation = observe(recordPath, await read(recordPath));
+    const hasManifest = [...entries.keys()].some(repositoryPath =>
+      classifyControlledContractGenerationRepositoryPath({ wkId: binding.record_id, repositoryPath })
+        .reason === 'server_owned_carrier_set_manifest');
+
+    if (!hasManifest) return deepFreeze({ source: { ...sourceObservation.source }, resolvedGeneration: null,
+      recordObservation, carrierObservations: [], manifestObservations: [] });
+    const resolvedGeneration = await resolveControlledContractGenerationFromSourceObservation({
+      wkId: binding.record_id, observation: sourceObservation
+    });
     const manifestObservations = [];
-    let recordObservation = null;
-    for (const entry of parseLsTree(stdoutBytes(listing))) {
-      const basename = path.posix.basename(entry.path);
-      const recordPath = `wiki/work-records/${binding.record_id}.json`;
-      if (entry.path === recordPath) {
-        if (recordObservation !== null || entry.type !== "blob" || entry.mode !== "100644") {
+    const storageByBasename = new Map();
+    for (const selected of resolvedGeneration.manifest_selection ?? []) {
+      const repositoryPath = canonicalManifestPath(binding.record_id, selected.focus);
+      const bytes = await read(repositoryPath);
+      const manifest = parseControlledContractCarrierSetManifest(bytes, {
+        wkId: binding.record_id, focus: selected.focus, generation: selected.generation
+      });
+      manifestObservations.push(observe(repositoryPath, bytes));
+      for (const member of manifest.carriers) {
+        if (storageByBasename.has(member.filename)) {
           fail(codes.STORED_GENERATION_INVALID,
-            "stored canonical WK record is not one direct ordinary Git blob");
+            "selected controlled-contract manifests repeat a carrier", { path: member.filename, commit: treeish });
         }
-        const blob = await runGitOrFailAsync(runGit, {
-          repo: binding.repository, gitDir: binding.git_dir
-        }, ["--no-replace-objects", "cat-file", "blob", entry.oid],
-        "stored canonical WK record blob could not be read");
-        const bytes = stdoutBytes(blob);
-        recordObservation = {
-          path: entry.path,
-          content_digest: sha256(bytes),
-          byte_length: bytes.byteLength,
-          bytes_base64: bytes.toString("base64")
-        };
-        continue;
+        storageByBasename.set(member.filename, `wiki/contracts/${member.path}`);
       }
+    }
+    const carrierObservations = [];
+    for (const descriptor of resolvedGeneration.descriptors) {
       const classification = classifyControlledContractGenerationRepositoryPath({
-        wkId: binding.record_id,
-        repositoryPath: entry.path
+        wkId: binding.record_id, repositoryPath: descriptor.path
       });
-      if (classification.classification === "active_member") {
-        if (entry.type !== "blob" || entry.mode !== "100644") {
-          fail(codes.STORED_GENERATION_INVALID,
-            "stored controlled-contract member is not an ordinary Git blob");
-        }
-        const blob = await runGitOrFailAsync(runGit, {
-          repo: binding.repository, gitDir: binding.git_dir
-        }, ["--no-replace-objects", "cat-file", "blob", entry.oid],
-        "stored controlled-contract blob could not be read");
-        const bytes = stdoutBytes(blob);
-        carrierObservations.push({
-          path: entry.path,
-          basename,
-          carrier_kind: classification.carrier_kind,
-          focus: classification.focus,
-          pack_digest: classification.pack_digest,
-          content_digest: sha256(bytes),
-          byte_length: bytes.byteLength,
-          bytes_base64: bytes.toString("base64")
-        });
-        continue;
-      }
-      if (classification.classification === "malformed_active_candidate") {
+      if (classification.classification !== "active_member") {
         fail(codes.STORED_GENERATION_INVALID,
-          "stored tree contains a malformed active controlled-contract path");
+          "selected controlled-contract descriptor is not an active member", { path: descriptor.path });
       }
-      if (!selectedManifestPaths.has(entry.path)) continue;
-      if (classification.active !== true || entry.type !== "blob" || entry.mode !== "100644") {
-        fail(codes.STORED_GENERATION_INVALID,
-          "stored controlled-contract manifest is not one direct ordinary Git blob");
-      }
-      const blob = await runGitOrFailAsync(runGit, {
-        repo: binding.repository, gitDir: binding.git_dir
-      }, ["--no-replace-objects", "cat-file", "blob", entry.oid],
-      "stored controlled-contract manifest blob could not be read");
-      const bytes = stdoutBytes(blob);
-      manifestObservations.push({
-        path: entry.path,
-        content_digest: sha256(bytes),
-        byte_length: bytes.byteLength,
-        bytes_base64: bytes.toString("base64")
-      });
+      const storagePath = storageByBasename.get(descriptor.basename) ?? descriptor.path;
+      const bytes = await read(storagePath);
+      carrierObservations.push({ path: descriptor.path, basename: descriptor.basename,
+        carrier_kind: classification.carrier_kind, focus: classification.focus,
+        pack_digest: classification.pack_digest, content_digest: sha256(bytes),
+        byte_length: bytes.byteLength, bytes_base64: bytes.toString("base64") });
     }
-    carrierObservations.sort((left, right) => left.path.localeCompare(right.path));
-    manifestObservations.sort((left, right) => left.path.localeCompare(right.path));
-    if (recordObservation === null) {
-      fail(codes.STORED_GENERATION_INVALID,
-        "stored canonical WK record is missing from exact W");
-    }
-    return deepFreeze({ recordObservation, carrierObservations, manifestObservations });
+    const byPath = (left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
+    carrierObservations.sort(byPath);
+    manifestObservations.sort(byPath);
+    return deepFreeze({ source: { ...sourceObservation.source }, resolvedGeneration,
+      recordObservation, carrierObservations, manifestObservations });
   }
 
-  async function generationSourceObservationFromTree({ runGit, binding, treeish }) {
+  async function generationSourceObservationFromTree({ runGit, binding, treeish, treeOnly = false }) {
     const context = { repo: binding.repository, gitDir: binding.git_dir };
     const pinned = async (revision, subject) => {
       const resolved = await runGitOrFailAsync(runGit, context, [
@@ -553,16 +537,16 @@ export function createControlledContractGenerationTreeOperations({
       }
       return oid;
     };
-    const commit = await pinned(`${treeish}^{commit}`, "commit");
-    if (commit !== treeish) {
+    const commit = treeOnly ? null : await pinned(`${treeish}^{commit}`, "commit");
+    if (!treeOnly && commit !== treeish) {
       fail(codes.STORED_GENERATION_INVALID,
         "stored controlled-contract source is not one exact commit identity", {
           requested: treeish,
           commit
         });
     }
-    const tree = await pinned(`${commit}^{tree}`, "tree");
-    const source = { kind: "git_tree", commit, tree };
+    const tree = await pinned(`${treeish}^{tree}`, "tree");
+    const source = { kind: "git_tree", ...(commit === null ? {} : { commit }), tree };
     const listing = await runGitOrFailAsync(runGit, context, [
       "--no-replace-objects", ...gitInertConfig,
       "ls-tree", "-r", "-z", "--full-tree", tree, "--", "wiki/contracts"
@@ -656,23 +640,18 @@ export function createControlledContractGenerationTreeOperations({
   }
 
   async function selectedGenerationFromTree({ runGit, binding, treeish }) {
-    const observation = await generationSourceObservationFromTree({ runGit, binding, treeish });
+    const sourceObservation = await generationSourceObservationFromTree({ runGit, binding, treeish });
     const resolvedGeneration = await resolveControlledContractGenerationFromSourceObservation({
-      wkId: binding.record_id,
-      observation
+      wkId: binding.record_id, observation: sourceObservation
     });
     const observations = await authenticationObservationsFromTree({
       runGit,
-      binding: {
-        repository: binding.repository,
-        git_dir: binding.git_dir,
-        record_id: binding.record_id,
-        resolved_generation: resolvedGeneration
-      },
-      treeish: observation.source.commit
+      binding,
+      treeish,
+      sourceObservation
     });
     return deepFreeze({
-      source: { ...observation.source },
+      source: observations.source,
       resolvedGeneration,
       recordObservation: observations.recordObservation,
       carrierObservations: observations.carrierObservations,

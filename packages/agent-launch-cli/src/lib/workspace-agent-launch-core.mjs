@@ -466,7 +466,7 @@ export function superviseChildLaunch({
     withStdoutTap(() => stdoutTap.started?.());
     stdoutTap.bind((text) => projectedStdoutCapture.push(Buffer.from(text, "utf8")));
   }
-  const parserStdoutText = () => (stdoutTap !== null && (withStdoutTap(() => stdoutTap.events()) ?? 0) > 0
+  const parserStdoutText = () => (stdoutTap !== null && stdoutTap.preserveProtocol !== true && (withStdoutTap(() => stdoutTap.events()) ?? 0) > 0
     ? projectedStdoutCapture.text()
     : stdoutCapture.text());
 

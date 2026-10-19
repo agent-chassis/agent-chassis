@@ -24,9 +24,16 @@ when the runner supplies one, column), `native_details` (labelled,
 runner-formatted display text such as a diff, never parsed into typed operands;
 typed `expected` and `actual` appear only when the runner hands the values over)
 and the failure's native `origin` (`hook`, `step`, `subtest`, `phase` or runner
-`condition`, with its native name). An absent error, a capture over the graph's
-256 KiB ceiling (large values are dropped first) and a native report that could
-not be read or attributed stay explicit issues (`error_not_supplied`,
+`condition`, with its native name). The JavaScript owner keeps the 256 KiB
+ceiling: oversized assertion values are omitted first. If error fields still
+exceed it, the bounded graph keeps available identity, native location and
+message/trace prefixes; each partial or omitted field carries an exact
+`capture_budget_exceeded` issue. It bounds error records and display details as
+well, and reports omitted graph populations explicitly. A message prefix is at
+most 1,024 UTF-8 bytes so the selected public diagnosis can present useful text.
+This partial capture stays `captured`, never a claim of complete retention.
+An absent error, a capture whose required frame cannot fit, and a native report
+that could not be read or attributed stay explicit issues (`error_not_supplied`,
 `capture_budget_exceeded`, `native_report_unreadable`,
 `native_attribution_unavailable`).
 
@@ -188,10 +195,41 @@ public `runtime_environment` is projected from it. Diagnostics never grant proof
 credit, select an identity or change an outcome: runner output is never parsed
 into assertion facts, and the structured per-test error remains the
 authenticated observation's `failure_diagnostic`. An unproven proof's selected
-diagnosis presents its captured error and location; its call trace and cause
-chain are named as retained, and expected and actual operands over 256 bytes
-are named as deferred rather than inlined. The runner's own output stays in the
-retained `attempt_diagnostics` and is not part of the public answer.
+diagnosis keeps its root error (including a runner wrapper) and available native
+location. A message over the public inline limit now has a useful native prefix,
+independently of whether capture compaction ran: at most 1,024 UTF-8 bytes for the
+root and 256 for each presented related error. `message_presentation` states
+`status: partial`, `retained_utf8_bytes`, `returned_utf8_bytes` and
+`omitted_utf8_bytes`; these describe presentation of the retained message, not
+bytes already lost at capture. Short messages stay unchanged. Capture issues
+remain separate and unchanged.
+
+The same distiller presents native `cause` and `aggregate_errors` relationships,
+with at most three additional errors across the diagnosis. It preserves the
+wrapper and intermediate errors, never promotes the deepest error or chooses
+one aggregate member as the assertion. Exhausted causes are `deferred` with
+`reason: presentation_error_limit`; omitted aggregate members have
+`aggregate_errors_omitted`. Revisited errors keep their native graph `ref`.
+Primitive causes stay in the retained graph, named by `retained_fields` and the
+related-error count. Related-error counts and bounded codes still cover the
+complete selected graph, including errors omitted from presentation.
+
+Each presented error uses its own native location. When a related error has no
+explicit location but retains a native Node frame, the shared location extractor
+supplies its first file frame, labelled `location_source: native_stack`. Without
+an explicit checkout it preserves the native absolute file path; it never
+infers the old checkout from the reading process. A wrapper's test-declaration
+location is never substituted for its assertion cause. A frame already omitted
+at capture remains unavailable, with the original capture issue.
+
+Call traces and the complete cause/aggregate graph stay unchanged in the retained
+original and are named by `retained_fields`. Expected and actual operands over
+256 bytes are deferred; runner-formatted details are deferred with label and
+size, and omitted detail rows are counted by `native_details_omitted`. The
+runner's own output stays in retained `attempt_diagnostics`. The initial answer,
+selected detail and recorded-result reads use this same bounded presentation
+within existing response budgets. Reads execute nothing, rewrite no retained
+evidence and grant no proof credit.
 
 ## Capture bounds and retention
 

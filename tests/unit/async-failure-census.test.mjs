@@ -1,11 +1,16 @@
 
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { allocateRetainedArtifact } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
+import { injectFilesystemFault } from "../helpers/filesystem-fault.mjs";
+import { createTestFixture } from "../helpers/test-fixture.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const FIXTURE_REL = "tests/fixtures/async-failure-census.v1.json";
@@ -75,7 +80,17 @@ test("the census covers exactly the five populations over exactly the bounded co
   ]);
   assert.deepEqual(Object.keys(fixture.populations).sort(), Object.keys(DETECTORS).sort(),
     "every declared population has a detector and vice versa");
-  assert.equal(fixture.corpus.length, 8);
+  assert.deepEqual([...fixture.corpus].sort(), [
+    "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+    "packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
+    "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs",
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
+    "packages/wiki-core/src/lib/wiki-allocator.mjs",
+    "packages/wiki-mcp/src/lib/mcp-response.mjs",
+    "packages/wiki-mcp/src/lib/mcp-response-diagnostics.mjs",
+    "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs"
+  ].sort(), "the exact bounded owners include both halves of the response extraction");
   assert.equal(new Set(fixture.corpus).size, fixture.corpus.length, "the corpus has no duplicates");
 });
 
@@ -420,6 +435,59 @@ test("the recorded allocator residual is a real masking site, not a closed one",
     "the census must not record this site as closed");
 });
 
+test("retained artifact cleanup can mask publication failure and remains an open residual", async (t) => {
+  const owned = await createTestFixture({ prefix: "retained-allocator-census-" });
+  t.after(() => owned.dispose());
+  const { rootPath: stateDir } = owned;
+  const originalLink = fs.linkSync;
+  const publicationFailure = new Error("injected metadata publication failure");
+  let mode = "healthy";
+  let cleanupFault = null;
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  t.mock.method(fs, "linkSync", (pending, metadata) => {
+    if (path.dirname(pending) !== stateDir || path.dirname(metadata) !== stateDir) {
+      return originalLink(pending, metadata);
+    }
+    if (mode === "cleanup" || mode === "both") {
+      cleanupFault = injectFilesystemFault(t, { operation: "unlinkSync", path: pending });
+    }
+    if (mode === "publication" || mode === "both") throw publicationFailure;
+    return originalLink(pending, metadata);
+  });
+  syncBuiltinESMExports();
+  const allocate = (refId) => allocateRetainedArtifact({ stateDir, bytes: Buffer.from("payload"),
+    metadataFor: (id) => ({ ref_id: id }), mintRefId: () => refId });
+  try {
+    assert.equal(allocate("healthy1"), "healthy1");
+    assert.deepEqual(fs.readdirSync(stateDir).filter(file => file.endsWith(".pending")), []);
+    mode = "publication";
+    assert.throws(() => allocate("primary1"), error => error === publicationFailure,
+      "successful cleanup preserves the exact publication failure");
+    assert.equal(fs.existsSync(path.join(stateDir, "primary1.json.meta.json")), false);
+    assert.deepEqual(fs.readdirSync(stateDir).filter(file => file.endsWith(".pending")), []);
+    mode = "cleanup";
+    assert.throws(() => allocate("cleanup1"), error => error === cleanupFault.error);
+    assert.equal(cleanupFault.hits, 1);
+    assert.equal(fs.existsSync(path.join(stateDir, "cleanup1.json.meta.json")), true,
+      "cleanup can fail after metadata was published");
+    cleanupFault.restore();
+    mode = "both";
+    assert.throws(() => allocate("bothfail"), error => error === cleanupFault.error && error !== publicationFailure,
+      "the real allocator's cleanup masks the original publication failure");
+    assert.equal(cleanupFault.hits, 1);
+    assert.equal(fs.existsSync(path.join(stateDir, "bothfail.json.meta.json")), false);
+    const row = fixture.populations.finally_block_masking.sites
+      .find(site => site.symbol === "allocateRetainedArtifact:pending_metadata");
+    assert.equal(row.disposition, "masking_capable_recorded_residual");
+    assert.equal(fixture.populations.finally_block_masking.residuals.some(residual =>
+      residual.symbol === row.symbol && residual.module === row.module), true);
+  } finally {
+    cleanupFault?.restore();
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+});
+
 test("a permanently cached rejection fails the retryability adjudicator", async () => {
   const poisoned = (load) => {
     let promise = null;
@@ -549,7 +617,7 @@ test("the census reconciles with what SLICE-003, SLICE-004, and SLICE-005 delive
     "the guards are composed at the single production composition root");
 });
 
-test("WK-2361's scope is not entered: the corpus is closed at eight modules", () => {
+test("WK-2361's scope is not entered: the corpus stays closed after the owner extraction", () => {
 
   for (const entry of Object.values(fixture.populations)) {
     for (const row of entry.sites) {
@@ -566,6 +634,7 @@ test("WK-2361's scope is not entered: the corpus is closed at eight modules", ()
   assert.equal(residual.symbol, "writeAllocatorStateAtomically");
   assert.match(residual.remediation_owner, /coordinator closeout/u);
   assert.match(residual.not_owned_by, /WK-2361/u);
-  assert.equal(fixture.denominators.open_residuals_total, 1);
+  assert.equal(fixture.denominators.open_residuals_total, 2);
+  assert.equal(fixture.populations.finally_block_masking.residuals.length, 2);
   assert.equal(fixture.corpus.length, fixture.denominators.corpus_modules);
 });

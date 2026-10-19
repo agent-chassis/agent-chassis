@@ -23,6 +23,8 @@ import { goTestReport } from "../../packages/agent-launch-cli/src/lib/test-execu
 import { cargoTestReport } from
   "../../packages/agent-launch-cli/src/lib/test-execution/proof-providers/cargo-test.mjs";
 import { denoTestReport } from "../../packages/agent-launch-cli/src/lib/test-execution/proof-providers/deno.mjs";
+import { PYTEST_PROOF_PROTOCOL_SCHEMA_VERSION, observeLauncherPytestRun } from
+  "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-pytest-provider.mjs";
 
 const NONCE = "a".repeat(64);
 const FILE = "project/answer.test.mjs";
@@ -244,6 +246,72 @@ test("native node identities use the provider's closed spelling", () => {
     "pkg/a_test.go::TestX");
   assert.equal(nativeNodeId("tests/a.rs", ["m", "t"], { kind: "joined", separator: "::" }),
     "tests/a.rs::m::t");
+});
+
+test("collection choices have no invented outcomes and distinguish absent identity from missing observation", () => {
+  const records = [{ kind: 'session_start' },
+    { kind: 'collected', file: FILE, test: SELECTED },
+    { kind: 'collected', file: FILE, test: SIBLING },
+    { kind: 'session_end' }];
+  const read = (list, node = NODE_ID) => readNativeObservation({ channelBytes: stream(list),
+    exitCode: 0, expectation: expectation({ node_id: node }) });
+  const present = read(records);
+  assert.equal(present.code, 'test_proof_selected_identity_not_observed');
+  assert.equal(present.detail.selection_status, 'collected_not_observed');
+  assert.equal(present.detail.selected_node_id, NODE_ID);
+  assert.ok(present.detail.observed_identity_candidates.every(candidate =>
+    !Object.hasOwn(candidate, 'status') && !Object.hasOwn(candidate, 'error_codes')));
+  const absent = read(records, nativeNodeId(FILE, ['answer', 'absent'], IDENTITY));
+  assert.equal(absent.detail.selection_status, 'not_collected');
+  assert.deepEqual(absent.detail.observed_identity_candidates, present.detail.observed_identity_candidates);
+  assert.deepEqual(read([records[0], records[2], records[1], records[3]]).detail,
+    present.detail, 'reordering choices does not change identity or invent outcomes');
+  const skipped = [...records.slice(0, -1), { kind: 'test_result', file: FILE, test: SIBLING,
+    outcome: 'skipped', assertion_failure: false }, records.at(-1)];
+  const observed = read(skipped).detail.observed_identity_candidates;
+  assert.equal(observed.find(row => row.name === NODE_ID).status, undefined);
+  assert.equal(observed.find(row => row.name !== NODE_ID).status, 'skipped',
+    'a real reported skip remains a real outcome');
+});
+
+test('pytest distinguishes missing literal identity, incomplete collection and collected but unobserved identity', () => {
+  const target = 'tests/test_answer.py';
+  const node = `${target}::test_answer`;
+  const exp = { mode: 'candidate', capability: 'candidate_execution', attempt_nonce: NONCE,
+    provider_id: 'launcher.pytest', provider_version: '1.0.0', target,
+    node_id: node, target_test_id: `test-${'b'.repeat(64)}` };
+  const observe = (collected, { phases = [], errors = [], selected = node } = {}) => {
+    const payload = JSON.stringify({ schema_version: PYTEST_PROOF_PROTOCOL_SCHEMA_VERSION,
+      attempt_nonce: NONCE, mode: 'candidate', node_id: selected, target_path: target,
+      runtime_error: null, fault: null,
+      import_policy: { cached_bytecode: 'ignored', sourceless_bytecode: 'refused' },
+      dependency_population: { count: 0, members: [] },
+      collection: { collected_node_ids: collected, selected_node_ids: collected.filter(id => id === selected), errors }, phases });
+    return observeLauncherPytestRun({ protocolText: JSON.stringify({ schema_version: PYTEST_PROOF_PROTOCOL_SCHEMA_VERSION,
+      payload, payload_sha256: createHash('sha256').update(payload).digest('hex') }), exitCode: 0,
+    expectation: { ...exp, node_id: selected } });
+  };
+  const choices = [`${node}[async]`, `${node}[sync]`];
+  const absent = observe(choices);
+  assert.equal(absent.code, 'test_proof_selected_identity_not_observed');
+  assert.equal(absent.detail.selection_status, 'not_collected');
+  assert.equal(absent.detail.selected_node_id, node);
+  assert.deepEqual(absent.detail.observed_identity_candidates.map(row => row.name), choices);
+  assert.ok(absent.detail.observed_identity_candidates.every(row => row.status === undefined));
+  const present = observe(choices, { selected: choices[1] });
+  assert.equal(present.detail.selection_status, 'collected_not_observed');
+  const incomplete = observe(choices, { errors: [{ nodeid: target,
+    failure_diagnostic: captureTestFailureDiagnostic(new Error('collection failed')) }] });
+  assert.equal(incomplete.detail.selection_status, 'collection_incomplete');
+  assert.equal(incomplete.detail.observed_failure_count, 1);
+  assert.equal(observe(choices, { errors: null }).code, 'test_proof_structured_events_invalid',
+    'malformed collection evidence never establishes a saved identity mismatch');
+  const violated = observe(choices, { phases: [{ nodeid: choices[0], when: 'call', outcome: 'passed' }] });
+  assert.equal(violated.code, 'test_proof_structured_events_unselected_execution',
+    'unexpected execution must not be mistaken for an authoring correction');
+  for (const selected of choices) {
+    assert.equal(observe([...choices].reverse(), { selected }).detail.selected_node_id, selected);
+  }
 });
 
 const failedRun = (diagnostic, { assertion = true, extra = [], end = { kind: "session_end" } } = {}) => [

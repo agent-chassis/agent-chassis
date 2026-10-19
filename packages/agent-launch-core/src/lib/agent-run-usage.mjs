@@ -44,6 +44,18 @@ const operandsOf = (key, semantics) => {
   return key === "input" && semantics === "exclusive" ? ["input", "cache_read", "cache_creation"] : [key];
 };
 
+export function sumNativeUsageValues(values) {
+  const valid = isTokenCount;
+  if (!Array.isArray(values) || values.length === 0) return null;
+  let total = 0;
+  for (const value of values) {
+    if (!valid(value)) return value ?? null;
+    total += value;
+    if (!valid(total)) return null;
+  }
+  return total;
+}
+
 function readQuantity(quantity, isValid) {
   if (quantity?.status === "complete" && isValid(quantity.value)) return complete(quantity.value);
   return partial(isValid(quantity?.observed) ? quantity.observed : null);

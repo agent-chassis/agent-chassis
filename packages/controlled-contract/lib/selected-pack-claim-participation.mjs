@@ -1,14 +1,13 @@
 
 
 import { loadAdmittedProofPack } from "./admitted-proof-packs.mjs";
+import { TEST_EXECUTION_PROFILE_SCHEMA } from
+  "./test-validity-execution-definition.mjs";
 import { evaluateAdmittedTestValidity } from "./test-proof-assessment.mjs";
 import {
   StableVerificationError,
   evaluateVerificationProfileV1
 } from "./verification-profile-v1.mjs";
-
-const TEST_VALIDITY_PROFILE_SCHEMA_VERSION =
-  "controlled-contract-test-validity-profile.v1";
 
 class SelectedPackClaimParticipationError extends Error {
   constructor(code, message, details = {}) {
@@ -38,7 +37,7 @@ function evaluateAdmittedPack({ contract, evaluationInput, proofPack }, options 
   };
   try {
     const evaluation = proofPack.profile.schema_version ===
-      TEST_VALIDITY_PROFILE_SCHEMA_VERSION
+      TEST_EXECUTION_PROFILE_SCHEMA
       ? evaluateAdmittedTestValidity({
           contract: structuredClone(contract),
           evaluationInput: structuredClone(evaluationInput),

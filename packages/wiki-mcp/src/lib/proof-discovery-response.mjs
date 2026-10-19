@@ -3,7 +3,7 @@
 import { resolveRecordAuthoringDefinition } from '@agent-chassis/wiki-core/src/lib/record-authoring-shared-definitions.mjs';
 import { FIND_PROOFS_TASK } from '@agent-chassis/controlled-contract/proof-discovery-task';
 
-export const PROOF_PART_KINDS = Object.freeze(['overview', 'authoring', 'parameter', 'constraint']);
+export const PROOF_PART_KINDS = Object.freeze(['overview', 'comparisons', 'authoring', 'parameter', 'constraint']);
 
 const MATCH_TIERS = Object.freeze(['assertion_match', 'partial_assertion_match',
   'navigation_or_exclusion_match']);
@@ -20,11 +20,20 @@ const CATALOGUE_MEANING = 'Every listed proof, once, in the catalogue owner\'s o
   'assertion: select a proof to read its complete meaning before binding it.';
 const NO_MATCH_MEANING = 'No lexical match. This neither shows that no proof applies nor ' +
   'recommends opting out: send another property query or a known proof_name.';
-const COMPARISON_MEANING = 'Intent comparisons are guidance for telling proofs apart; they are ' +
-  'not part of the admitted assertion.';
+const COMPARISON_MEANING = 'Comparisons are guidance for telling proofs apart; they are ' +
+  'not part of the admitted assertion. Each alternative offers a read, never a selection for you.';
 const SOURCE_SCOPE = 'host package catalogue; not the content of a frozen review candidate';
-const EFFECTS = Object.freeze({ canonical_writes: false, proofs_executed: false,
-  retained: 'this result, as derived response storage' });
+
+export function proofDiscoveryAlternatives(request = {}) {
+  const context = request.target_family === undefined ? {} : { target_family: request.target_family };
+  return {
+    browse: call({}),
+    refine: { tool: FIND_PROOFS_TASK, executable: false, known_arguments: context,
+      missing_caller_input: ['query'] },
+    named: { tool: FIND_PROOFS_TASK, executable: false, known_arguments: context,
+      missing_caller_input: ['proof_name'] }
+  };
+}
 
 const rowVariants = row => { const alternatives = row.oneOf ?? row.anyOf;
   return Array.isArray(alternatives) && alternatives.every(variant => variant.type === 'object') ? alternatives : [row]; };
@@ -86,7 +95,9 @@ export function authoredFalsificationFacts({ strategies, field_patterns: fieldPa
 
 export function familyChoiceFacts(caseAuthoring) {
   return Object.entries(caseAuthoring.families).map(([familyId, family]) => (
-    { family_id: familyId, runner: family.runner }));
+    { family_id: familyId, runner: family.runner, source_suffixes: family.source_suffixes,
+      selector_fields: caseAuthoring.target_variants[family.target_variant].fields
+        .filter(field => field.startsWith('selector.')) }));
 }
 
 const awaitsFamily = (carrier, proof) => proof.verification_capability !== null && carrier.family === null;
@@ -97,9 +108,23 @@ function familyChoice(carrier, proof) {
       'chosen for the caller: no call here has been made. Each call is a fresh read of the CURRENT ' +
       'catalogue entry for this proof with that family, returning a new result; this retained ' +
       'result is not changed and stays without a family.',
-    choices: carrier.family_choices.map(choice => ({ ...choice,
+    choices: familyChoices(carrier).map(choice => ({ ...choice,
       call: call({ proof_name: proof.proof_name, target_family: choice.family_id,
         part: { kind: 'authoring' } }) })) };
+}
+
+function familyChoices(carrier) {
+  return carrier.recognition.status === 'ambiguous'
+    ? carrier.family_choices.filter(choice => carrier.recognition.families.includes(choice.family_id))
+    : carrier.family_choices;
+}
+
+function queryFamilyChoices(carrier) {
+  return carrier.family === null && ['ambiguous', 'conflicting'].includes(carrier.recognition.status)
+    ? { choose_family: { input: 'target_family', input_of: FIND_PROOFS_TASK,
+      meaning: 'Choose the intended test runner; this refines the query context, selects no proof and authorizes no execution.',
+      choices: familyChoices(carrier).map(choice => ({ ...choice,
+        call: call({ query: carrier.request.query, target_family: choice.family_id }) })) } } : {};
 }
 
 function authoredTarget({ variant: _variant, ...target }) {
@@ -113,43 +138,48 @@ function familySelection(carrier) {
     !recognition.families.includes(explicit);
   return {
     selected: family?.family_id ?? null,
-    selected_by: family === null ? null : explicit !== null ? 'target_family' : 'query',
-    query_recognition: recognition.status,
-    ...(recognition.families.length ? { query_named: recognition.families } : {}),
+    ...(family === null && ['ambiguous', 'conflicting'].includes(recognition.status)
+      ? { query_recognition: recognition.status,
+        ...(recognition.status === 'ambiguous' ? { query_named: recognition.families }
+          : { query_terms: recognition.provider_terms }) } : {}),
     ...(contradicted ? { observation: 'the query words name another family; the explicit ' +
       'target_family is the selection and the query words are not' } : {})
   };
 }
 
 function envelope(carrier, locator, currentness, body, nextCalls) {
-  return { task: FIND_PROOFS_TASK, result: locator,
-
-    source: { identity: carrier.source.identity, currentness, scope: SOURCE_SCOPE },
-    ...body, next_calls: nextCalls, effects: EFFECTS };
+  return { result: locator,
+    source: { currentness: typeof currentness === 'string' ? currentness : currentness.status,
+      ...(typeof currentness === 'string' ? {} : { inspection_failure: currentness.failure }), scope: SOURCE_SCOPE },
+    ...body, next_calls: nextCalls };
 }
 
-const INDEX_SELECTION_MEANING = 'Copy the complete supplied arguments, keep result unchanged, and replace ' +
-  'only selection.proof_name with the listed proof you want. The call shown names the first listed proof ' +
-  'only as an example; it recommends none. A later part goes inside selection, as selection.part.';
+const INDEX_SELECTION_MEANING = 'Choose a listed proof first. Copy select.known_arguments, keep result ' +
+  'unchanged, and add selection.proof_name with that identity to compose executable arguments. ' +
+  'This form is not executable until you supply that choice. A later part goes inside selection, as selection.part.';
 
 export function projectIndex(carrier, locator, currentness) {
   const browse = carrier.mode === 'browse';
-  const first = carrier.proofs[0]?.proof_name ?? null;
+  const empty = carrier.proofs.length === 0;
   return envelope(carrier, locator, currentness, {
-    ...(browse ? { answer: 'catalogue', population: carrier.population, meaning: CATALOGUE_MEANING,
+    ...(browse ? { answer: 'catalogue', population: carrier.population,
+      meaning: empty ? 'The catalogue lists no proofs; no proof can be selected from this result.' : CATALOGUE_MEANING,
       proofs: carrier.proofs.map(proof => proof.proof_name) }
       : { answer: 'matches', query: carrier.query, population: carrier.population,
-        meaning: first === null ? NO_MATCH_MEANING : INDEX_MEANING,
+        meaning: empty ? NO_MATCH_MEANING : INDEX_MEANING,
         matches: MATCH_TIERS.map(tier => ({ tier,
           proofs: carrier.proofs.filter(proof => proof.match_kind === tier).map(proof => proof.proof_name) }))
           .filter(group => group.proofs.length > 0) }),
 
     short_descriptions: Object.fromEntries(carrier.proofs.map(proof =>
       [proof.proof_name, proof.short_description])),
-    ...(browse ? {} : { family: familySelection(carrier) })
-  }, first === null ? {} : {
-    select: selecting(locator, { proof_name: first }),
-    selection: INDEX_SELECTION_MEANING
+    ...(browse || carrier.recognition.status === 'unspecified' && carrier.family === null
+      ? {} : { family: familySelection(carrier) })
+  }, empty ? browse ? {} : { ...proofDiscoveryAlternatives(carrier.request), ...queryFamilyChoices(carrier) } : {
+    select: { tool: FIND_PROOFS_TASK, executable: false, known_arguments: { result: locator },
+      missing_caller_input: ['selection.proof_name'] },
+    selection: INDEX_SELECTION_MEANING,
+    ...queryFamilyChoices(carrier)
   });
 }
 
@@ -167,7 +197,8 @@ export function projectIndexSummary(carrier, locator, currentness) {
       count: carrier.proofs.filter(proof => proof.match_kind === tier).length }))
       .filter(group => group.count > 0),
     complete_index: 'next_calls.matches returns every match of this result, in order, in one answer',
-    family: familySelection(carrier)
+    ...(carrier.recognition.status === 'unspecified' && carrier.family === null
+      ? {} : { family: familySelection(carrier) })
   }, { matches: call({ result: locator }) });
 }
 
@@ -176,9 +207,8 @@ export function projectProofSummary(carrier, locator, currentness, proof) {
     answer: 'proof_summary', proof: proofIdentity(proof),
     verification_capability: proof.verification_capability,
     parameter_count: proof.refinements.length, constraint_count: proof.constraints.length,
-    complete_answer: 'next_calls.select returns the complete overview; parts lists the other selections'
-  }, { select: selecting(locator, { proof_name: proof.proof_name, part: { kind: 'overview' } }),
-    parts: [{ kind: 'authoring' }] });
+    complete_answer: 'next_calls.select returns the complete overview'
+  }, { select: selecting(locator, { proof_name: proof.proof_name, part: { kind: 'overview' } }) });
 }
 
 const proofIdentity = proof => ({ name: proof.proof_name, version: proof.profile_version });
@@ -190,9 +220,6 @@ function overviewPart(proof) {
     short_description: proof.short_description, usage: proof.usage,
     assertion: proof.assertion,
     exclusions: proof.exclusions,
-    comparisons: proof.comparisons,
-    comparisons_meaning: COMPARISON_MEANING,
-    intents: proof.associations,
 
     parameters: proof.refinements.map(parameter => parameter.name),
     constraint_count: proof.constraints.length,
@@ -217,23 +244,23 @@ function authoringPart(carrier, proof, caseGuidance) {
     `${obligation}.claims: held claim ids or $key labels of changes.requirements.requirements`];
   missing.push(...proof.refinements.filter(parameter => parameter.source.policy === 'configurable' &&
     !optionalParameter(parameter)).map(parameter => `${obligation}.proof.parameters.${parameter.name}`));
+  const caseInputs = [];
   if (needsCase) {
 
     if (identityRequired(members.obligations.case)) {
-      missing.push(`${obligation}.case.key (new) or .id (existing)`);
+      caseInputs.push(`${obligation}.case.key (new) or .id (existing)`);
     }
-    missing.push(`${obligation}.case.component`, `${obligation}.case.observation.kind`);
+    caseInputs.push(`${obligation}.case.component`, `${obligation}.case.observation.kind`);
     if (family !== null) {
-      if (family.target.provider) known.case = { target: { provider: family.target.provider } };
-      missing.push(...family.target.fields.filter(field => !field.startsWith('provider.'))
+      caseInputs.push(...family.target.fields.filter(field => !field.startsWith('provider.'))
         .map(field => `${obligation}.case.target.${field}`),
       `${obligation}.case.falsification: one listed strategy with its required members, ` +
-        'or {support: "registry_unsupported"} when the target has no accepted shape');
+        'or {support: "registry_unsupported"} to declare no falsifier for this case');
     }
   }
   return {
 
-    case: needsCase ? 'required: this proof is verified by an authored test case'
+    case: needsCase ? 'required for execution, not proof selection or implementation admission: omit an unknown case; a supplied incomplete case remains an authored defect. A complete case may name a planned test before it exists'
       : 'none: this proof declares no test-execution capability',
 
     ...(needsCase && carrier.case_choices !== undefined ? { case_choices: carrier.case_choices } : {}),
@@ -246,12 +273,10 @@ function authoringPart(carrier, proof, caseGuidance) {
           'authoring for it' }
       : { runner: family.runner, source_suffixes: family.source_suffixes, target: authoredTarget(family.target),
         falsification: authoredFalsificationFacts(family.falsification) }) } } : {}),
-    schema_members: needsCase ? members : { requirements: members.requirements,
-      obligations: { members: members.obligations.members.filter(name => name !== 'case'),
-        variants: members.obligations.variants, proof: members.obligations.proof } },
 
     parameters: { ...parameterChoices(proof), authored_as: parameterAuthoringAdvice(proof, needsCase) },
-    save: { task: SAVE_TASK, changes: { obligations: [known] }, missing_inputs: missing,
+    save: { task: SAVE_TASK, executable: false, changes: { obligations: [known] }, missing_inputs: missing,
+      ...(needsCase ? { execution_case_inputs: caseInputs } : {}),
 
       ...(awaitsFamily(carrier, proof) ? { awaits_family: {
         fields: [`${obligation}.case.target`, `${obligation}.case.falsification`],
@@ -259,7 +284,8 @@ function authoringPart(carrier, proof, caseGuidance) {
           'members are listed as missing inputs by the authoring answer of the chosen family' } } : {}),
       meaning: 'changes carries only values this result establishes; every missing input is the ' +
         'caller\'s own authored fact and none is defaulted. This checklist describes a new complete ' +
-        'selection; discovery does not inspect an existing unit for missing values. Incomplete drafts ' +
+        'proof decision, without an execution case; execution_case_inputs apply only when supplying a case. ' +
+        'The family.target.provider is required in a supplied native target. Discovery does not inspect an existing unit for missing values. Incomplete drafts ' +
         'remain savable. Held current facts save without rediscovery.' },
     not_established: ['that this proof applies to the requirement',
       ...(needsCase ? ['that the target test exists or has a shape the falsifier accepts'] : []),
@@ -307,45 +333,56 @@ function constraintPart(proof, ref) {
 export function projectProof(carrier, locator, currentness, proof, part, fits, caseGuidance = null) {
   const select = selection => selecting(locator, { proof_name: proof.proof_name, part: selection });
   const identity = { answer: 'proof', proof: proofIdentity(proof) };
-  const firstParameter = proof.refinements[0]?.name ?? null;
-
-  const parts = [{ kind: 'overview' }, { kind: 'authoring' },
-    ...(firstParameter === null ? [] : [{ kind: 'parameter', name: firstParameter }]),
-    ...(proof.constraints.length === 0 ? [] : [{ kind: 'constraint', ref: proof.constraints[0].ref }])];
-  const nextCalls = (primary, extra = {}) => ({ select: select(primary),
-    parts: parts.filter(entry => entry.kind !== primary.kind), ...extra,
-
-    ...(carrier.mode === 'search' ? { matches: call({ result: locator }) }
-      : carrier.mode === 'browse' ? { catalogue: call({ result: locator }) } : {}) });
-  const build = (body, calls) => envelope(carrier, locator, currentness, { ...identity, ...body }, calls);
-  const overview = () => build({ overview: overviewPart(proof) }, nextCalls({ kind: 'authoring' }));
-
-  const afterAuthoring = () => {
-    const calls = nextCalls(firstParameter === null ? { kind: 'overview' }
-      : { kind: 'parameter', name: firstParameter });
-    return awaitsFamily(carrier, proof) ? { primary: 'choose_family',
-      choose_family: familyChoice(carrier, proof), ...calls,
-      selection: 'secondary: select and parts read this result\'s parameters and constraints; ' +
-        'they do not choose the family' } : { ...calls,
-      ...(caseGuidance === null ? {} : { case_guidance: caseGuidance }) };
-  };
-  const authoring = () => build({ authoring: authoringPart(carrier, proof, caseGuidance) }, afterAuthoring());
-  if (part === null) {
-    const combined = build({ overview: overviewPart(proof), authoring: authoringPart(carrier, proof, caseGuidance) },
-      afterAuthoring());
-    return { payload: fits(combined) ? combined : overview() };
+  const form = (kind, member) => ({ kind, tool: FIND_PROOFS_TASK, executable: false,
+    known_arguments: { result: locator, selection: { proof_name: proof.proof_name, part: { kind } } },
+    missing_caller_input: [`selection.part.${member}`] });
+  const inputs = () => [
+    ...(proof.refinements.length ? [form('parameter', 'name')] : []),
+    ...(proof.constraints.length ? [form('constraint', 'ref')] : [])
+  ];
+  const index = carrier.mode === 'search' ? { matches: call({ result: locator }) }
+    : carrier.mode === 'browse' ? { catalogue: call({ result: locator }) } : {};
+  const build = (body, calls) => envelope(carrier, locator, currentness,
+    { ...identity, ...body }, { ...calls, ...index });
+  if (part === null || part.kind === 'overview') {
+    const parts = inputs();
+    const overview = build({ overview: overviewPart(proof) },
+      { select: select({ kind: 'authoring' }),
+        ...(proof.comparisons.length ? { comparisons: select({ kind: 'comparisons' }) } : {}),
+        ...(parts.length ? { parts } : {}) });
+    return { payload: fits(overview) ? overview : projectProofSummary(carrier, locator, currentness, proof) };
   }
-  if (part.kind === 'overview') return { payload: overview() };
-  if (part.kind === 'authoring') return { payload: authoring() };
+  if (part.kind === 'comparisons') {
+    const comparisons = proof.comparisons.map(comparison => ({
+      explanation: comparison.explanation,
+      alternatives: comparison.alternatives.map(alternative => {
+        const retained = carrier.proofs.some(candidate => candidate.proof_name === alternative.name &&
+          candidate.profile_version === alternative.version);
+        return { proof: alternative, read_scope: retained ? 'retained' : 'current',
+          read: retained ? selecting(locator, { proof_name: alternative.name })
+            : call({ proof_name: alternative.name,
+              ...(carrier.family === null ? {} : { target_family: carrier.family.family_id }) }) };
+      })
+    }));
+    return { payload: build({ comparisons, comparisons_meaning: COMPARISON_MEANING +
+      (comparisons.some(comparison => comparison.alternatives.some(alternative => alternative.read_scope === 'current'))
+        ? ' A current read may return a newer definition than the compared version.' : '') }, {
+      select: select({ kind: 'authoring' }), overview: select({ kind: 'overview' })
+    }) };
+  }
+  if (part.kind === 'authoring') return { payload: build({ authoring: authoringPart(carrier, proof, caseGuidance) }, {
+    ...(awaitsFamily(carrier, proof) ? { choose_family: familyChoice(carrier, proof) } : {}),
+    parts: [{ kind: 'overview', ...select({ kind: 'overview' }) }, ...inputs()],
+    ...(caseGuidance === null ? {} : { case_guidance: caseGuidance })
+  }) };
   if (part.kind === 'parameter') {
     const parameter = parameterPart(proof, part.name);
     if (parameter === null) return { unknown: { reason: 'parameter_unknown', name: part.name } };
-    const [ref] = parameter.constraints;
-    return { payload: build({ parameter }, ref === undefined ? { select: select({ kind: 'overview' }) }
-      : { select: select({ kind: 'constraint', ref }),
-        selection: 'part.ref takes any constraint ref listed for this parameter' }) };
+    return { payload: build({ parameter }, parameter.constraints.length ? {
+      constraints: parameter.constraints.map(ref => ({ ref, ...select({ kind: 'constraint', ref }) }))
+    } : {}) };
   }
   const constraint = constraintPart(proof, part.ref);
   if (constraint === null) return { unknown: { reason: 'constraint_unknown', ref: part.ref } };
-  return { payload: build({ constraint }, { select: select({ kind: 'overview' }) }) };
+  return { payload: build({ constraint }, {}) };
 }

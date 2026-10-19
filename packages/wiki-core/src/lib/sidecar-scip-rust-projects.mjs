@@ -1,15 +1,19 @@
 
 
+import { prepareSidecarCargoScratch } from "./sidecar-scip-cargo-scratch.mjs";
 import { createHash } from "node:crypto";
-import { existsSync, realpathSync, renameSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { parse as parseToml } from "smol-toml";
 
 import {
   CARGO_OFFLINE_ENV,
+  cargoConfigurationInputs,
   cargoConfigFiles,
   cargoHomeFromEnvironment,
-  cargoToolchainEnv
+  cargoToolchainEnv,
+  observeCargoOptionalAbsences
 } from "./runtime-inputs/ecosystem-inputs-cargo.mjs";
 import { observeExecutable } from "./runtime-inputs/executable-lookup.mjs";
 import { TOOLCHAIN_DESCRIPTIONS } from "./runtime-inputs/toolchain-descriptions.mjs";
@@ -55,15 +59,22 @@ export function sidecarRustToolRoles(sysroot, env) {
   ];
 }
 
-export function sidecarRustEnvironmentSettings(env) {
+export function sidecarRustEnvironmentSettings(env, record = null) {
+
+  const optionalAbsent = record ? {
+    configuration_optional_absent: typeof record.settings?.configuration_optional_absent !== "string" ? null
+      : JSON.stringify(observeCargoOptionalAbsences(JSON.parse(record.settings.configuration_optional_absent)))
+  } : {};
   return { CARGO_HOME: cargoHomeFromEnvironment(env), RUSTUP_HOME: env.RUSTUP_HOME ?? null,
-    RUSTUP_TOOLCHAIN: env.RUSTUP_TOOLCHAIN ?? null };
+    RUSTUP_TOOLCHAIN: env.RUSTUP_TOOLCHAIN ?? null, ...optionalAbsent };
 }
 
 export function sidecarRustSettings(project) {
   return { RUST_SYSROOT: project.sysroot ?? null, features: "default", target: "host",
     CARGO_NET_OFFLINE: CARGO_OFFLINE_ENV.CARGO_NET_OFFLINE, locked: project.locked ? "true" : "false",
-    dependency_mapping: sidecarRustDependencyMappingDigest(project.dependency_mapping ?? null) };
+    dependency_mapping: sidecarRustDependencyMappingDigest(project.dependency_mapping ?? null),
+    configuration_missing: JSON.stringify(project.configuration?.missing ?? []),
+    configuration_optional_absent: JSON.stringify(project.configuration?.optional_absent ?? []) };
 }
 
 export function sidecarRustDependencyMappingDigest(mapping) {
@@ -125,6 +136,42 @@ function selectionEnvironment(env, rustc) {
     RUSTUP_AUTO_INSTALL: "0" };
 }
 
+function absentRustupSelection({ rustc, env, cwd }) {
+  const rustup = observeExecutable({ command: "rustup", searchPath: env.PATH });
+  if (rustup.status !== "found" || rustup.resolved_path !== rustc.resolved_path) return null;
+  const home = rustupHomeFromEnvironment(env);
+  const read = file => {
+    try { return readFileSync(file, "utf8"); }
+    catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+      throw error;
+    }
+  };
+  const settingsText = read(path.join(home, "settings.toml"));
+  const settings = settingsText === null ? {} : parseToml(settingsText);
+  let selected = env.RUSTUP_TOOLCHAIN;
+  for (let directory = cwd; !selected; directory = path.dirname(directory)) {
+    selected = settings.overrides?.[directory];
+    if (!selected) {
+      const plain = read(path.join(directory, "rust-toolchain"));
+      const toml = plain === null ? read(path.join(directory, "rust-toolchain.toml")) : null;
+      if (plain !== null) selected = plain.trim().startsWith("[") ? parseToml(plain).toolchain?.channel : plain.trim();
+      else if (toml !== null) selected = parseToml(toml).toolchain?.channel;
+    }
+    if (directory === path.dirname(directory)) break;
+  }
+  selected ||= settings.default_toolchain;
+  if (typeof selected !== "string" || !/^[\w.+-]+$/u.test(selected)) return null;
+  let installed;
+  try { installed = readdirSync(path.join(home, "toolchains")); }
+  catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    installed = [];
+  }
+  const official = /^(?:stable|beta|nightly)(?:-\d{4}-\d{2}-\d{2})?$|^\d+\.\d+(?:\.\d+)?$/u.test(selected);
+  return installed.some(name => name === selected || (official && name.startsWith(`${selected}-`))) ? null : selected;
+}
+
 function inactiveProjects(manifests) {
   return manifests.map((manifest) => {
     const directory = directoryOf(manifest);
@@ -158,19 +205,44 @@ function failure(code, message) {
   return { code, message };
 }
 
-export async function describeSidecarRustProjects({ withSnapshot, manifests, env, run, timeoutMs }) {
+function parseCargoMetadata(text) {
+  const metadata = JSON.parse(text);
+  if (!metadata || Array.isArray(metadata) || metadata.version !== 1 ||
+      typeof metadata.workspace_root !== "string" || !path.isAbsolute(metadata.workspace_root) ||
+      !Array.isArray(metadata.workspace_members) || metadata.workspace_members.some(id => typeof id !== "string") ||
+      !Array.isArray(metadata.packages) || metadata.packages.some(entry => !entry ||
+        typeof entry.id !== "string" || typeof entry.name !== "string" ||
+        typeof entry.manifest_path !== "string" || !path.isAbsolute(entry.manifest_path) ||
+        !Array.isArray(entry.targets) || entry.targets.some(target => !target || !Array.isArray(target.kind) ||
+          typeof target.src_path !== "string")) ||
+      (metadata.resolve !== null && (!metadata.resolve || !Array.isArray(metadata.resolve.nodes) ||
+        metadata.resolve.nodes.some(node => !node || typeof node.id !== "string" || !Array.isArray(node.deps) ||
+          node.deps.some(dep => !dep || typeof dep.name !== "string" || typeof dep.pkg !== "string"))))) {
+    throw new TypeError("Cargo metadata lacks valid workspace, package, target or resolution facts");
+  }
+  return metadata;
+}
+
+export async function describeSidecarRustProjects({ checkoutRoot, privateRoot, manifests, env, run, timeoutMs }) {
   const sorted = [...manifests].sort((left, right) =>
     left.split("/").length - right.split("/").length || (left < right ? -1 : left > right ? 1 : 0));
   if (sorted.length === 0) return [];
   const rustc = observeExecutable({ command: "rustc", searchPath: env.PATH });
   if (rustc.status !== "found") return inactiveProjects(sorted);
-  if (typeof withSnapshot !== "function") throw new TypeError("Rust description requires the committed snapshot");
+  if (typeof checkoutRoot !== "string") throw new TypeError("Rust description requires checkoutRoot");
 
-  return withSnapshot((snapshotRoot) => describeWorkspaces({ snapshotRoot: realpathSync(snapshotRoot), sorted,
-    env, run, timeoutMs, rustc }));
+  checkoutRoot = realpathSync(checkoutRoot);
+  const configurations = new Map(sorted.map((manifest) => [manifest, cargoConfigurationInputs({ checkoutRoot,
+    projectDir: path.join(checkoutRoot, directoryOf(manifest)), cargoHome: cargoHomeFromEnvironment(env) })]));
+  const configurationFiles = [...new Set([...configurations.values()].flatMap(({ files }) => files
+    .filter(({ file, scope }) => scope !== "cargo_home" && relativeWithin(checkoutRoot, file) !== null)
+    .map(({ file }) => file)))];
+  const scratch = await prepareSidecarCargoScratch({ checkoutRoot, privateRoot, manifests, configurationFiles });
+  return describeWorkspaces({ snapshotRoot: scratch, checkoutRoot, privateRoot, sorted,
+    env, run, timeoutMs, rustc, configurations });
 }
 
-async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, rustc }) {
+async function describeWorkspaces({ snapshotRoot, checkoutRoot, privateRoot, sorted, env, run, timeoutMs, rustc, configurations }) {
   const cargoHome = cargoHomeFromEnvironment(env);
   const projects = new Map();
   const covered = new Set();
@@ -178,7 +250,7 @@ async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, r
     try {
       return { ok: true, stdout: await runText(run, { executable: command, args, cwd, env: probeEnv, timeoutMs }) };
     } catch (error) {
-      return { ok: false, code: error?.code ?? null, message: String(error?.message ?? error).slice(0, 500) };
+      return { ok: false, code: error?.code ?? null, message: String(error?.message ?? error).slice(0, 500), cause: error };
     }
   };
   for (const manifest of sorted) {
@@ -194,28 +266,61 @@ async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, r
       dependency_population: null, dependency_mapping: null, dependency_limitation: null, refusal: null };
     if (installation.status !== "observed") {
       covered.add(manifest);
+      const cause = installation.result?.cause;
+      const diagnostic = cause?.message ?? installation.message;
+      let missing = null;
+      let secondary = null;
+      if (cause?.code === "scip_indexer_exit_failed" && cause.exit?.code === 1 && cause.exit.signal === null) {
+        try { missing = absentRustupSelection({ rustc, env, cwd }); }
+        catch (error) { secondary = error; }
+      }
+      const unavailable = missing !== null || installation.code === "runtime_input_installation_components_missing";
+      const message = `Rust toolchain selected for ${manifest} could not be observed: ${diagnostic}` +
+        (missing ? `; selected rustup toolchain ${missing} is not installed; restore it and explicitly build again` : "") +
+        (secondary ? `; availability observation also failed: ${secondary.message}` : "");
       projects.set(manifestDir, { ...base, key: `${SIDECAR_RUST_INDEXER}#${manifestDir}`, project: manifestDir,
-        input_roots: [manifestDir], refusal: failure("scip_rust_toolchain_unavailable",
-          `Rust toolchain selected for ${manifest} could not be observed: ${installation.message}; ${
-            installation.correction ?? "install the selected toolchain"}`) });
+        membership: "unobserved", input_roots: [manifestDir], input_paths: selectionPaths(manifestDir),
+        ...(unavailable ? { configuration_unavailable: {
+          dependency_limitation: failure("scip_rust_toolchain_unavailable", message), provider_failure: diagnostic }
+        } : { refusal: failure(secondary?.code ?? cause?.code ?? installation.code, message) }) });
       continue;
     }
     const sysroot = installation.root;
     const cargo = installation.executables.cargo;
     const cargoEnv = sidecarRustProcessEnvironment({ settings: { RUST_SYSROOT: sysroot, CARGO_HOME: cargoHome },
-      privateRoot: path.dirname(snapshotRoot) });
+      privateRoot });
     const refuse = (workspace, code, message) => {
       projects.set(workspace, { ...base, sysroot, key: `${SIDECAR_RUST_INDEXER}#${workspace}`,
         project: workspace, input_roots: [workspace], refusal: failure(code, message) });
     };
+    const configuration = configurations.get(manifest);
+    if (configuration.refusal || configuration.missing.length > 0) {
+      covered.add(manifest);
+      const dependency_limitation = configuration.missing.length > 0 ? failure("scip_rust_config_input_unavailable",
+        `${manifest} requires missing Cargo configuration: ${configuration.missing.map(({ config, target }) =>
+          `${config} includes ${target}`).join("; ")}; restore the input, then explicitly build again`) : null;
+      projects.set(manifestDir, { ...base, sysroot, key: `${SIDECAR_RUST_INDEXER}#${manifestDir}`, project: manifestDir,
+        membership: "unobserved", input_roots: [manifestDir], configuration,
+        dependency_population: [...new Set(configuration.files.flatMap(({ file, resolved }) => [file, resolved]))].sort(),
+        refusal: configuration.refusal,
+        ...(dependency_limitation ? { configuration_unavailable: { dependency_limitation,
+          provider_failure: `Cargo configuration observation for ${manifest} found a required absent include; workspace discovery and indexing were not run` } } : {}) });
+      continue;
+    }
     let workspaceManifest;
     try {
       workspaceManifest = (await runText(run, { executable: cargo, cwd, env: cargoEnv, timeoutMs,
         args: ["locate-project", "--workspace", "--message-format", "plain", "--offline"] })).trim();
     } catch (error) {
       covered.add(manifest);
-      refuse(manifestDir, "scip_rust_workspace_unresolved",
-        `Cargo could not locate the workspace of ${manifest}: ${String(error?.message ?? error).slice(0, 500)}`);
+      const message = `Cargo could not locate the workspace of ${manifest}: ${String(error?.message ?? error).slice(0, 500)}`;
+      if (error.code === "scip_indexer_exit_failed" && error.exit?.code === 101 && error.exit.signal === null) {
+        projects.set(manifestDir, { ...base, sysroot, key: `${SIDECAR_RUST_INDEXER}#${manifestDir}`,
+          project: manifestDir, membership: "unobserved", input_roots: [manifestDir],
+          input_paths: selectionPaths(manifestDir), configuration,
+          configuration_unavailable: { dependency_limitation: failure("scip_rust_workspace_unresolved", message),
+            provider_failure: message } });
+      } else refuse(manifestDir, error.code ?? "scip_rust_workspace_probe_failed", message);
       continue;
     }
     const workspaceRelative = relativeWithin(snapshotRoot, workspaceManifest);
@@ -230,12 +335,12 @@ async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, r
     covered.add(workspaceRelative);
     if (projects.has(workspace)) continue;
     const project = { ...base, sysroot, key: `${SIDECAR_RUST_INDEXER}#${workspace}`, project: workspace,
-      input_roots: [workspace], input_paths: selectionPaths(workspace) };
+      configuration, input_roots: [workspace], input_paths: selectionPaths(workspace) };
     projects.set(workspace, project);
 
     if (!existsSync(path.join(sysroot, "bin", "rust-analyzer"))) continue;
-    const outside = cargoConfigFiles(path.join(snapshotRoot, workspace), cargoHome)
-      .filter(({ file, scope }) => scope !== "cargo_home" && relativeWithin(snapshotRoot, file) === null);
+    const outside = cargoConfigFiles(path.join(checkoutRoot, workspace), cargoHome)
+      .filter(({ file, scope }) => scope !== "cargo_home" && relativeWithin(checkoutRoot, file) === null);
     if (outside.length > 0) {
       project.refusal = failure("scip_rust_config_unsupported", `Cargo configuration ${outside.map(({ file }) =>
         file).join(", ")} outside the committed tree and the selected Cargo home would apply to ${workspace}; ` +
@@ -248,7 +353,7 @@ async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, r
 
     const cargoRefused = (error) => error?.code === "scip_indexer_exit_failed" &&
       Number.isInteger(error.exit?.code) && error.exit.signal === null;
-    const reason = (error) => String(error?.message ?? error).slice(0, 500);
+    const reason = (error) => String(error?.message ?? error).slice(0, 170);
     let metadataText;
     try {
       metadataText = await runText(run, metadataRequest(project.locked ? ["--locked"] : []));
@@ -263,30 +368,26 @@ async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, r
       let lockless = error;
       if (project.locked) {
         renameSync(lockPath, `${lockPath}.aside`);
-        try {
-          await runText(run, metadataRequest([]));
-          lockless = null;
-        } catch (inner) {
-          lockless = inner;
-        } finally {
-          rmSync(lockPath, { force: true });
-          renameSync(`${lockPath}.aside`, lockPath);
-        }
+        try { await runText(run, metadataRequest([])); lockless = null; }
+        catch (inner) { lockless = inner; }
+        finally { rmSync(lockPath, { force: true }); renameSync(`${lockPath}.aside`, lockPath); }
         if (lockless === null) {
           project.refusal = failure("scip_rust_lockfile_unusable", `Cargo resolves workspace ${workspace} offline ` +
-            `without its committed Cargo.lock but not with it: ${reason(error)}`);
+            `without its Cargo.lock but not with it: ${reason(error)}`);
           continue;
         }
         if (!cargoRefused(lockless)) {
           project.refusal = failure(lockless?.code ?? "scip_rust_metadata_failed",
-            `Cargo metadata for workspace ${workspace} did not complete: ${reason(lockless)}`);
+            `Cargo metadata for workspace ${workspace} failed: ${reason(error)}; lockless probe did not complete: ${reason(lockless)}`);
           continue;
         }
       }
 
       let unresolved = null;
       try {
-        await runText(run, metadataRequest(["--no-deps"]));
+        const text = await runText(run, metadataRequest(["--no-deps"]));
+        try { parseCargoMetadata(text); }
+        catch (cause) { throw Object.assign(cause, { code: "scip_rust_metadata_malformed" }); }
       } catch (inner) {
         unresolved = inner;
       }
@@ -299,22 +400,20 @@ async function describeWorkspaces({ snapshotRoot, sorted, env, run, timeoutMs, r
       } else {
         project.refusal = failure(cargoRefused(unresolved) ? "scip_rust_metadata_failed"
           : unresolved?.code ?? "scip_rust_metadata_failed",
-        `Cargo metadata for workspace ${workspace} failed without resolving any dependency: ${reason(unresolved)}`);
+        `Cargo metadata for workspace ${workspace} failed: ${reason(lockless)}; ` +
+          `failed without resolving any dependency: ${reason(unresolved)}`);
       }
       continue;
     }
     let metadata;
     try {
-      metadata = JSON.parse(metadataText);
+      metadata = parseCargoMetadata(metadataText);
     } catch (error) {
       project.refusal = failure("scip_rust_metadata_malformed",
         `Cargo metadata for workspace ${workspace} is not the JSON Cargo documents: ${reason(error)}`);
       continue;
     }
-    const population = new Set();
-    const cargoHomeConfig = cargoConfigFiles(path.join(snapshotRoot, workspace), cargoHome)
-      .find(({ scope }) => scope === "cargo_home");
-    if (cargoHomeConfig) population.add(cargoHomeConfig.file);
+    const population = new Set(configuration.files.flatMap(({ file, resolved }) => [file, resolved]));
 
     const members = new Set(metadata.workspace_members ?? []);
     for (const entry of metadata.packages ?? []) {

@@ -1,0 +1,820 @@
+{
+  "$defs": {
+    "value_reference": {
+      "$ref": "#/$defs/reference_id",
+      "description": "Identifies an entity; a value referent resolves its visible typed definition."
+    },
+    "value_local": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "depth",
+        "slot"
+      ],
+      "properties": {
+        "depth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero selects the innermost scope; each increment selects one enclosing scope."
+        },
+        "slot": {
+          "enum": [
+            "key",
+            "index",
+            "value"
+          ],
+          "description": "The list index or map key, or the element value, bound in that scope."
+        }
+      },
+      "description": "An iteration value addressed by lexical depth and binding slot."
+    },
+    "value_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "path",
+        "declaration"
+      ],
+      "properties": {
+        "declaration": {
+          "type": "string",
+          "pattern": "^constraint-[0-9a-f]{40}$"
+        },
+        "owner": {
+          "$ref": "#/$defs/value_reference"
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "description": "Canonical scope identity from its declaring owner, structural path and declaration occurrence."
+    },
+    "value_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "bind"
+      ],
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/value_scope"
+        },
+        "bind": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "key": {
+              "const": "key",
+              "description": "The map-key slot."
+            },
+            "index": {
+              "const": "index",
+              "description": "The zero-based list-index slot."
+            },
+            "value": {
+              "const": "value",
+              "description": "The element-value slot."
+            }
+          },
+          "description": "List domains bind index and value; map domains bind key and value. The value binding is required."
+        }
+      },
+      "description": "Declares the lexical scope and iteration bindings for a collection comprehension."
+    },
+    "value_type": {
+      "oneOf": [
+        {
+          "enum": [
+            "bool",
+            "string",
+            "null_type",
+            "int",
+            "double",
+            "timestamp",
+            "duration"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "list"
+          ],
+          "properties": {
+            "list": {
+              "$ref": "#/$defs/value_type",
+              "description": "The element type of an ordered list; repeated elements retain their positions."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "map"
+          ],
+          "properties": {
+            "map": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "enum": [
+                    "bool",
+                    "int",
+                    "string"
+                  ]
+                },
+                "value": {
+                  "$ref": "#/$defs/value_type"
+                }
+              },
+              "description": "A map with unique keys of the declared bool, int or string type; entry order carries no meaning."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "record"
+          ],
+          "properties": {
+            "record": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fields"
+              ],
+              "properties": {
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "type",
+                      "presence"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "$ref": "#/$defs/value_type"
+                      },
+                      "presence": {
+                        "enum": [
+                          "required",
+                          "optional"
+                        ],
+                        "description": "Required fields are present; optional fields may be absent. Present null requires a type admitting null_type."
+                      }
+                    }
+                  }
+                }
+              },
+              "description": "A closed record admitting only the named fields, each with its declared type and presence."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "one_of"
+          ],
+          "properties": {
+            "one_of": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/value_type"
+              },
+              "minItems": 2,
+              "description": "Distinct, non-nested alternative types; the value must match an alternative."
+            }
+          }
+        }
+      ],
+      "description": "The expected value type, preserving int versus double and present null versus absence. Longer definitions: guidance [cel_definitions, operations, cel.type_format]."
+    },
+    "value_literal": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "boolValue"
+          ],
+          "properties": {
+            "boolValue": {
+              "type": "boolean",
+              "description": "The Boolean value."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stringValue"
+          ],
+          "properties": {
+            "stringValue": {
+              "type": "string",
+              "description": "The exact text value."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nullValue"
+          ],
+          "properties": {
+            "nullValue": {
+              "type": "null",
+              "description": "A present null value, distinct from absent data."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "int64Value"
+          ],
+          "properties": {
+            "int64Value": {
+              "type": "string",
+              "pattern": "^(0|-?[1-9][0-9]*)$",
+              "description": "A signed 64-bit integer encoded as canonical decimal text, distinct from double."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "doubleValue"
+          ],
+          "properties": {
+            "doubleValue": {
+              "type": "number",
+              "description": "A finite binary64 number, distinct from int."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "listValue"
+          ],
+          "properties": {
+            "listValue": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/value_literal"
+                  }
+                }
+              },
+              "description": "An ordered list retaining repeated elements; omitted values or an empty values array means an empty list."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mapValue"
+          ],
+          "properties": {
+            "mapValue": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "entries": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "key",
+                      "value"
+                    ],
+                    "properties": {
+                      "key": {
+                        "$ref": "#/$defs/value_literal"
+                      },
+                      "value": {
+                        "$ref": "#/$defs/value_literal"
+                      }
+                    }
+                  }
+                }
+              },
+              "description": "A map with unique typed bool, int or string keys and order-independent entries; omitted entries or an empty entries array means an empty map."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "objectValue"
+          ],
+          "properties": {
+            "objectValue": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "@type",
+                "value"
+              ],
+              "properties": {
+                "@type": {
+                  "enum": [
+                    "type.googleapis.com/google.protobuf.Timestamp",
+                    "type.googleapis.com/google.protobuf.Duration"
+                  ]
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Timestamp: RFC 3339 date-time with timezone and up to nine fractional digits. Duration: A duration in Protobuf JSON format, such as \"1.5s\"."
+                }
+              },
+              "description": "A standard Timestamp or Duration Any value in the admitted ProtoJSON format."
+            }
+          }
+        }
+      ],
+      "description": "One fixed CEL Value literal. Numeric types remain distinct. Longer definitions: guidance [cel_definitions, operations, cel.value_format]."
+    },
+    "typed_value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "$ref": "#/$defs/value_literal",
+              "description": "A fixed literal value."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "referent"
+          ],
+          "properties": {
+            "referent": {
+              "$ref": "#/$defs/value_reference",
+              "description": "The visible typed definition of this entity."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "local"
+          ],
+          "properties": {
+            "local": {
+              "$ref": "#/$defs/value_local",
+              "description": "The value bound by a visible iteration local."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "list"
+          ],
+          "properties": {
+            "list": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "element_type",
+                "items"
+              ],
+              "properties": {
+                "element_type": {
+                  "$ref": "#/$defs/value_type"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/typed_value"
+                  }
+                }
+              },
+              "description": "Constructs an ordered list of the declared element type, retaining repeated elements."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "record"
+          ],
+          "properties": {
+            "record": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fields"
+              ],
+              "properties": {
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "value"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "$ref": "#/$defs/typed_value"
+                      }
+                    }
+                  }
+                }
+              },
+              "description": "Constructs a closed record with exactly these uniquely named fields; field order carries no meaning."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "map"
+          ],
+          "properties": {
+            "map": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key_type",
+                "value_type",
+                "entries"
+              ],
+              "properties": {
+                "key_type": {
+                  "enum": [
+                    "bool",
+                    "int",
+                    "string"
+                  ]
+                },
+                "value_type": {
+                  "$ref": "#/$defs/value_type"
+                },
+                "entries": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "key",
+                      "value"
+                    ],
+                    "properties": {
+                      "key": {
+                        "$ref": "#/$defs/typed_value"
+                      },
+                      "value": {
+                        "$ref": "#/$defs/typed_value"
+                      }
+                    }
+                  }
+                }
+              },
+              "description": "Constructs a map with unique keys of key_type and values of value_type; entry order carries no meaning."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "selection"
+          ],
+          "properties": {
+            "selection": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "from",
+                "path"
+              ],
+              "properties": {
+                "from": {
+                  "$ref": "#/$defs/typed_value"
+                },
+                "path": {
+                  "$ref": "#/$defs/value_path"
+                }
+              },
+              "description": "Selects data from another value by an ordered path; missing selected data is absent."
+            }
+          }
+        }
+      ],
+      "description": "One literal, referenced typed definition, iteration local, constructed collection or record, or selected value. Complete-value equality: guidance [cel_definitions, relations, value:equal_to]."
+    },
+    "value_path": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field"
+            ],
+            "properties": {
+              "field": {
+                "type": "string",
+                "description": "The record field name to select."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/$defs/typed_value",
+                "description": "The typed map key to select: bool, int or string matching the map key type."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "index"
+            ],
+            "properties": {
+              "index": {
+                "$ref": "#/$defs/typed_value",
+                "description": "The zero-based integer list index to select."
+              }
+            }
+          }
+        ]
+      },
+      "description": "Ordered selection steps from a value; an empty path selects the root. A missing field, key or index yields absent data, distinct from present null or an unavailable capture."
+    },
+    "value_observation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "occurrence",
+            "root",
+            "path",
+            "type"
+          ],
+          "properties": {
+            "operation": {
+              "$ref": "#/$defs/value_reference",
+              "description": "Identifies the operation whose data is captured."
+            },
+            "occurrence": {
+              "$ref": "#/$defs/value_reference",
+              "description": "Identifies the particular occurrence of that operation."
+            },
+            "root": {
+              "enum": [
+                "arguments",
+                "completion",
+                "settlement",
+                "events",
+                "timing"
+              ],
+              "description": "The capture root. Completion distinguishes normal, throw, pending and aborted; settlement separately distinguishes pending, fulfilled and rejected. Terminal states carry timestamps; normal/throw and fulfilled/rejected state payload presence."
+            },
+            "path": {
+              "$ref": "#/$defs/value_path"
+            },
+            "type": {
+              "$ref": "#/$defs/value_type",
+              "description": "The expected type of selected data, checked for conformity rather than substituted for the captured value."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "occurrence",
+            "root",
+            "snapshot",
+            "path",
+            "type"
+          ],
+          "properties": {
+            "operation": {
+              "$ref": "#/$defs/value_reference",
+              "description": "Identifies the operation whose data is captured."
+            },
+            "occurrence": {
+              "$ref": "#/$defs/value_reference",
+              "description": "Identifies the particular occurrence of that operation."
+            },
+            "root": {
+              "enum": [
+                "before",
+                "after"
+              ],
+              "description": "The before or after snapshot of the subject at the declared boundary."
+            },
+            "snapshot": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "subject",
+                "boundary"
+              ],
+              "properties": {
+                "subject": {
+                  "$ref": "#/$defs/value_reference",
+                  "description": "Identifies the subject whose state is captured."
+                },
+                "boundary": {
+                  "$ref": "#/$defs/value_reference",
+                  "description": "Identifies the observation boundary for the before or after state."
+                }
+              }
+            },
+            "path": {
+              "$ref": "#/$defs/value_path"
+            },
+            "type": {
+              "$ref": "#/$defs/value_type",
+              "description": "The expected type of selected data, checked for conformity rather than substituted for the captured value."
+            }
+          }
+        }
+      ],
+      "description": "Dynamically supplied captured data for one operation occurrence, with an expected type. Missing capture is unavailable; a well-formed wrong result is an evaluable violation. This declaration executes no capture."
+    },
+    "value_operand": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "const": "value"
+            },
+            "value": {
+              "$ref": "#/$defs/typed_value"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "type"
+          ],
+          "properties": {
+            "kind": {
+              "const": "value"
+            },
+            "type": {
+              "$ref": "#/$defs/value_type"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "observation"
+          ],
+          "properties": {
+            "kind": {
+              "const": "value"
+            },
+            "observation": {
+              "$ref": "#/$defs/value_observation"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "binding"
+          ],
+          "properties": {
+            "kind": {
+              "const": "value"
+            },
+            "binding": {
+              "$ref": "#/$defs/value_binding"
+            }
+          }
+        }
+      ],
+      "description": "One positional value, expected type, observation or lexical comprehension binding."
+    },
+    "value_for_each": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "domain",
+          "bind"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/$defs/value_scope"
+          },
+          "domain": {
+            "$ref": "#/$defs/typed_value",
+            "description": "The list or map whose entries supply this iteration; an empty domain has no iterations."
+          },
+          "bind": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "key": {
+                "const": "key",
+                "description": "The map-key slot."
+              },
+              "index": {
+                "const": "index",
+                "description": "The zero-based list-index slot."
+              },
+              "value": {
+                "const": "value",
+                "description": "The element-value slot."
+              }
+            },
+            "description": "List domains bind index and value; map domains bind key and value. The value binding is required."
+          }
+        }
+      },
+      "description": "Ordered lexical domains: the normative requirement applies universally to every binding combination. Each domain sees only outer bindings."
+    }
+  }
+}

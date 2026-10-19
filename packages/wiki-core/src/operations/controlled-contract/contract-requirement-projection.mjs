@@ -14,10 +14,12 @@ import { GRAMMAR_EXCEPTION_ENFORCEMENT, RECORD_AUTHORING_EXCEPTION_CODES, RECORD
 
 import { controlledContractIdentityScope } from "./contract-requirement-authoring.mjs";
 import { CONTROLLED_CONTRACT_REQUIREMENT_LIMITS } from "./contract-requirement-vocabulary.mjs";
-import { ORDERED_SEQUENCE, behaviorUses, bindEntities, createRequirementNormalizer, isMembership, requirementUses } from
+import { ORDERED_SEQUENCE, behaviorUses, bindEntities, createRequirementNormalizer, finding, isMembership, requirementUses } from
   "./contract-requirement-normalization.mjs";
 import { describeRequirementSourceLink, resolveRequirementSourceLink } from "./contract-requirement-source-links.mjs";
 import { describeRequirementObjects, nativeSpecificationConstraints } from './contract-requirement-descriptions.mjs';
+import { projectRowValueReferences } from './contract-requirement-value-projection.mjs';
+import { valueRowMetadata } from './contract-requirement-native-values.mjs';
 
 export const REQUIREMENT_BATCH_VERSION = "controlled-requirement-batch.v1";
 export const REQUIREMENT_BATCH_CODES = Object.freeze({
@@ -48,10 +50,24 @@ const pathText = (path, root) => `${root}${path.map(part => typeof part === "num
 const BATCH_ROOT = "changes.requirements";
 const emptyAuthored = () => ({ rows: [], collections: [], unresolved: [] });
 
+function refuseRequirementBatch(refusals) {
+  const corrections = {};
+  const findings = refusals.map(row => {
+    if (row.recovery?.correction === undefined) return { ...row, path: pathText(row.path, BATCH_ROOT) };
+    const { correction, ...recovery } = row.recovery;
+    corrections[recovery.correct] = correction;
+    return { ...row, path: pathText(row.path, BATCH_ROOT), recovery };
+  });
+  fail(CODES.REFUSED, `${pathText(refusals[0].path, BATCH_ROOT)}: ${refusals[0].message}`, {
+    ...(Object.keys(corrections).length === 0 ? {} : { recovery: { kind: 'resubmit_corrected_batch',
+      executable: false, caller_decision_required: true, corrections } }),
+    field: pathText(refusals[0].path, BATCH_ROOT), finding_count: findings.length, findings });
+}
+
 function projectUnresolvedMeaning(entry, index) {
   const { grammar_exception: exception, ...meaning } = typeof entry === "string" ? { text: entry } : clone(entry);
   return { id: `u${index + 1}`, ...meaning, ...(exception === undefined ? {} : { grammar_exception: {
-    enforcement: GRAMMAR_EXCEPTION_ENFORCEMENT, rationale: exception.rationale, ...RECORD_AUTHORING_EXCEPTION_RATIONALE_PROVENANCE,
+    enforcement: GRAMMAR_EXCEPTION_ENFORCEMENT, rationale: exception.rationale, ...(exception.source_passages === undefined ? {} : { source_passages: clone(exception.source_passages) }), ...RECORD_AUTHORING_EXCEPTION_RATIONALE_PROVENANCE,
     consequence: RECORD_AUTHORING_EXCEPTION_CONSEQUENCES.grammar } }) };
 }
 
@@ -68,7 +84,7 @@ function carryGrammarExceptions(stored, restated) {
   });
 }
 
-export function prepareGrammarException({ contract = null, subject, action, rationale }) {
+export function prepareGrammarException({ contract = null, subject, action, rationale, sourcePassages }) {
   const stored = contract?.authored_requirements ?? emptyAuthored();
   const position = /^u([1-9][0-9]*)$/u.exec(subject ?? "");
   const index = position === null ? -1 : Number(position[1]) - 1;
@@ -81,31 +97,33 @@ export function prepareGrammarException({ contract = null, subject, action, rati
         "saved is first saved as unresolved draft meaning through changes.requirements.unresolved." });
   const saved = stored.unresolved[index];
   const { grammar_exception: prior, ...meaning } = typeof saved === "string" ? { text: saved } : clone(saved);
-  const next = action === "apply" ? { ...meaning, grammar_exception: { rationale } }
+  const applied = { rationale, ...(sourcePassages === undefined ? {} : { source_passages: clone(sourcePassages) }) };
+  const next = action === "apply" ? { ...meaning, grammar_exception: applied }
     : meaning.reason === undefined ? meaning.text : meaning;
   const unresolved = stored.unresolved.map((entry, at) => at === index ? next : clone(entry));
   return Object.freeze({
     answer: { authored_requirements: { rows: clone(stored.rows), collections: clone(stored.collections), unresolved } },
     subject: `u${index + 1}`, text: meaning.text, ...(meaning.reason === undefined ? {} : { reason: meaning.reason }),
-    changed: canonicalJson(prior ?? null) !== canonicalJson(action === "apply" ? { rationale } : null) });
+    changed: canonicalJson(prior ?? null) !== canonicalJson(action === "apply" ? applied : null) });
 }
 
 export const requirementCompilerIdentity = () => Object.freeze({ batch_version: REQUIREMENT_BATCH_VERSION,
   canonical_version: CANONICAL_VERSION, lowering_version: LOWERING_VERSION, vocabulary_version: NATIVE_AUTHORING.vocabulary_version });
 
 function writtenRow(row) {
-  if (isMembership(row)) return { subject: row.subject, membership: row.membership.map(clause => ({ ...clause })), ...(row.applies === undefined ? {} : { applies: clone(row.applies) }) };
-  return { subject: row.subject, ...(row.modality === undefined ? {} : { modality: row.modality }), ...(row.nature === undefined ? {} : { nature: row.nature }),
+  if (isMembership(row)) return { ...valueRowMetadata(row), subject: row.subject, membership: row.membership.map(clause => ({ ...clause })), ...(row.applies === undefined ? {} : { applies: clone(row.applies) }) };
+  return { ...valueRowMetadata(row), subject: row.subject, ...(row.modality === undefined ? {} : { modality: row.modality }), ...(row.nature === undefined ? {} : { nature: row.nature }),
     behavior: clone(row.behavior) };
 }
 
 function boundInput(written, bindings) {
   const bound = id => bindings.has(id) ? { id, ...clone(bindings.get(id)) } : { id };
+  written = projectRowValueReferences(written, bound);
   const applies = value => value === undefined ? {} : { applies: { ...clone(value), mode: value.mode, ...(value.context === undefined ? {} : { context: value.context.map(bound) }) } };
-  if (isMembership(written)) return { subject: bound(written.subject),
-    membership: written.membership.map(clause => ({ ...clone(clause), member: bound(clause.member), ...(clause.modality === undefined ? {} : { modality: clause.modality }) })),
+  if (isMembership(written)) return { ...valueRowMetadata(written), subject: bound(written.subject),
+    membership: written.membership.map(clause => ({ ...clone(clause), ...(clause.member === undefined ? {} : { member: bound(clause.member) }), ...(clause.modality === undefined ? {} : { modality: clause.modality }) })),
     ...applies(written.applies) };
-  return { subject: bound(written.subject), ...(written.modality === undefined ? {} : { modality: written.modality }),
+  return { ...valueRowMetadata(written), subject: bound(written.subject), ...(written.modality === undefined ? {} : { modality: written.modality }),
     ...(written.nature === undefined ? {} : { nature: written.nature }),
     behavior: { ...clone(written.behavior), relation: written.behavior.relation,
       ...(written.behavior.objects === undefined ? {} : { objects: written.behavior.objects.map(object => Object.hasOwn(object, "referent") ? { ...clone(object), referent: bound(object.referent) } : clone(object)) }),
@@ -117,11 +135,12 @@ function unboundInput(input) {
   const unbound = [];
   const named = entity => { if (entity.type_term === undefined) { if (!unbound.includes(entity.id)) unbound.push(entity.id); }
     else bindings.set(entity.id, { type_term: entity.type_term, identity: clone(entity.identity) }); return entity.id; };
+  input = projectRowValueReferences(input, named);
   const applies = value => value === undefined ? {} : { applies: { ...clone(value), mode: value.mode, ...(value.context === undefined ? {} : { context: value.context.map(named) }) } };
   const written = Object.hasOwn(input, "membership")
-    ? { subject: named(input.subject), membership: input.membership.map(clause => ({ ...clone(clause), member: named(clause.member), ...(clause.modality === undefined ? {} : { modality: clause.modality }) })),
+    ? { ...valueRowMetadata(input), subject: named(input.subject), membership: input.membership.map(clause => ({ ...clone(clause), ...(clause.member === undefined ? {} : { member: named(clause.member) }), ...(clause.modality === undefined ? {} : { modality: clause.modality }) })),
       ...applies(input.applies) }
-    : { subject: named(input.subject), ...(input.modality === undefined ? {} : { modality: input.modality }), ...(input.nature === undefined ? {} : { nature: input.nature }),
+    : { ...valueRowMetadata(input), subject: named(input.subject), ...(input.modality === undefined ? {} : { modality: input.modality }), ...(input.nature === undefined ? {} : { nature: input.nature }),
       behavior: { ...clone(input.behavior), relation: input.behavior.relation,
         ...(input.behavior.objects === undefined ? {} : { objects: input.behavior.objects.map(object => Object.hasOwn(object, "referent") ? { ...clone(object), referent: named(object.referent) } : clone(object)) }),
         ...applies(input.behavior.applies) } };
@@ -139,7 +158,7 @@ function boundEntities(input, into, conflicting) {
 function deriveRow(normalizer, input, index) {
   const { written, bindings, unbound } = unboundInput(input);
   const prepared = isMembership(written)
-    ? normalizer.prepareMembership({ subject: written.subject, clauses: written.membership, applies: written.applies }, ["requirements", index, "membership"], bindings)
+    ? normalizer.prepareMembership({ subject: written.subject, clauses: written.membership, applies: written.applies, for_each: written.for_each, within: written.within }, ["requirements", index, "membership"], bindings)
     : normalizer.prepareRequirement(written, ["requirements", index], bindings);
   const pending = [...unbound.map(id => ["entities", id]), ...prepared.holes.map(hole => hole.path.slice(2))];
   return { written, prepared, pending };
@@ -147,6 +166,8 @@ function deriveRow(normalizer, input, index) {
 
 function deriveAuthored({ unit, authored, contract = null, sourceDescriptions = new Map(), claimIds = null, visibleNodeIds = null, additionalRoots = [] }) {
   const normalizer = createRequirementNormalizer({ schema: workItemRequirementBatchSchema(), unit });
+  const inputs = authored.rows.map(row => unboundInput(row.input));
+  normalizer.configureScopes(inputs.map(row => row.written), new Map(inputs.flatMap(row => [...row.bindings])));
   const derived = authored.rows.map((row, index) => deriveRow(normalizer, row.input, index));
   const prepared = derived.map(row => row.prepared);
   const ids = authored.rows.map(row => row.row_id);
@@ -189,6 +210,12 @@ const statusOf = (derivation, authored) => {
       : derivation.compiled.coverage.omitted.length ? REQUIREMENT_BATCH_STATUS.compiled_with_omissions : REQUIREMENT_BATCH_STATUS.compiled;
 };
 
+function assertRowConstraintIdentities(row, constraintIds) {
+  if (canonicalJson(constraintIds) !== canonicalJson(row.constraint_ids)) fail(CODES.ROW_DISAGREES,
+    `Stored requirement row ${row.row_id} records constraint identities its own input does not compile to`,
+    { phase: "projection", row_id: row.row_id, recorded_constraint_ids: [...row.constraint_ids], derived_constraint_ids: constraintIds });
+}
+
 export function projectAuthoredRequirements(contract, { wkId, focus = null, sourceText = null, claimIds = null,
   sourceDescriptions = new Map(), sourceGeneration = null, visibleNodeIds = null } = {}) {
   const stored = contract?.authored_requirements ?? (contract?.claims?.some(row => row.kind === 'behavior') ? emptyAuthored() : null);
@@ -203,9 +230,7 @@ export function projectAuthoredRequirements(contract, { wkId, focus = null, sour
   const rows = authored.rows.map((row, index) => {
     const statement = derivation.statements[index];
     const constraintIds = (derivation.constraintsOf[index] ?? []).map(entry => entry.identity);
-    if (canonicalJson(constraintIds) !== canonicalJson(row.constraint_ids)) fail(CODES.ROW_DISAGREES,
-      `Stored requirement row ${row.row_id} records constraint identities its own input does not compile to`,
-      { phase: "projection", row_id: row.row_id, recorded_constraint_ids: [...row.constraint_ids], derived_constraint_ids: constraintIds });
+    assertRowConstraintIdentities(row, constraintIds);
     const source = describeRequirementSourceLink(row.source, sourceText);
     return { row_id: row.row_id, state: statement.state, meaning: statement.meaning,
 
@@ -268,7 +293,7 @@ function assertRowSelectors(rows, collections) {
     { field: `${BATCH_ROOT}.collections[${index}]`, selectors: ["key", "row_id"], correction: "keep key for a new collection or row_id to restate a saved one" }); });
 }
 
-function nativeVerification({ normalizer, row, index, prepared, bindings }) {
+function nativeVerification({ normalizer, row, index, prepared, bindings, uses, entityHoles }) {
   const field = `${rowField(index)}.verification`;
   const { key: _key, ...verification } = row.verification;
   void _key;
@@ -278,13 +303,24 @@ function nativeVerification({ normalizer, row, index, prepared, bindings }) {
       correction: isMembership(row) ? `omit ${field}; the closed membership itself is saved without it`
         : `omit ${field} until the row is complete, or complete the row in this request` });
   const out = { holes: [], refusals: [] };
-  const observes = normalizer.prepareBehavior(verification.observes, ["requirements", index, "verification", "observes"], bindings, out);
-  const failsWhen = normalizer.prepareBehavior(verification.fails_when, ["requirements", index, "verification", "fails_when"], bindings, out);
+  const observes = normalizer.prepareVerificationBehavior(row, verification.verifier, verification.observes, ["requirements", index, "verification", "observes"], bindings, out);
+  const failsWhen = normalizer.prepareVerificationBehavior(row, row.subject, verification.fails_when, ["requirements", index, "verification", "fails_when"], bindings, out);
   const subjects = verification.runtime_test?.boundary?.subjects ?? [];
   if (out.refusals.length > 0) fail(CODES.REFUSED, out.refusals[0].message, { field: pathText(out.refusals[0].path, BATCH_ROOT), findings: out.refusals });
+
+  const missing = new Map(entityHoles.map(hole => [hole.path[1], hole]));
+  const findings = uses.filter(use => use.path[0] === "requirements" && use.path[1] === index &&
+    use.path[2] === "verification" && missing.has(use.id)).map(use => {
+    const hole = missing.get(use.id);
+    const declarationPath = pathText(hole.path, BATCH_ROOT);
+    return finding(pathText(use.path, BATCH_ROOT), "entity_type_missing", hole.question, clone(hole.accepts),
+      { id: use.id, declaration_path: declarationPath,
+        correction: `declare ${use.id} at ${declarationPath} with its intended type or typed identity, using the accepted entity declaration` });
+  });
   if (!observes || !failsWhen || !bindings.has(verification.verifier) || subjects.some(id => !bindings.has(id))) fail(CODES.VERIFICATION_INCOMPLETE,
     `${field} is incomplete: a verification states its verifier, what it observes and what would falsify the requirement in full`,
-    { field, unfinished: out.holes.map(hole => pathText(hole.path, BATCH_ROOT)),
+    { field, unfinished: [...out.holes.map(hole => pathText(hole.path, BATCH_ROOT)), ...findings.map(row => row.path)],
+      ...(findings.length === 0 ? {} : { findings }),
       correction: "state every entity type, object, applicability and value of the verification; a verification has no pending member" });
   const declare = id => ({ declare: clone(bindings.get(id)) });
   return { method: verification.method, verifier: declare(verification.verifier), observes, fails_when: failsWhen, subject: prepared.written.subject,
@@ -297,6 +333,12 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
   const schema = workItemRequirementBatchSchema();
   const normalizer = createRequirementNormalizer({ schema, unit });
   const stored = contract?.authored_requirements ?? emptyAuthored();
+
+  if (stored.rows.length) {
+    const incumbent = deriveAuthored({ unit, authored: stored });
+    stored.rows.forEach((row, index) => assertRowConstraintIdentities(row,
+      (incumbent.constraintsOf[index] ?? []).map(entry => entry.identity)));
+  }
   const rows = batch.requirements ?? [];
   const batchCollections = batch.collections ?? [];
 
@@ -342,17 +384,26 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
       types: null, role: "a subject of the runtime test boundary" }));
   });
   const refusals = [];
-  const { bindings, refusals: entityRefusals } = bindEntities({ uses, declared, known });
+  const { bindings, refusals: entityRefusals, holes: entityHoles } = bindEntities({ uses, declared, known });
   refusals.push(...entityRefusals);
 
+  const matched = new Set();
+  const scopedRows = stored.rows.map(saved => {
+    const prior = unboundInput(saved.input).written;
+    const index = rows.findIndex((incoming, index) => incoming.row_id === saved.row_id || saved.claim_ids.includes(incoming.id)
+      || canonicalJson(prior) === canonicalJson(written[index]));
+    if (index < 0) return prior;
+    matched.add(index);
+    return written[index];
+  });
+
+  normalizer.configureScopes([...scopedRows, ...written.filter((_row, index) => !matched.has(index))], new Map([...known, ...bindings]));
   const prepared = normalizer.prepareRows(written, bindings);
   for (const row of prepared) refusals.push(...row.refusals);
   refusals.push(...normalizer.membershipsStatedTwice(written, ids));
   const constraintsOf = refusals.length ? [] : normalizer.constraintsOfRows(prepared);
   if (!refusals.length) refusals.push(...normalizer.restatedRequirements(constraintsOf, ids));
-  if (refusals.length) fail(CODES.REFUSED, `${pathText(refusals[0].path, BATCH_ROOT)}: ${refusals[0].message}`,
-    { field: pathText(refusals[0].path, BATCH_ROOT), finding_count: refusals.length,
-      findings: refusals.map(row => ({ ...row, path: pathText(row.path, BATCH_ROOT) })) });
+  if (refusals.length) refuseRequirementBatch(refusals);
 
   const storedById = new Map(stored.rows.map(row => [row.row_id, row]));
   const rowsOfClaim = claimId => stored.rows.filter(row => row.claim_ids.includes(claimId));
@@ -417,14 +468,14 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
 
   const flat = [];
   const flatOf = rows.map((row, index) => {
-    const verification = row.verification === undefined ? null : nativeVerification({ normalizer, row, index, prepared: prepared[index], bindings });
+    const verification = row.verification === undefined ? null : nativeVerification({ normalizer, row, index, prepared: prepared[index], bindings, uses, entityHoles });
     return (prepared[index].inputs ?? []).map(input => { flat.push({ ...input, ...(verification === null ? {} : { verification }),
       ...(row.id === undefined ? {} : { replace_claim_id: row.id }), ...(row.rebind_case_ids === undefined ? {} : { rebind_case_ids: [...row.rebind_case_ids] }) });
     return flat.length - 1; });
   });
 
   const stated = flat.length === 0 ? [] : compile({ requirements: flat }, { statementsOfRows: true }).compiled;
-  const claimIdsOf = flatOf.map(positions => [...new Set(positions.map(position => stated[position].claim_id))]);
+  const claimIdsOf = flatOf.map(positions => [...new Set(positions.map(position => stated[position].claim_id).filter(id => id !== null))]);
 
   const sourceOf = rows.map((row, index) => row.user_requirement === undefined ? null
     : resolveRequirementSourceLink({ wkId, text: sourceText, passage: row.user_requirement, occurrence: row.user_requirement_occurrence, field: rowField(index) }));
@@ -488,16 +539,20 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
 
   const authored = { rows: prospective, collections, unresolved };
   const derivation = deriveAuthored({ unit, authored });
-  if (derivation.refusals.length > 0) fail(CODES.REFUSED, derivation.refusals[0].message,
-    { field: pathText(derivation.refusals[0].path, BATCH_ROOT), finding_count: derivation.refusals.length,
-      findings: derivation.refusals.map(row => ({ ...row, path: pathText(row.path, BATCH_ROOT) })) });
+  if (derivation.refusals.length > 0) refuseRequirementBatch(derivation.refusals);
+
+  prospective.forEach((row, index) => {
+    const constraintIds = (derivation.constraintsOf[index] ?? []).map(entry => entry.identity);
+    if (!byRowId.has(row.row_id) && row.input.definition === true && row.claim_ids.length === 0) row.constraint_ids = constraintIds;
+    assertRowConstraintIdentities(row, constraintIds);
+  });
 
   return Object.freeze({
     answer: { ...(flat.length === 0 ? {} : { requirements: flat }), ...(retire.length === 0 ? {} : { retire_claim_ids: retire }), authored_requirements: authored },
 
     rows: rows.map((row, index) => ({ index, ...(row.key === undefined ? {} : { key: row.key }), row_id: targets[index].row_id,
       state: constraintsOf[index] ? "complete" : "incomplete", constraint_ids: (constraintsOf[index] ?? []).map(entry => entry.identity), claim_ids: claimIdsOf[index],
-      requirement_indexes: flatOf[index],
+      requirement_indexes: flatOf[index].filter(position => stated[position].claim_id !== null),
       ...(row.verification === undefined ? {} : { ...(row.verification.key === undefined ? {} : { verification_key: row.verification.key }),
         verification_claim_id: stated[flatOf[index][0]].verification_claim_id }) })),
     collections: collectionTargets.map((row, index) => ({ index, ...(batchCollections[index].key === undefined ? {} : { key: batchCollections[index].key }),

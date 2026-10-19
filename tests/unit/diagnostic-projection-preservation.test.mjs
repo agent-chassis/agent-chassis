@@ -6,8 +6,19 @@ import test from "node:test";
 import {
   captureStructuredDiagnostic,
   projectDiagnostic,
+  projectFailureDiagnosis,
   UNREADABLE_DIAGNOSTIC
 } from "../../packages/wiki-core/src/lib/diagnostic-projection.mjs";
+
+test('untyped failures preserve long nested deciding causes without a depth cutoff', () => {
+  const deciding = 'late deciding correction: repair the named boundary ' + '界'.repeat(2000);
+  let error = new Error(deciding);
+  for (let i = 0; i < 9; i += 1) error = new Error(`outer ${i}`, { cause: error });
+  const body = errorContent(error).structuredContent;
+  assert.equal(body.causes.length, 9);
+  assert.equal(body.causes[8].diagnostic, deciding);
+  assert.deepEqual(body.next_calls, []);
+});
 import { describeRetentionFailure, errorContent, guardToolHandler } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import { projectPublicDiagnostic } from "../../packages/wiki-mcp/src/lib/verify-proof-result-detail.mjs";
 
@@ -128,4 +139,20 @@ test("a non-Error retention cause is kept, and an unserializable one says exactl
   assert.equal(described.cause, "store failed");
   assert.match(described.cause_serialization_failure, /detail must be a data property/u);
   assert.equal(JSON.stringify(described).includes("late"), false);
+});
+
+test('process failures retain exit facts and every distinct explicit reason without raw streams', () => {
+  const reasons = Array.from({ length: 12 }, (_, index) => `cause ${index}: repair source-${index}; ` + '界'.repeat(600));
+  const raw = ['RAW_STDERR_SENTINEL', ...reasons.map(reason => `fatal: ${reason}`)].join('\n');
+  const child = Object.assign(new Error(`command failed\n${raw}`), { code: 'ECHILD', status: 17,
+    stdout: 'RAW_STDOUT_SENTINEL', stderr: raw, spawnargs: ['git', 'status'] });
+  const wrapper = new Error(`Index refresh failed: ${child.message}`, { cause: child });
+  const projected = projectFailureDiagnosis(wrapper);
+  assert.equal(projected.cause.status, 17);
+  assert.deepEqual(projected.cause.errors, reasons.map(reason => ({ severity: 'fatal', reason })));
+  assert.match(projected.message, /Index refresh failed/u);
+  assert.doesNotMatch(JSON.stringify(projected), /RAW_STDERR_SENTINEL|RAW_STDOUT_SENTINEL|command failed/u);
+  const shared = errorContent(wrapper).structuredContent;
+  assert.deepEqual(shared.diagnostic.cause.errors, projected.cause.errors);
+  assert.doesNotMatch(JSON.stringify(shared), /RAW_STDERR_SENTINEL|RAW_STDOUT_SENTINEL|command failed/u);
 });

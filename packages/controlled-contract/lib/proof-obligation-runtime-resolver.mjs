@@ -405,13 +405,23 @@ function buildProofVerificationResult({ resolution, semanticFacts, evaluation })
     candidate: structuredClone(semanticFacts.execution_identity.candidate),
     receipt_population: structuredClone(semanticFacts.receipt_population)
   };
+
+  const coverageReason = "verify_proof.behavioral_coverage_not_established.v1";
   const body = {
     schema_version: "controlled-contract-proof-verification-result.v3",
-    status: evaluation.satisfaction,
+    status: "unsatisfied",
     authority: "non_authoritative",
     obligation_id: resolution.obligation_id,
-    reason_code: null,
-    diagnostics: structuredClone(evaluation.diagnostics ?? []),
+    reason_code: evaluation.satisfaction === "satisfied" ? coverageReason : null,
+    execution_evaluation: structuredClone(evaluation),
+    requirement_satisfaction: {
+      status: "not_established", reason_code: coverageReason, credit_granted: 0
+    },
+    diagnostics: [
+      ...structuredClone(evaluation.diagnostics ?? []),
+      ...(evaluation.satisfaction === "satisfied" ? [{ code: coverageReason,
+        detail: "Selected-test execution, traversal and mutation observations do not establish the linked requirement's behavior." }] : [])
+    ],
     proof_instance: proofInstance
   };
   return deepFreeze({ ...body, result_digest: canonicalDigest(body) });

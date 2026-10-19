@@ -20,9 +20,11 @@ Use the repo's docs and wiki as the canonical knowledge-and-coordination system.
 - `wiki/initiatives/IN-*`, `wiki/decisions/DEC-*`, `wiki/sources/SRC-*`, and `wiki/areas/` are canonical when adopted.
 - `wiki/catalog.md`, `wiki/now.md`, `wiki/backlog.md`, `wiki/archive.md`, and `wiki/inbox.md` are generated views, not canonical state.
 
-## Docs And Wiki Are Not Executable Artifact Locations
+## Artifact Ownership And Role Boundaries
 
-`docs/` and `wiki/` hold durable knowledge and coordination, never runnable artifacts. Write access to those trees does not authorize executable scripts, command wrappers, or tooling, even when an assigned `WK-*` lists a `docs/` or `wiki/` path in its `write_scope`: no executable mode bit, no executable or tooling suffix (`.sh`, `.mjs`, `.js`, `.py`, binaries), no top-level shebang. Documentation and data formats (`.md`, `.json`, `.txt`, `.yml`, `.yaml`, `.csv`) and fenced code examples inside prose remain allowed. If a task seems to require a runnable artifact, stop and request a new `WK-*` or `write_scope` change targeting the appropriate package source location.
+AgentChassis artifact lint covers its dedicated record, contract, template and generated storage namespaces, runtime metadata and generated wiki views. Native `docs/`, consumer-owned wiki prose and declared extension content are outside that artifact policy by default; existing structural, schema and reference checks continue. Repositories may add concrete directories through the closed local `artifactLint.additionalRoots` setting in `wiki/.wiki-contract.json`. Bootstrap and sync preserve that setting without imposing this source repository's broader documentation policy on consumers. Selected content permits documentation/data formats (`.md`, `.json`, `.txt`, `.yml`, `.yaml`, `.csv`), placeholders and fenced examples; executable modes, tooling suffixes and byte-zero shebangs are findings.
+
+Coordinators do not write runnable product artifacts. A `docs/` or `wiki/` write scope alone does not authorize executable tooling in governed storage. If an assignment needs runnable output beyond its authorized scope, request scope targeting the appropriate package source. Artifact lint reports maintenance findings; it creates no local admission or lifecycle refusal authority, which remains with CCE.
 
 ## Required Behaviors
 

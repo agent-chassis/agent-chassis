@@ -1,5 +1,8 @@
 
 
+import { WK_FORGE_HANDOFF_RESULT_KINDS } from
+  "@agent-chassis/agent-launch-cli/src/lib/trusted-operation-contracts.mjs";
+import { captureDiagnosticEvidence } from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import {
   buildDispatchMechanicalRefusal,
   buildDispatchToolExceptionDetail,
@@ -11,6 +14,8 @@ import {
 } from "./dispatch-tool-helpers.mjs";
 import { acceptanceValidationDriftGuidance, sectionsDriftGuidance } from
   "./dispatch-tools/forge-handoff-drift-guidance.mjs";
+import { buildCheckLandingRequest } from "./dispatch-tools/landing-status-route.mjs";
+import { publicationDiagnosisFacts, publicationPreparation, publicationResult } from "./task-publish-work-projection.mjs";
 import { activeMcpInlineByteLimit, describeRetentionFailure, jsonContent,
   measureMcpInlineResultBytes } from "./mcp-response.mjs";
 import {
@@ -21,55 +26,73 @@ import {
 export const PUBLISH_WORK_TOOL_NAME = "workspace_publish_work";
 export const PUBLISH_WORK_SCHEMA_VERSION = "workspace-publish-work.v1";
 
-function originatingFailure(detail) {
-  const origin = detail?.evidence?.cause_chain?.[0];
-  if (origin === null || typeof origin !== "object") return null;
-  const stated = [origin.name, origin.code, origin.message ?? origin.value]
-    .filter((fact) => typeof fact === "string" && fact.length > 0);
-  return stated.length === 0 ? null : stated.join(": ");
-}
-
 function withoutRawCapture(failure) {
   return distillDispatchFailureDetail(failure, { nested: true }).detail;
 }
 
 function projectPublicationDiagnosis(detail, env) {
   const projected = projectDispatchFailureDetail(detail, { env, nested: true, operatorLocator: false });
-  return projected?.retained_evidence?.retained === false
-    ? { ...projected, retained_evidence: withoutRawCapture(projected.retained_evidence) } : projected;
+  return publicationDiagnosisFacts(projected);
+}
+
+function publicationLanding(subject, selection, requestSchemaAuthority, env) {
+  const stop = (reason, facts = {}) => ({ unavailable: { state: "unavailable", reason, ...facts,
+    stopping_condition: "Cannot observe this exact publication through this session. Publication remains confirmed; do not republish to recover observation." } });
+  if (selection == null) return stop("publication_selection_missing", {
+    cause: "The confirmed publication returned no exact landing selection." });
+  try {
+    const call = buildCheckLandingRequest({ subject, selection }, { requestSchemaAuthority });
+    return call.callable === false
+      ? stop("landing_observer_unavailable", { selection: call.arguments.selection,
+        cause: "This session cannot observe the returned exact publication selection." }) : { call };
+  } catch (error) {
+    return stop("publication_landing_continuation_invalid", { failed_operation: "build_exact_landing_call",
+      cause: projectPublicationDiagnosis({ evidence: captureDiagnosticEvidence(error) }, env) });
+  }
 }
 
 export function publicationCarrier(subject, outcome, env, requestSchemaAuthority = null) {
   if (outcome.accepted === true) {
     const original = outcome.forge_handoff;
-    const result = original?.diagnostic == null ? original : {
-      ...original,
-      diagnostic: projectPublicationDiagnosis(original.diagnostic, env)
-    };
+    const result = publicationResult(original, original?.diagnostic == null ? null
+      : projectPublicationDiagnosis(original.diagnostic, env));
+    const observation = original?.kind === WK_FORGE_HANDOFF_RESULT_KINDS.HANDED_OFF
+      ? publicationLanding(subject, outcome.publication_selection, requestSchemaAuthority, env) : {};
+    if (observation.call != null && result.next_action?.actor === "human") {
+      result.next_action.observe_with = observation.call;
+    }
     return { schema_version: PUBLISH_WORK_SCHEMA_VERSION, subject,
-      producer: { ...outcome, forge_handoff: result }, blocker: null };
+      producer: { accepted: true, forge_handoff: result }, blocker: null,
+      observed_facts: { "publication.confirmed": original?.kind === WK_FORGE_HANDOFF_RESULT_KINDS.HANDED_OFF },
+      ...(observation.unavailable == null ? {} : { landing_observation: observation.unavailable }),
+      next_calls: observation.call != null && result.next_action?.observe_with == null ? [observation.call] : [] };
   }
   const refusal = outcome.refusal;
   const { detail: _detail, ...refusalIdentity } = refusal;
-  const detail = projectPublicationDiagnosis(refusal.detail, env);
+  const projected = projectPublicationDiagnosis(refusal.detail, env);
+  const preparation = projected?.synchronization == null ? projected : {
+    ...projected, synchronization: publicationPreparation(projected.synchronization)
+  };
+  const detail = preparation != null && preparation.effects == null && preparation.synchronization == null &&
+      preparation.uncertain_effect == null && preparation.effects_observed === undefined
+    ? { ...preparation, effects_observed: false } : preparation;
   const code = mapBackendRefusalToDispatchCode(refusal.code);
   const decidingFacts = [{ field: "forge_handoff.executor_accepted", value: false }];
   const observedFacts = { "forge_handoff.executor_accepted": false };
-  const carried = { forge_executor_refusal: refusalIdentity };
+  const carried = {};
   const driftInput = { refusal, detail, assignedUnit: subject,
     code, decidingFacts, observedFacts, carried, requestSchemaAuthority };
   const drift = acceptanceValidationDriftGuidance(driftInput) ?? sectionsDriftGuidance(driftInput);
-  const originating = originatingFailure(detail);
   const recovery = drift?.recovery ?? producerEstablishedRecovery(detail, {
-    unchanged: originating === null ? `the producer's ${refusal.reason} condition no longer holds`
-      : `the failure ${subject} publication stopped on no longer occurs: ${originating}`,
+    unchanged: `the reported publication failure for ${subject} is corrected`,
     retryCondition: "make a new subject-only publication request after that prerequisite holds",
     unestablished: "the producer established no correction owner; an unchanged retry refuses again"
   });
   return {
     schema_version: PUBLISH_WORK_SCHEMA_VERSION, subject,
-    producer: { ...outcome, refusal: { ...refusal, detail } },
-    blocker: { code, reason: refusal.reason, detail },
+    producer: { accepted: false, refusal: { ...refusalIdentity, detail } },
+    blocker: { code, reason: refusal.reason, detail: { category: detail?.category ?? refusal.category } },
+    observed_facts: { "publication.confirmed": false },
     refusal: drift?.refusal ?? buildDispatchMechanicalRefusal({ code, decidingFacts, observedFacts,
       noSupportedRoute: true, recovery, route: PUBLISH_WORK_TOOL_NAME,
       carried: { ...carried, ...(drift?.unavailable ? { guidance_unavailable: drift.unavailable } : {}) }
@@ -79,6 +102,7 @@ export function publicationCarrier(subject, outcome, env, requestSchemaAuthority
 
 export function publicationRepoResolutionRefusal(subject, resolution) {
   return { schema_version: PUBLISH_WORK_SCHEMA_VERSION, subject, producer: null,
+    effects: { publication: "not_attempted" },
     blocker: { code: resolution.blockerCode, reason: resolution.reason, detail: resolution.detail },
     refusal: buildDispatchMechanicalRefusal({ code: resolution.blockerCode,
       decidingFacts: resolution.refusal.deciding_facts,
@@ -87,8 +111,7 @@ export function publicationRepoResolutionRefusal(subject, resolution) {
       noSupportedRoute: true, route: PUBLISH_WORK_TOOL_NAME,
       recovery: ownedNoRouteRecovery({ responsibleActor: "operator",
         prerequisite: "the launcher binds this session to a configured current workspace repository",
-        operatorAction: "correct the launcher workspace configuration and start a repo-attached session " +
-          "with WIKI_MCP_WORKSPACE_DIR and its configured WIKI_MCP_WORKSPACE_ALIAS",
+        operatorAction: "provide a session bound to the intended configured repository; this request cannot select a repository",
         retryCondition: "submit the same subject-only request in the corrected session" }) }) };
 }
 
@@ -97,12 +120,14 @@ export function publicationException(subject, error, env) {
     ...(typeof error?.code === "string" ? { code: error.code } : {}),
     category: "exception",
     reason: "publication_adapter_threw",
-    detail: buildDispatchToolExceptionDetail(PUBLISH_WORK_TOOL_NAME, error, { env, operatorLocator: false })
+    detail: { ...buildDispatchToolExceptionDetail(PUBLISH_WORK_TOOL_NAME, error, { env, operatorLocator: false }),
+      effects_observed: false, uncertain_effect: "publication" }
   } }, env);
 }
 
 export function publicationEntitlementRefusal(subject, role, code) {
   return { schema_version: PUBLISH_WORK_SCHEMA_VERSION, subject, producer: null,
+    effects: { publication: "not_attempted" },
     blocker: { code, reason: "publication_entitlement_denied", detail: { role } },
     refusal: buildDispatchMechanicalRefusal({ code,
       decidingFacts: [{ field: "publication.session_entitled", value: false }],
@@ -110,12 +135,8 @@ export function publicationEntitlementRefusal(subject, role, code) {
       noSupportedRoute: true, route: PUBLISH_WORK_TOOL_NAME,
       recovery: ownedNoRouteRecovery({ responsibleActor: "operator",
         prerequisite: "the session has the incumbent publication entitlement",
-        operatorAction: "start a session with the centrally granted publication role",
-        retryCondition: "submit the subject in that session" }) }) };
-}
-
-export function publicationOriginalRequest(subject, source) {
-  return Object.freeze({ subject, source: Object.freeze({ ref_id: source.ref_id }) });
+        operatorAction: "use an already entitled session only when the applicable lifecycle authorizes publication; tool availability grants no permission",
+        retryCondition: "submit the subject in that authorized session" }) }) };
 }
 
 function publicationDiagnosis(carrier) {
@@ -129,11 +150,11 @@ function withPublicationDiagnosis(carrier, diagnosis) {
   return producer.accepted === true
     ? { ...carrier, producer: { ...producer, forge_handoff: { ...producer.forge_handoff, diagnostic: diagnosis } } }
     : { ...carrier, producer: { ...producer, refusal: { ...producer.refusal, detail: diagnosis } },
-      blocker: { ...carrier.blocker, detail: diagnosis } };
+      blocker: carrier.blocker };
 }
 
-function memberOrigin(value) {
-  const origin = value?.cause_chain?.[0];
+function memberOrigin(value, member) {
+  const origin = member === "cause_chain" && Array.isArray(value) ? value[0] : value?.cause_chain?.[0];
   if (origin === null || typeof origin !== "object") return null;
   const stated = Object.fromEntries(["name", "code", "message"]
     .filter((fact) => typeof origin[fact] === "string").map((fact) => [fact, origin[fact]]));
@@ -143,22 +164,24 @@ function memberOrigin(value) {
 function boundedPublicationAnswer(carrier, frame, limit) {
   const complete = frame(carrier, []);
   const diagnosis = publicationDiagnosis(carrier);
-  if (diagnosis === null || measureMcpInlineResultBytes(complete) <= limit) return complete;
+  if (diagnosis === null) return complete;
   const omission = (member, withMessage) => {
-    const origin = memberOrigin(diagnosis[member]);
+    const origin = memberOrigin(diagnosis[member], member);
     if (origin === null) return { member };
     const { message, ...identity } = origin;
     return { member, originating_failure: withMessage ? origin : identity };
   };
-  const members = Object.keys(diagnosis).sort((left, right) =>
-    JSON.stringify(diagnosis[left] ?? null).length - JSON.stringify(diagnosis[right] ?? null).length);
-  const kept = new Set();
+
+  const members = Object.keys(diagnosis);
+  const kept = new Set(members.filter(member => member !== "findings"));
   const answer = (messages = new Set()) => frame(
     withPublicationDiagnosis(carrier, Object.fromEntries(Object.entries(diagnosis).filter(([key]) => kept.has(key)))),
     Object.keys(diagnosis).filter((key) => !kept.has(key)).map((key) => omission(key, messages.has(key))));
-  for (const member of members) {
-    kept.add(member);
-    if (measureMcpInlineResultBytes(answer()) > limit) kept.delete(member);
+
+  for (const member of [...kept].sort((a, b) =>
+    JSON.stringify(diagnosis[b] ?? null).length - JSON.stringify(diagnosis[a] ?? null).length)) {
+    if (measureMcpInlineResultBytes(answer()) <= limit) break;
+    if (!["reason", "stage", "subject", "effects", "uncertain_effect", "synchronization"].includes(member)) kept.delete(member);
   }
   const messages = new Set();
   for (const member of members.filter((key) => !kept.has(key))) {
@@ -175,6 +198,18 @@ function publicationRetentionFailure(error, subject) {
 
 export async function deliverPublication({ carrier, binding, env, ownerCall = null, ownerRequestSchema = null }) {
   const limit = activeMcpInlineByteLimit(env);
+
+  const diagnosis = publicationDiagnosis(carrier);
+  if (diagnosis === null || (diagnosis.findings === undefined &&
+      measureMcpInlineResultBytes(carrier) <= limit)) return jsonContent(carrier, { env });
+  const disclose = read => (answer, omitted) => ({ ...answer,
+    ...(omitted.length === 0 ? {} : { delivery: {
+      complete_diagnosis_delivered: false, omitted_diagnosis: omitted,
+      ...(read === null ? { detail_unavailable: { code: "publication_detail_reader_unavailable",
+        stopping_condition: "The omitted publication diagnosis cannot be read through this session. Preserve the stated effects; do not repeat publication to recover detail." } }
+        : { read_by: read }) } })
+  });
+  if (ownerCall === null) return jsonContent(boundedPublicationAnswer(carrier, disclose(null), limit), { env });
   let source;
   try {
     source = retainSelectedResponseSource({ binding, carrier, ownerCall, ownerRequestSchema }, { env });
@@ -184,18 +219,12 @@ export async function deliverPublication({ carrier, binding, env, ownerCall = nu
     return jsonContent(boundedPublicationAnswer(carrier, (answer, omitted) => ({ ...answer,
       delivery: { retained: false, failure, ...(omitted.length === 0 ? {} : {
         complete_diagnosis_delivered: false,
-        diagnosis_fields_not_delivered: omitted.map(({ member }) => member), omitted_diagnosis: omitted }) }
+        omitted_diagnosis: omitted }) }
     }), limit), { env });
   }
 
-  const originalRequest = publicationOriginalRequest(carrier.subject, source);
-  const read = ownerCall === null ? [] : [ownerCall(source)];
-  return jsonContent(boundedPublicationAnswer(carrier, (answer, omitted) => ({ ...answer,
-    delivery: { retained: true, original_request: originalRequest, ...(omitted.length === 0 ? {} : {
-      complete_diagnosis_delivered: false, omitted_diagnosis: omitted,
-      ...(read.length === 0 ? {} : { read_by: read[0] }) }) },
-    original: { source }, next_calls: [...(answer.next_calls ?? []), ...read]
-  }), limit), { env });
+  return jsonContent(boundedPublicationAnswer(carrier,
+    disclose(ownerCall({ ref_id: source.ref_id })), limit), { env });
 }
 
 export function readPublicationOriginal({ subject, source, binding, env }) {

@@ -4,8 +4,11 @@ import { z as defaultZ } from "zod";
 import { setWorkRecordStatusByUnit } from "../../../wiki-core/src/operations/work-records.mjs";
 import { createWorkspaceCommitExecution } from "./workspace-commit-tool.mjs";
 import { prepareDeliverWorkResponse } from "./task-deliver-work-response.mjs";
+import { prepareWorkerDeliveryAnswer } from "./task-deliver-work-worker-answer.mjs";
 import { DELIVERY_ORIGINAL_PRODUCER, publishDeliveryReceiptForSession, pendingDeliveryReceiptForSession,
-  composeDeliveryCheckoutRetryOriginal, retainDeliveryCheckoutRetryForSession } from "./task-deliver-work-result.mjs";
+  composeDeliveryCheckoutRetryOriginal, retainDeliveryCheckoutRetryForSession, readDeliveryOriginalForSession } from "./task-deliver-work-result.mjs";
+import { activeMcpInlineByteLimit, measureMcpInlineResultBytes, jsonContent } from "./mcp-response.mjs";
+import { readSelectedResponseProjection } from "./selected-response-snapshot.mjs";
 import { finalizeDeliveryCheckout } from "./delivery-checkout-finalization.mjs";
 import { createToolInputValidationError } from "./register-tool.mjs";
 import { resolveLauncherRunState, LauncherSessionContractRefusal } from "./launcher-run-credential.mjs";
@@ -21,6 +24,16 @@ export function createDeliverWorkSurface({ workspace, sessionEnv = process.env, 
   const env = { ...sessionEnv };
   const responseConfiguration = { ...responseEnv };
   const trustedWorkspace = Object.freeze({ ...workspace });
+  const workerAnswers = new WeakMap();
+  function prepareResponse(options) {
+    const frame = prepareDeliverWorkResponse(options);
+    const settled = options.observation?.transactionOutcome ?? options.outcome;
+    workerAnswers.set(frame, prepareWorkerDeliveryAnswer(frame, {
+      inputInvalid: options.inputInvalid === true,
+      scopeRefusal: settled?.scope?.refusal ?? null
+    }));
+    return frame;
+  }
   function publish(result) {
     try { return publishDeliveryReceiptForSession({ workspace: trustedWorkspace, sessionEnv: env,
       responseEnv: responseConfiguration, result }); }
@@ -29,7 +42,7 @@ export function createDeliverWorkSurface({ workspace, sessionEnv = process.env, 
   }
 
   function execution(subject = null) {
-    const project = (outcome, options, error = null, isError = false) => prepareDeliverWorkResponse({
+    const project = (outcome, options, error = null, isError = false) => prepareResponse({
       workspace: trustedWorkspace, outcome, observation: options?.deliveryObservation,
       authenticatedSubject: subject, error, isError, responseEnv: responseConfiguration, publicDelivery,
       receiptPublication: publicDelivery && outcome.committed === true && outcome.original?.available === true
@@ -45,7 +58,7 @@ export function createDeliverWorkSurface({ workspace, sessionEnv = process.env, 
     const parsed = await inputContract.inputSchema.safeParseAsync(request);
     if (!parsed.success) {
       const error = createToolInputValidationError({ tool: DELIVERY_ORIGINAL_PRODUCER, validationError: parsed.error });
-      return prepareDeliverWorkResponse({ workspace: trustedWorkspace, outcome: error.envelope ?? {}, error,
+      return prepareResponse({ workspace: trustedWorkspace, outcome: error.envelope ?? {}, error,
         isError: true, stage: "input_validation", inputInvalid: true, responseEnv: responseConfiguration, publicDelivery });
     }
     let session;
@@ -56,7 +69,7 @@ export function createDeliverWorkSurface({ workspace, sessionEnv = process.env, 
         LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.FACT_MISMATCH,
         "delivery preparation requires an authenticated launcher worker session");
     } catch (error) {
-      return prepareDeliverWorkResponse({ workspace: trustedWorkspace, error, isError: true,
+      return prepareResponse({ workspace: trustedWorkspace, error, isError: true,
         stage: "authentication", responseEnv: responseConfiguration, publicDelivery });
     }
 
@@ -69,7 +82,7 @@ export function createDeliverWorkSurface({ workspace, sessionEnv = process.env, 
 
           let recovered = pending;
           let retention = null;
-          const checkoutRecovery = pending.carrier.outcome.response.checkout !== "complete";
+          const checkoutRecovery = pending.carrier.outcome.response.checkout === "pending";
           if (checkoutRecovery) {
             const original = composeDeliveryCheckoutRetryOriginal({ pending,
               checkout: await finalizeCheckout({ workspaceDir: trustedWorkspace.dir,
@@ -86,7 +99,7 @@ export function createDeliverWorkSurface({ workspace, sessionEnv = process.env, 
             }
           }
           const response = recovered.carrier.outcome.response;
-          return prepareDeliverWorkResponse({ workspace: trustedWorkspace,
+          return prepareResponse({ workspace: trustedWorkspace,
             outcome: { ...response, ...(retention === null ? { original: { available: true, locator: recovered.result } }
               : { output: retention, original: { available: false, retention_failure: retention } }) },
             observation: { identity: recovered.carrier.identity, phases: recovered.carrier,
@@ -95,11 +108,26 @@ export function createDeliverWorkSurface({ workspace, sessionEnv = process.env, 
             receiptPublication: retention === null ? publish(recovered.result) : null });
         }
       } catch (error) {
-        return prepareDeliverWorkResponse({ workspace: trustedWorkspace, authenticatedSubject: session.assignedUnit,
+        return prepareResponse({ workspace: trustedWorkspace, authenticatedSubject: session.assignedUnit,
           error, isError: true, stage: "receipt_recovery", responseEnv: responseConfiguration, publicDelivery });
       }
     }
     return execution(session.assignedUnit).handler(parsed.data);
   }
-  return Object.freeze({ inputContract, prepare });
+  async function deliver(frame) {
+    if (!workerAnswers.has(frame)) throw new TypeError("delivery frame belongs to a different serving composition");
+    const answer = workerAnswers.get(frame);
+    const source = frame.body.original?.locator;
+    if (source == null || measureMcpInlineResultBytes(answer) <= activeMcpInlineByteLimit(responseConfiguration)) {
+      const result = jsonContent(answer, { env: responseConfiguration });
+      return frame.isError ? { ...result, isError: true } : result;
+    }
+    const result = await readDeliveryOriginalForSession({ workspace: trustedWorkspace, sessionEnv: env,
+      responseEnv: responseConfiguration, request: { result: source },
+      project: ({ binding, responseEnv: sourceEnv }) => readSelectedResponseProjection(source, {
+        env: sourceEnv, expected: binding, project: () => answer }) });
+    if (frame.isError) result.isError = true;
+    return result;
+  }
+  return Object.freeze({ inputContract, prepare, deliver });
 }

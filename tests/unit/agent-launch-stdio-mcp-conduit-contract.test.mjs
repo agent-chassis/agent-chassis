@@ -136,7 +136,7 @@ test("WK-1678: a forged or consumed binding is refused by the plan contract", ()
     { relay: Object.freeze({ command: STDIO_MCP_RELAY_COMMAND, args: Object.freeze(["-c", "cat"]) }) },
     { bindTargets: Object.freeze(["/tmp/a", "/tmp/b"]) },
     { fifoCount: 3 },
-    { family: "agy" }
+    { family: "unregistered" }
   ]) {
     const tampered = forgedBinding(override);
     assert.throws(() => assertTrustedStdioMcpConduitBinding(tampered),
@@ -479,11 +479,11 @@ test("WK-1678: the launcher plan module has no cyclic conduit dependency", async
 
 test("WK-1678: exact role profiles keep worker delivery-only and findings roles read-only", () => {
 
-  const worker = ["get_run_result", "verify_proof", "workspace_deliver_work", "workspace_read_wiki",
-    "workspace_run_test"];
+  const worker = ["get_run_result", "request_assignment_change", "verify_proof", "workspace_deliver_work", "workspace_read_wiki",
+    "workspace_record_feedback", "workspace_run_test"];
   const reviewer = ["get_run_result", "query_code_index", "verify_proof", "workspace_assess_contract",
-    "workspace_find_proofs", "workspace_read_wiki", "workspace_run_test"];
-  const redteam = ["query_code_index", "workspace_assess_contract", "workspace_find_proofs", "workspace_read_wiki"];
+    "workspace_find_proofs", "workspace_read_wiki", "workspace_record_feedback", "workspace_run_test"];
+  const redteam = ["query_code_index", "workspace_assess_contract", "workspace_find_proofs", "workspace_read_wiki", "workspace_record_feedback"];
   assert.deepEqual(resolveLauncherRoleToolNames("worker"), worker);
   assert.deepEqual(resolveLauncherRoleToolNames("reviewer"), reviewer);
   assert.deepEqual(resolveLauncherRoleToolNames("redteam"), redteam);
@@ -791,7 +791,7 @@ test("WK-1678: a real authority minted for another launch is refused", () => {
 
 test("WK-1678: the authority validates its unit, carriers, scopes, and cross-run identity", () => {
   const cases = [
-    ["unsupported family", { family: "agy" }],
+    ["unsupported family", { family: "unregistered" }],
     ["unsupported role", { role: "operator" }],
     ["empty assigned unit", { assignedUnit: "" }],
     ["relative workspace", { workspaceDir: "relative/repo" }],
@@ -913,21 +913,23 @@ test("the conduit host is started with the launcher's native usage task carriers
   }
 });
 
-test("the conduit host is started with the launcher's dependency locations and toolchain selection exactly as supplied, and nothing else new", async () => {
+test("the conduit host preserves prepared repository settings while withholding credentials", async () => {
   const { DEPENDENCY_LOCATION_ENVIRONMENT, TOOLCHAIN_SELECTION_ENVIRONMENT,
     HOST_SERVER_RUNTIME_ENVIRONMENT_NAMES: DEPENDENCY_LOCATION_ENVIRONMENT_NAMES } = await import(
     "../../packages/agent-launch-cli/src/lib/test-runtime-setup/location-environment.mjs");
-  assert.deepEqual(DEPENDENCY_LOCATION_ENVIRONMENT, { deno: ["DENO_DIR", "XDG_CACHE_HOME"],
+  assert.deepEqual(DEPENDENCY_LOCATION_ENVIRONMENT, { npm: ["PNPM_HOME", "XDG_DATA_HOME", "LOCALAPPDATA"],
+    deno: ["DENO_DIR", "XDG_CACHE_HOME"],
     go_modules: ["GOPATH", "GOMODCACHE", "GOENV", "XDG_CONFIG_HOME"], cargo: ["CARGO_HOME"] });
   assert.deepEqual(TOOLCHAIN_SELECTION_ENVIRONMENT, { rust: ["RUSTUP_HOME", "RUSTUP_TOOLCHAIN"],
     go: ["GOTOOLCHAIN"] });
   assert.deepEqual([...DEPENDENCY_LOCATION_ENVIRONMENT_NAMES].sort(), ["CARGO_HOME", "DENO_DIR", "GOENV",
-    "GOMODCACHE", "GOPATH", "GOTOOLCHAIN", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "XDG_CACHE_HOME", "XDG_CONFIG_HOME"]);
+    "GOMODCACHE", "GOPATH", "GOTOOLCHAIN", "LOCALAPPDATA", "PNPM_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN",
+    "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME"]);
 
   const UNRELATED = ["GOFLAGS", "GOPROXY", "GOCACHE", "GOROOT", "GOSUMDB", "GOPRIVATE", "CARGO_TARGET_DIR",
     "RUSTUP_DIST_SERVER", "RUSTUP_UPDATE_ROOT", "RUSTC", "RUSTC_WRAPPER", "RUSTFLAGS", "CARGO_REGISTRY_TOKEN", "DENO_AUTH_TOKENS", "DENO_CERT", "NODE_PATH", "NODE_OPTIONS",
-    "npm_config_cache", "NPM_TOKEN", "PYTHONPATH", "VIRTUAL_ENV", "PIP_INDEX_URL", "XDG_DATA_HOME",
-    "XDG_STATE_HOME", "WK2734_AMBIENT"];
+    "npm_config_cache", "NPM_TOKEN", "PYTHONPATH", "VIRTUAL_ENV", "PIP_INDEX_URL",
+    "XDG_STATE_HOME", "WK2734_AMBIENT", "CI", "LANG", "LC_ALL"];
   const KEYS = [...DEPENDENCY_LOCATION_ENVIRONMENT_NAMES, ...UNRELATED];
   const saved = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
 
@@ -938,7 +940,7 @@ test("the conduit host is started with the launcher's dependency locations and t
     const without = __testing.buildServerEnv(input, "worker");
     assert.deepEqual(KEYS.filter((key) => key in without), [], "an absent variable stays absent");
     for (const key of UNRELATED) process.env[key] = `/ambient/${key}`;
-    const supplied = { DENO_DIR: "/deno-cache", XDG_CACHE_HOME: "/operator/cache", GOPATH: "/operator/go:/second",
+    const supplied = { PNPM_HOME: "/pnpm", XDG_DATA_HOME: "/data", LOCALAPPDATA: "", DENO_DIR: "/deno-cache", XDG_CACHE_HOME: "/operator/cache", GOPATH: "/operator/go:/second",
       GOMODCACHE: "/operator/modcache", GOENV: "off", XDG_CONFIG_HOME: "", CARGO_HOME: "relative/cargo",
       RUSTUP_HOME: "/operator/rustup", RUSTUP_TOOLCHAIN: "1.98.1-x86_64-unknown-linux-gnu", GOTOOLCHAIN: "local" };
     Object.assign(process.env, supplied);
@@ -946,9 +948,13 @@ test("the conduit host is started with the launcher's dependency locations and t
       const carried = __testing.buildServerEnv(input, role);
       assert.deepEqual(Object.fromEntries(DEPENDENCY_LOCATION_ENVIRONMENT_NAMES.map((key) => [key, carried[key]])),
         supplied, "each value is the launcher's own string, unresolved, for every role");
-      assert.deepEqual(UNRELATED.filter((key) => key in carried), []);
+      const secrets = ["CARGO_REGISTRY_TOKEN", "DENO_AUTH_TOKENS", "NPM_TOKEN"];
+      assert.deepEqual(secrets.filter(key => key in carried), []);
+      for (const key of UNRELATED.filter(key => !secrets.includes(key))) {
+        assert.equal(carried[key], process.env[key], key);
+      }
       assert.deepEqual(Object.keys(carried).filter((key) => !(key in without)).sort(),
-        [...DEPENDENCY_LOCATION_ENVIRONMENT_NAMES].sort(), "these names are the only keys their presence adds");
+        [...DEPENDENCY_LOCATION_ENVIRONMENT_NAMES, ...UNRELATED.filter(key => !secrets.includes(key))].sort());
     }
     delete process.env.DENO_DIR;
     assert.equal("DENO_DIR" in __testing.buildServerEnv(input, "worker"), false);
@@ -957,5 +963,49 @@ test("the conduit host is started with the launcher's dependency locations and t
       if (saved[key] === undefined) delete process.env[key];
       else process.env[key] = saved[key];
     }
+  }
+});
+
+test("assignment-change lifecycle grammar binds the exact worker attempt and negotiates its new generation", async () => {
+  const { EventEmitter } = await import("node:events");
+  const { PassThrough } = await import("node:stream");
+  const { STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION } = await import("../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-contract.mjs");
+  const { STDIO_MCP_CONDUIT_PRODUCER_PROTOCOL_GENERATION } = await import("../../packages/wiki-mcp/src/lib/stdio-mcp-conduit-producer-descriptor.mjs");
+  assert.equal(STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION, "stdio-mcp-conduit-lifecycle-vocabulary.v4");
+  assert.equal(STDIO_MCP_CONDUIT_PRODUCER_PROTOCOL_GENERATION, STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION);
+  const tuple = { assigned_unit: "WK-9999#SLICE-001", launch_ref: "launch-one", run_id: "run-one.slice", retry_id: "0" };
+  const terminal = { schema_version: "wiki-mcp-launcher-assignment-change.v1", ...tuple,
+    request_id: "12345678-1234-1234-1234-123456789abc" };
+  for (const change of [null, "after_readiness_failure", { run_id: "foreign" }, { retry_id: "1" }, { assigned_unit: "WK-9998#SLICE-001" },
+    { request_id: "invalid" }, { pid: 123 }]) {
+    const child = new EventEmitter(), stream = new PassThrough();
+    child.stdio = [null, null, null, stream];
+    const lifecycle = __testing.observeConduitLifecycle({ child, role: "worker", assignmentChangeBinding: tuple,
+      serverStartupTimeoutMs: 1000, clientReadinessTimeoutMs: 1000, expectedToolNames: [], expectedRegisteredTier: "free_local" });
+    lifecycle.clientReady.catch(() => {}); lifecycle.serverReady.catch(() => {});
+    const emit = event => stream.write(JSON.stringify(event) + "\n");
+    emit({ schema_version: "wiki-mcp-launcher-readiness.v3", lifecycle_protocol_generation: STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION,
+      ready: true, registered_tier: "free_local", tools: [] });
+    emit({ schema_version: "wiki-mcp-launcher-client-initialized.v1", initialized: true });
+    emit({ schema_version: "wiki-mcp-launcher-tools-listed.v1", tools_listed: true, tools: [] });
+    let firstFailure = null;
+    if (change === "after_readiness_failure") {
+      emit({ schema_version: "wiki-mcp-launcher-client-restarted.v1", restarted: true, restart_count: 1 });
+      firstFailure = lifecycle.currentFailure();
+      assert.notEqual(firstFailure, null);
+    }
+    emit({ ...terminal, ...(typeof change === "object" ? change : {}) });
+    if (change === null || change === "after_readiness_failure") {
+      assert.deepEqual(await lifecycle.assignmentChangeRequested, terminal);
+      assert.equal(lifecycle.currentFailure(), firstFailure);
+
+      emit(terminal);
+      assert.deepEqual(await lifecycle.assignmentChangeRequested, terminal);
+    } else {
+      assert.equal(lifecycle.currentFailure()?.code, "stdio_mcp_client_readiness_failed");
+    }
+    lifecycle.markClientProcessTerminal();
+    child.emit("exit", 0, null);
+    stream.destroy();
   }
 });

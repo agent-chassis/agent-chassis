@@ -29,6 +29,8 @@ import { advanceRequest as ownerAdvanceRequest } from "./task-advance-candidate.
 import { isDeepStrictEqual } from "node:util";
 import { TerminalWkCandidateError, TERMINAL_WK_CANDIDATE_CODES } from
   "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
+import { CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES } from
+  "@agent-chassis/agent-launch-cli/src/lib/controlled-carrier-attachment-primitive.mjs";
 
 export const INSPECT_CANDIDATE_TOOL_NAME = "workspace_inspect_candidate";
 export const CANDIDATE_INSPECTION_RESPONSE_SCHEMA_VERSION = "workspace-inspect-candidate.v1";
@@ -161,14 +163,6 @@ function reviewDiagnostic(review) {
   });
 }
 
-const ABSENT_RECOVERY = ownedNoRouteRecovery({
-  responsibleActor: null,
-  prerequisite: "a terminal candidate is selected for this WK",
-  missingComponent: "terminal_candidate_production_recovery",
-  explanation: "inspection observes only; the terminal-candidate owner supplies no call here " +
-    "that constructs or selects a candidate, and an advance applies only to a stale candidate"
-});
-
 function invalidRecovery(observation, correction) {
   if (observation.cause === CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_IDENTITY_DISAGREES) {
     return ownedNoRouteRecovery({
@@ -176,8 +170,16 @@ function invalidRecovery(observation, correction) {
       prerequisite: "the canonical WK record's own id matches the requested WK and its initiative " +
         "is a canonical initiative identity",
       missingComponent: "canonical_record_identity_recovery",
-      explanation: "the canonical record identity invariant failed before generation authentication; " +
-        "inspection rewrites no record and no controlled generation was examined"
+      explanation: "Stop: candidate status cannot be established from a work record with the wrong identity. " +
+        "Inspection offers no supported correction for that record."
+    });
+  }
+  if (observation.cause === CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.REF_UNRESOLVABLE) {
+    return ownedNoRouteRecovery({
+      responsibleActor: null,
+      prerequisite: "the WK branch identified in the cause is available and resolves to a commit",
+      explanation: "Stop: candidate status is unknown while that branch is missing or cannot be resolved. " +
+        "Inspection offers no supported call to establish it."
     });
   }
   const currentSelectionMoved = (failure) => failure instanceof TerminalWkCandidateError &&
@@ -199,18 +201,17 @@ function invalidRecovery(observation, correction) {
   return observation.context.generationAuthentication === null
     ? ownedNoRouteRecovery({
         responsibleActor: null,
-        prerequisite: "the complete controlled-contract generation of the live W authenticates",
+        prerequisite: "the WK inputs needed to determine candidate status can be read and validated",
         missingComponent: "controlled_generation_recovery",
-        explanation: "the controlled-generation owner must hold that exact generation at W; " +
-          "inspection persists and repairs nothing"
+        explanation: "Stop: candidate selection, validity and relation to the current WK tip are unknown. " +
+          "Inspection offers no supported correction for the reported cause."
       })
     : ownedNoRouteRecovery({
         responsibleActor: null,
-        prerequisite: "the selected candidate, its immutable version, fork and record satisfy " +
-          "the failed invariant",
+        prerequisite: "the selected candidate can be verified without the reported failure",
         missingComponent: "terminal_candidate_identity_recovery",
-        explanation: "the terminal-candidate owner must restore the original authenticated " +
-          "material; inspection resets no ref, rewrites no history and constructs nothing"
+        explanation: "Stop: a valid selected candidate could not be established. " +
+          "Inspection offers no supported repair for the reported cause."
       });
 }
 
@@ -240,10 +241,10 @@ export function createCandidateInspectionResponder({
         next_calls: [],
         recovery: ownedNoRouteRecovery({
           responsibleActor: null,
-          prerequisite: "the selected candidate embeds the live W",
+          prerequisite: "the selected-version advance operation is available in this session",
           missingComponent: "selected_version_candidate_advance_request",
-          explanation: "the selected-version advance request requires its canonical tool identity " +
-            "and matching serving request contract before it is callable"
+          explanation: "No supported advancement call is available in this session. " +
+            "Finish this status question, or stop the requested advancement here."
         })
       };
     }
@@ -251,7 +252,7 @@ export function createCandidateInspectionResponder({
       next_calls: [call],
       recovery: {
         state: "callable",
-        prerequisite: "the selected candidate embeds the live W",
+        prerequisite: "the caller chooses to advance this exact stale version; the action rechecks the selected version and current WK inputs",
         operation: call.tool,
         success_condition: "the selected candidate embeds the live W after the advance",
         success_predicate: call.success_predicate
@@ -301,7 +302,6 @@ export function createCandidateInspectionResponder({
             condition: "candidate_absent",
             affected: { current_selection: null, observed_w: observedW }
           }),
-          recovery: ABSENT_RECOVERY
         });
       default:
         return observed(selection, {
@@ -309,7 +309,9 @@ export function createCandidateInspectionResponder({
             operation: "observe_current_candidate",
             condition: observation.cause,
             affected: { observed_w: observedW },
-            uncertainty: observedW === null ? "the live W was not authenticated" : null,
+            uncertainty: observedW === null
+              ? "Candidate selection, validity and relation to the current WK tip are unknown."
+              : "A valid selected candidate and its relation to the current WK tip could not be established.",
             failure: selection.failure
           }),
           recovery: invalidRecovery(observation, selection.automatic_correction)
@@ -335,18 +337,22 @@ export function createCandidateInspectionResponder({
             responsibleActor: "caller_retry",
             prerequisite: "the requested immutable version exists for this WK and authenticates " +
               "from its own material",
-            retryCondition: "re-issue the request with an existing version identity of this WK; " +
+            retryCondition: "re-issue the same request with the same version only after its material is available and authenticates; " +
               "omitting version asks a different question, the current candidate",
             explanation: "no other version and no current candidate is substituted for the " +
               "requested one"
           })
         : ownedNoRouteRecovery({
-            responsibleActor: "caller_retry",
-            prerequisite: "the candidate's refs, the live W and its generation can be read and " +
-              "stay in place for one complete observation",
-            retryCondition: "re-issue the same request once the diagnosed condition no longer holds",
-            explanation: "an unverified observation is not a candidate state: the candidate is " +
-              "neither absent nor healthy on this evidence"
+            responsibleActor: null,
+            prerequisite: condition === TERMINAL_CANDIDATE_RUNTIME_CODES.CANONICAL_RECORD_ABSENT
+              ? "the WK's canonical work record is available"
+              : condition === TERMINAL_CANDIDATE_RUNTIME_CODES.CANONICAL_RECORD_UNREADABLE
+                ? "the WK's canonical work record is readable"
+                : condition === TERMINAL_CANDIDATE_RUNTIME_CODES.CANONICAL_RECORD_MALFORMED
+                  ? "the WK's canonical work record is valid JSON"
+                  : "the intended candidate selection can be read and verified without the reported failure",
+            explanation: "Stop: current candidate status could not be established. " +
+              "Inspection offers no supported correction for the reported cause."
           }),
       route: INSPECT_CANDIDATE_TOOL_NAME,
       carried: {
@@ -373,9 +379,21 @@ export function createCandidateInspectionResponder({
 
   function prepare(selection) {
     const isObserved = selection.state !== null;
-    const body = !isObserved ? refused(selection)
+    let body = !isObserved ? refused(selection)
       : selection.selection.kind === "historical" ? observed(selection, {})
         : observedCurrent(selection);
+
+    if (selection.failure instanceof TerminalWkCandidateError &&
+        selection.failure.code === TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED) {
+      const call = buildDispatchContinuation({
+        tool: INSPECT_CANDIDATE_TOOL_NAME,
+        arguments: { subject: selection.subject.unit,
+          ...(selection.selection.kind === "historical" ? { version: selection.selection.version } : {}) },
+        successPredicate: { fact: "inspect_candidate.observation_completed", operator: "is_true" },
+        requestSchemaAuthority
+      });
+      if (call !== null) body = { ...body, next_calls: [call] };
+    }
     const bytes = measureMcpInlineResultBytes(body);
     const bound = selectedResponseDeliveryBound(responseEnv);
     return {
@@ -394,9 +412,13 @@ export function candidateInspectionSubjectCorrection(args, { requestSchemaAuthor
   const rejected = args !== null && typeof args === "object" ? args.subject : undefined;
   const classified = classifyDispatchSubject(rejected);
   if (classified === null || typeof classified.slice_id !== "string") return null;
-  const call = !isCanonicalNextCallTool(INSPECT_CANDIDATE_TOOL_NAME) ? null : buildDispatchContinuation({
+  const versionPresent = Object.hasOwn(args, "version");
+  const versionValid = !versionPresent || typeof args.version === "string" && /^[0-9a-f]{64}$/u.test(args.version);
+  const onlyKnownFields = Reflect.ownKeys(args).every(key => key === "subject" || key === "version");
+  const corrected = { subject: classified.record_id, ...(versionPresent ? { version: args.version } : {}) };
+  const call = !onlyKnownFields || !versionValid || !isCanonicalNextCallTool(INSPECT_CANDIDATE_TOOL_NAME) ? null : buildDispatchContinuation({
     tool: INSPECT_CANDIDATE_TOOL_NAME,
-    arguments: { subject: classified.record_id },
+    arguments: corrected,
     successPredicate: { fact: "inspect_candidate.subject_is_root_wk", operator: "is_true" },
     requestSchemaAuthority
   });
@@ -408,6 +430,6 @@ export function candidateInspectionSubjectCorrection(args, { requestSchemaAuthor
         parent_subject: classified.record_id
       }
     },
-    next_calls: call === null ? [] : [call]
+    next_calls: !versionValid || call === null ? [] : [call]
   };
 }

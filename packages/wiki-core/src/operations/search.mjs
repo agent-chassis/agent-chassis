@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import {
   loadLexicalSearchIndexForRead,
   matchesSearchFilters,
+  SEARCH_FILTER_MATCH_GUIDANCE,
   rankLexicalSearchResults,
   searchLexicalIndexPage
 } from "../lib/search.mjs";
@@ -18,6 +19,9 @@ const TARGETED_CONTEXT_SCALARS = 160;
 export const FILTER_KEYS = Object.freeze(["kind", "type", "status", "priority", "owner", "area", "initiative",
   "retrieval_role", "canonicality", "maintenance_mode", "knowledge_role", "evidence_stage",
   "retrieval_visibility", "lifecycle", "sensitivity", "topic"]);
+
+export const SEARCH_FILTER_GUIDANCE = SEARCH_FILTER_MATCH_GUIDANCE + ' ' +
+  'Omit or "" disables a filter; whitespace is literal. Comparisons ignore case. Null is invalid.';
 
 export function normalizeFilters(input) {
   return Object.fromEntries(FILTER_KEYS.filter((key) => input[key] !== null && input[key] !== undefined)

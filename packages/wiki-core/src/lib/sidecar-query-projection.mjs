@@ -151,7 +151,8 @@ const CONTEXT_EXCLUDED_GRAPH_KINDS = new Set(["docs_contract", "work_scope_owner
 function contextGraphPaths(affectedFiles) {
   return affectedFiles.flatMap((file) => {
     const eligible = list(file?.relationships).filter((relationship) =>
-      relationship?.basis === "graph" && !CONTEXT_EXCLUDED_GRAPH_KINDS.has(relationship.kind));
+      (relationship?.basis === "scip" || relationship?.basis === "graph") &&
+      !CONTEXT_EXCLUDED_GRAPH_KINDS.has(relationship.kind));
     return eligible.length === 0 ? [] : [{ path: file.path,
       kinds: [...new Set(eligible.map((relationship) => relationship.kind))].sort(),
       path_relationship_count: eligible.length }];
@@ -199,8 +200,8 @@ export function projectSidecarContextCompact(result, { fits }) {
 export function projectSidecarImpactCompact(result) {
   const diff = Array.isArray(result?.input_diff_sources);
   const { fields, counts } = populations(result, [["validated_paths"], ["invalid_paths"],
-    ["affected_files"], ["canonical_refs", compactRef], ["likely_tests"], ["related_code_paths"],
-    ["structural_impacts", compactImpact], ["missing_update_hints"],
+    ["affected_files"], ["canonical_refs", compactRef], ["semantic_relationships"], ["related_code_paths"],
+    ["structural_impacts", compactImpact],
     ...(diff ? [["invalid_diff_records"], ["affected_paths"]] : [])]);
   return {
     ...committedFacts(result),
@@ -209,19 +210,17 @@ export function projectSidecarImpactCompact(result) {
     ...(diff ? { input_diff_sources: structuredClone(result.input_diff_sources) } : {}),
     ...fields,
     counts,
-    summary_counts: structuredClone(result?.summary?.counts ?? null),
-    warning_counts: structuredClone(result?.summary?.warning_counts ?? null),
+    semantic_coverage: structuredClone(result?.semantic_coverage ?? null),
     next_action: RETAINED_ANSWER_NEXT_ACTION
   };
 }
 
 const IMPACT_SUMMARY_SUBJECT_MEMBERS = Object.freeze(["impact_state", "input"]);
-const IMPACT_SUMMARY_STATE_MEMBERS = Object.freeze(["graph_state", "scip_state", "summary_counts",
-  "warning_counts"]);
+const IMPACT_SUMMARY_STATE_MEMBERS = Object.freeze(["graph_state", "scip_state", "semantic_coverage"]);
 const IMPACT_SUMMARY_TRAILING_MEMBERS = Object.freeze(["graph_snapshot", "input_diff_sources"]);
 
-const IMPACT_SUMMARY_POPULATIONS = Object.freeze([["likely_tests"], ["affected_files", summaryAffectedFile],
-  ["related_code_paths"], ["structural_impacts", compactImpact], ["missing_update_hints"],
+const IMPACT_SUMMARY_POPULATIONS = Object.freeze([["semantic_relationships"], ["affected_files", summaryAffectedFile],
+  ["related_code_paths"], ["structural_impacts", compactImpact],
   ["canonical_refs", compactRef], ["validated_paths"], ["invalid_paths"],
   ["invalid_diff_records"], ["affected_paths"]]);
 

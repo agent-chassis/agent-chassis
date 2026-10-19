@@ -91,9 +91,11 @@ export async function resolveWkForgeHandoffBoundaryAuthorization({
   let decision;
   try {
     decision = await policy.authorize(request);
-  } catch {
+  } catch (error) {
     return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.CCE_POLICY, {
-      reason: "cce_policy_decision_unavailable"
+      reason: "cce_policy_decision_unavailable", failed_operation: "authorize_publication",
+      subject: binding.canonical_wk_id, effects: { publication: "not_attempted" },
+      evidence: captureDiagnosticEvidence(error)
     });
   }
   if (decision === null || decision === undefined) {

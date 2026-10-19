@@ -60,6 +60,31 @@ function repoWithConfig(t, text) {
 const KEY_FILE = "/etc/wk2689/service-account.json";
 const KEY_TABLE = `[vertexai]\ncredentials_file = "${KEY_FILE}"\n`;
 
+test("Argon operator config preserves each role's model, effort and Vertex route", (t) => {
+  const source = readFileSync(new URL("../../agent-launch.argon.vertex.toml", import.meta.url), "utf8");
+  const snapshot = parseAgentLaunchRoleConfigSource(source);
+  const dir = repoWithConfig(t, source);
+  for (const [role, model, effort, upstream] of [
+    ["orchestrator", "vertex-gemini-4-argon", "high", "gemini-4-argon"],
+    ["reviewer", "vertex-gemini-4-argon", "medium", "gemini-4-argon"],
+    ["redteam", "vertex-gemini-4-argon", "medium", "gemini-4-argon"],
+    ["worker", "vertex-gemini-3.8-flash", "medium", "gemini-3.8-flash"]
+  ]) {
+    const result = resolveRoleModelSelection({ role, model: snapshot.roles[role], snapshot });
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.value.model, model);
+    assert.equal(result.value.effort, effort);
+    assert.equal(result.value.effort_source, "role_config");
+    assert.equal(result.value.route.upstream_model, `vertex_ai/${upstream}`);
+    assert.equal(result.value.route.gateway.vertex_location, "global");
+    const launch = resolveLauncherProfile({ role, env: {}, dir });
+    assert.equal(launch.ok, true, JSON.stringify(launch));
+    assert.equal(launch.value.model, model);
+    assert.equal(launch.value.effort, effort);
+    assert.deepEqual(launch.value.model_selection.route, result.value.route);
+  }
+});
+
 const ROUTED_CONFIG = [
   KEY_TABLE,
   `[models."${ROUTED_MODEL}"]`,
@@ -318,7 +343,8 @@ test("only a declared Vertex mapping can be routed, and the gateway serves exact
   assert.deepEqual(liteLlmGatewayRoutes(), [
     { model: "vertex-claude-opus-5-5", upstream: "vertex_ai/claude-opus-5-5" },
     { model: "vertex-claude-sonnet-5-5", upstream: "vertex_ai/claude-sonnet-5-5" },
-    { model: "vertex-gemini-3.8-flash", upstream: "vertex_ai/gemini-3.8-flash" }
+    { model: "vertex-gemini-3.8-flash", upstream: "vertex_ai/gemini-3.8-flash" },
+    { model: "vertex-gemini-4-argon", upstream: "vertex_ai/gemini-4-argon" }
   ]);
   const undeclared = resolveRoleModelSelection({ role: "worker", model: ROUTED_MODEL, snapshot });
   assert.equal(undeclared.ok, false);
@@ -363,4 +389,13 @@ test("a LiteLLM route requires an absolute declared service-account key", () => 
   const ordinaryOnly = resolveRoleModelSelection({ role: "worker", model: ORDINARY_MODEL,
     snapshot: parseAgentLaunchRoleConfigSource(`[models."${ROUTED_MODEL}"]\nuse_litellm = false\n`) });
   assert.equal(ordinaryOnly.ok, true);
+});
+
+test("gateway instruction capability is declared only for Gemini routes", () => {
+  for (const route of liteLlmGatewayRoutes()) {
+    const config = renderLiteLlmGatewayConfig({ routes: [route], vertexProject: "fixture-project", vertexLocation: "global" });
+    assert.equal(config.includes("supports_system_messages: true"), route.upstream.startsWith("vertex_ai/gemini-"), route.model);
+    assert.ok(config.includes(`model: ${JSON.stringify(route.upstream)}`));
+    assert.doesNotMatch(config, /role-guide|Role reminder|Managed implementation worker/);
+  }
 });

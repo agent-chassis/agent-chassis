@@ -1,4 +1,4 @@
-
+import { STEP_NATIVE_USAGE_ADAPTERS } from "./native-usage-step-adapters.mjs";
 
 const MAX_REQUEST_OBSERVATIONS = 4096;
 
@@ -123,6 +123,7 @@ function claudeOutputArgs(args) {
 }
 
 export const NATIVE_USAGE_ADAPTERS = Object.freeze({
+  ...STEP_NATIVE_USAGE_ADAPTERS,
   claude: Object.freeze({ family: "claude", source: CLAUDE_SOURCE, outputArgs: claudeOutputArgs,
     finalTextFromStream: true, createExtractor: createClaudeExtractor })
 });

@@ -13,9 +13,9 @@ export const RECORD_AUTHORING_EXCEPTION_CODES = Object.freeze({
 });
 
 export const RECORD_AUTHORING_EXCEPTION_CONSEQUENCES = Object.freeze({
-  proof: "Proof explicitly declined: no supported proof is appropriate for this verification. Tests may still be " +
+  proof: "Proof declined by the author. Tests may still be " +
     "written and run. Their results do not automatically establish this verification or grant controlled proof credit.",
-  grammar: "This meaning cannot be faithfully encoded in the supported grammar. It remains in residue: NOT ENFORCED by the system.",
+  grammar: "Author-declared grammar exception recorded. This meaning remains unresolved and unenforced; the specification remains incomplete.",
   controlled_acceptance: "Controlled acceptance exempted by the author. The stated rationale has not been assessed for eligibility."
 });
 
@@ -61,8 +61,8 @@ const MEANINGS = Object.freeze({
     withdraw: "Removes the choice and its reason. The unresolved text stays saved and still keeps the specification incomplete."
   }),
   controlled_acceptance: Object.freeze({
-    applies_when: "The whole unit has no implementation obligation controlled acceptance applies to.",
-    keeps: "Saved requirements, obligations and proofs are not deleted. The rationale is the author's own and establishes no eligibility.",
+    applies_when: "The author deliberately chooses whether controlled acceptance applies to this unit; an opt-out states a nonempty rationale whose merits are not assessed.",
+    keeps: "Saved requirements, obligations and proofs are not deleted. The author's rationale is unassessed; this choice grants zero proof credit and waives no native tests, review or repository policy.",
     refused_when: "The subject is not the work item of the selected unit.",
     withdraw: "Restores required controlled acceptance. No requirement, obligation or proof is authored for the caller."
   })
@@ -70,8 +70,12 @@ const MEANINGS = Object.freeze({
 
 const closed = (properties, required) => Object.freeze({ type: "object", additionalProperties: false, required,
   properties: Object.freeze(properties) });
+const sourcePassages = Object.freeze({ type: "array", minItems: 1, maxItems: 64,
+  description: "Caller-authored exact passages accounted for by this exception; choose user_requirement_occurrence where repeated. Omission saves an accounting draft with zero inferred passage coverage.",
+  items: closed({ user_requirement: { type: "string", minLength: 1 },
+    user_requirement_occurrence: { type: "integer", minimum: 1 } }, ["user_requirement"]) });
 const variant = (kind, action) => closed({ kind: Object.freeze({ const: kind }), action: Object.freeze({ const: action }),
-  subject: SUBJECTS[kind].schema, ...(action === "apply" ? { rationale } : {}) },
+  subject: SUBJECTS[kind].schema, ...(action === "apply" ? { rationale, ...(kind === "proof" ? {} : { source_passages: sourcePassages }) } : {}) },
 ["kind", "action", "subject", ...(action === "apply" ? ["rationale"] : [])]);
 
 export const RECORD_AUTHORING_EXCEPTION_SCHEMA = Object.freeze({
@@ -107,7 +111,7 @@ function validator() {
     const Ajv = loaded.default ?? loaded;
     const ajv = new Ajv({ strict: false, allErrors: true });
     compiled = Object.freeze({ shape: ajv.compile(closed({ kind: { enum: [...RECORD_AUTHORING_EXCEPTION_KINDS] },
-      action: { enum: [...RECORD_AUTHORING_EXCEPTION_ACTIONS] }, subject: {}, rationale: {} }, ["kind", "action", "subject"])),
+      action: { enum: [...RECORD_AUTHORING_EXCEPTION_ACTIONS] }, subject: {}, rationale: {}, source_passages: {} }, ["kind", "action", "subject"])),
     variants: new Map(RECORD_AUTHORING_EXCEPTION_KINDS.flatMap((kind) => RECORD_AUTHORING_EXCEPTION_ACTIONS.map((action) =>
       [`${kind}\u0000${action}`, ajv.compile(variant(kind, action))]))) });
   }

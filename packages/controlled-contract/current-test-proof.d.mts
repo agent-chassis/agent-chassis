@@ -100,8 +100,9 @@ export function buildStableTestProofBindingTemplate(input: {
   strategy?: 'dependency_failure' | 'forced_invocation' | 'result_inversion';
   selectorKind?: string;
   /**
-   * Whether this installation runs a falsifier provider for the proof.
-   * `registry_unsupported` declares that it does not: the template then carries
+   * Whether this case declares a falsifier. Falsification is optional.
+   * `registry_unsupported` declares no falsifier for this case, without separate
+   * permission, installation-wide provider absence or a failed attempt. The template carries
    * no falsifier and names its family through `selectorKind`, which is required
    * because no strategy exists to select one.
    */

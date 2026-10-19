@@ -15,6 +15,7 @@ import { bindTestProofExecutionTimings, notStartedTestProofTiming, testProofExec
 import { VERIFY_PROOF_TOOL_NAME, projectProofAuthoringRecoveryCall, projectObservedEvidence,
   projectVerifyProofFailure, verifyProofFailureContinuationFacts } from "./verify-proof-public-result.mjs";
 import { executeVerifyProofRegressions } from "./verify-proof-regressions.mjs";
+import { withVerifyProofExecutionEffects, withVerifyProofPrerequisiteEffects } from "./verify-proof-execution-effects.mjs";
 
 const VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION = "workspace-verify-proof-aggregate.v1";
 const DIGEST_RE = /^sha256:[a-f0-9]{64}$/u;
@@ -436,22 +437,25 @@ export async function executeVerifyProofForContext({
   signal = null,
   regressionHost = null
 } = {}) {
+  const effectState = { entered: false };
+  return withVerifyProofPrerequisiteEffects(effectState, async () => {
   const resolveOperation = deps.resolveVerifyProofOperation ?? resolveVerifyProofOperation;
   if (typeof runtime?.assertCurrentIdentity !== "function") throw new VerifyProofOperationError(
     "verify_proof.currentness_check_unavailable.v1", "Execution requires an invocation-bound currentness check");
   const timeout = parseExecutionTimeout(args?.timeout, verifyProofTimeoutRefusal);
-
-  const budget = mintTestProofExecutionBudget({ timeoutMs: timeout.milliseconds, signal });
-  try {
-    return await executeBudgetedVerifyProof({ args, resolutionContext, runtime, deps, resolveOperation,
-      timeout, budget, regressionHost });
-  } finally {
-    budget.dispose();
-  }
+  return executeBudgetedVerifyProof({ args, resolutionContext, runtime, deps, resolveOperation,
+    timeout, signal, regressionHost, effectState });
+  });
 }
 
 async function executeBudgetedVerifyProof({ args, resolutionContext, runtime, deps, resolveOperation, timeout,
-  budget, regressionHost }) {
+  signal, regressionHost, effectState }) {
+
+  const withExecutionBudget = async execute => {
+    const budget = mintTestProofExecutionBudget({ timeoutMs: timeout.milliseconds, signal });
+    try { return await execute(budget); }
+    finally { budget.dispose(); }
+  };
 
   if (declaredRegressions(resolutionContext?.executionSourceBinding) !== null && regressionHost === null) {
     throw new VerifyProofOperationError("verify_proof.regression_host_unavailable.v1",
@@ -464,16 +468,21 @@ async function executeBudgetedVerifyProof({ args, resolutionContext, runtime, de
   const requestedEnvironment = args?.environment ?? null;
 
   const binding = resolutionContext?.executionSourceBinding ?? null;
-  const runRegressions = () => executeVerifyProofRegressions({
-    declared: declaredRegressions(binding), runtime, budget, environment: requestedEnvironment,
+  const runRegressions = budget => {
+    const declared = declaredRegressions(binding);
+    if (declared !== null) effectState.entered = true;
+    return executeVerifyProofRegressions({
+    declared, runtime, budget, environment: requestedEnvironment,
     source: { kind: "verify_proof_candidate", role: runtime.role,
       commit: /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(binding?.candidate ?? "") ? binding.candidate : null,
       snapshotDigest: binding?.source_snapshot_digest ?? null },
     host: regressionHost,
     interruptions: EXECUTION_INTERRUPTIONS, deps });
+  };
   if (!eligible.length) {
     await runtime.assertCurrentIdentity();
-    return preflightFailureResult(resolution, runtime, requestedEnvironment, await runRegressions());
+    return withExecutionBudget(async budget =>
+      preflightFailureResult(resolution, runtime, requestedEnvironment, await runRegressions(budget)));
   }
   if (requestedEnvironment !== null) {
 
@@ -521,8 +530,9 @@ async function executeBudgetedVerifyProof({ args, resolutionContext, runtime, de
     );
   }
   assertCompleteRuntimeSelection(completeSelection, verificationIds, resolution);
-  return executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
-    completeSelection, budget, timeout, requestedEnvironment, runRegressions });
+  effectState.entered = true;
+  return withExecutionBudget(budget => executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
+    completeSelection, budget, timeout, requestedEnvironment, runRegressions: () => runRegressions(budget) }));
 }
 
 async function executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
@@ -555,6 +565,9 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
 
   const executionIndex = new Map();
   const executionTiming = new Map();
+  const startedExecution = new Set();
+  return withVerifyProofExecutionEffects({ resolution, evidenceByExecution, localUnavailable,
+    interrupted, startedExecution }, async () => {
   for (const proof of eligible) {
     if (attempted.has(proof.execution_key)) continue;
     attempted.add(proof.execution_key);
@@ -567,6 +580,7 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
     await runtime.assertCurrentIdentity();
     const target = proof.declared_target.target;
     try {
+      startedExecution.add(proof.execution_key);
       const executed = await (deps.executeLauncherVerifyProofReceiptPopulation ??
         executeLauncherVerifyProofReceiptPopulation)({
       roleContext: { role: runtime.role, managed: runtime.role !== "orchestrator",
@@ -663,9 +677,25 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
     const local = localUnavailable.get(proof.execution_key);
     if (local !== undefined) {
       const selected = selectedIdentity();
+      const recovery = local.projected.recovery;
+      const binding = resolution.execution_source_binding;
+      const correctionUnit = binding?.selected_unit == null ? binding?.wk_id
+        : `${binding.wk_id}#${binding.selected_unit}`;
+
+      const authoring = recovery?.condition === "not_collected" && correctionUnit !== undefined
+        ? { ...recovery,
+          recovery_call: { tool: "workspace_read_wiki", arguments: { subject: correctionUnit } },
+          authoring_source: { unit: correctionUnit, focus: binding.focus ?? null },
+          correction: { obligation_ids: [...new Set(proof.relationships.map(row => row.obligation_id))],
+            field: "case.target",
+            verify_after_correction: { tool: VERIFY_PROOF_TOOL_NAME, arguments: {
+              subject: proof.test_proof_id, source: { unit: correctionUnit,
+                ...(binding.focus == null ? {} : { focus: binding.focus }) } } },
+            meaning: "This literal identity was not in the collected population; that alone does not establish its absence from source. Confirm the intended identity before choosing a collected case_target or authoring the named test. Preserve requirement, obligation, observation and falsification meaning." } }
+        : recovery;
       return { ...buildUnavailableProofResult({ resolution, runtime, proof,
         blockers: local.projected.diagnostics ?? [], reasonCode: local.projected.reason_code,
-        readinessStatus: "ready", recovery: local.projected.recovery,
+        readinessStatus: "ready", recovery: authoring,
         executionStatus: local.executionStatus }), selected_test: selected,
 
       ...(local.selectedObservation?.test_id !== selected.test_id ? {} : {
@@ -700,6 +730,8 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
         obligation_id: relationship.obligation_id,
         status: result.status,
         reason_code: result.reason_code,
+        execution_evaluation: result.execution_evaluation,
+        requirement_satisfaction: result.requirement_satisfaction,
         relation_ids: [...relationship.relation_ids],
         diagnostics: result.diagnostics,
         schema_version: result.schema_version,
@@ -744,6 +776,7 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
     diagnostics: aggregateDiagnostics, requestedEnvironment,
     executionTimings: [...executionIndex.keys()].map((key) => executionTiming.get(key) ?? null),
     regressions: await runRegressions() });
+  });
 }
 
 export { aggregateResult, VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION };

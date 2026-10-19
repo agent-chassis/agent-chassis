@@ -301,7 +301,7 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
   const redactions = [];
   const recoveryFacts = {};
   for (const key of ["outer_wrapper_code", "deepest_stable_cause_code", "declared_target", "verification_id", "test_proof_id",
-    "expected_test_id", "observed_count", "returned_count", "omitted_count",
+    "expected_test_id", "selected_node_id", "selection_status", "observed_count", "returned_count", "omitted_count",
     "observed_identity_candidates", "file_wrapper_status", "file_wrapper_error_codes",
     "observed_failures", "observed_failure_count", "ran", "exit_code", "signal",
     "filesystem_error_code", "spawn_error_code", "structured_observation_code", "failure_diagnostic",
@@ -313,7 +313,7 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     "omitted_diagnostic_count", "match_count", "choice_count", "field",
     "unsupported_keys", "accepted_form", "source_unit", "authorized_unit", "requested_environment", "incompatible",
     "branch", "branch_selector", "conflicting_fields",
-    "valid_choices", "prepared_environments"]) {
+    "entry_kind", "path", "valid_choices", "prepared_environments"]) {
     if (detail[key] !== undefined) recoveryFacts[key] = structuredClone(detail[key]);
   }
 

@@ -5,6 +5,108 @@ execution outcomes, capability limitations, the public outcome vocabulary and
 verification timing. Failure diagnostics and retained evidence are in
 [Test-proof diagnostics](test-proof-diagnostics.md).
 
+## Execution outcome and retained reads
+
+The agent-facing `verify_proof` answer uses `verify-proof-execution-outcome.v1`.
+It reports the requested subject, tested commit/branch when applicable, authored
+unit/focus, proof and relationship outcome counts, and aggregate execution and
+per-proof selected-observation counts. These are not counts of distinct native
+executions. The same projection serves delegated `get_run_result`
+reads. Relevance is decided before fitting the answer to transport limits.
+Uniform successful execution carries no per-proof, relationship, traversal or
+successful-check inventory. Material limitations are grouped by reason with
+the number of affected proofs; the behavioral coverage limit explicitly states
+that passing execution alone earns no requirement-satisfaction credit.
+It omits invocation/phase timing, generation and content digests, successful
+authentication checks, receipt identities and duplicate selected-detail frames.
+An understood execution outcome can finish without another call. In particular,
+a selected pass with `behavioral_coverage_not_established` states its lack of
+requirement credit without recommending an unchanged retry or a routine reread.
+
+Mixed outcomes name the affected proofs, necessary obligation associations,
+deciding causes and exact diagnosis or correction choices. Routine successful
+members remain in aggregate counts. An optional returned `proof_population`
+call selects the complete saved population; `proof_detail` selects one saved
+proof's complete permitted diagnosis. Neither is a new execution. Explicit
+population reads include every proof and association, with complete selected
+diagnosis and material check observations, even when ordinary inline delivery
+cannot hold them. Intentionally aggregated successes are not transport
+omissions. Transport omissions count only affected rows the default answer
+could not carry, and the population call remains available.
+
+Selected and population detail retain the selected file, test name, native node
+identity and nesting when present, the obligation associations, material checks
+and deciding diagnostic. Relationship diagnostics appear with their affected
+obligations; the assertion cause appears once. The source-preserving recovery
+also appears once. Detail omits internal test hashes, duplicate verification
+identities, timing, receipt-retention inventories and duplicate target or limitation fields.
+It does not expose server bookkeeping merely because the caller asked for detail.
+
+An individual failed selection carries its selected assertion diagnosis once
+in the proof row. A population failure offers a directly selected
+`get_run_result` call with `proof:{subject}` and the original result or recorded
+invocation binding. That read selects diagnosis immediately; it is not an
+aggregate-summary prerequisite. A retained reference remains available for a
+later requested read. Supported unevaluable or surviving falsifiers carry the
+deciding check identity, observed outcome and isolation/mutation facts rather
+than an entire receipt or process output.
+
+Counterevidence against an immutable commit does not select corrected code.
+Recovery preserves the failed execution's source, narrowed proof selection,
+environment and timeout in `previous_execution` and names the missing corrected
+branch/commit choice. It supplies no executable retry until that choice exists.
+Population-to-proof recovery explicitly keeps the original authored unit/focus.
+Source ambiguity in the initiating answer exposes every resolver-issued
+execution choice, with its original execution options, rather than a preview
+whose remaining choices cannot be discovered. Presenting a call executes
+nothing and grants no authorization.
+
+Shared failures after work began preserve `execution_effects`: confirmed
+completed candidate outcomes, interrupted or unstarted members and unknown
+execution where completion was not observed. These facts grant no proof credit.
+The deciding verification refusal survives a later failure to record it; that
+recording failure is reported separately. Neither failure triggers execution
+again. The public retained-reader projection and its selection limitations are
+owned separately; the initiating answer does not redefine that reader's schema
+or permit another role to read an executor-bound native result.
+
+## Execution validity and requirement satisfaction
+
+A selected test's execution and a linked requirement's satisfaction are
+separate facts. The current runtime test-validity evaluator judges the
+execution facts; it has no evidence connecting the test's assertions to the
+specified behavior. A pass, implementation traversal or detected dependency
+mutation does not establish that connection.
+
+The shared relationship-result producer retains the exact evaluator output in
+`execution_evaluation`, including its `satisfaction` and diagnostics, and
+retains the evaluator identity, source binding and authenticated receipt
+population in `proof_instance`. It reports `requirement_satisfaction` as
+`status: "not_established"`, `credit_granted: 0`, with reason
+`verify_proof.behavioral_coverage_not_established.v1`. This is a limitation of
+the available behavioral evidence, not an assertion failure or a claim that
+execution did not happen. Assertion evidence stands without mutation support.
+
+A positive execution evaluation therefore produces an `unsatisfied` internal
+relationship (`unproven` publicly), with that limitation reason and diagnostic.
+An execution evaluation with counterevidence keeps its original diagnostics
+and also earns no requirement credit. Incomplete or unavailable evidence keeps
+its distinct reason-coded `not_executable` result. Native selected-test
+pass/fail observations, mutation and traversal observations remain independent
+of those relationship outcomes.
+
+This rule applies at result production, before aggregation, public projection,
+summary and retention. All those views count zero proven relationships from
+execution validity alone. Selected details explain the same limitation, and
+retained reads reproduce the recorded result without executing or evaluating
+again. Historical results keep their recorded meaning and bytes; the rule
+does not relabel or silently recalculate earlier evidence.
+
+This boundary performs no general semantic-coverage analysis. Even a test that
+correctly asserts every example and passes on a corrected implementation
+establishes its observed execution, without automatically earning requirement
+satisfaction. Changing a requirement alone supplies no new behavioral evidence.
+
 ## Population and execution outcomes
 
 The complete selected population is retained in the result. Missing targets,
@@ -54,9 +156,10 @@ provider is `not_executable`.
 
 The selected-test observation is the proof observation whether or not a
 mutation can run; a mutation that runs adds falsification evidence for that
-same proof, not another proof category. The compact result presents the
-selected test's identity and `selected_status` beside `mutation_evidence`; the
-full result also labels the same outcome as `test_observation`.
+same proof, not another proof category. A default affected-work row presents
+the selected test's identity and `selected_status` with deciding mutation
+evidence. Explicit detail includes the selected mutation observations; the
+retained evidence labels the selected outcome as `test_observation`.
 `selected_status` is the observed event status (`passed`, `failed`, `skipped`
 or another reported status), and `not_observed` only when no selected-test
 event was recorded.
@@ -143,30 +246,58 @@ declares none has no such member, and its result claims no regression pass.
 - A regression is a native test outcome. It is not a proof row, is in no proof
   count, and grants no proof credit (`proof_credit_granted` is 0).
 - The overall `status` is `proven` only when the proofs are and every declared
-  file passed. A failed file makes it `unproven`; a file that is not
-  executable or not started makes it `not_executable`. A passing regression
+  file passed. For an invocation whose proofs are satisfied, a failed file
+  makes it `unproven`; a file that is not executable or not started makes it
+  `not_executable`. Regressions do not change an already unsupported proof
+  outcome; their native row statuses remain separate facts. A passing regression
   never improves an outcome the proofs do not support.
 - The result digest covers `regression_results`.
 
+Public command migration does not alter the native proof/regression input or
+result contract. Internal native stages retain runner/target identities;
+repository-command execution uses frozen worker selections or a nonworker
+literal harness. Both grant zero proof credit as ordinary results. Removed
+public file/runner/selector execution seeds refuse without translation, while
+unchanged current native facts remain readable.
+
 Each run that settled is retained once as a `workspace_run_test` native result,
-bound to the session that ran it. The row carries its locator
-(`native_result`) and the read of it (`native_read`). No captured output is
+bound to the session that ran it. The retained row carries its locator
+(`native_result`). A public row offers `native_read` only after the native
+owner authenticates that receiving session and its registered tool contract
+accepts the exact read. Otherwise `native_diagnosis` states the unavailable
+read and the stopping condition; another execution is not a read recovery.
+No captured output is
 copied into the verification result: stdout and stderr are read through
 `workspace_run_test`, which serves them only to the authority the native
 result was retained for. Any reader of the verification result sees the row's
 structured facts. When the native result could not be retained, the row keeps
 its facts and states `native_result_retention` instead of a locator.
 
-The summary and the selected detail carry the same compact `regressions`
-member: the complete counts, and at most eight rows, files that did not pass
-first, with `results_returned` and `results_omitted`. A row that did not
-pass also carries the diagnostic facts its retained row states
+The verifier and delegated default reads carry regression counts and every
+file that did not pass, with its recorded cause and a usable native diagnosis
+call when available to the receiving session. A coordinator's access to a proof
+invocation grants no access to a worker-bound native result. Passing-file rows
+and their native-read bookkeeping are omitted from that
+answer. A completely passing list requires no additional read. An explicit
+population read carries every declared file's outcome. A selected proof's
+diagnosis carries regression problems affecting the result's aggregate status.
+A row that did not pass carries the diagnostic facts its retained row states
 (`runner_selection`, `failure`, `source_movement`,
 `native_result_retention`), so a file that never ran names its cause and
-correction without a native result to read. A string in those facts longer
-than 512 bytes is replaced by `<name>_omitted` with its byte size; it is
-never shortened, and the retained result keeps it whole. The retained result
-keeps every row. Reading a result runs nothing.
+configuration-owner stopping boundary without a native result to read. The
+public runner diagnosis omits the server's configuration path and setup commands;
+there is no MCP call that selects that file's runner. These deciding structured
+facts are complete. Reading a result runs nothing.
+
+A failed native execution also carries `diagnosis` when its owner can distill
+an explicitly framed failure report: affected test, stated error and useful
+expected/actual or correction meaning. Passing-test output supplies no cause.
+Several independent failures stay separate. Partial or unavailable diagnosis
+states what is missing; a process failure alone establishes no assertion cause.
+Nonpassing rows retain actual execution, interruption, cleanup and capture-loss
+effects. Direct verification and delegated proof-result reads expose the same
+semantic diagnosis, even when the receiver cannot read the worker-native
+original. No native access grant or additional execution follows from that read.
 
 A native result retained for a file whose source moved while it ran states
 that in its own `source` view: not current, with the reason the row states.
@@ -185,8 +316,9 @@ beside the outcome rather than in place of it.
 
 A limitation has exactly two origins, and neither is inferred from the other.
 The saved binding may declare `falsification_provider: registry_unsupported`:
-this installation runs no falsifier provider for the proof, the binding declares
-no falsifier, and nothing invents one. Otherwise an installed provider refused
+this case explicitly declares no falsifier. Falsification is optional; no separate
+permission, installation-wide provider absence or prior mutation attempt is
+required. Acceptance remains required, and nothing invents detection evidence. Otherwise an installed provider refused
 the declared subject at execution time with one of
 `test_proof_native_instrumentation_unsupported`,
 `test_proof_native_runner_unsupported` or
@@ -220,14 +352,17 @@ traversal keeps its own launcher-authenticated attestation and carries no
 limitation. Evidence carries the whole population in `capability_limitations`,
 each member naming its check and reason; a falsification the binding never
 declared names no check identity. The semantic facts carry per-check
-availability, and the public summary reports the distinct reason codes beside
-the selected test's `selected_status`.
+availability. The default summary groups material limitations by their cause
+and counts affected proofs; explicit detail names each selected check beside
+the test's actual outcome.
 
 A limitation records an absent observation and never supplies the credit of the
-check it replaces. For mutation it also withholds nothing: a proof whose
-selected test passed, whose mutation was unavailable, and whose other required
-checks hold is `proven`, and its row reports mutation evidence as `unavailable`
-with the limitation codes. Mutation unavailability alone supplies no retry,
+check it replaces. For mutation it also withholds nothing from assertion
+evidence: when the selected test passed, mutation was unavailable and the other
+required checks hold, `execution_evaluation.satisfaction` is `satisfied` and
+the row reports mutation evidence as `unavailable` with the limitation codes.
+The requirement relationship remains `unproven` because behavioral coverage
+has not been established. Mutation unavailability alone supplies no retry,
 waiver, installation or repair instruction, and it never excuses an actual
 survivor: every available member is assessed individually, and one survivor
 makes the proof `unproven`. A failed selected test is `unproven` for its
@@ -276,19 +411,33 @@ authentication or cross-binding failure, authority failure, and unknown or
 unprojectable causes are shared failures: they stop the invocation and preserve
 their owning error.
 
+For Node module traversal, the existing boundary observation preserves
+`observed` and `target_pass_observed` independently. The public summary and
+selected detail state “implementation reached; selected test failed” when reach
+was observed and the selected test failed, and “required reach not observed”
+when the required callable reach was absent. Both remain unproven and earn zero
+credit. Original-result and recorded-invocation reads reproduce these facts
+without executing again. Zero-count native module rows remain evidence of an
+unreached callable, even when no source lines were covered.
+
 ## Public outcomes and recovery
 
 The public aggregate, each proof row and each obligation relationship use
 `proven`, `unproven`, or reason-coded `not_executable`: any unproven row wins,
 then any not-executable row, and only a nonempty entirely proven population is
 proven. The exact evaluator's internal result keeps its `satisfied` /
-`unsatisfied` vocabulary; the public projection converts freshly produced
-results once, before summary, retention and delivery, and `counts` reports
-`proven` and `unproven`. These outcomes describe the requested proofs against
-the tested source only. Results are advisory and grant no lifecycle,
+`unsatisfied` vocabulary in `execution_evaluation`. The relationship producer
+withholds unsupported requirement satisfaction before the public projection
+converts freshly produced relationship statuses once, before summary, retention
+and delivery; `counts` reports `proven` and `unproven`. These outcomes describe
+the requested proofs against the tested source only. Results are advisory and grant no lifecycle,
 dispatch, admission, integration, completion, or CCE authority.
 
-Recovery names only what the evaluation diagnosed. An unproven proof carries its
+Recovery names only what the result producer diagnosed. Behavioral coverage
+that is not established reports `behavioral_coverage_not_established`, zero
+requirement credit and the preserved actual execution outcome, without a retry
+or instruction to change working implementation or weaken a requirement.
+An unproven proof with execution counterevidence carries its
 evaluator diagnostic codes, subject, effect, responsible actor and the
 verification of a corrected source; a relationship whose evidence could not be
 evaluated names its reasons and the complete evidence with no retry of unchanged
@@ -300,6 +449,11 @@ evaluator identities and diagnostics, and are never relabelled, re-evaluated or
 recommended for rerun merely because a later definition exists.
 
 ## Verification timing
+
+The proof-execution budget starts after population and runtime-binding
+resolution. Resolution does not consume that budget; request cancellation
+during resolution still prevents execution. The budget is not a deadline for
+the entire tool call. Diagnostic elapsed time below is a separate measurement.
 
 `verify_proof` reports coarse, monotonic timing for each execution
 and for the invocation. It is diagnostic evidence beside the authenticated

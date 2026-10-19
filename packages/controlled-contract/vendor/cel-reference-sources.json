@@ -44,6 +44,50 @@
       "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
       "bytes": 11358,
       "license": "Apache-2.0"
+    },
+    "value_format": {
+      "repository": "https://github.com/cel-expr/cel-spec",
+      "version": "v0.25.2",
+      "commit": "cb51b4176013ad19bd00df94be273c322916a620",
+      "original_path": "proto/cel/expr/value.proto",
+      "bundle_path": "cel-spec/value.proto",
+      "url": "https://github.com/cel-expr/cel-spec/blob/cb51b4176013ad19bd00df94be273c322916a620/proto/cel/expr/value.proto",
+      "sha256": "95243d9443408822a52e88dea7f336a5983e4c7f9494b015b3becc01a92964da",
+      "bytes": 2738,
+      "license": "Apache-2.0"
+    },
+    "type_format": {
+      "repository": "https://github.com/cel-expr/cel-spec",
+      "version": "v0.25.2",
+      "commit": "cb51b4176013ad19bd00df94be273c322916a620",
+      "original_path": "proto/cel/expr/checked.proto",
+      "bundle_path": "cel-spec/checked.proto",
+      "url": "https://github.com/cel-expr/cel-spec/blob/cb51b4176013ad19bd00df94be273c322916a620/proto/cel/expr/checked.proto",
+      "sha256": "0535295befeee9593353688751f9fcbf70480a034ab3d8f4f0b82e1af38b7b05",
+      "bytes": 13865,
+      "license": "Apache-2.0"
+    },
+    "kubernetes": {
+      "repository": "https://github.com/kubernetes/kubernetes",
+      "version": "v1.34.0 / apiserver v0.34.0",
+      "commit": "v1.34.0",
+      "license": "Apache-2.0",
+      "original_path": "staging/src/k8s.io/apiserver/pkg/cel/library/lists.go",
+      "bundle_path": "kubernetes-cel/lists.go",
+      "url": "https://github.com/kubernetes/kubernetes/blob/v1.34.0/staging/src/k8s.io/apiserver/pkg/cel/library/lists.go",
+      "sha256": "be8b6d25eb1f2c7718f21227f6a63ba11355d9b308fd04481dfa53783853d172",
+      "bytes": 9597
+    },
+    "kubernetes_license": {
+      "repository": "https://github.com/kubernetes/kubernetes",
+      "version": "v1.34.0 / apiserver v0.34.0",
+      "commit": "v1.34.0",
+      "license": "Apache-2.0",
+      "original_path": "LICENSE",
+      "bundle_path": "kubernetes-cel/LICENSE",
+      "url": "https://github.com/kubernetes/kubernetes/blob/v1.34.0/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358
     }
   },
   "definitions": {
@@ -842,6 +886,568 @@
         "anchor": "evaluation"
       },
       "signatures": [],
+      "prerequisites": []
+    },
+    "cel.add": {
+      "identifier": "_+_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 61960,
+        "end_byte": 62904,
+        "start_line": 1423,
+        "end_line": 1455,
+        "sha256": "c7e1e650519e8d2ad7e5955bb143dd603af7eca7dce427e97d1a121e0b666ec0",
+        "anchor": "arithmetic-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "int",
+          "notation": "int + int -> int"
+        },
+        {
+          "arguments": [
+            "double",
+            "double"
+          ],
+          "result": "double",
+          "notation": "double + double -> double"
+        },
+        {
+          "arguments": [
+            "string",
+            "string"
+          ],
+          "result": "string",
+          "notation": "string + string -> string"
+        },
+        {
+          "arguments": [
+            "list(A)",
+            "list(A)"
+          ],
+          "result": "list(A)",
+          "notation": "list(A) + list(A) -> list(A)"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Duration",
+            "google.protobuf.Duration"
+          ],
+          "result": "google.protobuf.Duration",
+          "notation": "google.protobuf.Duration + google.protobuf.Duration -> google.protobuf.Duration"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel.subtract": {
+      "identifier": "_-_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 62904,
+        "end_byte": 63672,
+        "start_line": 1456,
+        "end_line": 1482,
+        "sha256": "3f6bd2f22f0adbff4c67cac3de1ee0f45e1315583223802dc4909fec41fa1f46",
+        "anchor": "arithmetic-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "int",
+          "notation": "int - int -> int"
+        },
+        {
+          "arguments": [
+            "double",
+            "double"
+          ],
+          "result": "double",
+          "notation": "double - double -> double"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Duration",
+            "google.protobuf.Duration"
+          ],
+          "result": "google.protobuf.Duration",
+          "notation": "google.protobuf.Duration - google.protobuf.Duration -> google.protobuf.Duration"
+        },
+        {
+          "arguments": [
+            "google.protobuf.Timestamp",
+            "google.protobuf.Timestamp"
+          ],
+          "result": "google.protobuf.Duration"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel.multiply": {
+      "identifier": "_*_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 64058,
+        "end_byte": 64393,
+        "start_line": 1512,
+        "end_line": 1529,
+        "sha256": "d48981862b364a78dcbaa8edfa99b83509b556db3faf48fc2dc149069071a1a4",
+        "anchor": "arithmetic-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "int",
+          "notation": "int * int -> int"
+        },
+        {
+          "arguments": [
+            "double",
+            "double"
+          ],
+          "result": "double",
+          "notation": "double * double -> double"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel.divide": {
+      "identifier": "_/_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 63672,
+        "end_byte": 63873,
+        "start_line": 1483,
+        "end_line": 1497,
+        "sha256": "83908c23999e6c350a5cf903d00d8da4a1a0e937cede099004573c85d65024bd",
+        "anchor": "arithmetic-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "int",
+          "notation": "int / int -> int"
+        },
+        {
+          "arguments": [
+            "double",
+            "double"
+          ],
+          "result": "double",
+          "notation": "double / double -> double"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel.remainder": {
+      "identifier": "_%_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 63873,
+        "end_byte": 64058,
+        "start_line": 1498,
+        "end_line": 1511,
+        "sha256": "c3d15087c6bb40219f86dba964bc3e8a6fd805390f665e939e004ccd7e40cb7c",
+        "anchor": "arithmetic-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "int",
+          "notation": "int % int -> int"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel.negate": {
+      "identifier": "-_",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 61773,
+        "end_byte": 61960,
+        "start_line": 1407,
+        "end_line": 1422,
+        "sha256": "5fec81d2402ca01282f1d07d7f9f8d407024bd8e5b07803bda09ec914963410c",
+        "anchor": "arithmetic-operators"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "int"
+          ],
+          "result": "int"
+        },
+        {
+          "arguments": [
+            "double"
+          ],
+          "result": "double"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel.type": {
+      "identifier": "type",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 80476,
+        "end_byte": 80670,
+        "start_line": 2186,
+        "end_line": 2198,
+        "sha256": "4ca12a821e16e95c9826b95ac92f1148f70764dfaf940ae79f7a542a7e4c0f97",
+        "anchor": "types-and-conversions"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "A"
+          ],
+          "result": "type"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel.has": {
+      "identifier": "has",
+      "kind": "macro",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 56381,
+        "end_byte": 57074,
+        "start_line": 1209,
+        "end_line": 1231,
+        "sha256": "8bb2e72aecc76c829bdd901c5a9e683d0cecfd180ddce25f6d61d1b5032544f2",
+        "anchor": "presence-and-comprehension-macros"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "field selection"
+          ],
+          "result": "bool"
+        }
+      ],
+      "prerequisites": []
+    },
+    "cel_java.bindings.bind": {
+      "identifier": "cel.bind",
+      "kind": "macro",
+      "attribution": "cel_java_extension",
+      "source": "extensions",
+      "section": {
+        "start_byte": 454,
+        "end_byte": 1167,
+        "start_line": 13,
+        "end_line": 35,
+        "sha256": "65ec6c0c98429b74da74dcd148205bbd9462cd9db5d4f30b21c6d977f8f99d49",
+        "anchor": "bindings"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "identifier(A)",
+            "A",
+            "B"
+          ],
+          "result": "B"
+        }
+      ],
+      "prerequisites": [],
+      "extension": {
+        "library": "bindings"
+      }
+    },
+    "cel_java.math.isFinite": {
+      "identifier": "math.isFinite",
+      "kind": "operation",
+      "attribution": "cel_java_extension",
+      "source": "extensions",
+      "section": {
+        "start_byte": 8777,
+        "end_byte": 9079,
+        "start_line": 323,
+        "end_line": 336,
+        "sha256": "542b0114d07d0571bf202e993107b69d8914d502abf6a46d4cec1ce859093793",
+        "anchor": "isfinite"
+      },
+      "signatures": [
+        {
+          "arguments": [
+            "double"
+          ],
+          "result": "bool"
+        }
+      ],
+      "prerequisites": [],
+      "extension": {
+        "library": "math"
+      }
+    },
+    "cel_java.strings.substring": {
+      "identifier": "substring",
+      "kind": "operation",
+      "attribution": "cel_java_extension",
+      "source": "extensions",
+      "section": {
+        "start_byte": 15835,
+        "end_byte": 16551,
+        "start_line": 546,
+        "end_line": 564,
+        "sha256": "f1eb1f7f419ffe65a58e1a5d081b463d69f2b1680600db6df2f9dd0a62853f4b",
+        "anchor": "substring"
+      },
+      "signatures": [
+        {
+          "receiver": "string",
+          "arguments": [
+            "int",
+            "int"
+          ],
+          "result": "string"
+        }
+      ],
+      "prerequisites": [],
+      "extension": {
+        "library": "strings"
+      }
+    },
+    "cel_java.comprehensions.all": {
+      "identifier": "all",
+      "kind": "macro",
+      "attribution": "cel_java_extension",
+      "source": "extensions",
+      "section": {
+        "start_byte": 27101,
+        "end_byte": 27751,
+        "start_line": 954,
+        "end_line": 971,
+        "sha256": "a9906ce410f0892c819d10cdd1314cc534e98af3311e6b5035ea719e12a037d7",
+        "anchor": "all"
+      },
+      "signatures": [
+        {
+          "receiver": "list(A) | map(K,A)",
+          "arguments": [
+            "index/key",
+            "value",
+            "bool"
+          ],
+          "result": "bool"
+        }
+      ],
+      "prerequisites": [],
+      "extension": {
+        "library": "comprehensions"
+      }
+    },
+    "cel_java.comprehensions.exists_in": {
+      "identifier": "exists",
+      "kind": "macro",
+      "attribution": "cel_java_extension",
+      "source": "extensions",
+      "section": {
+        "start_byte": 27751,
+        "end_byte": 28323,
+        "start_line": 972,
+        "end_line": 986,
+        "sha256": "00209c9e738310a2102acd510ccc10a5c6f29525340e1701672302a8f7d3f26b",
+        "anchor": "exists"
+      },
+      "signatures": [
+        {
+          "receiver": "list(A) | map(K,A)",
+          "arguments": [
+            "index/key",
+            "value",
+            "bool"
+          ],
+          "result": "bool"
+        }
+      ],
+      "prerequisites": [],
+      "extension": {
+        "library": "comprehensions"
+      }
+    },
+    "cel_java.comprehensions.map_over": {
+      "identifier": "transformList",
+      "kind": "macro",
+      "attribution": "cel_java_extension",
+      "source": "extensions",
+      "section": {
+        "start_byte": 28914,
+        "end_byte": 29947,
+        "start_line": 1002,
+        "end_line": 1024,
+        "sha256": "07403d23d2ce0a311ab5d087954cfb4bca79082dacb9c1ae3f48dc9860483f73",
+        "anchor": "transformlist"
+      },
+      "signatures": [
+        {
+          "receiver": "list(A) | map(K,A)",
+          "arguments": [
+            "index/key",
+            "value",
+            "A"
+          ],
+          "result": "list(A)"
+        }
+      ],
+      "prerequisites": [],
+      "extension": {
+        "library": "comprehensions"
+      }
+    },
+    "cel_java.comprehensions.filter_over": {
+      "identifier": "transformList",
+      "kind": "macro",
+      "attribution": "cel_java_extension",
+      "source": "extensions",
+      "section": {
+        "start_byte": 28914,
+        "end_byte": 29947,
+        "start_line": 1002,
+        "end_line": 1024,
+        "sha256": "07403d23d2ce0a311ab5d087954cfb4bca79082dacb9c1ae3f48dc9860483f73",
+        "anchor": "transformlist"
+      },
+      "signatures": [
+        {
+          "receiver": "list(A) | map(K,A)",
+          "arguments": [
+            "index/key",
+            "value",
+            "bool",
+            "A"
+          ],
+          "result": "list(A)"
+        }
+      ],
+      "prerequisites": [],
+      "extension": {
+        "library": "comprehensions"
+      }
+    },
+    "kubernetes.lists.sum": {
+      "identifier": "sum",
+      "kind": "operation",
+      "attribution": "kubernetes_extension",
+      "source": "kubernetes",
+      "section": {
+        "start_byte": 6716,
+        "end_byte": 7593,
+        "start_line": 213,
+        "end_line": 247,
+        "sha256": "a281b4dd7b0e6bf1f61c41d9ba7b5b789de335f69a0e106ce6d048d13c78d29d",
+        "anchor": "sum"
+      },
+      "signatures": [
+        {
+          "receiver": "list(int)",
+          "arguments": [],
+          "result": "int",
+          "overload_id": "list_int_sum_int"
+        },
+        {
+          "receiver": "list(double)",
+          "arguments": [],
+          "result": "double",
+          "overload_id": "list_double_sum_double"
+        }
+      ],
+      "prerequisites": [],
+      "extension": {
+        "library": "kubernetes.lists",
+        "admitted_overloads": [
+          "list_int_sum_int",
+          "list_double_sum_double"
+        ]
+      }
+    },
+    "cel.value_format": {
+      "identifier": null,
+      "kind": "semantic_prerequisite",
+      "attribution": "cel_spec_data",
+      "source": "value_format",
+      "section": {
+        "start_byte": 0,
+        "end_byte": 2738,
+        "start_line": 1,
+        "end_line": 114,
+        "sha256": "95243d9443408822a52e88dea7f336a5983e4c7f9494b015b3becc01a92964da",
+        "anchor": "value_format"
+      },
+      "signatures": [],
+      "prerequisites": []
+    },
+    "cel.type_format": {
+      "identifier": null,
+      "kind": "semantic_prerequisite",
+      "attribution": "cel_spec_data",
+      "source": "type_format",
+      "section": {
+        "start_byte": 0,
+        "end_byte": 13865,
+        "start_line": 1,
+        "end_line": 392,
+        "sha256": "0535295befeee9593353688751f9fcbf70480a034ab3d8f4f0b82e1af38b7b05",
+        "anchor": "type_format"
+      },
+      "signatures": [],
+      "prerequisites": []
+    },
+    "cel.contains": {
+      "identifier": "contains",
+      "kind": "operation",
+      "attribution": "cel_language",
+      "source": "language",
+      "section": {
+        "start_byte": 70118,
+        "end_byte": 70424,
+        "start_line": 1778,
+        "end_line": 1791,
+        "sha256": "85fc57ae88046ebb0b4894f29737b6e7cc617ac86c63fde215bd7452b68055d8",
+        "anchor": "string-functions"
+      },
+      "signatures": [
+        {
+          "receiver": "string",
+          "arguments": [
+            "string"
+          ],
+          "result": "bool"
+        }
+      ],
       "prerequisites": []
     }
   }

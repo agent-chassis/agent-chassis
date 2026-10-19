@@ -62,7 +62,7 @@ lint-findings.json
 *.tar.gz
 
 internal/scratch/*
-docs/scratch/*
+docs/scratch/**
 scratch/*
 
 *.bak

@@ -4,9 +4,9 @@
 
 Two completed sequential invocations using the same input leave the elected durable effect resource observed in the same complete controlled state after the first invocation, immediately before the second invocation, and after the second invocation.
 
-Profile digest: 5829f7a995e07b827e2810623b0e593eb3d4ea3e64154ae8c9ae0d61fa179a23. Parameter digest: a1f5e5aa02e3758b7e1307595e5e5dd6f80316819b7ca909863983e3d0719b6d.
+Profile digest: 8adaa11f02d03e2707d42300ad80671b52c8e5bf7c46d87e15b9bfcadbacc38c. Parameter digest: 1c09421bbc42d133e964767842f7b3fc6aaf2ef9d8036f2900b1491155292a54.
 
-Admission digest: df51b362acc5f2082874776bbdb86c3c051f240da28cea19582af9283b3a653c.
+Admission digest: f7ef1b8bb79018ed561ac370b5f2877b982c1dda455a14a58f237eabd9821d3b.
 
 Roles: 15/15 accounted; 3 owned gaps. Semantic parameters: 11; internal roles: 4.
 

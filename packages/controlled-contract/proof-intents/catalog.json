@@ -290,7 +290,7 @@
       "capable_packs": [
         {
           "profile_id": "proof.completeness.lossless-projection",
-          "profile_version": "4.0.0"
+          "profile_version": "5.0.0"
         }
       ],
       "compatibility": {
@@ -777,7 +777,7 @@
     },
     {
       "intent_id": "controlled-proof-intent.readiness-before-success",
-      "definition": "Establish that the declared readiness condition is reached before the declared success event or result.",
+      "definition": "Establish that the declared readiness condition is reached at or before the declared success event or result.",
       "discovery_terms": [
         "readiness before success",
         "ready prior to success",
@@ -848,7 +848,7 @@
     },
     {
       "intent_id": "controlled-proof-intent.cross-representation-parity",
-      "definition": "Establish equal complete typed-member populations, counts, and one explicitly paired canonical value across two complete representations of one logical source.",
+      "definition": "Match supplied graph declarations of equal typed-descriptor populations, exact counts and one selected canonical value pair across two result surfaces, with read and complement checks. Declaration matching does not compare report data, captured bytes or implementation behavior. A separate supplied-report checker compares populations, counts and one selected pair only; neither result establishes full-report equality or behavioral preservation.",
       "discovery_terms": [
         "cross representation parity",
         "two complete representations",
@@ -859,7 +859,7 @@
       "capable_packs": [
         {
           "profile_id": "proof.result-shape.cross-representation-parity",
-          "profile_version": "4.0.0"
+          "profile_version": "5.0.0"
         }
       ],
       "compatibility": {
@@ -1378,21 +1378,20 @@
     },
     {
       "intent_id": "controlled-proof-intent.test-verification-validity",
-      "definition": "Establish for one exact selected test that authenticated evidence binds its candidate/snapshot, contract, obligation, target, binding, proof, and evaluator; the test is discovered, executed, passing, and not skipped; every declared falsifier is detected and every required traversal is proven, with no prohibited shortcut. No baseline inventory participates; sibling tests do not affect credit. Complete negative evidence is false, missing evidence/evaluator is not executable, and invalid evidence is refused.",
+      "definition": "Evaluate authenticated execution of one exact selected test: candidate, selected-test discovery/execution without skipping, supported mutation outcomes, required traversal and prohibited shortcuts. Unavailable mutation is a capability limitation; a supported observed survivor is counterevidence. Preserve authored requirement, verification and falsification meanings. Passing execution does not establish assertion-to-requirement adequacy and earns no requirement-satisfaction credit.",
       "discovery_terms": [
         "test verification validity",
         "exact selected test execution",
+        "authenticated execution evidence",
         "selected test passes without skipping",
-        "authenticated candidate contract obligation binding",
-        "complete declared falsifier detection",
-        "every required traversal proven",
-        "no prohibited test shortcut",
-        "false not executable or refused evidence"
+        "supported mutation outcomes",
+        "required traversal",
+        "assertion adequacy not established"
       ],
       "capable_packs": [
         {
           "profile_id": "proof.verification.test-validity",
-          "profile_version": "11.0.0"
+          "profile_version": "12.0.0"
         }
       ],
       "compatibility": {

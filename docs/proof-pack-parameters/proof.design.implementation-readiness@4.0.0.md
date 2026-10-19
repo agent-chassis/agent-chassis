@@ -4,9 +4,9 @@
 
 One authored design unit names independently bound repository-grounded implementation and test loci; declares a complete nonempty requirement population, an exact four-field warning shape with exact code, severity, message-template, and payload-schema values, an authored complete validation population equal to the requirement population, and a complete placeholder population with exact count zero.
 
-Profile digest: 8482fe3cd014dc89270c0384f0de6d6811b59cfe06d7dc52e7139f781f7e1423. Parameter digest: 28296179351589dd31cda94a0de41c7d02b5d05cb7bdb3b2df489db68f118eef.
+Profile digest: d5f489c4ed9ed870c20771f51af5fe8c9e7597b8d5584e52062afb867e81eff6. Parameter digest: d10f3dcbcabd2b5d96078ff5599193c3739b76f2724c6d664865923cf4ff0605.
 
-Admission digest: e3c4d3f1d1f7e6f27a0fe4f9a75520f64998872da8190a019e032e5b4083bdfd.
+Admission digest: 1039f7fed8c57417786cc7bb2757515e07f4d8cef3ada8de64651b438382bd54.
 
 Roles: 28/28 accounted; 0 owned gaps. Semantic parameters: 23; internal roles: 5.
 

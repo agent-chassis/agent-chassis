@@ -31,6 +31,7 @@ const EXACT = Object.freeze({
   obligation_coverage_explicit_gap: "unresolved_semantic_choice",
   obligation_coverage_proof_unselected: "unresolved_semantic_choice",
   controlled_acceptance_authored_inputs_incomplete: "unresolved_semantic_choice",
+  controlled_acceptance_specification_incomplete: "unresolved_semantic_choice",
   explicit_gap_retains_runtime_proof_binding: "inconsistent_owner_facts",
 
   non_runtime: "unsupported_proof_method",
@@ -170,6 +171,9 @@ function recoveryForGroup(group, subject) {
   const established = group.occurrences.map(({ row }) => row).filter((row) =>
     row.repair_authority?.status === "authenticated" &&
     typeof row.repair_authority.semantic_owner === "string" &&
+
+    (row.repair_authority.semantic_owner !== "proof_authoring" ||
+      row.semantic_identity?.stage === undefined || row.evidence?.authoring != null) &&
     typeof row.recovery_guidance?.write_tool === "string");
   const authorities = [...new Map(established.map((row) =>
     [row.repair_authority.semantic_owner, row.repair_authority])).values()];
@@ -378,6 +382,10 @@ export function semanticCauseSubject(occurrence) {
     ? Object.fromEntries(Object.entries(occurrence.evidence).filter(([, value]) =>
       isTypedEvidence(value)).map(([name, value]) => [name, structuredClone(value)]))
     : {};
+  if (occurrence.semantic_identity?.stage !== undefined &&
+      occurrence.evidence?.unresolved_decisions != null) {
+    evidence.unresolved_decisions = structuredClone(occurrence.evidence.unresolved_decisions);
+  }
   return Object.freeze({
     obligation_id: occurrence.semantic_identity?.obligation_id ?? null,
     row_id: occurrence.row_id ?? null,

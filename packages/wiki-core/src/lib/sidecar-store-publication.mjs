@@ -1,3 +1,4 @@
+import { replaceStoreDocumentDefinitions } from "./sidecar-store-definition-index.mjs";
 import { sidecarGraphEdgeId, sidecarGraphNodeId } from "./sidecar-graph-contributions.mjs";
 import { isConcreteSidecarCommit } from "./sidecar-repository-identity.mjs";
 import {
@@ -626,12 +627,14 @@ function replaceProviderData(writer, delta) {
       ).lastInsertRowid);
     }
     replaceRefs(did, document.refs);
+    replaceStoreDocumentDefinitions(writer, { did, pid, occurrences: document.occurrences });
     keptDocuments.add(did);
   }
   for (const { pid } of scopedProviders) {
     for (const row of writer.prepare("SELECT did, document_sid FROM provider_documents WHERE pid = ?").all(pid)) {
       if (keptDocuments.has(row.did)) continue;
       replaceRefs(row.did, []);
+      replaceStoreDocumentDefinitions(writer, { did: row.did, pid, occurrences: [] });
       writer.prepare("DELETE FROM provider_documents WHERE did = ?").run(row.did);
       writer.released.add(row.document_sid);
     }

@@ -19,10 +19,12 @@ completes MCP `initialize` and `tools/list`.
 Conduit construction, host-server startup, client readiness, namespace, and
 cleanup failures use the registered public `stdio_mcp_*` taxonomy
 documented in [MCP integration](mcp-integration.md#transport). These
-failures never degrade to an optional MCP server. Failures found before spawn or
-readiness refuse model work; failures found after readiness resolve the separate
-always-live conduit failure channel, trigger bounded exactly-once teardown, and
-publish a typed terminal outcome. After client readiness, authenticated transport
+failures never degrade to an optional MCP server. Failures of the required
+connection found before spawn or readiness refuse model work; failures of that
+connection found after readiness resolve the separate always-live conduit failure
+channel, trigger bounded exactly-once teardown, and publish a typed terminal
+outcome. An extra/non-active generation's failure is contained to that generation
+and does not change a healthy required connection's session outcome. After client readiness, authenticated transport
 EOF followed by a clean host-server exit is an expected drain, including while
 an interactive orchestrator process remains live. That transport fact does not
 complete the orchestrator session or authorize signalling its process. Abnormal
@@ -35,6 +37,31 @@ mid-session server loss, relay restart, cleanup, or reaping using launcher-owned
 tokens only; it contains no prompt, credentials, environment, raw process
 output, prose, or stack trace. If this diagnostic cannot be persisted, the
 launcher fails closed with `stdio_mcp_session_diagnostic_persistence_failed`.
+
+Terminal managed-run `exit.conduit_generation_failures` and interactive
+`session.json`'s `conduit_generation_failures` use the same bounded projection.
+Each failed authenticated generation reports its ordinal, typed cause,
+active-at-failure classification, and observed stream/FD/errno/phase. Missing
+facts are explicitly null. The entry states connection closure, whether required
+session shutdown was requested, uncertainty, and the responsible next actor and
+action. The interactive launcher renders these fields before terminal persistence.
+An extra-generation diagnostic alone leaves successful status, exit and final
+result intact. Dispatch and advisory terminal consumers preserve the additive
+exit field through their existing terminal-observation routes.
+
+The projection retains at most the existing 64 authenticated sessions. Invalid
+authentication allocates neither a generation nor a diagnostic. Raw messages,
+stacks, native causes, stderr and credentials are not projected. A timeout keeps
+its original cause even when teardown later reports ECONNRESET or EPIPE; only
+the first stream context is retained. Startup failures without a lifecycle remain
+identifiable by generation and typed start cause, with stream facts unavailable.
+The MCP client may establish a fresh authenticated connection if the required
+connection remains healthy. Failure of the required connection instead calls for
+the operator to restart the failed session and investigate the retained cause;
+no retry or failover is implied.
+
+A reproduced FD 3 reset demonstrates containment of the composition-write path.
+It does not establish which pipe or triggering call caused a historical crash.
 
 Every client-lifecycle shape raises the same typed code, so
 `stdio_mcp_client_readiness_failed` alone does not identify a cause: a close
@@ -142,3 +169,5 @@ bounded readiness transition.
 Do not increase `startup_timeout_sec` for post-readiness loss: that budget governs
 only initialize plus `tools/list` and cannot restore a conduit that already
 failed. Never widen repository visibility or add another transport.
+
+The current readiness registration requires `registered_tier` to name a known profile equal to the launcher’s captured host selection. Missing, unknown or mismatched profiles refuse that connection generation before readiness; the operator restarts the affected connection with coherent host configuration. Registration establishes no CCE admission or audit assurance.

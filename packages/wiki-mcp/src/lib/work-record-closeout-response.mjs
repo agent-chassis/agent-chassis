@@ -1,6 +1,7 @@
 
 
 import { z } from "zod";
+import { GenerateAndLintExecutionError } from "@agent-chassis/wiki-core/src/operations/generate-and-lint.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { describeRetentionFailure, selectedFullContent } from "./mcp-response.mjs";
 import {
@@ -174,7 +175,7 @@ export function shapeCloseoutLintResponse(closeoutLint, { verbose = false } = {}
   }
 
   for (const field of ["lint_scope", "cause_code", "cause_message", "write_effects_retained",
-    "warning_count", "finding_count_total"]) {
+    "warning_count", "finding_count_total", "execution_outcome", "lint_verdict", "phase_facts"]) {
     if (closeoutLint?.[field] === undefined || closeoutLint[field] === null) continue;
     compactCloseoutLint[field] = closeoutLint[field];
   }
@@ -205,13 +206,17 @@ function attachCloseoutLintResponse(response, closeoutLint, { verbose = false } 
   return response;
 }
 
-function closeoutChecksUnavailable(error, { taskMaintenance = false } = {}) {
+function closeoutChecksUnavailable(error, { taskMaintenance = false, invoked = false } = {}) {
+  const phases = error instanceof GenerateAndLintExecutionError ? error.phase_facts : null;
   return {
-    ran: false,
+    ran: invoked,
+    execution_outcome: invoked ? "unknown" : "not_run",
     applicable: true,
     ok: null,
     cleanly_closeable: null,
-    generated_views: "not_evaluated",
+    generated_views: phases?.generated_views ?? (invoked ? "unknown" : "not_evaluated"),
+    lint_verdict: "unavailable",
+    ...(phases === null ? {} : { phase_facts: phases, checked_corpus: phases.checked_corpus }),
     reason: "check_execution_unavailable",
     cause_code: typeof error?.code === "string" ? error.code : null,
     cause_message: typeof error?.message === "string" ? error.message : null,
@@ -263,7 +268,13 @@ export async function runRepositoryChecks({ workspaceDir, generateAndLint, ident
     return { ...closeoutChecksResult(produced),
       ...(identifyRecords === null ? {} : { checked_corpus: produced?.checked_corpus ?? null }) };
   } catch (error) {
-    return closeoutChecksUnavailable(error, recovery);
+
+    if (error instanceof GenerateAndLintExecutionError && error.completed_result !== null) {
+      return { ...closeoutChecksResult(error.completed_result),
+        checked_corpus: error.phase_facts.checked_corpus,
+        cause_code: error.code, cause_message: error.message };
+    }
+    return closeoutChecksUnavailable(error, { ...recovery, invoked: true });
   }
 }
 

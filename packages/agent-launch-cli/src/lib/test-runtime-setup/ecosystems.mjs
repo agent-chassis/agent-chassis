@@ -359,11 +359,11 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
     compilerCacheName: (dependency) => dependency.status === "present"
       ? `deno-dir-${createHash("sha256").update(dependency.dir).digest("hex").slice(0, 16)}` : "deno-dir",
 
-    runtimeBinding({ dependency, scratchRoot = ATTEMPT_SCRATCH_ROOT, compilerCache = null }) {
-      const common = { DENO_NO_UPDATE_CHECK: "1", NO_COLOR: "1" };
+    runtimeBinding({ dependency, scratchRoot = ATTEMPT_SCRATCH_ROOT, compilerCache = null, host = false }) {
+      const common = host ? {} : { DENO_NO_UPDATE_CHECK: "1", NO_COLOR: "1" };
       const denoDir = compilerCache ?? `${scratchRoot}/deno-dir`;
       if (dependency.status !== "present") {
-        return { binds: [], mountpoints: [], links: [], env: { DENO_DIR: denoDir, ...common }, values: {} };
+        return { binds: [], mountpoints: [], links: [], env: host ? {} : { DENO_DIR: denoDir, ...common }, values: {} };
       }
       if (compilerCache !== null) {
         return {
@@ -474,8 +474,8 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
       return { source: "interpreter", dir: null, population: report.site.filter(existsSync),
         exclude: ["__pycache__"] };
     },
-    runtimeBinding({ dependency }) {
-      const env = { PYTHONDONTWRITEBYTECODE: "1", PYTHONNOUSERSITE: "1" };
+    runtimeBinding({ dependency, host = false }) {
+      const env = host ? {} : { PYTHONDONTWRITEBYTECODE: "1", PYTHONNOUSERSITE: "1" };
       if (dependency.status !== "present") return { binds: [], mountpoints: [], links: [], env, values: {} };
       if (dependency.dir === null) {
         return { binds: dependency.population.map((root) => ({ src: root, dst: root })), mountpoints: [],
@@ -566,14 +566,15 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
     },
 
     runtimeBinding({ dependency, projectHostDir = null, checkoutRoot = projectHostDir,
-      scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
+      scratchRoot = ATTEMPT_SCRATCH_ROOT, host = false }) {
       const present = dependency.status === "present";
       const workspace = projectHostDir === null ? null : selectGoWorkspace(projectHostDir, checkoutRoot).file;
       return {
         binds: present ? [{ src: dependency.dir, dst: dependency.dir }] : [],
         mountpoints: [],
         links: [],
-        env: { GOMODCACHE: present ? dependency.dir : `${scratchRoot}/gomodcache`, ...GO_OFFLINE_MODULE_ENV,
+        env: host ? (present ? { GOMODCACHE: dependency.dir } : {})
+          : { GOMODCACHE: present ? dependency.dir : `${scratchRoot}/gomodcache`, ...GO_OFFLINE_MODULE_ENV,
           GOWORK: workspace ?? "off", GOCACHE: `${scratchRoot}/go-build`, GOPATH: `${scratchRoot}/gopath` },
         values: {}
       };
@@ -617,19 +618,20 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
       }
       return detectCargoRegistry({ project, projectDir, cargoHome, locked, complete, unlocked });
     },
-    runtimeBinding({ dependency, scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
+    runtimeBinding({ dependency, scratchRoot = ATTEMPT_SCRATCH_ROOT, host = false }) {
       const present = dependency.status === "present";
-      const offline = { CARGO_TARGET_DIR: `${scratchRoot}/cargo-target`, ...CARGO_OFFLINE_ENV };
+      const offline = host ? {} : { CARGO_TARGET_DIR: `${scratchRoot}/cargo-target`, ...CARGO_OFFLINE_ENV };
       if (!present) {
-        return { binds: [], mountpoints: [], links: [], env: { CARGO_HOME: `${scratchRoot}/cargo-home`, ...offline },
+        return { binds: [], mountpoints: [], links: [], env: host ? {} : { CARGO_HOME: `${scratchRoot}/cargo-home`, ...offline },
           values: {} };
       }
       if (dependency.source === "cargo_vendor") {
 
         const binds = [{ src: dependency.dir, dst: dependency.dir },
           ...(dependency.cargo_config === null ? [] : [{ src: dependency.cargo_config, dst: dependency.cargo_config }])];
-        return { binds, mountpoints: [], links: [], env: { CARGO_HOME: dependency.cargo_config === null
-          ? `${scratchRoot}/cargo-home` : path.dirname(dependency.cargo_config), ...offline }, values: {} };
+        return { binds, mountpoints: [], links: [], env: { ...(dependency.cargo_config === null
+          ? (host ? {} : { CARGO_HOME: `${scratchRoot}/cargo-home` })
+          : { CARGO_HOME: path.dirname(dependency.cargo_config) }), ...offline }, values: {} };
       }
       const stores = dependency.stores ?? ["registry"];
       return {

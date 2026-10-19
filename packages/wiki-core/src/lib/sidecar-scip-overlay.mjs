@@ -13,9 +13,8 @@ export {
 } from "./sidecar-scip-normalize.mjs";
 
 export {
-  SCIP_DEFAULT_CACHE_DIR,
   SCIP_STATUS_EXTRACTED,
   SCIP_STATUS_NOT_APPLICABLE,
   discoverSidecarScipProjects,
-  runScipProjectsFromCommittedSnapshot
+  runScipProjectsFromCheckout
 } from "./sidecar-scip-provision.mjs";

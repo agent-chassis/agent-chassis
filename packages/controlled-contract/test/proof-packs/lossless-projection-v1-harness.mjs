@@ -81,6 +81,10 @@ const MUTATIONS = Object.freeze({
   "silent-compact-loss"(result) {
     result.compact = result.compact.slice(1);
   },
+  "false-accounting"(result) {
+    result.compact = result.compact.slice(1);
+
+  },
   "drop-disclosure"(result) {
     result.disclosed = result.disclosed.slice(1);
   },
@@ -141,6 +145,7 @@ function projectionGuaranteeSatisfied(result) {
   return result.omitted.length > 0 &&
     result.omitted.every(({ heavy }) => heavy) &&
     result.recovery_path_operable &&
+    sameKeys([...result.compact, ...result.omitted], result.source) &&
     sameKeys(result.accounted, result.source) &&
     sameKeys(result.complete, result.source) &&
     sameKeys(result.disclosed, result.omitted) &&

@@ -87,81 +87,124 @@ a response emits is answered from the source the first call was bound to.
 
 ### Code index reads
 
-`query_code_index` is the one agent code read. It answers for the server's own current repository; no argument selects a repository, root, cache or commit, and no emitted call carries one. With `path` alone it returns complete committed context for one repo-relative path: the file's exact committed source, graph relationships, inferred related code and tests, canonical records, and `affected_files` whose relationships name their basis. A valid path outside the indexed corpus keeps its guidance and reports source `indexed_corpus_excluded`; a path absent from the commit reports `missing_file_descriptor`; forbidden or malformed paths are refused before preparation. Source and line counts come only from the committed publication. That complete answer is retained once as the route's selected-response source; the response carries identity, source state and line count, trust facts, and bounded code-graph `graph_paths` with whole-population totals, as described in [Tool Discovery Surfaces](tool-discovery-surfaces.md).
+`query_code_index` answers a code question for the server's bound repository.
+It accepts no repository, root, cache or commit selector. Existing role, tier
+and task authorization still apply; a returned call grants no authority.
 
-An ordinary question — file context, change impact, or a symbol or
-source-location question — answers at once from the last usable published
-base/SCIP pair of the one shared code index and never waits for indexing. Every
-answer frame states `read_mode: "query"`, the full commit it was selected from
-(`indexed_commit`), that commit's display form (`indexed_commit_short`) and the
-separately observed `current_head`; whether they are the same (`staleness`) and
-the background refresh of the index (`preparation.refresh`) are reported beside
-them. Every row, source line and "not found" describes the indexed commit, never
-the current HEAD or a commit under review. A composed answer whose parts
-describe different commits states no common commit: `mixed_source: true` says
-so and each part keeps its own. The refresh runs in a separate process, may
-update the ignored derived cache, and never indexes dirty worktree bytes. With
-no usable published index the route returns `available: false` with the index
-and refresh state and the same call to repeat, never an empty answer.
+Ask the question directly:
 
-`status: true`, alone, is the passive alternative: it reports availability,
-the published index (`read_mode: "status"`, the same `indexed_commit` labels),
-the separately observed `current_head`, freshness, dirty state, base-graph and
-SCIP usability, coverage qualifications and the owner's reason/action. Deep
-generator, provider, dependency and provenance populations stay in the retained
-status evidence. For a fresh index the recommended selection reads the complete
-`graph_snapshot`, or `derived_evidence` when no snapshot exists. A published
-index that is not fresh recommends `diagnosis` instead: the status reason,
-freshness, required action and base-graph and SCIP usability of that status
-read, beside its `indexed_commit`, `indexed_commit_short` and observed
-`current_head`, with no provider, dependency, toolchain or cache record. A
-diagnosis read also states `preparation` and, when it holds one, the preparation
-call of the session reading it, decided by that session's own registration after
-the retained source is authenticated; a diagnosis retained by a session that can
-prepare lends another session nothing. It is the earlier read's observation, not
-a new status probe, and `observation` states the present comparison. The
-complete `graph_snapshot` and `derived_evidence` are unchanged and stay
-explicitly selectable through `selected_detail.choices`. Status neither prepares
-a layer nor requests a refresh. `preparation.state` says what the serving session can do
-about an index that needs preparing: `not_needed`; `action_available`, when the
-session's own registration holds `workspace_code_index_build` and its request
-schema accepts `{}`, in which case that exact call leads `next_calls` with
-`purpose: "prepare_index"`; or `capability_unavailable` with
-`missing_capability: "prepare_code_index"`, in which case no preparation call or
-route name is emitted. The cause, `indexed_commit` and `current_head` are
-reported either way, and a usable stale index stays `available: true`. Evidence
-selections, the diagnosis included, carry `purpose: "inspect_evidence"`: they
-read the retained status evidence and prepare, refresh and repair nothing. The `available: false` answer
-to a question carries the same `preparation` beside the call to repeat.
-A `detail` read of a retained answer (`read_mode: "retained"`) is equally
-passive. A question, `status` and `detail` are mutually exclusive, and an
-undeclared or conflicting argument is refused before any owner runs.
-Missing or conflicting question selections return the input owner's specific
-`sidecar_query_input_invalid` cause (`sidecar_navigation_input_invalid` for a
-delegated navigation selection), with its complete diagnostic and supported
-question alternatives. The existing input-refusal owner carries that diagnosis
-in `refusal.diagnostic`. Recovery states `choice_required` for the caller, with
-no fabricated next call: the caller chooses the question and supplies its values.
-These refusals change no index, publication or retained answer. Unexpected
-selection or query execution failures keep the shared response owner's failure
-path and original diagnostic; they are not classified as caller choice.
-`workspace_code_index_build` and `workspace_code_index_rebuild` are the
-operator's routes: they prepare the current HEAD and wait.
+- `path` alone asks for file context: source, definitions and affected code.
+- `symbol` asks navigation using an exact raw SCIP symbol returned by the index.
+  Add `relationship` to ask only `definition`, `references`, `callers` or
+  `callees`. Without it, all four are requested. A document-local symbol needs
+  its document `path`; global symbol navigation rejects an accompanying path.
+- `path` and `line` ask about symbols on that line. Lines are one-based; optional
+  `character` is a zero-based safe integer, but resolution remains whole-line.
+  Changing character cannot disambiguate symbols on one line. Ambiguous answers
+  show distinguishable candidates and exact retained-candidate selections.
+  Requerying a raw symbol may broaden a position to other native identities.
+  Choosing one returned candidate with its relationship returns that native
+  candidate's requested results immediately, with needed source inline or bound
+  source calls. `result_state` distinguishes matched, no matches and unknown
+  evidence; missing call attribution still qualifies an empty result.
+- Exactly one of `paths`, `patchText`, `diffRecords` or `liveGit:true` asks
+  potential change impact. `path` and `symbol` restrict seed paths: their union
+  is intersected with the changed subject, without adding unchanged paths.
+  Impact covers file definitions, not only edited occurrences inside hunks.
+  Live Git selects changed paths; relationships describe the published index.
+- `status:true` alone asks availability and material coverage/currentness limits.
+  Status is not a prerequisite for code questions.
 
-- The default file context is `context_available: "compact"`. It leads with the requested path, committed source identity/state, line count and source metadata, followed by index freshness/refresh, trust facts and bounded code-graph relationships with exact totals. Source text stays retained with `source_text_omitted: true`. The recommended complete call selects that file's `source`, including every committed source byte.
-- Before any compact omission, the complete original answer is retained once. Status and file context carry `selected_detail.source` `{ref_id}`, `snapshot_identity`, collection counts and concise `choices` objects. They emit one recommended complete `next_calls` call. To select any choice, call `query_code_index` with `{detail:{source:selected_detail.source,snapshot_identity:selected_detail.snapshot_identity,...choice}}`. This shares source context without repeating an expanded envelope for every member; no collection name needs to be guessed. Impact and navigation retain their existing collection calls.
-- A `detail` names one retained collection or member. `selector.id`, `path`, `symbol` and `relationship` narrow rows; `input_path` narrows one affected file's relationships and `lines` selects absolute retained source lines. The `candidates` collection exposes ambiguity without choosing a candidate. The shared selected-response registry keeps ordering, row boundaries, totals, authenticated snapshots/cursors, seeking and source-based recovery. `page` states the matched total, offset and whether rows remain; `next_calls` holds at most its one continuation with the same source and filters. Complete selected rows use authenticated selected-full delivery, including a source or provenance row larger than the ordinary summary bound. Oversized rows require no field inventory or byte reconstruction. These reads retain no new original, evaluate no question, prepare no index and request no refresh. A retention failure remains that failure, never a compact success.
-- There is no verbose or `full_result` form; a new evaluation is a new question. CLI `--json` and `--verbose` print the complete answer, and plain CLI output lists every population.
+Empty `paths`, patch text or diff records explicitly select no changes. Missing
+selectors and `liveGit:false` alone require a caller choice. No-change,
+no-match, unresolved or ambiguous target, partial evidence, invalid/unsupported
+input and unavailable index/source are distinct outcomes. An empty narrowed
+scope is not proof of no impact when the symbol narrower is unresolved.
+Unsupported diff kinds name the excluded change kind and endpoints in
+`unsupported_changes`; the caller must choose the actual supported change kind.
+More excluded changes use the returned retained selection. They do not supply
+evaluated impact paths.
 
-The internal pure owner for likely-test and same-directory path inference is
-`deriveSidecarPathContext` in
-`packages/wiki-core/src/lib/sidecar-path-context.mjs`. It accepts already
-selected input and source paths, performs no filesystem, Git, index-preparation,
-or graph work, and returns complete path-deduplicated populations with every
-contributing input path and `committed_path_inference` evidence. Consumers apply
-their own presentation limits; compact projections display at most twenty
-entries while their counts and the retained complete answer cover the complete
-population. These hints remain path inference, not graph dependencies.
+Ordinary questions use the last usable published index without waiting for
+indexing. They retain the producer's complete answer once and keep its existing
+background-refresh effects. Status and detail request no refresh or preparation.
+The public answer contains the requested code meaning and material limitations,
+not routine commit/tree/digest comparisons or provider inventories. References
+do not establish calls, implementation relationships or test identity. Missing
+call attribution and partial symbol coverage cannot establish absence.
+
+Small source extents are delivered with the answer. When more meaning is needed,
+follow the returned exact `next_calls` selection. Locations needing source offer
+their bound region/file read. A selected read returns its complete semantic
+selection in one delivery, evaluates no query and retains no second original.
+Native affected relationships offer the related source extent rather than
+unrelated file content. If source verification fails, `source_limits` names the
+cause on the affected file; the recorded relationship is not erased. A complete
+file is offered when no narrower native extent exists and that file is available.
+There are no cursors, ordinals, byte ranges, decoding or agent integrity checks.
+If the answer is sufficient, continue the caller task without rereading.
+
+`detail` carries the issued `source:{ref_id}` and collection. Semantic filters
+(`selector.id`, `path`, `symbol`, `relationship`, `input_path`) select from the
+same original and remain conjunctive. `input_path` qualifies one affected file.
+`lines:{start_line,end_line}` selects absolute, one-based inclusive source lines
+inside the context `source` member, one region selected by ID, or one complete
+file selected by path. Invalid selections return an exact inspection call when
+the authenticated original permits it; that inspection enables a choice and
+does not claim to answer the rejected selection. Provider/graph snapshots,
+patch echoes, raw diagnostics and provenance are not public detail collections.
+Successful detail reads keep the issued source handle and requested meaning;
+they do not echo selection arguments or repeat the delivered population counts.
+
+Selected source bytes are checked against the index's file descriptor before
+retention. Changed, absent, corpus-excluded, nonregular or undecodable content
+has an explicit source reason. Later reads keep previously captured bytes;
+material movement or unavailable currentness is reported without internal
+comparison identities. A missing/corrupt/foreign original is never replaced by
+rerunning its query. The exact retained impact handle remains usable by an
+already authorized impact-evidence consumer; that consumer receives the complete
+authenticated original server-side.
+
+No usable index returns `available:false`, its specific cause and the condition
+that prevents answering. Pending preparation requires a published index; failed
+preparation requires correction of its reported cause. Neither recommends an
+unchanged question loop. A preparation call is offered only if the current
+registrar actually holds it, and explicitly requires task authorization for
+maintenance. Status and reading a selection never perform that maintenance.
+
+Index/checkout equality is not reviewed-source alignment. This route has no
+trusted launcher review-target binding or reviewed-version reader. It cannot
+establish a finding about an independently selected reviewed version merely by
+being current. Other-source code can be supplemental; unavailable exact reviewed
+content limits only conclusions that need it. Adding that guarantee requires
+the shared launcher/source-reader owner to supply the trusted binding and exact
+read; caller-supplied hashes or a new unbound commit selector cannot supply it.
+
+Planning queries use exact provider-qualified SCIP identities. File context includes
+`definitions` in the input, incoming references to those definitions, and outgoing
+references with their resolved definitions. Impact seeds every definition in each
+accepted file, including for partial-file hunks, and reports potential impact.
+Files that merely share an imported utility are not consumers. Local symbols stay
+scoped to their documents. Native repetitions survive; overlapping TypeScript
+projects share the navigation owner's multiplicity rules.
+
+Public `semantic_relationships` selections describe the input path, direction,
+raw symbol and related path. `semantic_resolution` distinguishes unresolved,
+external and ambiguous outgoing references without choosing an arbitrary
+definition. Source selections keep useful locations, verified checkout content
+and precise source failures. Native provider identities, hit-link populations,
+provenance and coverage carriers stay in the server's retained original;
+public answers state the material limitations instead. Same-file references
+remain evidence without making the file its own affected consumer. Unavailable
+evidence cannot establish absence of consumers. References imply neither calls,
+implementations nor test identity.
+
+`related_code_paths` contains only evidenced native or import relationships.
+Canonical records join actual input/evidence paths through explicit declarations,
+patterns, documentation backlinks and related IDs. An exact published descriptor
+check establishes file existence; declared directory ancestors use batched
+existence-only prefix checks. Existence never establishes a code relationship.
+Suppressed records require explicit `includeSuppressed: true`.
 
 A change-impact question supplies exactly one subject — `paths`,
 `patchText`, `diffRecords`, or `liveGit: true` — plus optional
@@ -169,12 +212,18 @@ A change-impact question supplies exactly one subject — `paths`,
 `diffRecords` are explicit no-change requests. Mixed subjects, unknown keys,
 malformed diff records, and diffs beyond 1,048,576 normalized bytes, 20,000
 lines, or 1,000 records are refused as invalid requests. Live Git only selects
-changed paths; relationships, inference, and canonical records always come from
-the committed publication. The answer carries `impact_state` (`evaluated`,
+changed paths; relationships and canonical records describe the selected
+publication. The answer carries `impact_state` (`evaluated`,
 `partial`, `no_change`, `invalid_input`, or `unsupported_input`) with reasons and
-denominators, `affected_files` whose relationships name their basis (`graph`,
-`inferred_adjacency`, `canonical_record`, or `suggested_update`), structural
-impacts, missing-update hints, diff diagnostics, and a compact graph summary. It
+denominators, `affected_files` whose relationships name their basis (`scip`,
+`graph`, or `canonical_record`), semantic relationships, allowed structural
+impacts and diff diagnostics. Reverse-import rows belong only to the recorded
+edge's importer, carry its actual endpoints and edge identity, and are direct
+exactly when their target is the input module; transitive rows describe dependency
+through the import graph without claiming a reconstructed chain. Explicit docs
+and scope links remain metadata. Literal MCP registration patterns in reachable
+files are qualified lexical observations. Directory/basename suggestions and
+heuristic test, CLI and schema labels are absent. It
 never exposes raw graph nodes or edges. CLI `wiki code-index impact` accepts
 exactly one of positional or `--paths` paths, `--patch`, `--patch-file`,
 `--diff-records-json`, or `--live-git`, with the same `--json`/`--verbose`
@@ -184,229 +233,303 @@ output.
 
 ### Automatic index preparation
 
-Code-index consumers prepare the base graph and SCIP overlay together for the
-captured committed HEAD. Callers do not need to run a build command or obtain a
-clean worktree before asking about a change.
-The committed-snapshot preparation owner, `resolveCommittedSidecarSnapshot` in
-`packages/wiki-core/src/lib/sidecar-committed-preparation.mjs`, delegates the
-only reuse/rebuild decision to `ensureSidecarIndex`, then verifies the selected
-SQLite publication against the captured repository HEAD and tree. The
-selected-unit graph query authenticates its unit before preparation and then
-uses a fixed selected read whose publication must equal that snapshot;
-current-worktree graph queries retain their separate transient dirty-overlay
-selection. Transport adapters must not add another ensure or verification loop.
+The index serves the current working checkout, including tracked edits and
+untracked source files admitted by the native project configuration. Git owns
+file membership and ignore handling (`ls-files --cached --others
+--exclude-standard`); file contents and modes come from the checkout. The
+source filter excludes `wiki/`, dependencies, generated output and runtime
+state before content is read. Indexing never archives or extracts the repository.
 
-The adapter forwards the action `ensureSidecarIndex` itself reported. The
-context, impact and symbol-navigation query envelopes take their common
-preparation and source fields from one projection, `committedEnvelopeFields` in
-`packages/wiki-core/src/lib/sidecar-query-selection.mjs`:
+`ensureSidecarIndex` owns build and refresh. It compares content identities of
+current source/configuration inputs with the publication and compares each
+provider's source inputs, executable, settings and dependency population using
+`sidecar-scip-project-inputs.mjs`. A changed HEAD alone does not rerun a provider
+or copy the database. Changed base sources are compared with the published file
+descriptors; only affected extraction units and changed provider projects run.
+Explicit rebuild requests reset the derived schema in the canonical database. The extraction basis is
+`working_checkout.v6`; incompatible publications are rebuilt through the same
+owner, without an old-contract read path.
 
-| Field | Meaning |
-| --- | --- |
-| `indexed_commit` | The full commit of the published snapshot the answer was read from (`graph_snapshot.repository_commit`). It is the authoritative identity. |
-| `indexed_commit_short` | The first 12 hexadecimal characters of `indexed_commit`, for display only. It is not a unique identity, a lookup key, or proof of currentness. |
-| `current_head` | The Git HEAD observed for the request. It is a separate observation and never stands in for the indexed commit. |
-| `preparation.action` | The owner's action for this request: `published_snapshot`, `reused`, `coalesced`, `build`, `rebuild`, `incremental`, or `advance_tag`. A request that joined another caller's update reports `coalesced`, not the update that caller performed. |
-| `preparation.publication_outcome`, `preparation.changed` | The owner's own facts when it supplies them, otherwise `null`. |
+One repository-wide `withSidecarUpdaterLock` owns indexing across processes and
+cache destinations. Its SQLite EXCLUSIVE transaction is the atomic admission
+mechanism. An occupied indexing lock is checked again after ten seconds. After
+acquisition, the caller rechecks the publication before doing provider work.
+Process-local admission and joining remain capacity controls, not the repository
+mutex. Published readers never acquire this updater lock.
 
-When no publication identity is available, `indexed_commit` and
-`indexed_commit_short` are `null` and `status_reason` carries the cause; the
-current HEAD is never substituted. A preparation fact the owner did not report
-is `null`: no effect is inferred from the build result or from comparing status
-before and after. The symbol-navigation envelope keeps its own `scip_state`,
-provider descriptors, coverage and provenance.
+The lock owner records its non-reusable process identity (PID, start time and
+boot ID) and the exact private workspace path in
+`.cache/repo-code-index/.index-owner.json` before creating a
+`sidecar-scip-job-*` temporary directory. That directory holds provider output
+and private compiler scratch outside checkout ancestors. Provider process groups
+record their identities there too. The next lock holder recovers a dead or stopped job's scratch (a live caller
+process without the held mutex is a stopped job), terminates any surviving recorded provider group after
+identity verification. Each store lock holder also removes exact UUID candidate
+SQLite files and their transaction files from that store directory, even when
+the old temporary workspace no longer exists. All historical candidate writers
+held this mutex: exclusive acquisition proves they cannot still be publishing.
+A competing live writer keeps the mutex and its artifacts. Unrelated files,
+directories and symlinks are preserved.
+PID reuse is evidence that the recorded process died; directory existence and
+elapsed time are not liveness tests. Indeterminate ownership fails with the
+specific cause and leaves artifacts intact. Success and handled failure remove
+the owned scratch and ownership record. Recovery never removes the published
+index, shared dependency caches, another live job or unrelated temporary files.
 
-`ensureSidecarIndex` applies the one freshness classifier. A publication already
-tagged with the captured commit, with a compatible extraction basis, complete
-provider coverage and provider input records that still match the installed
-executables, settings and dependency populations, is reused without an update,
-provider run, or database copy. Otherwise the shared updater applies the
-committed Git diff from the published commit, reruns only the SCIP projects
-whose input records changed, and publishes the
-data and the new commit tag together; an unusable or unrelated predecessor takes
-the clean path. Moving HEAD observations restart within the shared bounded pass
-count. Dirty worktree bytes remain outside both layers and are collected only
-when a caller's response reports them.
+Providers run installed executables with `shell:false`, bounded time and retained
+diagnostics, and process-group cleanup. Stderr is continuously drained through
+termination; its volume never determines success or failure. At most 64 KiB of
+stderr bytes are retained, split equally between beginning and end. Truncated
+diagnostics include an explicit marker within that byte budget and omit partial
+UTF-8 characters at clipped boundaries. Internal process errors retain emitted
+byte counts, truncation state, bounded evidence and the exit code/signal when
+available through the error cause chain. Agent responses do not gain raw log
+payloads. Diagnostic stdout retains its existing 4 KiB beginning and 4 KiB tail;
+machine-readable probe stdout still fails above its separate 4 MiB capture limit.
+Deadlines and process-group cleanup still apply, and a zero exit still requires
+valid SCIP output. Nothing installs dependencies or invokes `npx`.
+TypeScript/JavaScript use nested tsconfig/jsconfig projects and native references,
+includes and excludes, with installed node_modules available in place. Python
+uses each source's nearest native project/package configuration. A tool-only
+`pyproject.toml` without packaging metadata or native pyright settings does not
+create a Python project boundary; enclosing imports and definitions keep their
+provider-native identity. Each Go module
+uses its native workspace and contained local replacements, with an offline
+module cache and private HOME, GOPATH and build cache. Rust discovers Cargo
+workspaces, native toolchain selections, members and contained path dependencies.
 
-The `status: true` read and its core/CLI equivalents remain read-only. The
-status result reports the base verdict separately from `scip_state`, including
-the provider input identity, freshness, availability, and its own
-`index_action`; it never runs a provider. Optional build and rebuild controls use
-the same preparation owner; rebuild forces a clean candidate for the same commit.
+The local npm install and prepared-image provider stage use
+`@sourcegraph/scip-python` 0.6.6 with `@iarna/toml` 3.0.0. The installation owner
+in `tools/in0012-deepswe-smoke/code-index-providers.mjs` verifies the published
+vendor bundle's digest and redirects its bundled TOML module to that pinned
+dependency. This accepts TOML mixed-type arrays, including dependency-group
+inline tables followed by strings. Installation repair is idempotent and refuses
+unknown provider bytes or dependency versions. Image provenance records the
+parser's registry integrity and the original and installed bundle digests;
+verification checks the installed repair. Configuration syntax errors retain
+the parser's exceptions and the provider's explicit diagnostics.
 
-Preparation may write ignored derived cache artifacts through the existing
-builder. It does not edit source files or canonical docs/work records, clean
-the worktree, or grant dispatch authority. Ordinary `query_code_index`
-questions request that background refresh, so they are not strictly read-only
-operations and discovery advertises the write. The `status: true` and `detail`
-reads remain read-only and report the state they find without preparing the
-index. A status result is not a manual build prerequisite.
+TypeScript configurations are resolved with the installed provider's own compiler.
+A directory and its default `tsconfig.json` identify the same configuration;
+`jsconfig.json`, named variants and reference-only configuration files retain
+their distinct identities. Reference-connected configurations share one sequential
+execution and one provider contribution. The shared driver uses the installed
+native `ProjectIndexer`, source/configuration caches and SCIP serializer, visits
+each resolved configuration once, and uses the checkout root consistently for
+native package identity. Independent configurations execute separately. Singleton and grouped
+configurations use the same shared driver and configuration interpretation. No source configuration or
+serialized symbol is rewritten, and overlapping source membership keeps the union
+of native facts with occurrence multiplicity preserved.
 
-The index represents committed files. Dirty files do not prevent preparation
-and must not be presented as indexed by that committed baseline. Results keep
-the selected commit/tree identity and worktree limitations explicit, in
-accordance with decision. HEAD movement, unusable output after rebuilding, and
-preparation failures use the shared owner's bounded retry and typed failure
-behavior. A failed preparation is not an empty successful impact result or a
-reason to substitute filename guesses for graph evidence.
+The repository's npm postinstall and the prepared image's provider layer use
+the same installation owner, `tools/in0012-deepswe-smoke/code-index-providers.mjs`,
+to apply the checked documentation repair to `@sourcegraph/scip-typescript@0.4.0`.
+Its `FileIndexer` documentation renders unpaired UTF-16 surrogate code units as
+literal `\uXXXX` escapes before the native protobuf serializer sees them. Valid
+surrogate pairs and ordinary Unicode remain unchanged. This preserves inferred
+literal types without changing source bytes, symbol identity, occurrences or the
+indexing architecture. The installer accepts only the pinned upstream module or
+its exact repaired bytes and is idempotent. Image provenance retains the npm
+version/integrity plus the repair identity and upstream/repaired module hashes;
+runtime verification checks those hashes against the installed module. Provider
+updates require an explicit repair update. Incoming SCIP still uses the unchanged
+strict UTF-8 decoder, including for external provider output.
 
-During automatic pair preparation, the committed snapshot runner invokes only the fixed
-installed `scip-typescript`, `scip-python`, `scip-go` and `rust-analyzer`
-providers (`scip-go` with the Go toolchain the `PATH` `go` selects;
-`rust-analyzer` with the `cargo` and `rustc` of the toolchain the `PATH` `rustc`
-selects). The `PATH` `go` may be older than a project's `go.work` or `go.mod`
-requires and run another installed toolchain for it. The Go provider's own
-processes run with toolchain switching disabled (`GOTOOLCHAIN=local`), so the
-runner asks the `PATH` `go` once per Go project which toolchain it runs there
-(`go env GOROOT` over the committed `go.mod` and `go.work` text, under the
-server's own `GOTOOLCHAIN`, with the module proxy off) and starts that
-toolchain's `go` itself, for the offline dependency load and for `scip-go`
-alike. When it is not the `PATH` `go`, the project's input record carries both:
-the selected toolchain as the `go` role with its root as the `GOROOT` setting,
-and the `PATH` `go` as `go_selector`. A toolchain the project selects that is
-not installed refuses the project with `scip_go_toolchain_unavailable` and Go's
-own diagnostic; none is downloaded, and this selection reads no test-runtime
-configuration. It looks each
-name up on the server's `PATH`, runs the resolved absolute executable with
-`shell:false` against the committed snapshot, and does not use `npx`, install
-packages or toolchains, fetch modules or crates, or accept executable paths from
-a query. Rust indexing runs Cargo offline and lets already-available build
-scripts and procedural macros run inside the temporary snapshot. The runner passes the already validated
-captured commit to `scip-python` as `--project-version` and to `scip-go` as
-`--module-version`, so indexing does not depend on repository or version
-metadata that is absent from the archive. It does not add `.git` data to the
-snapshot or guess a replacement version. The archive carries no installed
-package, and the TypeScript compiler cannot read a project whose committed
-`tsconfig.json` chain `extends` a configuration package the repository installs
-without committing. Exactly those installed package directories, found in the
-repository's own `node_modules` by the compiler's lookup, are copied into the
-snapshot at the same relative location before `scip-typescript` runs, and they
-are that project's dependency population: their content is part of its input
-record, so a changed configuration package prepares the project again. Nothing
-else of the installed tree is visible to the provider; a configuration package
-that is not installed is not supplied and is the project's missing dependency
-(below). A failed provider run reports the provider's
-stderr and the start of its stdout, since `scip-typescript` reports compiler
-configuration errors on stdout. An applicable project whose provider
-executable is not installed is reported as inactive coverage
-(`provider_coverage.inactive_projects`, reason `provider_not_installed`), never
-as a successful run. Every active project is attempted. A failed executable
-lookup, a refused Go or Rust project, a dependency load that cannot run or be
-measured, or a provider execution or decode failure fails preparation before
-publication, so the previously published data and its commit tag stay in place.
+Coverage records the group's resolved `membership.configurations` and, for shared
+executions, each member's native outcome and emitted document count in
+`configuration_coverage`. An empty solution configuration constructs no compiler
+program. Missing members retain their configuration diagnostics and dependency
+limitations beside usable group output. Invalid configuration members retain
+`configuration_error` with compiler diagnostic codes; absent inputs retain
+`configuration_unavailable`. Both leave independent usable configurations
+queryable. Provider/process failures and timeouts preserve the prior publication. `provider_projects_run` and
+`provider_projects_reused` count execution contributions, not configuration
+traversals. The member outcomes distinguish these counts.
 
-Missing dependencies are not such a failure. A repository an agent is asked to
-repair often lacks them, and neither a complete dependency set nor a project
-that compiles is a condition for indexing it. Each provider's own dependency
-owner says what is missing: for Go, the packages Go cannot locate with module
-lookup disabled (the module is not in the module cache, or nothing provides
-it), or, when the package load itself exits with a failure status, the
-modules Go's own module listing (`go list -m -e all`) then reports it cannot
-load, under `scip_go_dependencies_unavailable`; for Rust, Cargo's report when
-its offline metadata exits with a failure status, the same resolution without
-the committed `Cargo.lock` still does, and the same metadata without
-dependency resolution (`--no-deps`) succeeds, under
-`scip_rust_dependencies_unavailable`; for TypeScript, the configuration
-packages the committed `tsconfig.json` chain extends that are not installed,
-under `scip_typescript_config_package_unavailable`. Nothing is downloaded or
-installed. That report is the project's `dependency_limitation` (`code` and
-`message`), and the provider still runs on the committed sources:
+Group membership, configuration/reference inputs, dependencies, toolchain and the
+fixed `canonical-projects.v2` execution contract participate in existing input
+identity. The resolved compiler package is part of dependency identity even when
+it is outside the indexer's tool population. Old execution settings require normal refresh. Unchanged preparation
+launches no indexers, and unchanged independent contributions retain their stored
+output. TypeScript source invalidation remains repository-wide; shared caches and
+the visited configuration set last only for one execution.
 
-- When the provider produces output, it is published and the project's entry
-  in `provider_coverage.projects` carries the `dependency_limitation`. What
-  resolves without the dependency is usable; a reference into the missing
-  dependency is not resolved, and a provider may attribute it elsewhere.
-- When the owner itself established that the provider cannot read the project
-  without the missing dependency, and the provider exits with a failure
-  status, the project publishes nothing and is listed in
-  `provider_coverage.inactive_projects` with reason `dependencies_unavailable`,
-  its `dependency_limitation` and the provider's own report as
-  `provider_failure`. Other projects are unaffected. Two kinds of project are
-  such a project. A TypeScript project whose configuration chain extends an
-  uninstalled package: the compiler cannot load its configuration, so the
-  missing package is sufficient for the failure whatever else the provider
-  reports. And a Go module whose package load exits with a failure status
-  while Go's module listing reports modules it cannot load: `scip-go` reads
-  the module through that same load. Depending on the module, `scip-go` then
-  exits with a failure status or exits successfully having indexed no
-  document; either way the module is listed this way, with
-  `provider_failure` saying which. If it does report documents, they are
-  published beside the `dependency_limitation` as above.
+Each TypeScript SCIP process runs its captured Node executable with
+`--max-old-space-size=8192` before the native script or shared driver. Global caches remain
+enabled. The 8192 MiB old-space ceiling is neither an 8 GiB reservation nor a
+total-RSS cap. This fixed runtime setting is part of the provider-input settings
+identity: a missing or different published setting is stale in both passive
+currentness and preparation; matching unchanged records reuse normally. Other
+providers retain their runtime arguments, projects execute sequentially, and the
+default per-provider deadline remains `300000` ms.
 
-Only that combination is tolerated, and a provider's report is never read to
-decide it: a report that names a missing dependency does not establish that
-the dependency is why the provider failed. Apart from the Go module above,
-`scip-go` and `rust-analyzer` index a project with missing dependencies and
-exit successfully, so a failure of either on such a project is not attributed
-to them. A Go package load that exits with a failure status while Go's module
-listing reports no module it cannot load (a `go.mod` Go refuses to update, for
-example), or whose module listing does not complete, is not a missing
-dependency and fails preparation with Go's report; so does a load that does
-not start, is killed, times out or exceeds an output limit. A provider failure
-on a project with no reported missing dependency, a `scip-go` or
-`rust-analyzer` failure on any other project that has one, and a provider
-that is killed, times out,
-exceeds an output limit or writes undecodable output on any project, still
-fail preparation with their own cause. A Rust workspace that Cargo resolves
-without its committed lock but not with it (a lock that is out of date or that
-Cargo cannot parse) is refused with `scip_rust_lockfile_unusable`; Cargo
-metadata that fails without resolving any dependency with
-`scip_rust_metadata_failed`; output that is not JSON with
-`scip_rust_metadata_malformed`; and a Cargo that does not start, is killed,
-times out or exceeds an output limit with the runner's own code. None of those
-is a missing dependency.
+Stable Cargo writes lockfiles alongside manifests. Rust therefore uses narrowly
+scoped private Cargo configuration scratch: only Cargo manifests, lockfiles,
+`.cargo/config[.toml]`, its selected repository include closure, and toolchain
+selection files are copied. Directories on the manifest and configuration spines
+preserve workspace, relative dependency and include paths; source and
+resource entries are symlinks to the actual checkout. No source or wiki content
+is copied. rust-analyzer's native `linkedProjects` configuration selects those
+private manifests while the indexer's project root remains the checkout. Cargo
+metadata, lockfile diagnostics and compilation operate in owned scratch; the
+checkout's lockfile presence and bytes remain unchanged. External Cargo-home
+configuration and dependency caches retain their existing owners.
 
-An import of a package nothing provides is not a dependency owner's report.
-`scip-typescript` and `scip-python` index a source file with such an import
-and exit successfully, the importing symbols are published, and the project is
-not limited; only the import itself stays unresolved. `provider_coverage.state` is `complete` when
-no project is limited and `dependency_limited` otherwise, so limited
-resolution is never reported as complete. When no project publishes output and
-one is unavailable for its dependencies, `scip_available` is false with status
-reason `scip_dependencies_unavailable`; the index is still published, and the
-base graph, status and build results remain usable.
+Rust's Cargo input owner parses TOML to enumerate configuration include edges,
+including mixed strings/tables, nested relative `.toml` paths and optional entries.
+Cargo retains value interpretation and merge precedence. Selected repository
+configuration stays in its exact relative layout in private scratch; no replacement
+config is generated. Cargo-home includes remain in the selected Cargo home.
+Include targets must remain within their owning repository or Cargo home, including
+through symlinks. Malformed TOML/include declarations, cycles, permissions and
+confinement failures remain specific failures, as do Cargo/provider crashes,
+timeouts, invalid output and unusable lockfiles.
 
-A dependency-limited publication is a settled result of its inputs. It is
-reused like a complete one, and queries do not prepare it again while those
-inputs are unchanged. A limited project is attempted again when its input
-record changes (a commit-sensitive Go project at every new commit, any project
-when its committed inputs, executables or measured dependency population
-change) and by an explicit build, which reruns the limited projects alone at
-an unchanged commit. A dependency made available without a change the input
-record observes (a module added to the Go module cache, a crate added to the
-Cargo home) is therefore picked up by an explicit build or by the next commit,
-not by a query at the same commit. A navigation answer that may draw on a
-limited project carries `dependency_limitations`: the limited projects whose
-directory holds the requested path, or every limited project when a symbol is
-named without a path, each with `coverage` `partial` or `unavailable`. An
-absent or unresolved result there is not an authoritative no-match.
+A genuinely absent required include produces `scip_rust_config_input_unavailable`
+with its declaring config and target. Cargo workspace membership remains
+`unobserved`: each affected manifest candidate is accounted for without guessing
+workspace membership, and discovery/indexing are not attempted for that candidate.
+The existing unavailable-project coverage preserves healthy sibling indexing.
+A repository with only unavailable projects still publishes truthful coverage and
+completes setup. Restoring the include and explicitly building recovers navigation.
+Included config paths and their bytes use the existing provider dependency identity;
+symlink targets are measured too. Changes invalidate affected projects while unchanged
+inputs reuse their result. Exact optional targets found absent are recorded in Rust's
+existing settings/currentness facet, so later presence is observed without scanning
+ignored directories. There is no background watcher, dependency acquisition or
+caller config/lockfile mutation.
 
-A package Go does locate but reports an error for (a missing `go:embed` input,
-for example) is not a missing dependency: the project is handed to the
-provider, whose own run decides the preparation, and a provider failure fails
-it with the provider's report as for any project. Go's error for such a
-package is not recorded in the publication. Published coverage, limited or
-complete, does not establish that a project compiles or that its tests pass. A
-commit-independent project whose input record did not change keeps its earlier
-output and the commit that produced it; a commit-sensitive producer reruns at
-every new commit. Provider activation, input records and Go and Rust execution
-are recorded with each publication and reported by the status read.
-SCIP bytes are decoded with the released `@scip-code/scip` generated bindings.
-Alongside aggregate symbol and call edges, the published overlay retains native
-`symbol_occurrences` with provider, path, raw symbol, stable global or
-document-local symbol key, roles, resolution, and one-based inclusive whole-line
-source and optional enclosing ranges. These coarse regions preserve repeated and
-same-line occurrences without claiming character-precise targeting. Invalid or
-unsupported range encodings are omitted from the collection and counted in
-coverage; they never manufacture graph or call relationships. Source-text
-selection and presentation are a separate query concern.
-Because each publication records the provider executables it observed, a query
-after a provider is installed, removed or replaced at the same commit prepares
-the affected projects automatically; no manual rebuild is required. Standalone
-status remains read-only and reports `scip_provider_inputs_changed` meanwhile.
-Snapshot,
-Git, filesystem, and publication failures retain their typed infrastructure
-failure behavior.
+Project discovery uses the same regular-file mode eligibility as preparation.
+Symlink entries retain their checkout identities and containment rules, but are
+not selected as manifest/configuration candidates. Regular-file read failures
+remain failures.
+
+A Cargo manifest establishes a candidate. Cargo alone establishes workspace
+membership; a failed `locate-project` with Cargo's configuration exit status
+retains `scip_rust_workspace_unresolved`, its manifest scope and concrete cause,
+with membership `unobserved`. Other valid workspaces continue, including nested
+independent workspaces. No manifests are rewritten and no test/example/fuzz
+directory convention excludes a candidate.
+
+Project-selected toolchains that are absent produce unavailable project coverage
+with `scip_go_toolchain_unavailable` or `scip_rust_toolchain_unavailable`. A failed
+probe alone does not establish absence. Go's local compiler supplies structured
+configuration/version/platform facts and executable observation establishes absent
+selected locations. Rustup selection inputs and its installed-toolchain inventory
+establish absence only for an observed rustup proxy. Process crashes, timeouts,
+failed launches, permission errors and invalid successful probe output retain their
+specific failure codes. Primary and secondary dependency/probe causes stay visible;
+human-readable stderr never determines a cause. Healthy projects continue beside
+unavailable candidates, and an all-unavailable checkout finishes setup with semantic
+coverage explicitly unavailable. Unchanged limited results reuse existing output;
+restoring prerequisites and explicitly building retries them.
+
+Go workspace facts live in wiki-core's `runtime-inputs/go-workspace.mjs`: nearest
+workspace, membership, local replacement references and lexical containment.
+Indexer discovery supplies the admitted checkout file population. Launcher test
+setup supplies its filesystem inputs and retains its strict usable-workspace
+validation; indexing retains whatever output its native provider can produce.
+
+Missing executables produce explicit inactive coverage. Missing required TypeScript
+configuration inputs, Go dependencies or Cargo dependencies retain their owner-reported
+limitations and whatever usable navigation the provider produced. A dependency
+that prevents loading a project is recorded as unavailable; unrelated provider
+crashes, timeouts, invalid output and unexpected failures retain their specific
+causes. TypeScript configuration observation uses the installed provider's compiler
+resolution and structured diagnostics, including relative extends, installed-package
+config files and project-reference targets. These limitations use
+`scip_typescript_config_input_unavailable`. Only missing-input diagnostics qualify;
+malformed configurations and other I/O failures do not. The provider still runs,
+and usable output remains published with partial coverage. A blocked project with
+no output is unavailable, while healthy siblings remain queryable. Even when no
+project is usable, publication and the setup build complete with truthful coverage.
+Restoring the input and explicitly building again recovers the project. Compiler-read
+configuration outside the normal checkout input set participates in the existing
+dependency content identity: installed package populations keep their package boundary,
+and other files, including ignored generated config, are measured individually.
+There is no ignored-output scan, generator invocation or additional watcher.
+`sidecar-scip-typescript-config.mjs` owns interpretation for discovery, execution
+and empty-project verification through the installed compiler. Structured member
+outcomes establish configuration-only/empty, missing-input and invalid-config
+coverage. No stdout/stderr phrase determines these outcomes. Provider loader
+failures, crashes and malformed output remain failures even beside missing config.
+An empty native TypeScript project is distinguished from dropped nonempty output
+using the installed compiler. Source documents outside the indexed corpus and
+unresolved external symbols remain coverage gaps, not fabricated navigation.
+
+The internal `repo-code-store.v7` schema keeps a provider-qualified symbol-to-defining-document
+lookup in the existing `graph.sqlite` database. Publication derives its entries from
+native occurrence definition role bits, including definitions with additional role
+bits. Each provider project retains its own entries, multiple defining documents
+remain distinct, and local symbols require their document identity. The lookup is
+updated in the same transaction as provider documents and interned strings: changed
+or moved definitions, reference-only replacements, document and provider deletion,
+and scoped provider replacement all update it atomically. Unchanged document
+payloads reuse their existing lookup entries; rollback preserves the prior publication
+and lookup. Older store schemas are incompatible and use the existing derived-store
+rebuild route.
+
+Outgoing semantic queries select defining document IDs through this lookup before
+reading or decoding document payloads, including compressed payloads. Other consumers
+of a shared symbol do not expand that selection. External or unresolved symbols
+without definitions select no definition documents and retain their resolution
+evidence. Incoming-reference queries still select every actual consumer. Native
+symbol and occurrence identities, ranges, roles, provider distinctions, ambiguity,
+and complete selected retrieval retain their existing meaning.
+
+The repository maintains one graph database at `.cache/repo-code-index/graph.sqlite`.
+Prepared deltas update it directly under the existing writer mutex. SQLite WAL
+transactions commit changed rows and the publication completion tag together;
+open readers retain their coherent snapshot across a write or schema reset.
+There are no full database copies or replacement database publications.
+A rebuild resets the derived schema at that same path before applying the new
+build. Failed builds report their concrete cause. A failed rebuild after reset
+reports `publication_outcome: unpublished` and has no complete indexed commit;
+retry uses the ordinary rebuild path. Transaction failures may preserve the prior
+publication (`prior_preserved`), but preservation is not a rebuild guarantee.
+An error after commit reports `published_with_error`.
+
+Status distinguishes `artifact_exists` from `artifact_usable`, retains the observed
+`artifact_schema_version`, names `expected_artifact_schema_version`, and reports
+its concrete read error. Incompatible schemas are rebuilt, never relabelled.
+An unavailable query carries that evidence and its recovery/refresh state,
+including running, failed with cause, or unavailable when refresh was disabled.
+Public informational queries use an available publication without reading and
+hashing the whole checkout. The existing refresh coordinator does that work in
+the background. Until checked, same-HEAD freshness is `unknown` with
+`checkout_freshness_unverified`; a changed HEAD or already observed input movement
+is `stale`. Selected source text still requires the descriptor content check.
+Cold queries request normal background recovery. Public status remains read-only
+and uses the same unverified freshness qualification. Internal admission checks
+retain explicit checkout verification through the existing status owner.
+
+`graph_snapshot.base_coverage` identifies `input_basis: working_checkout`, the
+`checkout_identity` and `inputs_moved`. Source/configuration movement during a
+build is reported honestly and leaves the normal refresh path available; a
+clean checkout or stable commit is never a new readiness prerequisite. Source
+assembly reads the selected checkout file and compares its content digest with
+the indexed descriptor. A changed file reports `checkout_source_changed` instead
+of attributing current text to old occurrences. It never substitutes a Git blob.
+
+`graph_snapshot.repository_commit` and `repository_tree` are Git observations at
+preparation, not exact-content claims. `indexed_commit` preserves the published
+snapshot's `repository_commit`, with its first 12 characters in
+`indexed_commit_short`; both are null when that snapshot supplies no commit.
+They never substitute the request's separately observed `current_head` or claim
+that dirty checkout bytes equal a Git tree. The authoritative index identity is store
+incarnation plus publication sequence and checkout/provider input identities.
+Retained-answer currentness compares checkout inputs and publication identity;
+a same-HEAD source edit reports a changed observation before refresh finishes.
+Provider coverage names `input_basis`, `input_identity` and `observed_head`.
+Python and Go use the truthful `working-checkout` project version, independent
+of commits. Context uses `freshness_basis: checkout_input_identity` and
+`graph_basis: working_checkout`.
+
+SCIP decoding and normalization retain provider-native occurrences, stable
+symbol identities, roles, resolution, and one-based inclusive whole-line source
+and enclosing ranges. Invalid ranges are omitted and counted. Definition and
+reference navigation remain based on those native occurrences; call edges are
+emitted only where the provider supplies enclosing ranges.
 
 ### Existing runtime calls
 
@@ -426,20 +549,17 @@ compact answer bound to its retained complete original by
 `selected_detail.source`; read that original through the returned `detail`
 selection.
 
-Use the CLI forms, such as `npm run wiki -- code-index impact --paths <path>` and
-`npm run wiki -- code-index impact --live-git`, only when the session does not
-hold the MCP tool. The CLI must preserve the same trust envelope: graph evidence
+Explicitly requested operator CLI work may use `npm run wiki -- code-index impact --paths <path>`
+or `npm run wiki -- code-index impact --live-git`. A missing MCP grant does not
+authorize switching to an operator CLI. The CLI preserves the same trust envelope: graph evidence
 is derived code index evidence, while durable `docs/` pages and canonical
 `wiki/` records remain authoritative.
 
-Final answers and handoff notes that rely on graph impact should report:
-
-- input paths or diff endpoints queried
-- tool used, including whether MCP or the CLI was used
-- `dirty_state` and `staleness`
-- graph edge source from `graph_state.edge_source`
-- key missing-update hints
-- whether post-diff graph impact was run, unavailable, or not applicable
+Final answers and handoff notes that rely on code impact should state the
+queried change scope, the useful affected-code meaning and any coverage or
+source limit that changes the conclusion. A post-diff impact query is needed
+only when the assigned task needs it. Do not copy provider state, index digests
+or successful integrity checks into the handoff.
 
 ## Package-Owned Documentation Versus Workspace Pages
 

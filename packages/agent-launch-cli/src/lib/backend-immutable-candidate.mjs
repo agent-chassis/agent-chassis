@@ -12,6 +12,7 @@ import {
 import path from "node:path";
 
 import { defaultRunGit } from "./worktree-substrate.mjs";
+import { assertTestProofExecutionBudget } from "./test-execution/confined-capture.mjs";
 
 export const IMMUTABLE_CANDIDATE_FAILURE_CODE =
   "agent_launch.immutable_candidate.failed.v1";
@@ -151,8 +152,16 @@ function cleanupFailure({ runGit, repository, actionRoot, checkout, worktreeAdde
 export function materializeImmutableCandidate({
   candidate,
   worktreeRoot,
+  budget = null,
   runGit = defaultRunGit
 } = {}) {
+  if (budget !== null) assertTestProofExecutionBudget(budget);
+
+  const preparationGit = budget === null ? runGit : (input) => {
+    budget.interruption();
+    budget.signal.throwIfAborted();
+    return runGit({ ...input, timeoutMs: Math.max(1, budget.remainingMs()) });
+  };
   const repository = candidate?.repository_identity?.repository_path;
   if (candidate?.schema_version !== IMMUTABLE_CANDIDATE_SCHEMA_VERSION ||
       typeof candidate?.authenticated_candidate_identity !== "string" ||
@@ -186,14 +195,15 @@ export function materializeImmutableCandidate({
   let observedCommit;
   let observedTree;
   try {
-    const added = runGit({ repo: repository,
+    const added = preparationGit({ repo: repository,
       args: ["worktree", "add", "--detach", checkout, candidate.commit] });
-    if (added?.ok !== true) fail("materialization_failed");
+    if (added?.ok !== true) fail("materialization_failed", { commit: candidate.commit,
+      status: added?.status ?? null, error: added?.error ?? null, stderr: added?.stderr ?? null });
     worktreeAdded = true;
-    observedCommit = git(runGit, checkout,
+    observedCommit = git(preparationGit, checkout,
       ["--no-replace-objects", "rev-parse", "--verify", "HEAD^{commit}"],
       "materialized_identity_unavailable");
-    observedTree = git(runGit, checkout,
+    observedTree = git(preparationGit, checkout,
       ["--no-replace-objects", "rev-parse", "--verify", "HEAD^{tree}"],
       "materialized_identity_unavailable");
     if (observedCommit !== candidate.commit || observedTree !== candidate.tree) fail(

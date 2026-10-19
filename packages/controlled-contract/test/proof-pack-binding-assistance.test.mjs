@@ -1,3 +1,4 @@
+import { fixture as executionFixture } from './support/test-validity-definition-controls.mjs';
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -93,74 +94,11 @@ function evaluationInput(referenceBindings = [], numberBindings = []) {
 }
 
 async function testValidityFixture() {
-  const [base, template] = await Promise.all([
-    readFile(new URL("examples/minimal-controlled-acceptance-contract.v1.json", packageRoot),
-      "utf8").then(JSON.parse),
-    readFile(new URL(
-      "profiles/proof.verification.test-validity/11.0.0/evaluation-input.template.json",
-      packageRoot), "utf8").then(JSON.parse)
-  ]);
-
-  const input = { ...template.stable_evaluation.test_validity[0] };
-  input.verification_id = "claim-suite-covers-component";
-  input.test_proof_id = "test-proof-suite-covers-component";
-  input.falsifier_executions[0].failure_proposition_id = "prop-component-absent";
-  input.falsifier_executions[0].mutation.target_verification_id =
-    "claim-suite-covers-component";
-  const proof = {
-    test_proof_id: input.test_proof_id,
-    verification_claim_id: input.verification_id,
-    system_under_test_boundary: {
-      boundary_id: input.candidate_execution.observed_boundary_id, kind: "module",
-      runtime_module_path: "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
-      subject_reference_ids: ["ref-component"]
-    },
-    observable_result: {
-      observable_id: input.candidate_execution.observed_observable_id, kind: "return_value",
-      proposition_id: "prop-suite-covers-component"
-    },
-    candidate_execution_provider: {
-      provider_id: "launcher.node-test", provider_version: "1.0.0",
-      capability: "candidate_execution"
-    },
-    falsifiers: [{
-      falsifier_id: input.falsifier_executions[0].falsifier_id,
-      strategy: "dependency_failure", proposition_id: "prop-component-absent",
-      expected_outcome: "verification_fails",
-      mutation: {
-        mutation_id: input.falsifier_executions[0].mutation.mutation_id,
-        mechanism: "module_substitution", target_kind: "module",
-        module_path: "packages/controlled-contract/lib/test-proof-contract-v1.mjs"
-      },
-      execution_provider: {
-        provider_id: "launcher.node-test-module-fault", provider_version: "2.0.0",
-        capability: "falsifier_execution"
-      }
-    }],
-    traversal_provider: {
-      mode: "provider", provider_id: "launcher.node-test-v8-coverage",
-      provider_version: "1.0.0", capability: "boundary_traversal",
-      boundary_kind: "module", observation_mechanism: "node_test_v8_coverage",
-      observation_seam: "node_test_structured_assertion",
-      evidence_artifact_type: "boundary_trace"
-    },
-    test_selector: { name: "package result is returned for the covered component",
-      nesting: 0 },
-    prohibited_shortcuts: ["source_text_inspection"]
-  };
-  const testValidity = input;
-  return {
-    contract: { ...base, test_proofs: [proof] },
-    input: {
-      input_version: "controlled-contract-verification-profile-input.v2",
-      reference_bindings: [
-        { role: "component", reference_ids: ["ref-component"] },
-        { role: "suite", reference_ids: ["ref-suite"] }
-      ],
-      number_bindings: [], claim_pattern_bindings: [], resolver_facts: [],
-      delivered_evidence: [], stable_evaluation: { test_validity: [testValidity] }
-    }
-  };
+  return { contract: executionFixture().contract, input: {
+    input_version: "controlled-contract-verification-profile-input.v2",
+    reference_bindings: [], number_bindings: [], claim_pattern_bindings: [],
+    resolver_facts: [], delivered_evidence: [], stable_evaluation: {}
+  } };
 }
 
 test("reports every compatible candidate without choosing or inferring meaning", async () => {
@@ -307,7 +245,7 @@ test("stable test-validity bindings pass while invalid and mixed families fail c
     const result = await inspectProofPackBindings({
       contract: fixture.contract,
       profileId: "proof.verification.test-validity",
-      profileVersion: "11.0.0",
+      profileVersion: "12.0.0",
       requestedIntents: ["controlled-proof-intent.test-verification-validity"],
       evaluationInput: fixture.input
     });
@@ -342,7 +280,7 @@ test("stable test-validity bindings pass while invalid and mixed families fail c
       await assert.rejects(inspectProofPackBindings({
         contract,
         profileId: "proof.verification.test-validity",
-        profileVersion: "11.0.0"
+        profileVersion: "12.0.0"
       }), (error) => error.code === "proof_pack_binding_contract_invalid" &&
         error.details.diagnostics.diagnostics.length > 0 &&
         error.details.diagnostics.diagnostics.every((diagnostic) =>
@@ -352,64 +290,32 @@ test("stable test-validity bindings pass while invalid and mixed families fail c
 
 const TEST_VALIDITY_PACK = Object.freeze({
   profileId: "proof.verification.test-validity",
-  profileVersion: "11.0.0"
+  profileVersion: "12.0.0"
 });
 
-test("the WK-2392-shaped two-role population is valid once component and suite are bound",
-  async () => {
-    const fixture = await testValidityFixture();
-    const validate = (evaluationInput) => validateSuppliedProofPackBindings({
-      contract: fixture.contract, ...TEST_VALIDITY_PACK, evaluationInput
-    });
-
-    const valid = await validate(fixture.input);
-    assert.deepEqual(valid.summary, {
-      reference_role_count: 2,
-      number_role_count: 0,
-      incompatible_binding_count: 0,
-      status: "valid"
-    });
-    assert.deepEqual(valid.evaluation_input_diagnostics, []);
-    assert.deepEqual(valid.reference_roles.map(({ role, status }) => [role, status]),
-      [["component", "validly_bound"], ["suite", "validly_bound"]]);
-    assert.deepEqual(valid.number_roles, []);
-
-    for (const role of ["component", "suite"]) {
-      const input = structuredClone(fixture.input);
-      input.reference_bindings = input.reference_bindings.filter((binding) =>
-        binding.role !== role);
-      const result = await validate(input);
-      assert.equal(result.summary.status, "invalid");
-      assert.equal(result.summary.incompatible_binding_count, 1);
-      assert.deepEqual(result.evaluation_input_diagnostics, [{
-        cardinality: "exactly_one",
-        code: "required_role_binding_absent",
-        role,
-        role_kind: "reference"
-      }]);
-      assert.equal(result.reference_roles.find((entry) => entry.role === role).status,
-        "unbound");
-    }
-
-    const substituted = structuredClone(fixture.input);
-    substituted.reference_bindings.find(({ role }) => role === "suite")
-      .reference_ids = ["ref-component"];
-    const incompatible = await validate(substituted);
-    assert.equal(incompatible.summary.status, "invalid");
-    assert.equal(incompatible.summary.incompatible_binding_count, 1);
-    const suite = incompatible.reference_roles.find(({ role }) => role === "suite");
-    assert.equal(suite.status, "incompatible");
-    assert.ok(suite.diagnostics.some(({ code, reference_id: referenceId }) =>
-      code === "reference_role_binding_type_mismatch" &&
-      referenceId === "ref-component"));
-  });
+test("test-validity requires no graph-role bindings and refuses invented component binding", async () => {
+  const fixture = await testValidityFixture();
+  const validate = evaluationInput => validateSuppliedProofPackBindings({
+    contract: fixture.contract, ...TEST_VALIDITY_PACK, evaluationInput });
+  const valid = await validate(fixture.input);
+  assert.deepEqual(valid.summary, { reference_role_count: 0, number_role_count: 0,
+    incompatible_binding_count: 0, status: "valid" });
+  assert.deepEqual(valid.reference_roles, []);
+  assert.deepEqual(valid.number_roles, []);
+  assert.deepEqual(valid.evaluation_input_diagnostics, []);
+  const invented = structuredClone(fixture.input);
+  invented.reference_bindings = [{ role: "component", reference_ids: ["ref-component"] }];
+  const invalid = await validate(invented);
+  assert.equal(invalid.summary.status, "invalid");
+  assert.ok(invalid.evaluation_input_diagnostics.some(({ code }) => code === "unknown_reference_role_binding"));
+});
 
 test("an invalid summary always names a failing role or diagnostic", async () => {
   const fixture = await testValidityFixture();
   const contract = await contractFixture();
   const cases = [
-    ["no bindings at all", { contract: fixture.contract, ...TEST_VALIDITY_PACK,
-      evaluationInput: { ...structuredClone(fixture.input), reference_bindings: [] } }],
+    ["invented fixed component binding", { contract: fixture.contract, ...TEST_VALIDITY_PACK,
+      evaluationInput: { ...structuredClone(fixture.input), reference_bindings: [{ role: "component", reference_ids: ["ref-component"] }] } }],
     ["a dangling reference", { contract, profileId, profileVersion,
       evaluationInput: evaluationInput([
         { role: "actor", reference_ids: ["ref-actor-alpha"] },
@@ -480,8 +386,7 @@ test("the page, the assistance result, and binding validation agree on one summa
   async () => {
     const fixture = await testValidityFixture();
     const input = structuredClone(fixture.input);
-    input.reference_bindings = input.reference_bindings.filter(({ role }) =>
-      role !== "suite");
+    input.reference_bindings = [{ role: "component", reference_ids: ["ref-component"] }];
     const request = {
       contract: fixture.contract,
       profileId: TEST_VALIDITY_PACK.profileId,
@@ -728,7 +633,7 @@ test("a pack that declares no claim pattern admits no explicit binding", async (
   const result = await validateSuppliedClaimPatternBindings(claimBindingRequest(
     [{ pattern_id: "attempt-performs-operation",
       claim_id: "claim-attempt-performs-operation" }],
-    { profileId: "proof.verification.test-validity", profileVersion: "11.0.0" }
+    { profileId: "proof.verification.test-validity", profileVersion: "12.0.0" }
   ));
   assert.equal(result.summary.status, "invalid");
   assert.deepEqual(result.admission_diagnostics.map(({ code }) => code),

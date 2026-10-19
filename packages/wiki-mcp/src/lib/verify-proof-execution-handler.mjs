@@ -3,17 +3,18 @@ import path from "node:path";
 import { VerifyProofOperationError, assertVerifyProofCallerShape, verifyProofBranchContextWkId, verifyProofPopulationSubject } from "../../../wiki-core/src/operations/controlled-contract/verify-proof-operations.mjs";
 import { withOrchestratorTestProofRuntime } from "../../../agent-launch-cli/src/lib/workspace-agent-orchestrator-test-proof-runtime.mjs";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
-import { resolveExecutionBranchSource } from "./managed-test-source-context.mjs";
+import { managedTestAuthorityIdentity, resolveExecutionBranchSource } from "./managed-test-source-context.mjs";
 import { resolveDispatchWorktreeProvisioningConfig } from "./dispatch-launch-runtime.mjs";
-import { retainOperatorOnlyEvidence } from "./mcp-response.mjs";
-import { retainSelectedResponseSource, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
+import { retainOperatorOnlyEvidence, readOperatorOnlyEvidence, activeMcpInlineByteLimit, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
+import { retainSelectedResponseSource, readSelectedResponseSource, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
 import { VERIFY_PROOF_TOOL_NAME, projectVerifyProofFailure, verifyProofSourceAmbiguityChoices } from "./verify-proof-public-result.mjs";
-import { projectPublicVerifyProofSourceRefusal as publicSourceRefusal, requestedVerifyProofSource as requestedSource } from "./verify-proof-result-reader.mjs";
+import { requestedVerifyProofSource as requestedSource } from "./verify-proof-result-reader.mjs";
 import { resolveCanonicalSubjectWkId, resolveManagedRuntimeAuthority, resolveProductionContextFromRuntime } from "./verify-proof-candidate-context.mjs";
 import { mintVerifyProofInvocationId, recordVerifyProofRunResult, resolveVerifyProofRunAttempt } from "./verify-proof-run-cache.mjs";
 import { executeVerifyProofForContext, aggregateResult, VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION, withVerifyProofExecutionBranch, withVerifyProofInvocationTiming } from "./verify-proof-execution.mjs";
 import { startTestProofInvocationTiming } from "../../../agent-launch-core/src/lib/test-proof-timing.mjs";
-import { validatedVerifyProofEvidence, deliverStandaloneVerification, deliverManagedVerification, recordedInvocation, deliveryFailure, shippedVerifyProofCalls } from "./verify-proof-delivery.mjs";
+import { verifyProofFailureEffects } from "./verify-proof-execution-effects.mjs";
+import { validatedVerifyProofEvidence, deliverStandaloneVerification, deliverManagedVerification, deliverRecordedProofProjection, recordedInvocation, deliveryFailure, shippedVerifyProofCalls } from "./verify-proof-delivery.mjs";
 
 async function executeProductionVerifyProof({ args: received, env, responseEnv, repoRoot, repository, deps, signal,
   run }) {
@@ -21,6 +22,8 @@ async function executeProductionVerifyProof({ args: received, env, responseEnv, 
   const regressionHost = { repository, sessionEnv: env, responseEnv };
   const state = (deps.resolveLauncherRunState ?? resolveLauncherRunState)(env);
   assertVerifyProofCallerShape(received, { authenticatedRole: state.role });
+  run.role = state.role;
+  run.authorityIdentity = managedTestAuthorityIdentity(state);
   let args = received;
   const selectBranch = (selector, field) => {
     const selected = (deps.resolveExecutionBranchSource ?? resolveExecutionBranchSource)({ mainRepo: repoRoot,
@@ -32,12 +35,11 @@ async function executeProductionVerifyProof({ args: received, env, responseEnv, 
         ...(selected.detail.branch === undefined ? {} : { branch: selected.detail.branch }) });
     const { branch: _selector, ...exact } = received;
     args = { ...exact, git_sha: selected.commit };
+    run.args = args;
     run.branch = selected;
   };
   if (received.branch !== undefined) {
     selectBranch(received.branch, "branch");
-
-    run.args = args;
   }
   const subjectDefault = state.role === "orchestrator" && args.git_sha === undefined;
   const wkId = state.role === "orchestrator"
@@ -59,8 +61,13 @@ async function executeProductionVerifyProof({ args: received, env, responseEnv, 
     } else {
       const runtime = await resolveManagedRuntimeAuthority({ env, mainRepo: repoRoot, state, wkId });
       run.attempt = resolveVerifyProofRunAttempt(runtime);
+      run.source = { kind: runtime.authority.kind,
+        worktree_path: runtime.authority.worktree_path, selected_unit: runtime.selectedUnitAddress,
+        ...(run.attempt === null ? {} : { source_digest: run.attempt.slice_binding.source_digest,
+          credential: run.attempt.credential }) };
       context = await resolveProductionContextFromRuntime({ args, runtime });
     }
+    run.executionEntered = true;
     return executeVerifyProofForContext({
       args,
       resolutionContext: context.resolutionContext,
@@ -82,6 +89,7 @@ async function executeProductionVerifyProof({ args: received, env, responseEnv, 
     ...(args.git_sha === undefined ? {} : { gitSha: args.git_sha })
   }, async (runtime) => {
     const context = await resolveProductionContextFromRuntime({ args, runtime });
+    run.executionEntered = true;
     return executeVerifyProofForContext({
       args,
       resolutionContext: context.resolutionContext,
@@ -114,9 +122,13 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
 
     const signal = extra?.signal instanceof AbortSignal ? extra.signal : null;
     if (signal?.aborted) {
+      const code = "verify_proof.execution_cancelled_before_start.v1";
       return errorContent(Object.assign(new Error(
         "workspace_verify_proof request was cancelled before any proof work started"
-      ), { code: "verify_proof.execution_cancelled_before_start.v1" }));
+      ), { code, envelope: { reason_code: code, subject: { requested: received.subject },
+        status: "not_executable", execution_effects: { status: "not_started" },
+        stopping_condition: "The request was cancelled before execution. Issue a new execution only when it is still required.",
+        next_calls: [] } }));
     }
 
     const run = { attempt: null, invocationId: mintVerifyProofInvocationId(), original: null, args: received,
@@ -154,17 +166,24 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
       args = run.args;
       let envelope = projectVerifyProofFailure(error, { subject: args.subject, request: args, executionCall: calls.execution,
         timing: timing.seal() });
-      if (envelope === null) return errorContent(error);
+      let effects = verifyProofFailureEffects(error);
+      if (effects === undefined) effects = { status: run.executionEntered === true ? "unknown" : "not_started" };
+      if (envelope === null) return calls.unmodeledFailure({ error, effects, subject: args.subject, errorContent });
+      if (effects !== undefined) envelope = { ...envelope, execution_effects: effects };
+      if (envelope.reason_code === "test_proof_source_snapshot_symlink_unsupported" && run.source) {
+        envelope = { ...envelope, refused_source: run.source };
+      }
       envelope = await calls.refusal(envelope);
 
       let recordedRefusal = null;
       let retention = null;
       let ambiguityLocator = null;
+      let standaloneRefusalEvidence = null;
       const sourceChoices = verifyProofSourceAmbiguityChoices(envelope);
       if (run.attempt === null) {
         try {
           if (sourceChoices === null) {
-            retainOperatorOnlyEvidence(envelope, { env: responseEnv });
+            standaloneRefusalEvidence = retainOperatorOnlyEvidence(envelope, { env: responseEnv });
           } else {
             const state = (deps.resolveLauncherRunState ?? resolveLauncherRunState)(env);
             if (state.role !== "orchestrator") {
@@ -177,7 +196,7 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
                 observation_identity: envelope.reason_code,
                 authority_identity: { session_contract: state.sessionContract } },
               carrier: envelope,
-              ownerCall: (retained) => calls.retained(workspace.repo, retained, args.subject),
+              ownerCall: (retained) => calls.originalRetained(workspace.repo, retained, args.subject),
               ownerRequestSchema: requestSchema
             }, { env: responseEnv });
           }
@@ -191,7 +210,7 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
         try {
           recordedRefusal = await recordRun("refusal", envelope);
         } catch (recordingError) {
-          return errorContent(recordingError);
+          return calls.refusalRecordingFailure({ envelope, recordingError, errorContent, request: args });
         }
       }
 
@@ -200,7 +219,7 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
         ...(recordedRefusal === null ? {} : {
           recorded_invocation: recordedInvocation(args.subject, run.invocationId, calls) }),
         ...(retention === null ? {} : { original_retention: retention }) };
-      const delivered = { ...publicSourceRefusal(envelope, { responseEnv, decoration,
+      const delivered = { ...calls.presentRefusal(envelope, { responseEnv, decoration, request: args,
         retentionFailed: sourceChoices !== null && retention !== null,
         readCall: sourceChoices === null || retention !== null ? null : run.attempt === null
           ? (source) => calls.sourceRetained(workspace.repo, ambiguityLocator, args.subject, source, args)
@@ -209,11 +228,31 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
       const projected = Object.assign(new Error(
         "workspace_verify_proof refused a modeled proof failure"
       ), { code: envelope.code, envelope: delivered });
+      if (recordedRefusal !== null &&
+          measureMcpInlineResultBytes(delivered, { isError: true }) > activeMcpInlineByteLimit(responseEnv)) {
+        return deliverRecordedProofProjection({ run, projection: delivered, isError: true });
+      }
+      if (ambiguityLocator !== null &&
+          measureMcpInlineResultBytes(delivered, { isError: true }) > activeMcpInlineByteLimit(responseEnv)) {
+        const retained = readSelectedResponseSource(ambiguityLocator, { env: responseEnv,
+          expected: { route: VERIFY_PROOF_TOOL_NAME, repository: workspace.repo } });
+        const answer = selectedFullContent({ source: ambiguityLocator, retained, projection: delivered });
+        answer.isError = true;
+        return answer;
+      }
+      if (standaloneRefusalEvidence !== null &&
+          measureMcpInlineResultBytes(delivered, { isError: true }) > activeMcpInlineByteLimit(responseEnv)) {
+
+        const retained = readOperatorOnlyEvidence(standaloneRefusalEvidence, { env: responseEnv });
+        const answer = selectedFullContent({ source: standaloneRefusalEvidence, retained, projection: delivered });
+        answer.isError = true;
+        return answer;
+      }
       return errorContent(projected);
     }
     let evidence;
     try {
-      evidence = await validatedVerifyProofEvidence(result, calls, args);
+      evidence = await validatedVerifyProofEvidence(result, calls, args, run.role);
     } catch (error) {
       return errorContent(error);
     }

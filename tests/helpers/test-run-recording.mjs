@@ -13,9 +13,14 @@ import { summarizeTestRun } from "./test-timing-summary.mjs";
 const MAX_RECORDED_FAILURES = 64;
 
 export async function beginTestRunRecording({ repoRoot, mode, options, selectedFiles, callerTempDir,
-  currentRoots, output }) {
+  currentRoots, output, artifactResources }) {
+  const logFds = [];
   const artifacts = await allocateTestRunArtifacts({ explicitBase: options.artifactsDir,
-    defaultBase: callerTempDir, currentRoots });
+    defaultBase: callerTempDir, currentRoots, preserveArtifacts: options.preserveArtifacts,
+    onAllocate: (runDir) => {
+      artifactResources.ownDirectory(runDir, options.preserveArtifacts);
+      artifactResources.add("run log descriptors", closeLogs);
+    } });
   const failures = [];
   let failuresDropped = 0;
   const source = await readSourceProvenance(repoRoot);
@@ -25,7 +30,9 @@ export async function beginTestRunRecording({ repoRoot, mode, options, selectedF
     status: "incomplete",
     started_at: new Date().toISOString(),
     parent: artifacts.parent,
-    artifact_base: { path: artifacts.base, source: artifacts.baseSource },
+    artifact_base: { path: artifacts.base, source: artifacts.baseSource,
+      storage_base: artifacts.storageBase },
+    preserve_artifacts: options.preserveArtifacts,
     node_version: process.version,
     mode,
     diagnostic_kind: options.diagnosticKind,
@@ -37,8 +44,8 @@ export async function beginTestRunRecording({ repoRoot, mode, options, selectedF
       note: "captured from the artifact notice onward; earlier runner lines reach stderr only" }
   };
   writeRunMetadata(artifacts.runDir, metadata);
-  const logFds = [openRunLogFile(artifacts.runDir, "stdout.log"),
-    openRunLogFile(artifacts.runDir, "stderr.log")];
+  logFds.push(openRunLogFile(artifacts.runDir, "stdout.log"));
+  logFds.push(openRunLogFile(artifacts.runDir, "stderr.log"));
   output.attachLogs({ stdoutLogFd: logFds[0], stderrLogFd: logFds[1] });
 
   function recordFailure(failure) {
@@ -102,7 +109,6 @@ export async function beginTestRunRecording({ repoRoot, mode, options, selectedF
     recordingFailures,
     finalize,
     writeFinal,
-    markOutputDrainExhausted,
-    closeLogs
+    markOutputDrainExhausted
   });
 }

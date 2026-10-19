@@ -26,7 +26,7 @@ const PRIVATE = "PRIVATE_DIAGNOSIS_INVENTORY_MARKER";
 const AUTHORITY_A = Object.freeze({ role: "orchestrator", source: { kind: "canonical_workspace", repository: "fixture-repo" } });
 const AUTHORITY_B = Object.freeze({ role: "reviewer", run: { run_id: "run-b" } });
 
-const DIAGNOSIS = `selected diagnosis é 🚀 "quoted" \\ back\ttab\r\n${"語λ".repeat(9000)} end`;
+const DIAGNOSIS = `selected diagnosis é 🚀 "quoted" \\ back\ttab\r\n${"語λ".repeat(30000)} end`;
 const CARRIER = Object.freeze({
   assessment: { verdict: "refused", selected_diagnosis: DIAGNOSIS, case_ids: ["case-1", "case-2"] },
   diagnosis_inventory: Array.from({ length: 40 }, (_, index) => ({ id: `diag-${index}`, text: `${PRIVATE} ${index}` })),
@@ -69,42 +69,56 @@ const refused = (reason, code = "selected_response_query_invalid") => (error) =>
 };
 const UNREADABLE = "mcp_response.content_reference_ranged_read_unavailable.v1";
 
-test("RW-J01", async (t) => {
-  const { env, source, producer, state } = fixture(t);
+function complete(result, expected) {
+  const value = assertStructuredCarrier(result);
+  assert.notEqual(result.isError, true);
+  assert.equal(value.response_spilled, undefined);
+  if (expected !== undefined) assert.deepEqual(value, expected);
+  assert.equal(JSON.stringify(value).includes(PRIVATE), false);
+  return value;
+}
+
+for (const inlineLimit of [undefined, 8192, 262144]) test(`RW-J01 SDK inline=${inlineLimit ?? "default"}`, async (t) => {
+  const { scope, env: base, source, producer, state } = fixture(t);
+  const env = { ...base };
+  if (inlineLimit === undefined) delete env.WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT;
+  else env.WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT = String(inlineLimit);
   const before = state();
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { InMemoryTransport } = await import("@modelcontextprotocol/sdk/inMemory.js");
+  const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+  const server = new McpServer({ name: "projection", version: "1.0.0" });
+  const client = new Client({ name: "projection", version: "1.0.0" });
+  scope.add("SDK", async () => { await client.close(); await server.close(); });
+  const small = { verdict: "refused", cases: CARRIER.assessment.case_ids, note: "é 🚀 \"quoted\" \\ back\n" };
   const calls = [];
-  const first = await guarded(env, await read(env, source,
-    projector(calls, { currentness: { state: "current", observed_at: 1 }, cursor: "page-1" })));
-
-  const expected = { assessment: CARRIER.assessment, currentness: { state: "current", observed_at: 1 },
-    next_calls: [{ tool: ROUTE, arguments: { cursor: "page-1" } }] };
-  assert.deepEqual(assertStructuredCarrier(first), expected);
-  assert.equal(first.structuredContent.assessment.selected_diagnosis, DIAGNOSIS, "the oversized scalar, exactly");
-  assert.deepEqual(first.content, [{ type: "text", text: JSON.stringify(expected) }]);
-  assert.deepEqual(Object.keys(first).sort(), ["content", "structuredContent"]);
-  assert.ok(deliveredAdmissionBytes(first) > LIMIT * 4, "materially above the ordinary inline limit");
-  for (const key of ["response_spilled", "content_reference"]) assert.equal(Object.hasOwn(first.structuredContent, key), false);
-
-  assert.equal(JSON.stringify(first).includes(PRIVATE), false, "the private inventory stays retained");
-  assert.equal(Object.hasOwn(first.structuredContent, "diagnosis_inventory"), false);
-  assert.equal(Object.hasOwn(first.structuredContent, "correction_routes"), false);
-
-  const second = await guarded(env, await read(env, source,
-    projector(calls, { currentness: { state: "changed", observed_at: 2 }, cursor: "page-2" })));
-  assert.deepEqual(second.structuredContent.currentness, { state: "changed", observed_at: 2 });
-  assert.deepEqual(second.structuredContent.next_calls, [{ tool: ROUTE, arguments: { cursor: "page-2" } }]);
-  assert.deepEqual(second.structuredContent.assessment, CARRIER.assessment);
-  assert.deepEqual(calls, ["WK-0001#SLICE-001", "WK-0001#SLICE-001"]);
-
-  assert.deepEqual(state(), before, "no retained file was added or changed by reading");
-  assert.equal(producer.calls, 1);
-
+  server.registerTool("projection", { inputSchema: { large: z.boolean() } }, guardToolHandler(async ({ large }) =>
+    read(env, source, large ? projector(calls, { currentness: { state: "current" }, cursor: "c" }) : () => small), { env }));
+  server.registerTool("foreign_projection", {}, guardToolHandler(() => read(env, source,
+    projector(calls, { currentness: { state: "unavailable" }, cursor: "denied" }), binding(AUTHORITY_B)), { env }));
+  const [left, right] = InMemoryTransport.createLinkedPair();
+  await server.connect(right); await client.connect(left);
+  const exact = await client.callTool({ name: "projection", arguments: { large: false } });
+  assert.deepEqual(assertStructuredCarrier(exact), small);
+  const oversized = await client.callTool({ name: "projection", arguments: { large: true } });
+  complete(oversized, { assessment: CARRIER.assessment, currentness: { state: "current" },
+    next_calls: [{ tool: ROUTE, arguments: { cursor: "c" } }] });
+  assert.ok(deliveredAdmissionBytes(oversized) > 128 * 1024);
+  const denied = await client.callTool({ name: "foreign_projection", arguments: {} });
+  assert.equal(denied.isError, true);
+  assert.match(JSON.stringify(denied), /source_binding_mismatch/u);
+  assert.ok(deliveredAdmissionBytes(denied) <= LIMIT);
+  assert.equal(JSON.stringify(denied).includes(PRIVATE), false);
+  assert.deepEqual(calls, ["WK-0001#SLICE-001"]);
   assert.deepEqual(readSelectedResponseFull(source, { env, expected: binding() }).structuredContent, CARRIER);
-
   const mutating = await read(env, source, ({ carrier }) => { carrier.assessment.verdict = "mutated"; return { ok: true }; });
-  assert.deepEqual(mutating.structuredContent, { ok: true });
+  assert.deepEqual(assertStructuredCarrier(await guarded(env, mutating)), { ok: true });
   assert.equal(readSelectedResponseFull(source, { env, expected: binding() }).structuredContent.assessment.verdict, "refused");
-  assert.deepEqual(state(), before);
+  assert.deepEqual(state(), before, "reads rewrite and retain nothing");
+  assert.equal(producer.calls, 1);
+  t.diagnostic(JSON.stringify({ inline: inlineLimit ?? "default", small: deliveredAdmissionBytes(exact),
+    oversized: deliveredAdmissionBytes(oversized), requested: Buffer.byteLength(JSON.stringify(oversized.structuredContent)),
+    physical: Buffer.byteLength(JSON.stringify(oversized)) }));
 });
 
 test("RW-J02", async (t) => {
@@ -176,38 +190,42 @@ test("RW-J03", async (t) => {
   spilledOnly(await guarded(env, { ...(await read(env, source, project)) }));
   spilledOnly(await mutated((result) => { result.structuredContent.diagnosis_inventory = CARRIER.diagnosis_inventory; }));
   spilledOnly(await mutated((result) => { result.structuredContent.currentness = { state: "forged" }; }));
-  spilledOnly(await mutated((result) => { result._meta = { selected_projection: true }; }));
+  complete(await mutated((result) => { result._meta = { selected_projection: true }; }));
   const flagged = await mutated((result) => { result.isError = true; });
   assert.equal(flagged.isError, true);
-  spilledOnly(flagged);
+  assert.deepEqual(assertStructuredCarrier(flagged).assessment, CARRIER.assessment);
   const remirrored = await mutated((result) => { result.content = [{ type: "text", text: "stale" }]; });
   assert.equal(remirrored.content[0].text, JSON.stringify(remirrored.structuredContent));
-  assert.equal(remirrored.structuredContent.assessment.selected_diagnosis, DIAGNOSIS);
+  complete(remirrored);
 
   const before = state();
   assert.deepEqual(Object.keys(source), ["ref_id"]);
   const locator = JSON.parse(JSON.stringify({ ref_id: source.ref_id }));
   const cold = await guarded(env, await readSelectedResponseProjection(locator, { env, expected: binding(),
     project: ({ carrier }) => ({ assessment: carrier.assessment, restarted: true }) }));
-  assert.deepEqual(cold.structuredContent, { assessment: CARRIER.assessment, restarted: true });
+  complete(cold, { assessment: CARRIER.assessment, restarted: true });
   assert.equal(cold.content[0].text, JSON.stringify(cold.structuredContent));
   assert.deepEqual(state(), before, "a cold read retains nothing");
 });
 
-test("selected schema delivery remains complete above the inline limit", async (t) => {
+test("selected schema delivery preserves oversized schemas without changing their definitions", async (t) => {
   const { env, source, producer, state } = fixture(t);
   const before = state();
-  const { changeSchemas } = createSaveRecordInputContract(z);
+  const registeredTier = "paid_cce";
+  const { changeSchemas } = createSaveRecordInputContract(z, registeredTier);
   const owner = JSON.parse(JSON.stringify(changeSchemas.work_item_slice));
-  const exposure = bindInputSchemaExposure(createSaveRecordInputExposure({ changeSchemas,
-    variants: ["WK-0001", "WK-0001#SLICE-001", "IN-0001", "DEC-0001"].map(unit => saveRecordUnitVariant(unit)) }));
+  const declaration = createSaveRecordInputExposure({ changeSchemas, registeredTier,
+    variants: ["WK-0001", "WK-0001#SLICE-001", "IN-0001", "DEC-0001"].map(unit => saveRecordUnitVariant(unit)) });
+  const exposure = bindInputSchemaExposure(declaration);
   const members = ["criteria", "requirements", "obligations", "controlled_acceptance", "slices", "ready_slices"];
   const selected = exposure.source("work_item_slice").select({ groups: ["acceptance", "slice_shaping"] });
   const deliver = async (contract) => guarded(env, await read(env, source, () => ({ input_contract: contract })));
 
-  const result = await deliver({ tool: "save_record", unit: "WK-0001#SLICE-001", variant: selected.source,
-    members: selected.members, owner_schema_digest: selected.digest, schema: selected.schema });
-  const delivered = assertStructuredCarrier(result).input_contract;
+  const contract = { tool: "save_record", unit: "WK-0001#SLICE-001", variant: selected.source,
+    members: selected.members, owner_schema_digest: selected.digest, schema: selected.schema };
+  const result = await deliver(contract);
+  complete(result, { input_contract: contract });
+  const delivered = result.structuredContent.input_contract;
   assert.deepEqual(delivered.members, members);
 
   const referencesOf = (value, found = []) => {
@@ -227,7 +245,8 @@ test("selected schema delivery remains complete above the inline limit", async (
   }
   const definitions = Object.keys(owner.$defs).filter(name => reached.has(name));
   assert.deepEqual(definitions, [...Object.keys(workItemRequirementBatchSchema().$defs),
-    "obligation_case", "case_component", "case_target", "case_falsification", "ready_slice_edit_targets"],
+    "obligation_case", "obligation_statement", "obligation_criteria", "obligation_claims", "obligation_proof",
+    "case_component", "case_target", "case_falsification", "ready_slice_edit_targets", "content_carrier", "edit_target_provenance"],
   "the current batch owner's definitions and the definitions the selected rows share, and no other");
   assert.ok(Object.keys(owner.$defs).length > definitions.length, "the owner declares definitions this selection does not reach");
   assert.deepEqual(delivered.schema, { type: "object", additionalProperties: false, minProperties: 1,
@@ -239,11 +258,11 @@ test("selected schema delivery remains complete above the inline limit", async (
     assert.ok(Object.hasOwn(delivered.schema.$defs, reference.slice("#/$defs/".length)), `${reference} resolves inside the delivered answer`);
   }
   assert.equal(delivered.owner_schema_digest,
-    `sha256:${sha256(Buffer.from(JSON.stringify(changeSchemas.work_item_slice), "utf8"))}`);
+    exposure.source("work_item_slice").digest, "the selected schema retains its owner source identity");
   assert.deepEqual(result.content, [{ type: "text", text: JSON.stringify(result.structuredContent) }]);
   assert.deepEqual(Object.keys(result).sort(), ["content", "structuredContent"]);
 
-  assert.ok(deliveredAdmissionBytes(result) > LIMIT, `${deliveredAdmissionBytes(result)} admission bytes`);
+  assert.ok(deliveredAdmissionBytes(result) > LIMIT);
 
   const large = { type: "object", additionalProperties: false,
     $defs: { code: { type: "string", enum: Array.from({ length: 2400 }, (_, index) => `code-${index}-é`) },
@@ -254,8 +273,9 @@ test("selected schema delivery remains complete above the inline limit", async (
     sources: { large: { schema: large, groups: [{ name: "all", members: ["rows", "other"] }] } } })
     .source("large").select({ members: ["rows"] });
   const second = await deliver({ members: withDefinitions.members, schema: withDefinitions.schema });
-  assert.deepEqual(assertStructuredCarrier(second).input_contract.schema, { type: "object", additionalProperties: false,
+  assert.deepEqual(withDefinitions.schema, { type: "object", additionalProperties: false,
     $defs: { code: large.$defs.code, row: large.$defs.row }, properties: { rows: large.properties.rows } });
+  complete(second, { input_contract: { members: withDefinitions.members, schema: withDefinitions.schema } });
   assert.ok(deliveredAdmissionBytes(second) > LIMIT * 4);
 
   for (const frame of [result, second]) {
@@ -266,4 +286,13 @@ test("selected schema delivery remains complete above the inline limit", async (
 
   assert.deepEqual(state(), before, "no content reference or page was written by delivery");
   assert.equal(producer.calls, 1);
+});
+
+test("credential-free selected schema omits paid requirements", () => {
+  const { changeSchemas } = createSaveRecordInputContract(z);
+  const exposure = bindInputSchemaExposure(createSaveRecordInputExposure({ changeSchemas,
+    variants: [saveRecordUnitVariant("WK-0001#SLICE-001")] }));
+  const selected = exposure.source("work_item_slice").select({ groups: ["acceptance", "slice_shaping"] });
+  assert.deepEqual(selected.members, ["criteria", "obligations", "controlled_acceptance", "slices", "ready_slices"]);
+  assert.equal(Object.hasOwn(selected.schema.properties, "requirements"), false);
 });

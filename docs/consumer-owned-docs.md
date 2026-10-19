@@ -20,7 +20,7 @@ That local guidance is not a contract fork. It is the repo's interpretation and 
 
 Shared-synced or shared-defined:
 
-- `wiki/.wiki-contract.json`
+- shared metadata: `wiki/.wiki-contract.json`, `wiki/.id-state.json`, `wiki/.wiki-mcp.json`
 - `wiki/templates/`
 - shared meanings for `wiki/issues/`, `wiki/initiatives/`, `wiki/decisions/`, `wiki/sources/`, `wiki/areas/`
 - shared meanings for overlapping frontmatter fields, IDs, lint rules, and generation rules
@@ -47,6 +47,43 @@ Generated, non-canonical views:
 - `wiki/backlog.md`
 - `wiki/archive.md`
 - `wiki/generated/`
+
+## Artifact policy and byte ownership
+
+The shared executable-artifact policy checks dedicated AgentChassis storage:
+`wiki/work-records/`, `wiki/contracts/`, `wiki/initiatives/`, `wiki/decisions/`,
+`wiki/sources/`, `wiki/areas/`, `wiki/templates/`, `wiki/generated/` and
+`wiki/issues/` as a generated projection surface. Arbitrary unrecognized files
+inside these roots are checked, including locally authored directory READMEs.
+Shared runtime metadata (`wiki/.wiki-contract.json`, `wiki/.id-state.json`,
+`wiki/.wiki-mcp.json`) and generated wiki view files are also checked.
+
+Required-file existence and structural record validation do not transfer byte
+ownership. Native `docs/` assets, native wiki subtrees, `wiki/schema.md`,
+`wiki/conventions.md`, `wiki/index.md` and declared extension content remain
+outside this artifact policy by default in both profiles. For example, a native
+documentation build script or configuration does not become an artifact finding
+when a work record is created. Native files added after enrollment have the same
+boundary. Existing record, schema, reference and generated-view freshness checks
+continue independently.
+
+Repositories can add concrete directories with the closed local
+[`artifactLint.additionalRoots` setting](wiki-contract-metadata.md#artifactlint).
+This repository explicitly selects `docs/` and `wiki/`; installation never adds
+that local policy to consumers. This setting adds artifact coverage only and
+grants no admission or lifecycle authority. CCE remains the policy authority.
+
+Selected files allow `.md`, `.json`, `.txt`, `.yml`, `.yaml`, `.csv`, `.keep` and
+`.gitkeep`; executable mode bits and byte-zero shebangs are findings even on
+allowed formats or placeholders. Fenced examples remain prose. Selected
+symlinks, wrong path kinds and I/O failures are explicit unverified inputs;
+independent selected paths continue to be checked. Missing optional trees are
+empty; mandatory missing-surface findings still apply.
+
+Record publication and maintenance are separate outcomes. A create or save can
+publish successfully while subsequent real lint maintenance fails. The record
+and allocator effects remain published, the failed maintenance is reported, and
+no rollback or second allocation occurs.
 
 ## File Roles
 

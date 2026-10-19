@@ -38,7 +38,7 @@ export {
   LAUNCHER_FAMILY_ROLE_CONTRACT_SHAPES
 } from "./workspace-agent-role-contract.mjs";
 
-export function orchestratorPrompt({ initiative, threadName, focus, headless = false }) {
+export function orchestratorPrompt({ initiative, threadName, focus, headless = false, registeredTier, publishControlledAcceptanceOptOut }) {
 
   return renderLauncherFamilyOrchestratorPrompt({
     appName: "Codex",
@@ -46,6 +46,7 @@ export function orchestratorPrompt({ initiative, threadName, focus, headless = f
     initiative,
     threadName,
     focus,
+    registeredTier, publishControlledAcceptanceOptOut,
     headless: headless === true
   });
 }

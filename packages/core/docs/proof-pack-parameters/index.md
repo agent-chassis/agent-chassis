@@ -2,7 +2,7 @@
 
 <!-- Generated from validated package metadata. -->
 
-37 exact definitions; 959/959 roles accounted; 124 owned role gaps.
+37 exact definitions; 957/957 roles accounted; 124 owned role gaps.
 
 | Exact pack | Roles | Semantic parameters | Role gaps |
 | --- | --- | --- | --- |
@@ -13,7 +13,7 @@
 | [proof.authorization.revocation-propagation@4.0.0](proof.authorization.revocation-propagation@4.0.0.md) | 26 | 21 | 1 |
 | [proof.cancellation.isolation@4.0.0](proof.cancellation.isolation@4.0.0.md) | 31 | 27 | 4 |
 | [proof.compatibility.behavioral-preservation@4.0.0](proof.compatibility.behavioral-preservation@4.0.0.md) | 18 | 15 | 2 |
-| [proof.completeness.lossless-projection@4.0.0](proof.completeness.lossless-projection@4.0.0.md) | 36 | 30 | 3 |
+| [proof.completeness.lossless-projection@5.0.0](proof.completeness.lossless-projection@5.0.0.md) | 36 | 30 | 3 |
 | [proof.concurrency.single-winner-effect@4.0.0](proof.concurrency.single-winner-effect@4.0.0.md) | 27 | 22 | 3 |
 | [proof.design.implementation-readiness@4.0.0](proof.design.implementation-readiness@4.0.0.md) | 28 | 23 | 0 |
 | [proof.dormancy.nonactivation@4.0.0](proof.dormancy.nonactivation@4.0.0.md) | 17 | 15 | 1 |
@@ -39,7 +39,7 @@
 | [proof.policy.declared-limit-propagation@4.0.0](proof.policy.declared-limit-propagation@4.0.0.md) | 21 | 14 | 2 |
 | [proof.readiness.before-success@4.0.0](proof.readiness.before-success@4.0.0.md) | 15 | 14 | 1 |
 | [proof.result-shape.conformance@4.0.0](proof.result-shape.conformance@4.0.0.md) | 32 | 24 | 1 |
-| [proof.result-shape.cross-representation-parity@4.0.0](proof.result-shape.cross-representation-parity@4.0.0.md) | 18 | 15 | 2 |
+| [proof.result-shape.cross-representation-parity@5.0.0](proof.result-shape.cross-representation-parity@5.0.0.md) | 18 | 15 | 2 |
 | [proof.single-use.replay-refusal@4.0.0](proof.single-use.replay-refusal@4.0.0.md) | 31 | 27 | 3 |
 | [proof.state.bounded-interval-nonmutation@4.0.0](proof.state.bounded-interval-nonmutation@4.0.0.md) | 8 | 7 | 0 |
-| [proof.verification.test-validity@11.0.0](proof.verification.test-validity@11.0.0.md) | 2 | 2 | 0 |
+| [proof.verification.test-validity@12.0.0](proof.verification.test-validity@12.0.0.md) | 0 | 0 | 0 |

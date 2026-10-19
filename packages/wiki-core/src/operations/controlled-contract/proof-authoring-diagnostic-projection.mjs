@@ -1,4 +1,5 @@
 import { controlledContractContentDigest } from "../../lib/controlled-contract-tools.mjs";
+import { isDeepStrictEqual } from "node:util";
 
 export const PROOF_AUTHORING_DIAGNOSTIC_PROJECTION_VERSION =
   "proof-authoring-diagnostic-projection.v2";
@@ -235,7 +236,7 @@ export function proofValidationAssessment({ envelope, diagnostics, issues, fits 
   let admitted = [];
   for (const issue of issues) {
     const candidate = [...admitted, issue];
-    if (!fits(build(candidate))) break;
+    if (!fits(build(candidate))) continue;
     admitted = candidate;
   }
   return build(admitted);
@@ -249,6 +250,65 @@ export function boundProofValidationAssessment(assessment, fits) {
 
   bounded.diagnostics.issues_omitted += omitted;
   return bounded;
+}
+
+export function capturedDiagnosisNavigation(inventory, { detailed = false, issuesOnly = false } = {}) {
+
+  const diagnoses = inventory.diagnoses.filter(diagnosis => !issuesOnly ||
+    ['definition', 'specification_meaning'].includes(diagnosis.family) ||
+    ISSUE_EFFECTS.has(diagnosis.effect) || ISSUE_SEMANTIC_RECOVERIES.has(diagnosis.recovery_status));
+
+  const choices = [];
+  for (const diagnosis of diagnoses) {
+    const { diagnostic_group_id: _id, owner: _owner, subjects, ...facts } = diagnosis;
+    const meaning = { ...facts, subjects: subjects.map(({ row_id: _row, ...subject }) => subject) };
+    const equivalent = diagnosis.family === 'semantic'
+      ? choices.find(choice => isDeepStrictEqual(choice.meaning, meaning)) : undefined;
+    if (equivalent) equivalent.equivalents.push({ diagnosis_id: diagnosis.diagnostic_group_id, owner: diagnosis.owner });
+    else choices.push({ diagnosis, meaning, equivalents: [] });
+  }
+  const firstDifference = (left, right, at = []) => {
+    if (isDeepStrictEqual(left, right)) return null;
+    const objects = [left, right].filter(value => value !== null && typeof value === 'object');
+    if (objects.length > 0) {
+
+      for (const key of new Set(objects.flatMap(value => Object.keys(value)))) {
+        const found = firstDifference(left?.[key], right?.[key], [...at, key]);
+        if (found !== null) return found;
+      }
+    }
+    return at;
+  };
+  const valueAt = (value, keys) => keys.reduce((current, key) => current?.[key], value);
+  return choices.map(({ diagnosis, meaning: choiceMeaning, equivalents }) => {
+    const ids = [...new Set(diagnosis.subjects.map(subject => subject.obligation_id)
+      .filter(id => typeof id === "string"))];
+    const shown = detailed ? ids : ids.slice(0, AFFECTED_OBLIGATION_PREVIEW_LIMIT);
+    const { diagnostic_group_id: id, family, owner, code, category, effect, stage, route,
+      recovery_status: recoveryStatus, reason_codes: reasonCodes, gap_class: gapClass, meaning } = diagnosis;
+    const sameLabel = choices.filter(choice => choice !== undefined &&
+      isDeepStrictEqual([choice.diagnosis.family, choice.diagnosis.code, choice.diagnosis.category,
+        choice.diagnosis.reason_codes, choice.diagnosis.recovery_status],
+      [family, code, category, reasonCodes, recoveryStatus]));
+    const differences = new Map();
+    for (const other of sameLabel) {
+      const keys = firstDifference(choiceMeaning, other.meaning);
+      if (keys === null) continue;
+      const value = valueAt(choiceMeaning, keys);
+      differences.set(JSON.stringify(keys), { field: keys.join('.'),
+        ...(value === undefined ? { present: false } : { value }) });
+    }
+    return { diagnosis_id: id, family, code, category,
+      ...(equivalents.length === 0 ? {} : { equivalent_diagnoses: equivalents }),
+      ...(differences.size === 0 ? {} : { choice: { differences: [...differences.values()] } }),
+      ...(gapClass === undefined ? {} : { gap_class: gapClass }),
+      ...(recoveryStatus === undefined ? {} : { recovery_status: recoveryStatus }),
+      ...(reasonCodes === undefined ? {} : { reason_codes: reasonCodes }),
+      ...(detailed ? { owner, meaning,
+        ...(effect === undefined ? {} : { effect }), ...(stage === undefined ? {} : { stage }),
+        ...(route === undefined ? {} : { route }) } : {}), subjects: diagnosis.subjects.length,
+      obligation_ids: shown, obligations_omitted: ids.length - shown.length };
+  });
 }
 
 const isTypedFact = value => value === null || ["string", "number", "boolean"].includes(typeof value) ||

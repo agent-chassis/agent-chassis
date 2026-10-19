@@ -66,7 +66,8 @@ test("a base inside a disposable runner root is refused before anything is creat
 
 test("a nested run allocates beneath its validated outer run and records ancestry", async (t) => {
   const outer = await allocateTestRunArtifacts({ explicitBase: path.join(await base(t), "outer"), env: {} });
-  writeRunMetadata(outer.runDir, { schema_version: "test-run.v1", run_id: outer.runId });
+  writeRunMetadata(outer.runDir, { schema_version: "test-run.v1", run_id: outer.runId,
+    preserve_artifacts: false, artifact_base: { storage_base: outer.base } });
   const env = { [TEST_RUN_CONTEXT_ENV]: encodeTestRunContext({ runId: outer.runId, runDir: outer.runDir }) };
   const [left, right] = await Promise.all([allocateTestRunArtifacts({ env }), allocateTestRunArtifacts({ env })]);
   for (const nested of [left, right]) {

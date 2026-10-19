@@ -1,7 +1,7 @@
 
 
 import { CASE_COMPONENT_FIELD, CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD, CASE_VERIFICATION_OWNERSHIP_RECOVERY,
-  linkedNativeTestProofs } from './native-test-proof-authoring.mjs';
+  NATIVE_TEST_CASE_AUTHORING_GUIDANCE, linkedNativeTestProofs } from './native-test-proof-authoring.mjs';
 import { resolveStableTestProofProviderBindings } from './test-proof-contract-v1.mjs';
 
 import { loadPackParameterContract, describePackParameters, inspectParameterSource,
@@ -154,15 +154,19 @@ function declaredTargetCondition(target) {
 }
 
 function caseAssociationFacts(association) {
-  const { eligible, candidates, blocked } = association;
+  const { eligible, candidates, blocked, competitions = [] } = association;
+  const competitionRecovery = NATIVE_TEST_CASE_AUTHORING_GUIDANCE.verification_association.unbound_competition;
 
   const condition = candidates.length === 0
     ? blocked.length > 0 ? blocked[0].condition : 'no_eligible_verification'
-    : eligible.length === 1 ? 'sole_eligible_verification' : 'ambiguous_linked_verification';
+    : competitions.length > 0 ? competitionRecovery.condition
+      : eligible.length === 1 ? 'sole_eligible_verification' : 'ambiguous_linked_verification';
   const { choices: [reuse, distinct], correction } = CASE_VERIFICATION_OWNERSHIP_RECOVERY;
   return { condition, case_id: association.case_id, selected: false,
     eligible_verification_ids: [...eligible],
     candidate_verification_ids: [...candidates], blocked: structuredClone(blocked),
+    ...(competitions.length === 0 ? {} : { competitions: structuredClone(competitions),
+      competition_recovery: structuredClone(competitionRecovery) }),
     required_choice: condition === CASE_VERIFICATION_OWNERSHIP_RECOVERY.condition
       ? { ...reuse, links_field: 'obligations[].claims', choose_one_of: [...new Set(blocked.filter(entry =>
         entry.condition === condition).flatMap(entry => entry.saved_case_ids))].sort(),
@@ -345,6 +349,9 @@ const blockedAssociationAction = (condition, links) => BLOCKED_ASSOCIATION_ACTIO
 function caseAssociationInstruction(association) {
   const { field, links_field: links } = association.required_choice;
   const count = association.candidate_verification_ids.length;
+  if (association.competition_recovery) return ` ${association.competition_recovery.correction} ` +
+    'competitions lists each shared verification and the complete current unbound case/obligation/unit population; ' +
+    'these current facts do not identify the intents of a historical save.';
   if (association.condition === 'ambiguous_linked_verification') return ` This saved case names no verification and ${association.eligible_verification_ids.length} are eligible, ${count} of them selectable: name one of candidate_verification_ids in ${field}.`;
   if (count === 1) return ` This saved case names no verification and exactly one is eligible: resubmit this obligation to adopt it, or name it in ${field}.`;
   if (association.blocked.length > 0) return ` This saved case names no verification and every eligible one is blocked; blocked lists each with its constraint. Where ${[...new Set(association.blocked.map(entry => entry.condition))].map(condition => blockedAssociationAction(condition, links)).join('; where ')}. Otherwise list another eligible test_execution verification in ${links}.`;

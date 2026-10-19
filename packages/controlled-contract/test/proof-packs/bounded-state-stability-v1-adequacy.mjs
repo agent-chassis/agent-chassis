@@ -22,7 +22,7 @@ import {
 } from "./bounded-state-stability-v1-independent-negatives.mjs";
 
 const BOUNDED_STATE_STABILITY_V1_PROFILE_DIGEST =
-  "4d3c0633d235478ec0a8936feb30a00be61aadfef94588ae2aeab39db59579fc";
+  "017a9a56027e11644186c3ea3c4d83422dba71b330302504bce8e549658a5e62";
 const BOUNDED_STATE_STABILITY_V1_GUARANTEE_DIGEST =
   "f83f797c792540d6085598adc202a6f6fb603bc3bc7bd324245e454113d709cd";
 

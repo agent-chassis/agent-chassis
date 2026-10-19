@@ -54,6 +54,11 @@ function kindAuthorityFromManifest(manifest) {
   return { byKind, byPrefix };
 }
 
+export function kindRecordDirectories(manifest) {
+  return Object.freeze([...kindAuthorityFromManifest(manifest).byKind.values()]
+    .map(({ directory }) => directory));
+}
+
 function idPrefix(id) {
   return String(id).split("-")[0];
 }

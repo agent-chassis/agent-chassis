@@ -210,13 +210,22 @@ async function publishCreatedWorkItem({ targetDir, recordId, title, date, repo, 
       owners: { pkg: await loadControlledContractProofAuthoring(), ...birthOptions.owners, now: () => date } });
     if (!plan.ok) throw Object.assign(new TypeError("Invalid initial record meaning; correct the addressed initial fields"),
       { code: "create_record_initial_invalid", diagnostics: plan.diagnostics, details: { changed: false } });
-    const settled = await settlePreparedRecordAuthoring({ input: target, initial: source, preparation: plan.preparation,
-      options: { ...birthOptions, observeCommitted: snapshot => observeRecordAuthoringAssessment(target, snapshot, birthOptions) } });
+    let settled;
+    try {
+      settled = await settlePreparedRecordAuthoring({ input: target, initial: source, preparation: plan.preparation,
+        options: { ...birthOptions, observeCommitted: snapshot => observeRecordAuthoringAssessment(target, snapshot, birthOptions) } });
+    } catch (error) {
+      if (error.details?.changed === true || error.details?.publication_outcome === 'established') {
+        error.published_authoring = { bindings: plan.bindings, entries: plan.entries,
+          requirement_rows: plan.requirement_rows, criterion_identity_changes: plan.criterion_identity_changes };
+      }
+      throw error;
+    }
     return { markdownRelativeFile, markdownAbsoluteFile,
       jsonRelativeFile: path.relative(targetDir, canonical_record_path), jsonAbsoluteFile: canonical_record_path,
       revision: settled.snapshot.authoringIdentity, record: settled.snapshot.record,
       record_source_digest: settled.snapshot.recordSourceDigest,
-      bindings: plan.bindings, entries: plan.entries, criterion_identity_changes: plan.criterion_identity_changes,
+      bindings: plan.bindings, requirement_rows: plan.requirement_rows, entries: plan.entries, criterion_identity_changes: plan.criterion_identity_changes,
       changed_fields: plan.changed_fields, receipt: settled.receipt, ...settled.observed };
   });
 }
@@ -367,6 +376,10 @@ export async function createRecord({ targetDir, type, title, id = null, repo = n
           : details.changed === false || details.settlement_status === "compensated"
             ? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED : details.publication_state ?? WORK_RECORD_PUBLICATION_STATES.UNKNOWN;
         error.creation = { ...allocation, ...persistenceOutcomeFields(state), allocator_state_advanced: allocatorAdvanced,
+          ...(state !== WORK_RECORD_PUBLICATION_STATES.PUBLISHED ? {} : {
+            ...(error.published_authoring ?? {}),
+            ...(published === null ? {} : { bindings: published.bindings, entries: published.entries,
+              requirement_rows: published.requirement_rows, criterion_identity_changes: published.criterion_identity_changes, record_source_digest: published.record_source_digest }) }),
           consumed_id: state === WORK_RECORD_PUBLICATION_STATES.PUBLISHED || allocatorAdvanced === true
             ? allocation.id : state === WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED && allocatorAdvanced === false ? null : "unknown",
           ...(published === null ? {} : { relativeFile: published.jsonRelativeFile || published.markdownRelativeFile,

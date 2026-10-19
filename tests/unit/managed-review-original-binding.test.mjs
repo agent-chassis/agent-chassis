@@ -35,7 +35,9 @@ test("WK-2731: several review bindings need the exact attempt and none is guesse
   const one = admit([], binding("wkdb_one")).events;
   assert.deepEqual(select(one).review, binding("wkdb_one"));
   const two = admit(one, binding("wkdb_two", "b")).events;
-  assert.deepEqual(select(two), { ok: false, code: "attempt_selection_ambiguous" });
+  assert.deepEqual(select(two), { ok: false, code: "attempt_selection_ambiguous",
+    candidates: [binding("wkdb_one"), binding("wkdb_two", "b")].map(({ run_id, ...facts }) =>
+      ({ attempt_id: run_id, ...facts })) });
   assert.deepEqual(select(two, "wkdb_two").review, binding("wkdb_two", "b"));
   assert.deepEqual(select(two, "wkdb_absent"), { ok: false, code: "attempt_selector_mismatch" });
 });

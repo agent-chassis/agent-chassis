@@ -36,7 +36,16 @@ function pluginSignature(plugin) {
 const pluginSignatures = (config) => JSON.stringify((config.plugins ?? []).map(pluginSignature).sort());
 
 const launcherPlugin = (onResolved, onConfigure = () => {}) => ({ name: "launcher:vitest-transform-reuse",
-  enforce: "post", configResolved(config) { onResolved(config); }, configureVitest(context) { onConfigure(context); } });
+  enforce: "post", config: { order: "post", handler(config) {
+
+    if (config.test?.experimental?.fsModuleCache !== undefined) config.test.experimental.fsModuleCache = false;
+  } }, configResolved(config) {
+
+    config.test ??= {};
+    config.test.fsModuleCache = false;
+    if (config.test.experimental?.fsModuleCache !== undefined) config.test.experimental.fsModuleCache = false;
+    onResolved(config);
+  }, configureVitest(context) { onConfigure(context); } });
 
 const digest = (text) => createHash("sha256").update(text).digest("hex");
 
@@ -111,22 +120,34 @@ export function launcherCacheKeyGenerator({ reuse, tsconfigResolution }) {
 }
 
 export async function resolveLauncherVitest({ vitest, config, moduleCache = null }) {
-  const resolved = await resolvedConfiguration(vitest, { ...baseOptions(), fsModuleCache: false });
+  const reuse = { reason: typeof moduleCache === "string" ? "cache_key_generator_unavailable" : "module_cache_unavailable" };
+  const tsconfigResolution = typeof moduleCache === "string" ? await loadTsconfigResolution(config) : null;
+
+  let cacheKeyGeneratorAvailable = false;
+  const resolved = await resolvedConfiguration(vitest, { ...baseOptions(), fsModuleCache: false },
+    { plugins: [launcherPlugin(() => {}, ({ defineCacheKeyGenerator }) => {
+      if (typeof moduleCache !== "string" || typeof defineCacheKeyGenerator !== "function") return;
+      defineCacheKeyGenerator(launcherCacheKeyGenerator({ reuse, tsconfigResolution }));
+      cacheKeyGeneratorAvailable = true;
+    })] });
   if (resolved.runner) return { customRunner: true };
   const options = { ...baseOptions(), runner: LAUNCHER_RUNNER, fsModuleCache: false };
-  const reuse = { reason: typeof moduleCache === "string" ? "undecided" : "module_cache_unavailable" };
-  if (typeof moduleCache !== "string") return { customRunner: false, options, viteOverrides: {}, reuse };
+  if (!cacheKeyGeneratorAvailable) return { customRunner: false, options,
+    viteOverrides: { plugins: [launcherPlugin(() => {})] }, reuse };
+  reuse.reason = "undecided";
   let builtIn = null;
   await resolvedConfiguration(vitest, { ...options, config: false },
     { plugins: [launcherPlugin((config) => { builtIn = pluginSignatures(config); })] });
-  const tsconfigResolution = await loadTsconfigResolution(config);
   let decided = false;
   let generator = null;
   const plugin = launcherPlugin((config) => {
     if (decided) return;
     decided = true;
     reuse.reason = config.test?.projects !== undefined ? "configured_projects"
-      : pluginSignatures(config) !== builtIn ? "configured_plugins" : null;
+      : pluginSignatures(config) !== builtIn ? "configured_plugins"
+
+      : typeof config.test?.experimental?.vcsProvider === "string" && config.test.experimental.vcsProvider !== "git"
+        ? "configured_vcs_provider" : null;
     if (reuse.reason === null) {
       config.test ??= {};
       config.test.fsModuleCache = true;
@@ -135,8 +156,9 @@ export async function resolveLauncherVitest({ vitest, config, moduleCache = null
   }, ({ defineCacheKeyGenerator }) => {
 
     if (reuse.reason !== null || generator !== null) return;
-    generator = launcherCacheKeyGenerator({ reuse, tsconfigResolution });
-    defineCacheKeyGenerator(generator);
+    const registered = launcherCacheKeyGenerator({ reuse, tsconfigResolution });
+    defineCacheKeyGenerator(registered);
+    generator = registered;
   });
   return { customRunner: false, options, viteOverrides: { plugins: [plugin] }, reuse };
 }

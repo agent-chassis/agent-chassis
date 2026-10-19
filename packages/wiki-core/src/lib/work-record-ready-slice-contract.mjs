@@ -9,6 +9,7 @@ import {
   repositoryScopeSelectorRefusalMessage
 } from "./work-record-repository-path.mjs";
 import { canonicalizeWorkRecordReadScope } from "./work-record-schema.mjs";
+import { REPOSITORY_TEST_DECLARATION_SCHEMA } from "./work-record-test-proof-bindings.mjs";
 import { findSliceRegressionTestsDefect } from "./work-record-schema-structure.mjs";
 import {
   collectControlledContractPrivateScopeIntersections
@@ -190,7 +191,11 @@ export const WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA = deepFreeze({
       "text, never a $key reference; a parent criterion label copies no text and transfers no coverage. An object " +
       `states text beside ${ACCEPTANCE_CRITERION_METADATA_KEYS.slice(0, -1).join(", ")} or ` +
       `${ACCEPTANCE_CRITERION_METADATA_KEYS.at(-1)}.` },
-    validation: structuredClone(READY_ACCEPTANCE_ENTRIES)
+    validation: { anyOf: [structuredClone(READY_ACCEPTANCE_ENTRIES), { type: "object",
+      additionalProperties: false, required: ["repository_tests"], properties: {
+        repository_tests: { type: "array", items: REPOSITORY_TEST_DECLARATION_SCHEMA },
+        notes: structuredClone(READY_ACCEPTANCE_ENTRIES)
+      } }] }
   }
 });
 const READY_ACCEPTANCE_FIELDS = WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA.required;
@@ -325,7 +330,8 @@ function nonemptyString(value, path) {
 function repoPath(value, path) {
   const trimmed = nonemptyString(value, path);
   if (!isRepositoryRelativePath(trimmed)) {
-    readyInputError("ready_slice_invalid_path", `${path} must be a canonical repository-relative POSIX path`, path);
+    readyInputError("ready_slice_invalid_path", `${path} must be a canonical repository-relative POSIX path; ` +
+      `received ${JSON.stringify(value)}. Remove absolute prefixes, traversal and malformed separators, then retry.`, path);
   }
   return normalizeRepositoryRelativePath(trimmed);
 }
@@ -428,7 +434,8 @@ function composeAcceptanceValidation(requested, current = []) {
 }
 
 function normalizeAcceptance(value, { currentValidation = [] } = {}) {
-  if (!isObject(value) || !Array.isArray(value.criteria) || !Array.isArray(value.validation)) {
+  if (!isObject(value) || !Array.isArray(value.criteria) ||
+      (!Array.isArray(value.validation) && !isObject(value.validation))) {
     readyInputError("ready_slice_invalid_acceptance", "acceptance must contain complete criteria and validation arrays", "acceptance");
   }
   for (const key of Object.keys(value)) {

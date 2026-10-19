@@ -1,4 +1,4 @@
-
+import { projectControlledAcceptanceDispatchFailure, controlledAcceptanceDispatchGuidance } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-dispatch-recovery.mjs";
 
 const loadClassifyControlledAcceptanceStateOperation = async () => (
   await import("@agent-chassis/wiki-core/src/operations/controlled-contract.mjs")
@@ -12,6 +12,7 @@ import { MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES } from
   "./worktree-provisioning-dispatch-managed.mjs";
 
 function refusal({ subject, state = null, reason, code, recovery, cause = null }) {
+  const failure = state === null ? null : projectControlledAcceptanceDispatchFailure(state, subject);
   return Object.freeze({
     ok: false,
     refusal: Object.freeze({
@@ -19,12 +20,12 @@ function refusal({ subject, state = null, reason, code, recovery, cause = null }
       reason,
       detail: Object.freeze({
         subject,
-        ...(state === null ? {} : { controlled_acceptance_state: state }),
+        ...(failure === null ? {} : { controlled_acceptance_failure: failure }),
         cause: cause ?? Object.freeze({
           type: "controlled_acceptance_structural_failure",
           code
         }),
-        recovery
+        recovery: failure === null ? recovery : controlledAcceptanceDispatchGuidance(failure)
       })
     })
   });

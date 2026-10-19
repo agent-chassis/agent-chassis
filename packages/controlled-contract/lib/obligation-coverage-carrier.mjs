@@ -41,7 +41,8 @@ export const PROOF_AUTHORING_FIELD_SCHEMAS = deepFreeze({
   ...Object.fromEntries(['statement', 'controlled_contract_node_ids', 'mechanism'].map(key => {
     const property = OBLIGATION_DRAFT_SCHEMA.$defs.obligation.properties[key];
     const schema = property.$ref ? OBLIGATION_DRAFT_SCHEMA.$defs[property.$ref.split('/').at(-1)] : property;
-    return [key, key === 'mechanism' ? { anyOf: [schema, { type: 'null' }] } : schema];
+    return [key, key === 'mechanism' ? { anyOf: [schema, { type: 'null' }] }
+      : key === 'statement' ? { ...schema, description: 'A faithful trimmed single-line obligation: no surrounding whitespace, CR or LF. Preserve user_requirements and exact source links unchanged.' } : schema];
   })),
   proof_name: { ...PROOF_NAME_INPUT_SCHEMA, description: 'Exact proof catalog entry name, not a ' +
     'title or case ID; see workspace_find_proofs. Unknown names refuse.' },
@@ -94,6 +95,18 @@ function schemaDiagnostics(validator, document) {
   );
 }
 
+function statementAtomicity(statement, pointer) {
+  const failed_conditions = [
+    ...(statement !== statement.trim() ? ['surrounding_whitespace'] : []),
+    ...(statement.includes('\r') ? ['carriage_return'] : []),
+    ...(statement.includes('\n') ? ['line_feed'] : [])
+  ];
+  return { code: 'obligation_coverage_statement_not_atomic', pointer,
+    failed_conditions,
+    reason: `Obligation statement contains ${failed_conditions.join(', ')} at ${pointer}.`,
+    correction: 'Author a faithful trimmed single-line obligation at this location; leave user_requirements and exact source links unchanged.' };
+}
+
 function semanticDiagnostics(carrier) {
   const diagnostics = [];
   const obligationIds = new Map();
@@ -108,7 +121,7 @@ function semanticDiagnostics(carrier) {
     else obligationIds.set(row.obligation_id, index);
     if (row.statement !== undefined && (row.statement !== row.statement.trim() || /[\r\n]/u.test(row.statement))) {
       diagnostics.push({
-        code: "obligation_coverage_statement_not_atomic",
+        ...statementAtomicity(row.statement, `/obligations/${index}/statement`),
         obligation_id: row.obligation_id,
         index
       });
@@ -250,7 +263,7 @@ function validateObligationCoverageDraft(carrier) {
       if (ids.has(row.obligation_id)) diagnostics.push({ code: "obligation_coverage_obligation_id_duplicate", pointer });
       ids.add(row.obligation_id);
       if (row.statement !== undefined && (row.statement !== row.statement.trim() || /[\r\n]/u.test(row.statement))) {
-        diagnostics.push({ code: "obligation_coverage_statement_not_atomic", pointer: `${pointer}/statement` });
+        diagnostics.push(statementAtomicity(row.statement, `${pointer}/statement`));
       }
       if (row.proof_opt_out === true && (row.selection !== undefined || row.case_id !== undefined)) {
         diagnostics.push({ code: "obligation_coverage_proof_opt_out_conflict", pointer: `${pointer}/proof_opt_out` });

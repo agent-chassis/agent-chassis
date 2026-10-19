@@ -105,7 +105,6 @@ function normalizePersistedGraphImpactState(graphState) {
     graphAvailable &&
     (edgeSource === "unavailable" ||
       dirtyGraphMode === "unavailable" ||
-      staleness === "unknown" ||
       (Object.prototype.hasOwnProperty.call(graphState, "unavailable_paths") &&
         !Array.isArray(graphState.unavailable_paths)))
   ) {

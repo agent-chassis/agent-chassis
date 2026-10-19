@@ -1,9 +1,9 @@
 {
   "schema_version": "controlled-contract-admitted-proof-pack.v3",
-  "parameter_contract_digest": "28296179351589dd31cda94a0de41c7d02b5d05cb7bdb3b2df489db68f118eef",
+  "parameter_contract_digest": "d10f3dcbcabd2b5d96078ff5599193c3739b76f2724c6d664865923cf4ff0605",
   "profile_id": "proof.design.implementation-readiness",
   "profile_version": "4.0.0",
-  "profile_digest": "8482fe3cd014dc89270c0384f0de6d6811b59cfe06d7dc52e7139f781f7e1423",
+  "profile_digest": "d5f489c4ed9ed870c20771f51af5fe8c9e7597b8d5584e52062afb867e81eff6",
   "guarantee": "One authored design unit names independently bound repository-grounded implementation and test loci; declares a complete nonempty requirement population, an exact four-field warning shape with exact code, severity, message-template, and payload-schema values, an authored complete validation population equal to the requirement population, and a complete placeholder population with exact count zero.",
   "guarantee_digest": "4a2c1a5cfc099cfecef4b0983db5bb81b941ddcfb5dcddfae7d23fd0437c228c",
   "explicit_exclusions": [
@@ -16,8 +16,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "3d73e336df72fa7e5025af2250668af71882de1703b36f4da39e9f0106eff001",
-    "adequacy_result_digest": "cb299a8d3ab3c6cbd86857516c11a8241f4104939dc46e7edd9b02a3c5f46ec5",
+    "adequacy_declaration_digest": "f87dbeda8035291b63a32db98b16d006f37bf6af3b4f43eea222a1911a1b6ffe",
+    "adequacy_result_digest": "caba42fe01226d8685c8e79f6c6c5e283955a992e14e4a986f13d16a5e495b5f",
     "executable_control_count": 34,
     "negative_fixture_count": 99,
     "coverage_witness_count": 99

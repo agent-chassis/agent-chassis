@@ -142,7 +142,8 @@ function mutantControls(profile) {
     return {
       control_id, category: "mutant",
       implementation_outcome: execution.passed ? "survived" : "killed",
-      profile_satisfaction: satisfaction(truthfulMutantFixture(profile, control_id))
+      profile_satisfaction: satisfaction(truthfulMutantFixture(profile, control_id)),
+      rejection: execution.rejection
     };
   });
 }

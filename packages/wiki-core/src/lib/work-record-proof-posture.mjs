@@ -1,3 +1,4 @@
+import { validStoredExceptionSourcePassages } from '../operations/controlled-contract/contract-requirement-source-links.mjs';
 import {
   classifyControlledContractTerminalGaps
 } from "../operations/controlled-contract/terminal-gap-classification.mjs";
@@ -21,7 +22,7 @@ const POSTURE_KEYS = new Set([
   "controlled_contract"
 ]);
 const CONTRACT_KEYS = new Set([
-  "required", "exemption", "focus", "content_digest"
+  "required", "exemption", "focus", "content_digest", "source_passages"
 ]);
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const FOCUS = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
@@ -107,7 +108,10 @@ export function inspectWorkRecordProofPosture(record, { expectedRecordId = null 
   const digestValid = !Object.hasOwn(contract, "content_digest") ||
     contract.content_digest === null || SHA256.test(contract.content_digest);
   const optionalRationale = normalizedRationale(posture.classification_rationale);
-  if (!focusValid || !digestValid || optionalRationale !== posture.classification_rationale) {
+  const passagesValid = !Object.hasOwn(contract, "source_passages") ||
+    contract.required === false && validStoredExceptionSourcePassages(contract.source_passages) &&
+    contract.source_passages.every(link => link.source.wk_id === record.id);
+  if (!passagesValid || !focusValid || !digestValid || optionalRationale !== posture.classification_rationale) {
     reason = "proof_posture controlled-contract identity or rationale is malformed";
   } else if (contract.required === true) {
     if (posture.classification !== "standard" || contract.exemption !== null) {
@@ -135,7 +139,7 @@ export function inspectWorkRecordProofPosture(record, { expectedRecordId = null 
     proof_posture: Object.freeze(structuredClone(posture)), reason: null });
 }
 
-export function buildControlledAcceptanceProofPosture({ wkId, disposition, rationale = null }) {
+export function buildControlledAcceptanceProofPosture({ wkId, disposition, rationale = null, sourcePassages }) {
   if (disposition === "required") return Object.freeze({
     schema_version: WORK_RECORD_PROOF_POSTURE_SCHEMA_VERSION,
     record_id: wkId,
@@ -160,7 +164,8 @@ export function buildControlledAcceptanceProofPosture({ wkId, disposition, ratio
     classification: "standard",
     classification_rationale: normalized,
     controlled_contract: Object.freeze({
-      required: false, exemption: "no_controlled_contract", focus: null
+      required: false, exemption: "no_controlled_contract", focus: null,
+      ...(sourcePassages === undefined ? {} : { source_passages: structuredClone(sourcePassages) })
     })
   });
 }
@@ -177,14 +182,14 @@ function postureMember(record) {
 }
 
 export function prepareControlledAcceptanceProofPostureAmendment({
-  record, wkId, disposition, rationale = null, allowCorrection = false,
+  record, wkId, disposition, rationale = null, sourcePassages, allowCorrection = false,
   allowInvalidReplacement = false,
   now = today, sourceDigest = null
 } = {}) {
   let proofPosture;
   try {
     proofPosture = buildControlledAcceptanceProofPosture({
-      wkId, disposition, rationale
+      wkId, disposition, rationale, sourcePassages
     });
   } catch (error) {
     refusal(error.code ?? "controlled_acceptance_proof_posture_invalid", error.message);
@@ -193,6 +198,8 @@ export function prepareControlledAcceptanceProofPostureAmendment({
     "controlled_acceptance_proof_posture_record_invalid",
     "the exact canonical work record is unavailable or invalid"
   );
+  const prospective = inspectWorkRecordProofPosture({ id: wkId, proof_posture: proofPosture }, { expectedRecordId: wkId });
+  if (!prospective.valid) refusal("controlled_acceptance_proof_posture_invalid", prospective.reason);
   const current = inspectWorkRecordProofPosture(record, { expectedRecordId: wkId });
   if (!current.valid && !allowInvalidReplacement) refusal(
     "controlled_acceptance_proof_posture_record_invalid",
@@ -383,6 +390,11 @@ function readinessDecidingCauses(readiness, rows) {
     condition === ACCEPTANCE_CRITERIA_UNCOVERED &&
       readiness.acceptance_coverage?.correction
       ? acceptanceCoverageCause(readiness.acceptance_coverage)
+      : condition === 'specification_definitions_incomplete'
+        ? Object.freeze({ cause: condition, owner: 'contract-requirement-descriptions',
+          stage: readiness.specification_recovery.stage, specification: readiness.specification,
+          owner_codes: readiness.specification_recovery.owner_codes,
+          explanation: readiness.specification_recovery.explanation, summary: readiness.specification_recovery.explanation })
       : condition === OBLIGATION_DEFINITIONS_INCOMPLETE && definitions?.correction &&
           definitions.unresolved_obligations?.length > 0
         ? obligationDefinitionsCause(definitions, rows)
@@ -420,7 +432,7 @@ function definitionReadinessProjection(workbench) {
     }) });
 }
 
-function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generation }) {
+function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generation, registeredTier }) {
   const snapshot = workbench?.evaluated_snapshot ?? null;
   const ordinaryReadiness = snapshot?.ordinary_authoring_readiness ?? null;
   const readinessRecovery = ordinaryReadiness?.recovery ?? null;
@@ -436,24 +448,32 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
 
   const currentness = snapshot?.currentness?.state ?? "unbound";
 
-  const stale = state !== "opted_out" && currentness === "stale";
+  const stale = currentness === "stale";
+  const sourceAccounting = snapshot?.parent_source_accounting ?? workbench?.parent_source_accounting ?? null;
+  const sourceIncomplete = sourceAccounting?.accounting_status !== "complete";
 
-  const blocked = stale || ["absent", "incomplete"].includes(state);
+  const specificationEnforced = registeredTier === "paid_cce";
+  const sourceGapDecides = !stale && state !== "absent" && specificationEnforced && sourceIncomplete;
+  const blocked = stale || sourceGapDecides || state === "absent" || state === "incomplete" &&
+    (specificationEnforced || !controlledAcceptanceAuthoredCoverageComplete(workbench));
   const terminalGaps = gapProjection(workbench);
   const definitionCorrection =
     snapshot?.ordinary_authoring_readiness?.definition_readiness?.correction ?? null;
   const internalFailure = (terminalGaps?.counts?.tooling_or_internal_invariant ?? 0) > 0;
-  const authoredCorrection = definitionCorrection ??
+  const specificationRecovery = ordinaryReadiness?.specification_recovery ?? null;
+  const authoredCorrection = sourceGapDecides ? sourceAccounting?.correction ??
+    { tool: "workspace_read_wiki", arguments: { subject: wkId } } : definitionCorrection ??
+    (specificationRecovery?.actor_recovery === "agent" ? specificationRecovery : null) ??
     (state === "absent"
       ? controlledAcceptancePrepareDesignCall(wkId, selectedUnit) : null);
   const authoredCorrectionAvailable = !internalFailure && authoredCorrection !== null;
-  const supportedAuthoredCall = state === "absent" ? authoredCorrection : readinessRecovery;
+  const supportedAuthoredCall = sourceGapDecides || state === "absent" ? authoredCorrection : readinessRecovery;
   const recoveryCapability = !blocked ? Object.freeze({ status: "not_required",
     actor_recovery: "none", inspection_call: null, correction: null })
     : stale ? Object.freeze({ status: "source_refresh_required",
       actor_recovery: "agent", inspection_call: terminalGaps?.detail_call ?? null,
       correction: null })
-      : internalFailure ? Object.freeze({ status: "system_owner_failure",
+      : internalFailure || specificationRecovery?.actor_recovery === "system_owner" ? Object.freeze({ status: "system_owner_failure",
         actor_recovery: "system_owner", inspection_call: terminalGaps?.detail_call ?? null,
         correction: null })
         : authoredCorrectionAvailable ? Object.freeze({
@@ -483,19 +503,26 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
     .filter((code) => !nonblockingCodes.has(code)).sort();
 
   const readinessCauses = !blocked || stale || internalFailure || state !== "incomplete"
-    ? [] : readinessDecidingCauses(ordinaryReadiness, causeRows);
+    ? [] : readinessDecidingCauses(ordinaryReadiness, causeRows).filter(
+      cause => specificationEnforced || cause.cause !== 'specification_definitions_incomplete');
   const coverageCause = readinessCauses.find(
     (cause) => cause.cause === ACCEPTANCE_CRITERIA_UNCOVERED) ?? null;
   const decidingCauses = coverageCause !== null && workbench?.mechanically_complete === true
-    ? [coverageCause] : readinessCauses;
+    ? readinessCauses.filter(cause => [ACCEPTANCE_CRITERIA_UNCOVERED,
+      'specification_definitions_incomplete'].includes(cause.cause)) : readinessCauses;
 
   const coverageAlone = coverageCause !== null && generation !== null &&
     decidingCauses.length === 1;
   const withCoverage = (values, value) => coverageCause === null
     ? values : [...new Set([...values, value])].sort();
-  const decidingOwners = coverageAlone ? [ACCEPTANCE_COVERAGE_OWNER]
+  const specificationCause = decidingCauses.find(cause => cause.cause === 'specification_definitions_incomplete');
+  const decidingOwners = specificationCause ? [...new Set([specificationCause.owner,
+    ...decidingCauses.filter(cause => cause !== specificationCause).map(cause => cause.owner)])].sort()
+    : coverageAlone ? [ACCEPTANCE_COVERAGE_OWNER]
     : withCoverage(diagnosticOwners, ACCEPTANCE_COVERAGE_OWNER);
-  const decidingCodes = coverageAlone ? [ACCEPTANCE_CRITERIA_UNCOVERED_CODE]
+  const decidingCodes = specificationCause ? [...new Set([...specificationCause.owner_codes,
+    ...(coverageCause ? [ACCEPTANCE_CRITERIA_UNCOVERED_CODE] : [])])].sort()
+    : coverageAlone ? [ACCEPTANCE_CRITERIA_UNCOVERED_CODE]
     : withCoverage(ownerCodes, ACCEPTANCE_CRITERIA_UNCOVERED_CODE);
   const independentObservations = !coverageAlone ? null : Object.freeze({
     authority: "not_deciding_this_refusal",
@@ -510,7 +537,7 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
   const ownerNarrated = decidingCauses.length > 0 &&
     decidingCauses.every((cause) => typeof cause.explanation === "string") &&
     (coverageAlone || decidingCauses.some((cause) =>
-      cause.cause === OBLIGATION_DEFINITIONS_INCOMPLETE));
+      [OBLIGATION_DEFINITIONS_INCOMPLETE, 'specification_definitions_incomplete'].includes(cause.cause)));
   const genericExplanation =
     recoveryCapability.status === "system_owner_failure"
       ? "An internal semantic owner or classifier failed; authored proof changes are not an established repair."
@@ -528,9 +555,9 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
     source_current: !stale,
 
     source_currentness: Object.freeze({
-      state: state === "opted_out" ? "current" : currentness,
+      state: currentness,
       reason_codes: Object.freeze([
-        ...(state === "opted_out" ? [] : snapshot?.currentness?.reason_codes ?? [])])
+        ...(snapshot?.currentness?.reason_codes ?? [])])
     }),
     posture_valid: true,
     posture_disposition: posture.present ? posture.disposition : null,
@@ -538,7 +565,8 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
     manifest_content_digest: state === "opted_out"
       ? null : workbench?.subject?.manifest_digest ?? null,
     record_source_digest: workbench?.subject?.record_source_digest ?? null,
-    mechanically_complete: ["complete", "opted_out"].includes(state),
+    mechanically_complete: ["complete", "opted_out"].includes(state) && !sourceIncomplete,
+    parent_source_accounting: sourceAccounting,
     dimension_count: dimensions.length,
     dimensions: Object.freeze(dimensions),
     incomplete_row_count: workbench?.incomplete_row_count ?? 0,
@@ -568,21 +596,23 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
         proof_plan_digest: null }) }) }),
     admission: Object.freeze({
       admits: !blocked,
+      specification_completeness_enforced: specificationEnforced,
       blocked_reason_code: !blocked ? null
         : stale ? "controlled_acceptance_source_not_current"
           : state === "absent" ? "controlled_acceptance_disposition_missing"
             : "controlled_acceptance_incomplete",
       blocked_stage: !blocked || stale || state === "absent" ? null
-        : readinessRecovery?.stage ??
+        : sourceGapDecides ? "authored_inputs" : readinessRecovery?.stage ??
           (ordinaryReadiness?.stage_counts?.authored_inputs?.incomplete > 0 ||
             ordinaryReadiness?.acceptance_coverage?.status !== "complete" &&
             ordinaryReadiness?.acceptance_coverage?.status !== "not_applicable"
             ? "authored_inputs" : "canonical_sources"),
       responsible_owner: !blocked ? null
-        : decidingOwners.length === 1 ? decidingOwners[0]
+        : sourceGapDecides && !stale ? "contract-requirement-source-links" : decidingOwners.length === 1 ? decidingOwners[0]
           : decidingOwners.length > 1 ? "multiple_diagnostic_owners"
             : readinessRecovery?.responsible_owner ?? null,
-      diagnostic_owners: Object.freeze(!blocked ? [] : decidingOwners),
+      diagnostic_owners: Object.freeze(!blocked ? [] : sourceGapDecides && !stale
+        ? ["contract-requirement-source-links", ...decidingOwners] : decidingOwners),
 
       affected_obligation_count: !blocked || coverageAlone ? 0
         : terminalGaps?.affected_obligation_count ??
@@ -594,11 +624,17 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
       owner_codes: Object.freeze(!blocked
         ? [] : decidingCodes.length > 0 ? decidingCodes
           : structuredClone(readinessRecovery?.owner_codes ?? [])),
-      deciding_causes: Object.freeze(decidingCauses),
+      deciding_causes: Object.freeze(sourceGapDecides ? [{
+        cause: 'source_accounting_incomplete', owner: 'contract-requirement-source-links',
+        owner_codes: ['controlled_acceptance_incomplete'],
+        explanation: 'Saved parent prose has incomplete or unknown source accounting. Author current exact formal links or explicit source-bound exceptions; omission leaves a draft gap.'
+      }, ...decidingCauses] : decidingCauses),
       independent_observations: independentObservations,
       unavailable_operations: Object.freeze(!blocked
         ? [] : structuredClone(readinessRecovery?.unavailable_operations ?? [])),
       recovery_explanation: !blocked ? null
+        : sourceGapDecides && !stale
+          ? "Saved parent prose has incomplete or unknown source accounting. Read the parent source and author exact current links or deliberate source-bound exceptions. Omitting a link leaves an accounting gap."
         : ownerNarrated ? causeNarrative(decidingCauses)
           : coverageCause !== null && genericExplanation !== null
             ? `${genericExplanation} ${coverageCause.explanation}`
@@ -627,23 +663,32 @@ export function resolveControlledAcceptanceState({ posture, workbench }) {
   }
   if (!posture.present) return "absent";
   if (posture.disposition === "opted_out") return "opted_out";
-  const ordinaryReadiness = workbench?.evaluated_snapshot?.ordinary_authoring_readiness;
-  const ordinaryAuthoringComplete = ordinaryReadiness?.status === "complete";
-
-  const criteriaCovered = ["complete", "not_applicable"].includes(
-    ordinaryReadiness?.acceptance_coverage?.status);
-  return (workbench?.mechanically_complete === true || ordinaryAuthoringComplete) &&
-    criteriaCovered && (workbench?.subject?.generation_id ?? null) !== null
+  const specification = workbench?.evaluated_snapshot?.ordinary_authoring_readiness?.specification;
+  return (workbench?.evaluated_snapshot?.parent_source_accounting ?? workbench?.parent_source_accounting)
+      ?.accounting_status === "complete" && controlledAcceptanceAuthoredCoverageComplete(workbench) &&
+    !['incomplete', 'unresolved'].includes(specification?.authored_meaning)
     ? "complete" : "incomplete";
 }
 
+function controlledAcceptanceAuthoredCoverageComplete(workbench) {
+  const ordinaryReadiness = workbench?.evaluated_snapshot?.ordinary_authoring_readiness;
+  const conditions = ordinaryReadiness?.incomplete_conditions;
+  const ordinaryAuthoringComplete = ordinaryReadiness?.status === "complete" ||
+    Array.isArray(conditions) && conditions.length > 0 && conditions.every(
+      condition => condition === 'specification_definitions_incomplete');
+  const criteriaCovered = ["complete", "not_applicable"].includes(
+    ordinaryReadiness?.acceptance_coverage?.status);
+  return (workbench?.mechanically_complete === true || ordinaryAuthoringComplete) &&
+    criteriaCovered && (workbench?.subject?.generation_id ?? null) !== null;
+}
+
 export function deriveControlledAcceptanceStateProjection({ wkId,
-  selectedUnit = null, posture, workbench }) {
+  selectedUnit = null, posture, workbench, registeredTier = null }) {
   const state = resolveControlledAcceptanceState({ posture, workbench });
   const generation = workbench?.subject?.generation_id ?? null;
   const required = posture.present && posture.disposition === "required";
   const semantic = semanticSubset({ wkId, selectedUnit, state, posture, workbench,
-    generation });
+    generation, registeredTier });
   const sourceRefresh = semantic.admission.recovery_capability.status ===
     "source_refresh_required" ? semantic.admission.recovery_capability : null;
   const projection = Object.freeze({
@@ -652,7 +697,8 @@ export function deriveControlledAcceptanceStateProjection({ wkId,
     selected_unit: controlledAcceptanceSelectedUnit(wkId, selectedUnit),
     state,
     generation: state === "opted_out" ? null : generation,
-    mechanically_complete: ["complete", "opted_out"].includes(state),
+    mechanically_complete: semantic.mechanically_complete,
+    parent_source_accounting: semantic.parent_source_accounting,
     disposition: state === "opted_out" ? Object.freeze({
       required: false,
       exemption: posture.proof_posture.controlled_contract.exemption,
@@ -666,7 +712,10 @@ export function deriveControlledAcceptanceStateProjection({ wkId,
       rationale_provenance: null }) : null,
     population: required ? populationProjection(workbench) : null,
     definition_readiness: required ? definitionReadinessProjection(workbench) : null,
-    recovery: sourceRefresh ?? (["absent", "incomplete"].includes(state)
+    recovery: sourceRefresh ?? (state !== "absent" && (semantic.admission.specification_completeness_enforced ||
+      workbench?.evaluated_snapshot?.ordinary_authoring_readiness?.status === "complete") && semantic.parent_source_accounting?.accounting_status !== "complete"
+      ? semantic.parent_source_accounting?.correction ?? { tool: "workspace_read_wiki", arguments: { subject: wkId } }
+      : ["absent", "incomplete"].includes(state)
       ? workbench?.evaluated_snapshot?.obligation_design?.recovery ??
         controlledAcceptancePrepareDesignCall(wkId, selectedUnit) : null),
     semantic
@@ -678,7 +727,7 @@ export function assertControlledAcceptanceStateProjection(value, expectedWkId,
   expectedSelectedUnit = null) {
   const keys = ["schema_version", "wk_id", "selected_unit", "state", "generation",
     "mechanically_complete", "disposition", "population", "definition_readiness",
-    "recovery", "semantic"];
+    "recovery", "semantic", "parent_source_accounting"];
   const dispositionKeys = ["required", "exemption", "classification",
     "classification_rationale", "rationale_provenance"];
   const populationKeys = ["dimension_count", "incomplete_row_count",
@@ -705,7 +754,12 @@ export function assertControlledAcceptanceStateProjection(value, expectedWkId,
       populationKeys.every((key) => Number.isSafeInteger(value.population[key]) &&
         value.population[key] >= 0)
     : value?.population === null;
-  const expectedRecovery = value?.semantic?.saved_applications?.recovery ??
+  const sourceIncomplete = value?.parent_source_accounting?.accounting_status !== "complete";
+  const sourceRecovery = sourceIncomplete && value?.state !== "absent" && (value?.semantic?.admission?.specification_completeness_enforced ||
+    value?.semantic?.ordinary_authoring_readiness?.status === "complete");
+  const expectedRecovery = sourceRecovery
+    ? value?.parent_source_accounting?.correction ?? { tool: "workspace_read_wiki", arguments: { subject: expectedWkId } }
+    : value?.semantic?.saved_applications?.recovery ??
     controlledAcceptancePrepareDesignCall(expectedWkId, expectedSelectedUnit);
 
   const expectedUnit = controlledAcceptanceSelectedUnit(expectedWkId,
@@ -718,14 +772,15 @@ export function assertControlledAcceptanceStateProjection(value, expectedWkId,
   const recoveryValid = expectedSourceRefresh !== null
     ? plainObject(value?.recovery) &&
       JSON.stringify(value.recovery) === JSON.stringify(expectedSourceRefresh)
-    : ["absent", "incomplete"].includes(value?.state)
+    : sourceRecovery || ["absent", "incomplete"].includes(value?.state)
       ? plainObject(value?.recovery) &&
         JSON.stringify(value.recovery) === JSON.stringify(expectedRecovery)
       : value?.recovery === null;
   if (!plainObject(value) || !exactKeys(value, keys) ||
       value.schema_version !== CONTROLLED_ACCEPTANCE_STATE_SCHEMA_VERSION ||
       value.wk_id !== expectedWkId || !CONTROLLED_ACCEPTANCE_STATES.includes(value.state) ||
-      value.mechanically_complete !== ["complete", "opted_out"].includes(value.state) ||
+      value.mechanically_complete !== (["complete", "opted_out"].includes(value.state) && !sourceIncomplete) ||
+      (value.state === "complete" && sourceIncomplete) ||
       (value.state === "complete" && typeof value.generation !== "string") ||
       (value.state === "opted_out" && value.generation !== null) ||
       (!["complete", "opted_out"].includes(value.state) &&

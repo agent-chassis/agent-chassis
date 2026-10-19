@@ -12,283 +12,162 @@ Sibling pages: [managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md),
 
 ## Registered start task
 
-`src/lib/task-start-agent-tools.mjs` in wiki-MCP exports
-`createStartAgentInputContract(z)` and `registerStartAgentTool({registerTool, z,
-workspace, sessionEnv, responseEnv, dispatchContext, buildResultCall,
-requestContracts})`. Importing them registers nothing. The production composer registers
-`start_agent` with the same backend used by result observation and integration.
-The registrar supplies the refined `inputSchema` and separate
-`advertisedInputSchema`; production registration and orchestrator role grants use that contract.
+The production composer registers `start_agent` for orchestrators with the same
+prepared backend used by result observation and explicit integration. Its closed
+request has three forms:
 
-The closed request has three forms: `{subject, role?, app?, model?,
-diff_base_sha?, reviewed_sha?, preview?:false}`, the same subject-bearing request
-with `preview:true`, and `{preview:true, role, app?, model?}` for capabilities.
-Capability preview requires an explicit `worker`, `reviewer` or `redteam` role
-and requires no subject. For example, `start_agent({preview:true,role:"worker"})`
-and `start_agent({preview:true,role:"reviewer"})` inspect configured capabilities.
-`{preview:true}` reports missing role; `{}` reports missing subject for normal
-start. Registered validation and direct preparation retain native validator
-issues and offer schema-checked role calls as unselected choices.
-Normal start needs only the canonical subject; saved dispatch intent and model
-configuration supply omitted choices. A complete SHA pair selects review material
-and is forbidden for workers and subject-free previews. Unknown members, including
-repository, prompt, credentials and lifecycle carriers, are refused before effects.
-The trusted session selects caller authority; child `role` grants none.
+- `{subject, role?, diff_base_sha?, reviewed_sha?, preview?:false}` starts the saved assignment.
+- The same subject-bearing request with `preview:true` previews that action without launching.
+- `{preview:true, role}` answers a configured-role capability question without inventing a subject.
 
-Managed worker implementation requires an exact slice, for example
-`start_agent({subject:"WK-0001#SLICE-001"})`. The backend routing owner applies
-the configured target restriction to both selected preview and real start.
-A bare parent worker request reports `managed_worker_exact_slice_required`;
-select an existing implementation slice or author `changes.ready_slices` through
-root `save_record` with the current revision and caller-supplied contract. The
-required selection, scope, acceptance and proof meaning are authored inputs,
-so this guidance is not a complete executable save or start call. For an
-available root, selected preview and real start both keep that refusal, report
-`assignment_authoring` (`slice_required`, `changes.ready_slices` on the root,
-caller-authored values) and return one `workspace_read_wiki({subject:<root>})`
-guidance call in `next_calls` and `allowed_next_calls`; the launcher's own
-recovery states `choice_required`. The read returns the root's slices and
-current revision and changes nothing: the same request refuses again until the
-caller starts an exact slice. No save or start call is offered, and no slice is
-selected for the caller, including a sole existing one. When the root is
-unavailable or this server cannot serve that read, the refusal stands with no
-call and names the cause in `readiness_guidance_limitation`. Parent targets
-remain available for applicable findings roles and their existing material
-requirements. No slice is allocated by preview or refusal.
+Normal start derives an omitted role from the saved unit's dispatch intent.
+`agent-launch.toml` supplies the role model. Caller `app`, `model`, repository,
+prompt, credentials, environment and lifecycle carriers are rejected before
+readiness or launch effects. A complete SHA pair selects findings material and
+is forbidden for workers and subject-free previews. Caller choices are never
+fabricated. Trusted session identity, registration tier and the existing launch
+owners continue to decide authority and admission. Availability and offered calls
+grant no authorization. Current direct-to-main policy prohibits managed
+implementation dispatch.
 
-`createStartAgentTask(configuration).prepare(request)` authenticates the session
-through the existing source-context owner and permits only orchestrators. Trusted
-composition binds one repository and `createPreparedWorkspaceAgentDispatchBackend`
-with its real executors, conduit authority, provisioning and admission owners.
-`dispatchContext` supplies `dispatchBackend`, `dispatchSessionIdentity`,
-`launcherConfirmedNoCceAuthority`, `validateDispatch`, `validateLaunchIntent`,
-`revalidatePrivateHandoff`, `generateGraphImpactEvidence`,
-`refreshAdmissionEvidence`, `registeredToolNames`, `registerTool` and `isPaidTier`.
-The task calls `createAgentDispatchPipeline` directly, preserving ordered readiness,
-launch refusals and the existing single base-selection reassessment. Its trusted
-accepted-outcome projector receives launcher facts before compact receipt delivery.
+### Preview answers
 
-Action preview resolves canonical selection, readonly readiness, exact review
-material and launch planning. It prepares no code index and writes nothing: a
-graph-dependent worker preview follows the readiness owner's graph-dependency
-decision only to report the committed graph as not assessed, and its cache effect
-is always `not_consumed`. Capability preview uses neutral configuration/model selection, with no
-invented subject and no graph/runtime preparation. Both disclose assessed and
-unchecked populations; unevaluated CCE and launch-time isolation remain unchecked.
-A `reviewer` preview, in either form, reports under `capabilities` the
-enforcement tier and the one lifecycle plane a review starts through:
-`structured_dispatch` is listed whenever it is anything other than available,
-with its status, exact blockers, cause, gate outcome, recovery and corrective
-action, and `planes` is empty while it does not block. It carries no other
-plane, no `route_registration` and no wiring source or backend or protocol
-generation; `selection.backend`, the public app and model selection, executor
-availability, the supplied assignment's assessment, source, effects and
-supported next calls are unchanged. An empty `planes` and `outcome: "preview"`
-are availability facts, never launch permission. Worker and redteam previews
-and coordination preflight keep every plane.
-Worker previews check configured target eligibility and authored readiness, and
-the readiness owner overlays the launcher's read-only worker scope preflight;
-`assessment.execution_admitted` remains `unchecked`. The preflight report crosses
-unchanged as `assessment.readiness.worker_scope_preflight`, and coverage lists
-`prospective_scope_base` and `prospective_worker_scope` as assessed or unchecked
-according to that report. For an unallocated WK the preview also returns
-`base_selection`: the `root_unit`, the `branch`, `roles: ["wk_base",
-"publication_target"]` because that one branch is both the base the WK is cut
-from and the branch its work is published to, `selection`
-(`saved_base_branch` when the root saves `base_branch`, otherwise
-`defaulted_current_checkout_branch`), `saved`, and `information` prose. The
-preflight `base` carries the same `selection` and `publication_target`. A
-defaulted branch is the current symbolic local branch of the configured
-repository checkout, observed at preview time. The preview writes nothing and
-freezes nothing: actual start applies the same rule again, and the orchestrator
-chooses another branch by saving `base_branch` on the root first. An allocated
-WK returns no `base_selection`. When the root saves no `base_branch` and the
-configured checkout has a detached `HEAD`, there is no default: the preview
-stays `outcome: "preview"` and
-reports `dispatchable: false` with
-`readiness_decision_code: "scope_existence_base_selection_missing"`, the prior
-result under `structural_readiness`, and the same root guidance actual start
-returns: `correction` (`root_unit`, fresh `revision`, `required_choice:
-"base_branch"`, `save_tool: "save_record"`, the original request as `retry`) and
-one `workspace_read_wiki({subject: root})` call checked against the serving full
-contract. A rejected or unavailable contract is reported as
-`readiness_guidance_limitation` beside the unchanged diagnosis instead of a call.
-That guidance supplies no branch value, and reading the root changes nothing; the
-caller's `save_record` with `changes.base_branch`, or a checkout on a local
-branch, clears the prerequisite. A
-higher-priority readiness refusal keeps its own decision and receives no base
-guidance, and an allocated WK is assessed at its existing WK tip. Preview still
-does not prove a child can start.
-Graph snapshot availability establishes source identity, not graph admission.
-Without a snapshot, the canonical revision remains known and Git identities are unknown.
-Neither preview launches, creates a run or integrates.
+A preview returns `outcome:"preview"`, its `preview_kind`, selected subject/role,
+`decision:"allowed"|"gaps"`, the inspection scope, and `effects.child_started:false`.
+Its single `limit` states that launch-time admission remains unchecked and that
+preview grants no authorization or source reservation. Successful checks,
+capability inventories, model/backend wiring, source digests, transport retention
+and routine provenance are not returned, including through optional detail routes.
 
-A worker preview of an exact slice whose readiness is
-`controlled_acceptance_incomplete` keeps that cause: the same `outcome:
-"preview"`, `dispatchable: false`, non-effects and `execution_admitted:
-"unchecked"`. It adds one recommended guidance call,
-`workspace_assess_contract({unit: <that exact slice>})`, in `next_calls` and
-`allowed_next_calls`, checked against the serving registrar's full request
-contract. The preview assesses nothing itself and repeats no completeness
-calculation: the returned assessment names the slice's incomplete
-specification or uncovered criteria and the supported corrections, and
-executes no proof and grants no credit. When this
-server holds no assessment consumer, or its contract rejects the call or fails
-to validate it, the preview returns `contract_assessment_limitation` (`code`:
-`contract_assessment_consumer_unavailable`,
-`contract_assessment_full_contract_rejected` or
-`contract_assessment_validation_failed`, with `tool`) and no call. No base
-`correction` accompanies this cause, a missing base selection keeps its own
-guidance, every other preview outcome is unchanged, and actual start keeps
-its own refusal. How a slice authors that coverage is described under
-[Requirement-authoring guidance](acceptance-coverage-mcp.md#requirement-authoring-guidance).
+Configured-role preview checks configuration/executor availability and relevant
+launch capabilities. Reviewer and redteam questions report only a blocking
+`structured_dispatch` plane; worker questions can also report unavailable
+repository confinement or managed provisioning. Unavailable capabilities retain
+the specific blocker/cause and correction, or the precise unavailable capability
+with no invented repair. Unrelated edit, integration and publication capabilities
+are not findings-role start gaps.
 
-Every worker action preview, ready or refused, also returns
-`requirements_comparison` for the previewed unit: the saved requirement rows as
-the saved-contract query owner projects them for this session's source and
-population. `rows` states each row's `row_id`, every `constraint_ids` and
-`claim_ids` member it emits, its generated `meaning` and its `source` link as
-saved (`state` `absent`, `current` or `stale`, the exact `user_requirement`
-passage, its occurrence, the digest of the text it was resolved in and its
-location), with the count of rows in each link state. A stale link is shown as
-saved with the owner's correction; a row without a link is counted `absent`.
-`residual.explicit_unresolved` holds the recorded unresolved meaning. The
-display is compact: at most 8 rows and 8 unresolved entries, and at most 1024
-Unicode scalars of each passage and meaning, each with its
-`total_count`/`returned_count`/`omitted_count` or `*_extent`. `instruction` is
-"Check that the linked requirements preserve the user’s meaning and that
-nothing is missing. Correct the mappings or record unresolved meaning as
-residue." The preview compiles nothing, matches no passage, relinks nothing and
-judges no meaning; a link establishes neither semantic fidelity nor
-implementation correctness.
+Action preview resolves the canonical selection, existing readonly readiness,
+worker scope preflight, review material and launch plan. It writes nothing,
+allocates no slice, prepares no code index and starts no child. Readiness and
+launch validation retain their existing owners and rules; successful previews do
+not return assessments or assessed/unchecked inventories. A ready action returns
+one validated non-preview `start_agent` call preserving the subject, resolved role
+and any caller-supplied review SHA pair. The caller can finish a preview-only task
+or use that call under authorization already given. Actual start reassesses current
+state; preview does not bind later assignment bytes or a later checkout branch.
 
-`residual.unmapped_source_text` is the assessment owner's accounting of the
-saved `sections.user_requirements` text against the saved links; the preview
-calculates none of it. With `state: "accounted"`, `members` are the segments of
-the exact saved text that no current link covers, each with its `start` and
-`end` in UTF-16 code units, its `text` as saved and `whitespace_only`. Only a
-current link whose recorded location still holds its passage covers text: a
-stale or absent link covers nothing, so a changed source text is unmapped until
-its rows are resubmitted, and links that repeat or overlap cover their text
-once. `links` counts the current, stale-excluded, absent and inconsistent
-links, `linked` the merged covered intervals and their length, and `source` the
-digest and length of the text accounted. Nothing is trimmed, normalized,
-summarized or interpreted. The compact bounds apply to segments too; a segment
-beyond them keeps its exact location in `omitted_locations`, and the current
-read returns the text it locates. Explicit unresolved meaning stays in
-`residual.explicit_unresolved` and is never merged with unmapped text. Text
-that is wholly linked proves neither semantic fidelity nor implementation
-correctness. When no source text is saved, the session reads a selected
-population, or the accounting is refused or unreadable, the member is `state:
-"unknown"`, `accounted: false` with its reason and no segment list: missing
-accounting is never an empty residual. `coverage.assessed` lists
-`unmapped_requirement_source_text` only when it was accounted, and
-`saved_requirement_source_links` only when the saved rows were read; otherwise
-each is in `coverage.unchecked`, where `requirement_meaning_fidelity` always
-is. When the saved rows cannot be read, `status` is `unavailable` with
-`limitation.code: "saved_requirements_read_unavailable"` and the owner's cause,
-and both residual members are `unknown`.
+A deciding authored gap returns its specific decision/reasons and only the
+relevant correction navigation. Managed worker targets require an exact existing
+slice, even for a one-slice WK. A parent request does not create or select a slice:
+it identifies `changes.ready_slices` as caller-authored input and, when supported,
+offers the root's current `workspace_read_wiki` context. Missing dispatch intent,
+initiative, scope paths and validation definitions retain their own causes and
+correction subjects. A runtime failure is not a request to edit the work record.
+Actual worker start performs worker-input preflight before authored readiness.
+That owner can refuse with `exact_implementation_slice_unresolved` before the
+missing-initiative readiness diagnosis is reached. The documented root-authoring
+recovery does not establish that this earlier refusal supplies it; presentation
+does not reorder those checks or claim to resolve that routing gap.
 
-`detail.call` is the read that returns every row whole,
-`workspace_read_wiki({reference, select:{contract:"requirements"}})`, through
-the serving reader's own current reference of the unit, with the retention that
-reference cost; `correction.current_read` is `workspace_read_wiki({subject})`,
-which returns the unit's current revision and exact source text. Both are
-checked against the serving registrar's full request contract. When the preview
-has no readiness correction and recommends no assessment of incomplete
-requirements, they are its `next_calls` and `allowed_next_calls`; a readiness
-correction call is never displaced or joined, so beside one they stay stated
-inside `requirements_comparison` only. Otherwise `detail.limitation` (`code`:
-`requirements_detail_consumer_unavailable`,
-`requirements_detail_reader_not_composed`,
-`requirements_detail_reference_unavailable`,
-`requirements_detail_full_contract_rejected` or
-`requirements_detail_validation_failed`) or
-`correction.current_read_limitation` is returned with no call. `correction`
-names the caller-authored `save_record` member `changes.requirements`, addressed
-by the displayed `row_id`: it is never executable, supplies no revision, row
-value or occurrence, and saves nothing. The comparison is advisory: it changes
-no readiness outcome, refusal cause or launch-time fact, and adds no dispatch
-prohibition.
+Controlled-acceptance failure preserves `requested_unit`, `correction_unit`,
+`deciding_cause`, `deciding_causes`, `explanation` and `responsible_owner`.
+The requested slice and correction subject can differ. Parent-source accounting
+can require the parent's read; slice specification/coverage can require the exact
+slice's `workspace_assess_contract` call. The descriptor appears once in
+`next_calls`, validated against this registrar's full contract. A missing or
+rejecting consumer retains the original cause and correction subject with its
+specific navigation limitation. No public consumer reconstructs a call that the
+launcher withheld. Reading/assessment neither changes readiness nor supplies
+replacement meaning, proof credit or an executable save. An authorized author
+acquires current revision/grammar, saves the intended correction and retries the
+original action. There is no automatic requirements comparison or additional
+assessment/read checklist on ready previews. Relevant requirement detail remains
+with the existing reader and assessment selections reached by a deciding correction.
 
-When the saved-contract query owner reports the displayed requirements as
-`state: "incomplete"`, the comparison also carries `assessment`: `{available:
-true, call}` with the one recommended guidance call
-`workspace_assess_contract({unit: <the previewed unit>})`, checked against the
-serving registrar's full request contract. The preview reads that owner's state
-and nothing else: it runs no assessment, recomputes no definition, counts no
-missing definition and infers no meaning. The returned assessment identifies
-where the unit's saved specification or acceptance coverage is incomplete,
-with the affected requirement, obligation and object identities, and the
-supported corrections; it executes no proof, grants no credit, changes no
-readiness and supplies no replacement definition or executable save. The
-definition itself is the caller's `save_record` at the revision the
-assessment's current read returns. With no readiness correction, that call is
-the preview's single `next_calls` and `allowed_next_calls` member, and
-`detail.call` and `correction.current_read` stay available inside the
-comparison. A readiness correction keeps the top level exactly as it was and
-the assessment stays stated in the comparison; for
-`controlled_acceptance_incomplete` the correction already is this call, so it
-is validated and returned once. When this server holds no assessment consumer,
-or its contract rejects the call or fails to validate it, `assessment` is
-`{available: false, limitation}` with the same `contract_assessment_*` codes
-and no call is emitted anywhere; the reads are then offered as before. A
-comparison whose state is anything else, or that is `absent` or `unavailable`,
-carries no `assessment`. The recommendation changes no readiness cause,
-`dispatchable`, preview effect or actual-start behavior and adds no dispatch
-prohibition.
+### Start, existing work and problems
 
-The shared managed-lifecycle projection reads the serving registration set and
-retained full request contracts: transport observes `start_agent`, validation
-ownership observes `verify_proof`, and publication guidance identifies
-`workspace_publish_work`. Retired registrations establish no current availability.
-Transport availability also requires the backend's authoritative, fresh compatible
-composition; registration alone establishes no admission, child start, proof
-execution or credit. Other backend facts retain their own sources, freshness and
-unknown or stale states.
+A confirmed start returns `outcome:"started"`, subject, role, issued `attempt_id`,
+status/terminal state and its exact `get_run_result({subject,attempt_id})` call.
+This acknowledges a start-only task. Work requested through completion follows
+that call, obtains the substantive result and acts on it. Start, completion and
+observation never integrate a delivery. Clean receipts omit selected-source,
+backend, enforcement, durability and cleanup inventories; actual settlement or
+observation failures remain visible.
 
-Without an established executable correction, unavailable capabilities stay
-explicitly unavailable. An accepted `workspace_read_wiki` call for this document
-is informational inspection and repairs no infrastructure; its complete arguments
-are checked against the serving full validator. Subject-free preview invents no
-work unit or incomplete publication/integration call and offers no unchanged retry
-as a remedy. Explicit `integrate_work` remains a coordinator action, and
-`workspace_publish_work` is separate from automatic promotion: publication neither
-merges nor completes a WK. Registration of either tool grants no caller authority.
+The result-call builder is trusted composition, but its output must still name
+`get_run_result`, preserve the exact subject and attempt, contain no other
+arguments, and satisfy the serving consumer's full validator. Missing/failed
+navigation does not undo a started child: Started remains, with the observation
+problem and a stopping condition that forbids starting again merely to learn
+status. An accepted backend envelope whose child start is unestablished returns
+a specific refusal/problem with the issued attempt and the same validated
+observation when available; its effect remains unknown rather than claiming that
+no child started.
 
-Started responses require observed child-start evidence, preserve actual terminal
-state, identify the existing run as `attempt_id`, and expose selected source and
-launcher enforcement when its owner supplies it; otherwise enforcement is unknown.
-Worker source names the frozen scope base; advisory
-source names captured review commits/tree/material. Publication pending and cleanup
-uncertainty remain producer-owned observations. Refusals retain owner diagnosis;
-Result durability is unknown unless its owner supplies that fact.
-absence of an effect field is not evidence that nothing happened. Workspace
-creation/reuse receipts remain internal. Start and completion never integrate.
+Managed-worker prior-attempt reconciliation remains launcher-owned. Positive
+live sandbox evidence returns `outcome:"already_started"` and the existing
+attempt's observation. Reservation, indeterminate liveness, unreadable identity
+and existing delivery remain distinguishable problems. This request launches no
+replacement in those cases. A committed delivery without one elected attempt can
+lead to supported subject discovery; it does not justify choosing the newest
+attempt. Delivery is observed before separate authorized integration. Completed
+integrated slices are not relaunched. Reviewer/redteam starts are not made
+idempotent by the worker prior-attempt gate.
 
-An authored readiness refusal preserves the selected subject, original decision,
-diagnostic and authority limb. Its selected-unit `workspace_read_wiki` guidance
-uses the serving registrar's schema authority through final refusal construction
-and its retained full request contract, including refinements. Valid guidance
-appears in the start response's `next_calls` and `allowed_next_calls`. Reading
-obtains the current revision and semantic selections; it leaves the blocker
-unchanged. Correct the authored fact through `save_record`, then reassess the same
-subject. An unavailable or invalid read preserves the original blocker and names
-the secondary serving limitation without offering an unchecked call.
+A refusal returns its specific code, subject, deciding failure/correction and
+known effects or uncertainty. Known pre-launch refusals, including refused
+previews, report no child. Repeated check facts, mechanical predicates, raw
+internal carriers and duplicate descriptors are omitted. No executable recovery
+means an explicit stopping condition, not an unchanged retry. Retained-tip
+worker-to-reviewer navigation is exposed only as a separate review option with
+`authorization:"required"`; it is not recommended as a correction to the worker
+request, and the original worker blocker remains. This does not settle which
+canonical authority requires that review.
 
-Missing-base recovery names the root WK, its combined authoring revision, the
-required operator branch choice and the same-subject retry. After that choice,
-`buildStartAgentBaseCorrectionCall({correction, baseBranch}, z)` validates a typed
-root `save_record` call using the existing save contract. It guesses no branch.
+An operation's attached diagnostic supplies the deciding cause even when preview
+throws instead of returning a refusal. For example, unavailable commit material
+and an empty explicit review range remain `commit_object_unavailable` and
+`range_empty`; generic exception text does not replace either. Throwable capture
+and retention remain internal. A producer's `effects_started:false` establishes
+no child start even when the refusal returns from the dispatch stage. A positive
+effects flag alone does not establish a child; an issued attempt and genuine
+launch uncertainty still lead to observation rather than a replacement start.
 
-`buildResultCall({subject, attempt_id})` and `requestContracts.contractFor(tool)`
-are trusted consumer bindings. Only a call accepted by its actual registered
-contract is returned, without public repository input. If the real subject/attempt
-consumer is absent or its builder fails, the response discloses that dependency
-and emits no callable substitute; builder failure preserves the successful launch
-and its original failure evidence separately. The production composer binds that reader and the same prepared backend. Owner-only
-source and installed tests remain supporting evidence; public adoption is exercised
-through the actual production server.
+For a pre-implementation design redteam, the selected saved slice design is the
+target and its supporting checkout is separate. A writable scope does not require
+completed implementation. The shared advisory material selector currently still
+selects implementation material for a writable slice with no explicit range,
+and rejects equal explicit range endpoints. Those are current limitations of
+that route, not capability or authorization failures. Refusals preserve the
+selected slice and actual cause; neither a parent assignment nor an arbitrary
+nonempty range is an equivalent recovery. The shared material-selection and
+runtime-contract owners must reconcile that behavior with the design target.
+
+### Base selection and source movement
+
+Base selection behavior is unchanged: on an unallocated WK a saved root
+`base_branch` wins; otherwise actual start may save the configured checkout's
+current symbolic branch through revision-checked `save_record` and evaluate the
+complete dispatch again. Responses identify the actual `root_unit`, `branch`,
+`selection` and `saved` state. A saved default is a start effect, not an operator
+choice, and remains saved if the subsequent attempt refuses. Preview's branch is
+provisional. Allocated work retains its frozen base and reports no new selection.
+Detached HEAD, a failed base save, concurrent selection and a missing selected
+ref remain different conditions under their existing owners. Missing-choice
+correction names the root, current revision, required `base_branch` choice and
+save tool, with the serving root read. No branch value is invented by correction
+guidance.
+
+There remains a conflict between this current-base default and provisioning
+recovery guidance requiring explicit operator selection and forbidding checkout
+fallback. Reporting the actual branch and effects does not resolve that policy
+conflict. Recovery must not silently choose another base, role, source or assignment.
+
+The private `createStartAgentTask` composition runs the existing pipeline and then
+`task-start-agent-presentation.mjs` projects only public task meaning. The
+presentation layer creates no readiness gate, alternate backend, result store or
+detail selector. Owning runtime and diagnostic retention remain server-side.
 
 ## Canonical slice start and existing readiness orchestration
 
@@ -355,6 +234,14 @@ selected executor once, allocates an action-local run and monitor, and settles
 its text-first advisory output. Clean findings, severe findings, and
 schema-nonadherent text are equally usable; missing output or execution failure
 affects only that action.
+
+Private review materialization prepares `wiki/contracts` as a real directory
+even when capture contains no controlled-contract files. Git does not preserve
+empty directories, and the consuming repository may ignore bootstrap's
+`.gitkeep`. Preparation uses the materializer's path-integrity checks before
+serving; it authors no contract and changes no live repository content. Missing
+or inaccessible live stores and invalid or symlinked targets refuse through
+their source owners. Readers never create or repair the store.
 
 Formal attestation is optional and can be derived only while the same run
 settles when the launcher-selected canonical result contract requests it. No
@@ -450,27 +337,22 @@ guidance first. The two delivery modes intentionally carry different guidance:
 the same composer selects each mode's content, and neither is a copy of the
 other.
 
-The startup text opens with one shared, family-neutral instruction. For direct
-delivery it is: implement the assigned task, read only the listed readable
-paths and modify only the listed writable paths, use the tools available in the
-session, run `verify_proof` and report its result before committing,
-and report a blocker when required work falls outside scope. Managed delivery
-uses the same instruction without the listed-path sentence: the session itself
-enforces which paths the worker may read and modify. One `Read your
-managed-worker guide before acting: <path>` line follows, naming the
-package-owned guide (`data/role-guides/managed-worker.md` in
-`@agent-chassis/agent-launch-core`), whose directory the launcher grants
-read-only; the guide defers execution and completion ordering to the runtime
-instructions. In
-managed delivery the instruction and the guide line are separated by the
-first-read instruction: call
-`workspace_read_wiki` with `{"assignment":true}`, follow every returned
-continuation before other work, and report a refused read as a blocker. The
-startup text names no family tool, confinement mechanism, or alternative
-editing or validation route; the launcher-granted tools and confinement remain
-the authority. The existing commit-then-result completion protocol follows
-unchanged. Managed startup text carries no task body, material, or scope
-inventory, so its size does not grow with the assignment or its scope.
+Startup names the package-owned managed-worker guide and the runtime completion
+protocol. It contains no separate launcher-authored instruction to implement,
+run a proof before committing or reclassify declared validation. Managed startup
+first directs the worker to `workspace_read_wiki({assignment:true})` and every
+returned continuation; a refused assignment read is a blocker. The guide directs
+implementation, assignment-change requests and authorized execution within the
+assignment. It directs delivery through `workspace_deliver_work({})`, which
+fulfills the assignment's commit requirement, and defers diagnostic final-report
+and termination ordering to runtime instructions. Startup does not repeat those
+generic procedures.
+
+The package-owned guide directory is mounted read-only. Managed startup carries
+no task body, material or scope inventory, so its size does not grow with the
+assignment. Direct delivery carries inline guidance; managed delivery retrieves
+it. Both preserve the runtime's delivery-then-result completion protocol and
+immediate termination on an accepted assignment-change request.
 
 Managed guidance carries the selected unit's operative content, each section
 once: a concise record identification, the selected unit's complete summary,
@@ -513,9 +395,14 @@ the selected unit's read scope, repository paths and write scope in that order
 without duplicates; writable paths are its write scope. The explicitly
 selected assignment material follows in the agent brief.
 
-In both modes the declared validation is presented as acceptance validation
-outside the assignment, together with any full-suite validation named in the
-authored task text, so it is not a separate worker step before commit. The
+In both modes the declared validation is presented in the assignment. Workers
+run required native tests through `workspace_run_test` and saved proofs through
+`verify_proof`, and report their actual results before delivery as the assignment
+and repository policy require. Declaring a check or saving a proof does not run
+it. Trusted delivery validation and terminal candidate validation are separate
+executions with their own source bindings and outcomes; neither replaces an
+unexecuted worker check. These conduct instructions do not create a free-tier
+review or executed-proof admission gate. The
 worker prompt does not refer to reviewers. Unselected parent and sibling content
 stays out, exactly as the selected-unit projection already required; the managed
 parent-requirements section above is the one exception. Delivery
@@ -766,6 +653,29 @@ live reservation, and exact subject or repository identity failure all still
 refuse before spawn.
 
 Managed worktrees are provisioned in-process from canonical launcher roots.
+A completed integrated slice is not an implementation target. Integration saves
+`status: done` and `integrated_delivery_sha` together on its canonical slice;
+that compound fact makes worker action preview and start refuse with
+`integrated_slice_requires_new_slice`, even when the completed checkout still
+exists. The Git reconciliation classifier's `INTEGRATED` state means ancestry
+containment only and does not establish lifecycle completion. Status alone and
+an absent checkout do not establish it either. Further implementation requires
+a new slice: the refusal identifies the completed subject and returns one
+serving-contract-validated `workspace_read_wiki({subject: <parent WK>})` call.
+The caller uses the parent's returned revision and authors
+`save_record.changes.ready_slices` with their own contents; the launcher chooses
+neither the new slice ID nor its contract. If that read cannot be served, the
+completion cause remains and the response states the navigation limitation.
+Reviewer and observation operations remain available.
+
+The worker target check is read-only. Managed worker provisioning repeats it
+from the launcher-owned canonical record under the existing WK authority
+exclusion shared with integration, before entering the provisioning lock and
+before generation persistence, ref advancement or allocation. Integration
+completion between the earlier target observation and preparation therefore
+refuses without those effects. This refusal neither recreates the completed
+checkout nor changes integration cleanup.
+
 Before an existing slice branch is adopted, its tip is reconciled against the
 canonical WK-derived base, and containment alone is never spawn authority:
 reaching an executor additionally requires that no prior managed attempt is live,
@@ -793,8 +703,8 @@ another commit. After the compare-and-swap the launcher proves ref-level coheren
 association, the atomically rebound binding, and the returned committed tip name
 one state. The persistent WK worktree stays materialized-once (decision): its
 index and working files may remain at a mechanically proven cleanly-older parent,
-and provisioning performs no read-tree, reset, checkout, or other file
-rematerialization against it. Failure compensation runs in reverse acquisition
+and successful provisioning performs no read-tree, reset, checkout, or other
+file rematerialization against it. Failure compensation runs in reverse acquisition
 order and restores only transaction-owned state; persistent WK resources are never
 removed merely because one attempt failed. When the failed attempt created the
 persistent WK, its launcher-owned WK binding is retained with those resources:
@@ -804,6 +714,45 @@ attempt passed the complete-binding gate and the identity store's recovery
 validator still resolves exactly that captured base for the WK; an unvalidated,
 altered, unreadable, or conflicting binding is removed, and a reused WK's attempt
 binding is removed because earlier bindings already carry its captured base.
+Worker input validation precedes persistent preparation. Served `start_agent`
+checks the selected assignment, dependencies, prospective Git base, scope paths,
+repository test declarations and definition blobs, and existing managed resource
+identity/topology before readiness can persist refreshed evidence. The backend
+repeats the shared checks, backend admission and assigned-source access before
+bootstrap. The prospective-base resolver selects the same captured WK tip or
+configured initial base that preparation must use; ambient HEAD is not a
+substitute. A missing definition returns a validated selected-unit read and the
+caller-authored `save_record` placement `changes.validation.repository_tests`.
+
+Under the shared WK authority exclusion and provisioning lock, preparation
+rechecks the canonical assignment digest and exact prospective base, then the
+existing WK identity/captured base, retained slice attachment, identity, topology
+and native Git fast-forward conflicts. The conflict probe is read-only. Allocation
+and reconciliation still verify current refs, association and created outputs at
+use; an earlier check grants no stale authority. Integrated completion retains
+its separate compound canonical refusal, independently of ancestry containment.
+
+After an unavoidable preparation failure, the original error and exact attempt
+remain primary. Owned slice resources and attempt bindings are compensated only
+while their identity/current tip still matches; real edits and newer winners are
+retained. Durable generation commits remain durable. If the parent was clean at
+acquisition and its retained advance is exactly this attempt's verified owned
+sequence, failure settlement invokes the existing owned-checkout synchronization
+owner under those locks to align index and files to that retained tip. It moves
+no ref and uses no forced reset. A previously usable parent therefore remains
+usable when this attempt alone produced the mismatch. Successful provisioning
+keeps its existing older-materialization policy.
+
+The refusal reports `preparation_settlement`, including attempt, before/expected/
+observed tips and retained-state limitation. Local edits, a concurrent ref winner,
+unverified persistence effects, a locked index, or failed identity/I/O checks can
+prevent safe settlement; they are preserved, not treated as a clean rollback.
+A parent already stale before this attempt can still be refused as `dirty` by
+`run_test.source_not_executable.v1`. That resolver offers no executable checkout
+repair, and provisioning retry alone need not restore usability. Once the family
+executor is entered, preparation ownership has transferred: uncertain execution
+outcomes retain resources instead of running this failure-only settlement.
+
 Retained base evidence is historical identity, not attempt authority: the failed
 attempt's slice binding is removed, so its launch identity forms no recovery
 pair, and a later attempt adopts only through the ordinary adoption route, which
@@ -1361,6 +1310,42 @@ as
 neither launcher surface relabels currentness as ordinary incompleteness or
 offers proof upsert as the refresh.
 
+Paid-tier implementation dispatch consumes the current saved assignment's shared
+contract verdict, including the requirement description owner's established
+missing-definition findings. Valid obligation accounting and complete criterion
+associations cannot substitute for authored specification meaning, including when
+the workbench is mechanically complete. The existing
+`controlled_acceptance_incomplete` refusal occurs before reservation, provisioning
+or child execution. `workspace_assess_contract` is a convenience reader: no prior
+call is required, and an older complete assessment cannot authorize dispatch after
+a definition is removed. Definition inspection and caller-authored correction use
+the existing assessment/read/save guidance. Execution capability and proof credit
+remain independent. Task registration captures the server-owned `registeredTier`
+and carries it as trusted validation configuration; neither public start requests
+nor dispatch options accept a tier override. The shared contract state and
+specification findings remain incomplete and visible in the free tier. Its
+existing accounting, criterion-coverage and source-currentness refusals still
+apply; specification insufficiency alone adds no free-tier refusal. The semantic
+admission projection discloses this boundary through
+`specification_completeness_enforced`. Non-tiered internal consumers retain that
+existing authored-accounting/coverage boundary. This adds no policy decision,
+approval token or launch gate.
+
+The same shared verdict requires complete parent source accounting in paid tier,
+including a whole-unit opted-out disposition. `parent_source_accounting` states
+its parent identity, source digest, measurement and complete/incomplete/unknown
+status separately from the selected unit's obligations and authored-definition
+readiness. Criterion associations cannot account for prose. Every non-whitespace
+source span requires a current exact formal link or an explicit source-bound
+exception; missing, stale or unmapped source cannot yield complete paid
+accounting. Drafts and opted-out drafts remain savable. A legitimate source
+exception grants no CEL or proof credit. The existing
+`controlled_acceptance_incomplete` refusal and targeted parent read/correction
+apply before provisioning. This uses the trusted server tier and existing
+completeness consumer; it adds no separate dispatch gate, request tier override,
+or `save(status:done)` guard. Free authoring and its existing admission boundary
+remain available. See [source accounting](mcp-controlled-contract-operations.md).
+
 A parent's or a sibling's population is therefore a different unit's fact and can
 never complete a selected slice. A slice with no saved coverage source reports
 `obligation_coverage_source_not_found`, an empty population and
@@ -1475,10 +1460,27 @@ compare-and-swap path unchanged.
 
 Reviewer and redteam prompts are text-first and name the package-owned
 reviewer guide in one `Read your reviewer guide before acting: <path>` line;
-the launcher grants that exact file read-only. Their startup text keeps only the
-role, subject, reviewed
-range, tree, and descriptor identity and the result-format instructions; it
-does not serialize the assignment. It directs the reviewer first to read the
+the launcher grants that exact file read-only. Startup keeps the role, subject,
+checkout identity, descriptor identity and result-format instructions; it does
+not serialize the assignment. Reviewer startup retains the reviewed range and
+tree. Redteam startup always directs a pre-implementation design challenge of
+the user requirements, proposed assignments, obligations, assumptions,
+interactions and planned checks. It compares obligations with the complete user
+request and relevant source, beyond the saved requirements, and identifies missing,
+weakened or unsupported interpretations. It returns findings only; the orchestrator
+evaluates them and owns saved-contract updates before implementation dispatch.
+It requires checking that obligations cover
+user requirements, interactions and failure cases, and that planned checks would
+fail if required behavior were wrong. For every gap, redteam proposes the smallest
+concrete correction, explains the missing behavior and how the check detects an
+incorrect implementation, and identifies unresolved user decisions without
+inventing answers. This reviews obligation design, without proof execution or
+claims of implementation satisfaction. Implementation commits are not required;
+their absence is not a finding or a reason to request implementation before
+completing the challenge. Redteam labels the checkout SHA and tree as supporting
+source context and omits the reviewed range. An explicitly supplied SHA can
+select that checkout context; it never changes redteam into an implementation
+review. Startup directs each role first to read the
 assigned unit's root through `workspace_read_wiki` from its existing review
 source and, for a slice, the parent record's root, since a slice root does not
 carry its parent contract, and to follow the returned member calls and selected
@@ -1659,3 +1661,24 @@ Use `start_agent({preview:true,role})` for configured capabilities without a
 subject, or `{subject,preview:true}` for the selected action's readonly planning
 facts. Previews do not launch or integrate; unevaluated facts remain unchecked.
 The retired identity-contract route is not an alias for these previews.
+
+## Assignment-change completion authority
+
+The shared worker completion renderer requires successful `workspace_deliver_work`
+before diagnostic final evidence and normal termination. An accepted
+`request_assignment_change` immediately ends the worker through the launcher;
+it requires no final report or subsequent tool call. The managed-worker guide
+owns when to request assignment changes and how to report the handoff. A request
+reports a missing or contradictory assignment fact; it is not automatic recovery
+for tests or tool refusals. Its closed input
+carries testimony only. The authenticated assignment, frozen source digest and
+exact retained attempt select authority independently of worker input.
+
+The identity-store owner arbitrates informational completion observations under
+the existing subject partition lock. Request retention alone grants nothing.
+An accepted request consumes active delivery authority while preserving immutable
+historical binding identity for reads. Delivery claims its own intent before
+commit materialization. A contrary intent or terminal attempt refuses new
+acceptance. Identical request retries read the first acceptance without another
+event, including after terminal settlement. No lifecycle transition, process
+status or worker result enum is added.

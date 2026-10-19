@@ -1,4 +1,8 @@
-
+import { capturePreparationParent, recordPreparationAdvance, settlePreparationParent } from "./managed-preparation-parent-settlement.mjs";
+import { resolveProspectiveScopeExistenceBase } from "./backend-provisioning-state.mjs";
+import { projectControlledAcceptanceDispatchFailure } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-dispatch-recovery.mjs";
+import { integratedSliceDispatchRefusal } from "@agent-chassis/wiki-core/src/lib/integrated-slice-dispatch.mjs";
+import { withControlledContractAuthorityExclusion } from "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
 
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,6 +29,9 @@ import {
   allocateFullSliceExactUnitWorktree as defaultAllocateFullSliceExactUnitWorktree,
   classifyExistingSliceTipForDispatch as defaultClassifyExistingSliceTipForDispatch,
   deriveExactUnitName,
+  inspectExistingWkWorktree,
+  assertFullSliceWorktreeAtTip,
+  inspectFullSliceResources,
   SLICE_TIP_RECONCILE_STATES
 } from "./worktree-substrate-exact-unit.mjs";
 import { bindingFilePath, resolveCapturedWkBase } from "./worktree-substrate-identity.mjs";
@@ -135,7 +142,8 @@ function reconcileContainedSliceWorktreeToCurrentW({
   branch,
   retainedTip,
   wkRef,
-  currentWkTip
+  currentWkTip,
+  validateOnly = false
 }) {
   if (!existsSync(worktreePath) ||
       !registeredWorktreeForBranch(runGit, repo, worktreePath, branch)) {
@@ -186,7 +194,8 @@ function reconcileContainedSliceWorktreeToCurrentW({
   }
   const merged = runGit({
     repo: worktreePath,
-    args: ["merge", "--ff-only", "--no-edit", currentWkTip]
+    args: validateOnly ? ["read-tree", "--dry-run", "-m", "-u", retainedTip, currentWkTip]
+      : ["merge", "--ff-only", "--no-edit", currentWkTip]
   });
   if (merged?.ok !== true) {
     fail(
@@ -195,6 +204,7 @@ function reconcileContainedSliceWorktreeToCurrentW({
       { issue: "retained_slice_fast_forward_failed", ...gitFailureDetail(merged) }
     );
   }
+  if (validateOnly) return retainedTip;
   const settledProbes = {
     branch_tip: runGit({ repo, args: ["show-ref", "--verify", "--hash", expectedRef] }),
     head: runGit({ repo: worktreePath, args: ["rev-parse", "--verify", "HEAD"] })
@@ -374,10 +384,16 @@ function sha256Digest(bytes) {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
-function removeBindingFile(repo, launchRef, runId, retryId, failures) {
+function removeBindingFile(repo, launchRef, runId, retryId, failures, expected = null) {
   const filePath = bindingFilePath(repo, launchRef, runId, retryId);
   if (!existsSync(filePath)) return;
-  try { unlinkSync(filePath); } catch (error) {
+  try {
+    if (expected !== null && JSON.stringify(JSON.parse(readFileSync(filePath, "utf8"))) !== JSON.stringify(expected)) {
+      failures.push({ stage: "binding", path: filePath, issue: "binding_changed_after_preparation" });
+      return;
+    }
+    unlinkSync(filePath);
+  } catch (error) {
     failures.push({ stage: "binding", path: filePath, message: error?.message ?? String(error) });
   }
 }
@@ -1195,10 +1211,17 @@ function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, 
   const sliceBinding = bindings.slice;
   const sliceReceipt = receipts?.slice ?? {};
   if (sliceBinding && sliceReceipt.worktree_created === true) {
-    const remove = runGit({ repo, args: ["worktree", "remove", "--force", sliceBinding.worktree_path] });
-    if (!remove || remove.ok !== true) failures.push({ stage: "slice_worktree", detail: remove ?? null });
+    const tip = runGit({ repo, args: ["show-ref", "--verify", "--hash", `refs/heads/${sliceBinding.output_branch}`] });
+    const association = runGit({ repo: sliceBinding.worktree_path, args: ["symbolic-ref", "--quiet", "HEAD"] });
+    if (exactGitOutput(tip) !== sliceBinding.base_sha ||
+        exactGitOutput(association) !== `refs/heads/${sliceBinding.output_branch}`) {
+      failures.push({ stage: "slice_worktree", issue: "slice_changed_after_preparation", tip, association });
+    } else {
+      const remove = runGit({ repo, args: ["worktree", "remove", sliceBinding.worktree_path] });
+      if (!remove || remove.ok !== true) failures.push({ stage: "slice_worktree", detail: remove ?? null });
+    }
   }
-  if (sliceBinding && sliceReceipt.branch_created === true) {
+  if (sliceBinding && sliceReceipt.branch_created === true && !failures.some(failure => failure.stage === "slice_worktree")) {
     const branch = runGit({
       repo,
       args: ["update-ref", "-d", `refs/heads/${sliceBinding.output_branch}`, sliceBinding.base_sha]
@@ -1213,13 +1236,15 @@ function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, 
     });
     if (!rollback || rollback.ok !== true) {
       failures.push({ stage: "wk_record_ref", detail: rollback ?? null });
+    } else if (receipts.parent) {
+      receipts.parent.expected_tip = recordCommit.previous_tip;
     }
   }
 
   for (const [kind, binding] of [["slice", bindings.slice], ["wk", bindings.wk]]) {
     if (!binding) continue;
     if (kind === "wk" && retainsCreatedWkCapturedBase({ repo, receipts })) continue;
-    removeBindingFile(repo, launchRef, bindingIdentity(runId, kind), retryId, failures);
+    removeBindingFile(repo, launchRef, bindingIdentity(runId, kind), retryId, failures, binding);
   }
   for (const root of createdRoots) {
     if (bindings.wk) continue;
@@ -1298,7 +1323,8 @@ async function establishManagedWkLifecycleLocked(input) {
 
 async function establishManagedWkLifecycleAttempt({
   repo, initiative, wkId, subject, launchRef, runId, retryId, roots, deps,
-  runGit, allocateOrAdoptWk, bindings, receipts, createdRoots
+  runGit, allocateOrAdoptWk, bindings, receipts, createdRoots,
+  expectedSource = null, validateExistingInputs = null
 }) {
   const resolveGeneration = deps.resolveControlledContractGeneration
     ?? defaultResolveControlledContractGeneration;
@@ -1372,24 +1398,24 @@ async function establishManagedWkLifecycleAttempt({
         ? "the canonical proof posture has no controlled-acceptance disposition"
         : sourceNotCurrent
           ? "the authenticated controlled-acceptance source moved before provisioning"
-          : controlledAcceptanceState.recovery?.explanation ??
+          : controlledAcceptanceState.semantic.admission.recovery_explanation ?? controlledAcceptanceState.recovery?.explanation ??
             "the required controlled-acceptance contract is mechanically incomplete",
       {
         issue: blockedReason,
         record_id: wkId,
         initiative,
         controlled_acceptance_state: controlledAcceptanceState.state,
-        controlled_acceptance_semantic: controlledAcceptanceState.semantic,
+        controlled_acceptance_failure: projectControlledAcceptanceDispatchFailure(controlledAcceptanceState, subject),
         recovery: controlledAcceptanceState.recovery
       }
     );
   }
   const generation = ["absent", "opted_out"].includes(controlledAcceptanceState.state)
     ? null : await resolveGeneration({ repoRoot: repo, wkId });
-  if (generation === null && controlledAcceptanceState.state === "complete") {
+  if (generation === null && !["absent", "opted_out"].includes(controlledAcceptanceState.state)) {
     fail(
       MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.GENERATION_REQUIRED_ABSENT,
-      "the complete controlled-acceptance contract no longer resolves to its authenticated generation",
+      "the admitted controlled-acceptance contract no longer resolves to its authenticated generation",
       { issue: "controlled_contract_generation_required_absent", record_id: wkId,
         initiative, controlled_acceptance_state: controlledAcceptanceState.state,
         controlled_contract_required: true }
@@ -1474,6 +1500,16 @@ async function establishManagedWkLifecycleAttempt({
     base_ref: bindings.wk.base_ref,
     base_sha: bindings.wk.base_sha
   });
+  if (receipts.parent === undefined && expectedSource !== null && bindings.wk.wk_tip_sha !== expectedSource.base_sha) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BASE_SHA_RACED,
+      "the allocated WK source moved after worker input validation", {
+        issue: "worker_preparation_source_changed", expected: expectedSource,
+        observed: { base_sha: bindings.wk.wk_tip_sha, branch: bindings.wk.output_branch }
+      });
+  }
+  if (validateExistingInputs !== null) await validateExistingInputs(expectedSource);
+  if (expectedSource !== null) receipts.parent ??= capturePreparationParent({ binding: bindings.wk, runGit,
+    attempt: { launch_ref: launchRef, run_id: runId, retry_id: retryId, subject } });
 
   if (generation !== null) {
     const generationBinding = await resolveGenerationBinding({
@@ -1485,6 +1521,8 @@ async function establishManagedWkLifecycleAttempt({
       binding: generationBinding,
       receiptValue: generationReceipt
     });
+    recordPreparationAdvance(receipts.parent, { previous: verifiedGenerationReceipt.bound_tip,
+      tip: verifiedGenerationReceipt.final_tip, owned: verifiedGenerationReceipt.disposition === "created" });
     bindings.wk = rebindWkTip({
       repo, launchRef, runId, retryId, binding: bindings.wk,
       committedTip: verifiedGenerationReceipt.final_tip, deps,
@@ -1504,6 +1542,8 @@ async function establishManagedWkLifecycleAttempt({
   const snapshot = commitCurrentWorkRecordToWkBranch({
     repo, wkId, binding: bindings.wk, runGit, deps
   });
+  recordPreparationAdvance(receipts.parent, { previous: bindings.wk.wk_tip_sha,
+    tip: snapshot.committed_tip, owned: snapshot.owned });
   const recordCommit = Object.freeze({
     ref: `refs/heads/${bindings.wk.output_branch}`,
     previous_tip: bindings.wk.wk_tip_sha,
@@ -1638,6 +1678,64 @@ export async function provisionManagedWkLifecycleAtDispatch({
   });
 }
 
+export async function inspectManagedWorkerPreparationInputs({ mainRepo: repo, initiative, subject,
+  worktreeRoot, validateExistingInputs = null, deps = {} }) {
+  const { wkId, sliceId } = parseSubject(subject);
+  const roots = { worktreeRoot: canonicalizeOwnedPath(worktreeRoot, "worktreeRoot") };
+  assertDistinctOwnedRoots({ mainRepo: repo, ...roots });
+  const runGit = deps.runGit ?? defaultRunGit;
+  const classifyEarlySliceTip = deps.classifyExistingSliceTipForDispatch ?? defaultClassifyExistingSliceTipForDispatch;
+  const record = readLauncherAuthenticatedWorkRecord(repo, wkId);
+  const completed = integratedSliceDispatchRefusal(record.slices?.find(slice => slice.id === sliceId), subject);
+  if (completed !== null) fail(completed.code, completed.reason, completed.detail);
+
+  const wkName = deriveExactUnitName({ unitAddress: `${initiative}/${wkId}`, worktreeRoot: roots.worktreeRoot });
+  canonicalizeOwnedPath(wkName.worktree_path, "WK worktree");
+  inspectExistingWkWorktree({ mainRepo: repo, unitAddress: `${initiative}/${wkId}`,
+    resourceInspectionOnly: true, worktreeRoot: roots.worktreeRoot,
+    base: record.base_branch, deps: { ...deps, runGit } });
+  const prospective = await resolveProspectiveScopeExistenceBase({ mainRepo: repo, initiative,
+    recordId: wkId, baseBranch: record.base_branch, deps: { ...deps, runGit } });
+  if (!prospective.ok) fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.GIT_FAILED,
+    "the prospective worker source could not be authenticated", prospective);
+  if (validateExistingInputs !== null) await validateExistingInputs(prospective.scope_existence_base);
+  const existingName = deriveExactUnitName({ unitAddress: `${initiative}/${wkId}/${sliceId}`,
+    worktreeRoot: roots.worktreeRoot });
+  canonicalizeOwnedPath(existingName.worktree_path, "slice worktree");
+  inspectFullSliceResources({ runGit, repo, name: existingName });
+  const inspected = classifyEarlySliceTip({ mainRepo: repo,
+    unitAddress: `${initiative}/${wkId}/${sliceId}`, worktreeRoot: roots.worktreeRoot,
+    deps: { ...deps, runGit, resolveWkBranchTipBase: () => prospective.scope_existence_base } });
+  if (inspected.state === SLICE_TIP_RECONCILE_STATES.INTEGRATED) {
+    reconcileContainedSliceWorktreeToCurrentW({ runGit, repo, worktreePath: existingName.worktree_path,
+      branch: existingName.output_branch, retainedTip: inspected.slice_tip,
+      wkRef: prospective.scope_existence_base.base_ref, currentWkTip: prospective.scope_existence_base.base_sha,
+      validateOnly: true });
+    assertFullSliceWorktreeAtTip({ runGit, repo, worktreePath: existingName.worktree_path,
+      branch: existingName.output_branch, baseSha: inspected.slice_tip });
+  } else if (inspected.state === SLICE_TIP_RECONCILE_STATES.EQUAL && existsSync(existingName.worktree_path)) {
+    if (!registeredWorktreeForBranch(runGit, repo, existingName.worktree_path, existingName.output_branch)) {
+      fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+        "the existing slice checkout is not attached to its deterministic branch",
+        { issue: "retained_slice_worktree_not_attached" });
+    }
+    assertFullSliceWorktreeAtTip({ runGit, repo, worktreePath: existingName.worktree_path,
+      branch: existingName.output_branch, baseSha: inspected.slice_tip });
+  }
+  return prospective.scope_existence_base;
+}
+
+const managedPreparationSettlements = new WeakMap();
+export async function settleFailedManagedPreparation({ provisioning }) {
+  const settle = managedPreparationSettlements.get(provisioning);
+  if (!settle) return { state: "not_started" };
+  managedPreparationSettlements.delete(provisioning);
+  try { return await settle(); }
+  catch (error) { return { state: "retained", limitation: "preparation_settlement_ownership_unavailable",
+    subject: provisioning.unit_address, run_id: provisioning.slice_binding.run_id,
+    cause: { code: error.code ?? null, message: error.message, detail: error.detail ?? null } }; }
+}
+
 export async function provisionManagedWorktreesAtDispatch({
   mainRepo,
   initiative,
@@ -1647,6 +1745,7 @@ export async function provisionManagedWorktreesAtDispatch({
   retryId = 0,
   worktreeRoot,
   observeManagedWkLifecycle = null,
+  validateExistingInputs = null,
   deps = {}
 } = {}) {
   const implementationDeps = { ...deps };
@@ -1676,7 +1775,13 @@ export async function provisionManagedWorktreesAtDispatch({
   const classifyEarlySliceTip = deps.classifyExistingSliceTipForDispatch
     ?? defaultClassifyExistingSliceTipForDispatch;
 
-  return withWkProvisioningLock({ repo, key: `${initiative}/${wkId}`, deps }, async () => {
+  return withControlledContractAuthorityExclusion({ repoRoot: repo, wkId, run: async () => {
+    const record = readLauncherAuthenticatedWorkRecord(repo, wkId);
+    const completed = integratedSliceDispatchRefusal(record.slices?.find(slice => slice.id === sliceId), subject);
+    if (completed !== null) fail(completed.code, completed.reason, completed.detail);
+    return withWkProvisioningLock({ repo, key: `${initiative}/${wkId}`, deps }, async () => {
+    const expectedSource = await inspectManagedWorkerPreparationInputs({ mainRepo: repo, initiative, subject,
+      worktreeRoot: roots.worktreeRoot, validateExistingInputs, deps });
     const bindings = { wk: null, slice: null };
 
     const receipts = { wk: null, slice: null };
@@ -1685,7 +1790,7 @@ export async function provisionManagedWorktreesAtDispatch({
     try {
       const established = await establishManagedWkLifecycleLocked({
         repo, initiative, wkId, subject, launchRef, runId, retryId, roots, deps,
-        runGit, allocateOrAdoptWk, bindings, receipts, createdRoots
+        runGit, allocateOrAdoptWk, bindings, receipts, createdRoots, expectedSource, validateExistingInputs
       });
       recordCommit = established.recordCommit;
 
@@ -1803,11 +1908,26 @@ export async function provisionManagedWorktreesAtDispatch({
           bindings.wk.worktree_path === bindings.slice.worktree_path) {
         fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "persistent WK and slice resources collide");
       }
-      return freezeManagedResult({ mainRepo: repo, initiative, wkId, sliceId, wkBinding: bindings.wk, sliceBinding: bindings.slice, retryId });
+      const result = freezeManagedResult({ mainRepo: repo, initiative, wkId, sliceId, wkBinding: bindings.wk, sliceBinding: bindings.slice, retryId });
+      managedPreparationSettlements.set(result, () => withControlledContractAuthorityExclusion({ repoRoot: repo, wkId,
+        run: () => withWkProvisioningLock({ repo, key: `${initiative}/${wkId}`, deps }, async () => {
+          let cleanup = null;
+          try { compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId,
+            bindings, receipts, createdRoots, recordCommit, cause: "pre-executor refusal" }); }
+          catch (error) { cleanup = { code: error.code, message: error.message, detail: error.detail }; }
+          return { ...await settlePreparationParent({ repo, parent: receipts.parent, runGit }), cleanup };
+        }) }));
+      return result;
     } catch (error) {
 
-      compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, receipts, createdRoots, recordCommit, cause: error });
+      try {
+        compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, receipts, createdRoots, recordCommit, cause: error });
+      } catch (cleanup) {
+        error.preparation_cleanup = { code: cleanup.code, message: cleanup.message, detail: cleanup.detail };
+      }
+      error.preparation_settlement = await settlePreparationParent({ repo, parent: receipts.parent, runGit });
       throw error;
     }
-  });
+    });
+  } });
 }

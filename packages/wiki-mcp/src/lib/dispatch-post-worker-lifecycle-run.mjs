@@ -1,4 +1,4 @@
-
+import { readManagedCompletion } from "../../../agent-launch-cli/src/lib/managed-run-process-identity-store.mjs";
 
 import { withDeliveryFinalization } from "./dispatch-integration-finalization.mjs";
 import { defaultRunGitAsync } from "../../../agent-launch-cli/src/lib/worktree-substrate.mjs";
@@ -380,6 +380,24 @@ async function reconcileIntegratedRecord({
 export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps = {} } = {}) {
   const subject = typeof status?.subject === "string" ? status.subject.match(WORKER_SLICE_SUBJECT_RE) : null;
   if (status?.role !== "worker" || status?.terminal !== true || status?.status !== "succeeded" || !subject) {
+    return null;
+  }
+  if (status.completion_settlement_failure !== undefined) throw closeLifecycleSeamRefusal(
+    CLOSED_LIFECYCLE_FAILURE_SEAMS.LIFECYCLE_BINDING_RESOLUTION,
+    CLOSED_LIFECYCLE_REFUSAL_REASONS.PROVISIONING_BINDING_INCOMPLETE,
+    { completion_settlement_failure: status.completion_settlement_failure });
+  const completion = await atLifecycleSeam(CLOSED_LIFECYCLE_FAILURE_SEAMS.LIFECYCLE_BINDING_RESOLUTION, () => typeof status.run_id === "string"
+    ? readManagedCompletion({ mainRepo: workspace.dir, subject: status.subject, attemptId: status.run_id })
+    : { ok: true, completion: null });
+  if (!completion.ok) {
+    throw closeLifecycleSeamRefusal(CLOSED_LIFECYCLE_FAILURE_SEAMS.LIFECYCLE_BINDING_RESOLUTION,
+      CLOSED_LIFECYCLE_REFUSAL_REASONS.PROVISIONING_BINDING_INCOMPLETE, { completion_read: completion });
+  }
+  if (completion.completion?.alternative === "assignment_change_requested") {
+    if (completion.dispatch_tuple.launch_ref !== status.monitor_handle) throw closeLifecycleSeamRefusal(
+      CLOSED_LIFECYCLE_FAILURE_SEAMS.LIFECYCLE_BINDING_RESOLUTION,
+      CLOSED_LIFECYCLE_REFUSAL_REASONS.WORKER_SUBJECT_BINDING_MISMATCH,
+      { completion_tuple: completion.dispatch_tuple, monitor_handle: status.monitor_handle });
     return null;
   }
   const { bindings, binding, initiative, wkId, sliceId, wkRef } =

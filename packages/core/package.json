@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/core",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -19,6 +19,7 @@
     "templates/**",
     "scripts/postinstall-guidance.mjs",
     "scripts/setup.mjs",
+    "scripts/setup-agent-catalog.mjs",
     "scripts/test-runtime-setup/**",
     "README.md",
     "LICENSE"
@@ -36,9 +37,9 @@
     ".": "./src/index.mjs"
   },
   "dependencies": {
-    "@agent-chassis/agent-launch-cli": "^0.11.0",
-    "@agent-chassis/wiki-cli": "^0.11.0",
-    "@agent-chassis/wiki-mcp": "^0.11.0"
+    "@agent-chassis/agent-launch-cli": "^0.12.0",
+    "@agent-chassis/wiki-cli": "^0.12.0",
+    "@agent-chassis/wiki-mcp": "^0.12.0"
   },
   "engines": {
     "node": ">=24.20.0"

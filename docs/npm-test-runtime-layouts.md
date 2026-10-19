@@ -55,8 +55,8 @@ it; and an installation whose only tree is a member's is an installation
 (`source: member_node_modules`). The launcher's
 `test-runtime-setup/npm-installation.mjs` is the one owner of this layout.
 
-Every tree is described where it really is and is never copied, flattened or
-rewritten. Each top-level entry of a tree is one of:
+Installed packages stay where they really are and are never copied, flattened
+or rewritten. Each package entry of a tree is one of:
 
 | Entry | Meaning | Treatment |
 | --- | --- | --- |
@@ -168,6 +168,29 @@ the selected installation and each member or local source link resolves to
 that directory in the tree being tested, so local source always resolves to
 the executing checkout or proof copy.
 
+Executable entries are a separate catalog from package entries. When a tree
+needs rebasing, the installation owner's `npm-executable-entries.mjs` reads
+its existing `.bin` entries and supplies that directory in the mapping. An
+executable link, relative or absolute, keeps its installed target and native
+dependency resolution, except that a target in an identified workspace or
+local package resolves to the selected source instead. Regular launchers
+(including pnpm's shell launchers) retain their bytes and permission mode,
+with literal references to those identified source targets rebased to the
+selected source. This includes absolute paths and `$basedir` references to
+local copies. The interpreter, arguments and environment statements remain
+those of the existing launcher. A pnpm tree's `.pnpm` store remains linked to
+its installed location for launchers that address it directly; it is never a
+package-discovery entry. Other hidden directories do not become packages.
+
+No executable is manufactured from a manifest: an absent `.bin` supplies no
+commands, and a broken executable target keeps its native failure. Unreadable
+executable inputs retain their filesystem cause. Repository scripts still
+choose their own explicit configuration, setup and command arguments, using
+the package manager's native root/member executable lookup. The same layout
+owner supplies executable entries to private setup copies and proof copies;
+installed dependency trees remain read-only in confinement, and source
+visibility remains governed by the execution context.
+
 Resolving a runtime writes nothing. The shared run publishes the mapping after
 it knows where it executes: in the selected checkout for an ordinary run and
 for a proof stage that runs there, and in the stage's own copy for a proof
@@ -180,7 +203,8 @@ Every destination is inspected before anything is published, and existing
 entries are preserved. The selected tree itself, a link to it and the complete
 expected layout of one published generation are reused; an empty directory, any
 other tree, a link to anything else, a generation with a missing or retargeted
-package or member link or an extra entry are conflicts, reported with
+package, member or executable link, a missing or changed launcher (including
+its permission mode), or an extra entry are conflicts, reported with
 `test_runtime_dependency_projection_conflict` and never replaced.
 
 A runner writes its own state where it finds `node_modules`, and through a

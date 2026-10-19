@@ -1,3 +1,4 @@
+import { resolveOrchestratorGuidancePair } from "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
 import { consumeAdvisoryExecutionSubstrate } from "./workspace-agent-advisory-execution-substrate.mjs";
 
 import path from "node:path";
@@ -54,7 +55,7 @@ import {
 } from "./workspace-agent-family-adapter-core.mjs";
 import { buildFamilyExecutorBwrapPlan } from "./workspace-agent-family-bwrap-plan.mjs";
 import { resolveLaunchRoleGuideDirectory } from "./launch-isolation-plan.mjs";
-import { resolveRoleGuideCompactionHook } from "./role-guide-compaction-hook.mjs";
+import { claudeRoleGuideInstructionArgs, withRoleGuideInstructionsPrompt } from "./role-guide-instructions.mjs";
 import { assertGitMetadataProjectionComposed } from "./launch-isolation-findings-git-metadata.mjs";
 import { resolveAdvisoryReviewGitMetadataProjection } from
   "./workspace-agent-advisory-review-contract.mjs";
@@ -146,6 +147,7 @@ export function buildClaudeNativePermissionSettings({
   workspaceDir,
   writeScope,
   role = "worker",
+  registeredTier,
 
   mcpToolNames = []
 } = {}) {
@@ -155,7 +157,7 @@ export function buildClaudeNativePermissionSettings({
 
   const repoReadPattern = claudeAbsoluteReadPattern(repoAbs);
   const implementationWorker = role === "worker";
-  const roleGuideDir = resolveLaunchRoleGuideDirectory(role);
+  const roleGuideDir = resolveLaunchRoleGuideDirectory(role, registeredTier);
   const allow = [
     repoReadPattern,
     ...(roleGuideDir === null ? [] : [claudeAbsoluteReadPattern(roleGuideDir)]),
@@ -178,10 +180,8 @@ export function buildClaudeNativePermissionSettings({
   };
 }
 
-export function buildClaudeRoleGuideCompactionHookSettings(launchRole, {
-  resolveHook = resolveRoleGuideCompactionHook
-} = {}) {
-  const hook = resolveHook(launchRole);
+export function buildClaudeRoleGuideCompactionHookSettings(delivery) {
+  const hook = delivery?.highPriority ? null : delivery?.hook ?? null;
   if (hook === null) return null;
   return {
     hooks: {
@@ -998,7 +998,8 @@ export function defaultBuildClaudeCommandLine({
   schemaConstrainedTerminalResult = false,
 
   claudeSettingsPath = null,
-  supplementalInstructions = null
+  supplementalInstructions = null,
+  guideDelivery = null
 }) {
 
   const roleCheck = validateLauncherFamilyRole(role);
@@ -1018,7 +1019,7 @@ export function defaultBuildClaudeCommandLine({
   const constrained =
     schemaConstrainedTerminalResult === true &&
     CLAUDE_SCHEMA_CONSTRAINED_TERMINAL_RESULT_ROLES.has(role);
-  const args = ["--print"];
+  const args = ["--print", ...claudeRoleGuideInstructionArgs(guideDelivery)];
   const assignedWriteWorker =
     writePosture.ok === true &&
     writePosture.posture === LAUNCHER_WRITE_POSTURES.ASSIGNED_WRITE_SCOPE;
@@ -1075,6 +1076,7 @@ export function defaultBuildClaudeCommandLine({
     ? prompt
     : renderLauncherFamilyRoleContract({
         role,
+        guideDelivery,
         subject,
         workspaceDir,
         acceptanceCriteria,
@@ -1086,17 +1088,26 @@ export function defaultBuildClaudeCommandLine({
           role
         })
       });
+  const deliveredText = withRoleGuideInstructionsPrompt(baseText, guideDelivery);
   const text = typeof supplementalInstructions === "string" && supplementalInstructions.length > 0
-    ? `${baseText}\n\n${supplementalInstructions}`
-    : baseText;
+    ? `${deliveredText}\n\n${supplementalInstructions}`
+    : deliveredText;
 
   const argv = composeClaudeArgv({ optionArgs: args, prompt: text });
   return Object.freeze({
     command: claudePath,
+    guideDelivery,
     args: argv,
     optionArgs: Object.freeze([...args]),
     prompt: text,
     promptIndex: argv.length - 1,
     commandLineContract: CLAUDE_COMMAND_LINE_CONTRACT_SCHEMA_VERSION
   });
+}
+
+export function withOrchestratorGuidanceReads(settings, registeredTier, publishControlledAcceptanceOptOut = true) {
+  const pair = resolveOrchestratorGuidancePair(registeredTier, publishControlledAcceptanceOptOut);
+  const allow = [pair.guide, pair.vignette].map(file => `Read(//${file.replace(/^\/+/, "")})`);
+  return { ...settings, permissions: { ...settings.permissions,
+    allow: [...(settings.permissions?.allow ?? []), ...allow] } };
 }

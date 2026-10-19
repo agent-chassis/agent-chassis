@@ -3,11 +3,13 @@
 import { types as utilTypes } from "node:util";
 import { z } from "zod";
 import { createToolInputValidationError, MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
-import { isCanonicalNextCallTool } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
-import { activeMcpInlineByteLimit, describeRetainedArtifactFile, describeRetentionFailure, measureMcpInlineResultBytes } from "./mcp-response.mjs";
+import { isCanonicalNextCallTool, buildContinuationCall, buildGuidanceCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { buildPublicMechanicalRefusal } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
+import { projectAdvanceCandidateResponse, deliverAdvanceCandidateResponse } from "./task-advance-candidate-response.mjs";
+import { activeMcpInlineByteLimit, measureMcpInlineResultBytes } from "./mcp-response.mjs";
+import { createCandidateInspectionDelivery } from "./task-inspect-candidate-delivery.mjs";
 import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
 import { candidateInspectionSubjectCorrection } from "./task-inspect-candidate-response.mjs";
-import { buildDispatchGuidanceRefusal, guidanceCapability } from "./dispatch-guidance-contract.mjs";
 import {
   TERMINAL_WK_CANDIDATE_CODES,
   defaultTerminalCandidateRunGit
@@ -20,8 +22,6 @@ import { captureDiagnosticEvidence } from
   "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { DISPATCH_BLOCKER_CODES } from "./dispatch-tool-constants.mjs";
 import {
-  buildDispatchContinuation,
-  buildDispatchMechanicalRefusal,
   projectDispatchFailureDetail,
   dispatchRepoResolutionRefusal,
   recordOwnerRegisteredRequestSchema,
@@ -106,24 +106,30 @@ function requestRefusalFacts(args) {
   };
 }
 
-function inspectContinuation(callArguments, requestSchemaAuthority, recommended) {
+function inspectContinuation(callArguments, requestContracts, recommended) {
   if (!isCanonicalNextCallTool(INSPECT_CANDIDATE_TOOL_NAME)) return null;
-  return buildDispatchContinuation({
+  const contract = requestContracts?.contractFor(INSPECT_CANDIDATE_TOOL_NAME);
+  if (contract == null) return null;
+  if (!Object.hasOwn(callArguments, "version")) {
+    return buildGuidanceCall({ tool: INSPECT_CANDIDATE_TOOL_NAME, arguments: callArguments,
+      information: "Observe current candidate status, then explicitly choose advancement if intended. " +
+        "Inspection does not authorize a mutation or replacement selection."
+    }, { requestSchema: contract.publishedRequestSchema(), registeredTools: new Set([INSPECT_CANDIDATE_TOOL_NAME]) });
+  }
+  return buildContinuationCall({
     tool: INSPECT_CANDIDATE_TOOL_NAME,
     arguments: callArguments,
     recommended,
-    successPredicate: {
-      fact: "outcome", operator: "equals", value: "observed"
-    },
-    requestSchemaAuthority
-  });
+    success_predicate: {
+      fact: "state", operator: "equals", value: "historical_version"
+    }
+  }, { requestSchema: contract.publishedRequestSchema() });
 }
 
-function candidateNextCalls({ subject, advancedVersion = null, requestSchemaAuthority }) {
+function candidateNextCalls({ subject, advancedVersion = null, requestContracts }) {
   return Object.freeze([
-    inspectContinuation({ subject }, requestSchemaAuthority, true),
     advancedVersion === null ? null
-      : inspectContinuation({ subject, version: advancedVersion }, requestSchemaAuthority, false)
+      : inspectContinuation({ subject, version: advancedVersion }, requestContracts, false)
   ].filter((call) => call !== null));
 }
 
@@ -199,11 +205,29 @@ function refusalRecovery({ code, exclusion, progress, effects, inspectAvailable 
   }
   if (exclusion !== null) {
     if (exclusion.status_observation) {
+      const observation = exclusion.observation;
+      if (observation?.state === "candidate_absent") {
+        return ownedNoRouteRecovery({ responsibleActor: null,
+          prerequisite: "a candidate exists before selected-version advancement",
+          missingComponent: "candidate_only_preparation",
+          explanation: "No current candidate exists. Advance neither prepares a candidate nor publishes work; " +
+            "the requested version was not authenticated." });
+      }
+      if (observation?.state === "candidate_identity_invalid_or_moved") {
+        return ownedNoRouteRecovery({ responsibleActor: null,
+          prerequisite: `the observed candidate condition is corrected: ${observation.cause}`,
+          missingComponent: "candidate_condition_recovery",
+          explanation: "The candidate observation is invalid. Correct the stated owner condition before advancement; " +
+            "advance repairs no candidate or generation, and the requested version was not authenticated." });
+      }
       return ownedNoRouteRecovery({
         responsibleActor: null,
         prerequisite: "the currently selected candidate is stale against the current W",
-        explanation: "the selected candidate is not stale, so there is nothing to advance; " +
-          "this refusal changed nothing"
+        explanation: observation?.state === "candidate_healthy"
+          ? "The current candidate is healthy, so that selection needs no advancement. " +
+            "The requested version was not authenticated; this refusal changed nothing."
+          : "The exclusion did not establish a stale current candidate. The requested version " +
+            "was not authenticated and nothing was advanced; no supported correction was established."
       });
     }
     return ownedNoRouteRecovery({
@@ -228,6 +252,13 @@ function refusalRecovery({ code, exclusion, progress, effects, inspectAvailable 
       missingComponent: "canonical_repository_root_binding",
       operatorAction: "correct the server's repository-root configuration before candidate observation" });
   }
+  if (code === TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_INPUT_MOVED) {
+    return ownedNoRouteRecovery({ responsibleActor: "caller_retry",
+      prerequisite: "the explicitly selected source and target stay in place for advancement",
+      missingComponent: inspectAvailable ? null : INSPECT_CANDIDATE_TOOL_NAME,
+      retryCondition: reissue,
+      explanation: "a selected input moved; inspection informs a new decision and repairs no generation" });
+  }
   if (["generation_authentication", "final_recheck"].includes(progress?.stage)) {
     return ownedNoRouteRecovery({ responsibleActor: null,
       prerequisite: "the current controlled generation authenticates at the captured W and " +
@@ -246,7 +277,7 @@ function refusalRecovery({ code, exclusion, progress, effects, inspectAvailable 
         "replaced automatically"
     });
   }
-  if (code === TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_INPUT_MOVED || progress?.stage === "selection") {
+  if (progress?.stage === "selection") {
     return ownedNoRouteRecovery({ responsibleActor: "caller_retry",
       prerequisite: "the requested immutable version authenticates as the current selection",
       missingComponent: inspectAvailable ? null : INSPECT_CANDIDATE_TOOL_NAME,
@@ -264,28 +295,32 @@ function selectionFact(selection) {
   return { version_identity: text(selection?.version_identity), candidate: text(selection?.candidate) };
 }
 
-function refusalGuidance({ subject, requestSchemaAuthority, code, exclusion, progress, effects, facts }) {
+function refusalGuidance({ subject, requestContracts, code, exclusion, progress, effects, facts }) {
   const inspectAvailable = subject !== null && isCanonicalNextCallTool(INSPECT_CANDIDATE_TOOL_NAME) &&
-    guidanceCapability({ tool: INSPECT_CANDIDATE_TOOL_NAME, requestSchemaAuthority }).available;
+    requestContracts?.contractFor(INSPECT_CANDIDATE_TOOL_NAME) != null;
   const recovery = refusalRecovery({ code, exclusion, progress, effects,
     inspectAvailable });
   const decidingFacts = facts.map(([field, value]) => ({ field, value }));
   const observedFacts = Object.fromEntries(facts);
+  const requestSchemas = tool => requestContracts?.contractFor(tool)?.publishedRequestSchema();
+  const registeredTools = new Set(inspectAvailable ? [INSPECT_CANDIDATE_TOOL_NAME] : []);
   let mechanicalRefusal;
   if (inspectAvailable && recovery.retry_condition !== undefined) {
     const { state, ...correction } = recovery;
-    mechanicalRefusal = buildDispatchGuidanceRefusal({
-      code, decidingFacts, observedFacts,
-      guidance: { tool: INSPECT_CANDIDATE_TOOL_NAME, arguments: { subject },
+    const call = buildGuidanceCall({ tool: INSPECT_CANDIDATE_TOOL_NAME, arguments: { subject },
         information: "observe the current candidate selection before deciding on a new explicit " +
-          "version request; inspection repairs nothing and grants no mutation authority" },
-      recovery: { ...correction, selected_from: facts.map(([field]) => field) },
-      route: ADVANCE_CANDIDATE_TOOL_NAME, requestSchemaAuthority
-    }).refusal;
+          "version request; inspection repairs nothing and grants no mutation authority"
+    }, { requestSchema: requestSchemas(INSPECT_CANDIDATE_TOOL_NAME), registeredTools });
+    mechanicalRefusal = buildPublicMechanicalRefusal({
+      code, deciding_facts: decidingFacts, observed_facts: observedFacts, next_calls: [call],
+      recovery: { state: "guidance", operation: call.tool, information: call.information,
+        blocker_unchanged: true, ...correction, selected_from: facts.map(([field]) => field) },
+      route: ADVANCE_CANDIDATE_TOOL_NAME, request_schemas: requestSchemas, registered_tools: registeredTools
+    });
   } else {
-    mechanicalRefusal = buildDispatchMechanicalRefusal({
-      code, decidingFacts, observedFacts, noSupportedRoute: true, recovery,
-      route: ADVANCE_CANDIDATE_TOOL_NAME, requestSchemaAuthority
+    mechanicalRefusal = buildPublicMechanicalRefusal({
+      code, deciding_facts: decidingFacts, observed_facts: observedFacts, no_supported_route: true, recovery,
+      route: ADVANCE_CANDIDATE_TOOL_NAME, request_schemas: requestSchemas
     });
   }
   return { mechanicalRefusal, nextCalls: mechanicalRefusal.next_calls ?? Object.freeze([]),
@@ -294,7 +329,7 @@ function refusalGuidance({ subject, requestSchemaAuthority, code, exclusion, pro
       : null };
 }
 
-function refused({ subject, version, error, requestSchemaAuthority, responseEnv }) {
+function refused({ subject, version, error, requestContracts, responseEnv }) {
   const exclusion = projectTerminalCandidateExclusionRefusal(error);
   const owner = exclusion === null ? ownerFailure(error) : null;
   const progress = projectTerminalCandidateAdvanceFailure(error);
@@ -317,7 +352,7 @@ function refused({ subject, version, error, requestSchemaAuthority, responseEnv 
   ];
   const evidence = captureDiagnosticEvidence(error);
   const diagnostic = projectDispatchFailureDetail({ evidence }, { env: responseEnv, nested: true });
-  const guidance = refusalGuidance({ subject, requestSchemaAuthority,
+  const guidance = refusalGuidance({ subject, requestContracts,
     code, exclusion, progress, effects, facts });
   const { nextCalls } = guidance;
   const body = envelope({
@@ -339,6 +374,7 @@ function refused({ subject, version, error, requestSchemaAuthority, responseEnv 
         code,
         owner_authenticated: exclusion !== null || owner !== null,
         ...(exclusion === null ? {} : { exclusion_reason: exclusion.reason }),
+        ...(exclusion?.observation === undefined ? {} : { observation: exclusion.observation }),
         ...(owner?.primitive === true ? { candidate_failure: owner.projection } : {}),
         ...diagnostic
       }),
@@ -348,28 +384,14 @@ function refused({ subject, version, error, requestSchemaAuthority, responseEnv 
     nextCalls,
     nextCallsExplanation: guidance.nextCallsExplanation
   });
-  if (measureMcpInlineResultBytes(body) <= activeMcpInlineByteLimit(responseEnv)) return body;
-  const retained = diagnostic.retained_evidence;
-  let errorLog = null;
-  let errorLogFailure = retained?.retained === false ? retained : null;
-  if (retained?.retained === true) {
-    try { errorLog = describeRetainedArtifactFile(retained, { env: responseEnv }); }
-    catch (error) { errorLogFailure = describeRetentionFailure(error,
-      { operation: "locate_candidate_advance_original", subject: { unit: subject } }); }
-  }
-  return Object.freeze({ ...body,
-    cause: { code, owner_authenticated: exclusion !== null || owner !== null },
-    error_log: errorLog,
-    ...(errorLogFailure === null ? {} : { error_log_failure: errorLogFailure }),
-    facts_not_inline: ["cause"]
-  });
+  return body;
 }
 
 export async function runAdvanceCandidateTask({
   mainRepo,
   request,
   backend,
-  requestSchemaAuthority = null,
+  requestContracts = null,
   responseEnv = process.env,
   runGit = defaultTerminalCandidateRunGit,
   dependencies = {}
@@ -386,7 +408,7 @@ export async function runAdvanceCandidateTask({
       ["advance_candidate.version_valid", requestFacts.version],
       ["advance_candidate.unknown_request_fields", requestFacts.unknown]
     ];
-    const guidance = refusalGuidance({ subject, requestSchemaAuthority,
+    const guidance = refusalGuidance({ subject, requestContracts,
       code: TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT, exclusion: null, progress: null,
       effects: {}, facts });
     return envelope({
@@ -419,7 +441,7 @@ export async function runAdvanceCandidateTask({
   try {
     advanced = await advance({ mainRepo, wkId: subject, version, backend, runGit, dependencies });
   } catch (error) {
-    return refused({ subject, version, error, requestSchemaAuthority, responseEnv });
+    return refused({ subject, version, error, requestContracts, responseEnv });
   }
   const converged = advanced.selection_state === "converged";
   return envelope({
@@ -446,28 +468,58 @@ export async function runAdvanceCandidateTask({
       } : {})
     },
     nextCalls: candidateNextCalls({
-      subject, advancedVersion: advanced.advanced.version_identity, requestSchemaAuthority
+      subject, advancedVersion: advanced.advanced.version_identity, requestContracts
     })
   });
 }
 
 export function registerCandidateAdvanceTool({
   registerTool, workspaceRepos, resolveWorkspaceRepo, jsonContent, errorContent,
-  dispatchBackend = null, responseEnv = process.env, requestSchemaAuthority = null
+  dispatchBackend = null, responseEnv = process.env, requestSchemaAuthority = null,
+  env = process.env, ownerCall = null, ownerRequestSchema = null
 }) {
   const authority = requestSchemaAuthority ?? requestSchemaAuthorityForRegistration(registerTool);
+  const requestContracts = registeredToolRequestContracts(registerTool);
   const definition = {
     writeSemantics: MCP_WRITE_SEMANTICS.NONE,
-    description: "Advance one explicitly selected immutable WK candidate version to the observed W. " +
-      "Derives Git objects and atomically publishes the version and current-selection refs; " +
-      "performs no integration, tests, review, forge publication, merge or completion.",
+    description: "Advance an explicitly selected stale WK candidate to the current accumulated WK state. " +
+      "Use the exact version_identity returned by workspace_inspect_candidate as version. " +
+      "Updates the candidate version and current selection. Finish on success or continue the intended task; " +
+      "the returned exact-version inspection is optional. Advance performs no review, external publication or completion.",
     inputSchema: ADVANCE_CANDIDATE_INPUT_SCHEMA,
     advertisedInputSchema: ADVANCE_CANDIDATE_INPUT_SCHEMA,
     inputValidationErrorProjector: ({ args, validationError }) => {
-      const correction = candidateInspectionSubjectCorrection(args, { requestSchemaAuthority: authority });
+      const facts = requestRefusalFacts(args);
+      const values = facts.wellformed ? Object.fromEntries(REQUEST_FIELDS.filter(key => Object.hasOwn(args, key))
+        .map(key => [key, Object.getOwnPropertyDescriptor(args, key).value])) : {};
+      const correction = candidateInspectionSubjectCorrection(values, { requestSchemaAuthority: authority });
+      const parent = correction?.details.subject_correction.parent_subject;
+      const clean = facts.wellformed && facts.unknown.length === 0;
+      let call = null;
+      let instruction = "Resolve the rejected fields without dropping caller intent. " +
+        "Advance requires a root WK subject and an explicitly selected immutable version; nothing was advanced.";
+      if (clean && parent !== undefined && facts.version) {
+        const contract = requestContracts?.contractFor(ADVANCE_CANDIDATE_TOOL_NAME);
+        const corrected = advanceRequest({ subject: parent, version: values.version });
+        if (contract != null) call = buildContinuationCall({ tool: corrected.tool, arguments: corrected.arguments,
+          recommended: false, success_predicate: corrected.successPredicate },
+        { requestSchema: contract.publishedRequestSchema() });
+        instruction = "Candidates belong to the parent WK. Use the parent subject with the same selected version " +
+          "if that is your intended advancement; nothing was advanced by this refusal.";
+      } else if (clean && !Object.hasOwn(values, "version") && (facts.subject || parent !== undefined)) {
+        call = inspectContinuation({ subject: parent ?? values.subject }, requestContracts, false);
+        instruction = call === null
+          ? "The required version was omitted and no candidate inspection call is available here. " +
+            "Stop until an explicitly selected immutable version is available; nothing was advanced."
+          : "The required version was omitted. Inspect current candidate status only if needed to select it, " +
+            "then explicitly choose advancement; inspection chooses no mutation.";
+      } else if (clean && Object.hasOwn(values, "version") && !facts.version) {
+        instruction = "Correct the supplied version to its issued lowercase 64-hex immutable identity. " +
+          "Do not substitute a current candidate for the intended selection; nothing was advanced.";
+      }
       return { terminal_result: errorContent(createToolInputValidationError({
         tool: ADVANCE_CANDIDATE_TOOL_NAME, validationError,
-        details: correction?.details ?? {}, nextCalls: correction?.next_calls ?? []
+        details: { ...correction?.details, correction: instruction }, nextCalls: call === null ? [] : [call]
       })) };
     }
   };
@@ -478,8 +530,11 @@ export function registerCandidateAdvanceTool({
       const refusal = dispatchRepoResolutionRefusal(ADVANCE_CANDIDATE_TOOL_NAME, error);
       return refusal === null ? errorContent(error) : jsonContent(refusal.refusal);
     }
-    return jsonContent(await runAdvanceCandidateTask({ mainRepo: workspace.dir, request: args,
-      backend: dispatchBackend, requestSchemaAuthority: authority, responseEnv }), { env: responseEnv });
+    const internal = await runAdvanceCandidateTask({ mainRepo: workspace.dir, request: args,
+      backend: dispatchBackend, requestContracts, responseEnv });
+    const body = projectAdvanceCandidateResponse(internal);
+    if (measureMcpInlineResultBytes(body) <= activeMcpInlineByteLimit(responseEnv)) return jsonContent(body, { env: responseEnv });
+    return deliverAdvanceCandidateResponse({ body, workspace, env, responseEnv, ownerCall, ownerRequestSchema });
   });
 
   const contracts = registeredToolRequestContracts(registerTool);
@@ -488,5 +543,7 @@ export function registerCandidateAdvanceTool({
     recordOwnerRegisteredRequestSchema({ registerTool, toolName: ADVANCE_CANDIDATE_TOOL_NAME,
       declaredInput: ADVANCE_CANDIDATE_INPUT_SCHEMA });
   }
-  return registration;
+  return Object.freeze({ registration, readOriginal: request => createCandidateInspectionDelivery({
+    workspace: resolveWorkspaceRepo(workspaceRepos, undefined), env, responseEnv,
+    route: ADVANCE_CANDIDATE_TOOL_NAME, ownerCall, ownerRequestSchema }).readOriginal(request) });
 }

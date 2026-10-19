@@ -78,6 +78,7 @@ export function attachOwnerProducedRecovery(error, {
   if (error === null || typeof error !== "object") return error;
   const ownerCalls = Array.isArray(ownerState?.next_calls) && ownerState.next_calls.length > 0
     ? ownerState.next_calls
+
     : Array.isArray(upstreamDescribe?.next_calls) && upstreamDescribe.next_calls.length > 0
       ? upstreamDescribe.next_calls
       : [authoringStateRecovery(input)];

@@ -165,7 +165,9 @@ export async function launchWorkspaceAgentFamilyLaunchLifecycle({
   postRunVerification = null,
   resolveSpawn = null,
 
-  stdoutTap = null
+  stdoutTap = null,
+
+  afterSupervisionAttached = null
 } = {}) {
   requireFunction(spawn, "spawn");
   requireFunction(superviseChildLaunch, "superviseChildLaunch");
@@ -224,6 +226,9 @@ export async function launchWorkspaceAgentFamilyLaunchLifecycle({
   if (stdoutTap !== null) superviseOptions.stdoutTap = stdoutTap;
 
   let supervised = superviseChildLaunch(superviseOptions);
+  if (typeof afterSupervisionAttached === "function") {
+    afterSupervisionAttached({ child, supervised });
+  }
   if (warning !== undefined) supervised = { ...supervised, warning };
   if (enforcement !== undefined) supervised = { ...supervised, enforcement };
 

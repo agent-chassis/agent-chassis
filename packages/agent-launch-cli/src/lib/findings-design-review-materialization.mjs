@@ -31,6 +31,7 @@ import {
 import {
   classifyControlledContractGenerationRepositoryPath,
   controlledContractAssessmentAuthoredDependencies,
+  resolveControlledContractSavedAuthoringSources,
   withControlledContractSourceObservation
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-tool-shared.mjs";
 import {
@@ -333,7 +334,6 @@ function canonicalManifestPath(recordId, focus) {
 }
 
 async function captureSelectedContractInputs(repoRoot, recordId) {
-  if (!existsSync(path.join(repoRoot, "wiki/contracts"))) return [];
   const resolve = async (resolver) => {
     try {
       return await resolver({ repoRoot, wkId: recordId });
@@ -341,11 +341,14 @@ async function captureSelectedContractInputs(repoRoot, recordId) {
       fail(/moved|changed/u.test(String(error?.message ?? ""))
         ? FINDINGS_DESIGN_CAPTURE_CODES.MOVED
         : FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED,
-      `wiki/contracts/${recordId}*`, error);
+      `wiki/contracts/${recordId}*`, error, {
+        source_failure: { code: error.code ?? null, message: error.message, details: error.details ?? null }
+      });
     }
   };
   const selection = await resolve(resolveCanonicalControlledContractGenerationSelection);
-  const population = await resolve(resolveControlledContractAttachmentGeneration);
+  const population = await resolve(resolveControlledContractAttachmentGeneration) ??
+    await resolve(resolveControlledContractSavedAuthoringSources);
   const manifests = selection?.manifests ?? null;
   if (population !== null &&
       JSON.stringify(population.manifest_selection ?? null) !== JSON.stringify(manifests)) {
@@ -602,7 +605,8 @@ export async function captureCanonicalDesignReviewInputs({
         material_diagnostic: diagnostic === null ? null : Object.freeze({
           code: diagnostic.code ?? null,
           message: diagnostic.message ?? null,
-          path: diagnostic.path ?? null
+          path: diagnostic.path ?? null,
+          ...(diagnostic.source_failure === undefined ? {} : { source_failure: diagnostic.source_failure })
         })
       });
     }
@@ -622,6 +626,8 @@ export async function captureCanonicalDesignReviewInputs({
 export function materializeCanonicalDesignReviewInputs({ capture, checkoutPath }) {
   const checkout = path.resolve(checkoutPath);
   inspectPathComponents(checkout, "frozen review checkout", { leafKind: "directory" });
+
+  ensureDirectoryPath(path.join(checkout, CONTRACT_STORE), CONTRACT_STORE);
   const targets = capture.files.map((input) => {
     const target = resolveContainedTarget(checkout, input.path);
     inspectPathComponents(target, input.path, {

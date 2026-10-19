@@ -10,13 +10,13 @@ export const TEST_TIMING_CODES = Object.freeze({
 const NEXT_ACTION = Object.freeze({
   [TEST_TIMING_CODES.ARTIFACT_CREATE_FAILED]:
     "Operator: select an authorized non-disposable --test-artifacts-dir, or have the runtime " +
-    "operator supply retained writable storage; the suite did not start.",
+    "operator supply writable storage; the suite did not start.",
   [TEST_TIMING_CODES.ARTIFACT_WRITE_FAILED]:
-    "Operator: inspect the named storage error, capacity and permissions and the retained " +
-    "prefix before rerunning; do not retry blindly.",
+    "Operator: inspect the named storage error, capacity and permissions; use " +
+    "--preserve-test-artifacts on a diagnostic rerun to keep recorded files.",
   [TEST_TIMING_CODES.TIMING_RECORD_INVALID]:
-    "Runner maintainer: repair the named producer or schema at the retained sequence; no " +
-    "row was skipped.",
+    "Runner maintainer: repair the named producer or schema; use --preserve-test-artifacts " +
+    "to inspect the recorded sequence after exit. No row was skipped.",
   [TEST_TIMING_CODES.TIMING_INCOMPLETE]:
     "Operator: inspect the named unfinished work and the primary timeout or signal, then " +
     "rerun that single file or raise its timeout only when intentional."

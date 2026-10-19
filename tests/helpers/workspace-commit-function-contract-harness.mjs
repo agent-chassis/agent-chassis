@@ -155,7 +155,7 @@ export function createRegisterTool({
     if (
       registeredTier !== "paid_cce" &&
       mcpToolTierRegistrationPolicy.descriptorLoaded === true &&
-      !mcpToolTierRegistrationPolicy.freeLocalToolNames?.has(name)
+      !mcpToolTierRegistrationPolicy.toolDescriptors?.has(name)
     ) {
       return;
     }
@@ -187,7 +187,7 @@ export function loadMcpToolTierRegistrationPolicy() {
     descriptorLoaded: true,
     descriptorToolNames: names,
     registrationEligibleToolNames: names,
-    freeLocalToolNames: names
+    toolDescriptors: new Map([...names].map(name => [name, { tool_name: name, kind: "mcp_tool", tier_visibility: ["free_local", "paid_cce"] }]))
   };
 }
 // The four single-route registration clusters that moved out of server.mjs.

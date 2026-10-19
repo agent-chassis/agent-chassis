@@ -4,12 +4,12 @@ import { z } from "zod";
 
 import { RUNTIME_CONFIGURATION_INVALID_CODE } from
   "../../../agent-launch-cli/src/lib/test-execution/current-runtime.mjs";
-import { runOrdinaryTestWithComparison } from "../../../agent-launch-cli/src/lib/test-execution/ordinary-run.mjs";
 import { selectConfiguredFileRunner } from "../../../agent-launch-cli/src/lib/test-execution/runtime-inputs.mjs";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
 import { managedTestAuthorityIdentity } from "./managed-test-source-context.mjs";
 import { projectRunTestNativeResult, runTestCarrier, runTestRetentionFailure } from "./run-test-result.mjs";
 import { createRunTestResultReader, runOrdinaryTestAndObserve } from "./run-test-tool.mjs";
+import { withVerifyProofRegressionEffects } from "./verify-proof-execution-effects.mjs";
 
 export const VERIFY_PROOF_REGRESSION_STATUSES = Object.freeze(["passed", "failed", "not_executable", "not_started"]);
 
@@ -24,7 +24,7 @@ export const VERIFY_PROOF_REGRESSION_CODES = Object.freeze({
   SOURCE_MOVED_BEFORE_START: "verify_proof.regression_source_moved_before_start.v1"
 });
 
-const CONFIGURATION_OWNER = "the repository runtime configuration owner (agent-chassis-runtime.json runners)";
+const CONFIGURATION_OWNER = "local test-runtime setup and the repository runtime configuration owner";
 
 function runnerSelectionFailure(file, selection) {
   const facts = { file, configuration: selection.file, project: selection.project,
@@ -36,15 +36,18 @@ function runnerSelectionFailure(file, selection) {
   }
   if (selection.reason === "runner_unconfigured") {
     return { reason_code: VERIFY_PROOF_REGRESSION_CODES.RUNNER_UNCONFIGURED, runner_selection: { ...facts,
-      condition: "no_configured_runner_contains_the_file", owner: CONFIGURATION_OWNER,
-      correction: "declare the runner for the project that contains this file in runners, then verify again" } };
+      condition: "owning_project_has_no_runner_selection", owner: CONFIGURATION_OWNER,
+      missing_choice: "the runner for this file's owning project",
+      correction: "have the configuration owner run agent-chassis setup --test-runtimes from the repository root; " +
+        "if the project has several runners, select one with setup --test-runtimes --runner <runner>@<project>" } };
   }
   return { reason_code: VERIFY_PROOF_REGRESSION_CODES.RUNNER_AMBIGUOUS, runner_selection: { ...facts,
     condition: "containing_project_names_several_runners",
+    missing_choice: "one explicit runner selection for this file's owning project",
     missing_capability: "a file-only regression entry cannot choose among several runners of one project",
     owner: CONFIGURATION_OWNER,
-    correction: "configure exactly one runner for the project that contains this file; no runner is guessed, " +
-      "none is borrowed from an ancestor project and the caller cannot name one" } };
+    correction: "have the configuration owner select exactly one named runner for this project with " +
+      "agent-chassis setup --test-runtimes --runner <runner>@<project>; no ancestor runner resolves this ambiguity" } };
 }
 
 function settledStatus(execution, interruption, interruptions) {
@@ -65,9 +68,12 @@ function settledStatus(execution, interruption, interruptions) {
 }
 
 function failureFacts(failure) {
-  if (failure?.cause?.present !== true) return {};
-  return { failure: { stage: failure.cause.stage, code: failure.cause.code,
-    ...(typeof failure.message === "string" ? { message: failure.message } : {}) } };
+  return {
+    ...(failure?.semantic_diagnosis == null ? {} : { diagnosis: failure.semantic_diagnosis }),
+    ...(failure?.cause?.present !== true ? {} : { failure: {
+      stage: failure.cause.stage, code: failure.cause.code,
+      ...(typeof failure.message === "string" ? { message: failure.message } : {}) } })
+  };
 }
 
 function thrownFacts(error) {
@@ -94,6 +100,8 @@ export async function executeVerifyProofRegressions({ declared, runtime, budget,
   };
   const results = [];
   let moved = null;
+  const startedFiles = new Set();
+  return withVerifyProofRegressionEffects({ declared, results, startedFiles }, async () => {
   for (const file of declared.files) {
     const interruption = budget.interruption();
     if (interruption !== null) {
@@ -119,20 +127,18 @@ export async function executeVerifyProofRegressions({ declared, runtime, budget,
     }
     const runner = { runner: selection.runner, project: selection.project };
     const ordinary = { target: file, runner: selection.runner, environment, selector: null };
-    const request = { file, runner: selection.runner, environment, selector: null, compareParent: false,
+    const request = { file, runner: selection.runner, environment, selector: null,
       timeout: { milliseconds: budget.timeout_ms }, source: null };
     let outcome;
     try {
-      outcome = await runOrdinaryTestWithComparison({
+      startedFiles.add(file);
+      const result = await runOrdinaryTestAndObserve({
+        runRequest: { repositoryRoot, checkoutRoot, ...ordinary, budget, timeoutMs: budget.timeout_ms },
         request: ordinary,
-        candidate: { repositoryRoot, checkoutRoot, current: () => ({ current: true }) },
-        compareParent: false,
-        budget,
-        timeoutMs: budget.timeout_ms,
-        runFile: (runRequest, ...expansion) => runOrdinaryTestAndObserve({ runRequest, expansion, request: ordinary,
-          ...(deps.runRegressionFile === undefined ? {} : { runFile: deps.runRegressionFile }),
-          ...(deps.observeRegressionRuntime === undefined ? {} : { observeRuntime: deps.observeRegressionRuntime }) })
-      });
+        ...(deps.runRegressionFile === undefined ? {} : { runFile: deps.runRegressionFile }),
+        ...(deps.observeRegressionRuntime === undefined ? {} : { observeRuntime: deps.observeRegressionRuntime }) });
+
+      outcome = { candidate: { result, source: { current: true } }, comparison: { state: "not_requested" } };
     } catch (error) {
 
       results.push({ ...base(file), status: "not_executable",
@@ -174,4 +180,5 @@ export async function executeVerifyProofRegressions({ declared, runtime, budget,
   const counts = { declared: results.length, ...Object.fromEntries(VERIFY_PROOF_REGRESSION_STATUSES.map((status) =>
     [status, results.filter((row) => row.status === status).length])) };
   return { source_unit: declared.unit, proof_credit_granted: 0, counts, results };
+  });
 }

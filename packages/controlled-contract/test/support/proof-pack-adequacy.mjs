@@ -418,50 +418,10 @@ const COVERAGE_WITNESS_INDEX_SCHEMA = {
   }
 };
 
-const PROOF_PACK_ADEQUACY_RUN_SCHEMA = {
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  title: PROOF_PACK_ADEQUACY_RUN_VERSION,
-  description: "Machine-readable observations returned by a proof pack's executable adequacy module.",
-  type: "object",
-  required: [
-    "schema_version", "profile_id", "profile_version", "profile_digest",
-    "guarantee_digest", "controls"
-  ],
-  additionalProperties: false,
-  properties: {
-    schema_version: { type: "string", enum: [PROOF_PACK_ADEQUACY_RUN_VERSION] },
-    profile_id: { type: "string", pattern: "^[a-z][a-z0-9.-]+$" },
-    profile_version: { type: "string", pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
-    profile_digest: { type: "string", pattern: sha256Pattern },
-    guarantee_digest: { type: "string", pattern: sha256Pattern },
-    controls: {
-      type: "array",
-      minItems: 1,
-      items: {
-        type: "object",
-        required: [
-          "control_id", "category", "implementation_outcome", "profile_satisfaction"
-        ],
-        additionalProperties: false,
-        properties: {
-          control_id: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-          category: {
-            type: "string",
-            enum: ["positive", "mutant", "profile_rejection", "exclusion"]
-          },
-          implementation_outcome: {
-            type: "string",
-            enum: ["passed", "killed", "not_applicable", "boundary_demonstrated"]
-          },
-          profile_satisfaction: {
-            type: "string",
-            enum: ["satisfied", "unsatisfied", "invalid", "indeterminate", "not_evaluated"]
-          }
-        }
-      }
-    }
-  }
-};
+const PROOF_PACK_ADEQUACY_RUN_SCHEMA = JSON.parse(readFileSync(new URL(
+  "../../schema/controlled-contract-proof-pack-adequacy-run.experimental.v0.1.schema.json",
+  import.meta.url
+), "utf8"));
 
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 const validateProofPackAdequacy = ajv.compile(PROOF_PACK_ADEQUACY_SCHEMA);
@@ -2370,7 +2330,7 @@ const categoryDeclarations = [
   ["exclusion", "explicit_exclusions"]
 ];
 
-function validateControlOutcome(control, diagnostics, adequacy, profile) {
+function validateControlOutcome(control, diagnostics) {
   if (control.category === "positive" &&
       (control.implementation_outcome !== "passed" ||
         control.profile_satisfaction !== "satisfied")) diagnostics.push({
@@ -2378,18 +2338,35 @@ function validateControlOutcome(control, diagnostics, adequacy, profile) {
   });
   if (control.category === "mutant" &&
       (control.implementation_outcome !== "killed" ||
-        control.profile_satisfaction === "satisfied")) diagnostics.push({
+        !["unsatisfied", "invalid"].includes(control.profile_satisfaction))) diagnostics.push({
     code: "adequacy_mutant_survived", control_id: control.control_id
   });
   if (control.category === "profile_rejection" &&
       (control.implementation_outcome !== "not_applicable" ||
-        control.profile_satisfaction === "satisfied")) diagnostics.push({
+        !["unsatisfied", "invalid"].includes(control.profile_satisfaction))) diagnostics.push({
     code: "adequacy_profile_rejection_failed", control_id: control.control_id
   });
   if (control.category === "exclusion" &&
       control.implementation_outcome !== "boundary_demonstrated") diagnostics.push({
     code: "adequacy_exclusion_not_demonstrated", control_id: control.control_id
   });
+  if (["mutant", "profile_rejection"].includes(control.category)) {
+    const rejection = control.rejection;
+    const intendedChecker = control.category === "mutant"
+      ? "proof_evaluator" : "profile_conformance";
+    const intendedSubject = control.category === "mutant"
+      ? "evaluation_input" : "profile";
+    if (!rejection || rejection.checker !== intendedChecker ||
+        rejection.subject !== intendedSubject ||
+        typeof rejection.actual_reason !== "string" ||
+        rejection.actual_reason !== rejection.expected_reason) diagnostics.push({
+      code: "adequacy_rejection_not_established",
+      control_id: control.control_id,
+      expected_checker: intendedChecker,
+      expected_subject: intendedSubject,
+      rejection: rejection ?? null
+    });
+  }
 }
 
 function assessAdequacyRun(pack, observations) {
@@ -2398,6 +2375,9 @@ function assessAdequacyRun(pack, observations) {
     code: "adequacy_run_schema_invalid",
     errors: structuredClone(validateProofPackAdequacyRun.errors ?? [])
   }];
+  if (observations.passed === false) diagnostics.push({
+    code: "adequacy_required_check_failed"
+  });
   try {
     validateGenericCoverageDeclaration(pack.profile, pack.adequacy);
   } catch (error) {
@@ -2423,8 +2403,30 @@ function assessAdequacyRun(pack, observations) {
       actual: observations[field]
     });
   }
+  diagnostics.push(...assessControlOutcomes(pack.adequacy, observations.controls));
+  if (pack.adequacy.execution_control_witnesses) {
+    const expected = [...pack.adequacy.required_mutant_kills,
+      ...pack.adequacy.required_profile_rejections].sort(compareCodeUnits);
+    const actual = pack.adequacy.execution_control_witnesses.map(
+      ({ fixture_id: fixtureId }) => fixtureId
+    ).sort(compareCodeUnits);
+    const witnessIds = pack.adequacy.execution_control_witnesses.map(
+      ({ witness_id: witnessId }) => witnessId
+    );
+    if (JSON.stringify(actual) !== JSON.stringify(expected) ||
+        new Set(witnessIds).size !== witnessIds.length) diagnostics.push({
+      code: "adequacy_execution_witness_population_mismatch"
+    });
+  }
+  return diagnostics.sort((left, right) => compareCodeUnits(
+    `${left.code}\0${left.control_id ?? ""}`, `${right.code}\0${right.control_id ?? ""}`
+  ));
+}
+
+function assessControlOutcomes(adequacy, controls) {
+  const diagnostics = [];
   const controlsById = new Map();
-  for (const control of observations.controls) {
+  for (const control of controls) {
     if (controlsById.has(control.control_id)) diagnostics.push({
       code: "adequacy_control_duplicate", control_id: control.control_id
     });
@@ -2432,7 +2434,7 @@ function assessAdequacyRun(pack, observations) {
   }
   const declaredIds = new Set();
   for (const [category, field] of categoryDeclarations) {
-    for (const controlId of pack.adequacy[field]) {
+    for (const controlId of adequacy[field]) {
       declaredIds.add(controlId);
       const control = controlsById.get(controlId);
       if (!control) {
@@ -2447,25 +2449,11 @@ function assessAdequacyRun(pack, observations) {
         expected: category,
         actual: control.category
       });
-      validateControlOutcome(control, diagnostics, pack.adequacy, pack.profile);
+      validateControlOutcome(control, diagnostics);
     }
   }
   for (const controlId of controlsById.keys()) if (!declaredIds.has(controlId)) {
     diagnostics.push({ code: "adequacy_control_undeclared", control_id: controlId });
-  }
-  if (pack.adequacy.execution_control_witnesses) {
-    const expected = [...pack.adequacy.required_mutant_kills,
-      ...pack.adequacy.required_profile_rejections].sort(compareCodeUnits);
-    const actual = pack.adequacy.execution_control_witnesses.map(
-      ({ fixture_id: fixtureId }) => fixtureId
-    ).sort(compareCodeUnits);
-    const witnessIds = pack.adequacy.execution_control_witnesses.map(
-      ({ witness_id: witnessId }) => witnessId
-    );
-    if (JSON.stringify(actual) !== JSON.stringify(expected) ||
-        new Set(witnessIds).size !== witnessIds.length) diagnostics.push({
-      code: "adequacy_execution_witness_population_mismatch"
-    });
   }
   return diagnostics.sort((left, right) => {
     const leftKey = `${left.code}\0${left.control_id ?? ""}`;
@@ -2806,6 +2794,7 @@ function evaluateNegativeContractFixtures(profile, fixtures, {
     try {
       expanded = expandFixedFixtureVariations(fixture);
     } catch (error) {
+      if (!(error instanceof ProofPackAdequacyError)) throw error;
       diagnostics.push({
         code: error instanceof ProofPackAdequacyError
           ? error.code
@@ -2840,24 +2829,11 @@ function evaluateNegativeContractFixtures(profile, fixtures, {
     const variantResults = [...selection.mechanicallyRejected];
     for (const variantIndex of selection.selected) {
       const variant = expanded[variantIndex];
-      let evaluation;
-      try {
-        evaluation = evaluateStableProofPackFixtureV1({
-          contract: structuredClone(variant.contract),
-          profile: structuredClone(profile),
-          evaluation_input: structuredClone(variant.evaluation_input)
-        });
-      } catch (error) {
-        variantResults.push({
-          variant_id: variant.variant_id,
-          outcome: "malformed",
-          message: error instanceof Error ? error.message : String(error),
-          expanded_digest: canonicalDigest({
-            contract: variant.contract, evaluation_input: variant.evaluation_input
-          })
-        });
-        continue;
-      }
+      const evaluation = evaluateStableProofPackFixtureV1({
+        contract: structuredClone(variant.contract),
+        profile: structuredClone(profile),
+        evaluation_input: structuredClone(variant.evaluation_input)
+      });
       const structurallyValid = evaluation.profile_valid && evaluation.input_valid &&
         evaluation.contract_valid;
       variantResults.push({
@@ -2946,6 +2922,7 @@ function assessCoverageWitnessIndex(profile, adequacy, fixtures, witnessIndex) {
         witness.variant_id, "profile"
       );
     } catch (error) {
+      if (!(error instanceof ProofPackAdequacyError)) throw error;
       diagnostics.push({
         code: error instanceof ProofPackAdequacyError
           ? error.code
@@ -3047,20 +3024,16 @@ function assessCoverageWitnessIndex(profile, adequacy, fixtures, witnessIndex) {
         (_, candidateIndex) => candidateIndex !== patchIndex
       );
       let ablatedOutcome = "malformed";
-      try {
-        const ablated = applyFixedReplacementPatches(
-          profile, retainedPatches, "coverage-witness-ablation",
-          witness.variant_id, "profile"
+      const ablated = applyFixedReplacementPatches(
+        profile, retainedPatches, "coverage-witness-ablation",
+        witness.variant_id, "profile"
+      );
+      if (validateProfileSchemaV1(ablated) &&
+          validateProfileSemanticsV1(ablated).length === 0) {
+        const ablatedAssessment = evaluateNegativeContractFixtures(
+          ablated, [isolated], { variation_mode: "full_census" }
         );
-        if (validateProfileSchemaV1(ablated) &&
-            validateProfileSemanticsV1(ablated).length === 0) {
-          const ablatedAssessment = evaluateNegativeContractFixtures(
-            ablated, [isolated], { variation_mode: "full_census" }
-          );
-          ablatedOutcome = ablatedAssessment.results[0]?.outcome ?? "malformed";
-        }
-      } catch {
-        ablatedOutcome = "malformed";
+        ablatedOutcome = ablatedAssessment.results[0]?.outcome ?? "malformed";
       }
       if (ablatedOutcome === "survived") diagnostics.push({
         code: "coverage_witness_patch_not_load_bearing",
@@ -3117,6 +3090,7 @@ async function runLoadedProofPackAdequacy(pack, {
     observations = await executable.runProofPackAdequacyControls({
       profile: structuredClone(pack.profile),
       profile_digest: pack.profile_digest,
+      assess_control_outcomes: assessControlOutcomes,
       negative_fixtures: structuredClone(pack.negative_fixtures)
     });
   } finally {
@@ -3159,7 +3133,9 @@ async function runLoadedProofPackAdequacy(pack, {
       ...coverageWitnessAssessment.results,
       ...(pack.adequacy.execution_control_witnesses ?? []).map((witness) => ({
         ...witness,
-        outcome: "passed"
+        outcome: diagnostics.some(({ control_id: controlId }) =>
+          controlId === undefined || controlId === witness.fixture_id
+        ) ? "failed" : "passed"
       }))
     ]
   };
@@ -3182,6 +3158,7 @@ export {
   PROOF_PACK_ADEQUACY_VERSION,
   ProofPackAdequacyError,
   assessAdequacyRun,
+  assessControlOutcomes,
   assessCoverageWitnessIndex,
   assessNegativeFixtureSemanticDiscrimination,
   canonicalDigest,

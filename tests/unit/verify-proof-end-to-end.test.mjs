@@ -219,7 +219,7 @@ async function execute({
 }
 
 test("singleton and multi-proof selections use one deterministic aggregate schema", async () => {
-  assert.equal(pack.profile.profile_version, "11.0.0");
+  assert.equal(pack.profile.profile_version, "12.0.0");
   const singleton = (await execute()).result;
   const proofs = [
     resolvedProof("one", [relationship("OBL-ONE-A"), relationship("OBL-ONE-B")]),
@@ -230,7 +230,7 @@ test("singleton and multi-proof selections use one deterministic aggregate schem
   assert.equal(multi.schema_version, singleton.schema_version);
   assert.deepEqual(Object.keys(multi).sort(), Object.keys(singleton).sort());
   assert.deepEqual(multi.counts, {
-    proofs: 2, relationships: 3, satisfied: 2, unsatisfied: 0, not_executable: 0,
+    proofs: 2, relationships: 3, satisfied: 0, unsatisfied: 2, not_executable: 0,
     ready: 2, nonready: 0, execution_not_started: 0
   });
   assert.equal(multi.subject_binding, "a".repeat(40));
@@ -454,7 +454,7 @@ test("a nine-proof population over the public query ceiling enters atomic execut
   assert.equal(executions.flatMap(input => Object.values(input.validationBindings).flat()).length, 9);
   assert.equal(observedIdentities.length, 9);
   assert.deepEqual(result.counts, {
-    proofs: 9, relationships: 9, satisfied: 9, unsatisfied: 0,
+    proofs: 9, relationships: 9, satisfied: 0, unsatisfied: 9,
     not_executable: 0, ready: 9, nonready: 0, execution_not_started: 0
   });
 });
@@ -510,10 +510,13 @@ test("runtime binding invariants fail specifically with bounded expected and act
     }
   });
 
-test("aggregate status is deterministic across satisfied and unsatisfied relationships", async () => {
+test("execution validity and requirement satisfaction remain distinct in aggregate results", async () => {
   const positive = (await execute()).result;
   const negative = (await execute({ negative: true })).result;
-  assert.equal(positive.status, "satisfied");
+  assert.equal(positive.status, "unsatisfied");
+  const relationship = positive.proof_results[0].relationship_results[0];
+  assert.equal(relationship.execution_evaluation.satisfaction, "satisfied");
+  assert.equal(relationship.requirement_satisfaction.credit_granted, 0);
   assert.equal(negative.status, "unsatisfied");
   assert.notEqual(positive.result_digest, negative.result_digest);
 });

@@ -27,6 +27,7 @@ export const LAUNCHER_TERMINATION_EVIDENCE_SCHEMA_VERSION =
 export const LAUNCHER_TERMINATION_ISSUER = "launcher_terminal_supervisor";
 
 export const LAUNCHER_TERMINATION_INITIATING_FACTS = Object.freeze({
+  ASSIGNMENT_CHANGE_REQUESTED: "assignment_change_requested",
   CONDUIT_FAILURE_SETTLEMENT: "conduit_failure_settlement",
   SERVER_EXIT_EXPECTED_DRAIN: "server_exit_expected_drain",
   SERVER_EXIT_ABNORMAL: "server_exit_abnormal",
@@ -81,7 +82,9 @@ function beginLauncherTermination(basis, child, plannedSignal) {
   if (basis === null) return null;
   const existing = LAUNCHER_TERMINATION_RECORDS.get(basis.conduit);
   if (existing !== undefined) return existing;
-  const cause = resolveLauncherInitiationCause(basis);
+  const cause = basis.initiatingFact === LAUNCHER_TERMINATION_INITIATING_FACTS.ASSIGNMENT_CHANGE_REQUESTED
+    ? { available: true, code: "assignment_change_requested", boundary: "authenticated_worker_completion" }
+    : resolveLauncherInitiationCause(basis);
   const state = {
 
     child,
@@ -164,10 +167,11 @@ function terminateConfinedClientDirectly(conduit, child, initiatingFact, cause) 
     launcherTerminalSupervisionBasis(conduit, initiatingFact, cause),
     child, "SIGKILL");
   let deliveryError = null;
-  try { child.kill("SIGKILL"); } catch (error) { deliveryError = error;   }
+  let delivered = false;
+  try { delivered = child.kill("SIGKILL"); } catch (error) { deliveryError = error; }
   recordLauncherTerminationOutcome(record, "sigkill", {
     signal: "SIGKILL",
-    delivered: deliveryError === null,
+    delivered,
     errorCode: deliveryError?.code
   });
   return record;
@@ -260,6 +264,14 @@ export function spawnIsolated(plan, stdioOptions = {}) {
   if (conduit !== null) {
 
     superviseConduitClientReadiness(conduit, child);
+    if (conduit.assignmentChangeRequested instanceof Promise) {
+      void conduit.assignmentChangeRequested.then(() => {
+
+        terminateConfinedClientDirectly(conduit, child,
+          LAUNCHER_TERMINATION_INITIATING_FACTS.ASSIGNMENT_CHANGE_REQUESTED,
+          { code: "assignment_change_requested" });
+      });
+    }
 
     if (conduit.failureSettlement instanceof Promise) {
       void conduit.failureSettlement.then((cause) => {

@@ -161,11 +161,6 @@
       "owner_package": "wiki-core"
     },
     {
-      "namespace": "worker_run_declared_test",
-      "owner_package": "wiki-mcp",
-      "public_projection": "validation_failure"
-    },
-    {
       "namespace": "workspace_agent_validation_runner",
       "owner_package": "agent-launch-cli",
       "public_projection": "validation_failure"

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   ensureAdoptionInitiative,
@@ -13,8 +13,7 @@ import {
 import {
   ensureAgentsBoilerplateTemplate,
   ensureWikiMcpDeclaration,
-  AGENTS_BOILERPLATE_SEEDED_RELATIVE_PATH,
-  WIKI_MCP_DECLARATION_RELATIVE_PATH
+  AGENTS_BOILERPLATE_SEEDED_RELATIVE_PATH
 } from "../lib/wiki-scaffold.mjs";
 import { ensureLexicalSearchIndex } from "../lib/search.mjs";
 import { getStaticIn0001AdoptionSeed } from "../lib/adoption-seed.mjs";
@@ -22,54 +21,10 @@ import { SIDECAR_DEFAULT_CACHE_DIR } from "../lib/sidecar-status.mjs";
 import { CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT } from
   "../lib/controlled-contract-private-path-policy.mjs";
 import { generateViews } from "./generate.mjs";
+import { ensureAgentChassisGitignore } from "../lib/local-state-ignores.mjs";
 
 const BOOTSTRAP_SEARCH_CACHE_DIR = ".cache/wiki-search";
 const CONTROLLED_CONTRACT_DIRECTORY_PLACEHOLDER = ".gitkeep";
-
-const BOOTSTRAP_GITIGNORE_ENTRIES = [
-  `${SIDECAR_DEFAULT_CACHE_DIR}/`,
-  `${BOOTSTRAP_SEARCH_CACHE_DIR}/`,
-
-  WIKI_MCP_DECLARATION_RELATIVE_PATH
-];
-
-function isEntryAlreadyCovered(lines, entry) {
-  const bareEntry = entry.replace(/\/$/, "");
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) {
-      continue;
-    }
-    const bareLine = line.replace(/\/$/, "");
-
-    if (bareLine === bareEntry) {
-      return true;
-    }
-
-    if (bareEntry.startsWith(`${bareLine}/`)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-async function ensureGitignoreEntries(gitignorePath, entries) {
-  let existing = "";
-  if (await pathExists(gitignorePath)) {
-    existing = await readFile(gitignorePath, "utf8");
-  }
-
-  const lines = existing.split("\n");
-  const toAdd = entries.filter((entry) => !isEntryAlreadyCovered(lines, entry));
-
-  if (toAdd.length === 0) {
-    return { updated: false, added: [] };
-  }
-
-  const sep = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
-  await writeFile(gitignorePath, `${existing}${sep}${toAdd.join("\n")}\n`, "utf8");
-  return { updated: true, added: toAdd };
-}
 
 async function bootstrapCacheAndIgnores(targetDir, { profile, extensionNamespaces } = {}) {
 
@@ -83,16 +38,7 @@ async function bootstrapCacheAndIgnores(targetDir, { profile, extensionNamespace
     );
   }
 
-  const gitignorePath = path.join(targetDir, ".gitignore");
-  let gitignoreResult;
-  try {
-    gitignoreResult = await ensureGitignoreEntries(gitignorePath, BOOTSTRAP_GITIGNORE_ENTRIES);
-  } catch (error) {
-    throw new Error(
-      `bootstrap: failed to update .gitignore at ${gitignorePath}: ${error.message}. ` +
-        `Ensure the file is writable.`
-    );
-  }
+  const gitignoreResult = await ensureAgentChassisGitignore(targetDir);
 
   let searchResult;
   try {

@@ -142,7 +142,7 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
     "workspace_code_index_rebuild",
     {
       description:
-        "Force a clean rebuild that re-extracts every committed source and wait for it; queries answer from the published index and refresh it in the background.",
+        "Force a clean rebuild that re-extracts current checkout sources and wait for it; queries answer from the published index and refresh it in the background.",
       inputSchema: codeIndexWriterInputSchema()
     },
     codeIndexWriterHandler({ rebuild: true, ...shared })

@@ -184,8 +184,11 @@ export async function queryControlledContractObligationCoverageOperation(input) 
         requirements: requirements.selection.total_requirements,
         case_definitions: resolved.cases.length } }),
       ...(assigned && !present ? { assignment_mapping: 'absent',
-        recovery: { actor: 'coordinator', action: 'author the assigned unit\'s obligations through ' +
-          'workspace_controlled_contract_obligation_coverage_upsert before relying on its contract meaning' } }
+        recovery: { actor: 'coordinator', action: 'Author the assigned unit’s obligations through save_record after reading its current authoring context and input contract; choose the obligation statements, requirement claims and criterion associations before saving.',
+          next_call: { tool: 'workspace_read_wiki', arguments: { subject: unitAddress(resolved),
+            select: { context: true, for_changes: ['obligations'] } } },
+          missing_choices: ['obligation statements', 'requirement claims', 'criterion associations'],
+          authority: 'Coordinator authoring only; this recovery grants the receiving role no mutation authority.' } }
         : {}),
       global_annotations: 'all_notes_and_residue_retained' };
 

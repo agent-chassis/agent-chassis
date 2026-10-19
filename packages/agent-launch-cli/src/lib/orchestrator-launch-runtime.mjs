@@ -2,7 +2,6 @@
 
 import path from "node:path";
 import { writeNativeUsagePointer } from "@agent-chassis/agent-launch-core/src/lib/native-usage-records.mjs";
-import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { openSync, closeSync, writeSync } from "node:fs";
 
@@ -25,7 +24,9 @@ import {
   controlledLifecyclePhase,
   controlledLifecycleProtocolGeneration,
   controlledLifecycleValidationRule,
-  settleStdioMcpConduitCleanup
+  settleStdioMcpConduitCleanup,
+  projectStdioMcpGenerationFailures,
+  renderStdioMcpGenerationFailures
 } from "./stdio-mcp-conduit-contract.mjs";
 
 import {
@@ -148,11 +149,11 @@ export function buildOrchestratorStdioMcpDiagnostic(conduit) {
   });
 }
 
-export function renderOrchestratorStdioMcpDiagnostic(stream, diagnostic) {
-  if (diagnostic === null || diagnostic === undefined) return [];
-  const detail = diagnostic.stdio_mcp_detail ?? null;
+export function renderOrchestratorStdioMcpDiagnostic(stream, diagnostic, generationFailures = []) {
+  if ((diagnostic === null || diagnostic === undefined) && generationFailures.length === 0) return [];
+  const detail = diagnostic?.stdio_mcp_detail ?? null;
   const termination = detail?.launcher_termination ?? null;
-  const lines = [
+  const lines = diagnostic == null ? [] : [
     `agent-launch: wiki-MCP conduit diagnostic reason=${diagnostic.stdio_mcp_reason} ` +
       `phase=${detail?.phase ?? "unknown"} run_id=${detail?.run_id ?? "unknown"}`
   ];
@@ -195,6 +196,7 @@ export function renderOrchestratorStdioMcpDiagnostic(stream, diagnostic) {
           `(delivered=${termination.sigkill.delivered})`);
     }
   }
+  lines.push(...renderStdioMcpGenerationFailures(generationFailures));
   if (stream !== null && stream !== undefined && typeof stream.write === "function") {
     for (const line of lines) {
       try {
@@ -298,6 +300,7 @@ function attachHeadlessNativeUsage({ child, tap, logPath }) {
         plainBytes += chunk.length;
       }
       tap.push(chunk);
+      if (tap.preserveProtocol === true) append(chunk);
     } catch {
 
     }
@@ -316,7 +319,7 @@ function attachHeadlessNativeUsage({ child, tap, logPath }) {
       let settlement = null;
       try {
         tap.end({ drained });
-        if (tap.events() === 0) for (const chunk of plain) append(chunk);
+        if (tap.preserveProtocol !== true && tap.events() === 0) for (const chunk of plain) append(chunk);
         settlement = await tap.settle({ exit });
       } catch {
         settlement = null;
@@ -351,6 +354,7 @@ export async function superviseInteractiveOrchestratorLaunch({
   stderr = process.stderr,
 
   nativeUsage = null,
+  nativeCompletion = null,
   signals = ORCHESTRATOR_FORWARDED_SIGNALS
 } = {}) {
   if (typeof spawnChild !== "function") {
@@ -362,7 +366,16 @@ export async function superviseInteractiveOrchestratorLaunch({
     throw new TypeError("superviseInteractiveOrchestratorLaunch requires a recordSessionState function");
   }
 
+  if (nativeCompletion !== null && (typeof nativeCompletion.complete !== "function" ||
+      ["captureStdout", "captureStderr"].some(key => nativeCompletion[key] !== undefined &&
+        typeof nativeCompletion[key] !== "boolean") ||
+      (nativeCompletion.stderrLogPath != null && (nativeCompletion.captureStderr !== true ||
+        !isNonEmptyString(nativeCompletion.stderrLogPath))))) {
+    throw new TypeError("Native completion requires a semantic completion function");
+  }
   let child = null;
+  let releaseChildObservation = null;
+  let completionStderrLog = null;
   const signalForwarder = (signal) => {
     if (child?.pid) {
       try {
@@ -385,17 +398,80 @@ export async function superviseInteractiveOrchestratorLaunch({
     });
 
     child = spawnChild();
+
+    let spawnError = null;
+    const childTerminal = new Promise(resolve => {
+      let exitSeen = false;
+      let closed = false;
+      let released = false;
+      const detach = () => {
+        child.removeListener("exit", onExit);
+        child.removeListener("error", onError);
+        child.removeListener("close", onClose);
+      };
+      const onExit = (exitCode, signal) => {
+        exitSeen = true;
+        resolve({ exitCode, signal });
+      };
+      const onError = error => {
+        if (spawnError === null) spawnError = error;
+        resolve({ error: spawnError });
+      };
+      const onClose = () => {
+        closed = true;
+        if (released) detach();
+      };
+      child.once("exit", onExit);
+      child.on("error", onError);
+      child.once("close", onClose);
+      releaseChildObservation = () => {
+        released = true;
+        child.removeListener("exit", onExit);
+
+        resolve({ abandoned: true });
+        if (exitSeen || closed) detach();
+
+      };
+    });
+
+    const completionStreams = {};
+    let completionCaptureFailed = false;
+    if (nativeCompletion?.stderrLogPath != null) {
+      completionStderrLog = openSync(nativeCompletion.stderrLogPath, "a");
+    }
+    for (const [name, limit] of [["stdout", 1024 * 1024], ["stderr", 64 * 1024]]) {
+      if (nativeCompletion?.[name === "stdout" ? "captureStdout" : "captureStderr"] !== true) continue;
+      const stream = child[name];
+      if (!stream) throw new TypeError(`Native completion requires piped ${name}`);
+      const capture = { chunks: [], bytes: 0, closed: null };
+      completionStreams[name] = capture;
+      capture.closed = new Promise(resolve => {
+        stream.once("end", resolve);
+        stream.once("close", () => {
+          if (!stream.readableEnded) completionCaptureFailed = true;
+          resolve();
+        });
+        stream.once("error", () => { completionCaptureFailed = true; resolve(); });
+      });
+      stream.on("data", chunk => {
+        const bytes = Buffer.from(chunk);
+        capture.bytes += bytes.length;
+        if (capture.bytes <= limit) capture.chunks.push(bytes);
+        else completionCaptureFailed = true;
+        if (name === "stderr" && completionStderrLog !== null) {
+          try {
+            if (writeSync(completionStderrLog, bytes) !== bytes.length) completionCaptureFailed = true;
+          }
+          catch { completionCaptureFailed = true; }
+        }
+      });
+    }
     const usageSink = nativeUsage === null ? null
       : attachHeadlessNativeUsage({ child, tap: nativeUsage.tap, logPath: nativeUsage.logPath });
 
     if (nativeUsage !== null && typeof nativeUsage.tap.recordsDir === "string") {
       await writeNativeUsagePointer(runtimeDir, nativeUsage.tap.recordsDir).catch(() => {});
     }
-
-    let spawnError = null;
-    child.once("error", (error) => {
-      spawnError = error;
-    });
 
     await recordSessionState({
       runtimeDir,
@@ -405,10 +481,9 @@ export async function superviseInteractiveOrchestratorLaunch({
       mergeExisting: true
     });
 
-    const [exitCode, signal] = await once(child, "exit");
-    if (spawnError) {
-      throw spawnError;
-    }
+    const observed = await childTerminal;
+    if (spawnError !== null) throw spawnError;
+    const { exitCode, signal } = observed;
 
     const usageExtra = nativeUsageSessionExtra(
       usageSink === null ? null : await usageSink.settle({ code: exitCode, signal }));
@@ -417,10 +492,14 @@ export async function superviseInteractiveOrchestratorLaunch({
 
       await settleStdioMcpConduitCleanup(stdioMcpConduit);
     }
+    const generationFailures = projectStdioMcpGenerationFailures(stdioMcpConduit);
+    const generationExtra = generationFailures.length === 0 ? {} : {
+      conduit_generation_failures: generationFailures
+    };
     const stdioMcpDiagnostic = buildOrchestratorStdioMcpDiagnostic(stdioMcpConduit);
+    renderOrchestratorStdioMcpDiagnostic(stderr, stdioMcpDiagnostic, generationFailures);
     if (stdioMcpDiagnostic !== null) {
 
-      renderOrchestratorStdioMcpDiagnostic(stderr, stdioMcpDiagnostic);
       try {
         await recordSessionState({
           runtimeDir,
@@ -435,10 +514,36 @@ export async function superviseInteractiveOrchestratorLaunch({
       }
     }
 
-    const status = stdioMcpDiagnostic === null
+    let completion = null;
+    if (nativeCompletion !== null) {
+      let drained = true;
+      if (Object.keys(completionStreams).length > 0) {
+        let timer;
+        drained = await Promise.race([Promise.all(Object.values(completionStreams).map(capture => capture.closed))
+          .then(() => true), new Promise(resolve => {
+          timer = setTimeout(() => resolve(false), ORCHESTRATOR_HEADLESS_STREAM_DRAIN_TIMEOUT_MS);
+        })]);
+        clearTimeout(timer);
+      }
+      completion = completionCaptureFailed || !drained
+        ? { ok: false, reason: "native_completion_capture_incomplete" }
+        : await nativeCompletion.complete({ exitCode, signal,
+          stdout: Buffer.concat(completionStreams.stdout?.chunks ?? []).toString("utf8"),
+          ...(nativeCompletion.captureStderr === true ? {
+            stderr: Buffer.concat(completionStreams.stderr.chunks).toString("utf8") } : {}) });
+    }
+    if (completion !== null && (typeof completion !== "object" || Array.isArray(completion) || typeof completion.ok !== "boolean" ||
+        (completion.extra !== undefined && (!completion.extra || Array.isArray(completion.extra) || typeof completion.extra !== "object")))) {
+      throw new TypeError("Invalid native orchestrator completion facts");
+    }
+    if (completion?.extra && ["status", "updated_at", "pid", "exit_code", "exit_signal", "launch_error",
+      "stdio_mcp_reason", "stdio_mcp_detail", "conduit_generation_failures"].some(key => Object.hasOwn(completion.extra, key))) {
+      throw new TypeError("Native completion cannot override shared lifecycle fields");
+    }
+    const status = completion?.ok === false ? "failed" : stdioMcpDiagnostic === null
       ? deriveTerminalStatus({ code: exitCode, signal })
       : "failed";
-    const exit = normalizeExitEnvelope({ code: exitCode, signal });
+    const exit = { ...normalizeExitEnvelope({ code: exitCode, signal }), ...generationExtra };
 
     try {
       await recordSessionState({
@@ -447,7 +552,10 @@ export async function superviseInteractiveOrchestratorLaunch({
         status,
         extra: {
           ...(stdioMcpDiagnostic ?? {}),
+          ...generationExtra,
           ...usageExtra,
+          ...(completion?.extra ?? {}),
+          ...(completion?.ok === false ? { native_completion_reason: completion.reason } : {}),
           pid: child.pid ?? null,
           exit_code: exit.code,
           exit_signal: exit.signal
@@ -481,6 +589,12 @@ export async function superviseInteractiveOrchestratorLaunch({
     }).catch(() => {});
     throw error;
   } finally {
+    if (completionStderrLog !== null) {
+      const fd = completionStderrLog;
+      completionStderrLog = null;
+      closeSync(fd);
+    }
+    releaseChildObservation?.();
     for (const signal of signals) {
       process.removeListener(signal, signalForwarder);
     }

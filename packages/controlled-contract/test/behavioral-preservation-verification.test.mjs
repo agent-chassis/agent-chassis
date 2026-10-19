@@ -31,7 +31,7 @@ function pair(overrides = {}) {
   return { baseline: report(), candidate: report(), ...overrides };
 }
 
-const REFUSAL_OUTPUT_FIELDS = ["preserved", "source", "members", "differences"];
+const REFUSAL_OUTPUT_FIELDS = ["comparison_matches", "source", "members", "differences"];
 
 function assertRefusal(result, code) {
   assert.equal(result.verified, false);
@@ -41,7 +41,7 @@ function assertRefusal(result, code) {
   assert.equal(Object.isFrozen(result), true);
 }
 
-test("the verification binds to one admitted pack and one report family by name", () => {
+test("the verification names a contextual requirement and one report family without credit", () => {
   assert.equal(BEHAVIORAL_PRESERVATION_PROFILE_ID, "proof.compatibility.behavioral-preservation");
   assert.equal(BEHAVIORAL_PRESERVATION_PROFILE_VERSION, "4.0.0");
   assert.deepEqual([...BEHAVIORAL_PRESERVATION_SIDES], ["baseline", "candidate"]);
@@ -52,13 +52,13 @@ test("the verification binds to one admitted pack and one report family by name"
   }
 });
 
-test("equal complete populations, counts, and selected canonical values verify as preserved", () => {
+test("equal complete populations, counts, and selected canonical values verify as matching", () => {
   const input = pair();
   const before = JSON.stringify(input);
   const result = verifyBehavioralPreservationReports(input);
   assert.equal(result.schema_version, BEHAVIORAL_PRESERVATION_VERIFICATION_SCHEMA_VERSION);
   assert.equal(result.verified, true);
-  assert.equal(result.preserved, true);
+  assert.equal(result.comparison_matches, true);
   assert.equal(result.refusal, null);
   assert.equal(result.report_schema_version, BEHAVIORAL_PRESERVATION_REPORT_SCHEMA_VERSION);
   assert.deepEqual(result.source.sides.map(({ position }) => position), ["baseline", "candidate"]);
@@ -84,14 +84,14 @@ test("population order never matters and every difference is named exactly", () 
   const reordered = verifyBehavioralPreservationReports(pair({
     candidate: report({ observables: [observable("exit", "exit_code", "0"), observable("result")] })
   }));
-  assert.equal(reordered.preserved, true);
+  assert.equal(reordered.comparison_matches, true);
 
   const changedValue = verifyBehavioralPreservationReports(pair({
     candidate: report({ observables: [observable("result", "return_value", "failed"),
       observable("exit", "exit_code", "0")] })
   }));
   assert.equal(changedValue.verified, true);
-  assert.equal(changedValue.preserved, false);
+  assert.equal(changedValue.comparison_matches, false);
   assert.equal(changedValue.differences.canonical_value_mismatch, true);
   assert.equal(changedValue.differences.count_mismatch, false);
 
@@ -99,7 +99,7 @@ test("population order never matters and every difference is named exactly", () 
     candidate: report({ observables: [observable("result"), observable("exit", "exit_code", "0"),
       observable("extra", "log_line", "x")] })
   }));
-  assert.equal(widened.preserved, false);
+  assert.equal(widened.comparison_matches, false);
   assert.deepEqual(widened.differences.only_in_candidate,
     [{ observable_id: "extra", observable_type: "log_line" }]);
   assert.equal(widened.differences.candidate_population_not_subset, true);
@@ -118,7 +118,7 @@ test("population order never matters and every difference is named exactly", () 
   const reselected = verifyBehavioralPreservationReports(pair({
     candidate: report({ selected: "exit" })
   }));
-  assert.equal(reselected.preserved, false);
+  assert.equal(reselected.comparison_matches, false);
   assert.equal(reselected.differences.selection_mismatch, true);
   assert.equal(reselected.differences.canonical_value_mismatch, true);
 });
@@ -200,4 +200,26 @@ test("verification is deterministic and identical across repeated calls", () => 
   const second = verifyBehavioralPreservationReports(pair());
   assert.deepEqual(first, second);
   assert.notEqual(first, second);
+});
+
+test("a changed unselected value leaves bounded comparisons true and full equality unsupported", () => {
+  const input = pair({ candidate: report({ observables: [observable("result"),
+    observable("exit", "exit_code", "7")] }) });
+  assert.notDeepEqual(input.baseline, input.candidate);
+  const result = verifyBehavioralPreservationReports(input);
+  assert.equal(result.verified, true);
+  assert.equal(result.comparison_matches, true);
+  assert.equal(result.comparison_scope.basis, "supplied_typed_reports_only");
+  assert.equal(result.comparison_scope.proof_credit, 0);
+  assert.deepEqual(result.comparison_scope.checked,
+    ["typed_descriptor_populations", "exact_counts", "selected_canonical_value_pair"]);
+  assert.deepEqual(result.comparison_scope.unsupported_claims.map(({ claim }) => claim),
+    ["captured_full_report_byte_equality", "implementation_behavioral_preservation"]);
+  for (const claim of result.comparison_scope.unsupported_claims) {
+    assert.equal(claim.outcome, "unsupported");
+    assert.equal(claim.proof_credit, 0);
+    assert.ok(claim.reason.length > 0);
+  }
+  assert.match(result.comparison_scope.unsupported_claims[0].reason, /unselected/u);
+  assert.match(result.comparison_scope.unsupported_claims[1].reason, /provenance, runtime completeness/u);
 });

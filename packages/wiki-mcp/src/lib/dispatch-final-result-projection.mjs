@@ -90,15 +90,7 @@ export function projectPublicFinalResult(finalResult) {
   const analysis = analyzeCapturedText(finalResult);
   const projected = {
     ...finalResult,
-    ...(Object.hasOwn(finalResult, "schema_version")
-      ? { source_schema_version: finalResult.schema_version }
-      : {}),
     schema_version: PUBLIC_FINAL_RESULT_SCHEMA_VERSION,
-    text_projection: {
-      source_text_count: analysis.sourceTextCount,
-      distinct_text_count: analysis.distinctTextCount,
-      omitted_text_count: analysis.sourceTextCount - analysis.distinctTextCount
-    },
     ...(Object.hasOwn(finalResult, "missing_result")
       ? { missing_result: projectMissingResult(finalResult.missing_result) } : {}),
     ...(isObjectRecord(finalResult.advisory_review)

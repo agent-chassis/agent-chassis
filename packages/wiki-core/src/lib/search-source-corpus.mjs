@@ -12,6 +12,9 @@ import { projectCanonicalRecordPassages, projectMarkdownPassages, SEARCH_PASSAGE
 
 const CAPTURED_WORK_RECORD_PATTERN = /^wiki\/work-records\/WK-[0-9]{4}\.json$/u;
 
+export const SEARCH_KIND_FILTER_GUIDANCE = 'kind: issues (work items), decisions, initiatives, sources, areas, docs, wiki ' +
+  'or enabled extension namespace.';
+
 export async function projectCapturedWorkRecordEntrySources(targetDir, capturedCorpus, {
   repository,
   history = false
@@ -45,7 +48,11 @@ export async function projectCapturedWorkRecordEntrySources(targetDir, capturedC
   const diagnostics = [];
   for (const [relativePath, capture] of captures) {
     const loaded = await loadCapturedWorkRecordById({ id: path.posix.basename(relativePath, ".json") });
-    if (!loaded.valid || !loaded.record) continue;
+    if (!loaded.valid || !loaded.record) {
+      diagnostics.push(...loaded.diagnostics.map(diagnostic => ({ ...diagnostic,
+        source: relativePath, excluded: 'work_record_entries' })));
+      continue;
+    }
     const projected = await projectWorkRecordEntrySearchSources({ record: loaded.record, repository,
       dir: root, history, loadWorkRecordById: loadCapturedWorkRecordById });
     for (const descriptor of projected.descriptors) {

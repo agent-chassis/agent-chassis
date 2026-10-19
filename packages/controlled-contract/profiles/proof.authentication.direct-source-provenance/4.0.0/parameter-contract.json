@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.authentication.direct-source-provenance",
   "profile_version": "4.0.0",
-  "profile_digest": "b258c0f95aca2a1652c3484c6ce49fd6d66fbb211afaadf7793ecbc20feef3ef",
+  "profile_digest": "ddefa79856a8e9c7c14de924e7b4234c0d05ee204a014c83379e5c9e72bd21bf",
   "description": "For one exact directly captured evidence occurrence E, target T, provenance source S, and observation attempt A, the captured evidence bytes authenticate T during A, E originates from S during A, T has S as its singular source of record during A, E was observed in A, the selected target and source populations are complete singletons, and four independent verification claims with exact controlled-complement falsifiers verify those same-occurrence behaviors.",
   "parameters": [
     {

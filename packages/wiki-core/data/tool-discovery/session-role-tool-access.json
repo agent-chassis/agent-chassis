@@ -12,11 +12,11 @@
     "operator"
   ],
   "role_descriptions": {
-    "orchestrator": "Fifteen task tools for canonical reading, authoring, assessment, start, original outcomes and explicit integration/candidate/publication actions. Delivery is worker-owned.",
-    "reviewer": "Findings-only reads and assessment of authenticated source, native tests, proof execution and own native outcomes. No start, authoring, integration or publication.",
-    "worker": "Five assignment-bound tasks: read assignment, run test, verify proof, read own recorded outcomes and deliver work.",
-    "redteam": "Findings-only canonical and proof discovery reads and assessment. No execution or result observation.",
-    "operator": "Preserved operator-only recovery tools and explicitly granted canonical task replacements. No launcher-managed execution, start or delivery."
+    "orchestrator": "Fifteen task tools for canonical reading, authoring, assessment, start, original outcomes and explicit integration/candidate/publication actions. Delivery is worker-owned. Advisory feedback submission during assigned work.",
+    "reviewer": "Findings-only reads and assessment of authenticated source, native tests, proof execution and own native outcomes. No start, authoring, integration or publication. Advisory feedback submission during assigned work.",
+    "worker": "Five assignment-bound tasks: read assignment, run test, verify proof, read own recorded outcomes and deliver work. Advisory feedback submission during assigned work.",
+    "redteam": "Findings-only canonical and proof discovery reads and assessment. No execution or result observation. Advisory feedback submission during assigned work.",
+    "operator": "Preserved operator-only recovery tools and explicitly granted canonical task replacements. No launcher-managed execution, start or delivery. Advisory feedback submission during assigned work."
   },
   "dispositions": {
     "allocate_id": [
@@ -117,6 +117,12 @@
     ],
     "workspace_run_test": [
       "direct"
+    ],
+    "workspace_record_feedback": [
+      "direct"
+    ],
+    "request_assignment_change": [
+      "direct"
     ]
   },
   "access": {
@@ -147,8 +153,7 @@
       "reviewer"
     ],
     "integrate_work": [
-      "orchestrator",
-      "operator"
+      "orchestrator"
     ],
     "lint_repo": [
       "operator"
@@ -243,6 +248,16 @@
     "workspace_run_test": [
       "orchestrator",
       "reviewer",
+      "worker"
+    ],
+    "workspace_record_feedback": [
+      "orchestrator",
+      "reviewer",
+      "worker",
+      "redteam",
+      "operator"
+    ],
+    "request_assignment_change": [
       "worker"
     ]
   },

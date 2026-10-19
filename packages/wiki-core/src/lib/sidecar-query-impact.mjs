@@ -1,3 +1,4 @@
+import { planningFields, planningCounts } from "./sidecar-planning-query.mjs";
 import path from "node:path";
 
 import {
@@ -6,7 +7,6 @@ import {
   pathsForDiffImpact
 } from "./sidecar-graph-impact-diff.mjs";
 import { provenance, uniqueStrings, validateImpactPath } from "./sidecar-graph-impact-shared.mjs";
-import { createCompactGraphImpactSummary } from "./sidecar-graph-impact-summary.mjs";
 import {
   SIDECAR_IMPACT_BOUND_CODES,
   invalidQueryInput,
@@ -139,7 +139,6 @@ async function evaluateQueryImpact(input, context) {
     records: diff.validatedDiffRecords, graphResult: { derived_evidence: composed.path_states,
       graph_state: composed.graph_state, dirty_state: status.dirty_state, staleness: status.staleness } }) }
     : composed.graph_state;
-  const flatten = (byPath) => uniqueStrings(Object.values(byPath).flat()).sort(byText);
   const validationHints = [...(diff?.validationHints ?? []), ...validations.map(({ hint }) => hint)];
   const affectedFiles = attributeAffectedFiles(composed);
   const result = createSidecarResultEnvelope({
@@ -167,18 +166,17 @@ async function evaluateQueryImpact(input, context) {
     invalid_paths: invalidPaths,
     validation_hints: validationHints,
     affected_files: affectedFiles,
-    related_code_paths: flatten(composed.related_code_paths_by_path),
-    related_code_paths_by_path: composed.related_code_paths_by_path,
-    likely_tests: flatten(composed.likely_tests_by_path),
-    likely_tests_by_path: composed.likely_tests_by_path,
+    ...planningFields(composed),
+    related_code_paths: affectedFiles.filter(file => file.relationships.some(row =>
+      row.basis === "scip" || row.kind === "reverse_import")).map(file => file.path),
     structural_impacts: composed.impacts,
-    missing_update_hints: composed.hints,
     graph_state: graphState,
     impact_state: impactState({ requested, validPaths, invalidPaths, graphState, diff, narrowed })
   });
   return {
     ...result,
     counts: {
+      ...planningCounts(composed),
       requested_paths: requested.length,
       validated_paths: validPaths.length,
       ...(narrowed === null ? {} : { subject_paths_before_narrowing: narrowed.accepted_before,
@@ -187,14 +185,10 @@ async function evaluateQueryImpact(input, context) {
       affected_files: affectedFiles.length,
       canonical_refs: result.canonical_refs.length,
       structural_impacts: result.structural_impacts.length,
-      missing_update_hints: result.missing_update_hints.length,
-      likely_tests: result.likely_tests.length,
       related_code_paths: result.related_code_paths.length,
       graph_unavailable_paths: graphState.unavailable_paths.length,
       ...(diff ? { parsed_diff_records: diff.parsedDiffRecords.length,
         invalid_diff_records: diff.invalidDiffRecords.length } : {})
-    },
-    summary: createCompactGraphImpactSummary({ ...result, graph_nodes: composed.graph_nodes,
-      graph_edges: composed.graph_edges })
+    }
   };
 }

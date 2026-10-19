@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.lifecycle.bounded-terminal-stability",
   "profile_version": "4.0.0",
-  "profile_digest": "4513f0e6e9a346ee870fcf61a01ea5b0a0b99889ddc9022fb6f08a10688550e0",
+  "profile_digest": "a795af5d60bbe95adb4d98e55c814b093f9cb861bf75a98105b808a9f3d09c03",
   "description": "For one declared lifecycle entity, terminal event, terminal state, and explicit bounded horizon, one complete nonempty horizon-scoped observation population records the terminal state for every observation after the terminal event and before the horizon; complete singleton observed-state and terminal-state populations are equal; and one complete in-horizon reactivation-event population has exact cardinality zero.",
   "parameters": [
     {

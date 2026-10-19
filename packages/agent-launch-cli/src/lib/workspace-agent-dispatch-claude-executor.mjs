@@ -1,4 +1,4 @@
-
+import { resolveRoleGuideInstructions } from "./role-guide-instructions.mjs";
 
 import path from "node:path";
 
@@ -223,6 +223,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       ? input.model
       : null;
 
+    const guideDelivery = resolveRoleGuideInstructions({ role, selection: input?.model_selection, workspaceDir });
     const writePosture = resolveClaudeLauncherRoleWritePosture(role);
 
     const writeScopeGate = resolveClaudeLauncherWriteScope({
@@ -343,6 +344,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
     const commandSurfaceRole = role === "worker" || role === "reviewer" || role === "redteam";
     const permissionSurface = await mintClaudeNativePermissionSurface({
       commandSurfaceRole,
+      guideDelivery,
       mintClaudeNativePermissionSettings,
       workspaceDir,
       writeScope,
@@ -373,6 +375,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
     const commandLineResult = buildClaudeLaunchCommandLine({
       buildCommandLine,
+      guideDelivery,
       resolvedClaudePath,
       role,
       subject,

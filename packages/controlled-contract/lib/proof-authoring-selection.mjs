@@ -16,8 +16,11 @@ export { PROOF_AUTHORING_FIELDS, PROOF_AUTHORING_FIELD_SCHEMAS, PROOF_EXCEPTION_
   PROOF_EXCEPTION_RATIONALE_SCHEMA } from './obligation-coverage-carrier.mjs';
 
 export async function pinProofSelection(proofName, {
-  catalog = readProofPackCatalog, load = loadAdmittedProofPackMeaning
+  catalog = readProofPackCatalog, load = loadAdmittedProofPackMeaning,
+  proofVersion, loadExact = loadExactAdmittedProofPackMeaning
 } = {}) {
+  if (proofVersion !== undefined) return projectPin(await loadExact({
+    profileId: proofName, profileVersion: proofVersion }));
   const current = await catalog();
 
   if (!current.packs.some(pack => pack.profile_id === proofName)) throw new ProofAuthoringError(
@@ -26,9 +29,43 @@ export async function pinProofSelection(proofName, {
       phase: 'request', field: 'proof_name', proof_name: proofName
     });
   const pack = await load(proofName);
+  return projectPin(pack);
+}
+
+function projectPin(pack) {
   return deepFreeze({ proof_name: pack.profile.profile_id,
     proof_version: pack.profile.profile_version,
     ...Object.fromEntries(pinFields.map(key => [key, pack[key]])) });
+}
+
+export async function refreshPinnedProofSelections(source, { captures = new Map(), ...owners } = {}) {
+  const content = structuredClone(assertProofAuthoringDraft(source));
+  const index = new Map(content.obligations.map(row => [row.obligation_id, row]));
+  const members = [];
+  const failures = [];
+  for (const row of content.obligations) {
+    const selection = row.selection;
+    const status = row.proof_opt_out === true ? 'opted_out' : !selection?.proof_name ? 'unselected'
+      : selection.proof_version == null ? 'unpinned' : null;
+    const member = { obligation_id: row.obligation_id, status,
+      ...(selection ? { proof_name: selection.proof_name, proof_version: selection.proof_version } : {}) };
+    members.push(member);
+    if (status !== null) continue;
+    const key = JSON.stringify([selection.proof_name, selection.proof_version]);
+    if (!captures.has(key)) captures.set(key, pinProofSelection(selection.proof_name, {
+      ...owners, proofVersion: selection.proof_version }).then(pin => ({ pin }), error => ({ error })));
+    const { pin, error } = await captures.get(key);
+    if (error) {
+      member.status = 'unavailable';
+      failures.push({ ...member, code: error.code ?? null,
+        message: error.message, details: error.details ?? null });
+      continue;
+    }
+    member.status = Object.keys(pin).every(key => pin[key] === selection[key]) ? 'current' : 'refreshed';
+    if (member.status === 'refreshed') await amendRow(content, index, row.obligation_id,
+      { refresh_proof_version: true }, { pin: async () => pin });
+  }
+  return { content: assertProofAuthoringDraft(content), members, failures };
 }
 
 const SELECTION_SAVE = registeredRecoveryInstruction({ route: OBLIGATION_COVERAGE_UPSERT_TOOL });

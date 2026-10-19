@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { z } from "zod";
+import { randomUUID } from "node:crypto";
 
 import { ATTEMPT_EVENT_KINDS, admitAttemptCommand } from "@agent-chassis/agent-launch-core";
 import { publishAttemptJournalEvents } from
@@ -15,8 +15,16 @@ import { createDirectSliceIntegrationAdapter } from
   "../../packages/wiki-mcp/src/lib/dispatch-launch-runtime.mjs";
 import { runPostWorkerSliceLifecycle } from
   "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle.mjs";
-import { registerRunMonitorRoutes } from
-  "../../packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs";
+import { createGetRunResultTask } from
+  "../../packages/wiki-mcp/src/lib/task-get-run-result.mjs";
+import { canonicalSerializeLauncherAgentSessionContract, mintTrustedStdioMcpConduitAuthority,
+  resolveLauncherAgentSessionContract } from
+  "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
+import { buildLifecycleFailure, publishableLifecycleFailure, publishableLifecycleResolution } from
+  "../../packages/wiki-mcp/src/lib/dispatch-lifecycle-failure-disclosure.mjs";
+import { createLifecycleCheckpoint, lifecycleRetryFactsOf, POST_WORKER_LIFECYCLE_CHECKPOINT,
+  projectLifecycleResolution, recordLifecycleFailure } from
+  "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
 import { jsonContent as defaultJsonContent } from
   "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 
@@ -101,24 +109,49 @@ export function seedLifecycleFailureJournal(mainRepo, subject, dispatchTuple) {
   return mainRepo;
 }
 
-export function registeredRunStatus({
-  registerRoutes = registerRunMonitorRoutes,
-  workspace,
-  dispatchBackend,
-  jsonContent = defaultJsonContent,
-  sessionIdentity,
-  runStatusCallBudgetMs = undefined
-}) {
-  const tools = new Map();
-  registerRoutes({
-    registerTool: (name, config, handler) => tools.set(name, { config, handler }),
-    workspaceRepos: [workspace],
-    z,
-    jsonContent,
-    resolveWorkspaceRepo: () => workspace,
-    dispatchBackend,
-    dispatchSessionIdentity: sessionIdentity,
-    ...(runStatusCallBudgetMs === undefined ? {} : { runStatusCallBudgetMs })
-  });
-  return tools.get("workspace_agent_run_status").handler;
+export function createGetRunResultObserver({ workspace, dispatchBackend, sessionIdentity,
+  jsonContent = defaultJsonContent, responseEnv = process.env }) {
+  const contract = resolveLauncherAgentSessionContract(mintTrustedStdioMcpConduitAuthority({
+    family: "codex", role: "orchestrator", assignedUnit: "IN-0001", workspaceDir: workspace.dir
+  }));
+  const bytes = canonicalSerializeLauncherAgentSessionContract(contract).toString("utf8");
+  const sessionEnv = { WIKI_MCP_TOOL_PROFILE: "orchestrator", WIKI_MCP_ASSIGNED_UNIT: "IN-0001",
+    WIKI_MCP_AGENT_SESSION_CONTRACT: bytes, WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT: bytes };
+  const task = createGetRunResultTask({ workspace, sessionEnv, responseEnv,
+    preparedDispatchBackend: dispatchBackend, dispatchSessionIdentity: sessionIdentity });
+  return async args => jsonContent(task.presentObservation(await task.observe(args), args));
+}
+
+export function createLifecycleExecution({ workspace, dispatchBackend, status }) {
+  const checkpoint = createLifecycleCheckpoint();
+  let lifecycle = null;
+  let retryFacts = null;
+  const project = () => ({ lifecycle: publishableLifecycleFailure(lifecycle),
+    resolution: publishableLifecycleResolution(projectLifecycleResolution({ lifecycle, checkpoint })) });
+  return {
+    checkpoint,
+    get retryFacts() { return retryFacts; },
+    read: project,
+    async execute() {
+      const input = { ...status, [POST_WORKER_LIFECYCLE_CHECKPOINT]: checkpoint };
+      try {
+        lifecycle = await dispatchBackend.runPostWorkerSliceLifecycle({ workspace, status: input });
+        retryFacts = null;
+      } catch (error) {
+        lifecycle = recordLifecycleFailure(checkpoint, buildLifecycleFailure(checkpoint, error));
+        retryFacts = lifecycleRetryFactsOf(error);
+        const publication = await dispatchBackend.recordManagedLifecycleFailure({
+          subject: status.subject, invocationId: randomUUID(), failure: lifecycle });
+        assert.equal(publication.ok, true, JSON.stringify(publication));
+        checkpoint.failure_history_durability = Object.freeze({ state: "durable" });
+      }
+      return project();
+    },
+    history() {
+      const observed = dispatchBackend.readManagedRunObservation({ subject: status.subject,
+        attemptId: status.run_id, detail: { kind: "failure_history", limit: 100 } });
+      assert.equal(observed.ok, true, JSON.stringify(observed));
+      return observed;
+    }
+  };
 }

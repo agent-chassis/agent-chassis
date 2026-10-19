@@ -1,3 +1,7 @@
+import { resolveRoleGuideInstructions, claudeRoleGuideInstructionArgs, withRoleGuideInstructionsPrompt } from "./role-guide-instructions.mjs";
+import { resolveLauncherHostSessionProfile, attachLauncherHostSessionProfile, launcherHostSessionProfileFor } from "./launcher-host-session-profile.mjs";
+import { buildClaudeRoleGuideCompactionHookSettings, withOrchestratorGuidanceReads } from "./workspace-agent-claude-launch-support.mjs";
+import { resolveOrchestratorGuidancePair } from "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
 import { publicOrchestratorPlan, writeOrchestratorMcpConfig, orchestratorSessionDescriptor } from "./orchestrator-plan-projection.mjs";
 import os from "node:os";
 import path from "node:path";
@@ -222,9 +226,9 @@ function claudeOrchestratorStateDirFor({ env, repo, initiative }) {
   );
 }
 
-function buildClaudeOrchestratorPrompt({ initiative, threadName, focus, headless = false }) {
+function buildClaudeOrchestratorPrompt({ initiative, threadName, focus, headless = false, registeredTier, publishControlledAcceptanceOptOut }) {
 
-  return renderLauncherFamilyOrchestratorPrompt({ appName: "Claude", renameHintLabel: "Claude", initiative, threadName, focus, headless });
+  return renderLauncherFamilyOrchestratorPrompt({ appName: "Claude", renameHintLabel: "Claude", initiative, threadName, focus, headless, registeredTier, publishControlledAcceptanceOptOut });
 }
 
 export async function buildClaudeOrchestratorPlan({
@@ -284,15 +288,14 @@ export async function buildClaudeOrchestratorPlan({
     mcpServerName: "wiki"
   });
   const workspaceDir = repo;
+  const hostProfile = resolveLauncherHostSessionProfile({ workspaceDir, role: "orchestrator" });
   const model = localSettings.settings.model;
   const effort = localSettings.settings.effort;
-  const prompt = role === "orch-resume"
-    ? null
-    : buildClaudeOrchestratorPrompt({
+  const prompt = buildClaudeOrchestratorPrompt({
         initiative,
         threadName,
         focus: promptArgs.join(" "),
-        headless: isHeadless
+        headless: isHeadless, registeredTier: hostProfile.registeredTier, publishControlledAcceptanceOptOut: hostProfile.publishControlledAcceptanceOptOut
       });
   const mcpConfigPath = path.join(runtimeDir, "mcp-config.json");
   const mcpConfigBase = buildClaudeOrchestratorMcpConfig({
@@ -336,7 +339,7 @@ export async function buildClaudeOrchestratorPlan({
   }
 
   const headlessSettings = isHeadless
-    ? buildClaudeOrchestratorHeadlessPermissionSettings({
+    ? withOrchestratorGuidanceReads(buildClaudeOrchestratorHeadlessPermissionSettings({
 
         mcpToolNames: resolveLauncherRoleToolNames("orchestrator"),
         responseStateDir,
@@ -345,13 +348,15 @@ export async function buildClaudeOrchestratorPlan({
           repo,
           dispatchWorktreeRoot
         })
-      })
+      }), hostProfile.registeredTier, hostProfile.publishControlledAcceptanceOptOut)
     : null;
   const headlessSettingsPath = isHeadless
     ? projectedClaudeOrchestratorHeadlessSettingsPath(runtimeDir)
     : null;
 
+  const guideDelivery = resolveRoleGuideInstructions({ role, selection: resolvedProfile?.model_selection, workspaceDir: repo, registeredTier: hostProfile.registeredTier, publishControlledAcceptanceOptOut: hostProfile.publishControlledAcceptanceOptOut });
   const optionArgs = [
+    ...claudeRoleGuideInstructionArgs(guideDelivery),
     "--permission-mode",
     "default",
     "--disallowedTools",
@@ -371,9 +376,9 @@ export async function buildClaudeOrchestratorPlan({
     optionArgs.push("--resume");
   }
 
-  const orchestratorPrompt = role === "orch-resume" || !isNonEmptyString(prompt)
+  const orchestratorPrompt = !isNonEmptyString(prompt)
     ? null
-    : prompt;
+    : withRoleGuideInstructionsPrompt(prompt, guideDelivery);
   const args = composeClaudeArgv({ optionArgs, prompt: orchestratorPrompt });
 
   const isolation = buildClaudeOrchestratorIsolationSummary(
@@ -396,7 +401,7 @@ export async function buildClaudeOrchestratorPlan({
     }
   }
 
-  return {
+  return attachLauncherHostSessionProfile({
     schema_version: CLAUDE_ORCHESTRATOR_PLAN_SCHEMA_VERSION,
     planner_kind: "claude_orchestrator",
     mode: isHeadless ? CLAUDE_ORCHESTRATOR_HEADLESS_MODE : "interactive",
@@ -417,6 +422,7 @@ export async function buildClaudeOrchestratorPlan({
     args,
 
     optionArgs,
+    guideDelivery,
     prompt: orchestratorPrompt,
     commandLineContract: CLAUDE_COMMAND_LINE_CONTRACT_SCHEMA_VERSION,
     env: orchEnv,
@@ -432,7 +438,7 @@ export async function buildClaudeOrchestratorPlan({
       local_config_source: localSettings.localConfig.source,
       local_config_values: localSettings.localConfig.values
     }
-  };
+  }, hostProfile);
 }
 
 function claudeOrchestratorIsolationProfile({
@@ -472,6 +478,8 @@ function claudeOrchestratorIsolationProfile({
     stdioMcpConduit: plan.stdioMcpConduit ?? null,
 
     launchRole: plan.role ?? null,
+    publishControlledAcceptanceOptOut: ["orch", "orch-resume"].includes(plan.role) ? launcherHostSessionProfileFor(plan).publishControlledAcceptanceOptOut : true,
+    registeredTier: ["orch", "orch-resume"].includes(plan.role) ? launcherHostSessionProfileFor(plan).registeredTier : undefined,
     resolveExecutable
   };
 }
@@ -667,7 +675,7 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
     dispatchWorktreeRoot: launchPlan.dispatchWorktreeRoot,
     responseStateDir: launchPlan.env.WIKI_MCP_RESPONSE_STATE_DIR,
     authority: conduitAuthority,
-    sessionContract
+    sessionContract, hostSessionProfile: launcherHostSessionProfileFor(launchPlan)
   });
 
   const failOrchestratorLaunch = async (reason, detail) => {
@@ -712,7 +720,7 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
         dispatchWorktreeRoot: launchPlan.dispatchWorktreeRoot ?? null
       });
 
-      const buildSettings = () => buildClaudeOrchestratorHeadlessPermissionSettings({
+      const buildSettings = () => withOrchestratorGuidanceReads(buildClaudeOrchestratorHeadlessPermissionSettings({
         mcpToolNames: conduit.toolNames,
 
         responseStateDir: resolveWikiMcpResponseStateDir({
@@ -721,7 +729,7 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
         }),
 
         managedWorktreeRoot
-      });
+      }), launcherHostSessionProfileFor(launchPlan).registeredTier, launcherHostSessionProfileFor(launchPlan).publishControlledAcceptanceOptOut);
       const minted = await mintNativePermissionSettings({
         workspaceDir: launchPlan.repo,
         writeScope: [],
@@ -730,7 +738,8 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
           AGENT_LAUNCH_RUNTIME_STATE_DIR: settingsRuntimeDir
         },
         buildSettings,
-        launchRole: launchPlan.role
+        launchRole: launchPlan.role,
+        buildRoleGuideHookSettings: () => buildClaudeRoleGuideCompactionHookSettings(launchPlan.guideDelivery)
       });
       if (!isClaudeNativePermissionSettingsArtifact(minted)) {
         return await failOrchestratorLaunch(
@@ -747,7 +756,7 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
       orchestratorOptionArgs =
         withClaudeOrchestratorHeadlessSettingsPath(orchestratorOptionArgs, headlessSettingsPath);
       headlessSettings = minted.settings ?? buildSettings();
-    } else if (resolveLaunchRoleGuidePath(launchPlan.role) !== null || interactiveUsage?.usageHook) {
+    } else if (resolveLaunchRoleGuidePath(launchPlan.role, launcherHostSessionProfileFor(launchPlan).registeredTier) !== null || interactiveUsage?.usageHook) {
 
       const minted = await mintNativePermissionSettings({
         usageHookSettings: interactiveUsage?.usageHook ? buildClaudeUsageHookSettings(interactiveUsage.usageHook) : null,
@@ -757,8 +766,9 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
           ...launchPlan.env,
           AGENT_LAUNCH_RUNTIME_STATE_DIR: settingsRuntimeDir
         },
-        buildSettings: () => ({}),
-        launchRole: launchPlan.role
+        buildSettings: () => withOrchestratorGuidanceReads({}, launcherHostSessionProfileFor(launchPlan).registeredTier, launcherHostSessionProfileFor(launchPlan).publishControlledAcceptanceOptOut),
+        launchRole: launchPlan.role,
+        buildRoleGuideHookSettings: () => buildClaudeRoleGuideCompactionHookSettings(launchPlan.guideDelivery)
       });
       if (!isClaudeNativePermissionSettingsArtifact(minted) ||
           typeof minted.confinedSettingsPath !== "string") {

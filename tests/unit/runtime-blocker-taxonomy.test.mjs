@@ -42,6 +42,9 @@ import {
 import { BOOTSTRAP_STATE_CODES } from "../../packages/wiki-core/src/lib/agent-dispatch-identity.mjs";
 import { evaluateCoordinationPreflight } from "../../packages/wiki-core/src/lib/coordination-preflight.mjs";
 
+const isConduitBlockerCode = (code) => code.startsWith("stdio_mcp_") ||
+  code.startsWith("server_registration_profile_");
+
 test("taxonomy descriptor declares every required category", () => {
   for (const category of [
     "role_policy",
@@ -777,10 +780,10 @@ test("WK-1678 stdio MCP conduit blocker codes are registered, blocking, and disp
   assertRuntimeBlockerSubset(codes, { required: codes });
 
   const registeredConduitCodes = RUNTIME_BLOCKER_CODE_VALUES
-    .filter((code) => code.startsWith("stdio_mcp_"))
+    .filter(isConduitBlockerCode)
     .sort();
   assert.deepEqual(registeredConduitCodes, codes,
-    "the registered stdio-MCP codes must be exactly the codes the launcher can emit");
+    "the registered conduit codes must be exactly the codes the launcher can emit");
 });
 
 test("WK-1678 M4: every registered conduit blocker code has behavioural test coverage", async () => {
@@ -818,7 +821,7 @@ test("WK-1678 M4: every registered conduit blocker code has behavioural test cov
     [STDIO_MCP_CLEANUP_BLOCKER_REASON, "STDIO_MCP_CLEANUP_BLOCKER_REASON"]);
 
   const uncovered = [];
-  for (const code of RUNTIME_BLOCKER_CODE_VALUES.filter((c) => c.startsWith("stdio_mcp_"))) {
+  for (const code of RUNTIME_BLOCKER_CODE_VALUES.filter(isConduitBlockerCode)) {
     const accepted = spellings.get(code) ?? [code];
     const covering = sources.filter(({ name, text }) =>
       name !== "runtime-blocker-taxonomy.test.mjs" &&

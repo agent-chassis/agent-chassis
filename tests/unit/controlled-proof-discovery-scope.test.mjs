@@ -132,8 +132,9 @@ test('bounded-state scope preserves strict interior, nonempty population, baseli
   const search = discoverProofIntents({query:'bounded interval baseline observations'});
   assert.equal(search.candidates.find(x => x.id === candidate.id).essential_limitation,
     'Excluded: transient state between declared observations.');
-  assert.equal(candidate.provenance.profile_digest, 'b4eb7cd57b344d8dec861f7231ae4b0e4b39917581078aec6ea5651378aa5cae');
-  assert.equal(candidate.provenance.parameter_contract_digest, '07485182dab6b90eb077ca3b91268e58d0552f4246db4dd3f8bced76f64bd023');
+
+  assert.equal(candidate.provenance.profile_digest, '017a9a56027e11644186c3ea3c4d83422dba71b330302504bce8e549658a5e62');
+  assert.equal(candidate.provenance.parameter_contract_digest, 'e75454067cbc54923c50126189b4557ce2c7a334b37dad585a8a5366dd7aa257');
   const intent = PROOF_INTENT_DISCOVERY_CATALOG.intents.find(x => x.intent_id.endsWith('.bounded-state-stability'));
   assert.doesNotMatch(JSON.stringify(intent), /endpoint equality|equal across the endpoints/);
   for (const source of PROOF_INTENT_DISCOVERY_CATALOG.intents) for (const distinction of source.distinctions)

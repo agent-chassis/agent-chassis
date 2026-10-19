@@ -37,15 +37,13 @@ export function deriveAuthoringJobVocabulary(vocabularies) {
   }
   return Object.freeze({ schema_version: "requirement-authoring-job-vocabulary.v1",
     ...Object.fromEntries(common),
-    position_rule: "Each relation row lists every position that admits it: behavior, fails_when or observes. " +
-      "A position absent from that list forbids the relation. Operand bounds and applicability apply at every listed position. " +
-      "No external definitions are needed; relation groups and single-object membership follow from operand_kind and maximum_operands.",
+    position_rule: "Each row's positions are its exact allowed uses: behavior, fails_when, observes. " +
+      "Operand bounds and applicability govern every listed use. Follow relation_definition_read for row.term's " +
+      "canonical semantics and pinned CEL links. Derive groups from operand_kind and maximum_operands; " +
+      "restricted rows carry their exact applicability_modes.",
     positions,
     relation_accounting: Object.fromEntries(Object.entries(vocabularies).map(([position, vocabulary]) =>
       [position, vocabulary.relation_accounting])),
-    restricted_applicability: [...signatures.values()].filter(({ signature }) =>
-      Object.hasOwn(signature, "applicability_modes")).map(({ signature }) =>
-      ({ term: signature.term, admitted_modes: signature.applicability_modes })),
     relation_details: [...signatures.values()].sort((left, right) => left.signature.term.localeCompare(right.signature.term))
       .map(({ signature, positions: allowed }) =>
       ({ ...signature, positions: allowed })) });

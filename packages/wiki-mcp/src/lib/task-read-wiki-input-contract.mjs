@@ -1,10 +1,13 @@
-
+import { DEFAULT_EXCEPTION_PUBLICATION } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
+import { selectedResponseCorrectableError } from "./selected-response-snapshot.mjs";
+import { inputContractChoices } from "./task-read-wiki-input-contract-choices.mjs";
+import { sessionExceptionKinds } from "./record-authoring-session-exposure.mjs";
+import { recordAuthoringAvailability } from "@agent-chassis/wiki-core/src/lib/record-authoring-availability.mjs";
 
 import { RECORD_AUTHORING_EXCEPTION_KINDS, describeRecordAuthoringException, recordAuthoringExceptionSchema } from
   "@agent-chassis/wiki-core/src/lib/record-authoring-exception.mjs";
 import { INPUT_SCHEMA_EXPOSURE_CODES } from "./input-schema-exposure.mjs";
 import { SAVE_RECORD_EXCEPTION_OPERATION } from "./save-record-input-navigation.mjs";
-import { inputContractSourceDigest } from "./tool-discovery-input-guidance-delivery.mjs";
 import { requirementGuidanceRecoveryCall } from "./requirement-authoring-guidance.mjs";
 import { RECORD_KIND_CONTRACT_TOOL } from "./task-read-wiki-record-kind.mjs";
 import { SAVE_RECORD_TOOL_NAME, saveRecordUnitVariant } from "./task-save-record-tools.mjs";
@@ -23,32 +26,30 @@ export const READ_WIKI_INPUT_CONTRACT_REASONS = Object.freeze({
   UNIT_NOT_SAVEABLE: "input_contract_unit_not_saveable",
   TOOL_SOURCE_MISMATCH: "input_contract_tool_source_mismatch",
   MEMBER_NOT_APPLICABLE: "input_contract_member_not_applicable",
-  MEMBER_REPEATED: "input_contract_member_repeated"
+  MEMBER_REPEATED: "input_contract_member_repeated",
+  EXCEPTION_IS_OPERATION: "input_contract_exception_is_operation"
 });
 const REASONS = READ_WIKI_INPUT_CONTRACT_REASONS;
 
 const COVERAGE = Object.freeze({
-  structural: "complete for the selected members: each member, the change object's own constraints and every " +
-    "local definition they reach are the registered owner's schema, unchanged",
-  semantic: "not established by this schema: save_record validates the whole request and its owners decide " +
-    "cross-member, saved-state and planning rules when a save is made"
+  structural: "Complete selected members, object constraints and reachable definitions, unchanged from the registered owner.",
+  semantic: "Schema establishes no saved-state or cross-member validity; save_record validates the full request and its owners decide planning rules."
 });
 
 const NO_ROUTE = (missingCapability, owner, reason) => ({ state: "no_supported_route", caller_correctable: false,
   missing_capability: missingCapability, owner, reason });
 
-export function createReadWikiInputContractReader({ requestContracts, invalid, readTool }) {
+export function createReadWikiInputContractReader({ requestContracts, invalid, readTool, registeredTier = null, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION }) {
 
-  const refuse = (reason, { subject, cause, recovery, reads = [], ...facts }) => invalid(reason, { subject, cause, ...facts,
-    ...(recovery === undefined ? {} : { recovery }), next_calls: [], effects: { reads, writes: [] },
-    uncertainty: "none: nothing was written and no schema was disclosed" });
+  const refuse = (reason, { subject, cause, recovery, reads = [], next_calls = [], ...facts }) => invalid(reason, { subject, cause, ...facts,
+    ...(recovery === undefined ? {} : { recovery }), next_calls, effects: { reads, writes: [] } });
 
   async function guidanceCalls(guidance) {
     const reader = requestContracts?.contractFor(readTool) ?? null;
     const calls = new Map();
     for (const { topics } of guidance) {
       for (const topic of topics) {
-        const offered = requirementGuidanceRecoveryCall(topic);
+        const offered = requirementGuidanceRecoveryCall(topic, registeredTier, exceptionPublication);
         if (offered === null || reader === null || !await reader.acceptsArguments(offered.arguments)) continue;
         calls.set(JSON.stringify(offered.arguments), offered);
       }
@@ -56,9 +57,25 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     return [...calls.values()];
   }
 
-  async function readCreationContract({ carrier, members, requireGrant, reopen }) {
+  async function choicesResult(source, tool, reference, members) {
+
+    source.select({ members });
+    const calls = inputContractChoices({ source, tool, reference, members, readTool });
+    for (const call of calls) if (await requestContracts?.contractFor(readTool)?.acceptsArguments(call.arguments) !== true) {
+      throw new TypeError('input_contract_choice_not_accepted: serving reader rejected a published capability choice');
+    }
+    return { input_contract: { tool, view: "choices", members,
+      capabilities: Object.fromEntries(Object.entries(source.branches).filter(([member]) => members.includes(member))) }, next_calls: calls };
+  }
+
+  async function readCreationContract({ carrier, members, selector, reference, requireGrant, reopen }) {
     const tool = RECORD_KIND_CONTRACT_TOOL;
     const subject = carrier.subject;
+    if (!recordAuthoringAvailability(registeredTier).compile_requirements && members.includes("requirements")) {
+      throw refuse("record_authoring_operation_unavailable", { subject, tool, member: "requirements", operation: "compile_requirements", changed: false,
+        cause: "Requirement compilation is unavailable in this serving session; no authoring schema was disclosed.",
+        recovery: NO_ROUTE("compile_requirements", "serving authoring operation", "Compilation is unavailable in this session; required meaning and applicability remain unchanged and incomplete") });
+    }
     if (carrier.source_kind !== RECORD_KIND_SOURCE) {
       throw refuse(REASONS.TOOL_SOURCE_MISMATCH, { subject, tool, source_kind: carrier.source_kind,
         cause: `${tool}'s input contract is the initial object of a record kind; this reference names a ${carrier.source_kind}`,
@@ -69,12 +86,19 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     const source = (await reopen()).source;
     let selected;
     try {
-      selected = source.select({ members });
+      if (selector.view === "choices") return await choicesResult(source, tool, reference, members);
+      selected = source.select({ members, ...(selector.branches ? { branches: selector.branches } : {}) });
     } catch (error) {
+      if (error.code?.startsWith("requirements_capability_") || error.code === INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_INVALID) {
+        throw invalid(error.code, { subject, cause: error.message, effects: { reads: [], writes: [] },
+          next_calls: [ { tool: readTool, arguments: { reference, select: { input_contract: { tool, members, view: "choices" } } } } ] });
+      }
       if (error.code !== INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_MEMBER_UNKNOWN) throw error;
       const unknown = members.filter((member) => !source.members.includes(member));
       throw refuse(REASONS.MEMBER_NOT_APPLICABLE, { subject, record_kind: kind, tool, reads: [],
         requested_members: members, not_applicable: unknown, valid_members: source.members,
+        selection_context: { tool: readTool, reference,
+          binding: `Choose needed valid_members[i]; call {reference,select:{input_contract:{tool:"${tool}",members:[...chosen members]}}} unchanged.` },
         cause: `${unknown.join(", ")} ${unknown.length === 1 ? "is" : "are"} not ${unknown.length === 1 ? "a member" : "members"} of the initial object ${tool} takes for a ${kind}`,
         choice: "select members from valid_members; kind and title are the request's own and are not selected here" });
     }
@@ -82,8 +106,10 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
 
       revision: selected.digest,
       input_contract: { tool, record_kind: kind, variant: kind, members: selected.members,
-        owner_schema_digest: selected.digest, schema: selected.schema },
-      coverage: { structural: COVERAGE.structural.replace("change object's", "initial object's"),
+        owner_schema_digest: selected.digest, ...(selected.branches ? { branches: selected.branches } : {}), schema: selected.schema },
+      coverage: { structural: selected.branches
+        ? "complete for the selected initial members within the explicitly returned effective capabilities; excluded features were not delivered"
+        : COVERAGE.structural.replace("change object's", "initial object's"),
         semantic: `not established by this schema: ${tool} validates the whole request and its owners decide ` +
           "cross-member and planning rules when the record is created" },
       guidance: selected.guidance,
@@ -100,7 +126,10 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
       saved = await readSavedContract(unit);
     } catch (error) {
       if (error?.envelope === undefined && typeof error?.code !== "string") throw error;
-      return { available: false, reason: `the unit's saved contract could not be read: ${error.message}` };
+      return { available: false, reason: `the unit's saved contract could not be read: ${error.message}`,
+        cause: { code: error.code ?? null, message: error.message,
+          ...(error.envelope === undefined ? {} : { refusal: error.envelope }),
+          ...(error.details === undefined ? {} : { details: error.details }) } };
     }
     const obligations = Array.isArray(saved.obligations) ? saved.obligations : [];
     const unresolved = Array.isArray(saved.authored_requirements?.unresolved)
@@ -116,12 +145,15 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
         undecided: obligations.filter((row) => row.proof_opt_out !== true && typeof row.selection?.proof_name !== "string").length,
         recorded: declined.map((row) => ({ subject: row.obligation_id, ...rationaleOf(row.proof_opt_out_rationale) })) },
       grammar: { unresolved_meanings: unresolved.length, exceptions: excepted.length,
-        recorded: excepted.map((entry) => ({ subject: entry.id, text: entry.text, ...rationaleOf(entry.grammar_exception.rationale) })) },
+        recorded: excepted.map((entry) => ({ subject: entry.id, text: entry.text, ...rationaleOf(entry.grammar_exception.rationale),
+          ...(entry.grammar_exception.source_passages === undefined ? {} : { source_passages: entry.grammar_exception.source_passages }) })) },
       controlled_acceptance: { disposition: acceptance?.disposition ?? null, status: acceptance?.status ?? "unset",
-        ...(acceptance?.disposition === "opted_out" ? rationaleOf(acceptance.rationale) : {}) } };
+        ...(acceptance?.disposition === "opted_out" ? { ...rationaleOf(acceptance.rationale),
+          ...(acceptance.proof_posture?.controlled_contract?.source_passages === undefined ? {}
+            : { source_passages: acceptance.proof_posture.controlled_contract.source_passages }) } : {}) } };
   }
 
-  async function readExceptionContract({ carrier, select, requireGrant, reopen, readSavedContract }) {
+  async function readExceptionContract({ carrier, select, requireGrant, reopen, readSavedContract, reference }) {
     const { tool, kind = null } = select.input_contract;
     const subject = carrier.subject;
     if (!INPUT_CONTRACT_SOURCE_KINDS.includes(carrier.source_kind)) {
@@ -142,7 +174,7 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     } catch (error) {
       throw refuse(REASONS.SOURCE_UNAVAILABLE, { subject, reads: [carrier.source_kind],
         cause: `the saved unit this reference names could not be read again: ${error.message}`,
-        source_refusal: error.envelope ?? { message: error.message },
+        source_refusal: error.envelope ?? { code: error.code, message: error.message, details: error.details },
         recovery: NO_ROUTE("the_same_saved_unit", "the saved record's owner",
           "an exception names one existing saved subject of that unit; no other unit is substituted for one that cannot be read") });
     }
@@ -154,14 +186,22 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
           "no exception kind applies to this unit") });
     }
     const revision = resource.authoring_revision ?? resource.revision ?? null;
-    const kinds = kind === null ? RECORD_AUTHORING_EXCEPTION_KINDS : [kind];
-    const schema = recordAuthoringExceptionSchema(kind);
+    if (kind !== null && !exceptionPublication.includes(kind)) throw refuse("controlled_acceptance_opt_out_not_published", {
+      subject, tool, operation: "exception", publication: "not_published", changed: false,
+      cause: "The host presentation configuration does not publish the requested whole-unit opt-out contract. No schema or request template was disclosed; this setting does not change request acceptance.",
+      recovery: NO_ROUTE("published_exception_contract", "host publication configuration",
+        "The operator can change the host publication setting and restart the session/server") });
+    const kinds = exceptionPublication.kinds(sessionExceptionKinds(registeredTier, kind === null ? RECORD_AUTHORING_EXCEPTION_KINDS : [kind]));
+    if (kinds.length === 0) throw refuse("record_authoring_operation_unavailable", { subject, tool, operation: "grammar_exception", member: "exception", changed: false,
+      cause: "Grammar exception authoring is unavailable in this serving session; no schema was disclosed.",
+      recovery: NO_ROUTE("grammar_exception", "serving authoring operation", "Grammar exception authoring is unavailable in this session; no applicability choice is changed") });
+    const schema = kind === null ? { ...recordAuthoringExceptionSchema(), oneOf: kinds.flatMap(name => recordAuthoringExceptionSchema(name).oneOf) } : recordAuthoringExceptionSchema(kind);
     const saved = await savedExceptionFacts(unit, readSavedContract);
     const workItem = unit.split("#")[0];
     return {
       revision,
       input_contract: { tool, unit, operation: INPUT_CONTRACT_EXCEPTION_OPERATION, kinds,
-        owner_schema_digest: inputContractSourceDigest(schema), schema },
+        schema },
       request: { variant: "{unit, revision, exception}", exclusive_with: ["changes", "maintenance_retry"],
         one_exception_per_request: true, revision_from: "this unit's current revision; a stale revision is refused and nothing is saved" },
       exceptions: kinds.map((name) => {
@@ -170,35 +210,48 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
         const known = name === "controlled_acceptance" ? workItem : null;
         return { ...described,
           request_template: { executable: false, unit, revision,
-            exception: { kind: name, action: "apply", subject: known, rationale: null },
-            caller_input: [...(known === null ? ["exception.subject"] : []), "exception.rationale"],
+            exception: { kind: name, action: "apply", subject: known, rationale: null,
+              ...(name === "proof" ? {} : { source_passages: null }) },
+            caller_input: [...(known === null ? ["exception.subject"] : []), "exception.rationale",
+              ...(name === "proof" ? [] : ["exception.source_passages"])],
+            ...(name === "proof" ? {} : { source_accounting: "Optional: replace source_passages with caller-authored exact passage selections, choosing user_requirement_occurrence where repeated, or omit it to save an accounting draft with zero inferred passage coverage. Reapplying replaces the saved passage list; preserve existing intended bindings and rationale." }),
             withdraw: { unit, revision, exception: { kind: name, action: "withdraw", subject: known } } },
           ...(saved.available ? { saved: saved[name] } : {}) };
       }),
-      ...(saved.available ? {} : { saved: saved }),
+      ...(saved.available ? (kind === null && !exceptionPublication.includes("controlled_acceptance")
+        ? { saved: { controlled_acceptance: saved.controlled_acceptance } } : {}) : { saved: saved }),
       authorization: { reading_required: false, permit: "none: this read is no token and no precondition; a correctly formed request is accepted without it",
         decided_by: "the session role save_record is registered for, and the request's own revision and subject",
         eligibility: "not decided here: no rationale is read, classified or assessed" },
-      effects: { reads: [carrier.source_kind], writes: [] },
-      next_calls: []
+      next_calls: typeof readSavedContract !== 'function' ? [] : [
+        ...(kinds.includes('proof') ? [{ tool: readTool, arguments: { reference, select: { contract: 'obligations' } } }] : []),
+        ...(kinds.includes('grammar') ? [{ tool: readTool, arguments: { reference,
+          select: { contract: 'requirements', view: 'unresolved' } } }] : [])]
     };
   }
 
-  return async function readInputContract({ carrier, select, requireGrant, reopen, readSavedContract = null }) {
+  return async function readInputContract({ carrier, select, requireGrant, reopen, readSavedContract = null, reference }) {
     if (select.input_contract.operation === INPUT_CONTRACT_EXCEPTION_OPERATION) {
-      return readExceptionContract({ carrier, select, requireGrant, reopen, readSavedContract });
+      return readExceptionContract({ carrier, select, requireGrant, reopen, readSavedContract, reference });
     }
-    const { tool, members } = select.input_contract;
+    const selector = select.input_contract;
+    const { tool, members = ["requirements"] } = selector;
+    if (!recordAuthoringAvailability(registeredTier).compile_requirements && members.includes("requirements")) {
+      throw refuse("record_authoring_operation_unavailable", { subject: carrier.subject, tool, member: "requirements", operation: "compile_requirements", changed: false,
+        cause: "Requirement compilation is unavailable in this serving session; no authoring schema was disclosed.",
+        recovery: NO_ROUTE("compile_requirements", "serving authoring operation", "Compilation is unavailable in this session; required meaning and applicability remain unchanged and incomplete") });
+    }
     const subject = carrier.subject;
 
     const repeated = [...new Set(members.filter((member, index) => members.indexOf(member) !== index))];
     if (repeated.length > 0) {
       throw refuse(REASONS.MEMBER_REPEATED, { subject, requested_members: members, repeated,
+        next_calls: [{ tool: readTool, arguments: { reference, select: { input_contract: { ...selector, members: [...new Set(members)] } } } }],
         cause: `${repeated.join(", ")} ${repeated.length === 1 ? "is" : "are"} named more than once`,
         choice: "name each member once" });
     }
 
-    if (tool === RECORD_KIND_CONTRACT_TOOL) return readCreationContract({ carrier, members, requireGrant, reopen });
+    if (tool === RECORD_KIND_CONTRACT_TOOL) return readCreationContract({ carrier, members, selector, reference, requireGrant, reopen });
     if (carrier.source_kind === RECORD_KIND_SOURCE) {
       throw refuse(REASONS.TOOL_SOURCE_MISMATCH, { subject, tool, source_kind: carrier.source_kind,
         cause: `this reference names a record kind, whose input contract is ${RECORD_KIND_CONTRACT_TOOL}'s initial object; ${tool} takes the changes of a saved unit`,
@@ -223,7 +276,7 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     } catch (error) {
       throw refuse(REASONS.SOURCE_UNAVAILABLE, { subject, reads: [carrier.source_kind],
         cause: `the saved unit this reference names could not be read again: ${error.message}`,
-        source_refusal: error.envelope ?? { message: error.message },
+        source_refusal: error.envelope ?? { code: error.code, message: error.message, details: error.details },
         recovery: NO_ROUTE("the_same_saved_unit", "the saved record's owner",
           "the schema of a unit is selected by that unit; no other unit or variant is substituted for one that cannot be read") });
     }
@@ -236,14 +289,38 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
           "no registered save variant applies to this unit") });
     }
     const source = exposure.source(variant.name);
+    if (members.includes("exception") && variant.kind === "work_item") {
+
+      const replacement = { tool: readTool, arguments: { reference,
+        select: { input_contract: { tool, operation: INPUT_CONTRACT_EXCEPTION_OPERATION } } } };
+      if (await requestContracts?.contractFor(readTool)?.acceptsArguments(replacement.arguments) === true) {
+        throw selectedResponseCorrectableError(readTool, REASONS.EXCEPTION_IS_OPERATION, { subject, unit, tool,
+          effects: { reads: [carrier.source_kind], writes: [] },
+          requested_members: members, not_applicable: members.filter(member => !source.members.includes(member)),
+          valid_members: source.members,
+          cause: "exception is a separate save_record operation, not a changes member; no requested member was selected or dropped",
+          choice: "Read the exception operation through the replacement call. Select any ordinary changes members separately.",
+        }, { arguments: replacement.arguments,
+          requestSchema: requestContracts.contractFor(readTool).publishedRequestSchema(),
+          prerequisite: 'The same authenticated saved-unit reference and serving exception operation remain available.',
+          successCondition: 'The exception operation schema is read; no requested changes member is selected and nothing is written.' });
+      }
+    }
     let selected;
     try {
-      selected = source.select({ members });
+      if (selector.view === "choices") return await choicesResult(source, tool, reference, members);
+      selected = source.select({ members, ...(selector.branches ? { branches: selector.branches } : {}) });
     } catch (error) {
+      if (error.code?.startsWith("requirements_capability_") || error.code === INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_INVALID) {
+        throw invalid(error.code, { subject, cause: error.message, effects: { reads: [], writes: [] },
+          next_calls: [ { tool: readTool, arguments: { reference, select: { input_contract: { tool, members, view: "choices" } } } } ] });
+      }
       if (error.code !== INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_MEMBER_UNKNOWN) throw error;
       const unknown = members.filter((member) => !source.members.includes(member));
       throw refuse(REASONS.MEMBER_NOT_APPLICABLE, { subject, unit, variant: variant.name, tool, reads: [carrier.source_kind],
         requested_members: members, not_applicable: unknown, valid_members: source.members,
+        selection_context: { tool: readTool, reference,
+          binding: `Choose needed valid_members[i]; call {reference,select:{input_contract:{tool:"${tool}",members:[...chosen members]}}} unchanged.` },
         cause: `${unknown.join(", ")} ${unknown.length === 1 ? "is" : "are"} not ${unknown.length === 1 ? "a member" : "members"} of the ${variant.name} changes ${tool} takes for ${unit}`,
         choice: "select members from valid_members; no member is chosen or dropped for the caller" });
     }
@@ -253,8 +330,8 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
 
       revision: current,
       input_contract: { tool, unit, variant: variant.name, members: selected.members,
-        owner_schema_digest: selected.digest, schema: selected.schema },
-      coverage: COVERAGE,
+        owner_schema_digest: selected.digest, ...(selected.branches ? { branches: selected.branches } : {}), schema: selected.schema },
+      coverage: selected.branches ? { ...COVERAGE, structural: "complete for the selected members within the explicitly returned effective capabilities; excluded features were not delivered" } : COVERAGE,
       guidance: selected.guidance,
       next_calls: await guidanceCalls(selected.guidance),
       ...(observed === current ? {} : { recovered: { code: "source_moved",

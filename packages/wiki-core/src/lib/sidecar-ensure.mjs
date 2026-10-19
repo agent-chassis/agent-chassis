@@ -1,3 +1,4 @@
+import { collectSidecarCheckoutInputs } from "./sidecar-checkout-inputs.mjs";
 import { mkdir } from "node:fs/promises";
 
 import {
@@ -28,7 +29,6 @@ import {
 } from "./sidecar-store-lifecycle.mjs";
 import { readSidecarStoreStatus, resolveSidecarStorePaths } from "./sidecar-store.mjs";
 
-export const SIDECAR_INDEX_ENSURE_MAX_PASSES = 3;
 export const SIDECAR_PREPARATION_MAX_ACTIVE = 8;
 
 const activePreparations = new Map();
@@ -36,7 +36,8 @@ const capacityWaiters = new Set();
 
 const OUTCOME_CHANGED = Object.freeze({
   prior_preserved: false,
-  published_with_error: true
+  published_with_error: true,
+  unpublished: true
 });
 
 export class SidecarIndexEnsureError extends Error {
@@ -139,24 +140,21 @@ function joinPreparation(entry, signal) {
 
 async function reusablePublication(repoRoot, paths, head, retryDependencyLimited) {
   const observed = readSidecarStoreStatus({ repoRoot, cacheDir: paths.cache_dir });
-  if (observed.state !== "available" || observed.publication?.repository_commit !== head) return null;
+  if (observed.state !== "available" || !observed.publication?.base_coverage?.checkout_identity) return null;
   if (retryDependencyLimited &&
       sidecarDependencyLimitations(observed.publication.provider_coverage).length > 0) return null;
   const decision = await classifySidecarPreparation({
     publication: observed.publication, requestedCommit: head,
+    requestedInputIdentity: (await collectSidecarCheckoutInputs(repoRoot)).identity,
     providerInputsChanged: async () => sidecarProviderInputsChangedAtCommit(observed.publication, process.env)
   });
   return decision.action === "reuse" ? { action: "reused", publication: observed.publication } : null;
 }
 
-async function prepareCommitted({ repoRoot, paths, artifactPaths, head, mode, buildHooks,
+async function prepareCheckout({ repoRoot, paths, artifactPaths, head, mode, buildHooks,
   providerDeadlineMs, lockTimeoutMs, signal, retryDependencyLimited }) {
 
-  if (await resolveCommittedHead(repoRoot) !== head) return { head_moved: true };
-  if (mode === "update") {
-    const reused = await reusablePublication(repoRoot, paths, head, retryDependencyLimited);
-    if (reused) return reused;
-  }
+  head = await resolveCommittedHead(repoRoot);
   if (!(await isSidecarCachePathIgnored({ repoRoot, cacheDir: artifactPaths.cacheDir,
     artifactRelativePath: artifactPaths.artifactRelativePath }))) {
     throw new SidecarBuildRefusalError(
@@ -164,18 +162,30 @@ async function prepareCommitted({ repoRoot, paths, artifactPaths, head, mode, bu
       { code: "cache_path_not_ignored" });
   }
   await mkdir(paths.store_dir, { recursive: true });
-  return withSidecarUpdaterLock(paths.lifecycle_path, async (lock) => {
+  const repositoryPaths = resolveSidecarStorePaths({ repoRoot });
+  return withSidecarUpdaterLock(repositoryPaths.lifecycle_path, async (repositoryLock) => {
+    const run = async (storeLock) => {
+    const lock = Object.freeze({ lifecycle_path: storeLock.lifecycle_path,
+      workspace_path: repositoryLock.workspace_path,
+      get held() { return storeLock.held && repositoryLock.held; } });
 
-    if (await resolveCommittedHead(repoRoot) !== head) return { head_moved: true };
+    head = await resolveCommittedHead(repoRoot);
     const observed = readSidecarStoreStatus({ repoRoot, cacheDir: paths.cache_dir });
     const tree = observed.publication?.repository_commit === head
       ? observed.publication.repository_tree
       : await runSidecarGit(repoRoot, ["--no-replace-objects", "rev-parse", `${head}^{tree}`]);
+    if (mode === "update") {
+      const reused = await reusablePublication(repoRoot, paths, head, retryDependencyLimited);
+      if (reused) return reused;
+    }
     const update = await updateSidecarIndex({ repoRoot, paths, head, tree, mode, observed, lock,
       signal, buildHooks, providerDeadlineMs, retryDependencyLimited });
     return { action: update.action, publication: update.publication, metrics: update.metrics,
       updated: update.action !== "coalesced" };
-  }, { signal, timeoutMs: lockTimeoutMs });
+    };
+    return paths.lifecycle_path === repositoryPaths.lifecycle_path ? run(repositoryLock)
+      : withSidecarUpdaterLock(paths.lifecycle_path, run, { signal, timeoutMs: lockTimeoutMs });
+  }, { signal, timeoutMs: lockTimeoutMs, indexing: true });
 }
 
 async function finishEnsure({ repoRoot, artifactPaths, head, result, joined, dirtyState }) {
@@ -192,7 +202,8 @@ async function finishEnsure({ repoRoot, artifactPaths, head, result, joined, dir
   };
   const status = createSidecarIndexStatusEnvelope({ gitState, artifactPaths,
     store: { state: "available", publication },
-    classification: { action: "reuse", reason: "source_commit_match" } });
+    classification: { action: publication.base_coverage.inputs_moved ? "incremental" : "reuse",
+      reason: publication.base_coverage.inputs_moved ? "checkout_inputs_moved" : "checkout_inputs_match" } });
   const action = joined && result.action !== "reused" ? "coalesced" : result.action;
   const build = result.updated && !joined
     ? createSidecarBuildEnvelope({ cacheDir: artifactPaths.cacheDir, git: gitState, publication,
@@ -233,7 +244,6 @@ export async function ensureSidecarIndex({
   const artifactPaths = resolveSidecarArtifactPath({ repoRoot, cacheDir });
   const paths = resolveSidecarStorePaths({ repoRoot, cacheDir: artifactPaths.cacheDir });
   let head = null;
-  for (let pass = 0; pass < SIDECAR_INDEX_ENSURE_MAX_PASSES; pass += 1) {
     try {
       head = await resolveCommittedHead(repoRoot);
     } catch (cause) {
@@ -241,14 +251,7 @@ export async function ensureSidecarIndex({
         `repo code-index preparation requires one committed HEAD: ${cause?.message ?? cause}`,
         { code: "sidecar_head_unstable", cause });
     }
-
-    if (mode === "update") {
-      const reused = await reusablePublication(repoRoot, paths, head, retryDependencyLimited);
-      if (reused) {
-        return finishEnsure({ repoRoot, artifactPaths, head, result: reused, joined: false, dirtyState });
-      }
-    }
-    const key = JSON.stringify([repoRoot, paths.cache_dir, head, mode, retryDependencyLimited === true]);
+    const key = JSON.stringify([repoRoot, paths.cache_dir, mode, retryDependencyLimited === true]);
     const usable = (candidate) => candidate && !candidate.controller.signal.aborted ? candidate : undefined;
     let entry = usable(activePreparations.get(key));
     let joined = entry !== undefined;
@@ -256,7 +259,7 @@ export async function ensureSidecarIndex({
       await waitForCapacity(signal);
       entry = usable(activePreparations.get(key));
       joined = entry !== undefined;
-      entry ??= startPreparation(key, (ownedSignal) => prepareCommitted({ repoRoot, paths,
+      entry ??= startPreparation(key, (ownedSignal) => prepareCheckout({ repoRoot, paths,
         artifactPaths, head, mode, buildHooks, providerDeadlineMs, lockTimeoutMs, retryDependencyLimited,
         signal: ownedSignal }).catch((error) => {
         throw prepublicationFailure(error);
@@ -268,13 +271,9 @@ export async function ensureSidecarIndex({
     } catch (cause) {
       if (cause?.code === "sidecar_preparation_cancelled" && signal?.aborted) throw cause;
       throw new SidecarIndexEnsureError(
-        `repo code-index preparation failed for committed HEAD ${head}: ${cause?.message ?? cause}`,
+        `repo code-index preparation failed for checkout observed at HEAD ${head}: ${cause?.message ?? cause}`,
         { code: "sidecar_index_preparation_failed", cause, capturedHead: head });
     }
-    if (result.head_moved) continue;
     return finishEnsure({ repoRoot, artifactPaths, head, result, joined, dirtyState });
-  }
-  throw new SidecarIndexEnsureError(
-    "repository HEAD did not stabilize while preparing the committed code index",
-    { code: "sidecar_index_head_unstable", capturedHead: head });
+
 }

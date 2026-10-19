@@ -36,6 +36,7 @@ export const ATTEMPT_EVENT_KINDS = Object.freeze({
   PROOF_VERIFICATION_RECORDED: "proof_verification_recorded",
 
   DELIVERY_RECEIPT_RECORDED: "delivery_receipt_recorded",
+  COMPLETION_OBSERVATION_RECORDED: "completion_observation_recorded",
 
   ATTEMPT_TERMINAL: "attempt_terminal",
 
@@ -49,10 +50,14 @@ export const ATTEMPT_INFORMATIONAL_EVENT_KINDS = Object.freeze(new Set([
   ATTEMPT_EVENT_KINDS.RUN_ORIGINAL_RECORDED,
   ATTEMPT_EVENT_KINDS.LIFECYCLE_FAILURE_RECORDED,
   ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED,
-  ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED
+  ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED,
+  ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED
 ]));
 
 const INVOCATION_OBSERVATION_PAYLOADS = Object.freeze({
+  [ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED]: Object.freeze({
+    keys: Object.freeze(["dispatch_tuple", "invocation_id", "completion"]), field: "completion"
+  }),
   [ATTEMPT_EVENT_KINDS.LIFECYCLE_FAILURE_RECORDED]: Object.freeze({
     keys: Object.freeze(["dispatch_tuple", "invocation_id", "failure"]), field: "failure"
   }),
@@ -64,12 +69,33 @@ const INVOCATION_OBSERVATION_PAYLOADS = Object.freeze({
   })
 });
 
+function isValidCompletionObservation(value, invocationId) {
+  if (!isPlainObject(value) || value.intent_id !== invocationId) return false;
+  if (value.alternative === "delivery" && value.phase === "released_zero_effects") return hasExactKeys(value, ["alternative", "intent_id", "phase", "known_effects", "released_intent_id"]) &&
+    isNonEmptyString(value.released_intent_id) && value.intent_id === `release-${value.released_intent_id}` &&
+    value.known_effects === "delivery ref unchanged; canonical review not attempted";
+  if (value.alternative === "delivery") return hasExactKeys(value, ["alternative", "intent_id", "phase", "known_effects"]) &&
+    value.phase === "before_materialization" && isNonEmptyString(value.known_effects);
+  return value.alternative === "assignment_change_requested" &&
+    hasExactKeys(value, ["alternative", "intent_id", "request_digest", "assignment_digest", "credential", "original", "storage"]) &&
+    typeof value.request_digest === "string" && /^[a-f0-9]{64}$/u.test(value.request_digest) &&
+    typeof value.assignment_digest === "string" && /^sha256:[a-f0-9]{64}$/u.test(value.assignment_digest) &&
+    hasExactKeys(value.credential, ["kind", "launchRef", "runId", "retryId"]) &&
+    value.credential.kind === "identity_store_tuple" && isNonEmptyString(value.credential.launchRef) &&
+    isNonEmptyString(value.credential.runId) && Number.isInteger(value.credential.retryId) && value.credential.retryId >= 0 &&
+    hasExactKeys(value.original, ["ref_id", "sha256"]) && isNonEmptyString(value.original.ref_id) &&
+    typeof value.original.sha256 === "string" && /^[a-f0-9]{64}$/u.test(value.original.sha256) &&
+    hasExactKeys(value.storage, ["state_dir"]) && typeof value.storage.state_dir === "string" && path.isAbsolute(value.storage.state_dir);
+}
+
 function isValidInvocationObservationPayload(kind, payload) {
   const shape = INVOCATION_OBSERVATION_PAYLOADS[kind];
   return hasExactKeys(payload, shape.keys) &&
     isValidAttemptTuple(payload.dispatch_tuple) &&
     isNonEmptyString(payload.invocation_id) &&
-    isPlainObject(payload[shape.field]) && (kind !== ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED ||
+    isPlainObject(payload[shape.field]) &&
+    (kind !== ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED || isValidCompletionObservation(payload.completion, payload.invocation_id)) &&
+    (kind !== ATTEMPT_EVENT_KINDS.DELIVERY_RECEIPT_RECORDED ||
       isValidDeliveryReceipt(payload.receipt, payload.dispatch_tuple, payload.invocation_id));
 }
 

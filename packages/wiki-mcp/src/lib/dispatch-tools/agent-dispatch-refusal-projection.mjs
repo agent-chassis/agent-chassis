@@ -5,7 +5,8 @@ import {
   projectLauncherTransitionReadiness
 } from "@agent-chassis/wiki-core/src/lib/work-record-dispatch-readiness-shape.mjs";
 import {
-  createFailedLauncherTransitionPlan
+  createFailedLauncherTransitionPlan,
+  classifyLauncherTransitionBackendRefusal
 } from "@agent-chassis/agent-launch-core/src/lib/launcher-transition-plan.mjs";
 import { isRuntimeBlockerCode } from
   "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
@@ -31,6 +32,7 @@ import { loadDispatchSelection } from "@agent-chassis/wiki-core/src/operations/v
 import { classifyMechanicalRuntimeBlocker } from "./runtime-blocker-classifier.mjs";
 import { projectBoundedExactPolicyPayloadIssueReadiness } from
   "./agent-dispatch-cce-admission.mjs";
+import { controlledAcceptanceRecoveryCall, servedControlledAcceptanceRecovery } from "../task-start-agent-guidance.mjs";
 
 export function hasValidPrivateHandoff(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -40,6 +42,18 @@ export function hasValidPrivateHandoff(value) {
     return false;
   }
   return keys.every((key) => typeof value[key] === "string" && value[key].length > 0);
+}
+
+export function projectWorkerInputRefusal(checked, { role, subject, app, env, requestSchemaAuthority }) {
+  const classification = classifyLauncherTransitionBackendRefusal({
+    schema_version: AGENT_DISPATCH_SCHEMA_VERSION, accepted: false, refusal: checked.refusal
+  });
+  return buildBlockedDispatchResult({
+    blockerCode: publicBackendBlockerCode(classification), reason: classification.cause.code,
+    detail: projectPublicBackendDetail(classification, app, { env }),
+    nextAction: classification.next_action,
+    refusal: backendRefusalCarrier(classification, { role, subject, requestSchemaAuthority })
+  });
 }
 
 export function strictAdmissionComponentIssue(readiness) {
@@ -56,6 +70,8 @@ export function boundedRecoveryDetail(readiness, extra = {}) {
   return {
     readiness_decision_code: readiness?.decision_code ?? null,
     recovery: readiness?.recovery ?? null,
+    ...(readiness?.controlled_acceptance_failure === undefined ? {} : {
+      controlled_acceptance_failure: readiness.controlled_acceptance_failure }),
     ...extra
   };
 }
@@ -445,9 +461,44 @@ export function backendRefusalCarrier(backendClassification, {
   const blockerCode = publicBackendBlockerCode(backendClassification);
   const classifiedRecovery = backendClassification?.recovery ?? null;
   const carriedBackendRefusal = carriedBackendRefusalFor(backendClassification);
-
   let unavailableGuidance = Object.freeze(["guidance_consumer_for_refusal_reason"]);
-  if (classifiedRecovery?.state === "guidance" && classifiedRecovery.route === EXISTING_ATTEMPT_READ_TOOL) {
+  let controlledNavigationLimitation = null;
+  const controlled = backendClassification?.diagnostics?.controlled_acceptance_failure;
+  if (controlled !== undefined && controlled.requested_unit === subject &&
+      classifiedRecovery?.state === "guidance" && classifiedRecovery.route === controlled.owner_call?.tool &&
+      JSON.stringify(classifiedRecovery.args) === JSON.stringify(controlled.owner_call.arguments)) {
+    const call = controlledAcceptanceRecoveryCall(controlled);
+    if (call !== null) {
+      try {
+        const built = buildDispatchGuidanceRefusal({ code: blockerCode,
+          decidingFacts: [{ field: "dispatch.backend_accepted", value: false },
+            { field: "dispatch.controlled_acceptance_cause", value: controlled.deciding_cause }],
+          observedFacts: { "dispatch.backend_accepted": false,
+            "dispatch.controlled_acceptance_cause": controlled.deciding_cause },
+          guidance: { ...call, information: classifiedRecovery.information },
+          recovery: { prerequisite: classifiedRecovery.prerequisite, responsible_actor: classifiedRecovery.responsible_actor,
+            selected_from: ["dispatch.controlled_acceptance_cause"] },
+          route: PUBLIC_START_TOOL, carried: { launcher_backend_refusal: carriedBackendRefusal }, requestSchemaAuthority });
+        if (built.refusal !== undefined) return built.refusal;
+        unavailableGuidance = built.unavailable.missing;
+      } catch (error) {
+        unavailableGuidance = Object.freeze(["request_schema_arguments_rejected"]);
+        controlledNavigationLimitation = { code: "controlled_acceptance_navigation_schema_rejected", tool: call.tool,
+          cause: { code: error.code ?? null, message: error.message } };
+      }
+    }
+  }
+
+  const identity = backendClassification?.diagnostics?.identity_correction;
+  const identityRead = identity?.unit === subject && identity.parent === subject?.split('#')[0] &&
+    classifiedRecovery?.route === 'workspace_read_wiki' && classifiedRecovery.args?.subject === identity.parent &&
+    Object.keys(classifiedRecovery.args).length === 1;
+  const assignment = backendClassification?.diagnostics?.assignment_correction;
+  const assignmentRead = assignment?.requested_unit === subject && assignment.unit === subject?.split('#')[0] &&
+    classifiedRecovery?.route === 'workspace_read_wiki' && classifiedRecovery.args?.subject === assignment.unit &&
+    Object.keys(classifiedRecovery.args).length === 1;
+  if (classifiedRecovery?.state === "guidance" &&
+      (classifiedRecovery.route === EXISTING_ATTEMPT_READ_TOOL || identityRead || assignmentRead)) {
     const built = buildDispatchGuidanceRefusal({
       code: blockerCode,
       decidingFacts: [
@@ -490,6 +541,7 @@ export function backendRefusalCarrier(backendClassification, {
           available: false,
           missing: unavailableGuidance,
           owner: GUIDANCE_CAPABILITY_OWNER,
+          ...(controlledNavigationLimitation === null ? {} : { limitation: controlledNavigationLimitation }),
           proposal_location: "blocker.detail.recovery"
         })
       }
@@ -653,7 +705,10 @@ export async function authoredReadinessGuidance({ subject, readiness, code,
     ? [["wk.dispatchable", false], ["wk.decision_code", readiness.decision_code]]
     : [[target ? "dispatch.worker_target_exact_slice" : "dispatch.canonical_role_derived", false],
       ["dispatch.assignment_state", assignment.state]];
-  const tool = "workspace_read_wiki", callArguments = { subject };
+  const controlled = readiness?.controlled_acceptance_failure;
+  const selected = controlled === undefined ? null : await servedControlledAcceptanceRecovery(controlled, requestContracts);
+  if (selected?.limitation) return { limitation: selected.limitation };
+  const tool = selected?.call.tool ?? "workspace_read_wiki", callArguments = selected?.call.arguments ?? { subject };
   const parentRead = initiative === null ? null : missingInitiativeRead(initiative);
   const capability = guidanceCapability({ tool, requestSchemaAuthority });
   if (!capability.available) return { limitation: {
@@ -672,16 +727,16 @@ export async function authoredReadinessGuidance({ subject, readiness, code,
       decidingFacts: facts.map(([field, value]) => ({ field, value })),
       observedFacts: Object.fromEntries(facts),
       guidance: { tool, arguments: callArguments,
-        information: parentRead !== null ? parentRead.information : assignment === null
+        information: selected !== null ? selected.call.information : parentRead !== null ? parentRead.information : assignment === null
           ? `The selected authored unit ${subject}, its current revision and semantic selections for inspecting the readiness defect.`
           : target
             ? `The authored unit ${subject}, its slices and current revision, for a caller-selected implementation slice or a caller-authored ${assignment.placement} save.`
             : `The authored unit ${subject} and its current revision, for a caller-authored ${assignment.placement} save.` },
       recovery: { responsible_actor: "coordinator",
-        prerequisite: initiative !== null ? `canonical parent ${subject} declares no canonical IN-#### initiative`
+        prerequisite: controlled?.explanation ?? (initiative !== null ? `canonical parent ${subject} declares no canonical IN-#### initiative`
           : assignment === null ? "the selected unit is not dispatchable under its authored contract"
           : target ? "a managed worker starts only on an exact implementation slice"
-            : "the saved assignment declares no agent for the requested unit",
+            : "the saved assignment declares no agent for the requested unit"),
         selected_from: facts.map(([field]) => field),
         retry_condition: initiative !== null
           ? `choose an existing canonical IN-#### initiative, save ${initiative.placement} on ${subject} through save_record ` +

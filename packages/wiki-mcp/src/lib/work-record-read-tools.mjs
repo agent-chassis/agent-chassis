@@ -56,13 +56,15 @@ function classifyRecordStalenessEntry(entry, loaded) {
   const base = { id: entry.id, observed_source_digest: entry.observed_source_digest };
 
   if (diagnosticCodes.includes("missing_json_record")) {
-    return { ...base, state: "absent" };
+    return { ...base, state: "absent", diagnostics: loaded.diagnostics };
   }
 
   const currentSourceDigest =
     typeof loaded?.source_digest === "string" ? loaded.source_digest : null;
   if (loaded?.valid !== true || currentSourceDigest === null) {
-    return { ...base, state: "unreadable", diagnostic_codes: diagnosticCodes };
+    return { ...base, state: "unreadable", diagnostic_codes: diagnosticCodes,
+      diagnostics: loaded?.diagnostics ?? [],
+      correction: "Restore a readable canonical record through its owner, then repeat this currentness selection; no current digest was established." };
   }
 
   if (workRecordFreshnessMatches(entry.observed_source_digest, currentSourceDigest)) {

@@ -13,7 +13,7 @@ import { npmInstallationTrees, npmPreparationFields } from "../test-runtime-setu
 import { loadExecutionConfiguration, measureProjectInputs, readinessRecovery, recordedEnvironment,
   testRuntimeEnvironmentId } from "../test-runtime-setup/readiness.mjs";
 import { TestRuntimeSetupError } from "../test-runtime-setup/toolchains.mjs";
-import { resolveEnvironmentRuntimeInputs, resolveProofEnvironment, resolveRunnerRuntimeInputs,
+import { resolveEnvironmentRuntimeInputs, resolveHostRuntimeInputs, resolveProofEnvironment, resolveRunnerRuntimeInputs,
   workingCopyProjectDir } from "./runtime-inputs.mjs";
 
 export const RUNTIME_CONFIGURATION_INVALID_CODE = "test_runtime_configuration_invalid";
@@ -69,15 +69,28 @@ export async function resolveCurrentRunnerRuntime({ repositoryRoot, checkoutRoot
   const runtime = await resolveLocating((inputs) => resolveRunnerRuntimeInputs({ repositoryRoot, checkoutRoot,
     descriptor: runner, project: located.project, located: inputs, scratchRoot, compilerCache,
     workProjectDir: workingCopy ? workingCopyProjectDir(scratchRoot, located.project) : null,
-    hostPath }),
+    hostPath, env }),
   { repositoryRoot, checkoutRoot, env });
   return { located, runtime };
 }
 
 export function resolveCurrentEnvironmentRuntime({ repositoryRoot, checkoutRoot, ecosystem, project,
-  scratchRoot = ATTEMPT_SCRATCH_ROOT, env = process.env }) {
+  scratchRoot = ATTEMPT_SCRATCH_ROOT, hostPath = undefined, env = process.env }) {
   return resolveLocating((inputs) => resolveEnvironmentRuntimeInputs({ repositoryRoot, checkoutRoot, ecosystem,
-    project, located: inputs, scratchRoot }), { repositoryRoot, checkoutRoot, env });
+    project, located: inputs, scratchRoot, hostPath, env }), { repositoryRoot, checkoutRoot, env });
+}
+
+export async function resolveCurrentHarnessRuntime({ repositoryRoot, checkoutRoot, harness, environment = null,
+  scratchRoot = ATTEMPT_SCRATCH_ROOT, hostPath = undefined, env = process.env }) {
+  const located = resolveProofEnvironment({ repositoryRoot, checkoutRoot, target: harness.cwd,
+    runner: null, environment });
+  if (!located.configured) return { located: { configured: true, ok: true, project: ".",
+    route: { environment: null, basis: "host_command" } },
+  runtime: resolveHostRuntimeInputs({ checkoutRoot, scratchRoot, hostPath, env }) };
+  if (!located.ok) return { located, runtime: null };
+  const runtime = await resolveCurrentEnvironmentRuntime({ repositoryRoot, checkoutRoot,
+    ecosystem: located.environment.ecosystem, project: located.project, scratchRoot, hostPath, env });
+  return { located, runtime };
 }
 
 export function selectNpmDependency({ repositoryRoot, checkoutRoot, project }) {

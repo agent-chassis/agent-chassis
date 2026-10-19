@@ -2,9 +2,8 @@ import { BACKEND_REFUSAL_CODES } from "./workspace-agent-dispatch-backend.mjs";
 import { isRuntimeBlockerCode } from
   "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { superviseChildLaunch } from "./workspace-agent-launch-core.mjs";
-import { buildCodexSessionStartHookOverrides } from "@agent-chassis/agent-launch-core/src/lib/codex-session-hook-config.mjs";
+import { buildCodexRoleGuideHookConfigOverrides } from "./codex-role-guide-hook.mjs";
 import {
-  buildCodexUsageHookIdentity,
   prepareCodexSessionUsageLaunch
 } from "@agent-chassis/agent-launch-core/src/lib/native-usage-codex-session.mjs";
 import { BubblewrapIsolationError } from "./launch-isolation.mjs";
@@ -136,9 +135,8 @@ function releaseRouteWithChild(route, child) {
 }
 
 function routedPlainLaunchPlan(route, plan, plainLaunchPlan) {
-  return route.attachment?.attached === true
-    ? { ...plainLaunchPlan, args: plan.args, env: plan.env }
-    : plainLaunchPlan;
+  return { ...plainLaunchPlan, guideDelivery: plan.guideDelivery,
+    ...(route.attachment?.attached === true ? { args: plan.args, env: plan.env } : {}) };
 }
 
 async function launchCodexWithModelRoute({
@@ -258,9 +256,9 @@ async function launchCodexWithModelRoute({
 
   const unenforcedArgsWithUsage = (launchPlan, usage) => {
     const args = Array.isArray(launchPlan.args) ? [...launchPlan.args] : launchPlan.args;
-    if (usage.usageHook !== null && launchPlan.command === "codex" && Array.isArray(args)) {
+    if (launchPlan.command === "codex" && Array.isArray(args)) {
       injectCodexConfigOverridesBeforeFinalPositional(args,
-        buildCodexSessionStartHookOverrides([buildCodexUsageHookIdentity(usage.usageHook)]));
+        buildCodexRoleGuideHookConfigOverrides(launchPlan.guideDelivery ?? null, { confined: false, usageHook: usage.usageHook }));
     }
     return args;
   };
@@ -636,11 +634,6 @@ async function launchCodexWithModelRoute({
       enforcement:
         createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn()
     }),
-    conduit,
-    (failure) => makeRefusal(
-      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-      failure.reason,
-      failure.detail
-    )
+    conduit
   ), child);
 }

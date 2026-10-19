@@ -1,9 +1,9 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
+import { collectSidecarCheckoutInputs, compareSidecarCheckoutFiles } from "./sidecar-checkout-inputs.mjs";
 
-import { readCommittedBlobBytes } from "./sidecar-committed-blobs.mjs";
-import { compareSidecarCommittedTrees } from "./sidecar-committed-diff.mjs";
 import { ensureSidecarIndex } from "./sidecar-ensure.mjs";
-import { isSidecarGraphExtractionSourcePath } from "./sidecar-graph-extractors.mjs";
+import { isSidecarGraphExtractionSourceFile } from "./sidecar-graph-extractors.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
 import {
   classifySidecarPreparation,
@@ -13,25 +13,26 @@ import {
   SIDECAR_EXTRACTION_BASIS,
   SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED
 } from "./sidecar-incremental.mjs";
-import { filterSidecarSourcePaths } from "./sidecar-paths.mjs";
 import { compareSidecarProviderInputRecords } from "./sidecar-scip-project-inputs.mjs";
 import { SIDECAR_RUST_CRATE_SET_CANDIDATE, sidecarRustCrates } from "./sidecar-graph-rust-imports.mjs";
 import { isSidecarRustManifest, SIDECAR_RUST_INDEXER } from "./sidecar-scip-rust-projects.mjs";
 import {
   isSidecarGoProjectFile,
+  isSidecarProjectInputFile,
   observeSidecarProviderRecordAgain,
   planSidecarProviderProjects,
-  SCIP_TYPESCRIPT_PROJECT_CONFIG,
+  observeSidecarProjectTools,
+  sidecarTypescriptProjectConfigs,
   SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE,
   sidecarDependencyLimitations,
   sidecarGoModules
 } from "./sidecar-scip-projects.mjs";
-import { typescriptConfigPackagePopulation } from "./sidecar-scip-typescript-config.mjs";
+import { typescriptConfigPopulation } from "./sidecar-scip-typescript-config.mjs";
 import {
-  describeSidecarGoToolchainsAtCommit,
-  describeSidecarRustProjectsAtCommit,
+  describeSidecarGoToolchainsInCheckout,
+  describeSidecarRustProjectsInCheckout,
   discoverSidecarScipProjects,
-  runScipProjectsFromCommittedSnapshot,
+  runScipProjectsFromCheckout,
   SCIP_STATUS_EXTRACTED,
   SCIP_STATUS_NOT_APPLICABLE,
   SidecarScipProvisionError,
@@ -45,7 +46,7 @@ import {
   runSidecarGit
 } from "./sidecar-status.mjs";
 import { throwIfSidecarPreparationCancelled } from "./sidecar-store-lifecycle.mjs";
-import { publishSidecarGraphCandidate } from "./sidecar-store.mjs";
+import { readSidecarIncrementalState, updateSidecarGraph } from "./sidecar-store.mjs";
 import { publishPreparedDeltaInDatabase } from "./sidecar-store-publication.mjs";
 import { binaryCompare } from "./sidecar-store-queries.mjs";
 import { SIDECAR_STORE_SCHEMA_VERSION } from "./sidecar-store-schema.mjs";
@@ -68,75 +69,16 @@ export class SidecarBuildRefusalError extends Error {
   }
 }
 
-function parseTreeRecord(record) {
-  const tab = record.indexOf("\t");
-  const metadata = tab === -1 ? [] : record.slice(0, tab).split(" ");
-  if (metadata.length !== 3) throw new Error(`invalid git ls-tree record: ${record}`);
-  return { mode: metadata[0], type: metadata[1], blob_oid: metadata[2], path: record.slice(tab + 1) };
-}
-
-async function collectTrackedSources(repoRoot, commit) {
-  const raw = await runSidecarGit(repoRoot,
-    ["--no-replace-objects", "ls-tree", "-r", "-z", commit],
-    { maxBuffer: 64 * 1024 * 1024 });
-  const tracked = raw ? raw.split("\0").filter(Boolean).map(parseTreeRecord) : [];
-  const filtered = filterSidecarSourcePaths(tracked.map(({ path: value }) => value));
-  const included = new Set(filtered.included);
-  const files = tracked.filter((entry) => included.has(entry.path) && entry.type === "blob")
-    .map(({ path: value, mode, blob_oid }) => ({
-      path: value, mode, blob_oid, input_identity: `${blob_oid}:${mode}`
-    }));
-  return {
-    tracked: tracked.filter((entry) => entry.type === "blob"),
-    tracked_paths: tracked.map(({ path: value }) => value),
-    tracked_count: tracked.length,
-    files,
-    source_count: files.length,
-    symlink_count: files.filter(({ mode }) => mode === "120000").length,
-    gitlink_count: tracked.filter((entry) => entry.mode === "160000" && included.has(entry.path)).length,
-    rejected: filtered.rejected
-  };
-}
-
 async function readPreparedSources(repoRoot, files, selectedPaths) {
-  const selected = files.filter(({ path: value }) =>
-    selectedPaths.has(value) && isSidecarGraphExtractionSourcePath(value));
-  const objectIds = [...new Set(selected.map(({ blob_oid }) => blob_oid))];
-  const bytes = await readCommittedBlobBytes({ repoRoot, objectIds });
-  return selected.map((file) => {
-    const entry = bytes.get(file.blob_oid.toLowerCase());
-    if (entry?.state !== "available") {
-      const error = new Error(`committed graph source is unavailable: ${file.path}`);
-      error.code = entry?.reason ?? "committed_blob_unavailable";
-      throw error;
-    }
-    return { path: file.path, content: entry.bytes.toString("utf8"),
-      input_identity: file.input_identity };
-  });
+  return Promise.all(files.filter((file) => selectedPaths.has(file.path) &&
+    isSidecarGraphExtractionSourceFile(file)).map(async (file) => ({ path: file.path,
+      content: await readFile(path.join(repoRoot, file.path), "utf8"), input_identity: file.input_identity })));
 }
 
-async function readProjectFiles(repoRoot, tracked) {
-  const selected = tracked.filter(({ path: value }) => isSidecarGoProjectFile(value) ||
-    isSidecarRustManifest(value));
-  const bytes = await readCommittedBlobBytes({ repoRoot,
-    objectIds: [...new Set(selected.map(({ blob_oid }) => blob_oid))] });
-  return new Map(selected.map((file) => {
-    const entry = bytes.get(file.blob_oid.toLowerCase());
-    if (entry?.state !== "available") {
-      const error = new Error(`committed project file is unavailable: ${file.path}`);
-      error.code = entry?.reason ?? "committed_blob_unavailable";
-      throw error;
-    }
-    return [file.path, entry.bytes.toString("utf8")];
-  }));
-}
-
-async function readCommittedText(repoRoot, tracked, relativePath) {
-  const file = tracked.find(({ path: value }) => value === relativePath);
-  if (!file) return null;
-  const entry = (await readCommittedBlobBytes({ repoRoot, objectIds: [file.blob_oid] }))
-    .get(file.blob_oid.toLowerCase());
-  return entry?.state === "available" ? entry.bytes.toString("utf8") : null;
+async function readProjectFiles(repoRoot, files) {
+  return new Map(await Promise.all(files.filter((file) => isSidecarProjectInputFile(file) &&
+    (isSidecarGoProjectFile(file.path) || isSidecarRustManifest(file.path))).map(async (file) =>
+    [file.path, await readFile(path.join(repoRoot, file.path), "utf8")])));
 }
 
 function symbolValue(nodeId) {
@@ -192,11 +134,21 @@ function providerCoverageEntry(project, layer, inputCommit) {
   const coverage = layer.coverage ?? {};
   return {
     key: project.key, indexer: project.indexer, project: project.project,
-    input_commit: inputCommit, descriptor: layer.provider_descriptor,
+    ...(project.indexer === "scip-typescript" && project.membership ? { membership: project.membership } : {}),
+    ...(layer.configuration_coverage ? { configuration_coverage: layer.configuration_coverage } : {}),
+    input_basis: "working_checkout", input_identity: layer.input_record?.source_inputs?.digest ?? null,
+    observed_head: inputCommit, descriptor: layer.provider_descriptor,
     document_count: coverage.document_count ?? 0,
     covered_document_count: coverage.covered_document_count ?? 0,
     occurrence_count: coverage.occurrence_count ?? 0,
     symbol_count: coverage.symbol_count ?? 0,
+    covered_documents: coverage.covered_documents ?? [],
+    navigation_status: layer.empty_project ? "empty_project"
+      : layer.usable_navigation ? "usable" : "no_usable_output",
+    ...(!layer.empty_project && !layer.usable_navigation
+      ? { output_failure: { code: "scip_output_unusable",
+          message: `${project.key} produced ${coverage.document_count ?? 0} documents but no usable checkout navigation` } }
+      : {}),
 
     uncovered_documents: coverage.uncovered_documents ?? [],
     unattributed_reference_count: coverage.unattributed_reference_count ?? 0,
@@ -206,10 +158,12 @@ function providerCoverageEntry(project, layer, inputCommit) {
   };
 }
 
-function dependencyUnavailableCoverageEntry(project, { dependency_limitation, provider_failure }) {
+function dependencyUnavailableCoverageEntry(project, { dependency_limitation, provider_failure, configuration_coverage }) {
   return {
     key: project.key, indexer: project.indexer, project: project.project,
-    reason: SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE, dependency_limitation, provider_failure
+    reason: SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE, dependency_limitation, provider_failure,
+    ...(configuration_coverage ? { configuration_coverage } : {}),
+    ...(project.membership ? { membership: project.membership } : {})
   };
 }
 
@@ -225,17 +179,21 @@ function inactiveCoverageEntry({ project, record }) {
 
 function providerCoverage(entries, inactive) {
   const unavailable = inactive.some(({ reason }) => reason === SIDECAR_INACTIVE_DEPENDENCIES_UNAVAILABLE);
+  const unusable = entries.some(({ navigation_status }) => navigation_status === "no_usable_output");
+  const usable = entries.some(({ navigation_status }) => navigation_status === "usable");
   return {
     state: unavailable || entries.some(({ dependency_limitation }) => dependency_limitation)
-      ? SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED : "complete",
+      ? SIDECAR_PROVIDER_COVERAGE_DEPENDENCY_LIMITED : unusable ? "incomplete"
+        : inactive.length > 0 ? "provider_limited" : "complete",
     projects: entries,
     inactive_projects: inactive,
-    scip_available: entries.length > 0,
+    scip_available: usable,
     graph_available: entries.some(({ symbol_count }) => symbol_count > 0),
     call_graph_available: entries.some(({ call_graph_available }) => call_graph_available),
-    status_reason: entries.length > 0 ? SCIP_STATUS_EXTRACTED
+    status_reason: unusable ? "scip_output_unusable" : usable ? SCIP_STATUS_EXTRACTED
       : unavailable ? SCIP_STATUS_DEPENDENCIES_UNAVAILABLE
-        : inactive.length > 0 ? SCIP_STATUS_PROVIDERS_INACTIVE : SCIP_STATUS_NOT_APPLICABLE
+        : inactive.length > 0 ? SCIP_STATUS_PROVIDERS_INACTIVE
+          : entries.length > 0 ? "scip_empty_project" : SCIP_STATUS_NOT_APPLICABLE
   };
 }
 
@@ -243,32 +201,31 @@ function providerInputIdentity(head, generatorIdentity, entries, records) {
   return {
     index_head: head,
     generator_identity: generatorIdentity,
-    projects: Object.fromEntries(entries.map(({ key, input_commit }) => [key, input_commit])),
+    projects: Object.fromEntries(entries.map(({ key, input_identity }) => [key, input_identity])),
     records
   };
 }
 
-function recheckCapturedInputs(records) {
+function recheckCapturedProviderInputs(records) {
   for (const [key, record] of Object.entries(records)) {
     const comparison = compareSidecarProviderInputRecords(record,
       observeSidecarProviderRecordAgain(record, process.env));
-    if (!comparison.equal) {
-      throw new SidecarScipProvisionError(
-        `SCIP provider inputs of ${key} changed during preparation: ${comparison.changed.join(", ")}`,
-        { code: "scip_provider_inputs_changed" });
-    }
+    if (!comparison.equal) throw new SidecarScipProvisionError(
+      `SCIP executable or dependency inputs of ${key} changed during preparation: ${comparison.changed.join(", ")}`,
+      { code: "scip_provider_inputs_changed" });
   }
 }
 
 export function createSidecarBuildEnvelope({ cacheDir, git, publication, action, metrics }) {
   const relativeArtifact = path.posix.join(cacheDir, SIDECAR_DEFAULT_ARTIFACT_FILE);
   const base = publication.base_coverage ?? {};
+  const freshness = base.inputs_moved ? "stale" : "fresh";
   const provider = publication.provider_coverage ?? {};
   const graphState = { graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION, graph_available: true,
     edge_source: "base_index", dirty_graph_mode: "base_index_only", unavailable_paths: [],
     status_reason: "graph_store_available" };
   const scipState = { scip_available: provider.scip_available === true,
-    graph_available: provider.graph_available === true, staleness: "fresh",
+    graph_available: provider.graph_available === true, staleness: freshness,
     index_action: "use", status_reason: provider.status_reason ?? "scip_not_prepared",
     input_identity: publication.provider_input_identity,
     call_graph_available: provider.call_graph_available === true };
@@ -282,15 +239,15 @@ export function createSidecarBuildEnvelope({ cacheDir, git, publication, action,
     provider_coverage: publication.provider_coverage
   };
   return createSidecarResultEnvelope({
-    source_kind: "code_index", canonicality: "derived", evidence_basis: "git_tree",
+    source_kind: "code_index", canonicality: "derived", evidence_basis: "working_checkout",
     index_head: git.index_head, index_tree: git.index_tree,
-    dirty_state: git.dirty_state, dirty_details: git.dirty_details, staleness: "fresh",
+    dirty_state: git.dirty_state, dirty_details: git.dirty_details, staleness: freshness,
     canonical_refs: [], derived_evidence: [{
       kind: "sidecar_index_build", action, cache_path: cacheDir,
       artifact_path: relativeArtifact, artifact_schema_version: SIDECAR_STORE_SCHEMA_VERSION,
       source_count: base.source_count ?? 0, rejected_source_count: base.rejected_source_count ?? 0,
       metrics, graph_snapshot: graphSnapshot,
-      provenance: { source_kind: "code_index", canonicality: "derived", evidence_basis: "git_tree" }
+      provenance: { source_kind: "code_index", canonicality: "derived", evidence_basis: "working_checkout" }
     }], graph_snapshot: graphSnapshot,
     cache_path: cacheDir, artifact_path: relativeArtifact, artifact_exists: true,
     artifact_schema_version: SIDECAR_STORE_SCHEMA_VERSION,
@@ -317,33 +274,35 @@ export async function updateSidecarIndex({
       .generator_identity;
     return generator;
   };
-  const sources = await collectTrackedSources(repoRoot, head);
+  const sources = await collectSidecarCheckoutInputs(repoRoot);
+  const projectPaths = sources.tracked.filter(isSidecarProjectInputFile).map(file => file.path);
   const projectFiles = await readProjectFiles(repoRoot, sources.tracked);
   const goFiles = new Map([...projectFiles].filter(([value]) => isSidecarGoProjectFile(value)));
-  const goToolchains = await describeSidecarGoToolchainsAtCommit({ trackedPaths: sources.tracked_paths, goFiles,
+  const goToolchains = await describeSidecarGoToolchainsInCheckout({ sourceRepoRoot: repoRoot, trackedPaths: projectPaths, goFiles, privateRoot: lock.workspace_path,
     deadlineMs: providerDeadlineMs });
-  const rustProjects = await describeSidecarRustProjectsAtCommit({ sourceRepoRoot: repoRoot, committedHead: head,
-    trackedPaths: sources.tracked_paths, deadlineMs: providerDeadlineMs });
+  const rustProjects = await describeSidecarRustProjectsInCheckout({ sourceRepoRoot: repoRoot, privateRoot: lock.workspace_path,
+    trackedPaths: projectPaths, deadlineMs: providerDeadlineMs });
   throwIfSidecarPreparationCancelled(signal);
-  const typescriptConfig = sources.tracked_paths.includes(SCIP_TYPESCRIPT_PROJECT_CONFIG)
-    ? await typescriptConfigPackagePopulation({ repoRoot, configPath: SCIP_TYPESCRIPT_PROJECT_CONFIG,
-        trackedPaths: sources.tracked_paths,
-        readCommitted: (value) => readCommittedText(repoRoot, sources.tracked, value) })
-    : { population: [], missing: [] };
-  const projects = discoverSidecarScipProjects(sources.tracked_paths, { goFiles, goToolchains, rustProjects,
-    typescriptConfigPackages: typescriptConfig.population, typescriptConfigMissing: typescriptConfig.missing });
+  const typescriptConfigs = new Map();
+  const typescriptTool = observeSidecarProjectTools({ indexer: "scip-typescript" }, process.env);
+  for (const configPath of sidecarTypescriptProjectConfigs(projectPaths)) {
+    typescriptConfigs.set(configPath, typescriptConfigPopulation({ repoRoot, configPath,
+      trackedPaths: sources.tracked_paths,
+      indexerPath: typescriptTool.find(({ role, status }) => role === "indexer" && status === "found")?.resolved_path }));
+  }
+  const projects = discoverSidecarScipProjects(projectPaths, { goFiles, goToolchains, rustProjects,
+    typescriptConfigs, repoRoot });
 
   const rustMappings = Object.assign({}, ...rustProjects.map(({ dependency_mapping }) => dependency_mapping ?? {}));
   const rustCrates = sidecarRustCrates(new Map([...projectFiles].filter(([value]) => isSidecarRustManifest(value))))
     .map((entry) => ({ ...entry, dependencies: Object.hasOwn(rustMappings, entry.dir) ? rustMappings[entry.dir] : null }));
   const priorRecords = publication?.provider_input_identity?.records ?? {};
-  const plan = planSidecarProviderProjects({ projects, entries: sources.tracked, head, env: process.env,
+  const plan = planSidecarProviderProjects({ projects, entries: sources.tracked, env: process.env,
     priorRecords });
   const classification = await classifySidecarPreparation({
-    publication, requestedCommit: head, mode, generatorIdentity,
-    compare: () => compareSidecarCommittedTrees({
-      repoRoot, fromCommit: publication.repository_commit, toCommit: head
-    }),
+    publication, requestedCommit: head, requestedInputIdentity: sources.identity, mode, generatorIdentity,
+    compare: () => compareSidecarCheckoutFiles(readSidecarIncrementalState({
+      repoRoot, cacheDir: paths.cache_dir, allFiles: true }).files, sources.files),
     providerInputsChanged: async () => plan.some(({ current }) => !current) ||
       Object.keys(priorRecords).some((key) => !projects.some((project) => project.key === key)) ||
       (retryDependencyLimited && sidecarDependencyLimitations(publication?.provider_coverage).length > 0)
@@ -393,11 +352,17 @@ export async function updateSidecarIndex({
     await buildHooks.beforeGraphExtraction();
   }
   throwIfSidecarPreparationCancelled(signal);
-  const layers = await runScipProjectsFromCommittedSnapshot({
-    sourceRepoRoot: repoRoot, committedHead: head,
-    projects: rerun.map(({ project, record }) => ({ ...project, record })),
+
+  const configurationUnavailable = rerun.filter(({ project }) => project.configuration_unavailable);
+  const layers = await runScipProjectsFromCheckout({
+    sourceRepoRoot: repoRoot, privateRoot: lock.workspace_path,
+    projects: rerun.filter((item) => !configurationUnavailable.includes(item))
+      .map(({ project, record }) => ({ ...project, record })),
     baseFileNodeIds: new Set(sources.files.map(({ path: value }) => `file:${value}`)),
     deadlineMs: providerDeadlineMs
+  });
+  for (const { project, record } of configurationUnavailable) layers.set(project.key, {
+    input_record: record, dependency_unavailable: project.configuration_unavailable
   });
   throwIfSidecarPreparationCancelled(signal);
 
@@ -418,7 +383,7 @@ export async function updateSidecarIndex({
     ...rerun.map(({ project }) => [project.key, layers.get(project.key).input_record]),
     ...inactive.map(({ project, record }) => [project.key, record])
   ].sort(([left], [right]) => binaryCompare(left, right)));
-  recheckCapturedInputs(inputRecords);
+  recheckCapturedProviderInputs(inputRecords);
 
   let providerData = null;
   if (rerun.length > 0 || removedKeys.length > 0 || priorCoverage === null) {
@@ -428,7 +393,7 @@ export async function updateSidecarIndex({
       ...(priorCoverage ? { provider_keys: [...rerun.map(({ project }) => project.key), ...removedKeys] } : {}),
       providers: ran.map(({ project }) => ({
         provider_id: project.key, descriptor: layers.get(project.key).provider_descriptor,
-        input_identity: head, coverage: entries.find(({ key }) => key === project.key)
+        input_identity: layers.get(project.key).input_record.source_inputs.digest, coverage: entries.find(({ key }) => key === project.key)
       })),
       symbols: rows.flatMap(({ symbols }) => symbols),
       occurrences: rows.flatMap(({ occurrences }) => occurrences),
@@ -439,7 +404,8 @@ export async function updateSidecarIndex({
     repository_commit: head, repository_tree: tree, generator_identity: generatorValue,
     files: sources.files,
     base_input_identity: SIDECAR_EXTRACTION_BASIS,
-    base_coverage: { state: "complete", tracked_count: sources.tracked_count,
+    base_coverage: { state: "complete", input_basis: "working_checkout", checkout_identity: sources.identity,
+      inputs_moved: false, tracked_count: sources.tracked_count,
       source_count: sources.source_count, rejected_source_count: sources.rejected.length,
       regular_file_count: sources.files.filter(({ mode }) => mode !== "120000").length,
       symlink_count: sources.symlink_count, gitlink_count: sources.gitlink_count },
@@ -451,12 +417,13 @@ export async function updateSidecarIndex({
     ? new Set(sources.files.map(({ path: value }) => value))
     : new Set(baseRecords.flatMap(recordPaths));
   const preparedSources = await readPreparedSources(repoRoot, sources.files, selected);
+  target.base_coverage.inputs_moved = sources.identity !== (await collectSidecarCheckoutInputs(repoRoot)).identity;
   throwIfSidecarPreparationCancelled(signal);
 
   let prepared = null;
   let published;
   try {
-    published = await publishSidecarGraphCandidate({
+    published = await updateSidecarGraph({
       paths, lock, signal, basis: clean || publication === null ? "empty" : "published",
       apply: async (graph) => {
         prepared = await prepareSidecarIncrementalDelta({ graph, target, clean,
@@ -478,7 +445,7 @@ export async function updateSidecarIndex({
   return {
     action: clean ? (publication ? "rebuild" : "build") : classification.action,
     publication: published,
-    metrics: { ...prepared.metrics, provider_projects_run: rerun.length,
+    metrics: { ...prepared.metrics, provider_projects_run: rerun.length - configurationUnavailable.length,
       provider_projects_reused: reused.length }
   };
 }

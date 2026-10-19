@@ -408,6 +408,28 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
     caseIds: cases.map(definition => definition.case_id),
     verificationIdForCase: caseId => definitions.has(caseId) ? pkg.authoredCaseVerificationId(definitions.get(caseId)) : undefined });
   if (retired !== null) {
+    const correctionUses = retired.conflicts.filter(use => use.condition === 'row_correction_requires_amendment');
+    const correctionCases = cases.filter(definition => retirement.correctionIds.has(pkg.authoredCaseVerificationId(definition)))
+      .map(definition => ({ case_id: definition.case_id, verification_id: pkg.authoredCaseVerificationId(definition) }));
+    if (correctionUses.length > 0 || correctionCases.length > 0) fail('requirement_row_correction_requires_amendment',
+      'Restating a requirement row cannot delete dependent obligations or cases; choose their intended associations explicitly', {
+        field: 'changes.requirements.requirements', affected_rows: retirement.correctionRows,
+        affected_uses: correctionUses, affected_cases: correctionCases,
+        recovery: {
+          caller_decision_required: true,
+          single_claim: 'For a saved row with one claim, resubmit the intended statement using id equal to its prior_claim_ids[0] instead of row_id. ' +
+            'List every retained affected case in rebind_case_ids when its verification changes. The existing explicit rebinding owner preserves obligation and case identities across units.',
+          amendment: 'For grouped or ambiguous corrections, first save the intended replacement verification on the unchanged saved row: row_id and unchanged behavior, with the chosen verification and its request-local key. ' +
+            'Use that saved verification binding; do not guess unsaved IDs. Amend affected obligations by id to that verification and explicitly select case.verification through the case target\'s owning unit, preserving case.id and unchanged fields. ' +
+            'For shared cases, first include both old and chosen verification links on their uses across units, change the case selection, then remove changed old claim/verification links. ' +
+            'Retry the row_id correction, then use its saved claim bindings to restore the intended requirement associations. ' +
+            'With no replacement verification, explicitly clear only changed claim associations before correction and restore them from saved bindings afterwards; a retained bound case needs an authored valid test_execution verification. ' +
+            'Unchanged associations stay. No mapping or proof credit is inferred.'
+        },
+        guidance_path: rebindingGuidance(),
+        next_calls: [...new Set([unitAddress(initial.selectedUnit), ...correctionUses.map(use => use.unit)])]
+          .map(unit => ({ tool: 'workspace_read_wiki', arguments: { subject: unit } }))
+      });
     if (retired.conflicts.length > 0) fail('requirement_retirement_use_conflict',
       'A retired requirement is still used by an obligation that supports remaining meaning or that this save amends', {
         field: 'retire_claim_ids', conflict_count: retired.conflicts.length,

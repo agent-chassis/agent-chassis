@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.ownership.exact-isolation",
   "profile_version": "4.0.0",
-  "profile_digest": "2e82c0b44ea889ff2a4b5ec2babcf74cc8c4d49dcfbb5c01d57b8bd164d386b6",
+  "profile_digest": "1ed82768bdd7ab16a9d9511498f821be825345a0bb5dafee0e445d8643fb3443",
   "description": "Given one grounded owned resource, legitimate owner, distinct foreign subject, legitimate authority, reusable operation, refused foreign attempt, protected interval, complete authority-state observations before the foreign attempt and after refusal, and a distinct later valid attempt and expected successful result: the resource is assigned to the legitimate owner; the authority authorizes that owner but not the foreign subject for the operation; the foreign attempt targets the exact resource and is refused before writing or mutating it; the authority state after refusal equals its state before the attempt; and the later attempt uses the same authority, owner, operation, and resource and reaches the expected result state.",
   "parameters": [
     {

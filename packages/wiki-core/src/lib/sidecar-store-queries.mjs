@@ -1,3 +1,4 @@
+import { parseScipSymbol } from "./sidecar-scip-normalize.mjs";
 import {
   createGraphBuilder,
   sidecarGraphEdgeId,
@@ -556,11 +557,50 @@ export function selectStoreOccurrences(db, symbolIds) {
   return selectReferencedOccurrences(db, symbolIds, (row) => wanted.has(row.symbol_id));
 }
 
-export function selectStoreSymbolOccurrences(db, symbols) {
+export function selectStoreSymbolOccurrences(db, symbols, include = () => true) {
   const keys = new Set(symbols.map(({ provider_id: providerId, symbol_id: symbolId }) =>
     `${providerId}\0${symbolId}`));
   return selectReferencedOccurrences(db, symbols.map(({ symbol_id: symbolId }) => symbolId),
-    (row) => keys.has(`${row.provider_id}\0${row.symbol_id}`));
+    (row) => keys.has(`${row.provider_id}\0${row.symbol_id}`) && include(row));
+}
+
+export function selectStoreSymbolDefinitionOccurrences(db, symbols, { documentPath = null } = {}) {
+  const sids = lookupStoreStringIds(db,
+    [...symbols.flatMap(row => [row.symbol_id, row.document_path]), documentPath]);
+  const keys = new Set();
+  const requested = symbols.flatMap(symbol => {
+    const local = parseScipSymbol(symbol.raw_symbol).local;
+    const path = local ? documentPath ?? symbol.document_path : null;
+    if (local && typeof path !== "string") return [];
+    const pathSid = path === null ? null : sids.get(path);
+    const sid = sids.get(symbol.symbol_id);
+    if (sid === undefined || pathSid === undefined) return [];
+    keys.add(JSON.stringify([symbol.provider_id, symbol.symbol_id, path]));
+    return [[symbol.provider_id, sid, pathSid]];
+  });
+  const documents = new Set();
+  for (const chunk of chunkList(requested)) {
+    const values = chunk.map(() => "(?, ?, ?)").join(", ");
+    for (const row of rows(db, `WITH requested(provider_key, sid, document_sid) AS (VALUES ${values})
+      SELECT DISTINCT defs.did FROM requested r
+      JOIN providers p ON p.provider_key = r.provider_key
+      JOIN provider_document_definitions defs ON defs.pid = p.pid AND defs.sid = r.sid
+      JOIN provider_documents d ON d.did = defs.did
+      WHERE r.document_sid IS NULL OR d.document_sid = r.document_sid`, chunk.flat())) {
+      documents.add(row.did);
+    }
+  }
+  const found = [];
+  forEachSelectedDocument(db, "did", [...documents], (document, value) => {
+    for (const occurrence of value.occurrences) {
+      const row = occurrenceRow(document, occurrence);
+      if ((row.roles & 1) === 1 && [null, row.document_path].some(path =>
+        keys.has(JSON.stringify([row.provider_id, row.symbol_id, path])))) found.push(row);
+    }
+  });
+  return found.sort((left, right) => binaryCompare(left.provider_id, right.provider_id) ||
+    binaryCompare(left.symbol_id, right.symbol_id) || binaryCompare(left.document_path, right.document_path) ||
+    left.document_ordinal - right.document_ordinal || left.occurrence_ordinal - right.occurrence_ordinal);
 }
 
 export function selectStoreOccurrencesByDocument(db, documentPaths) {
@@ -705,4 +745,14 @@ export function selectStoreCounts(db) {
     symbol_edges: (value("SELECT sum(symbol_edge_count) AS count FROM provider_documents") +
       value("SELECT count(*) AS count FROM provider_symbol_edges")).toString()
   };
+}
+
+export function selectStoreExistingPrefixes(db, prefixes) {
+  const existing = [];
+  for (const chunk of chunks(prefixes)) {
+    const sql = chunk.map(() => "SELECT ? AS prefix WHERE EXISTS (SELECT 1 FROM files WHERE path >= ? AND path < ?)").join(" UNION ALL ");
+    const parameters = chunk.flatMap(prefix => [prefix, prefix, `${prefix.slice(0, -1)}0`]);
+    existing.push(...rows(db, sql, parameters).map(row => row.prefix));
+  }
+  return existing.sort(binaryCompare);
 }

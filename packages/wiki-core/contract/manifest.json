@@ -11,6 +11,7 @@
   },
   "validationDeclarations": {
     "version": "work-record-validation-declarations.v1",
+    "meaning": "executableEntryShape describes native node_test proof bindings only. acceptance.validation also supports repository_test command declarations with id, purpose and selections; each selection requires id, harness:{cwd,argv} and definition_paths. Optional default_selection names a declared selection. These commands provide entrypoints, not native proof credit. Read the current unit and select the save_record validation schema before authoring changes.validation.repository_tests.",
     "executableEntryShape": {"required": ["operation", "target", "verification_ids"], "operation": "node_test"},
     "noteEntryShape": {"required": ["note", "verification_ids"]},
     "semanticOwner": "@agent-chassis/wiki-core"

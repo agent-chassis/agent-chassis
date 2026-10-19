@@ -2,11 +2,10 @@ import { readFileSync } from "node:fs";
 
 import {
   loadToolDiscoveryDescriptor,
-  resolveToolTierVisibility,
   SESSION_ROLE_TOOL_ACCESS_POLICY_PATH,
   resolveRoleToolGrantsFromPolicy
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
-import { resolveClientConfig } from "@agent-chassis/wiki-core/src/lib/node-engine-api-client.mjs";
+import { resolveSessionProfileForEnv, sessionProfileAllowsTool } from "@agent-chassis/wiki-core/src/lib/tool-discovery/session-profile.mjs";
 
 const SUPPORTED_CONFINED_ROLES = Object.freeze(new Set([
   "orchestrator", "reviewer", "worker", "redteam"
@@ -35,16 +34,8 @@ export function resolveLauncherRoleToolNames(role) {
 
 export async function resolveLauncherRoleToolNamesForEnv(role, env) {
   const roleTools = resolveLauncherRoleToolNames(role);
-  const config = resolveClientConfig(env ?? {});
-  if (config?.apiKey) return roleTools;
-
+  const profile = resolveSessionProfileForEnv(env ?? {});
   const descriptor = await loadToolDiscoveryDescriptor();
-  const freeLocal = new Set();
-  for (const tool of Array.isArray(descriptor?.tools) ? descriptor.tools : []) {
-    if (tool?.kind === "mcp_tool" && typeof tool.tool_name === "string" &&
-        resolveToolTierVisibility(tool).includes("free_local")) {
-      freeLocal.add(tool.tool_name);
-    }
-  }
-  return Object.freeze(roleTools.filter((name) => freeLocal.has(name)));
+  const visible = new Set(descriptor.tools.filter(tool => sessionProfileAllowsTool(profile, tool)).map(tool => tool.tool_name));
+  return Object.freeze(roleTools.filter(name => visible.has(name)));
 }

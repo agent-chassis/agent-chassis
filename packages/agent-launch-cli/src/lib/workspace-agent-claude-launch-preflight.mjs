@@ -200,6 +200,7 @@ export function isClaudeNativePermissionSettingsArtifact(settings) {
 
 export async function mintClaudeNativePermissionSurface({
   commandSurfaceRole,
+  guideDelivery = null,
   mintClaudeNativePermissionSettings,
   workspaceDir,
   writeScope,
@@ -215,7 +216,8 @@ export async function mintClaudeNativePermissionSurface({
     mcpToolNames,
     env,
 
-    launchRole: role
+    launchRole: role,
+    guideDelivery
   });
   if (!isClaudeNativePermissionSettingsArtifact(claudeSettings)) {
     return {
@@ -413,12 +415,14 @@ export function buildClaudeLaunchCommandLine({
   claudeSettings,
   effectiveNativeRepoWriteMechanism,
   schemaConstrainedTerminalResult,
-  correctiveInstructions
+  correctiveInstructions,
+  guideDelivery = null
 }) {
   let commandLine;
   try {
     commandLine = buildCommandLine({
       claudePath: resolvedClaudePath,
+      guideDelivery,
       role,
       subject,
       prompt,
@@ -531,6 +535,7 @@ export async function mintLauncherOwnedClaudeNativePermissionSettings({
   buildSettings = buildClaudeNativePermissionSettings,
 
   launchRole = null,
+  guideDelivery = null,
   buildRoleGuideHookSettings = buildClaudeRoleGuideCompactionHookSettings,
 
   usageHookSettings = null
@@ -582,7 +587,7 @@ export async function mintLauncherOwnedClaudeNativePermissionSettings({
 
     let guideHook;
     try {
-      guideHook = buildRoleGuideHookSettings(launchRole);
+      guideHook = buildRoleGuideHookSettings(guideDelivery);
     } catch (confinedSettingsError) {
       return { ok: true, settingsPath, settingsRoot, settings,
         confinedSettingsPath: null, confinedSettings: null, confinedSettingsError };

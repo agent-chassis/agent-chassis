@@ -18,7 +18,6 @@
     },
     "status": {
       "enum": [
-        "satisfied",
         "unsatisfied",
         "not_executable",
         "refused"
@@ -58,6 +57,47 @@
     },
     "authority_limb": {
       "const": "mechanical_failure"
+    },
+    "execution_evaluation": {
+      "type": "object",
+      "required": [
+        "satisfaction",
+        "diagnostics"
+      ],
+      "properties": {
+        "satisfaction": {
+          "enum": [
+            "satisfied",
+            "unsatisfied"
+          ]
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "requirement_satisfaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason_code",
+        "credit_granted"
+      ],
+      "properties": {
+        "status": {
+          "const": "not_established"
+        },
+        "reason_code": {
+          "const": "verify_proof.behavioral_coverage_not_established.v1"
+        },
+        "credit_granted": {
+          "const": 0
+        }
+      }
     }
   },
   "allOf": [
@@ -65,10 +105,7 @@
       "if": {
         "properties": {
           "status": {
-            "enum": [
-              "satisfied",
-              "unsatisfied"
-            ]
+            "const": "unsatisfied"
           }
         }
       },
@@ -76,8 +113,18 @@
         "properties": {
           "proof_instance": {
             "$ref": "#/$defs/proof_instance"
+          },
+          "execution_evaluation": {
+            "$ref": "#/properties/execution_evaluation"
+          },
+          "requirement_satisfaction": {
+            "$ref": "#/properties/requirement_satisfaction"
           }
-        }
+        },
+        "required": [
+          "execution_evaluation",
+          "requirement_satisfaction"
+        ]
       },
       "else": {
         "required": [

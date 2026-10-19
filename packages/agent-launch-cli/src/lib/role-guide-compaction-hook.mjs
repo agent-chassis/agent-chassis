@@ -62,9 +62,10 @@ function refuseGuidePath(launchRole, guidePath, cause) {
 }
 
 export function resolveRoleGuideCompactionHook(launchRole, {
-  resolveGuidePath = resolveLaunchRoleGuidePath
+  resolveGuidePath = resolveLaunchRoleGuidePath,
+  registeredTier, publishControlledAcceptanceOptOut = true
 } = {}) {
-  const guidePath = resolveGuidePath(launchRole);
+  const guidePath = resolveGuidePath(launchRole, registeredTier, publishControlledAcceptanceOptOut);
   if (guidePath === null) return null;
   if (typeof guidePath !== "string" || !path.isAbsolute(guidePath)) {
     refuseGuidePath(launchRole, guidePath, "the selected guide path is not absolute");

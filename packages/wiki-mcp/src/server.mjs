@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import { resolveControlledAcceptancePublication } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
+import { createExceptionPublication } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createLauncherObservingTransport, createLauncherReadinessEventWriter,
   LAUNCHER_READINESS_PROTOCOL_GENERATION, LAUNCHER_READINESS_SCHEMA_VERSIONS } from "./lib/launcher-readiness-observer.mjs";
 import { z } from "zod";
+import { createLauncherAssignmentChangeTermination } from "./lib/launcher-assignment-change-termination.mjs";
 import { writeFileSync } from "node:fs";
 import { readContractFile } from "../../wiki-core/src/index.mjs";
 import { parseWorkspaceRepos, resolveWorkspaceRepo } from "./lib/workspace-repo-resolution.mjs";
@@ -54,7 +57,8 @@ async function registerTools(server, {
   launcherNoCceAuthorityCapability = null,
   dispatchRuntimeTestComposition = null,
   proofExecutionTestComposition = null,
-  metricsWriter = null
+  metricsWriter = null,
+  assignmentChangeTermination = null
 } = {}) {
   const workspaceRepos = await parseWorkspaceRepos();
   const toolProfile = parseToolProfile();
@@ -62,6 +66,7 @@ async function registerTools(server, {
   const boundPackageDocsCarrier = await bindPackageDocsCarrier(packageDocsCarrier);
 
   const registeredTier = resolveRegisteredTier(process.env);
+  const exceptionPublication = createExceptionPublication(resolveControlledAcceptancePublication(process.env));
   const mcpToolTierRegistrationPolicy = await loadMcpToolTierRegistrationPolicy();
   const registeredToolNames = new Set();
 
@@ -93,10 +98,10 @@ async function registerTools(server, {
 
   registerAgentTaskTools({ registerTool, workspaceRepos, resolveWorkspaceRepo,
     jsonContent, errorContent, sessionRole: toolProfile, sessionEnv: process.env,
-    responseEnv: process.env, registeredTier, dispatchBackend, dispatchSessionIdentity,
+    responseEnv: process.env, registeredTier, exceptionPublication, dispatchBackend, dispatchSessionIdentity,
     wkForgeHandoffAdapter, wkLandingStatusAdapter, launcherNoCceAuthorityCapability,
-    registeredToolNames, docsCarrier: boundPackageDocsCarrier,
-    verifyProofDeps: proofExecutionTestCompositionDeps(proofExecutionTestComposition) });
+    registeredToolNames, packageDocsCarrier, docsCarrier: boundPackageDocsCarrier,
+    verifyProofDeps: proofExecutionTestCompositionDeps(proofExecutionTestComposition), assignmentChangeTermination });
   registerRunTestTool({ registerTool, z, jsonContent, errorContent, workspaceRepos,
     resolveWorkspaceRepo, env: process.env, responseEnv: process.env });
   registerCodeIndexTools({ registerTool, workspaceRepos, jsonContent, errorContent });
@@ -166,15 +171,6 @@ export async function startWikiMcpServer({
     version: SERVER_VERSION
   }, { instructions: WIKI_MCP_SERVER_INSTRUCTIONS });
 
-  const registration = await registerTools(server, {
-    packageDocsCarrier: effectivePackageDocsCarrier,
-    launcherNoCceAuthorityCapability,
-    dispatchRuntimeTestComposition,
-    proofExecutionTestComposition,
-    metricsWriter
-  });
-  registerStaticResources(server, { readContractFile, jsonContent, errorContent });
-
   const launcherReadyFd = Number.parseInt(
     String(process.env.WIKI_MCP_LAUNCHER_READY_FD ?? ""),
     10
@@ -199,6 +195,16 @@ export async function startWikiMcpServer({
 
     onCleanupTimeout: () => { shutdownController.requestShutdown(1); }
   });
+  const registration = await registerTools(server, {
+    packageDocsCarrier: effectivePackageDocsCarrier,
+    launcherNoCceAuthorityCapability,
+    dispatchRuntimeTestComposition,
+    proofExecutionTestComposition,
+    metricsWriter,
+    assignmentChangeTermination: createLauncherAssignmentChangeTermination({ fd: launcherReadyFd, writer: launcherEventWriter })
+  });
+  registerStaticResources(server, { readContractFile, jsonContent, errorContent });
+
   const writeLauncherEvent = (event) => { launcherEventWriter.emit(event); };
 
   const transport = createLauncherObservingTransport(

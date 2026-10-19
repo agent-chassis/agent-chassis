@@ -4,9 +4,9 @@
 
 For one directly constructible and independently registrable declared component, one exact captured complete production reachability snapshot, one exact captured default-configuration artifact, and one exact captured activation-observation artifact, the declared complete graph and production-entrypoint populations contain the selected component and entrypoints, the default configuration declares the component inactive, the declared complete activation-event population has exactly zero members, and a separately bound no-path result covers every declared production entrypoint and that component.
 
-Profile digest: 86d930b44874e6e6699cc56723b52bea6361b47e7837754fc503f2a580620342. Parameter digest: a9f1df351ade8209905b10e9dab5b5234d56d6c96482b4cf38f1c32d900730e7.
+Profile digest: a7f04f1f9841880a22e4b94be8c97ff13e103b6d666c83a668eefdd057e7e69a. Parameter digest: 89ab5f6e9c95b571ff3d2ca7974f5b81f5e9630bd5062c617bd43909f19c02f1.
 
-Admission digest: 12d258cb1e16c519c657d343648d984a15e6e2deca3c0c59afcfc55ccbce34e1.
+Admission digest: cab2e3d6755c3d261a1a952d7e85ea5e6338155d24c7f9f338942086495e64f4.
 
 Roles: 17/17 accounted; 1 owned gaps. Semantic parameters: 15; internal roles: 2.
 

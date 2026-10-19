@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-pack-parameter-contract.v1",
   "profile_id": "proof.design.implementation-readiness",
   "profile_version": "4.0.0",
-  "profile_digest": "8482fe3cd014dc89270c0384f0de6d6811b59cfe06d7dc52e7139f781f7e1423",
+  "profile_digest": "d5f489c4ed9ed870c20771f51af5fe8c9e7597b8d5584e52062afb867e81eff6",
   "description": "One authored design unit names independently bound repository-grounded implementation and test loci; declares a complete nonempty requirement population, an exact four-field warning shape with exact code, severity, message-template, and payload-schema values, an authored complete validation population equal to the requirement population, and a complete placeholder population with exact count zero.",
   "parameters": [
     {

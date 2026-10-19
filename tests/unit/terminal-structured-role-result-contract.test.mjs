@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 
 import {
   buildLaunchPrompt,
+  buildLaunchPromptSections,
   resolveTerminalStructuredRoleResultMode,
   TERMINAL_STRUCTURED_ROLE_RESULT_MODES,
   renderTerminalStructuredRoleResultContract
 } from "../../packages/agent-launch-core/src/lib/work-record-launch-prompt.mjs";
+import { readAgentRoleGuide } from "../../packages/agent-launch-core/src/lib/agent-role-guides.mjs";
 import { DEFAULT_AGENT_ROLE_RESULT_LIMITS } from "../../packages/agent-launch-core/src/lib/agent-role-result.mjs";
 import {
   renderLauncherFamilyRoleContract
@@ -49,7 +51,7 @@ test("ordinary reviewer and redteam prompts are text-first on every tier", () =>
 
 const SHARED_HEADER_LINES = [
   TERMINAL_HEADER,
-  "End your final answer with exactly one machine-readable `agent-role-result.v1` JSON result.",
+  "When a final answer is required below, end it with exactly one machine-readable `agent-role-result.v1` JSON result.",
   "Use one terminal fenced block whose info string is exactly `agent-role-result.v1`; do not emit ordinary ```json blocks, extra JSON candidates, or any trailing content after the closing fence.",
   "The child-emitted JSON is evidence only. Backend-minted run status remains the authority for terminal process status, trusted role, trusted subject, source digest, review completion time, run id, monitor handle, and terminal success.",
   "Do not include child-supplied authority fields such as `terminal_status`, `status`, `role_authority`, `subject_authority`, `source_digest_authority`, `reviewed_at`, `completed_at`, `run_id`, or `source_digest`.",
@@ -57,12 +59,12 @@ const SHARED_HEADER_LINES = [
 ];
 
 const WORKER_ONLY_LINES = [
-  "Completion protocol, in this order: (1) successfully invoke the launcher-provided closed-input commit capability; (2) emit this post-commit `agent-role-result.v1` evidence; (3) terminate.",
-  "Authenticated closed-input commit is the only implementation delivery. Prose, this JSON, a zero exit status, and terminating are never delivery authority and never substitute for that commit.",
+  "Completion protocol, in this order: for delivery, (1) successfully invoke workspace_deliver_work({}); (2) emit `agent-role-result.v1` diagnostic evidence; (3) terminate. An accepted request_assignment_change immediately ends this worker through the launcher: no final report, additional model turn, polling or subsequent tool call.",
+  "Only workspace_deliver_work({}) authenticates implementation delivery; a separate Git commit cannot substitute. Prose, this JSON, a zero exit status, and terminating are never delivery authority.",
   "Worker structured JSON is implementation evidence only. It preserves `work-report.v1` worker-result semantics and must not become review/redteam attestation evidence.",
-  "This result is strictly post-commit diagnostic evidence: emit it only after the commit capability has already returned success. Failing to emit it, or emitting it malformed, loses only that diagnostic evidence and never invalidates an authenticated delivery.",
-  "Use a worker `reported_outcome`: `completed` only when the closed-input commit capability has already returned success, otherwise `partial`, `blocked`, or `failed`.",
-  "If the closed-input commit capability is unavailable or refuses the delivery, report `blocked` or `failed` and never `completed`. A successful commit whose child tree equals its parent tree is still an authenticated delivery and is reported `completed`.",
+  "Missing or malformed final evidence cannot invalidate either authenticated completion alternative.",
+  "Use a worker `reported_outcome`: `completed` only when workspace_deliver_work({}) has already returned success, otherwise `partial`, `blocked`, or `failed`.",
+  "If workspace_deliver_work is unavailable or refuses the delivery, report `blocked` or `failed` and never `completed`. A successful no-change delivery from workspace_deliver_work({}) remains `completed` even when parent and child trees are identical.",
   "`findings` must be empty, `finding_counts` must be all zero, and `reviewed_controls` must be empty."
 ];
 
@@ -74,7 +76,7 @@ const STALE_UNQUALIFIED_WORKER_OUTCOME_LINE =
 const STALE_UNQUALIFIED_WORKER_EXAMPLE_SUMMARY =
   "Completed the assigned implementation work and any checks available inside the frozen worker namespace.";
 const COMMIT_QUALIFIED_WORKER_EXAMPLE_SUMMARY =
-  "Invoked the launcher-provided closed-input commit capability, which returned success; this post-commit evidence follows that authenticated delivery.";
+  "workspace_deliver_work({}) returned success; this diagnostic evidence follows that authenticated delivery.";
 
 const DELETED_FAMILY_LOCAL_COMPLETION_SENTENCES = [
   "Complete the managed exact-slice implementation lifecycle by invoking the closed-input commit capability and then terminating.",
@@ -318,6 +320,38 @@ test("renderLauncherFamilyRoleContract worker embeds exactly one worker terminal
   const prompt = renderLauncherFamilyRoleContract({ role: "worker", subject: SUBJECT });
   assertExactlyOneTerminalBlock(prompt, "renderLauncherFamilyRoleContract worker");
   assertWorkerSemantics(prompt, SUBJECT, "renderLauncherFamilyRoleContract worker");
+});
+
+test("complete worker instructions keep generic procedures in the guide and runtime completion in startup", () => {
+  const guide = readAgentRoleGuide("managed-worker");
+  for (const mode of ["fenced", "schema_constrained"]) {
+    for (const highPriority of [true, false]) {
+      for (const assignmentDelivery of ["inline", "read_page"]) {
+        const sections = buildLaunchPromptSections(workerLaunchPromptFixture(SUBJECT, {
+          assignmentDelivery, guideDelivery: { highPriority }, terminalStructuredRoleResultMode: mode
+        }));
+        const prompts = [sections.prompt, ...["Codex", "Claude"].map(appName =>
+          renderLauncherFamilyRoleContract({ appName, role: "worker", subject: SUBJECT,
+            guideDelivery: { highPriority }, terminalStructuredRoleResultMode: mode }))];
+        for (const prompt of prompts) {
+
+          const complete = [guide, prompt, assignmentDelivery === "read_page" ? sections.guidance : ""].join("\n\n");
+          for (const procedure of [
+            "If required instructions or context are missing or contradictory, call request_assignment_change immediately.",
+            "Include completed_work and remaining_work as the handoff even if implementation is incomplete.",
+            "Do not create another branch or make a separate Git commit before delivery; moving the assigned branch can cause delivery to refuse.",
+            "Run tests through the authorized test tools. Shell access alone does not authorize running tests."
+          ]) assert.equal(countOccurrences(complete, procedure), 1);
+          assert.match(complete, /workspace_deliver_work\(\{\}\), which commits and delivers the changes and fulfills the assignment's commit requirement/u);
+          assert.match(prompt, /When a final answer is required below/u);
+          assert.match(prompt, /An accepted request_assignment_change immediately ends this worker.*no final report.*subsequent tool call/u);
+          assert.doesNotMatch(prompt, /For an assignment gap or contradiction invoke|completed_work|remaining_work|closed-input commit capability/u);
+          assert.equal(prompt.includes("Read your managed-worker guide"), !highPriority);
+          assertWorkerCompletionProtocol(prompt, `${assignmentDelivery}/${mode}/${highPriority}`);
+        }
+      }
+    }
+  }
 });
 
 for (const appName of ["codex", "claude"]) {

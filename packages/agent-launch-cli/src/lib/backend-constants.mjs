@@ -23,7 +23,7 @@ export const WORKER_READ_BOUNDARY_UNSUPPORTED_BLOCKER =
   "worker_read_boundary_unsupported";
 export const WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER = "worker_scope_authority_invalid";
 export function resolveSupportedWorkerReadBoundaryFamilies() {
-  return Object.freeze(["codex", "claude"]);
+  return Object.freeze(["codex", "claude", "agy", "opencode"]);
 }
 export const SUPPORTED_WORKER_READ_BOUNDARY_FAMILIES =
   resolveSupportedWorkerReadBoundaryFamilies();

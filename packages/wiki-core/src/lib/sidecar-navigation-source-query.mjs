@@ -1,5 +1,5 @@
 import { assembleCommittedOccurrenceSource } from "./sidecar-occurrence-source.mjs";
-import { isNativeDefinition, nativeOccurrenceIdentity } from "./sidecar-navigation-resolution.mjs";
+import { isNativeDefinition, nativeOccurrenceIdentity, nativeMultiplicityRows } from "./sidecar-navigation-resolution.mjs";
 
 function compareText(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -8,11 +8,15 @@ function compareText(left, right) {
 function narrowedRows(candidates, includeReferences) {
   const results = new Map();
   const selected = new Map();
+  const admitted = new Set(nativeMultiplicityRows(candidates.flatMap(candidate => candidate.rows))
+    .map(nativeOccurrenceIdentity));
+  const admit = row => admitted.has(nativeOccurrenceIdentity(row));
   for (const candidate of candidates) {
-    const own = candidate.rows.filter((row) => includeReferences || isNativeDefinition(row));
+    const unique = candidate.rows.filter(admit);
+    const own = unique.filter((row) => includeReferences || isNativeDefinition(row));
     for (const row of own) results.set(nativeOccurrenceIdentity(row), row);
-    const anchors = candidate.anchors.length > 0 ? candidate.anchors
-      : own.length === 0 ? candidate.rows.slice(0, 1) : [];
+    const anchors = candidate.anchors.length > 0 ? candidate.anchors.filter(admit)
+      : own.length === 0 ? unique.slice(0, 1) : [];
     for (const row of [...own, ...anchors]) selected.set(nativeOccurrenceIdentity(row), row);
   }
   return { results, selected };

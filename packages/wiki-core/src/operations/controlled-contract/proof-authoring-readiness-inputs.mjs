@@ -17,6 +17,8 @@ import { coverageUnitArguments } from './coverage-recovery-guidance.mjs';
 import { acceptanceCriterionInventory, assessAcceptanceCriterionCoverage } from
   './acceptance-criterion-coverage.mjs';
 
+import { assessProofAuthoringSpecification } from './proof-authoring-definition-assessment.mjs';
+
 const identities = new WeakMap();
 
 function stageCounts(declarations, stage, states) {
@@ -96,7 +98,7 @@ function capabilityRecovery(declarations) {
 }
 
 function ordinaryAuthoringReadiness({ obligationCoverage, contract, wkId, focus,
-  selectedUnit = null, criterionInventory }) {
+  selectedUnit = null, criterionInventory, definitionAssessment }) {
   const requirements = projectControlledContractRequirements(contract.content);
   const rows = obligationCoverage.source?.content?.obligations ?? [];
   const resolutionRows = new Map((obligationCoverage.resolution?.rows ?? []).map(
@@ -182,13 +184,19 @@ function ordinaryAuthoringReadiness({ obligationCoverage, contract, wkId, focus,
       .map(row => row.obligation_id),
     wkId, selectedUnit, focus: focus ?? null });
   const coverageIncomplete = acceptanceCoverage.status === 'incomplete';
+  const specificationIncomplete = ['incomplete', 'unresolved'].includes(definitionAssessment.specification.authored_meaning);
+  const unfinishedMeaning = definitionAssessment.specification.unfinished_meaning?.count > 0;
+  const definitionsIncomplete = ['incomplete', 'unresolved'].includes(
+    definitionAssessment.specification.definitions?.authored_meaning ?? definitionAssessment.specification.authored_meaning);
 
   const incompleteConditions = Object.freeze([
     ...(requirements.requirements.length === 0 ? ['requirements_absent'] : []),
     ...(rows.length === 0 ? ['obligations_absent'] : []),
     ...(declarations.some(row => row.status !== 'complete')
       ? ['obligation_definitions_incomplete'] : []),
-    ...(coverageIncomplete ? ['acceptance_criteria_uncovered'] : [])
+    ...(coverageIncomplete ? ['acceptance_criteria_uncovered'] : []),
+    ...(definitionsIncomplete ? ['specification_definitions_incomplete'] : []),
+    ...(unfinishedMeaning ? ['specification_meaning_unfinished'] : [])
   ]);
   const complete = incompleteConditions.length === 0;
   const authoringIncomplete = requirements.requirements.length === 0 || rows.length === 0 ||
@@ -198,18 +206,31 @@ function ordinaryAuthoringReadiness({ obligationCoverage, contract, wkId, focus,
     row.stages.canonical_sources.status !== 'current');
 
   const addressed = coverageUnitArguments({ wkId, focus: focus ?? null, selectedUnit });
+  const definitionCodes = Object.freeze([...new Set([...definitionAssessment.findings.map(row => row.finding.code),
+    ...(unfinishedMeaning ? ['specification_meaning_unresolved'] : [])])].sort());
+  const specificationRecovery = !specificationIncomplete ? null : Object.freeze({
+    tool: 'workspace_validate_proof', arguments: addressed,
+    reason_code: 'controlled_acceptance_specification_incomplete',
+    stage: definitionAssessment.specification.authored_meaning === 'incomplete' ? 'authored_inputs' : 'canonical_sources',
+    responsible_owner: unfinishedMeaning && !definitionsIncomplete ? 'authored_requirements.unresolved' : 'contract-requirement-descriptions',
+    actor_recovery: definitionAssessment.specification.authored_meaning === 'incomplete' ? 'agent' : 'system_owner',
+    owner_codes: definitionCodes,
+    explanation: `The shared specification assessment reports unfinished or unresolved meaning (${definitionCodes.join(', ')}); inspect its exact findings and supported correction.`
+  });
   const recovery = complete ? null : authoringIncomplete ? Object.freeze({
     tool: 'workspace_controlled_contract_obligation_coverage_query',
     arguments: addressed,
     follow_up_tool: 'workspace_controlled_contract_obligation_coverage_upsert'
-  }) : canonicalIncomplete ? Object.freeze({
+  }) : specificationRecovery ?? (canonicalIncomplete ? Object.freeze({
     tool: 'workspace_validate_proof',
     arguments: addressed
-  }) : capabilityRecovery(stageAssessments);
+  }) : capabilityRecovery(stageAssessments));
   return Object.freeze({
     schema_version: 'proof-authoring-ordinary-readiness.v2',
     status: complete ? 'complete' : 'incomplete',
     incomplete_conditions: incompleteConditions,
+    specification: Object.freeze(definitionAssessment.specification),
+    ...(specificationRecovery === null ? {} : { specification_recovery: specificationRecovery }),
     obligation_count: rows.length,
     case_count: cases.length,
     complete_binding_count: declarations.filter(
@@ -309,7 +330,11 @@ export async function resolveProofAuthoringReadinessInputs(input, canonicalSet) 
     });
   const derivedContract = obligationCoverage.contract;
   const completeness = proofAuthoringCompletenessSummary(obligationCoverage);
+
+  const definitionAssessment = await assessProofAuthoringSpecification({ ...obligationCoverage,
+    rows: obligationCoverage.source?.content?.obligations ?? [] }, pkg);
   const ordinaryReadiness = ordinaryAuthoringReadiness({
+    definitionAssessment,
     obligationCoverage,
     criterionInventory: acceptanceCriterionInventory(pkg, obligationCoverage.unit),
     contract: derivedContract,
@@ -327,7 +352,9 @@ export async function resolveProofAuthoringReadinessInputs(input, canonicalSet) 
     saved_application_digest: obligationCoverage.source?.content_digest ?? null };
   const facts = {
     authoringState: { schema_version: 'controlled-contract-authoring-state.v1',
-      stage: ordinaryReadiness.stage_counts.authored_inputs.incomplete === 0
+      stage: ordinaryReadiness.stage_counts.authored_inputs.incomplete === 0 &&
+        definitionAssessment.specification.authored_meaning !== 'incomplete' &&
+        definitionAssessment.specification.authored_meaning !== 'unresolved'
         ? 'complete' : 'proof_authoring_required',
       selected_resources: { contract: { content_digest: contract.content_digest } },
       saved_applications: completeness,
@@ -340,7 +367,10 @@ export async function resolveProofAuthoringReadinessInputs(input, canonicalSet) 
               : ordinaryReadiness.acceptance_coverage.status === 'incomplete'
                 ? 'controlled_acceptance_criteria_uncovered'
                 : 'obligation_coverage_resolution_required'),
-        stage: ordinaryReadiness.recovery?.stage ?? 'authored_inputs' },
+        stage: ordinaryReadiness.recovery?.stage ?? 'authored_inputs',
+        ...(ordinaryReadiness.recovery?.responsible_owner === undefined ? {} : {
+          responsible_owner: ordinaryReadiness.recovery.responsible_owner,
+          owner_codes: ordinaryReadiness.recovery.owner_codes }) },
       next_calls: typeof ordinaryReadiness.recovery?.tool === 'string'
         ? [ordinaryReadiness.recovery] : [] },
 

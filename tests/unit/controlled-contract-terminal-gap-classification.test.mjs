@@ -348,13 +348,32 @@ test("a semantic cause publishes its meaning, typed subjects and correction rout
   "typed evidence is published; nested dossiers stay with the owner");
   assert.equal(semanticCauseCorrection(inspection), null);
   const correction = byOwner("deriveControlledContractAuthoringState");
-  assert.equal(semanticCauseMeaning(correction).recovery, "authored_correction_available");
-  assert.deepEqual(semanticCauseCorrection(correction), { semantic_owner: "proof_authoring",
-    read_tool: "workspace_controlled_contract_obligation_coverage_query",
-    write_tool: "workspace_controlled_contract_obligation_coverage_upsert",
-    validation_tool: "workspace_validate_proof" });
+  assert.equal(semanticCauseMeaning(correction).recovery, "inspection_only",
+    "stage authority alone establishes no missing proof input");
+  assert.equal(semanticCauseCorrection(correction), null);
   assert.equal(semanticCauseSubject(correction.occurrences[0]).obligation_id, null,
     "a population-level cause names no obligation");
+});
+
+test("specification stage retains owner findings without advertising obligation repair", () => {
+  assert.equal(classifyControlledContractTerminalGapCode("controlled_acceptance_specification_incomplete"),
+    "unresolved_semantic_choice");
+  const stage = { ...row("authoring_stage:specification", {
+    reasons: ["controlled_acceptance_specification_incomplete", "proof_authoring_required"] }),
+    semantic_identity: { stage: "proof_authoring_required" },
+    diagnostic_provenance: { owner: "deriveControlledContractAuthoringState" },
+    repair_authority: { status: "authenticated", semantic_owner: "proof_authoring" },
+    recovery_guidance: { write_tool: "workspace_controlled_contract_obligation_coverage_upsert" },
+    evidence: { stage: "proof_authoring_required", unresolved_decisions: {
+      responsible_owner: "contract-requirement-descriptions", owner_codes: ["description_definition_missing"] } } };
+  const [group] = projectControlledContractTerminalGapDetails({ workbench: workbench([], [stage]) }).groups;
+  assert.equal(group.recovery.status, "inspection_only");
+  assert.deepEqual(group.occurrences[0].evidence, stage.evidence);
+  assert.deepEqual(group.occurrences[0].diagnostic_provenance, stage.diagnostic_provenance);
+
+  stage.evidence.authoring = { response_kind: "proof_authoring_selection" };
+  const [concrete] = projectControlledContractTerminalGapDetails({ workbench: workbench([stage]) }).groups;
+  assert.equal(concrete.recovery.status, "authored_correction_available");
 });
 
 test("recovery is authored only where one row carries both the transition and its write", () => {

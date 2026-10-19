@@ -1,6 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
+import { WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES } from
+  "@agent-chassis/wiki-core/src/lib/work-record-entry-schema.mjs";
 import { buildPublicMechanicalRefusal } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
-import { PROCESS_ERROR_GUARDS_INSTALLED, SPILLED_RESPONSE_SCHEMA_VERSION, CONTENT_REFERENCE_READ_SCHEMA_VERSION, CONTENT_REFERENCE_KIND, REFACTOR_ITEM_REFERENCE_SCHEMA_VERSION, CONTENT_REFERENCE_READ_REFUSAL_SCHEMA_VERSION, CONTENT_REFERENCE_RANGED_READ_UNAVAILABLE_CODE, RESPONSE_REFUSAL_SCHEMA_VERSION, SPILL_PERSISTENCE_FAILED_CODE, SPILLED_ENVELOPE_FIELDS, CONTENT_REFERENCE_FIELDS, CONTENT_REFERENCE_READ_TOOL, VERIFY_PROOF_SUMMARY_SCHEMA_VERSION, VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION, RESULT_DIGEST_PATTERN, SPILL_MEASUREMENT_SCHEMA_VERSION, RETAINED_PAYLOAD_ENCODING, SPILL_MEASUREMENT_FIELDS, SPILL_COMPARISONS, spillMeasurement, SPILLED_REASON, DEFAULT_INLINE_BYTE_LIMIT, DEFAULT_PREVIEW_BYTE_LIMIT, MIN_INLINE_BYTE_LIMIT, MAX_REFERENCE_READ_BYTE_LIMIT, REF_ID_PATTERN, RETAINED_REF_ID_PATTERN, RESPONSE_BOUNDARY_ROUTE, hasExactKeys, isPositiveSafeInteger, isLosslessMcpSpillDelivery, isMintedSpillMeasurement, isMintedContentReference, hasOnlyGeneratedTextCarrier, isSpilledEnvelope } from "./mcp-response-shared.mjs";
+import { PROCESS_ERROR_GUARDS_INSTALLED, SPILLED_RESPONSE_SCHEMA_VERSION, CONTENT_REFERENCE_READ_SCHEMA_VERSION, CONTENT_REFERENCE_KIND, REFACTOR_ITEM_REFERENCE_SCHEMA_VERSION, CONTENT_REFERENCE_READ_REFUSAL_SCHEMA_VERSION, CONTENT_REFERENCE_RANGED_READ_UNAVAILABLE_CODE, RESPONSE_REFUSAL_SCHEMA_VERSION, SPILL_PERSISTENCE_FAILED_CODE, SPILLED_ENVELOPE_FIELDS, CONTENT_REFERENCE_FIELDS, CONTENT_REFERENCE_READ_TOOL, VERIFY_PROOF_SUMMARY_SCHEMA_VERSION, VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION, RESULT_DIGEST_PATTERN, SPILL_MEASUREMENT_SCHEMA_VERSION, RETAINED_PAYLOAD_ENCODING, SPILL_MEASUREMENT_FIELDS, SPILL_COMPARISONS, spillMeasurement, SPILLED_REASON, DEFAULT_INLINE_BYTE_LIMIT, DEFAULT_PREVIEW_BYTE_LIMIT, MIN_INLINE_BYTE_LIMIT, MAX_REFERENCE_READ_BYTE_LIMIT, REF_ID_PATTERN, RETAINED_REF_ID_PATTERN, RESPONSE_BOUNDARY_ROUTE, hasExactKeys, isPositiveSafeInteger, isLosslessMcpSpillDelivery, isMintedSpillMeasurement, isMintedContentReference, isSpilledEnvelope } from "./mcp-response-shared.mjs";
 import { safeReadProperty, buildResponseMechanicalRefusal, normalizeDeclaredOperatorRecoveryEnvelope, untypedFailureEnvelope } from "./mcp-response-diagnostics.mjs";
 export { isReservedControlledContractAssessmentEnvelope, assertNoControlledContractRawResponse } from "./mcp-response-assessment.mjs";
 export { isLosslessMcpSpillDelivery, VERIFY_PROOF_SUMMARY_SCHEMA_VERSION, VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION } from "./mcp-response-shared.mjs";
@@ -400,6 +402,10 @@ export function activeMcpInlineByteLimit(env = process.env) {
   return getResponseSpillConfig(env).inlineByteLimit;
 }
 
+export function selectedResponseDeliveryBound(env = process.env) {
+  return Math.min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES, activeMcpInlineByteLimit(env));
+}
+
 function resultAdmissionFits(result, limit) {
   try {
     return resultAdmissionBytes(result) <= limit;
@@ -596,6 +602,7 @@ function persistSpilledPayload(
     })
   });
 
+  const access = selectedAccess === null ? null : selectedAccess({ ref_id: refId });
   return {
     schema_version: SPILLED_RESPONSE_SCHEMA_VERSION,
     response_spilled: true,
@@ -618,13 +625,14 @@ function persistSpilledPayload(
       encoding: "utf8",
       byte_count: bytes.byteLength,
       sha256,
-      read_tool: CONTENT_REFERENCE_READ_TOOL,
-      range: {
-        offset: 0,
-        length: Math.min(resolvedConfig.maxReferenceReadBytes, bytes.byteLength),
-        max_length: resolvedConfig.maxReferenceReadBytes
-      }
-    }
+    },
+    complete: false,
+    next_calls: access?.owner_call === undefined ? [] : [buildNextCall({ ...access.owner_call, recommended: true })],
+    no_supported_route: access?.owner_call === undefined,
+    recovery: access?.owner_call !== undefined ? { state: "callable", operation: access.owner_call.tool,
+      reason: "Read the retained result through its semantic owner; no producing action is repeated." }
+      : { state: "no_supported_route", missing_capability: "authorized_semantic_selection",
+        reason: "This response exceeded ordinary delivery and has no registered semantic owner selection. The original is retained internally; no public byte reader or reconstruction route is served. Delivery is incomplete; do not repeat an effectful request to retrieve it." }
   };
 }
 
@@ -716,49 +724,6 @@ export function readVerifyProofCachedRecord({ ref_id: refId, sha256, byte_count:
   }
   return includeVerifiedSource ? { record: envelope.record, retained: envelope,
     serializedBytes: bytes, source: { ref_id: refId, sha256 } } : envelope.record;
-}
-
-export const RUN_VALIDATION_INVENTORY_REFERENCE_SCHEMA_VERSION =
-  "workspace-run-validation-inventory-reference.v1";
-export const RUN_VALIDATION_INVENTORY_SCHEMA_VERSION =
-  "workspace-run-validation-test-inventory.v1";
-const RUN_VALIDATION_INVENTORY_RESOURCE_KIND = "run_validation_test_inventory";
-
-export function persistRunValidationInventoryReference({ inventory, inventoryIdentity },
-  { env = process.env } = {}) {
-  if (inventory === null || typeof inventory !== "object" || Array.isArray(inventory) ||
-      inventory.schema_version !== RUN_VALIDATION_INVENTORY_SCHEMA_VERSION ||
-      typeof inventoryIdentity !== "string" || !RESULT_DIGEST_PATTERN.test(inventoryIdentity) ||
-      inventory.inventory_digest !== inventoryIdentity) {
-    throw new TypeError("run-validation inventory persistence requires one digest-bound inventory");
-  }
-  const canonical = canonicalizeStructuredPayload(inventory);
-  if (canonical === null) throw new TypeError("run-validation inventory must be JSON");
-  const config = getResponseSpillConfig(env);
-  let persisted;
-  try {
-    persisted = persistSpilledPayload(canonical.jsonText, { env, config });
-  } catch (cause) {
-    return Object.freeze({
-      status: "refused",
-      refusal: Object.freeze({
-        code: SPILL_PERSISTENCE_FAILED_CODE,
-        cause_code: typeof cause?.code === "string" ? cause.code : null,
-        total_bytes: Buffer.byteLength(canonical.jsonText, "utf8")
-      })
-    });
-  }
-  return Object.freeze({
-    status: "persisted",
-    reference: Object.freeze({
-      schema_version: RUN_VALIDATION_INVENTORY_REFERENCE_SCHEMA_VERSION,
-      resource_kind: RUN_VALIDATION_INVENTORY_RESOURCE_KIND,
-      item_identity: inventoryIdentity,
-      inventory_schema_version: RUN_VALIDATION_INVENTORY_SCHEMA_VERSION,
-      byte_count: persisted.total_bytes,
-      content_reference: Object.freeze(persisted.content_reference)
-    })
-  });
 }
 
 function dropEnvelopePreview(envelope) {
@@ -1010,7 +975,8 @@ export function jsonContent(data, { env = process.env, forceSpill = false, selec
   return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
 }
 
-const selectedFullResults = new WeakMap();
+const selectedFullResults = new WeakSet();
+const selectedFullValues = new WeakMap();
 
 export function selectedFullContent({ source, retained, serializedBytes, member, projection }) {
   const native = serializedBytes !== undefined;
@@ -1033,7 +999,8 @@ export function selectedFullContent({ source, retained, serializedBytes, member,
       : "selected-full delivery requires an object projection of the verified retained value");
   }
   const result = structuredToolResult(canonical.value);
-  selectedFullResults.set(result, canonical.jsonText);
+  selectedFullResults.add(result);
+  selectedFullValues.set(result.structuredContent, canonical.jsonText);
   return result;
 }
 
@@ -1041,13 +1008,11 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   if (result === null || typeof result !== "object" || Array.isArray(result)) {
     return result;
   }
-  if (!Object.prototype.hasOwnProperty.call(result, "structuredContent")) {
-    return result;
+  if (!Object.prototype.hasOwnProperty.call(result, "structuredContent") || result.structuredContent === undefined) {
+    return selectedFullResults.has(result)
+      ? errorContent(new TypeError("Authenticated selected result lost structuredContent"), { env }) : result;
   }
   const payload = result.structuredContent;
-  if (payload === undefined) {
-    return result;
-  }
   const config = getResponseSpillConfig(env);
   const isError = result.isError === true;
   const canonical = canonicalizeStructuredPayload(payload);
@@ -1056,17 +1021,17 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   }
 
   const retainedContent = withoutTextCarriers(result.content);
-
-  const selectedFull = selectedFullResults.get(result);
-  if (selectedFull === canonical.jsonText && retainedContent.length === 0 &&
-      hasExactKeys(result, ["content", "structuredContent"])) {
-    if (hasOnlyGeneratedTextCarrier(result)) return result;
-    const regenerated = structuredToolResult(canonical.value);
-    selectedFullResults.set(regenerated, selectedFull);
-    return regenerated;
-  }
+  const selected = selectedFullResults.has(result) && selectedFullValues.get(payload) === canonical.jsonText;
   const inline = structuredToolResult(canonical.value, { isError });
   const completeInline = { ...result, ...inline, content: [...inline.content, ...retainedContent] };
+
+  if (selected) {
+    resultAdmissionBytes(completeInline);
+    const delivered = isDeepStrictEqual(completeInline, result) ? result : completeInline;
+    selectedFullResults.add(delivered);
+    selectedFullValues.set(delivered.structuredContent, canonical.jsonText);
+    return delivered;
+  }
   if (isDeepStrictEqual(completeInline, result) &&
       resultAdmissionFits(result, config.inlineByteLimit)) {
     return result;
@@ -1110,7 +1075,9 @@ export function guardToolHandler(
           outputSchema
         });
 
-        if (requiredFailure !== null) return normalizeMcpToolResult(requiredFailure, { env });
+        if (requiredFailure !== null) {
+          return normalizeMcpToolResult(requiredFailure, { env });
+        }
       }
       return normalizeMcpToolResult(result, { env });
     } catch (error) {

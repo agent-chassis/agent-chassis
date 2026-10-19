@@ -19,7 +19,9 @@ const scope = (applies, context) => ({ ...structuredClone(applies ?? {}), mode: 
 
 export function statementConstraint(written, defaultNature) {
   const { relation: _relation, objects: _objects, applies: _applies, ...qualifiers } = written.behavior;
-  return { form: STATEMENT_FORM, nature: written.nature ?? defaultNature, modality: written.modality, relation: written.behavior.relation,
+  return { form: STATEMENT_FORM, ...(written.definition ? { definition: true } : { nature: written.nature ?? defaultNature, modality: written.modality }), relation: written.behavior.relation,
+    ...(written.for_each === undefined ? {} : { for_each: structuredClone(written.for_each) }),
+    ...(written.within === undefined ? {} : { within: structuredClone(written.within) }),
     ...(Object.keys(qualifiers).length ? { unmapped_fields: { behavior: structuredClone(qualifiers) } } : {}),
     subject: entity(written.subject.declare),
     operands: written.behavior.objects.map(object => Object.hasOwn(object, 'referent') ? {
@@ -28,9 +30,11 @@ export function statementConstraint(written, defaultNature) {
     applies: scope(written.behavior.applies, (written.behavior.applies?.context ?? []).map(row => entity(row.declare))) };
 }
 
-export function membershipConstraint({ subject, applies, clauses }) {
+export function membershipConstraint({ subject, applies, clauses, for_each, within }) {
   return { form: MEMBERSHIP_FORM, subject: entity(subject), applies: scope(applies, applies.context.map(entity)),
-    clauses: clauses.map(clause => ({ ...structuredClone(clause), member: entity(clause.member), modality: clause.modality })).sort(byJson) };
+    ...(for_each === undefined ? {} : { for_each: structuredClone(for_each) }), ...(within === undefined ? {} : { within: structuredClone(within) }),
+    clauses: clauses.map(clause => clause.domain ? structuredClone(clause)
+      : ({ ...structuredClone(clause), member: entity(clause.member), modality: clause.modality })).sort(byJson) };
 }
 
 export const identityOf = (unit, constraint) => `constraint-${digest(canonicalJson([unit, constraint])).slice(0, 40)}`;
@@ -40,9 +44,11 @@ const appliesWords = applies => `Applies ${applies.mode}${applies.context.length
   + `${applies.context.length > 1 ? ` Context referents combine as ${modes.get(applies.mode).context_reference_semantics.combination}.` : ''}`;
 const operandWords = row => Object.hasOwn(row, 'reference') ? named(row.reference)
   : Object.hasOwn(row, 'range') ? `the inclusive range${row.range.minimum === undefined ? ' with no lower bound' : ` from ${row.range.minimum}`}${row.range.maximum === undefined ? ' with no upper bound' : ` up to ${row.range.maximum}`}`
-    : String(Object.values(row)[0]);
+    : row.value || row.observation || row.binding || row.type ? canonicalJson(row) : String(Object.values(row)[0]);
 
 export function renderConstraint(constraint, note = null) {
+  if (constraint.definition) return `${named(constraint.subject)} is defined by ${constraint.relation} ${constraint.operands.map(row => canonicalJson(row)).join(', ')}. No normative force.`;
+  if (constraint.clauses?.some(row => row.domain)) return `${named(constraint.subject)} closed typed membership: ${constraint.clauses.map(row => `${row.modality} domain ${canonicalJson(row.domain)}`).join(', ')}. Every required value must occur; every observed value must be permitted. ${appliesWords(constraint.applies)}`;
   if (constraint.form === MEMBERSHIP_FORM) {
     const clauses = constraint.clauses.map(clause => ({ member: entityKey(clause.member), modality: clause.modality })).sort((left, right) => left.member < right.member ? -1 : 1);
     const { required, permitted } = derive({ clauses });
@@ -64,6 +70,7 @@ export function compileSpecification({ unit, constraints, collections, open, ord
   const groups = collections.filter(row => selectedConstraintIds === null || row.members.every(id =>
     selectedConstraintIds.has(id) || contextConstraintIds?.has(id))).sort((left, right) => left.identity < right.identity ? -1 : 1);
   const lowered = lowerSpecification(rows, { selectedConstraintIds });
+  const includedIds = new Set(lowered.constraints.map(row => row.identity));
   const notLowered = lowered.constraints.filter(row => row.not_lowered).map(row => ({ identity: row.identity, ...row.not_lowered }));
   const pending = open.statements + open.collections + open.unresolved + lowered.unresolved_definitions.length;
   const state = !lowered.constraints.length ? 'none' : pending === 0 && notLowered.length === 0 ? 'complete' : 'partial';
@@ -74,12 +81,12 @@ export function compileSpecification({ unit, constraints, collections, open, ord
     canonical: { version: CANONICAL_VERSION, unit,
       ...(selectedConstraintIds === null ? {} : { selection: { mode: 'assigned_roots', assigned_constraint_ids: [...selectedConstraintIds].sort(),
         definition_constraint_ids: [...(contextConstraintIds ?? [])].filter(id => !selectedConstraintIds.has(id)).sort() } }),
-      constraints: rows.filter(row => selectedConstraintIds === null || selectedConstraintIds.has(row.identity) || contextConstraintIds?.has(row.identity))
+      constraints: rows.filter(row => selectedConstraintIds === null || selectedConstraintIds.has(row.identity) || contextConstraintIds?.has(row.identity) || includedIds.has(row.identity))
         .map(row => ({ identity: row.identity, ...structuredClone(row.constraint) })), collections: groups },
     cel: { conformity: whole(lowered.conformity), recommended: whole(lowered.recommended), admissible: whole(lowered.admissible),
 
       constraints: lowered.constraints.map(row => ({ identity: row.identity, form: stated.get(row.identity).form, ...(stated.get(row.identity).form === STATEMENT_FORM
-        ? { modality: stated.get(row.identity).modality, nature: stated.get(row.identity).nature } : {}), ...(({ identity, ...rest }) => { void identity; return rest; })(row) })),
+        ? stated.get(row.identity).definition ? { definition: true } : { modality: stated.get(row.identity).modality, nature: stated.get(row.identity).nature } : {}), ...(({ identity, ...rest }) => { void identity; return rest; })(row) })),
       collections: groups.map(row => ({ identity: row.identity, collection_kind: row.collection_kind, ...(row.purpose === undefined ? {} : { purpose: row.purpose }),
         order: row.collection_kind === orderedSequence ? 'as_given' : 'none', predicate: null, members: row.members.map(identity => ({ identity, expression: expression.get(identity) ?? null })) })) },
     input_contract: lowered.input_contract, bindings: lowered.bindings, environment: lowered.environment, evaluation: lowered.evaluation, not_lowered: notLowered,

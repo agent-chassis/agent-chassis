@@ -10,6 +10,7 @@ import { classifyAgentDispatchSubject } from "./dispatch-tool-helpers.mjs";
 import { RUN_WAIT_TIMEOUT_MS_BOUNDS } from "./dispatch-monitor-call-deadline.mjs";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
 import { selectedResponseCorrectableError, selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
+import { retainedRunSourceFailure } from './get-run-result-source-failure.mjs';
 import { authenticateManagedWorkerSliceBinding, managedTestAuthorityAuthenticated,
   managedTestAuthorityIdentity } from "./managed-test-source-context.mjs";
 
@@ -52,7 +53,7 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
       const mainRepo = realpathSync(path.resolve(workspace.dir));
       const sliceBinding = authenticateManagedWorkerSliceBinding({ mainRepo, state,
         wkId: subject.split("#")[0] });
-      return readManagedRunObservation({ mainRepo, subject, sliceBinding });
+      return readManagedRunObservation({ mainRepo, subject, sliceBinding, includeVerifiedSource: true });
     }
 
     const backend = preparedDispatchBackend;
@@ -70,22 +71,62 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
         return refuse("durable_observation_dependency_missing");
       }
       try { return await backend.readManagedRunObservation({ ...input, attemptId,
-        ...(selection === null ? { includeProofSummary: true, includeReviewOriginal: true }
+        ...(selection === null ? { includeProofSummary: true, includeReviewOriginal: true, includeVerifiedSource: true }
           : { detail: selection, includeVerifiedSource: true }) });
       } catch (error) {
         return { ok: false, code: error.code, observation_failure: error };
       }
     };
     const withReceipts = (status, recorded) => {
-      if (!recorded.ok) return { ...status, proof_detail: recorded, delivery: { available: false, references: [],
+      if (!recorded.ok) return { ...status, verified_source: recorded.verified_source, proof_detail: recorded, delivery: { available: false, references: [],
         cause: recorded.refusal ?? { code: recorded.code } } };
       const receipts = recorded.selected.delivery_receipts;
-      return { ...status, proof_detail: recorded.proof_detail,
-        ...(receipts.length === 0 ? {} : { delivery_receipts: receipts }) };
+      return { ...status, verified_source: recorded.verified_source,
+        ...(recorded.selected.assignment_change === undefined ? {} : { assignment_change: recorded.selected.assignment_change }), proof_detail: recorded.proof_detail,
+        delivery_receipts: receipts };
+    };
+    const reviewCandidate = (candidate, original) => {
+      const id = candidate.attempt_id;
+      if (original.subject !== parsed.subject || original.run_id !== id || original.role !== candidate.role) {
+        return refuse("observation_original_attempt_mismatch", { subject: parsed.subject, attempt_id: id });
+      }
+      return { attempt_id: id, role: original.role, status: original.status, terminal: original.terminal,
+        ...(original.review_task === undefined ? {} : { review_task: original.review_task }) };
     };
     if (live?.accepted !== true) {
+      if (live?.refusal?.reason === "attempt_selection_ambiguous" && Array.isArray(live.refusal.detail?.attempts)) {
+        const attempts = [];
+        for (const candidate of live.refusal.detail.attempts) {
+          if (!["reviewer", "redteam"].includes(candidate.role)) { attempts.push(candidate); continue; }
+          const exact = await backend.getRunStatus({ ...input, run_id: candidate.attempt_id });
+          if (exact.accepted !== true) return { ...exact, run_id: candidate.attempt_id };
+          attempts.push(reviewCandidate(candidate, exact));
+        }
+        return { ...live, refusal: { ...live.refusal, detail: { ...live.refusal.detail, attempts } } };
+      }
       if (!["attempt_observation_unavailable", "unknown_run_or_handle"].includes(live?.refusal?.reason)) return live;
       const cold = await durable(parsed.attempt_id ?? null);
+      if (!cold.ok && cold.code === "attempt_selection_ambiguous" && Array.isArray(cold.candidates)) {
+        const originals = createObservationOriginals({ workspace, sessionEnv, responseEnv });
+        const candidates = [];
+        let readable = 0, unavailable;
+        for (const candidate of cold.candidates) {
+          if (candidate.original_result === undefined) { candidates.push(candidate); continue; }
+          try {
+            candidates.push(reviewCandidate(candidate, originals.read(candidate.original_result, parsed.subject).carrier));
+            readable += 1;
+          } catch (error) {
+
+            const cause = retainedRunSourceFailure(error);
+            unavailable ??= error;
+            candidates.push({ attempt_id: candidate.attempt_id, role: candidate.role, result_available: false,
+              result_unavailable: cause });
+          }
+        }
+
+        if (readable === 0 && unavailable !== undefined) throw unavailable;
+        return { ...cold, candidates };
+      }
       if (!cold.ok || selection !== null) return cold;
 
       const review = cold.review;
@@ -104,8 +145,13 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
           (review !== undefined && retained.carrier.role !== review.role)) {
         return refuse("observation_original_attempt_mismatch");
       }
-      return review === undefined ? { ...cold, original_result: original }
-        : { ok: true, subject: parsed.subject, run_id: review.run_id, role: review.role, original_result: original };
+      const { status, terminal, exit, final_result } = retained.carrier;
+      const failures = Object.fromEntries(["completion_failure", "completion_settlement_failure",
+        "result_publication", "final_result_publication_failure"]
+        .filter(field => retained.carrier[field] !== undefined).map(field => [field, retained.carrier[field]]));
+      return { ...(review === undefined ? cold : { ok: true, subject: parsed.subject,
+        run_id: review.run_id, role: review.role }), role: retained.carrier.role, status, terminal, exit, final_result,
+        ...failures, original_result: original };
     }
     if (selection !== null) return await durable(live.run_id);
     if (parsed.timeout_ms === undefined) {

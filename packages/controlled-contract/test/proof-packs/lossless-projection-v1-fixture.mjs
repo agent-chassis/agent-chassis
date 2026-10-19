@@ -8,7 +8,7 @@ import {
 import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const LOSSLESS_PROJECTION_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../../profiles/proof.completeness.lossless-projection/4.0.0/profile.json",
+  "../../profiles/proof.completeness.lossless-projection/5.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -186,7 +186,8 @@ function buildLosslessProjectionFixture({
     ["reason_catalog", "reasons"]
   ]);
   for (const pattern of profile.reference_binding_patterns) {
-    if (pattern.comparison !== "complete_population") continue;
+
+    if (pattern.comparison !== "complete_population" || pattern.roles.length !== 2) continue;
     const [populationRole, memberRole] = pattern.roles;
     addPopulationClaims(
       contract,

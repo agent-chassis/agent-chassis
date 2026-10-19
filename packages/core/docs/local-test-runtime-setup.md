@@ -17,8 +17,9 @@ Ordinary setup does the detection. Run it from the repository root:
 agent-chassis setup
 ```
 
-Its last step inventories every test environment this repository's own
-manifests declare, locates each needed toolchain on `PATH`, saves those
+Its last step inventories dependency ownership and runner capabilities, then
+selects test environments from repository evidence. It locates each selected
+environment's needed toolchain on `PATH`, saves those
 locations in `agent-chassis-runtime.json` at the repository root, and then
 detects, validates, proves and publishes readiness for all of the
 environments. A repository with several languages, several projects of one
@@ -27,6 +28,18 @@ configuration. `agent-chassis setup --test-runtimes` reruns exactly that last
 step, with the same resolution and the same saved configuration, whether or
 not this repository has been configured before; it never reruns wiki
 bootstrap and never touches root agent guidance.
+
+Non-dry runtime setup installs or repairs the same root `.gitignore` rules as
+bootstrap before writing readiness or saved configuration: `/.agent-launch/`,
+`/agent-chassis-runtime.json`, `/wiki/.wiki-mcp.json`, and the specific cache
+directories `/.cache/repo-code-index/`, `/.cache/wiki-search/`,
+`/.cache/controlled-contract/assessments/`,
+`/.cache/controlled-contract/validators/`, and `/.cache/test-proof-native/`.
+This also works when runtime-only setup has never run bootstrap. Existing
+content is preserved and reruns add only missing rules. Ignore read or write
+failures fail setup with the path and cause; a dry run leaves `.gitignore`
+untouched. Unrelated consumer cache files remain visible, and already tracked
+state stays tracked. Installation's postinstall hook only prints guidance.
 
 ## Environments
 
@@ -41,8 +54,10 @@ public ID `<ecosystem>@<repository-relative root>`:
 | cargo | a `Cargo.toml` directory; `[workspace] members` share its lock | `cargo@.` |
 | deno | a `deno.json`/`deno.jsonc` directory | `deno@edge` |
 
-Setup detects every environment the repository declares that has a runner, in
-every language at once. The runners proved in an environment are exactly:
+The ownership inventory retains every manifest-derived environment and its
+runner capabilities, including Node and Deno's built-in runners. Having a
+capability does not by itself require automatic preparation. In each selected
+environment the runners proved are exactly:
 
 * the runner its toolchain provides — node:test with Node, `go test`, `cargo
   test`, `deno test` — and
@@ -76,10 +91,59 @@ declare is never listed or offered, and a test script is never interpreted: a
 root script that wraps its runner in a repository script needs nothing more,
 because Node's own runner comes with the verified Node.
 
+### Automatic environment selection
+
+`automatic-selection.mjs` in agent-launch-cli owns the shared selection used by
+ordinary setup and installed-package smoke preparation. Selection follows
+workspace ownership first: test evidence in an npm/pnpm member selects its
+installation root with the complete member list and shared root lock. It never
+requires a separate member lock.
+
+An npm installation is selected when its root, members or covered packages have
+a nonempty `test`, `test:...` or `test-...` script, a declared supported test
+framework dependency, or repository-owned native Node test evidence. Every
+independent test-bearing application is selected, regardless of directory
+name. A package with only application dependencies and no test evidence remains
+in the ownership inventory without requiring preparation, inside or outside
+documentation directories. Empty test scripts do not count. Script commands
+are not executed and wrappers are not interpreted.
+
+A Deno environment colocated with a selected npm project is also selected when
+it declares test-family tasks, explicit `test` configuration, or native Deno
+tests. Development, build, format, lint and typecheck declarations alone do not
+add a Deno requirement there. Task strings, object-form `command` and
+`dependencies`, and direct `deno task <name>` alias edges are inspected
+statically; direct `deno test` declarations count too. Aliases must name declared
+tasks and cycles refuse with the manifest diagnostic. This is not shell
+evaluation: arbitrary wrappers, computed commands and environment expansion are
+not inferred. Standalone Deno discovery remains selected even without a task
+named `test`. Go, Rust and Python retain their existing selection rules.
+
+Native evidence is collected from JavaScript/TypeScript source files in the
+same bounded walk and with the same ignore, skipped-tree, fixture and workspace
+rules as manifests. Node evidence is an import or `require` of `node:test`;
+Deno evidence is a `Deno.test(...)` call or an import from `@std/testing/bdd`
+(including `jsr:@std/testing/bdd`). Comments and quoted examples do not count.
+Neither a `.test.ts` filename nor a Vitest import implies Deno. This keeps
+scriptless native tests discoverable in their owning manifest-derived
+environments without guessing a runner from a filename. Sources below the
+walk's depth limit are not searched further; existing workspace membership
+still remains complete.
+
+Selection never asks whether a tool is on `PATH`, a lock exists, dependencies
+are installed or a probe passes. Those prerequisites are validated afterward;
+selected Deno still refuses when Deno is missing, and selected npm environments
+still refuse missing locks or dependencies. Malformed declarations and
+unreadable evidence fail explicitly rather than becoming unused projects.
+Reports include `automatic_selection` decisions for selected and omitted
+environments, with a reason, at most eight evidence items per environment and
+the complete evidence count. Automatic choices are recomputed on each run and
+are never saved as explicit `runners` overrides.
+
 ## How setup finds environments
 
 Inventory reads the repository's manifests — `go.mod`, `Cargo.toml`,
-`deno.json`/`deno.jsonc`, `package.json`, `pyproject.toml`,
+`deno.json`/`deno.jsonc`, `package.json`, `pnpm-workspace.yaml`, `pyproject.toml`,
 `setup.py`/`setup.cfg`,
 `requirements.txt`/`test-requirements.txt`/`requirements-dev.txt` and a
 project's `requirements/test.txt` — up to three directories deep, skipping dependency, build and runtime-state trees
@@ -90,7 +154,7 @@ project's `requirements/test.txt` — up to three directories deep, skipping dep
   cache) is reported as `ignored_by_repository`;
 * a manifest under a `fixtures`, `__fixtures__`, `test-fixtures`, `testdata`,
   `examples` or `example` directory is reported as `test_fixture_or_example`,
-  unless an npm, pnpm or Cargo workspace declaration names its directory as a
+  unless an npm, pnpm, Deno or Cargo workspace declaration names its directory as a
   member;
 * an npm package with no dependencies, no workspace members and no lock of its
   own runs in the npm installation that encloses it
@@ -112,7 +176,17 @@ becomes a member. A declared member belongs to the root that declares it and
 is never asked for a lock of its own; see
 [Workspace ownership and locks](npm-test-runtime-layouts.md#workspace-ownership-and-locks).
 
-Setup reports every environment with its members, runners and evidence, and
+A `pnpm-workspace.yaml` declares its installation root even when that directory
+has no `package.json`. Deno's `workspace` array in `deno.json` or `deno.jsonc`
+folds matching discovered Deno projects into its root; `deno.json` takes
+precedence when both files exist. Deno uses the same JSONC reader as lock
+selection, including comments and trailing commas. Both workspace types retain
+member manifest evidence and aggregate member runners. Invalid workspace syntax
+refuses with `test_runtime_manifest_invalid`, naming the manifest and its parser
+diagnostic; invalid declarations confer no guessed membership. Ignore, fixture
+and containing-project boundaries still apply.
+
+Setup reports selected environments with their members, runners and evidence, and
 every excluded manifest with its reason. It then locates each needed toolchain
 with the command it is installed as (`node`, `python3`, `go`, `rustc`, `deno`)
 on setup's own `PATH`.
@@ -125,10 +199,13 @@ status 3 ([Ordinary setup exit status](#ordinary-setup-exit-status)). A
 repository whose manifests declare no environment is reported as such and is
 not an error; setup saves nothing and guesses nothing.
 
-An explicit runner selection replaces the inventory: `--runner`, or a `runners`
+An explicit runner selection bypasses automatic selection: `--runner`, or a `runners`
 list saved in `agent-chassis-runtime.json` (or supplied with `--runtime-config`),
 detects exactly the named runners' environments. `--language <name>` narrows
-the inventory to the environments serving that language.
+the automatic candidates to environments serving that language and bypasses
+saved runner choices, as before. Command-line runner choices take precedence
+over both. Explicit selection can prepare an automatically omitted environment;
+it does not remove that environment's prerequisite checks.
 
 ## Ordinary setup options
 
@@ -137,7 +214,8 @@ the inventory to the environments serving that language.
 | `--language <name>` | Detect only the inventoried environments of one language: `go`, `javascript`, `python`, `rust` or `typescript`. |
 | `--runner <name>[@<project>]` | Detect exactly this runner's environment at a repository-relative installation root (default `.`) instead of the inventory. Repeatable. Names: `node-test`, `jest`, `vitest`, `mocha`, `ava`, `deno`, `lib0-testing`, `pytest`, `stestr`, `go-test`, `cargo-test`. |
 | `--executable <toolchain>=<absolute-path>` | Where `node`, `python`, `go`, `rust` (its `rustc`) or `deno` is installed, when `PATH` has none or the wrong one. Repeatable. |
-| `--dry-run` | Detect and validate everything without the sandbox proof, saving or publishing anything. |
+| `--dry-run` | Detect and validate everything without the sandbox proof, saving configuration or publishing readiness. A requested invocation report is still written. |
+| `--test-runtime-report <path>` | Ordinary setup only: write compact JSON diagnostic facts for this invocation's test-runtime phase, separately from readiness history. The parent directory must exist. |
 
 ## Ordinary setup exit status
 
@@ -151,10 +229,34 @@ ended the run:
 | `3` | Every earlier step succeeded, and the test-runtime step left the runtimes not ready or unresolved: a toolchain that could not be located without a terminal, a failed toolchain, dependency or sandbox check, or a request the launcher-owned setup refused. Setup's output names what failed, and no readiness record needs to have been published for this status. |
 | any other nonzero | Setup failed otherwise: wiki bootstrap or launcher configuration failed, an option or the saved `agent-chassis-runtime.json` was refused, or setup stopped on an unexpected error. Its own message names the cause. |
 
-A caller that only needs to know whether setup's earlier steps completed can
-therefore continue on exactly `0` and `3` without reading any readiness record
-or setup output. Status `3` reports the runtimes as they are; it does not make
-them ready.
+A caller that requires test preparation must stop on status `3`, after preserving
+the invocation report and specific failure. Status `0` preserves successful setup
+and the no-test-project case. Select the runners required by the intended
+validation with `--runner` when an explicit override is needed; a
+validation that requires Deno must select Deno, not a different runner. The
+initiative harness applies this policy before agent execution.
+
+Ordinary setup can also write `--test-runtime-report <path>`. This optional
+`setup-test-runtime-report.v1` JSON report retains the phase, outcome, original
+stable failure code and message, selected environments, component/check facts, bounded probe
+diagnostics (up to 4,000 characters each) and specific correction, when known. Diagnostics retain the native command cause,
+including command exit, timeout and inspection failures. The report excludes
+complete native captures, raw check logs, stacks, complete errors and complete
+preparation results. A missing component keeps its executable and path facts. Selected environments have no
+inferred availability: an environment setup did not assess remains unassessed.
+
+The report describes this invocation even when setup returns `3` before any
+readiness record was accepted. Setup clears the prior report before bootstrap;
+an earlier bootstrap/configuration failure or unexpected exception leaves no
+invented runtime outcome. A requested report is written even for dry runs and
+repositories with no test project. Clearing or writing it must succeed;
+otherwise setup fails clearly, rather than returning the runtime status.
+
+Readiness is setup history. It does not decide whether an individual test can
+execute using current inputs. A successful `run_test` can coexist with an
+incomplete setup: execution resolves the selected test's inputs through its
+existing owner, and assesses only what that request needs. Neither that success
+nor an unassessed environment establishes readiness for the other environments.
 
 `agent-chassis setup --test-runtimes` runs only the test-runtime step and keeps
 its own status: `0` when the result is ready (or detected, for a dry run, or
@@ -189,6 +291,26 @@ absolute path; no other ecosystem takes an explicit selection here (see
 unknown field, a wrong type or a selection listed twice is refused outright. There is no
 configuration include, inheritance, variable expansion or global/local layering,
 and a saved file that is not this shape is reported rather than ignored.
+
+File-only declared regressions consume this owning project's explicit runner
+choice when present, otherwise its single runner recorded by setup. Setup's
+automatic inventory remains in the runtime record; it is never persisted as an
+explicit `runners` choice. Several runners require the configuration owner to
+select one with `agent-chassis setup --test-runtimes --runner <runner>@<project>`;
+an ancestor's runner cannot resolve ambiguity in a nested project. Missing
+defaults name `agent-chassis setup --test-runtimes` as the configuration-owner
+action. A later preparing or failed setup retains the preceding configuration
+for execution rather than withdrawing it.
+
+Ordinary pytest and pytest proof execution bind local editable imports to the
+selected candidate through the same Python startup adapter, including the
+proof entry's isolated mode. Installed third-party locations, configured
+virtual environments, project cwd and pytest options are preserved. The
+adapter changes only the test process: it never reinstalls packages or copies
+implementation files into the original checkout. Missing candidate source or
+an unsupported editable mechanism refuses explicitly. Supported mechanisms
+and the startup-import limitation are documented in
+[Test Proof Runtime Environments](test-proof-runtime-environments.md#native-provider-runtime-inputs).
 
 ### Test-entrypoint associations
 
@@ -241,13 +363,13 @@ Setup never saves its inventory: every run inventories the repository again, so
 a project added later is detected by the next run instead of being hidden by an
 earlier one. The file is saved *choices*. It is not readiness: the generated
 host readiness record under `.agent-launch/` stays separate, is never hand
-written, and only the detection below decides whether tests can actually run.
-Nothing installs anything.
+written. When an individual test runs, its execution owner resolves the current
+inputs that request needs. Nothing installs anything.
 
 `executable` is a path on this host. Setup rewrites the file only when the
 resolved choices differ from what it already holds, and a dry run never writes
-it. Commit it only when every host that runs setup shares those paths;
-otherwise leave it out of version control and let each host write its own.
+it. Explicit setup ignores this host-local file by default; let each host write
+its own. Setup never untracks a copy the consumer already committed.
 
 ## Precedence and refusals for an explicit location
 
@@ -294,8 +416,8 @@ runner.ava`). The interactive report prints these lines before the result; with
 structured result.
 
 This mode resolves exactly as ordinary setup does, through the same owner: an
-explicit runner selection if one is given, otherwise the repository's own
-inventory. A repository that has never been configured needs no arguments and
+explicit runner selection if one is given, otherwise the shared automatic
+selection from repository evidence. A repository that has never been configured needs no arguments and
 no hand-written file. An unconfigured toolchain is found on `PATH` by the
 launcher owner, which reports one it cannot find
 (`test_runtime_toolchain_not_found`, with the `--executable` correction)
@@ -505,9 +627,11 @@ decides whether it applies.
 
 A Go module builds in the workspace its checkout selects, and setup validates,
 identifies and runs it under that same selection. One owner
-(`test-runtime-setup/go-workspace.mjs` in the launcher package) reads it from
+(`runtime-inputs/go-workspace.mjs` in wiki-core) supplies nearest-workspace,
+membership, local replacements and containment facts to both indexing and the
+launcher's `test-runtime-setup/go-workspace.mjs` policy adapter. The launcher reads
 the checkout's own files, and dependency-input identity, dependency detection
-and the execution environment all take it from there:
+and the execution environment all take the selection from that adapter:
 
 * the workspace is the nearest `go.work` at or above the module, searched no
   higher than the checkout root; a `go.work` outside the checkout is not an
@@ -628,6 +752,11 @@ as ready (see [Test-proof runtime identity](test-proof-runtime-environments.md#l
 These setup-owned probes retain ordinary validation's private temporary mount
 and its read-only checkout. This confinement applies to setup probes; it does
 not apply to the shared host test-execution capability described below.
+In particular, a successful probe with a private scratch cache establishes
+no access fact about the cache an ordinary host command selects. Readiness
+does not certify that host compiler caches, package-manager caches or browser
+resources are readable or writable by the test-execution user. The toolchain
+and dependency checks above are the checks that readiness records.
 An npm environment's runner probes run in a private copy of its project inside
 that mount. Every installed module tree is bound read-only at its own path and
 linked into the copy at its own place, each workspace member resolves to its
@@ -848,6 +977,25 @@ proof identity.
 
 ## Ordinary test runs
 
+Repository-command declarations live only in the selected unit's
+`acceptance.validation` as `repository_test` rows. Each named selection owns a
+complete literal command, working directory, optional prepared environment and
+exact definition paths. Notes and parent declarations confer no execution grant.
+Native `node_test` declarations remain the proof population.
+
+After provisioning authentication, the launcher freezes typed commands with
+definition identities from Git objects at the provisioned start commit. The
+same freeze derives start/parent comparison identities and explicitly authored
+additional baseline commits. These are private launcher facts; derived defaults
+are never written back into the canonical record. Listed files bind bytes,
+Git executable modes and path identity. Symlinks in listed paths or their
+components refuse. This check does not infer transitive imports or precedence
+files, and the ordinary whole-checkout snapshot's symlink policy is unchanged.
+The private assignment artifact carries these typed facts and its authenticated
+session pins the artifact digest plus the launch/unit/run/retry/source binding.
+Guidance is presentation. Editing it or canonical authoring cannot refresh a live
+grant; revised definitions require an authorized successor assignment.
+
 The launcher has one internal entry that runs one repository test file with its
 prepared runner, outside any proof: `runOrdinaryTestFile` in
 `packages/agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs`. It
@@ -875,12 +1023,67 @@ authentic, an input that cannot be located, or an executable that is gone or
 not executable is refused with its owner's own code; nothing is installed and
 a configured location is never replaced. The command runs through the shared
 host execution capability, in the exact authenticated checkout, with normal
-host filesystem and network permissions. The launcher sets `HOME` to its owned
-scratch home and `TMPDIR`, `TMP` and `TEMP` to its owned temporary directory; a
-literal `/tmp` is not a private namespace. Its environment is curated: selected
-executable directories lead `PATH`, followed by absolute host `PATH` components
-in their original order; relative entries are omitted. Invalid selected
-executables are refused rather than replaced. The result carries process,
+host filesystem and network permissions. The harness runs in the repository's
+prepared host environment: `HOME`, supplied `CI` and locale values, cache
+locations, Node options and repository configuration survive the launcher-to-host
+server handoff and runtime composition. The public CLI bootstrap preserves Node
+options, compile-cache settings and temporary-directory settings too. Absent
+values remain absent. The existing
+credential/posture deny policy removes secret carriers and coordinator authority;
+Node's parent test-runner context is also withheld. There is no test environment
+allowlist. Prepared `PATH` keeps its order and every component, including
+relative and empty entries; an absent `PATH` stays absent. An explicitly
+configured executable binding adds its required leading directory while keeping
+the prepared suffix intact. Discovery alone never reorders `PATH` or replaces
+repository settings with computed defaults. The selected installation retains
+its actual executable/dependency binding, without imposing confined offline,
+color, locale or cache policy. Explicit environment selection keeps its normal
+routing authority, and invalid selected executables are refused rather than replaced.
+
+`TMPDIR`, `TMP` and `TEMP` retain their prepared values, including empty or
+absent values. A harness may override its own settings. Launcher temporary
+artifacts, observer files, captures and instrumentation remain in its owned
+`/tmp` execution root; that root does not replace the harness's temporary settings. A literal `/tmp` is not a private namespace. Host attempts
+create no replacement home. Cleanup removes only the launcher execution root,
+never the repository's home, caches, dependencies or checkout writes. pnpm reads
+its prepared `PNPM_HOME`, XDG configuration or platform default itself, including
+an explicitly empty value. It selects the repository's package-manager version
+for nested commands too; a missing version keeps pnpm's native error. Execution
+requires no managed cache or package-manager declaration. Confined setup and
+agent sessions retain their separate private homes and read-only dependency
+bindings, including pnpm's existing managed `.tools` subtree.
+
+Prepared cache ownership belongs to the preparation that supplies the selected
+location. A preparation that creates mutable state for another execution user
+must give that user the access the native tool needs at that same location,
+once, so subsequent calls can reuse it. Launcher execution-root cleanup has no
+ownership of those caches. Neither native selection nor harness execution
+changes foreign permissions, substitutes another cache, or retries with an
+empty cache. A native access failure names the actual path and operation in
+the retained diagnostic; a failed selection remains `selection_unresolved`,
+and a harness that ran retains its native exit outcome. The repository or
+image preparation owner must inspect that path and its ancestors as the
+execution user and correct its own preparation. A successful private setup
+probe is insufficient evidence for that correction, and cache creation by the
+launcher must not be inferred from a permission error.
+
+The ecosystems use that shared host boundary differently. Node runners use the
+project's installed module trees, while package-manager and browser caches
+are selected by the repository's commands and prepared environment. Python
+uses the selected virtual environment or installed interpreter; its package
+manager's cache is not the installed dependency environment. Go's module cache
+is distinct from its mutable build cache. Cargo's configured source is distinct
+from its target directory. Deno's selected cache can hold both dependencies
+and generated state. These distinctions do not authorize redirecting any of
+them. Shared environment-preservation tests establish preservation of supplied
+settings and resources; only a test that runs the particular ecosystem
+establishes its native cache behavior.
+Vitest's ordinary native listing and test execution both retain the supplied
+`XDG_DATA_HOME`; a required prepared resource there is available to both
+phases and later calls. Its proof-stage data directory remains part of the
+separate proof instrumentation contract.
+
+The result carries process,
 timeout, cancellation, output-completeness and cleanup facts with the runtime,
 target, harness and exact native command. The result status is `executed` when that
 command ran and `not_run` when it never started (a plan or spawn failure, or
@@ -894,8 +1097,8 @@ their recovery.
 host permissions. They may write to the checkout, Git metadata, dependencies,
 configuration, network-accessible resources and other host-visible paths.
 Writes are not reset or cleaned after a run. A test that changes the checkout
-can move its source; source currentness reports that change and comparison
-eligibility follows the recorded rules. Proof stages that deliberately
+can move its source; source currentness reports that change without withholding
+ordinary parent comparison. Proof stages that deliberately
 transform source operate on their temporary source copy.
 
 **Dependency mapping.** Test execution has one way to make a project's npm
@@ -925,10 +1128,21 @@ the native listing the runner gave.
 
 The runner and the repository's configured harness own test semantics. Which
 tests run, what passes, skips or counts as zero tests, and what is printed are
-theirs; the launcher collects no tests, adds no observer and reads no counts or
-attribution from the output, so the result's success is the native process
-success and nothing more. A native selector is passed in the runner's own
-syntax:
+theirs; the launcher collects no tests and adds no observer. Execution status
+and success come from the native process, never from printed counts or verdicts.
+For diagnosis, the native result owner may extract explicitly framed failed-test
+or runner-failure records. It retains the affected subject, stated cause and
+useful assertion values; error-looking output from a passing test establishes
+no failure cause. This extraction grants no proof credit and changes neither
+selection nor execution outcomes.
+
+The structured diagnosis currently recognizes node:test's terminal spec failure
+section and TAP failure diagnostic blocks. Raw reports and traces remain
+internal. Unsupported framing, ambiguous attribution, incomplete reports and
+capture loss state the diagnostic limitation rather than inventing a cause.
+These semantic facts may accompany an entitled proof-result read without
+granting access to its executor-bound native original. A native selector is
+passed in the runner's own syntax:
 
 | Runner | File selection | Selector |
 | --- | --- | --- |
@@ -961,7 +1175,9 @@ directly followed by its colon), else the first line carrying a common error
 word (both `first_error_line`), else a short stream `whole`, else its `tail`.
 Source text that only constructs an error (`raise TypeError(`,
 `throw new RangeError(`) therefore does not precede the error the command
-stated. The excerpt is cut, never interpreted, and a command that carried no
+stated. Terminal control formatting is removed only for matching; the excerpt,
+offset and byte counts always refer to the original captured text.
+The excerpt is cut, never interpreted, and a command that carried no
 text states `source:"none"`. A selection command that did not succeed refused
 no field of the request, so its answer and its retained `failure` view state
 `correction.changeable:"none"` with no retry seed: the cause is that command's
@@ -1011,6 +1227,10 @@ a directory or a symbolic link is not a match. A pattern that matches no file
 is refused (`ordinary_test_target_no_match`), and one whose expansion reaches a
 file outside the checkout is refused as a whole
 (`ordinary_test_target_invalid`), naming only the pattern.
+An expanded filename is literal from then on, including names containing
+pattern characters such as `tests/[odd.test.mjs`. It is not expanded again;
+the single-file owner still checks spelling, realpath containment and that it
+is a regular file. No public request flag bypasses those checks.
 
 Each matched file then runs as its own single-file run, in order, on the one
 execution budget of the request: its own routing, runtime, harness, native
@@ -1047,45 +1267,124 @@ saved field keeps `test_runtime_test_entrypoints_invalid`.
 
 ### The workspace_run_test route
 
-`workspace_run_test` is the MCP route to one ordinary run, of one file or of the
-files one [glob](#glob-requests) matches, granted to
-authenticated orchestrator, worker and reviewer sessions only. Proof questions
-stay with `verify_proof`; this route never grants proof credit.
+`workspace_run_test` runs one literal repository command once. It is granted to
+ authenticated orchestrator, worker and reviewer sessions. Proof questions stay
+with `verify_proof`; ordinary commands grant no proof credit.
 
-**Repository.** The server resolves one unique repository from trusted host
-configuration. `repo` is neither advertised nor accepted: supplying it, even
-with the matching alias, refuses before source/runtime work. Execution, retries
-and retained reads bind the same repository. A foreign seed or original never
-redirects execution or reading; source authentication remains required. Missing
-or ambiguous host configuration keeps its native resolver refusal.
+**Worker request.** Use `{entrypoint, selection?, timeout?}` from the frozen
+selected assignment. Omit selection only for an explicitly authored default.
+Each selection owns its entire cwd/argv/environment; no caller value is spliced
+into arguments. For a new focus, missing command or changed listed definition,
+use `request_assignment_change`. Acceptance terminates that attempt; revised
+committed definitions require a coordinator-authorized successor. Canonical
+edits and retry handles do not refresh the live grant. Listed definitions are
+checked before execution and observed afterwards; this is host execution and
+claims no immutable inputs, transitive completeness or new sandbox.
 
-**Request.** One strict schema is published and enforced, and a request is
-exactly one of three modes. An execution names `file` (one
-repository-relative file, or one [glob pattern](#glob-requests)) and `runner`, and optionally `environment` (a
-setup-published environment ID), `selector` (one native selector), `timeout`
-(`short`, `medium` (the default), `long` or `{ seconds }`, the shared
-execution-timeout language), `compare_parent` (default `false`) and, for an
-orchestrator, `source`. `read` is `{result, view, failure?}`: one semantic view of a
-retained result, with no byte position or length; `failure` selects one failed
-result of the `failure` view. `retry` is
-`{request, changes?, clear?}`: a new execution of the retained request a
-refusal named, where `changes` sets execution fields to non-null values and
-`clear` is a non-empty list of distinct names from `environment`, `selector`,
-`timeout`, `compare_parent` and `source`; a field is cleared or changed, never
-both, and `file` and `runner` cannot be cleared. The schema is closed: commands,
-arguments, environment variables, roots, roles and binding facts are not
-fields, and an unknown field, a null value or a mix of modes is refused before
-any source or runtime work (`run_test.request_invalid.v1`). File, runner and
-selector rules are the runner's own codes listed above; a refused target never
-starts anything.
+Command inventory is declarative and is not an execution grant. Named npm/pnpm
+scripts, Deno tasks, Python tox/Nox sessions, Make/Just targets and custom
+wrappers can describe literal repository operations. Discovery runs none of
+them and interprets no executable configuration. Existing prepared npm/pnpm
+manager selection remains the installation owner's contract; naming Yarn, Bun,
+mise or another wrapper provisions nothing and grants nothing. Unsupported or
+missing executables retain their specific native/runtime failure.
+
+**Nonworker request.** Orchestrators and reviewers use `harness:{cwd,argv}`,
+optional `environment` and `timeout`. An orchestrator additionally names
+`source`; a reviewer runs only its bound source. The server resolves the unique
+repository from host configuration; requests accept no repository or root.
+Public `file`, `runner` and `selector` execution fields are removed. Internal
+native-file/proof/regression consumers retain their own current contract.
+
+**Read/retry.** `read:{result,view,failure?}` selects one of the eight retained
+native views and executes nothing. `retry:{request,changes?,clear?}` reconstructs
+the effective execution and validates the current schema, role, run binding and
+listed definitions before source/runtime preparation. Missing and symlinked listed
+files retain their original snapshot cause and affected path and, like changed
+definitions, offer an authenticated `request_assignment_change` when that route
+and unused attempt authority are available. Offering the call prepares or spawns
+nothing, submits no request, and does not refresh the frozen grant. Removed execution seeds
+refuse without translation. Workers may change only entrypoint, selection and
+timeout, clearing only selection/timeout; other roles retain their harness
+modifiers. No refused executable control is stripped into a runnable worker
+retry. Timeout uses `short`, `medium` (default), `long` or `{seconds}`, sharing
+one total budget across candidate and comparison. Unknown/hybrid fields refuse
+with `run_test.request_invalid.v1` before preparation.
+
+**Repository harness (orchestrator/reviewer).** The complete repository command owns its invocation:
+
+```json
+{
+  "harness": {
+    "cwd": "packages/palette-editor",
+    "argv": ["npm", "run", "test:unit", "--", "--run", "test/unit/modules/color-picker.spec.ts"]
+  },
+  "environment": "npm@.",
+  "source": {"kind": "current_main"}
+}
+```
+
+`cwd` is a repository-relative directory inside the authenticated checkout;
+`.` is valid. Missing directories, files used as directories, lexical escapes
+and directories resolving outside the checkout refuse before invocation with
+`ordinary_test_harness_invalid`. `argv` is the executable followed by literal
+arguments, including empty arguments, spaces, glob characters and punctuation.
+There is no implicit shell. The repository script or wrapper owns configuration,
+setup, package-manager lifecycle hooks and selection. The tool neither inspects
+script bodies nor guesses a config, appends flags, expands a suite into per-file
+runs, or infers test counts or exact-selection guarantees. No framework name or
+catalog entry is required. Internal native proof/regression consumers retain their own semantics.
+
+For whole-suite intent, inspect the repository's scripts and test configuration
+and invoke its existing suite command(s) with `harness:{cwd,argv}` and an
+explicit final-candidate `source`. Preserve cwd, configuration, setup/hooks and
+configured selection, including separately configured subprojects and suites.
+A script named `test` alone does not establish repository-wide coverage. Do not
+replace scripts with bare runners, guess filename suffixes or add narrowing file
+filters to whole-suite commands. Previously observed tests must be accounted for
+in the final coverage claim. If the complete selection cannot be established or
+executed, report incomplete coverage. Workers use authored finite focus selections; a new focus needs an assignment change. Neither a focus nor a command named test establishes suite coverage.
+
+Environment resolution and dependency projection are independent of command cwd:
+`npm@.` selects the root installation while this command runs in `packages/palette-editor`.
+An explicitly named environment goes through the existing environment owner,
+without requiring setup history or a recognized framework. Without `environment`,
+the unambiguous environment at the deepest containing installation root is used;
+ambiguity refuses with the owner's valid choices. A directory with no containing
+dependency environment runs as a host command without dependency projection.
+An explicit unknown environment is never replaced by another environment or host
+execution. Runtime observations report the inputs actually resolved for that run.
+
+Multiple ecosystems may own the same workspace directory. Correct workspace
+discovery preserves that ambiguity: a literal executable such as `deno` in argv
+does not select an ecosystem. Select the environment in the saved worker command
+or, for a nonworker, in the harness request.
+
+Harnesses use the same authenticated sources, host executor, process cleanup,
+shared timeout, automatic parent comparison and retained-result owners as file
+execution. An eligible failure executes the identical specification once in the
+authenticated parent checkout, resolving cwd there on the remaining
+budget. Source movement is diagnostic. An unavailable parent preserves the
+candidate result. A failed spawn (including a negative close errno from Node)
+is not an executed test; an executed script's nonzero exit, setup error or
+assertion failure keeps its actual status and diagnostics. No browser is installed
+or substituted by execution: browser-mode scripts require their own usable browser.
+The prepared `HOME` and repository configuration reach the real harness, so
+its normal browser lookup can use the browser that project setup prepared.
+Browser lookup failure identifies the path the runner tried, not whether a
+browser exists elsewhere. The repository's own configuration and harness remain
+responsible for browser selection and setup.
+
+The retained outcome's `request.harness` is serialized JSON of the original
+specification, fitted with explicit omitted bytes on bounded reads; the complete
+request and native invocation remain retained. Each response, including failures
+and reads after restart, stays within 1,024 UTF-8 bytes. Reads never rerun tests.
 
 **Source.** A worker runs its launcher-bound slice checkout, live uncommitted
 edits included, authenticated through its verified identity-store slice binding
 and the exact WK/slice binding pair of its run. A reviewer runs its frozen review
-materialization. Neither may name a source: the refusal
-(`run_test.source_not_permitted.v1`) returns one `retry` of the retained
-request with `clear:["source"]`. The source is never dropped automatically;
-that call runs only when the caller invokes it.
+materialization. Neither may name a source: the role-specific closed schema refuses it with
+`run_test.request_invalid.v1` and offers no sanitized executable retry.
 An orchestrator must name its source; an execution without one is refused
 before anything is resolved or run (`run_test.source_required.v1`) with
 `missing_fields` and `source_kinds`, and one `retry` whose `changes.source`
@@ -1158,13 +1457,9 @@ one no checkout holds. A publication head is such a commit until an owner
 materializes it; the integrated commit or the terminal candidate is never run
 in its place, even when their trees agree.
 
-**Execution scope.** The file locates the runner's normal unit, so neighboring
-tests the harness selects run too; the answer promises no file-only execution,
-reports no test counts and parses nothing. A glob is expanded once, by the
-source owner, in the checkout it authenticated; those files are the ones that
-run, the source observation leaves out what each of their prepared runtimes
-re-proves, and each distinct runtime they used is observed again after the run
-through one of those literal files. One monotonic execution budget is
+**Execution scope.** The repository command owns test selection, including
+neighboring tests, hooks and setup. No test counts or file-only execution are
+inferred. One monotonic execution budget is
 minted from the timeout after input validation and before any source or runtime
 work; the MCP request's cancellation is its only cancellation. Source
 currentness is checked after each run: the checkout's execution-visible bytes
@@ -1203,232 +1498,184 @@ bytes at the initial observation, so two dirty states of one HEAD are distinct
 sources; it identifies the checkout bytes with the exclusions above, not the
 prepared runtime. A moved source is the later observation and is reported
 (`source.current:false` with `source.moved`).
+If the later source observation throws, the completed native result and initial
+identity remain retained. The answer states `source.current:null` and
+`source.observation:"unknown"`; its returned `source` read preserves the
+observation's `status:"unknown"`, stage, code, message and detail. Unknown
+currentness is neither unchanged nor a demonstrated source change, and remains
+diagnostic for comparison eligibility.
 
-**Comparison.** With `compare_parent:true`, the same request runs at most once
-more, on the same budget, only when the candidate's final test command ran and
+**Comparison.** An eligible failing candidate automatically runs the same request
+at most once more, on the same budget, when the candidate's final test command ran and
 exited normally with a nonzero code (an assertion failure and a harness
 configuration failure alike). A succeeding, refused, unresolved, not-run,
 signal-terminated, timed-out or cancelled candidate, lost captured output, an
-unconfirmed cleanup, a moved source and an expired budget each make the
-comparison `not_eligible` with that reason. The baseline is the candidate's own
+unconfirmed cleanup and an expired budget each make the comparison `not_eligible`
+with that reason. Source currentness is diagnostic: observed source movement
+during the candidate run does not prevent comparison, whether a test writes a
+generated file or changes source code. The observation reports changed bytes
+without identifying which files changed. The baseline is the candidate's own
 HEAD when it carries uncommitted edits and otherwise its one immediate parent; a
 worker's uncommitted edits at its slice's recorded start compare with its WK
-worktree at that start, never with the WK's older fork. Only an already-owned
-clean materialization serves, selected by the same exact-commit lookup with the
-candidate's own checkout excluded (for a worker, its own pair's WK worktree): a
-dirty, moved, missing or merge-parent baseline makes the comparison
-`unavailable` with its reason, and no older ancestor is searched. The baseline
-runs with its own checkout's saved entrypoint associations and runtime, and its
-outcome is reported beside the candidate's, never in its place; nothing infers
-a cause. A glob request is compared by the same rule applied to every matched
-file: all were attempted, at least one exited normally with a nonzero code and
-none is ineligible for another reason. The baseline then runs the same pattern,
-expanded in its own checkout, so the two file sets may differ.
+worktree at that start, never with the WK's older fork. A clean committed worker
+at its recorded start also compares with its immediate parent. An eligible
+already-owned checkout at the exact baseline HEAD is reused, with the candidate's
+own checkout excluded (for a worker, its own authenticated pair's WK worktree).
+Ordinary comparison
+uses the existing ownership, repository-membership and canonical path selection
+rules, accepting both clean and dirty checkouts. It executes the parent's actual
+bytes, including tracked edits and untracked or generated inputs, without
+repairing the checkout or selecting a clean substitute. Dirtiness is diagnostic,
+never an execution veto. For a committed candidate without an eligible existing
+parent checkout, the existing immutable exact-commit owner verifies and
+materializes that exact parent in a private detached checkout under the
+launcher-owned worktree root. This includes launcher metadata commits; neither
+application-tree equality nor another checkout's HEAD substitutes for `HEAD~1`.
+Preparation consumes the same remaining execution budget, and the same request
+and runtime owners execute there. Active checkouts, their edits, indexes and
+refs are never moved or reset. The private checkout is released after native
+execution and currentness observation, including refusal, interruption and
+execution failure; partial preparation is also cleaned up. Cleanup remains
+permitted after cancellation or budget expiry. Uncommitted candidates retain
+the existing-checkout requirement and its specific unavailability reasons.
+An unreadable, root or merge candidate has no permitted parent comparison;
+no older ancestor is searched. Exact-SHA and branch source selection remain clean-only.
 
-**Response limit.** Every response, refusals and reads
-included, is at most 1,024 UTF-8 bytes as the response owner measures it. The
-mandatory frame is the status, `proof_credit:false`, the candidate commit and
-initial snapshot digest, the run's exit, interruption, cleanup and capture
-facts, source currentness, the comparison state and one next call. The message,
-the failed phase's `cause`, the baseline facts and the native stdout and stderr
-of both sides share what remains and are shown when they fit: each stream shows
-its captured tail at a character boundary with `omitted_bytes`,
-`output_complete:false` marks any clipping and `native_output_only:true` marks
-that the output was neither parsed nor examined. What does not fit stays in
-the retained result; no call pages through it. The one part of a failed run's
-output a read reaches beyond the tail is its failure diagnostic, which the
-server selects (see **Failure cause**).
+A comparison establishes outcomes for its two observed sources. It does not
+establish that a failure predates the task: the immediate parent may already
+contain a regression introduced by an earlier change in the same task. A matching
+parent failure is not sufficient evidence to remove a known task-introduced
+failure from repair scope. Interpret source identities and actual failure evidence
+together; report attribution as unresolved when that evidence is insufficient.
+This is a comparison limitation, not a requirement to execute another baseline.
 
-A glob answers with `glob` (`matched`, `ran`, `failed` and `not_run` files,
-`covered` when any, and `stopped` with its reason) and the native facts of one
-matched file, named as `file` with its `file_status`: the first that did not
-pass, else the first. When the request stopped on an unconfirmed completion,
-that file is the one shown, with `run.executed:"unknown"`, its cause and its
-recovery, and it is not counted in `not_run`. `status` and `ok` are the
-request's, `output_complete`
-is `false`, and the matched files are never listed: the checkout shows what a
-pattern matches.
+The baseline runs the same literal command with its own checkout and runtime.
+For a worker, listed definitions must match a frozen launch-start, launch-parent
+or explicitly approved additional historical identity; unapproved definitions
+make comparison unavailable without discarding the candidate. A definition refusal
+before baseline launch reports `baseline_definition_authorization_failed`, with
+failure stage `baseline_definition_authorization` and the original specific code.
+The baseline does not execute, and its acquired checkout still follows owned cleanup. Its initial `dirty` observation, byte snapshot digest and post-run
+currentness are retained in the `comparison` view; compact baseline facts also
+carry `dirty` when those facts fit the response limit. A dirty parent can remain
+current, and a test that changes its bytes makes it non-current without altering
+either native outcome. Its outcome is reported beside the candidate's, never
+in its place; nothing infers a cause. An exception resolving the baseline or executing it leaves the completed
+candidate intact and reports comparison `unavailable`, with reason
+`baseline_resolution_failed` (including parent preparation) or
+`baseline_execution_failed`. Private checkout release failure reports
+`baseline_cleanup_failed`; both completed native results remain retained.
+If execution and release both fail, execution remains the primary failure and
+its detail also retains `cleanup_failure`. The comparison
+read retains the actual failure's stage, code, message and detail. A thrown
+baseline execution has no completed native outcome: its initial commit, dirty
+state and snapshot identity remain when resolved, its result is unknown, and
+the failure view states `baseline_executed:"unknown"`. A baseline that completed
+with a nonzero native exit remains an `attempted` comparison with that exit.
+If only baseline currentness observation throws after completion, both native
+results remain retained, and the comparison read states baseline
+`current:null` with the unknown observation and its cause. None of these
+failures reruns a completed test or substitutes another source.
 
-**Failure cause.** The phase that failed keeps the cause it captured, as
-`cause` with its `phase` and `source`. An unresolved selection
-(`phase:"selection"`) shows its command's `detail.diagnostic`; the same
-diagnostic is in the retained `failure` view's `detail`, and the answer names
-that view, never a test stream that was not attempted. A final command that
-never started (`not_run`) shows its `blocker_message` (else its `spawn_error`
-text), which is also the retained `failure` view's `message`, and the answer
-names that view. An `unconfirmed` final command does the same and adds
-`run.executed:"unknown"` and its `recovery`, as
-[Host execution](test-proof-execution.md#host-execution) defines. A final command that ran and failed shows a literal excerpt
-only when the shown tail of its own stream does not reach it: at most 256
-bytes of the candidate's stderr, else stdout, from the first line stating an
-error (an error or exception name, with its bracketed code when it has one,
-followed by its colon), else the first line that ends with an error name or
-carries a common failure word (`error:`, `panic`, `FAIL`, `FAILED`, `fatal`) or
-failure mark (`✘`, `✗`, `✖`, `✕`), with the retained `view` (`candidate_stderr` or
-`candidate_stdout`) and byte `offset` it starts at in that retained capture.
-A line a runner printed for a test that passed (its pass mark first, or its
-passing verdict last) is never where the excerpt starts, whatever its title
-says, and neither is source that only constructs an error (`raise TypeError(`,
-`throw new RangeError(`). A runner that lists every test's result before it
-prints what failed (AVA, Jest, verbose pytest, Cargo) puts other tests' result
-lines between a failed test's result line and its assertion. Where such
-result lines follow the first failed result, the excerpt starts at the first
-line after that list, which is where the runner prints the first failed
-assertion, unless an error is stated earlier. These rules only choose where the excerpt is cut;
-nothing is parsed per runner, and a failed run in whose output no such line is
-found shows no `cause` and keeps its stream tails. The baseline's output is never a cause. `text` is the
-captured text, `omitted_bytes` states what of it was clipped, and
-`source:"none"` states that the phase captured no diagnostic. The cause is
-fitted before the stream tails, and the stream text, the baseline facts and
-then the optional facts (`source.dirty`, the runtime observation's detail and
-the `correction`, which the retained `failure` view keeps) give way until its
-first line shows whole. It changes no outcome, comparison or retention.
+**Task-facing answers.** A successful command returns `ok:true` and an optional
+`outcome` read call marked `recommended:false`. This finishes the testing step;
+the caller continues its assigned work without inspecting successful output or
+running another clean check merely because a reader is available. A material
+source/runtime observation or retention limitation accompanies the actual
+outcome, without changing it. No test count, exact harness selection or proof
+credit is inferred from command success.
 
-**Failure diagnostic.** The retained `failure` view of a final command that ran
-and did not pass carries `diagnostic`: the default cause excerpt, selected by the
-server from the retained capture and as wide as one response allows (up to
-1,024 bytes, shown from its first line with what does not fit counted under
-`omitted_bytes`), with `identified:true`, the retained `view` it was cut from,
-the byte `offset` it starts at and that stream's `total_bytes`. When the shown
-tail of the answer does not reach the failure line, the answer's `next_calls`
-names the `failure` view first, and that read names the stream it was cut from
-next: the failed assertion and its diagnostic are read from returned calls,
-with no byte position, no second execution and no debug output added by the
-caller. If the default cause's stream contains no failed result lines but the
-other captured stream does, the diagnostic and its failed-result selections
-use that other stream, starting at its first failed result's diagnostic.
-The initial cause keeps its existing stream preference; streams are never merged.
-A failed run in whose output no failure line is identified states
-`identified:false` and its tails are what the reads return; a run that passed,
-was refused or never ran has `diagnostic:null`. This is one server-selected
-excerpt for failure diagnosis: it does not page. It starts at the first failed
-assertion and continues into the following ones as far as one response
-allows; output between the excerpt and the tail stays unread, and a later
-failure there is read by selecting it, as follows.
+A failure leads with the captured test/configuration cause, launch blocker or
+interruption and the effects that change the next action. Native test failure
+remains distinct from timeout, cancellation, signal termination, never-started
+execution and an unconfirmed driver completion. Unconfirmed completion states
+that tests may have executed and preserves the executor's recovery; printed
+passing output establishes no completion. Comparison or observation limitations
+never displace an already-established candidate failure. Correct the reported
+problem within scope before explicitly running the relevant check again.
 
-**Selecting a failed result.** An identified diagnostic states `failures`, the
-number of distinct failed result lines in the stream it was cut from: lines
-carrying a failure mark or a `FAIL`/`FAILED` verdict that are not passing
-lines. Identical trimmed lines count once; bare `FAIL`/`FAILED` verdicts and
-marked lines ending in a colon (summary headings) do not count. Content-bearing
-package, file and result summaries may still count: these are distinct-line
-counts, without extraction or deduplication by test identity. A read of the
-`failure` view may name one of them, `read:{result, view:"failure",
-failure:<n>}` (1 is the first): its `diagnostic` is then that failed result's
-own excerpt from the same retained capture, with `failure`, `failures`,
-`view`, `offset` and `total_bytes`, within the same response limit. A result
-whose output follows its result line starts at that line. A result listed
-among other results starts where the runner printed its name again after the
-list (the line whose words are found whole in the result line, earliest in it
-and then longest) with diagnostic material following it, else at its result line.
-A name-only summary followed only by results or names is no useful diagnostic heading.
-While a further failed result
-exists, the `failure` read returns its exact call first
-(`reason:"next_failed_result"`) and the next view second; the caller follows
-returned calls and never computes a position, and nothing is executed again. A
-number the retained output does not hold answers `identified:false` with
-`failures`. `failure` is accepted in the `failure` view only.
-Clipping is presentation only and does not prevent a comparison;
-`run.output_lost` is the executor's own capture loss, which does. A test's
-success grants no proof, lifecycle or integration credit.
+**Output and detail.** Every response, including refusals and reads, remains
+within the existing 1,024 UTF-8 byte whole-response bound. Only this tool may
+return native captured stdout/stderr under the operator's exception, totaling
+at most 1,024 UTF-8 bytes per response across both sides, streams, diagnostics
+and repeated captured context. The ceiling is not a target. Successful streams
+and unrelated tails are not returned automatically. A failed phase's captured
+diagnosis is preferred over wrapper verdicts, passing test names and bookkeeping.
+A diagnosis is captured text, not proof of causality or a test-count oracle.
+When a failed result is indexed, its selected block takes precedence over an
+unscoped error printed before it or by a passing test in another stream.
+If no indexed failure attributes the captured error to a failed result,
+`attributed:false` marks that evidence limit. A nonzero exit alone cannot prove
+that a passing test's printed error caused the failure.
 
-**Retained reads.** The complete settled result is retained once through the
-selected-response owner, bound to the server-resolved caller identity, and
-protected from the generic content-reference reader, which refuses it with this
-route's own call. It has eight views. `outcome` (the execution flags, the
-request and the complete native result with its selected population), `source`
-(the initial identity and currentness), `comparison` (both identities, both
-outcomes and the eligibility) and `failure` (the complete original cause, its
-recovery, the execution effects and the retained correction of a refused
-request) are structured; `candidate_stdout`,
-`candidate_stderr`, `baseline_stdout` and `baseline_stderr` are the streams. An
-answer's `next_calls` names the first clipped stream, otherwise the `failure`
-view of a refusal, otherwise `outcome`. A `read` returns its one view within
-the limit and takes no byte position. A structured view states its facts: a
-string longer than 64 bytes is shown from its start with its omitted bytes
-counted under `omitted_bytes`, null facts are left out when the view does not
-otherwise fit (`omitted_facts`), and the complete native result is stated by
-its size (`native: {retained, bytes}`), never returned. A stream reads as
-`state:"captured"` with `total_bytes`, the captured tail as `text`, its
-`omitted_bytes` and `partial`; one never attempted reads as
-`state:"not_attempted"` and one captured empty as `state:"empty"`. Reading
-again returns the same answer, and no call reaches what a stream read omits
-except the `failure` view's server-selected `diagnostic` and the failed
-result a `failure` read selects. In the `failure`
-view the message, the owner's `action` and the `diagnostic` are fitted first,
-the deciding `mismatch` next and the serialized `detail` and `recovery` last,
-so a long detail never hides the cause or its correction. Each read
-returns the read of the next view, in the order above and wrapping, so every
-view is reachable from returned calls alone. The one exception is the
-`failure` view, which names the next view that was attempted: a refusal, an
-unresolved selection, a failure thrown before the run and a final command that
-never started attempted no stream, so their cause names `outcome` instead of
-streams that were never attempted, which still read by name. Nothing is read
-automatically. A read
-authenticates the original and selects from it: it resolves no source, prepares
-no runtime, runs nothing and changes no lifecycle state, works after a server
-restart for the same caller, and refuses another caller, a missing or corrupt
-source and a correction seed with the selected-response owner's own cause. See
-[Selected-response details](mcp-selected-response-details.md).
+Copy returned `workspace_run_test({read:{result,view,...}})` calls for a needed
+question. `outcome` states execution and the effective timeout; it supplies
+optional source, comparison, diagnosis and candidate stream selections.
+`source` supplies the selected commit/branch and relevant currentness.
+`comparison` supplies both source outcomes and available baseline stream reads.
+`failure` supplies the original cause, actual effects, supported recovery and
+server-selected diagnosis. A further independent failed-result diagnosis may
+have its own returned `failure` selection. Before fitting an excerpt, the task
+projection examines that failure's captured block for explicitly labeled
+corrections, causes and expected/actual values, keeping their exact words beside
+its headline. Playwright locator and expected/received string facts and explicit
+browser startup failures are retained while launcher arguments, process IDs and
+stack noise are excluded. Long context and stack output cannot displace those corrections;
+another failure's correction is not
+part of the selected diagnosis. Source-authentication failures preserve their
+structured source, commit, owning unit and required inspection condition through
+the public failure read. A count of omitted bytes does not establish that a
+diagnosis is sufficient. None of these reads exposes internal
+native carriers, their sizes, source digests, capture offsets or authentication
+mechanics. Full native facts remain available to their existing server-side
+proof/regression consumers.
+An exact selected diagnosis carries its selection, without inventorying other
+failures. Unavailable selections retain the valid diagnostic extent needed to
+correct that choice. Refusal classification remains server-owned.
 
-**Corrections and failures.** Every refusal the route authors states
-`authority_limb:"mechanical_failure"`. A caller-correctable refusal of a valid
-request from an authenticated role retains that request's execution fields as
-a correction seed and returns the exact `retry`: the source refusals above, and
-a runner's own refusal of the request (its `ordinary_test_*` codes), which adds
-`correction.retry_request` and the fields that may change beside the read of
-its `failure` view. Whether a request change corrects a native refusal is the
-runner owner's own account of that refusal (`ordinaryRequestCorrection`), from
-the refusal's facts and not from its code prefix. A refusal whose owner must
-repair something outside the request (a toolchain that is not installed, a
-runner package the project lacks, a dependency layout
-that conflicts with the selected installation, an invalid saved
-configuration) and a selection command that itself failed are not
-caller-correctable: each states `correction.changeable:"none"`, retains no
-seed and returns no retry (the retained `failure` view always states it; in
-the answer it is an optional fact that gives way to the action and the
-message). Such a refusal states the correction its owner
-supports, in that owner's words, as `action` (the dependency mapping's
-`correction`, the missing-source `action.statement`, or the readiness
-recovery's `statement`): at most 256 bytes fitted before the message in the
-answer, with `action_omitted_bytes` when longer, and whole in the retained
-`failure` view, which also carries the owner's `mismatch` apart from the
-serialized `detail`. The answer and the retained read state the same code,
-cause, action and correction, after a restart included.
-`test_runtime_runner_not_prepared` permits explicit correction of `file` or
-`runner` through the retained retry seed (`changeable:"file, runner"`). The
-same refusal also covers an undeclared project, so its owner's setup `action`
-remains alongside this optional request correction, including in retained reads
-after restart. No runner is guessed, selected or offered as a new choice;
-dependency conflicts and missing toolchains still offer no request retry.
-A refused environment
-(`test_runtime_environment_unknown`, `test_runtime_environment_incompatible`)
-is caller-correctable with a closed choice: its `correction` states
-`changeable:"environment"`, `set:"retry.changes.environment"`, the `rejected`
-environment and `choices`, the routing owner's own `valid_choices` for the
-file (`none` when it found no environment that can run it). The caller picks
-one and sends the `retry` with that `changes.environment`; no environment is
-chosen for the caller. An unknown
-runner (`ordinary_test_runner_unknown`) is such a refusal with a closed choice:
-its `correction` also states `set:"retry.changes.runner"`, the `rejected`
-runner and `choices`, the runner catalog's names. The caller picks one and
-sends the `retry` of `retry_request` with that `changes.runner`; no retry is
-returned for a runner nobody chose, nothing is matched or selected for the
-caller, and nothing runs until that retry. The same correction is kept in the
-retained `failure` view, so a later read, after a restart included, still
-states it. A retry
-applies its `clear` and `changes` to the authenticated seed, passes the same
-schema and the same source checks again, and is a new run with its own result.
-A failure after authentication states its cause within the limit; when any of
-it is clipped, the cause is retained and its `failure` read is
-returned. When a seed cannot be retained, the refusal says `executed:false`,
-`correction_seed:"unavailable"`, the failed operation and cause code, the
-unavailable capability and its owner, and `repair_call:"none"`; it returns no
-seed and no call, and the caller resubmits its original request with the stated
-correction once retention is restored. When a settled result cannot be
-retained, the answer keeps the actual run facts and source, adds `retention`
-with the same facts, and returns no read call; a later execution is a new run,
-never a recovery of that output.
+A stream selection returns one bounded captured excerpt, or explicitly states
+`empty` versus `not_attempted`. Clipping is stated with omitted UTF-8 bytes and
+is distinct from executor capture loss. Repeating a selection returns the same
+excerpt. There are no byte positions, pagination, reconstruction instructions,
+fixed view tours or circular continuations. Stop when the question is answered.
+Reads authenticate the same historical original, including after restart,
+execute nothing and do not replace it with the current checkout's result.
+`get_run_result` may enter the native outcome reader when that route is offered;
+it grants no raw-output exception to that or any other tool.
+
+**Selection correction.** An unknown entrypoint or selection, or an omitted
+selection without an authored default, states the specific refusal and relevant
+permitted command calls. Command purpose distinguishes choices; caller timeout
+is preserved. Several permitted calls remain a caller choice. These input
+mistakes never propose terminal assignment change. If the complete menu cannot
+fit, a registered assignment reader supplies the existing frozen guidance route;
+if that reader is unavailable the refusal states the precise stopping condition
+instead of erasing the selection error with a presentation overflow. Reading
+assignment guidance does not authorize a command absent from the frozen grant.
+
+A genuinely missing command or moved/unavailable listed definition may offer
+`request_assignment_change` through the existing authenticated completion owner.
+Its acceptance ends the worker attempt. The caller must confirm facts and
+supply truthful completed/remaining-work testimony before submitting the proposal;
+empty arrays in a proposal are incomplete testimony, not a claim that no work
+exists. Offering a proposal submits nothing and changes no frozen grant.
+
+**Explicit retries and unavailable recovery.** A returned correction seed is
+not a native-result reference. A caller-chosen `retry` of that seed revalidates
+the effective request, current schema, role/session and frozen command definitions
+before a new execution. Reads never retry; a failed command or interruption
+creates no general rerun seed. Nonworker harness/environment choices stay with
+the caller. A worker cannot override assignment-owned executable controls or
+refresh its grant by editing a canonical record. Do not strip rejected fields
+into a runnable request or substitute a different source.
+
+A prerequisite without a supported correction retains its specific cause and
+stopping condition. An oversized native environment menu currently has no
+bounded environment-choice reader; it states that limitation rather than
+advertising pages or selecting an environment. Retention failure preserves the
+actual settled outcome or truthful pre-execution refusal, names the unavailable
+capability/cause, and issues no fabricated locator. A later execution is a new
+run, not recovery of output that could not be retained.
 
 ## Coding workers
 

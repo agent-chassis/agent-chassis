@@ -1,5 +1,9 @@
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { observeSidecarRefreshWorker } from "./sidecar-refresh-process.mjs";
+import { projectFailureDiagnosis } from "./diagnostic-projection.mjs";
+
+export { SidecarRefreshError } from "./sidecar-refresh-process.mjs";
 
 export const SIDECAR_REFRESH_MAX_RUNNING = 2;
 export const SIDECAR_REFRESH_MAX_QUEUED = 8;
@@ -11,44 +15,13 @@ export const SIDECAR_REFRESH_STATES = Object.freeze(["idle", "queued", "running"
   "rejected"]);
 
 const WORKER_PATH = fileURLToPath(new URL("./sidecar-refresh-worker.mjs", import.meta.url));
-const MESSAGE_LIMIT = 500;
-
-export class SidecarRefreshError extends Error {
-  constructor(message, { code, details = {} } = {}) {
-    super(message);
-    this.name = "SidecarRefreshError";
-    this.code = code;
-    this.details = details;
-  }
-}
 
 export function launchSidecarRefreshWorker({ repoRoot, cacheDir }) {
   const child = fork(WORKER_PATH, [], { execArgv: [], env: process.env,
-    stdio: ["ignore", "ignore", "ignore", "ipc"] });
-  let settled = false;
-  const done = new Promise((resolve, reject) => {
-    const settle = (action, value) => {
-      if (settled) return;
-      settled = true;
-      action(value);
-    };
-    child.once("message", (message) => {
-      if (message?.type === "completed") return settle(resolve, message);
-      return settle(reject, new SidecarRefreshError(
-        String(message?.message ?? "the refresh worker reported a failure").slice(0, MESSAGE_LIMIT),
-        { code: typeof message?.code === "string" ? message.code : "sidecar_refresh_failed",
-          details: { cause_code: message?.cause_code ?? null,
-            publication_outcome: message?.publication_outcome ?? null } }));
-    });
-    child.once("error", (error) => settle(reject, new SidecarRefreshError(
-      `the refresh worker could not be started: ${String(error?.message ?? error).slice(0, MESSAGE_LIMIT)}`,
-      { code: "sidecar_refresh_worker_unavailable" })));
-    child.once("exit", (exitCode, signal) => settle(reject, new SidecarRefreshError(
-      `the refresh worker exited before reporting an outcome (${signal ?? `exit code ${exitCode}`})`,
-      { code: "sidecar_refresh_worker_exited", details: { exit_code: exitCode, signal } })));
-  });
-  child.send({ dir: repoRoot, cacheDir });
-  return { done, pid: child.pid, terminate: () => { child.kill("SIGTERM"); } };
+    stdio: ["ignore", "pipe", "pipe", "ipc"] });
+  const worker = observeSidecarRefreshWorker(child);
+  worker.send({ dir: repoRoot, cacheDir });
+  return worker;
 }
 
 function samePublication(left, right) {
@@ -95,7 +68,8 @@ export function createSidecarRefreshCoordinator({
     entry.finished_at = now();
     if (outcome.ok) {
       entry.state = "completed";
-      entry.result = { action: outcome.value.action ?? null, publication: { ...outcome.value.publication } };
+      entry.result = { action: outcome.value.action ?? null, publication: { ...outcome.value.publication },
+        worker_exit: outcome.value.worker_exit ?? null };
       entry.verified = { ...outcome.value.publication };
       entry.failure = null;
       entry.consecutive_failures = 0;
@@ -105,9 +79,12 @@ export function createSidecarRefreshCoordinator({
       entry.state = "failed";
       entry.consecutive_failures += 1;
       entry.failure = { code: typeof error?.code === "string" ? error.code : "sidecar_refresh_failed",
-        message: String(error?.message ?? error).slice(0, MESSAGE_LIMIT),
-        ...(error?.details && Object.keys(error.details).length > 0
-          ? { details: structuredClone(error.details) } : {}) };
+        message: projectFailureDiagnosis(error).message,
+        diagnosis: projectFailureDiagnosis(error),
+        ...(error?.details ? { details: Object.fromEntries(Object.entries(error.details)
+          .filter(([key]) => key !== "diagnostics")) } : {}),
+        subject: { repository: entry.repoRoot, cache: entry.cacheDir, target_commit: entry.target_commit },
+        correction: "Correct the reported repository, cache or worker failure before retrying; publication_outcome states the known effects." };
       entry.retry_not_before = entry.finished_at +
         Math.min(retryBaseMs * 2 ** (entry.consecutive_failures - 1), retryMaxMs);
     }
