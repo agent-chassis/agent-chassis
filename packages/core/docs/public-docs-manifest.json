@@ -2,7 +2,7 @@
   "schema_version": "public-docs-manifest.v1",
   "package": {
     "name": "@agent-chassis/core",
-    "version": "0.12.0"
+    "version": "0.12.2"
   },
   "entry_count": 127,
   "available_count": 119,
@@ -886,8 +886,8 @@
       "bundle_path": "docs/tool-discovery-schema.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "ebcc54ed03a4d8832a93aac5a7884eb02d9be16b679d8ed5d5a5b0cd2a55d1bb",
-      "bytes": 28530
+      "sha256": "8e859a91bf5064f4d22ec91af2fdde1f6da326b66494876dd7bd37b2851b7acf",
+      "bytes": 28964
     },
     {
       "logical_path": "docs/tool-discovery-surfaces.md",

@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/agent-launch-cli",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -24,10 +24,10 @@
     "./src/*": "./src/*"
   },
   "dependencies": {
-    "@agent-chassis/agent-launch-core": "^0.12.1",
-    "@agent-chassis/controlled-contract": "^0.12.1",
-    "@agent-chassis/wiki-core": "^0.12.1",
-    "@agent-chassis/wiki-mcp": "^0.12.1",
+    "@agent-chassis/agent-launch-core": "^0.12.2",
+    "@agent-chassis/controlled-contract": "^0.12.2",
+    "@agent-chassis/wiki-core": "^0.12.2",
+    "@agent-chassis/wiki-mcp": "^0.12.2",
     "@vscode/tree-sitter-wasm": "0.3.1",
     "smol-toml": "1.9.1",
     "web-tree-sitter": "0.26.9",
@@ -37,6 +37,6 @@
     "node": ">=24.20.0"
   },
   "peerDependencies": {
-    "@agent-chassis/wiki-mcp": "^0.12.1"
+    "@agent-chassis/wiki-mcp": "^0.12.2"
   }
 }

@@ -226,6 +226,13 @@ repository-local `internal/` and `wiki/` trees are never published — in which
 case the manifest records it as unavailable with a reason and the runtime omits
 it instead of advertising a reference no session can read.
 
+Public snapshot finalization derives the manifest's package name and version
+from the snapshot's core `package.json` and recomputes document digests after
+scrubbing. Publishing disables lifecycle scripts, so this finalization must
+produce the complete installed manifest. Consumer verification runs
+`agent-launch orchestrator --help` to exercise documentation-carrier startup;
+top-level launcher help does not validate that carrier.
+
 ### Package-Document Read Diagnostics
 
 Every failure on this boundary is a stable typed identity. Nothing degrades into

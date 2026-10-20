@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/controlled-contract",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "type": "module",
   "license": "Elastic-2.0",
   "repository": {
